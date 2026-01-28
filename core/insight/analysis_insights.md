@@ -2556,8 +2556,26 @@ if adherence_risk > 0.7:
 | **Causal Inference** | Causal Graphs + Do-Calculus | Causal understanding | P1 | 4-6 недель |
 | **Martingale Posterior** | Online Learning + Fast Inference | Real-time adaptation | P1 | 4-6 недель |
 
-**Общее время (параллельная работа):** 12-16 недель (3-4 месяца)
+**Общее время (end-to-end, параллельно + интеграция):** 16-24 недели (4-6 месяцев) при 4-6 FTE
 **Общий приоритет:** P0-P1 (Critical to High)
+
+### Timing Assumptions
+
+- **Ресурсы:** 4-6 FTE (реалистично: 2-3 параллельных R&D трека + 1 трек на интеграцию/infra/QA).
+- **Оценка на компонент (R&D):** 4-6 недель на каждый из: BNN, Probabilistic Programming, Causal Inference, Martingale Posterior, Neural-Symbolic.
+- **Multi-Modal (baseline pipeline):** 8-12 недель (может идти параллельно R&D, но требует ранней фиксации контрактов).
+- **Интеграция (end-to-end):** 2-4 недели (контракты/схемы, общие data/feature pipelines, оркестрация, наблюдаемость).
+- **Тестирование/валидация:** 2-3 недели (offline метрики, регрессии, staged rollout/feature flags).
+- **Пересчитанный итог:** 16-24 недели (4-6 месяцев) с учетом ограничений параллелизации и неизбежной интеграционной итерации.
+
+### Critical Path
+
+- **Недели 1-2:** зафиксировать интерфейсы и зависимости; старт Multi-Modal как "spine" для всех компонентов.
+- **Недели 1-12:** Multi-Modal baseline pipeline (8-12 недель) + подготовка данных/контрактов для интеграции.
+- **Недели 1-6 (параллельно):** BNN + Probabilistic Programming (по 4-6 недель на компонент).
+- **Недели 7-12 (параллельно):** Causal Inference + Martingale Posterior + Neural-Symbolic (по 4-6 недель; при необходимости — 2-й заход).
+- **Недели 13-16:** интеграция BNN/Probabilistic Programming/Causal Inference/Martingale Posterior/Neural-Symbolic в Multi-Modal (2-4 недели).
+- **Недели 17-24:** end-to-end testing/validation (2-3 недели) + стабилизация/итерации до production-ready состояния.
 
 ---
 
