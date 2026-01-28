@@ -40,6 +40,25 @@ def _import_nutrition_core_tdee() -> Callable[..., Any] | None:
     return cast(Callable[..., Any], calc) if callable(calc) else None
 
 
+def _get_candidate_modules() -> tuple[object | None, object | None, object | None]:
+    """Get candidate modules for nutrition callable resolution.
+
+    Returns:
+        Tuple of (pkg, alias, pkg_appmod) where:
+        - pkg: sys.modules.get("app")
+        - alias: sys.modules.get("app_module")
+        - pkg_appmod: getattr(pkg, "app_module", None) if pkg else None
+
+    This function is a seam for tests to patch without touching sys.modules directly.
+    """
+    import sys as _sys
+
+    pkg = _sys.modules.get("app")
+    alias = _sys.modules.get("app_module")
+    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+    return pkg, alias, pkg_appmod
+
+
 def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     """Resolve nutrition calculation callable from module hierarchy.
 
@@ -58,11 +77,7 @@ def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     Raises:
         ImportError: If callable cannot be resolved from any source
     """
-    import sys as _sys
-
-    pkg = _sys.modules.get("app")
-    alias = _sys.modules.get("app_module")
-    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+    pkg, alias, pkg_appmod = _get_candidate_modules()
 
     # Resolution order: app -> app.app_module -> app_module -> nutrition_core
     calc_fn = None

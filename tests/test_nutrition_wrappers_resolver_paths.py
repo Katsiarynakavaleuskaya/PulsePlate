@@ -11,7 +11,6 @@ Covers all resolution branches:
 
 from __future__ import annotations
 
-import sys
 import types
 from unittest.mock import Mock
 
@@ -31,12 +30,11 @@ def test_resolve_prefers_app_over_app_module(monkeypatch: pytest.MonkeyPatch) ->
 
     fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_appmod)
     fake_app = types.SimpleNamespace(calculate_all_bmr=f_app, app_module=fake_appmod)
+    fake_alias = types.SimpleNamespace(calculate_all_bmr=lambda *a, **k: {"mifflin": 3.0})
 
-    monkeypatch.setitem(sys.modules, "app", fake_app)
-    monkeypatch.setitem(
-        sys.modules,
-        "app_module",
-        types.SimpleNamespace(calculate_all_bmr=lambda *a, **k: {"mifflin": 3.0}),
+    # Patch the seam function instead of sys.modules directly
+    monkeypatch.setattr(
+        nw, "_get_candidate_modules", lambda: (fake_app, fake_alias, fake_appmod), raising=True
     )
 
     fn = nw._resolve_nutrition_callable("calculate_all_bmr")
@@ -52,8 +50,10 @@ def test_resolve_falls_back_to_app_module(monkeypatch: pytest.MonkeyPatch) -> No
     fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_appmod)
     fake_app = types.SimpleNamespace(app_module=fake_appmod)  # No calculate_all_bmr on app
 
-    monkeypatch.setitem(sys.modules, "app", fake_app)
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
+    # Patch the seam function instead of sys.modules directly
+    monkeypatch.setattr(
+        nw, "_get_candidate_modules", lambda: (fake_app, None, fake_appmod), raising=True
+    )
 
     fn = nw._resolve_nutrition_callable("calculate_all_bmr")
     assert fn is f_appmod
@@ -68,8 +68,10 @@ def test_resolve_falls_back_to_sys_modules_app_module(monkeypatch: pytest.Monkey
     fake_app = types.SimpleNamespace()  # No calculate_all_bmr, no app_module
     fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_alias)
 
-    monkeypatch.setitem(sys.modules, "app", fake_app)
-    monkeypatch.setitem(sys.modules, "app_module", fake_appmod)
+    # Patch the seam function instead of sys.modules directly
+    monkeypatch.setattr(
+        nw, "_get_candidate_modules", lambda: (fake_app, fake_appmod, None), raising=True
+    )
 
     fn = nw._resolve_nutrition_callable("calculate_all_bmr")
     assert fn is f_alias
@@ -87,9 +89,8 @@ def test_resolve_falls_back_to_import_seam(monkeypatch: pytest.MonkeyPatch) -> N
     def seam_fn(*a: object, **k: object) -> dict[str, float]:
         return {"mifflin": 123.0}
 
-    monkeypatch.delitem(sys.modules, "app", raising=False)
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
-
+    # Patch the seam function to return None modules (all paths fail)
+    monkeypatch.setattr(nw, "_get_candidate_modules", lambda: (None, None, None), raising=True)
     monkeypatch.setattr(nw, "_import_nutrition_core_bmr", lambda: seam_fn, raising=True)
 
     fn = nw._resolve_nutrition_callable("calculate_all_bmr")
@@ -99,9 +100,8 @@ def test_resolve_falls_back_to_import_seam(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_resolve_import_seam_none_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that ImportError is raised when import seam returns None."""
-    monkeypatch.delitem(sys.modules, "app", raising=False)
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
-
+    # Patch the seam function to return None modules (all paths fail)
+    monkeypatch.setattr(nw, "_get_candidate_modules", lambda: (None, None, None), raising=True)
     monkeypatch.setattr(nw, "_import_nutrition_core_bmr", lambda: None, raising=True)
 
     with pytest.raises(ImportError, match="not available"):
@@ -114,9 +114,8 @@ def test_resolve_tdee_uses_seam(monkeypatch: pytest.MonkeyPatch) -> None:
     def seam_fn(*a: object, **k: object) -> dict[str, int | float]:
         return {"mifflin": 456.0}
 
-    monkeypatch.delitem(sys.modules, "app", raising=False)
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
-
+    # Patch the seam function to return None modules (all paths fail)
+    monkeypatch.setattr(nw, "_get_candidate_modules", lambda: (None, None, None), raising=True)
     monkeypatch.setattr(nw, "_import_nutrition_core_tdee", lambda: seam_fn, raising=True)
 
     fn = nw._resolve_nutrition_callable("calculate_all_tdee")
