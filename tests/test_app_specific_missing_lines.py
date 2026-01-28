@@ -2,7 +2,10 @@
 Test coverage for specific missing lines in app.py to improve coverage to 97%.
 """
 
+import builtins
+import importlib
 import os
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -12,34 +15,54 @@ from core.bmi.risk import _waist_thresholds, get_waist_risk_note
 from tests._helpers.bmi_flags import _normalize_flags_for_tests
 
 
+def _import_blocker(block_name: str):
+    """Create an import blocker function for builtins.__import__.
+
+    Blocks imports of the specified module name and raises ImportError.
+    """
+    real_import = builtins.__import__
+
+    def _blocked_import(
+        name: str, globals=None, locals=None, fromlist=(), level: int = 0
+    ) -> object:
+        if name == block_name:
+            raise ImportError(f"{block_name} not found")
+        return real_import(name, globals, locals, fromlist, level)
+
+    return _blocked_import
+
+
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
 
     def test_slowapi_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test slowapi import error handling."""
-        import importlib
-        import sys
-
         import app
 
+        # Hygiene: avoid direct sys.modules mutation (monkeypatch OK)
         if "slowapi" in sys.modules:
-            monkeypatch.delitem(sys.modules, "slowapi")
+            monkeypatch.delitem(sys.modules, "slowapi", raising=False)
 
-        importlib.reload(app)
+        # Force ImportError by patching builtins.__import__ to block slowapi
+        with patch("builtins.__import__", side_effect=_import_blocker("slowapi")):
+            importlib.reload(app)
 
         # The test passes if no exception is raised during reload
 
     def test_vip_module_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP module import error handling."""
-        import importlib
-        import sys
-
         import app
 
+        # Hygiene: avoid direct sys.modules mutation (monkeypatch OK)
+        if "app.routers.vip_registration" in sys.modules:
+            monkeypatch.delitem(sys.modules, "app.routers.vip_registration", raising=False)
         if "app.routers.vip" in sys.modules:
-            monkeypatch.delitem(sys.modules, "app.routers.vip")
+            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
 
-        with patch("importlib.import_module", side_effect=ImportError("VIP module not found")):
+        # Force ImportError by patching builtins.__import__ to block app.routers.vip_registration
+        with patch(
+            "builtins.__import__", side_effect=_import_blocker("app.routers.vip_registration")
+        ):
             importlib.reload(app)
 
     def test_bodyfat_import_error(self) -> None:
