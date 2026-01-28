@@ -187,6 +187,28 @@ If it is not recorded here — it does not exist.
     - ✅ Identified false positives (test fixes, frontend dependency, docs references)
     - ✅ Marked as resolved — security gap does not exist
 
+- [ ] P1: Implement WebSocket endpoint with security from start
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (feature + security)
+  - Target PR: TBD (feature implementation)
+  - Status: 📋 Planned
+  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate limiting from the start to avoid security gaps.
+  - Links:
+    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
+    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
+  - Prerequisites:
+    - ✅ Security requirements defined (auth + rate limiting)
+    - ⏳ Use cases defined (what real-time features need WebSocket)
+  - DoD:
+    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
+    - Authentication required (token in query params or headers)
+    - Rate limiting implemented (per-user message limits, e.g., 100 messages/minute)
+    - Tests verify unauthenticated connections are rejected (403/401)
+    - Tests verify rate limiting works (429 when limit exceeded)
+    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
+    - Documentation: WebSocket API contract, authentication flow, rate limits
+
 - [ ] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintainability)

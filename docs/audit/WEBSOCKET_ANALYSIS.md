@@ -70,19 +70,28 @@
 2. ✅ **Update backlog** — Change P1 item status from "Needs investigation" to "Resolved — no WebSocket found"
 3. ✅ **Update documentation** — Mark WebSocket authentication gap as resolved in audit docs
 
-### Future Considerations
+### Future Implementation (Planned)
 
-**If WebSocket is added in the future:**
-- **Require authentication:** Token in query params or headers
-- **Add rate limiting:** Per-user message limits (e.g., 100 messages/minute)
-- **Add tests:** Verify unauthenticated connections are rejected
-- **Document:** Add WebSocket endpoint to OpenAPI schema (if supported)
+**WebSocket will be implemented** — tracked in BACKLOG_LEDGER as P1 item.
 
-**Use case examples (if needed):**
+**Security requirements (must be implemented from start):**
+- ✅ **Require authentication:** Token in query params or headers
+- ✅ **Add rate limiting:** Per-user message limits (e.g., 100 messages/minute)
+- ✅ **Add tests:** Verify unauthenticated connections are rejected (403/401)
+- ✅ **Document:** WebSocket API contract, authentication flow, rate limits
+
+**Use case examples:**
 - Real-time meal plan updates
 - Live nutrition tracking
 - Push notifications via WebSocket
 - Collaborative meal planning (future social features)
+- Real-time coaching feedback (nutrition coaching feature)
+
+**Implementation notes:**
+- Use FastAPI WebSocket support (`from fastapi import WebSocket`)
+- Integrate with existing tier guards (`require_vip_tier()` or `require_pro_tier()`)
+- Use same rate limiting infrastructure as REST endpoints (slowapi)
+- Consider WebSocket connection lifecycle (connect, disconnect, error handling)
 
 ---
 
