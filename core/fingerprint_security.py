@@ -22,7 +22,7 @@ import os
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Final
+from typing import Final, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,34 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
     return digest[:length]
 
 
-def _client_fingerprint(request: Any) -> str | None:  # noqa: ANN001
+@runtime_checkable
+class _ClientLike(Protocol):
+    """Protocol for request.client attribute."""
+
+    host: str | None
+
+
+@runtime_checkable
+class _HeadersLike(Protocol):
+    """Protocol for request.headers attribute."""
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        """Get header value by key."""
+        ...
+
+
+@runtime_checkable
+class ClientFingerprintRequest(Protocol):
+    """Protocol for request objects used by _client_fingerprint.
+
+    Avoids FastAPI dependency in core module while providing type safety.
+    """
+
+    client: _ClientLike | None
+    headers: _HeadersLike
+
+
+def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
     """Return a stable, non-PII identifier for the requesting client.
 
     RU: Возвращает стабильный, не-ПДН идентификатор для запрашивающего клиента.
@@ -164,7 +191,7 @@ def _client_fingerprint(request: Any) -> str | None:  # noqa: ANN001
 
     Args:
         request: Request object with `client.host` and `headers.get()` attributes.
-                Type is Any to avoid FastAPI dependency in core module.
+                Uses Protocol to avoid FastAPI dependency in core module.
 
     Returns:
         Pseudonymous fingerprint string or None if source IP cannot be determined.

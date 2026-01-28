@@ -22,8 +22,8 @@ def _is_truthy(value: Optional[str]) -> bool:
 
 
 def is_vip_module_enabled() -> bool:
-    raw = os.getenv("VIP_MODULE_ENABLED", "true").strip().lower()
-    return raw in _TRUTHY
+    """Check if VIP module is enabled via environment variable."""
+    return _is_truthy(os.getenv("VIP_MODULE_ENABLED", "true"))
 
 
 __all__ = ["is_vip_module_enabled", "_is_truthy"]
