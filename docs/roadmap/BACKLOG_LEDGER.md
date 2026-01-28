@@ -770,7 +770,57 @@ If it is not recorded here — it does not exist.
     - Community features complete (Social Network + Gamification + Restaurant)
     - End-to-end user journeys documented and tested
 
+- [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on reliability)
+  - Target PR: TBD (implementation after design review)
+  - Status: 📋 Design Complete
+  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Expected impact: reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Ожидаемый эффект: снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%.)
+  - Links:
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
+    - core/insight/creative_scientific_innovations.md (AI assistant design)
+  - Prerequisites:
+    - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
+    - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
+    - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
+  - DoD:
+    - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
+    - Phase 2: Analytical philosophy implemented (verification, falsification)
+    - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
+    - Phase 4: Linguistic philosophy implemented (speech acts, language games)
+    - Phase 5: Integrated framework complete (unified prompt builder + validator)
+    - Validation metrics: contradiction rate <2%, verification rate >95%, pragmatic utility >90%
+    - Integration tests pass (end-to-end philosophical validation pipeline)
+
+- [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on quality and accuracy)
+  - Target PR: TBD (implementation after design review)
+  - Status: 📋 Design Complete
+  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
+  - Links:
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (complements recursive verification)
+    - core/rag/simple_rag.py (current single-pass keyword-based RAG)
+  - Prerequisites:
+    - ✅ Current RAG infrastructure stable (`core/rag/simple_rag.py`)
+    - ✅ LLM provider stable (`llm.py`)
+    - ⏳ Fact-checking system implemented (for recursive verification)
+    - ⏳ User feedback storage implemented (for recursive learning)
+  - DoD:
+    - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
+    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
+    - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
+    - Phase 4: Recursive verification implemented (self-validation, claim checking)
+    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
+    - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
+    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%
+    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable)
+    - Integration tests pass (end-to-end recursive pipeline)
+
 ---
 
-**Last updated:** 2026-01-28 (Add cross-feature synergies backlog item, link to CROSS_FEATURE_SYNERGIES.md)
+**Last updated:** 2026-01-28 (Add philosophical logic principles and recursive methods backlog items, links to PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md and RECURSIVE_METHODS_LLM_RAG.md)
 **Maintainer:** @katsiaryna_kavaleuskaya
