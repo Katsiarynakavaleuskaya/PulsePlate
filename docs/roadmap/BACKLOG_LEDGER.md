@@ -99,15 +99,13 @@ If it is not recorded here — it does not exist.
 - [x] PR-616 Thin-proxy cleanup (helpers-1) — merged
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-616
-  - Status: ✅ Ready for merge (all actionable items fixed)
+  - Status: ✅ Merged
   - Priority: P0
-  - Target PR: PR-TP1 (branch: `chore/p1-thin-proxy-cleanup-helpers-1`)
-  - Status: 🔄 Ready for PR (code complete, tests green)
+  - Branch: `chore/p1-thin-proxy-cleanup-helpers-1-new`
   - Reason: Architectural cleanup — move helpers out of `legacy_app.py` to restore "thin proxy only" invariant. Steps 1/2/3/4/6/7 complete (scheduler wrappers, utility helpers, feature flags, nutrition wrappers, fingerprint, dead BMI helpers). Step 5 (DB fallback) deferred to TP2.
   - Links:
     - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
-    - Branch: `chore/p1-thin-proxy-cleanup-helpers-1`
   - DoD:
     - ✅ Steps 1/2/3/4/6/7 complete (helpers moved to canonical modules)
     - ✅ Step 5 explicitly deferred to TP2 (DB fallback helpers remain in `legacy_app.py`)
@@ -115,7 +113,8 @@ If it is not recorded here — it does not exist.
     - ✅ Guard tests pass (`test_repo_policy_guards.py`, `test_no_legacy_bmi_helpers_request_path.py`)
     - ✅ No "tail" imports (`from app import normalize_flags|waist_risk` removed from tests)
     - ✅ Tests updated to use canonical functions (`core.bmi.engine`, `core.bmi.risk`)
-    - 🔄 PR opened and ready for review
+    - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
+    - ✅ PR merged
 
 - [ ] PR-TP2 Thin-proxy cleanup (DB fallback) — next
   - Owner: @katsiaryna_kavaleuskaya
