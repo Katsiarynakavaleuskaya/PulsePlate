@@ -3,7 +3,7 @@
 **Дата:** 2026-01-28
 **Рецензент:** AI Assistant (Auto)
 **Источник:** Сравнение документов аудита (`docs/audit/*`) с находками из анализов (`docs/analysis/*`)
-**Статус:** Критические gaps в аудитах выявлены
+**Статус:** Opinion (evidence outputs не зафиксированы; per verification rule: "Verified" требует observed output по каждому ключевому evidence command)
 
 ---
 

@@ -76,7 +76,7 @@
 
 **Доказательная аргументация:**
 - **Research:** "AI Companions for Health: A Systematic Review" (Smith et al., 2023) — показывает, что AI companions увеличивают engagement на 40%
-- **Market:** Duolingo's mascot увеличил retention на 25% (Duolingo, 2022)
+- **Market:** Duolingo mascot увеличил retention на 25% (Duolingo, 2022)
 - **Psychology:** Anthropomorphism в health apps увеличивает trust (Bickmore et al., 2010)
 
 **Метрики успеха:**
@@ -364,27 +364,41 @@
    ```python
    # core/cv/bayesian_food_vision/bnn_model.py
    class BayesianFoodVision(nn.Module):
-       """Bayesian Neural Network для food recognition."""
+       """Bayesian Neural Network для food recognition with epistemic + aleatoric uncertainty."""
 
        def __init__(self, num_classes=101):
            super().__init__()
            self.conv1 = BayesianConv2d(3, 64, 3)
            self.conv2 = BayesianConv2d(64, 128, 3)
            self.fc = BayesianLinear(128, num_classes)
+           # Variance head for heteroscedastic aleatoric uncertainty (Kendall & Gal 2017)
+           self.variance_head = nn.Sequential(
+               nn.Linear(128, 64),
+               nn.ReLU(),
+               nn.Linear(64, num_classes)
+           )  # outputs log-variance per class, same device as backbone
+
+       def _backbone_features(self, x):
+           """Shared feature vector before final layer (for variance head)."""
+           x = torch.relu(self.conv1(x))
+           x = torch.relu(self.conv2(x))
+           return x.view(x.size(0), -1)
 
        def _forward_sample(self, x):
            """Single forward pass through Bayesian layers."""
-           x = torch.relu(self.conv1(x))
-           x = torch.relu(self.conv2(x))
-           x = x.view(x.size(0), -1)
-           return self.fc(x)
+           feats = self._backbone_features(x)
+           return self.fc(feats)
 
        def _estimate_aleatoric(self, x):
-           """Estimate aleatoric (data) uncertainty. TODO: heteroscedastic (Kendall & Gal 2017)."""
-           return torch.zeros(x.size(0), device=x.device)
+           """Aleatoric (data) uncertainty via learned log-variance; stable and same shape as logits."""
+           feats = self._backbone_features(x)
+           log_var = self.variance_head(feats)
+           # Positive variance, numerically stable (clamp log_var before exp if needed)
+           var = torch.exp(log_var.clamp(max=10.0))
+           return torch.sqrt(var + 1e-6)
 
        def forward(self, x, num_samples=10):
-           """Forward pass с Monte Carlo sampling."""
+           """Forward pass с Monte Carlo sampling; aleatoric from variance head."""
            predictions = []
            for _ in range(num_samples):
                logits = self._forward_sample(x)
@@ -392,12 +406,13 @@
 
            mean = torch.stack(predictions).mean(dim=0)
            std = torch.stack(predictions).std(dim=0)
+           aleatoric = self._estimate_aleatoric(x)
 
            return {
                "mean": mean,
                "epistemic_uncertainty": std,
-               "aleatoric_uncertainty": self._estimate_aleatoric(x),
-               "total_uncertainty": std + self._estimate_aleatoric(x)
+               "aleatoric_uncertainty": aleatoric,
+               "total_uncertainty": std + aleatoric
            }
    ```
 
@@ -432,15 +447,35 @@
 **Цель:** Интегрировать BNN в production endpoints
 
 **Шаги:**
-1. **Create API endpoint (aligned with BayesianFoodVision.forward() return dict):**
+1. **Create API endpoint (aligned with BayesianFoodVision.forward(); validate image first):**
    ```python
    # app/routers/food_vision.py
+   from fastapi import HTTPException
+   from PIL import Image
+   import io
+
+   MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+   ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+   async def validate_and_preprocess_image(image_bytes: bytes) -> torch.Tensor:
+       """Validate type, size, integrity; then preprocess for model."""
+       if len(image_bytes) > MAX_IMAGE_SIZE:
+           raise HTTPException(413, "Image too large (max 10MB)")
+       try:
+           img = Image.open(io.BytesIO(image_bytes))
+           img.verify()
+           if img.format not in ALLOWED_FORMATS:
+               raise ValueError(f"Unsupported format: {img.format}")
+       except Exception as e:
+           raise HTTPException(400, f"Invalid image: {e}")
+       return preprocess_image(image_bytes)
+
    # BNN returns dict: mean, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty
    @app.post("/api/v1/vip/food/recognize")
    async def recognize_food(image: UploadFile):
        """Recognize food с uncertainty quantification."""
        bnn = get_bayesian_food_vision_model()  # Cached/singleton
-       image_tensor = preprocess_image(await image.read())
+       image_tensor = await validate_and_preprocess_image(await image.read())
        result = bnn.forward(image_tensor, num_samples=10)
 
        probs = torch.softmax(result["mean"], dim=-1)
@@ -754,9 +789,17 @@
            self.llm = llm_provider
            self.causal_analyzer = causal_analyzer  # Shared/cached instance
 
-       async def get_user_diet(self, user_id: str): ...
-       async def get_user_health(self, user_id: str): ...
-       def _suggest_alternative(self, diet: Dict): ...
+       async def get_user_diet(self, user_id: str) -> Dict[str, float]:
+           """Retrieve user's current diet from database."""
+           ...  # TODO: Query meals/logs database
+
+       async def get_user_health(self, user_id: str) -> Dict[str, float]:
+           """Retrieve user's current health metrics from database."""
+           ...  # TODO: Query health_metrics table
+
+       def _suggest_alternative(self, diet: Dict[str, float]) -> Dict[str, float]:
+           """Suggest alternative diet based on current diet."""
+           ...  # TODO: Implement dietary improvement suggestions
 
        async def get_personalized_advice(self, user_id: str):
            """Get personalized advice с causal inference. Route must use Depends(rate_limit_llm)."""
