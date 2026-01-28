@@ -801,12 +801,14 @@ If it is not recorded here — it does not exist.
   - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
   - Links:
     - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies: parallelization, caching, batching, open-source libraries)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
     - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (complements recursive verification)
     - core/rag/simple_rag.py (current single-pass keyword-based RAG)
   - Prerequisites:
     - ✅ Current RAG infrastructure stable (`core/rag/simple_rag.py`)
     - ✅ LLM provider stable (`llm.py`)
+    - ✅ Redis available in docker-compose (for caching optimization)
     - ⏳ Fact-checking system implemented (for recursive verification)
     - ⏳ User feedback storage implemented (for recursive learning)
   - DoD:
@@ -816,8 +818,9 @@ If it is not recorded here — it does not exist.
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
     - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
     - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
-    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%
-    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable)
+    - **Optimization Phase:** Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
+    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
+    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
     - Integration tests pass (end-to-end recursive pipeline)
 
 ---
