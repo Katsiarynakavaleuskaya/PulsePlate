@@ -136,6 +136,70 @@ If it is not recorded here — it does not exist.
     - OpenAPI unchanged
     - Guard tests pass
 
+- [ ] P0 CRITICAL: Rate limiting for LLM endpoints (prevent $72k/month cost attack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate limiting → potential $72k/month abuse via unlimited LLM API calls. Rate limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate limiting (DoS risk).
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate limiting section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - core/insight/analysis_insights.md ($72k/month potential abuse)
+  - DoD:
+    - Uncomment and configure rate limiting (slowapi)
+    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
+    - Add `@limiter.limit("5/hour")` to PDF export endpoints
+    - Add rate limiting to WebSocket (if exists, verify first)
+    - Tests verify rate limiting works (429 responses when limit exceeded)
+    - Cost tracking added (token usage, API calls)
+
+- [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` uses `_get_api_key_dynamic` (API key check only, not tier-aware) → FREE users can access expensive LLM API. `/insight` has no auth at all. LLM should be VIP-only feature.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - legacy_app.py:2256-2301 (`/api/v1/insight`), 2305-2348 (`/insight`)
+  - DoD:
+    - Replace `_get_api_key_dynamic` with `require_vip_tier()` on `/api/v1/insight`
+    - Remove `/insight` endpoint (deprecated, no auth) OR add VIP tier guard
+    - Tests verify FREE/PRO users get 403, VIP users get 200
+    - Update OpenAPI schema (insight endpoints require VIP tier)
+
+- [ ] P1: Verify and secure WebSocket endpoint (if exists)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security)
+  - Target PR: TBD
+  - Status: 📋 Needs investigation
+  - Reason: Original analysis mentioned `/ws` endpoint without authentication. Current codebase search found no WebSocket endpoints in `legacy_app.py`. Need to verify if WebSocket exists elsewhere or was removed.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap)
+  - DoD:
+    - Search entire codebase for WebSocket endpoints
+    - If exists → add token authentication + rate limiting
+    - If removed → mark as resolved, update docs
+    - Tests verify WebSocket requires auth (connection rejected without token)
+
+- [ ] P1: Extract hardcoded constants (BMR, export formats)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability)
+  - Target PR: TBD
+  - Status: 📋 Ready to start
+  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
+    - legacy_app.py:97 (nutrition_core imports), export functions
+  - DoD:
+    - Extract BMR constants to `core/bmr.py` module
+    - Create `ExportFormat` enum (CSV, PDF, JSON)
+    - Replace hardcoded values with constants/enum
+    - Tests verify no functionality broken
+
 ---
 
 ## P1 — Improvements (Optional / polish)
@@ -579,10 +643,31 @@ If it is not recorded here — it does not exist.
   - Links:
     - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
     - docs/contracts/PRODUCT_TIER_MAP.md
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Migration status by domain)
   - DoD:
     - All clients migrated to canonical endpoints
     - Deprecated endpoints removed
     - OpenAPI updated (no deprecated paths)
+
+- [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (v2.0 timeline, after all migrations)
+  - Priority: P2 (long-term cleanup)
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). Current state: 5382 lines, ~60% migrated.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+  - Prerequisites:
+    - ✅ All P0 security fixes complete (rate limiting, tier guards)
+    - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
+    - ✅ All clients migrated to canonical endpoints
+    - ✅ Legacy endpoint traffic < 1%
+  - DoD:
+    - All endpoints migrated to modular routers
+    - All helpers moved to canonical modules
+    - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
+    - Tests pass (no functionality broken)
+    - OpenAPI unchanged (all canonical endpoints present)
 
 - [x] PR-570 (Phase 3): Agent index + model selection rationale — merged
   - Owner: @katsiaryna_kavaleuskaya
@@ -638,5 +723,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (CodeRabbit: move vision details to design docs, add English summaries, language policy)
+**Last updated:** 2026-01-28 (Add legacy_app.py migration backlog items, link to LEGACY_APP_MIGRATION_STATUS.md)
 **Maintainer:** @katsiaryna_kavaleuskaya
