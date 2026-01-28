@@ -88,3 +88,27 @@ ignore if {
 	cve_2026_24883_version_match
 	cve_2026_24883_pkgid_match
 }
+
+# CVE-2026-24882 (gpgv) - upstream unfixed in Debian bookworm (tpm2daemon buffer overflow)
+# Review-by: 2026-04-28 (manual removal)
+# Rationale: Unfixed distro CVE; runtime does not invoke apt/gpgv/tpm2daemon; no attack surface
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-24882
+# Documented in: docs/security/CVE-2026-24882-gpgv.md
+# Removal condition: Remove when Debian bookworm publishes patched gpgv package or Trivy metadata includes fixed version
+
+# Helper rule: check if InstalledVersion matches observed version
+cve_2026_24882_version_match if {
+	input.InstalledVersion == "2.2.40-1.1"
+}
+
+# Helper rule: check if PkgID matches observed gpgv package
+cve_2026_24882_pkgid_match if {
+	startswith(input.PkgID, "gpgv@2.2.40-1.1")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-24882"
+	input.PkgName == "gpgv"
+	cve_2026_24882_version_match
+	cve_2026_24882_pkgid_match
+}
