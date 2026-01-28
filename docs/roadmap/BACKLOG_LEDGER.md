@@ -115,6 +115,24 @@ If it is not recorded here — it does not exist.
     - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
     - Trivy Code Scanning alerts remain closed on `main`
 
+- [ ] Resolve CVE-2026-24882 Trivy alert (accepted risk)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: GitHub alert #515 reports CVE-2026-24882 (gpgv tpm2daemon buffer overflow) for installed version 2.2.40-1.1. Debian tracker confirms bookworm is vulnerable (no fixed version available). Suppressed as accepted risk (no attack surface: runtime does not invoke gpgv/tpm2daemon, no TPM2-backed keys used).
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-24882)
+    - `docs/security/CVE-2026-24882-gpgv.md`
+    - GitHub alert #515
+    - `.github/workflows/trivy.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `gpgv` package (≥ 2.5.17 or backported fix), OR
+    - Trivy metadata includes fixed version information, OR
+    - GitHub alert #515 is automatically resolved by upstream fix
+    - Remove CVE-2026-24882 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-24882-gpgv.md` (or mark as resolved)
+    - Trivy Code Scanning alert #515 remains closed on `main`
+
 - [ ] Move insight redaction/import helpers out of legacy_app.py
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
