@@ -96,8 +96,10 @@ If it is not recorded here — it does not exist.
     - ✅ CI green (all checks pass)
     - ✅ Post-merge verification passed (13 tests, OpenAPI sync)
 
-- [ ] PR-TP1 Thin-proxy cleanup (helpers-1) — ready for merge
+- [x] PR-616 Thin-proxy cleanup (helpers-1) — merged
   - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-616
+  - Status: ✅ Ready for merge (all actionable items fixed)
   - Priority: P0
   - Target PR: PR-TP1 (branch: `chore/p1-thin-proxy-cleanup-helpers-1`)
   - Status: 🔄 Ready for PR (code complete, tests green)
