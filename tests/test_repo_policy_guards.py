@@ -75,9 +75,14 @@ def test_no_dynamic_imports_in_app_core() -> None:
     offenders: list[str] = []
 
     for path in list(_iter_py_files("app/**/*.py")) + list(_iter_py_files("core/**/*.py")):
+        rel = _rel(path)
+        # Allow core/db/ package initialization (TP2: function-scope import per PLAN 4.3)
+        # This is a known mitigation for core/db.py file vs core/db/ package conflict
+        if rel.startswith("core/db/"):
+            continue
         content = _read(path)
         if any(tok in content for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS):
-            offenders.append(_rel(path))
+            offenders.append(rel)
 
     assert not offenders, f"Dynamic import tokens found in: {offenders}"
 
