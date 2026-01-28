@@ -48,8 +48,6 @@ class TestAppSpecificMissingLines:
         # Mock the import to raise ImportError
         with patch("importlib.import_module", side_effect=ImportError("Bodyfat module not found")):
             # Reload app module to trigger import error handling
-            import importlib
-
             import app
 
             importlib.reload(app)

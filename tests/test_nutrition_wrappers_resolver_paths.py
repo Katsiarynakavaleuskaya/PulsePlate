@@ -12,7 +12,6 @@ Covers all resolution branches:
 from __future__ import annotations
 
 import types
-from unittest.mock import Mock
 
 import pytest
 
