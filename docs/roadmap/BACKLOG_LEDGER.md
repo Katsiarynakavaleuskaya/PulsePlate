@@ -747,5 +747,30 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (Add legacy_app.py migration backlog items, link to LEGACY_APP_MIGRATION_STATUS.md)
+- [ ] P2: Cross-feature synergies implementation (real-time + automation + community)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (strategic integration)
+  - Target PR: TBD (multiple PRs for different synergies)
+  - Status: 📋 Planned
+  - Reason: 12 new synergies identified between planned features (WebSocket + Coaching, CV + Restaurant, Bayesian + WebSocket, etc.). These create unified user experiences and competitive advantages. Implementation should follow recommended order: real-time foundation → coaching enhancement → automation pipeline → community features.
+  - Links:
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, implementation order, expected impact)
+    - docs/design/NUTRITION_COACHING_DESIGN.md
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/audit/WEBSOCKET_ANALYSIS.md
+  - Prerequisites:
+    - ✅ WebSocket implemented (P1)
+    - ✅ Nutrition coaching implemented (P2)
+    - ✅ Restaurant integration implemented (P2)
+    - ✅ CV food recognition implemented (P1)
+  - DoD:
+    - Real-time foundation complete (WebSocket + Bayesian + Gamification)
+    - Coaching enhancement complete (WebSocket + RAG + Causal Inference)
+    - Automation pipeline complete (CV + Restaurant + Multi-Modal)
+    - Community features complete (Social Network + Gamification + Restaurant)
+    - End-to-end user journeys documented and tested
+
+---
+
+**Last updated:** 2026-01-28 (Add cross-feature synergies backlog item, link to CROSS_FEATURE_SYNERGIES.md)
 **Maintainer:** @katsiaryna_kavaleuskaya
