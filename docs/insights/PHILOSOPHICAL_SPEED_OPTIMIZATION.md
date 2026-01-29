@@ -81,7 +81,7 @@ class PhilosophicalSpeedOptimizer:
 **Impact:** 50-70% latency reduction for commands/expressions (depth=1 instead of depth=3).
 
 **Example:**
-```
+```text
 Query: "Calculate my BMI" (COMMAND)
 → Depth: 1 (direct calculation, no recursion)
 → Latency: 0.5s (vs 3s with full recursion)
@@ -844,7 +844,7 @@ class LanguageGamePreFilter:
 
 ### Phase 1: Speech Act Classification (Week 1)
 
-**Priority: P0 (Biggest impact)**
+#### Priority: P0 (Biggest impact)
 
 - [ ] Implement `SpeechActClassifier`
 - [ ] Add depth mapping (command=1, question=3)
@@ -857,7 +857,7 @@ class LanguageGamePreFilter:
 
 ### Phase 2: Language Game Detection (Week 2)
 
-**Priority: P1 (High impact)**
+#### Priority: P1 (High impact)
 
 - [ ] Implement `LanguageGameIdentifier`
 - [ ] Add game-to-depth mapping
@@ -870,7 +870,7 @@ class LanguageGamePreFilter:
 
 ### Phase 3: Early Stopping (Week 3)
 
-**Priority: P1 (High impact)**
+#### Priority: P1 (High impact)
 
 - [ ] Implement verification-based early stopping
 - [ ] Implement falsification-based early stopping
@@ -883,7 +883,7 @@ class LanguageGamePreFilter:
 
 ### Phase 4: Unified Optimizer (Week 4)
 
-**Priority: P2 (Nice to have)**
+#### Priority: P2 (Nice to have)
 
 - [ ] Implement `UnifiedPhilosophicalSpeedOptimizer`
 - [ ] Combine all principles

@@ -560,7 +560,7 @@ async function* streamInsight(query: string) {
 
 ### 3.1 GPTCache (Semantic Caching)
 
-**GitHub:** https://github.com/zilliztech/GPTCache
+**GitHub:** <https://github.com/zilliztech/GPTCache>
 **License:** Apache 2.0
 **Status:** Active (2024-2025)
 
@@ -615,7 +615,7 @@ response = await cached_provider.generate_cached(prompt)
 
 ### 3.2 FastLLM (Batch Processing)
 
-**GitHub:** https://github.com/Rexhaif/fastllm
+**GitHub:** <https://github.com/Rexhaif/fastllm>
 **License:** MIT
 **Status:** Active (2024)
 
@@ -649,7 +649,7 @@ responses = await fast_llm.batch_generate(queries)  # Parallel execution
 
 ### 3.3 LMCache (KV Cache Optimization)
 
-**GitHub:** https://github.com/lm-sys/LMCache
+**GitHub:** <https://github.com/lm-sys/LMCache>
 **License:** Apache 2.0
 **Status:** Active (2024-2025)
 
@@ -684,7 +684,7 @@ cached_response = await lmcache.generate_cached(prompt, cache_key=query_hash)
 
 ### 3.4 LangChain Caching
 
-**GitHub:** https://github.com/langchain-ai/langchain
+**GitHub:** <https://github.com/langchain-ai/langchain>
 **License:** MIT
 **Status:** Active (2024-2025)
 
@@ -778,19 +778,19 @@ response = await llm.ainvoke(prompt)  # Cached automatically
 ### 5.1 Latency Breakdown (Optimized)
 
 **Simple Query (depth=1, cached):**
-```
+```text
 RAG (50ms) → LLM cached (10ms) → Response
 Total: ~60ms (0.06s) ✅ 10x faster than baseline
 ```
 
 **Medium Query (depth=2, parallelized + cached):**
-```
+```text
 RAG (100ms) → Decomposition cached (10ms) → Subproblems parallel (500ms) → Synthesis (500ms) → Response
 Total: ~1110ms (1.1s) ✅ 2x faster than unoptimized
 ```
 
 **Complex Query (depth=3, fully optimized):**
-```
+```text
 RAG (150ms) → Decomposition cached (10ms) → Subproblems parallel (1000ms) → Synthesis (500ms) → Refinement early stop (500ms) → Verification batched (500ms) → Response
 Total: ~2660ms (2.7s) ✅ 2x faster than unoptimized
 ```

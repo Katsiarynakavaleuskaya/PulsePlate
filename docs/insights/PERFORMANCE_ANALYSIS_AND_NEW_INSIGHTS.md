@@ -451,7 +451,7 @@ class SynergisticAIAssistant:
 
 ### 5.1 Immediate Optimizations (Week 1)
 
-**Priority: P0 (Critical for UX)**
+#### Priority: P0 (Critical for UX)
 
 1. **Parallelize subproblem solving** (recursive reasoning)
    - Impact: 50% latency reduction for complex queries
@@ -470,7 +470,7 @@ class SynergisticAIAssistant:
 
 ### 5.2 Short-Term Optimizations (Week 2-3)
 
-**Priority: P1 (High impact)**
+#### Priority: P1 (High impact)
 
 1. **Implement caching** (query refinement, decomposition)
    - Impact: 30-50% latency reduction for similar queries
@@ -489,7 +489,7 @@ class SynergisticAIAssistant:
 
 ### 5.3 Long-Term Optimizations (Week 4+)
 
-**Priority: P2 (Nice to have)**
+#### Priority: P2 (Nice to have)
 
 1. **Streaming responses** (progressive answer generation)
    - Impact: Perceived latency reduction (users see partial answers)

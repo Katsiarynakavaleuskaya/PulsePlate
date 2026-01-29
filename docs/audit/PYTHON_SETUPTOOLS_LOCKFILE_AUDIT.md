@@ -133,8 +133,16 @@ So we **do** use a lock-file strategy: pinned, reproducible installs via pip-too
   ```
 - No setup.cfg:
   `ls -la setup.cfg 2>/dev/null` → not present.
+  Output (sample):
+  ```text
+  ls: cannot access 'setup.cfg': No such file or directory
+  ```
 - No build-system in pyproject:
   `grep -n build-system pyproject.toml` → no match.
+  Output (sample):
+  ```text
+  (no output — no match found)
+  ```
 - Lock process:
   `REQUIREMENTS.md` (pip-compile, verify_requirements.py).
 - Dependabot:
