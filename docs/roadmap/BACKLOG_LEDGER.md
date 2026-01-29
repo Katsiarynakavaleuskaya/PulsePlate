@@ -226,6 +226,94 @@ If it is not recorded here — it does not exist.
     - Replace hardcoded values with constants/enum
     - Tests verify no functionality broken
 
+- [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - core/insight/analysis_insights.md ($72k/month potential abuse)
+  - DoD:
+    - Uncomment and configure rate-limiting (slowapi)
+    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
+    - Add `@limiter.limit("5/hour")` to PDF export endpoints
+    - Add rate-limiting to WebSocket (if exists, verify first)
+    - Tests verify rate-limiting works (429 responses when limit exceeded)
+    - Cost tracking added (token usage, API calls)
+
+- [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` uses `_get_api_key_dynamic` (API key check only, not tier-aware) → FREE users can access expensive LLM API. `/insight` has no auth at all. LLM should be VIP-only feature.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - legacy_app.py:2256-2301 (`/api/v1/insight`), 2305-2348 (`/insight`)
+  - DoD:
+    - Replace `_get_api_key_dynamic` with `require_vip_tier()` on `/api/v1/insight`
+    - Remove `/insight` endpoint (deprecated, no auth) OR add VIP tier guard
+    - Tests verify FREE/PRO users get 403, VIP users get 200
+    - Update OpenAPI schema (insight endpoints require VIP tier)
+
+- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security)
+  - Target PR: N/A (investigation only)
+  - Status: ✅ Resolved — No WebSocket endpoints found
+  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
+  - Links:
+    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
+  - DoD:
+    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
+    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
+    - ✅ Checked OpenAPI schema (no WebSocket paths)
+    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
+    - ✅ Marked as resolved — security gap does not exist
+
+- [ ] P1: Implement WebSocket endpoint with security from start
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (feature + security)
+  - Target PR: TBD (feature implementation)
+  - Status: 📋 Planned
+  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
+  - Links:
+    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
+    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
+  - Prerequisites:
+    - ✅ Security requirements defined (auth + rate-limiting)
+    - ⏳ Use cases defined (what real-time features need WebSocket)
+  - DoD:
+    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
+    - Authentication required (token in query params or headers)
+    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
+    - Tests verify unauthenticated connections are rejected (403/401)
+    - Tests verify rate-limiting works (429 when limit exceeded)
+    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
+    - Documentation: WebSocket API contract, authentication flow, rate limits
+
+- [ ] P1: Extract hardcoded constants (BMR, export formats)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability)
+  - Target PR: TBD
+  - Status: 📋 Ready to start
+  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
+    - legacy_app.py:97 (nutrition_core imports), export functions
+  - DoD:
+    - Extract BMR constants to `core/bmr.py` module
+    - Create `ExportFormat` enum (CSV, PDF, JSON)
+    - Replace hardcoded values with constants/enum
+    - Tests verify no functionality broken
+
 ---
 
 ## P1 — Improvements (Optional / polish)
