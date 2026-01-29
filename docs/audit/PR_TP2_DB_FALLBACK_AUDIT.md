@@ -282,9 +282,9 @@
 ### 7.1. Behavior Preservation
 
 | Constraint | Current Behavior | Must Preserve |
-| ---------- | ---------------- | -------------- |
+| ---------- | ---------------- | ------------- |
 | **Production in-memory rejection** | Raises original error | ✅ Exact same error |
-| **Production persistent fallback** | Requires `ALLOW_DB_PERSISTENT_FALLBACK=1` | ✅ Exact same validation |
+| **Production persistent fallback** | Requires `ALLOW_DB_PERSISTENT_FALLBACK=1` | ✅ Exact validation |
 | **Non-production fallback** | Allows in-memory or IO errors | ✅ Exact same logic |
 | **Session binding** | Mutates `core.db.SessionLocal`, `_RAW_ENGINE`, `engine` | ✅ Exact same mutations |
 | **Environment variables** | Sets `DB_HEALTH_DEGRADED`, `DB_FALLBACK_URL` | ✅ Exact same env vars |
@@ -312,7 +312,7 @@
 - **Policy:** `AGENTS.md` (legacy_app.py policy section)
 - **TP1 Audit:** `docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md`
 - **TP1 Plan:** `docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md`
-- **Context Handoff:** `docs/CONTEXT_HANDOFF_2026-01-28.md`
+- **Context Handoff:** `docs/CONTEXT_HANDOFF_2026-01-29.md`
 - **Backlog Ledger:** `docs/roadmap/BACKLOG_LEDGER.md` (PR-TP2 entry)
 - **DB Fallback Tests:** `tests/test_app_db_fallback_97.py`
 - **Core DB Module:** `core/db.py`
@@ -321,6 +321,8 @@
 ---
 
 ## 9) Evidence Collection
+
+**Evidence status:** **Opinion** — excerpts below are from audit-time run; re-run commands locally for strict verification.
 
 ### 9.1. Function Locations
 
