@@ -17,6 +17,7 @@ import os
 from contextlib import suppress
 from typing import Optional
 
+from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,6 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
     Creates engine with correct connect_args, runs Base.metadata.create_all.
     Returns the initialized engine or raises db_err on failure.
     """
-    from sqlalchemy import create_engine
     import core.models  # noqa: F401
     from core.models import Base
 

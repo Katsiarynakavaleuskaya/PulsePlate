@@ -93,7 +93,7 @@ class TestAppDBFallback97:
 
         # Mock SQLAlchemy engine creation to avoid actual DB operations
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base") as mock_base,
             patch("core.db.SessionLocal") as mock_session,
         ):
@@ -124,7 +124,7 @@ class TestAppDBFallback97:
         monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
         mock_err = Exception("Primary DB failed")
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base"),
             patch("core.db.SessionLocal"),
         ):
@@ -149,7 +149,7 @@ class TestAppDBFallback97:
         mock_err = OSError("Primary DB failed")
 
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base"),
             patch("core.db.SessionLocal"),
         ):
@@ -178,7 +178,7 @@ class TestAppDBFallback97:
         mock_err = Exception("Generic DB error")
 
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base"),
             patch("core.db.SessionLocal"),
         ):
@@ -201,7 +201,7 @@ class TestAppDBFallback97:
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         mock_err = OSError("Primary DB failed")
 
-        with patch("sqlalchemy.create_engine", side_effect=Exception("Fallback failed")):
+        with patch("core.db_fallback.create_engine", side_effect=Exception("Fallback failed")):
             # Should raise original error when fallback fails
             with pytest.raises(OSError, match="Primary DB failed"):
                 _attempt_db_fallback(
@@ -302,7 +302,7 @@ class TestAppDBFallback97:
         try:
             monkeypatch.setattr(core_db, "SessionLocal", mock_sl)
             with (
-                patch("sqlalchemy.create_engine") as mock_create_engine,
+                patch("core.db_fallback.create_engine") as mock_create_engine,
                 patch("core.models.Base"),
             ):
                 mock_engine = MagicMock()
@@ -326,7 +326,7 @@ class TestAppDBFallback97:
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         monkeypatch.setenv("ALLOW_DB_INMEMORY_FALLBACK", "1")
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base"),
             patch("core.db.SessionLocal"),
         ):
@@ -348,7 +348,7 @@ class TestAppDBFallback97:
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         monkeypatch.delenv("ALLOW_DB_INMEMORY_FALLBACK", raising=False)
         with (
-            patch("sqlalchemy.create_engine") as mock_create_engine,
+            patch("core.db_fallback.create_engine") as mock_create_engine,
             patch("core.models.Base"),
             patch("core.db.SessionLocal"),
         ):
