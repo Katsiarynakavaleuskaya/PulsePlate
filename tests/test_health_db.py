@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app
+import legacy_app
 from core import db as db_module
 
 # RU: /ready - alias для /health/db, тестируем оба пути.
@@ -42,3 +43,22 @@ def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
 
     assert response.status_code == 503
     assert response.json()["detail"].lower().startswith("database")
+
+
+def test_lifespan_success_clears_fallback_flag() -> None:
+    """Cover legacy_app lifespan success path (line 458): init_db() succeeds, clear _db_fallback_active."""
+    import core.db_fallback as fallback_mod
+
+    fallback_mod._db_fallback_active = True
+    # Set marker so lifespan success path pops it (line 456/458)
+    import os as _os
+
+    _os.environ["DB_HEALTH_DEGRADED"] = "1"
+    try:
+        with TestClient(cast(ASGIApp, legacy_app.app)) as client:
+            response = client.get("/health")
+        assert response.status_code == 200
+        assert not fallback_mod._db_fallback_active
+        assert _os.environ.get("DB_HEALTH_DEGRADED") is None
+    finally:
+        _os.environ.pop("DB_HEALTH_DEGRADED", None)
