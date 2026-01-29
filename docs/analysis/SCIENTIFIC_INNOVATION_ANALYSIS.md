@@ -183,7 +183,7 @@ def generate_weekly_plan_lazy(...):
 
 | Узкое место | Текущее состояние | Рекурсивное решение |
 | --- | --- | --- |
-| **Nutrient aggregation** (7 дней × 20 нутриентов) | O(n²) nested loops | **Рекурсивная сумма:** O(n log n) через дерево редукции |
+| **Nutrient aggregation** (7 дней × 20 нутриентов) | O(n × m) sequential | **Рекурсивная сумма:** O(n × m) total work; divide-and-conquer enables parallelization → wall-time O(log n × m) with sufficient processors |
 | **Recipe matching** (поиск блюд по constraints) | Linear search в catalog | **Recursive binary search** с prefix trees |
 | **Shoplist deduplication** | O(n²) сравнение продуктов | **Recursive merge sort** + hash-based dedup (O(n log n)) |
 
@@ -208,7 +208,8 @@ def aggregate_nutrients_recursive(meals: list[Meal]) -> dict[str, float]:
     right = aggregate_nutrients_recursive(meals[mid:])
 
     return merge_nutrient_dicts(left, right)  # O(m)
-# Total: O(n log n × m) вместо O(n × m)
+# Total work: O(n × m) (same as iterative); divide-and-conquer enables
+# parallelization → wall-time O(log n × m) with sufficient processors.
 ```
 
 **Когда это критично:**

@@ -136,22 +136,22 @@ If it is not recorded here — it does not exist.
     - OpenAPI unchanged
     - Guard tests pass
 
-- [ ] P0 CRITICAL: Rate limiting for LLM endpoints (prevent $72k/month cost attack)
+- [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
   - Target PR: TBD (security fix)
   - Status: 📋 Ready to start
-  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate limiting → potential $72k/month abuse via unlimited LLM API calls. Rate limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate limiting (DoS risk).
+  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
   - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate limiting section)
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
     - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
     - core/insight/analysis_insights.md ($72k/month potential abuse)
   - DoD:
-    - Uncomment and configure rate limiting (slowapi)
+    - Uncomment and configure rate-limiting (slowapi)
     - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
     - Add `@limiter.limit("5/hour")` to PDF export endpoints
-    - Add rate limiting to WebSocket (if exists, verify first)
-    - Tests verify rate limiting works (429 responses when limit exceeded)
+    - Add rate-limiting to WebSocket (if exists, verify first)
+    - Tests verify rate-limiting works (429 responses when limit exceeded)
     - Cost tracking added (token usage, API calls)
 
 - [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
@@ -192,20 +192,20 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (feature + security)
   - Target PR: TBD (feature implementation)
   - Status: 📋 Planned
-  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate limiting from the start to avoid security gaps.
+  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
   - Links:
     - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
     - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
     - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
   - Prerequisites:
-    - ✅ Security requirements defined (auth + rate limiting)
+    - ✅ Security requirements defined (auth + rate-limiting)
     - ⏳ Use cases defined (what real-time features need WebSocket)
   - DoD:
     - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
     - Authentication required (token in query params or headers)
-    - Rate limiting implemented (per-user message limits, e.g., 100 messages/minute)
+    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
     - Tests verify unauthenticated connections are rejected (403/401)
-    - Tests verify rate limiting works (429 when limit exceeded)
+    - Tests verify rate-limiting works (429 when limit exceeded)
     - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
     - Documentation: WebSocket API contract, authentication flow, rate limits
 
@@ -685,7 +685,7 @@ If it is not recorded here — it does not exist.
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
   - Prerequisites:
-    - ✅ All P0 security fixes complete (rate limiting, tier guards)
+    - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
     - ✅ All clients migrated to canonical endpoints
     - ✅ Legacy endpoint traffic < 1%
@@ -837,7 +837,7 @@ If it is not recorded here — it does not exist.
   - Priority: P2 (integration of all components after individual implementations)
   - Target PR: TBD (implementation after Phase 1-4 components are complete)
   - Status: 📋 Planned (depends on Philosophical logic + Recursive methods + CBT coaching)
-  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
+  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
     - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
@@ -853,7 +853,7 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Phase 5: UnifiedAICoach class implemented (orchestrates all components)
     - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
-    - Production-ready features: rate limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
+    - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
     - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
     - Performance metrics: latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
     - Cost optimization: ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
