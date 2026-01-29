@@ -860,7 +860,21 @@ If it is not recorded here — it does not exist.
     - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
     - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
+- [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional tooling improvement)
+  - Target PR: TBD (evaluation first, then migration if beneficial)
+  - Status: 📋 Planned
+  - Reason (EN): Python ecosystem 2026: PEP 751 defines standard lock format (pylock.toml); Dependabot now supports uv. Current repo uses pip-tools (requirements.txt as lock) and pip in Dependabot — no mandatory change. Optional: evaluate migrating to standard lock file and/or uv when tooling/CI support is stable. Setuptools: we use it only as pinned dependency (security); no setup.cfg — setuptools 78.x deprecations do not affect us. (RU: Экосистема Python 2026: PEP 751 — стандартный lock-файл; Dependabot поддерживает uv. Сейчас: pip-tools + requirements.txt как lock, Dependabot на pip. Опционально: оценить переход на pylock.toml и/или uv. Setuptools: только как зависимость в requirements; setup.cfg нет — депрекации 78.x нас не затрагивают.)
+  - Links:
+    - docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md (full audit: setuptools usage, lock file strategy, Dependabot/uv)
+    - REQUIREMENTS.md (current pip-compile workflow)
+    - .github/dependabot.yml (pip ecosystem)
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PEP 751 and for uv
+    - If adopt: migration PR with updated REQUIREMENTS.md and CI; Dependabot config updated if uv adopted
+
 ---
 
-**Last updated:** 2026-01-28 (Add Unified Framework backlog item for production integration)
+**Last updated:** 2026-01-28 (Add Python setuptools/lock file audit and optional P2 backlog item)
 **Maintainer:** @katsiaryna_kavaleuskaya
