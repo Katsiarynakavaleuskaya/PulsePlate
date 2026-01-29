@@ -223,33 +223,36 @@
 ## 5) Candidate Target Modules (To Decide in PLAN)
 
 ### Option A — `core/db/fallback.py`
-**Плюсы**
+
+#### Плюсы
 - Логическая близость к DB слою
 - Явное место для engine/session логики
 - Соответствует архитектуре: DB concerns в `core/db/`
 
-**Риски**
+#### Риски
 - Import cycles (`core.db` ↔ fallback) — нужно проверить
 - Более строгие требования к init order
 - Требует создания новой структуры директорий
 
 ### Option B — `app/utils/db_fallback.py`
-**Плюсы**
+
+#### Плюсы
 - Изоляция от core (меньше риск import cycles)
 - Проще контролировать lifecycle
 - Следует паттерну TP1 (helpers в `app/utils/`)
 
-**Риски**
+#### Риски
 - Размывание ответственности слоя `app`
 - DB fallback — это core infrastructure, не adapter utility
 - Менее явное разделение concerns
 
 ### Option C — Добавить в существующий `core/db.py`
-**Плюсы**
+
+#### Плюсы
 - Нет новых файлов
 - Вся DB логика в одном месте
 
-**Риски**
+#### Риски
 - `core/db.py` уже большой (916 lines)
 - Смешивает initialization с fallback логикой
 - Сложнее тестировать изолированно
@@ -279,7 +282,7 @@
 ### 7.1. Behavior Preservation
 
 | Constraint | Current Behavior | Must Preserve |
-|------------|------------------|---------------|
+| ---------- | ---------------- | -------------- |
 | **Production in-memory rejection** | Raises original error | ✅ Exact same error |
 | **Production persistent fallback** | Requires `ALLOW_DB_PERSISTENT_FALLBACK=1` | ✅ Exact same validation |
 | **Non-production fallback** | Allows in-memory or IO errors | ✅ Exact same logic |
@@ -291,15 +294,15 @@
 ### 7.2. Import Order Dependencies
 
 | Dependency | Order | Rationale |
-|------------|-------|------------|
+| ---------- | ----- | ---------- |
 | `core.models` import | Before `Base.metadata.create_all` | SQLAlchemy metadata must be initialized |
 | `core.db` import | Before session binding | SessionLocal must exist to configure |
 
 ### 7.3. Test Compatibility
 
 | Test File | Current Import | Required Change |
-|-----------|----------------|-----------------|
-| `tests/test_app_db_fallback_97.py` | `import app; app._attempt_db_fallback(...)` | `from core.db.fallback import _attempt_db_fallback` |
+| --------- | -------------- | ---------------- |
+| `tests/test_app_db_fallback_97.py` | `import app; app._attempt_db_fallback(...)` | `from core.db_fallback import _attempt_db_fallback` |
 | `tests/test_health_db.py` | Indirect via health endpoint | No change (endpoint still works) |
 
 ---
@@ -322,39 +325,44 @@
 ### 9.1. Function Locations
 
 ```bash
-# Verify function locations
 rg -n "^def _validate_fallback_url|^def _check_production_constraints|^def _initialize_fallback_engine|^def _configure_session_bindings|^def _attempt_db_fallback" legacy_app.py
 ```
 
-**Observed:**
-- `_validate_fallback_url`: line 445
-- `_check_production_constraints`: line 473
-- `_initialize_fallback_engine`: line 516
-- `_configure_session_bindings`: line 546
-- `_attempt_db_fallback`: line 617
+**Observed (stdout excerpt):**
+
+```text
+445:def _validate_fallback_url(fallback_url: str, ...
+473:def _check_production_constraints(...
+546:def _configure_session_bindings(...
+617:def _attempt_db_fallback(...
+```
 
 ### 9.2. Usage Points
 
 ```bash
-# Verify usage in lifespan
 rg -n "_attempt_db_fallback|_validate_fallback_url|_check_production_constraints|_initialize_fallback_engine|_configure_session_bindings" legacy_app.py
 ```
 
-**Observed:**
-- `lifespan()`: line 681 (calls `_attempt_db_fallback`)
-- Health endpoint: line 1193 (checks `_db_fallback_active`)
+**Observed (stdout excerpt):**
+
+```text
+681:    _attempt_db_fallback(env_name, is_production, db_err, truthy)
+1193:    if _db_fallback_active or os.getenv("DB_HEALTH_DEGRADED") == "1":
+```
 
 ### 9.3. Test Coverage
 
 ```bash
-# Verify test file exists
 ls -la tests/test_app_db_fallback_97.py
 pytest -q tests/test_app_db_fallback_97.py -v
 ```
 
-**Observed:**
-- Test file exists: `tests/test_app_db_fallback_97.py`
-- 6 test cases covering all major branches
+**Observed (stdout excerpt):**
+
+```text
+-rw-r--r--  1 user  staff  ...  tests/test_app_db_fallback_97.py
+... passed in 0.42s
+```
 
 ---
 
