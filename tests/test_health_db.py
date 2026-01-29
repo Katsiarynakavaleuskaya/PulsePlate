@@ -35,8 +35,8 @@ def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     EN: DB failure surfaces as 503 on readiness endpoints.
     """
     with TestClient(cast(ASGIApp, app.app)) as client:
-        # legacy_app.lifespan clears DB_HEALTH_DEGRADED on successful init_db()
-        # so we must set it AFTER startup to exercise the 503 branch.
+        # lifespan clears DB_HEALTH_DEGRADED on successful init_db();
+        # set it AFTER startup to exercise the 503 branch.
         monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
         response = client.get(path)
 
