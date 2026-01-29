@@ -6,14 +6,14 @@
 
 ## Вариант: одна строка
 
-**Docs-only:** Added `.markdownlint.json` to align markdownlint with existing repo docs style (tables + longer lines); no runtime/code behavior changes.
+**Docs-only:** Audit markdownlint (MD036/MD060) fixed; Evidence marked as Opinion. No code/runtime changes. (Markdownlint config moved to separate docs/infra PR.)
 
 ---
 
 ## Вариант: bullets
 
 * Docs-only: fix audit markdownlint (MD036/MD060) + clarify Evidence as Opinion
-* Docs-only: add `.markdownlint.json` to align docs linting (tables + line length); no code/runtime changes
+* Docs-only: no `.markdownlint.json` in this PR (moved to separate docs/infra PR)
 
 ---
 
@@ -21,12 +21,12 @@
 
 ### CodeRabbit (reply)
 
-Fixed remaining docs-only issues: MD036/MD060 cleaned up, and Evidence explicitly marked as **Opinion** (no fabricated stdout). Also added `.markdownlint.json` to align markdownlint with the repo's docs style (tables + line length). No code/runtime behavior changes.
+Fixed remaining docs-only issues: MD036/MD060 cleaned up, Evidence explicitly marked as **Opinion** (no fabricated stdout). No code/runtime changes. (Markdownlint config moved to separate docs/infra PR.)
 
 ### cubic (reply)
 
-Docs-only follow-up: markdownlint fixes in audit doc + lint config alignment. No code changes.
+Docs-only follow-up: markdownlint fixes in audit doc. No code changes.
 
 ### Sourcery (reply)
 
-Docs-only updates (audit markdownlint cleanup + markdownlint config alignment). No code changes.
+Docs-only updates (audit markdownlint cleanup). No code changes.

@@ -159,11 +159,10 @@
 
 ## 3.1) Решение по `.markdownlint.json` (audit-owner)
 
-- **Вариант A (рекомендован):** config остаётся в этом PR как инфраструктурное улучшение docs. В **PR-description и ответе CodeRabbit** обязательно добавить одну строку:
-  > Added markdownlint config to reflect existing project style (tables, long lines); no behavioral code changes.
+- **Вариант A:** config остаётся в этом PR (требует строку в PR/CodeRabbit).
 - **Вариант B:** вынести `.markdownlint.json` в отдельный docs/infra PR; в этом PR оставить только правки audit.md.
 
-**Выбрано: вариант A** — config остаётся в этом PR.
+**Выбрано: вариант B** — config вынесен в отдельный PR. В PR #617 удалён `.markdownlint.json`; audit.md правки и handoff остаются.
 
 ---
 
@@ -190,7 +189,7 @@
 ### Re-review перед merge
 * CI зелёный
 * `npx markdownlint-cli2 docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md` → 0 errors
-* PR description содержит строку про `.markdownlint.json`
+* PR description: docs-only (config вынесен в отдельный PR)
 
 ---
 
