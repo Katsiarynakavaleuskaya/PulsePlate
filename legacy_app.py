@@ -442,6 +442,14 @@ def reset_targets_cache() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     # Detect environment first (before any DB operations)
+    """
+    Manage application startup and shutdown tasks for the FastAPI app.
+    
+    On startup this initializes the database schema, clears any degraded DB fallback state, validates the recipe template directory, and conditionally starts the background update task based on environment and feature flags. On shutdown this stops the background update task if it was started. Template validation failures are propagated; other startup/shutdown errors are logged.
+     
+    Returns:
+        None: lifespan context value (no explicit value yielded).
+    """
     env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
     is_production = env_name not in {"", "local", "dev", "development", "staging", "test", "ci"}
     truthy = {"1", "true", "yes", "on"}
@@ -963,9 +971,13 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
 
 @app.get("/health/db")
 async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
-    """RU: Мини-проверка подключения к базе данных.
-
-    EN: Lightweight database connectivity check.
+    """
+    Perform a lightweight database connectivity check.
+    
+    Checks whether a fallback/degraded state is active and verifies the provided session by executing a simple test query. Raises an HTTPException with status code 503 when the database is unavailable or degraded.
+    
+    Returns:
+        A dictionary with {"status": "ok"} when the check succeeds.
     """
 
     try:

@@ -181,17 +181,13 @@ def _configure_session_bindings(
 def _attempt_db_fallback(
     env_name: Optional[str], is_production: bool, db_err: Exception, truthy: set[str]
 ) -> None:
-    """Attempt to initialize database with fallback SQLite when primary DB fails.
-
-    Production environments never accept in-memory fallbacks. For production,
-    fallback is only allowed when:
-    1. ALLOW_DB_PERSISTENT_FALLBACK env var is set
-    2. DB_FALLBACK_URL points to a persistent storage URL (not in-memory SQLite)
-
-    Non-production environments can use any fallback URL including in-memory.
-
+    """
+    Attempt to initialize and activate a fallback SQLite database when the primary database fails.
+    
+    Selects a fallback URL (from DB_FALLBACK_URL or defaults to in-memory SQLite), enforces production-only constraints (persistent fallback required in production), and—when allowed—initializes the fallback engine and rebinds the application's DB session to it. In non-production, an in-memory fallback is permitted when ALLOW_DB_INMEMORY_FALLBACK is enabled or when the original error is an I/O error; a warning is logged before activating the fallback.
+    
     Raises:
-        db_err: Original database error if fallback fails or is not allowed
+        Exception: Re-raises the original `db_err` when a fallback is not permitted or when fallback initialization fails.
     """
     # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
     fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
@@ -242,10 +238,19 @@ def clear_fallback_active() -> None:
 
 
 def reset_fallback_state() -> None:
-    """Reset fallback global state for tests."""
+    """
+    Reset the module-level database fallback state to inactive.
+    
+    Clears the internal flag that marks a database fallback as active. Intended for use by tests to restore the default state.
+    """
     clear_fallback_active()
 
 
 def is_fallback_active() -> bool:
-    """Read fallback active marker (public helper)."""
+    """
+    Indicates whether a database fallback is currently active.
+    
+    Returns:
+        `true` if a fallback is active, `false` otherwise.
+    """
     return _db_fallback_active
