@@ -3,6 +3,8 @@
 **Purpose:** single source of truth for postponed / follow-up work.
 If it is not recorded here — it does not exist.
 
+**Language policy:** Primary language: English. Russian details allowed in linked design/analysis docs for clarity, but backlog entries must include English summary/translation for maintainability and tooling compatibility.
+
 ## Rules (non-negotiable)
 1) Any postponed work MUST be recorded here immediately.
 2) Each item MUST include:
@@ -116,12 +118,12 @@ If it is not recorded here — it does not exist.
     - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
     - ✅ PR merged
 
-- [x] PR-TP2 Thin-proxy cleanup (DB fallback) — Done (PR #617 open)
+- [ ] PR-TP2 Thin-proxy cleanup (DB fallback) — in progress (PR #617)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #617 (branch: `refactor/tp2-db-fallback`)
-  - Status: ✅ Done (ready to merge after CI green)
-  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Completed audit → plan → Phase 1 (extract) → Phase 2 (rewire) → Phase 3 (tests) → policy docs.
+  - Target PR: PR #617 (`refactor/tp2-db-fallback`)
+  - Status: 📋 Done (PR open; collision fix: fallback in `core/db_fallback.py`)
+  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Original target `core/db/fallback.py` caused `core.db` module/package collision in CI; amended to `core/db_fallback.py`.
   - Links:
     - PR #617
     - docs/pr/PR_TP2_DB_FALLBACK_PLAN.md
@@ -135,6 +137,94 @@ If it is not recorded here — it does not exist.
     - ✅ Tests rebound to `core.db_fallback`; guard tests pass (no guard exception)
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
     - [ ] CI green on PR #617 → merge → post-merge sanity
+
+- [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - core/insight/analysis_insights.md ($72k/month potential abuse)
+  - DoD:
+    - Uncomment and configure rate-limiting (slowapi)
+    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
+    - Add `@limiter.limit("5/hour")` to PDF export endpoints
+    - Add rate-limiting to WebSocket (if exists, verify first)
+    - Tests verify rate-limiting works (429 responses when limit exceeded)
+    - Cost tracking added (token usage, API calls)
+
+- [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: TBD (security fix)
+  - Status: 📋 Ready to start
+  - Reason: `/api/v1/insight` uses `_get_api_key_dynamic` (API key check only, not tier-aware) → FREE users can access expensive LLM API. `/insight` has no auth at all. LLM should be VIP-only feature.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - legacy_app.py:2256-2301 (`/api/v1/insight`), 2305-2348 (`/insight`)
+  - DoD:
+    - Replace `_get_api_key_dynamic` with `require_vip_tier()` on `/api/v1/insight`
+    - Remove `/insight` endpoint (deprecated, no auth) OR add VIP tier guard
+    - Tests verify FREE/PRO users get 403, VIP users get 200
+    - Update OpenAPI schema (insight endpoints require VIP tier)
+
+- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security)
+  - Target PR: N/A (investigation only)
+  - Status: ✅ Resolved — No WebSocket endpoints found
+  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
+  - Links:
+    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
+  - DoD:
+    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
+    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
+    - ✅ Checked OpenAPI schema (no WebSocket paths)
+    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
+    - ✅ Marked as resolved — security gap does not exist
+
+- [ ] P1: Implement WebSocket endpoint with security from start
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (feature + security)
+  - Target PR: TBD (feature implementation)
+  - Status: 📋 Planned
+  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
+  - Links:
+    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
+    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
+  - Prerequisites:
+    - ✅ Security requirements defined (auth + rate-limiting)
+    - ⏳ Use cases defined (what real-time features need WebSocket)
+  - DoD:
+    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
+    - Authentication required (token in query params or headers)
+    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
+    - Tests verify unauthenticated connections are rejected (403/401)
+    - Tests verify rate-limiting works (429 when limit exceeded)
+    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
+    - Documentation: WebSocket API contract, authentication flow, rate limits
+
+- [ ] P1: Extract hardcoded constants (BMR, export formats)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability)
+  - Target PR: TBD
+  - Status: 📋 Ready to start
+  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
+    - legacy_app.py:97 (nutrition_core imports), export functions
+  - DoD:
+    - Extract BMR constants to `core/bmr.py` module
+    - Create `ExportFormat` enum (CSV, PDF, JSON)
+    - Replace hardcoded values with constants/enum
+    - Tests verify no functionality broken
 
 ---
 
@@ -326,6 +416,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] Wire soft paywall CTA to real paywall router (iOS)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: paywall navigation infrastructure not yet available; hook is rendered but CTA is no-op
   - Links:
@@ -336,6 +427,7 @@ If it is not recorded here — it does not exist.
     - No TODO comments in production code
 - [ ] Optional: CI script guard for iOS (repo-wide scan)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: current Swift Testing guard is sufficient; script is hardening
   - Links:
@@ -347,6 +439,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: avoid guard flakiness if comments include examples
   - Links:
@@ -586,10 +679,31 @@ If it is not recorded here — it does not exist.
   - Links:
     - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
     - docs/contracts/PRODUCT_TIER_MAP.md
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Migration status by domain)
   - DoD:
     - All clients migrated to canonical endpoints
     - Deprecated endpoints removed
     - OpenAPI updated (no deprecated paths)
+
+- [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (v2.0 timeline, after all migrations)
+  - Priority: P2 (long-term cleanup)
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). Current state: 5382 lines, ~60% migrated.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+  - Prerequisites:
+    - ✅ All P0 security fixes complete (rate-limiting, tier guards)
+    - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
+    - ✅ All clients migrated to canonical endpoints
+    - ✅ Legacy endpoint traffic < 1%
+  - DoD:
+    - All endpoints migrated to modular routers
+    - All helpers moved to canonical modules
+    - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
+    - Tests pass (no functionality broken)
+    - OpenAPI unchanged (all canonical endpoints present)
 
 - [x] PR-570 (Phase 3): Agent index + model selection rationale — merged
   - Owner: @katsiaryna_kavaleuskaya
@@ -599,7 +713,303 @@ If it is not recorded here — it does not exist.
     - docs/audit/PR_567_AGENT_INDEX_AUDIT.md
     - docs/agents/index.md
 
+- [ ] P2 Vision: Nutrition coaching (CBT in nutrition, weight loss/gain)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (product/feature design first)
+  - Priority: P2 (product direction; preferred over ML training platform for current scope)
+  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. **Integration with philosophy and math:** CBT coaching flows can be validated through philosophical principles (syllogisms, verification) and enhanced with Bayesian predictions for proactive intervention. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя. **Интеграция с философией и математикой:** CBT coaching flows могут быть валидированы через философские принципы (силлогизмы, верификация) и улучшены байесовскими предсказаниями для проактивного вмешательства.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: CBT + philosophy + Bayesian integration, structured coaching flows)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (component links, implementation approach)
+    - core/insight/creative_scientific_innovations.md (FitChef, AI companion)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (insight, RAG)
+  - DoD:
+    - Product spec: coaching scenarios (goals, weekly reflections, behavioral steps) — EN: structured scenarios (goal-setting dialogues, weekly reflections, slip analysis)
+    - Component links documented in design doc (see NUTRITION_COACHING_DESIGN.md)
+    - Implementation — separate PRs after backend/VIP stabilization
+
+- [ ] P2 Vision: Future — social network for nutrition/weight/support
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: N/A (separate product/project in perspective)
+  - Priority: P2 (long-term vision)
+  - Reason (EN): Possible separate product: community around nutrition, weight goals, mutual support. Not in current PulsePlate scope; considered as prospect after strengthening coaching and core app. (RU: Возможный отдельный продукт: комьюнити вокруг питания, целей по весу, взаимоподдержка. Не входит в текущий scope PulsePlate; рассматривается как перспектива после укрепления коучинга и ядра приложения.)
+  - Links:
+    - docs/design/NUTRITION_COACHING_DESIGN.md (Future social network — links section)
+    - BACKLOG_LEDGER (Nutrition coaching — natural predecessor)
+  - DoD:
+    - Decision "do / don't do" and product boundaries (separate app vs section in PulsePlate) — after coaching launch
+
+- [ ] P2 Vision: Restaurant/chef integration (partners accept menus from our products, cook for users)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate product block; after VIP/export stabilization)
+  - Priority: P2 (long-term product direction)
+  - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
+    - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
+    - core/dietary_constraints.py, core/targets.py
+  - Prerequisites:
+    - ✅ VIP weekly plan stable (`vip.py`, `premium_week.py`)
+    - ✅ Export infrastructure exists (`plan_export.py`, `shoplist_export.py`)
+    - ✅ Dietary constraints module stable (`core/dietary_constraints.py`)
+    - ⏳ Backend/VIP stabilization complete (P0)
+  - DoD:
+    - Product spec: scenario "user sends menu to restaurant/chef" (what partner sees, how confirms) — EN: documented user flow and partner UX
+    - Technical prerequisites documented in design spec (export format, consent, contract schema)
+    - Implementation — separate PRs (export format, partner API or signed link, optionally partner directory)
+
 ---
 
-**Last updated:** 2026-01-28 (PR-TP1: Add thin-proxy cleanup TP1/TP2 ledger entries)
+- [ ] P2: Cross-feature synergies implementation (real-time + automation + community)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (strategic integration)
+  - Target PR: TBD (multiple PRs for different synergies)
+  - Status: 📋 Planned
+  - Reason: 12 new synergies identified between planned features (WebSocket + Coaching, CV + Restaurant, Bayesian + WebSocket, etc.). These create unified user experiences and competitive advantages. Implementation should follow recommended order: real-time foundation → coaching enhancement → automation pipeline → community features.
+  - Links:
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, implementation order, expected impact)
+    - docs/design/NUTRITION_COACHING_DESIGN.md
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/audit/WEBSOCKET_ANALYSIS.md
+  - Prerequisites:
+    - ✅ WebSocket implemented (P1)
+    - ✅ Nutrition coaching implemented (P2)
+    - ✅ Restaurant integration implemented (P2)
+    - ✅ CV food recognition implemented (P1)
+  - DoD:
+    - Real-time foundation complete (WebSocket + Bayesian + Gamification)
+    - Coaching enhancement complete (WebSocket + RAG + Causal Inference)
+    - Automation pipeline complete (CV + Restaurant + Multi-Modal)
+    - Community features complete (Social Network + Gamification + Restaurant)
+    - End-to-end user journeys documented and tested
+
+- [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on reliability)
+  - Target PR: TBD (implementation after design review)
+  - Status: 📋 Design Complete
+  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Expected impact: reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Ожидаемый эффект: снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (speed optimization using philosophical principles: speech acts, language games, early stopping, adaptive depth)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
+    - core/insight/creative_scientific_innovations.md (AI assistant design)
+  - Prerequisites:
+    - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
+    - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
+    - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
+  - DoD:
+    - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
+    - Phase 2: Analytical philosophy implemented (verification, falsification)
+    - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
+    - Phase 4: Linguistic philosophy implemented (speech acts, language games)
+    - Phase 5: Integrated framework complete (unified prompt builder + validator)
+    - **Speed Optimization Phase:** Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
+    - Validation metrics: contradiction rate <2%, verification rate >95%, pragmatic utility >90%
+    - Performance metrics: latency reduction 50-60% average, quality maintained ≥95%
+    - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
+
+- [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on quality and accuracy)
+  - Target PR: TBD (implementation after design review)
+  - Status: 📋 Design Complete
+  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies: parallelization, caching, batching, open-source libraries)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (complements recursive verification)
+    - core/rag/simple_rag.py (current single-pass keyword-based RAG)
+  - Prerequisites:
+    - ✅ Current RAG infrastructure stable (`core/rag/simple_rag.py`)
+    - ✅ LLM provider stable (`llm.py`)
+    - ✅ Redis available in docker-compose (for caching optimization)
+    - ⏳ Fact-checking system implemented (for recursive verification)
+    - ⏳ User feedback storage implemented (for recursive learning)
+  - DoD:
+    - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
+    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
+    - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
+    - Phase 4: Recursive verification implemented (self-validation, claim checking)
+    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
+    - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
+    - **Optimization Phase:** Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
+    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
+    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Integration tests pass (end-to-end recursive pipeline)
+
+- [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (integration of all components after individual implementations)
+  - Target PR: TBD (implementation after Phase 1-4 components are complete)
+  - Status: 📋 Planned (depends on Philosophical logic + Recursive methods + CBT coaching)
+  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (philosophical validation components)
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (recursive methods components)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (CBT coaching flows)
+  - Prerequisites:
+    - ✅ Phase 1: Philosophical validation implemented (P1 backlog item)
+    - ✅ Phase 2: Speed optimization implemented (LinguisticOptimizer, caching)
+    - ✅ Phase 3: Recursive methods implemented (P1 backlog item)
+    - ✅ Phase 4: CBT coaching implemented (P2 backlog item)
+    - ⏳ All individual components tested and stable
+  - DoD:
+    - Phase 5: UnifiedAICoach class implemented (orchestrates all components)
+    - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
+    - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
+    - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
+    - Performance metrics: latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
+    - Cost optimization: ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
+    - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
+
+- [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional tooling improvement)
+  - Target PR: TBD (evaluation first, then migration if beneficial)
+  - Status: 📋 Planned
+  - Reason (EN): Python ecosystem 2026: PEP 751 defines standard lock format (pylock.toml); Dependabot now supports uv. Current repo uses pip-tools (requirements.txt as lock) and pip in Dependabot — no mandatory change. Optional: evaluate migrating to standard lock file and/or uv when tooling/CI support is stable. Setuptools: we use it only as pinned dependency (security); no setup.cfg — setuptools 78.x deprecations do not affect us. (RU: Экосистема Python 2026: PEP 751 — стандартный lock-файл; Dependabot поддерживает uv. Сейчас: pip-tools + requirements.txt как lock, Dependabot на pip. Опционально: оценить переход на pylock.toml и/или uv. Setuptools: только как зависимость в requirements; setup.cfg нет — депрекации 78.x нас не затрагивают.)
+  - Links:
+    - docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md (full audit: setuptools usage, lock file strategy, Dependabot/uv)
+    - REQUIREMENTS.md (current pip-compile workflow)
+    - .github/dependabot.yml (pip ecosystem)
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PEP 751 and for uv
+    - If adopt: migration PR with updated REQUIREMENTS.md and CI; Dependabot config updated if uv adopted
+
+- [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; depends on voice UX roadmap)
+  - Target PR: TBD (evaluation first, then integration if approved)
+  - Status: 📋 Planned
+  - Reason (EN): PersonaPlex (open-source, NVIDIA) provides full-duplex speech-to-speech, persona switching, and backchannel for a "live" conversational feel. Fit: personalize AI assistant and nutrition coach by style (e.g. strict teacher, friendly consultant); optional voice mode. Current stack is text-only; PersonaPlex would be additive (voice layer). Prerequisites: NVIDIA GPU or hosted API, NVIDIA Open Model License, WebSocket/streaming for real-time audio. (RU: PersonaPlex (NVIDIA, open-source) — full-duplex S2S, переключение персон, поддакивания; можно использовать для персонализированного ассистента и коуча. Сейчас у нас только текст; голос — опционально.)
+  - Links:
+    - docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md (integration options, prerequisites, risks)
+    - <https://huggingface.co/nvidia/personaplex-7b-v1>
+    - <https://github.com/NVIDIA/personaplex>
+    - docs/design/NUTRITION_COACHING_DESIGN.md (coach flows)
+    - core/insight/creative_scientific_innovations.md (FitChef)
+  - Prerequisites:
+    - Voice UX / real-time audio on product roadmap (or explicit decision to prototype)
+    - Inference option: GPU (A100/H100) or hosted API; license accepted
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PersonaPlex voice layer
+    - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
+
+- [ ] P2 Optional: Evaluate Lenny's Podcast Transcripts for insights, marketing, and Bayesian context
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; after P0/P1 hardening and insight/coach work stable)
+  - Target PR: TBD (evaluation first: curated doc vs RAG subset vs MCP)
+  - Status: 📋 Planned
+  - Reason (EN): Lenny's Podcast Transcripts (269 episodes, 50+ topics) provide product/growth/PMF/leadership advice from world-class PM and growth experts. Fit: enrich insights docs, marketing-strategist playbooks, Bayesian business analyzer prior/context, FitChef RAG, and nutrition coaching design. Options: (1) curated references doc, (2) RAG subset with citation, (3) MCP or internal API. License: personal/educational; internal use with attribution is low risk. (RU: Транскрипты Lenny's Podcast — продукт/рост/PMF/лидерство; можно использовать для инсайтов, маркетинга, байесовского контекста и FitChef/коучинг.)
+  - Links:
+    - docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md (mapping to insights, Bayesian, marketing, FitChef; integration options)
+    - <https://github.com/ChatPRD/lennys-podcast-transcripts>
+    - core/insight/analysis_insights.md
+    - core/insight/creative_scientific_innovations.md
+    - .cursor/agents/marketing-strategist.md
+  - DoD:
+    - Decision documented: adopt one option (curated doc / RAG subset / MCP) or defer / won't do
+    - If adopt: implementation steps and attribution policy documented; no scope creep into P0/P1
+
+- [ ] P2 Optional: Use Loot Drop (Startup Graveyard) as periodic anti-pattern checklist
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; before major bets or post-launch reviews)
+  - Target PR: N/A (process: run checklist, update audit if new risks)
+  - Status: 📋 Planned
+  - Reason (EN): Loot Drop (loot-drop.io) catalogs 925+ failed VC-backed startups with structured failure analysis (product, competition, pricing, lost focus, marketing, cash, legal/regulatory, etc.). Health/BioTech failures are 94% legal/regulatory. Use as anti-pattern checklist to avoid repeating epic fails: e.g. LLM cost burn, scope creep, wellness vs medical positioning. (RU: «Кладбище стартапов» — уроки провалов; чеклист по 10 категориям и revival themes для снижения рисков.)
+  - Links:
+    - docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md (risk matrix, PulsePlate mapping, recommendations)
+    - <https://www.loot-drop.io/>
+    - <https://www.loot-drop.io/insights.html>
+    - core/insight/analysis_insights.md (Lessons from failed startups subsection)
+  - DoD:
+    - Before major product/GTM bets or post-launch review: run through Loot Drop 10 categories + revival themes
+    - Update LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md if new risks or mitigations identified
+
+- [ ] P2 Optional: Use curated repos (Frontend/UI, AI/LLM, RAG, Multimodal, MCP, ML/CV) as learning and reference
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; when implementing RAG upgrade, multimodal pipeline, or frontend components)
+  - Target PR: N/A (reference only; adopt patterns/libraries via normal PR)
+  - Status: 📋 Planned
+  - Reason (EN): Curated set (22 repos): Flexbox Froggy, shadcn/ui, 50projects50days, Awesome React/CSS; LLaVA, CLIP, Transformers, Awesome Multimodal ML, RAG from Scratch, Awesome LLM Apps, LLM Engineer Handbook; MCP Python SDK; Awesome ML/CV, ZenML; Qwen/Qwen-Finetuning; Spinning Up, Sutton&Barto RL; PyTorch, Awesome Generative AI. Map to our vision: RAG (RAG from Scratch, Awesome LLM Apps), multimodal/FitChef (LLaVA, CLIP, Transformers), frontend (shadcn, Awesome React), MCP (python-sdk), CV (Awesome CV, PyTorch). (RU: Закладки для RAG, multimodal, фронта, MCP, ML/CV; использовать при реализации фич.)
+  - Links:
+    - docs/insights/CURATED_REPOS_REFERENCE.md (full mapping to LLM_RAG, CV_ML, creative_scientific_innovations, RECURSIVE_METHODS, COMPREHENSIVE)
+    - core/insight/creative_scientific_innovations.md (Curated repos reference subsection)
+  - DoD:
+    - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
+    - No mandatory code dependency; adopt via normal PR/backlog
+
+- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
+  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
+  - Status: 📋 Planned
+  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
+    - core/insight/creative_scientific_innovations.md (FitChef personalization)
+  - DoD:
+    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
+    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
+    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
+
+- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (when VIP weekly plan performance is in scope)
+  - Target PR: TBD (implementation after design)
+  - Status: 📋 Planned
+  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
+    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
+    - app/routers/vip.py (current weekly plan flow)
+  - DoD:
+    - Design: recursive week planning and/or lazy day generation documented
+    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
+    - No regression on constraint satisfaction or nutrition targets
+
+- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality assurance; prevent regressions)
+  - Target PR: TBD (tests only)
+  - Status: 📋 Planned
+  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
+    - tests/ (existing unit/integration structure)
+  - DoD:
+    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
+    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
+
+- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
+  - Target PR: N/A (decision + optional draft)
+  - Status: 📋 Planned
+  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
+  - DoD:
+    - Decision documented: pursue / defer / won't do for publication track
+    - If pursue: venue + outline for one paper; no mandatory timeline
+
+---
+
+**Last updated:** 2026-01-28 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
 **Maintainer:** @katsiaryna_kavaleuskaya
