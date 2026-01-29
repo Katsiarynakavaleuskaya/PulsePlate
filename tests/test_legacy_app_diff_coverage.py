@@ -94,46 +94,85 @@ async def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyP
 def test_configure_session_bindings_sets_sessionlocal_when_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover the SessionLocal None branch in core.db_fallback._configure_session_bindings.
+    """Cover SessionLocal assignment in core.db_fallback._configure_session_bindings.
 
-    Fallback mutates core.db (core/db.py); assert on that module.
+    Fallback mutates core.db (core/db.py); save/restore globals and ENV for isolation.
     """
+    import os
+
     from core import db as core_db
     from core.db_fallback import _configure_session_bindings
 
-    engine = create_engine("sqlite:///:memory:")
-    _configure_session_bindings(
-        engine=engine,
-        is_production=False,
-        fallback_url="sqlite:///:memory:",
-        env_name="test",
-    )
-    assert core_db.SessionLocal is not None
+    orig_sessionlocal = core_db.SessionLocal
+    orig_raw_engine = getattr(core_db, "_RAW_ENGINE", None)
+    orig_engine = getattr(core_db, "engine", None)
+    env_keys = ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL")
+    env_snapshot = {k: os.environ.get(k) for k in env_keys}
+    try:
+        for k in env_keys:
+            monkeypatch.delenv(k, raising=False)
+        core_db.SessionLocal = None
+        engine = create_engine("sqlite:///:memory:")
+        _configure_session_bindings(
+            engine=engine,
+            is_production=False,
+            fallback_url="sqlite:///:memory:",
+            env_name="test",
+        )
+        assert core_db.SessionLocal is not None
+    finally:
+        monkeypatch.setattr(core_db, "SessionLocal", orig_sessionlocal, raising=False)
+        core_db._RAW_ENGINE = orig_raw_engine
+        core_db.engine = orig_engine
+        for k, v in env_snapshot.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def test_configure_session_bindings_configure_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover the branch where SessionLocal exists and configure() is called (core.db_fallback).
+    """Cover _configure_session_bindings: two calls reassign SessionLocal (no .configure()).
 
-    First call creates SessionLocal; second call hits the configure(bind=...) path.
+    Fallback always recreates sessionmaker; save/restore core.db globals and ENV.
     """
+    import os
+
     from core import db as core_db
     from core.db_fallback import _configure_session_bindings
 
-    engine1 = create_engine("sqlite:///:memory:")
-    engine2 = create_engine("sqlite:///:memory:")
-    _configure_session_bindings(
-        engine=engine1,
-        is_production=False,
-        fallback_url="sqlite:///:memory:",
-        env_name="test",
-    )
-    _configure_session_bindings(
-        engine=engine2,
-        is_production=False,
-        fallback_url="sqlite:///:memory:",
-        env_name="test",
-    )
-    assert core_db.SessionLocal is not None
+    orig_sessionlocal = core_db.SessionLocal
+    orig_raw_engine = getattr(core_db, "_RAW_ENGINE", None)
+    orig_engine = getattr(core_db, "engine", None)
+    env_keys = ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL")
+    env_snapshot = {k: os.environ.get(k) for k in env_keys}
+    try:
+        for k in env_keys:
+            monkeypatch.delenv(k, raising=False)
+        engine1 = create_engine("sqlite:///:memory:")
+        engine2 = create_engine("sqlite:///:memory:")
+        _configure_session_bindings(
+            engine=engine1,
+            is_production=False,
+            fallback_url="sqlite:///:memory:",
+            env_name="test",
+        )
+        _configure_session_bindings(
+            engine=engine2,
+            is_production=False,
+            fallback_url="sqlite:///:memory:",
+            env_name="test",
+        )
+        assert core_db.SessionLocal is not None
+    finally:
+        monkeypatch.setattr(core_db, "SessionLocal", orig_sessionlocal, raising=False)
+        core_db._RAW_ENGINE = orig_raw_engine
+        core_db.engine = orig_engine
+        for k, v in env_snapshot.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def test_bmi_request_normalizes_with_visualization_values() -> None:

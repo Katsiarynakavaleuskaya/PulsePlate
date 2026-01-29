@@ -20,11 +20,12 @@ class TestAppDBFallback97:
 
     @pytest.fixture(autouse=True)
     def _reset_fallback_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Reset _db_fallback_active before each test to avoid cross-test leakage."""
+        """Reset fallback state and ENV before each test to avoid cross-test leakage."""
         import core.db_fallback as fallback_mod
 
-        fallback_mod._db_fallback_active = False
-        monkeypatch.delenv("DB_HEALTH_DEGRADED", raising=False)
+        monkeypatch.setattr(fallback_mod, "_db_fallback_active", False)
+        for key in ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL"):
+            monkeypatch.delenv(key, raising=False)
 
     def test_attempt_db_fallback_production_inmemory_rejected(self) -> None:
         """Production environment rejects in-memory DB fallback."""

@@ -45,20 +45,18 @@ def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     assert response.json()["detail"].lower().startswith("database")
 
 
-def test_lifespan_success_clears_fallback_flag() -> None:
+def test_lifespan_success_clears_fallback_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover legacy_app lifespan success path (line 458): init_db() succeeds, clear _db_fallback_active."""
+    import os
+
     import core.db_fallback as fallback_mod
 
-    fallback_mod._db_fallback_active = True
-    # Set marker so lifespan success path pops it (line 456/458)
-    import os as _os
+    monkeypatch.setattr(fallback_mod, "_db_fallback_active", True)
+    monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
 
-    _os.environ["DB_HEALTH_DEGRADED"] = "1"
-    try:
-        with TestClient(cast(ASGIApp, legacy_app.app)) as client:
-            response = client.get("/health")
-        assert response.status_code == 200
-        assert not fallback_mod._db_fallback_active
-        assert _os.environ.get("DB_HEALTH_DEGRADED") is None
-    finally:
-        _os.environ.pop("DB_HEALTH_DEGRADED", None)
+    with TestClient(cast(ASGIApp, legacy_app.app)) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert not fallback_mod._db_fallback_active
+    assert os.environ.get("DB_HEALTH_DEGRADED") is None
