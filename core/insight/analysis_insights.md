@@ -384,8 +384,19 @@ Marketing Launch (Path 4)
 - `docs/analysis/FINAL_ASSESSMENT_REVIEW.md` — финальный анализ
 - `docs/analysis/DOMAIN_ANALYSIS.md` — анализ субдоменов
 - `docs/roadmap/BACKLOG_LEDGER.md` — текущий backlog
+- `docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md` — уроки провалов стартапов (Loot Drop), риски PulsePlate
 
 ---
+
+## 🪦 Lessons from failed startups (Loot Drop)
+
+**Источник:** [Loot Drop / The Startup Graveyard](https://www.loot-drop.io/) — 925+ провалившихся VC-стартапов, мета-анализ 900+ post-mortem.
+
+**Топ причин провала:** Product 85.6%, Competition 82.7%, Pricing/unit economics 62.6%, Lost focus 52.8%, Marketing 50.7%, Cash 45.4%, Legal/Regulatory 41.8%. В **Health & BioTech** доминирует **Legal/Regulatory (94%)** — "In health, your MVP must be enterprise-grade compliant from Day 1."
+
+**Применение к PulsePlate:** Самый большой избегаемый эпик-фейл — неконтролируемый расход на LLM и отсутствие production hardening (rate limit, auth, observability). Второе: строго wellness, не medical — чтобы не попасть в регуляторную ловушку health-стартапов. Чеклист: validate demand, build lean, nail unit economics, GTM from day one, legal/regulatory in health from Day 1.
+
+Подробно: `docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md`.
 
 ---
 

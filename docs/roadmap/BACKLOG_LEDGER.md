@@ -893,7 +893,38 @@ If it is not recorded here — it does not exist.
     - Decision documented: adopt / defer / won't do for PersonaPlex voice layer
     - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
 
+- [ ] P2 Optional: Evaluate Lenny's Podcast Transcripts for insights, marketing, and Bayesian context
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; after P0/P1 hardening and insight/coach work stable)
+  - Target PR: TBD (evaluation first: curated doc vs RAG subset vs MCP)
+  - Status: 📋 Planned
+  - Reason (EN): Lenny's Podcast Transcripts (269 episodes, 50+ topics) provide product/growth/PMF/leadership advice from world-class PM and growth experts. Fit: enrich insights docs, marketing-strategist playbooks, Bayesian business analyzer prior/context, FitChef RAG, and nutrition coaching design. Options: (1) curated references doc, (2) RAG subset with citation, (3) MCP or internal API. License: personal/educational; internal use with attribution is low risk. (RU: Транскрипты Lenny's Podcast — продукт/рост/PMF/лидерство; можно использовать для инсайтов, маркетинга, байесовского контекста и FitChef/коучинг.)
+  - Links:
+    - docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md (mapping to insights, Bayesian, marketing, FitChef; integration options)
+    - https://github.com/ChatPRD/lennys-podcast-transcripts
+    - core/insight/analysis_insights.md
+    - core/insight/creative_scientific_innovations.md
+    - .cursor/agents/marketing-strategist.md
+  - DoD:
+    - Decision documented: adopt one option (curated doc / RAG subset / MCP) or defer / won't do
+    - If adopt: implementation steps and attribution policy documented; no scope creep into P0/P1
+
+- [ ] P2 Optional: Use Loot Drop (Startup Graveyard) as periodic anti-pattern checklist
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; before major bets or post-launch reviews)
+  - Target PR: N/A (process: run checklist, update audit if new risks)
+  - Status: 📋 Planned
+  - Reason (EN): Loot Drop (loot-drop.io) catalogs 925+ failed VC-backed startups with structured failure analysis (product, competition, pricing, lost focus, marketing, cash, legal/regulatory, etc.). Health/BioTech failures are 94% legal/regulatory. Use as anti-pattern checklist to avoid repeating epic fails: e.g. LLM cost burn, scope creep, wellness vs medical positioning. (RU: «Кладбище стартапов» — уроки провалов; чеклист по 10 категориям и revival themes для снижения рисков.)
+  - Links:
+    - docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md (risk matrix, PulsePlate mapping, recommendations)
+    - https://www.loot-drop.io/
+    - https://www.loot-drop.io/insights.html
+    - core/insight/analysis_insights.md (Lessons from failed startups subsection)
+  - DoD:
+    - Before major product/GTM bets or post-launch review: run through Loot Drop 10 categories + revival themes
+    - Update LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md if new risks or mitigations identified
+
 ---
 
-**Last updated:** 2026-01-28 (Add PersonaPlex integration audit and P2 optional backlog item)
+**Last updated:** 2026-01-28 (Add Loot Drop Startup Graveyard audit, insight ref, P2 optional anti-pattern checklist)
 **Maintainer:** @katsiaryna_kavaleuskaya
