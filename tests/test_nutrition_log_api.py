@@ -18,6 +18,17 @@ class TestNutritionLogAPI:
         self.headers = {"X-API-Key": TEST_KEY_PRO}
         self.client = TestClient(fastapi_app, headers=self.headers)
         self.user_id = derive_subject_id_from_api_key(TEST_KEY_PRO)
+        # Ensure DB schema exists before tests (CI may run this file without app lifespan).
+        import core.db as core_db
+
+        core_db.init_db()
+        # Guarantee analyzer_state exists on same engine (init_db imports core.models; idempotent).
+        import core.models  # noqa: F401
+        from core.db import Base
+
+        raw_engine = getattr(core_db, "_RAW_ENGINE", None)
+        if raw_engine is not None:
+            Base.metadata.create_all(bind=raw_engine)
 
     def teardown_method(self) -> None:
         fastapi_app.dependency_overrides.clear()

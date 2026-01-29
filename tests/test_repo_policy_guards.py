@@ -75,9 +75,10 @@ def test_no_dynamic_imports_in_app_core() -> None:
     offenders: list[str] = []
 
     for path in list(_iter_py_files("app/**/*.py")) + list(_iter_py_files("core/**/*.py")):
+        rel = _rel(path)
         content = _read(path)
         if any(tok in content for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS):
-            offenders.append(_rel(path))
+            offenders.append(rel)
 
     assert not offenders, f"Dynamic import tokens found in: {offenders}"
 

@@ -144,6 +144,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Only `make cov-check` (total ≥97%) + `make diff-cov` (diff-coverage ≥97%) count.
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
+- **Diff-cover failures:** Fix ONLY via tests (preferred) unless behavior is wrong; do not rewrite code solely for coverage.
 
 **legacy_app.py policy (hard):**
 
@@ -152,6 +153,18 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - All middleware/observability registration must live in bootstrap modules (e.g., `app/bootstrap/metrics.py`) and be called from the primary app entrypoint (e.g., `app/main.py`).
 - `legacy_app.py` must only contain: thin proxies, response formatting, legacy endpoint shims.
 - This prevents drift and keeps legacy as a pure compatibility layer.
+
+**DB fallback policy (hard, TP2):**
+
+- DB fallback implementation lives **only** in `core/db_fallback.py`. Single source of truth.
+- `legacy_app.py` must **not** define fallback helpers or `_db_fallback_active`; it may only *delegate* to `core.db_fallback`.
+- **DB lifecycle invariant:** In `core/`, `SessionLocal.configure()` is forbidden; on fallback use only reassignment via `sessionmaker(bind=engine, ...)`.
+- **State mutation policy:** `_db_fallback_active` must not be written/read directly outside `core/db_fallback.py`; use `set_fallback_active()`, `clear_fallback_active()`, `reset_fallback_state()`, and `is_fallback_active()`.
+- Health/status checks must use `is_fallback_active()` (or module access `fallback_mod.is_fallback_active()`). **Forbidden:** `from core.db_fallback import _db_fallback_active` (stale-value risk).
+- Tests must import/patch fallback only via `core.db_fallback`; any global flag must be reset via `reset_fallback_state()` or fixture (autouse allowed).
+- **Test hygiene:** Any test that mutates `core.db.SessionLocal` or calls `_configure_session_bindings` **must** restore `core_db.SessionLocal` and env keys (`DB_HEALTH_DEGRADED`, `DB_FALLBACK_URL`, `DATABASE_URL`) in a `finally` block or via `monkeypatch`.
+
+**Module/package collision (hard):** Never introduce `core/<name>/` (package) when `core/<name>.py` (module) exists; Python would resolve `core.<name>` to the package and break imports. Use a non-colliding name (e.g. `core/db_fallback.py`) instead.
 
 **Dockerfile policy (hard):**
 
