@@ -205,6 +205,8 @@ class FoodVision:
        # Call FoodVisionAI, map to food database, return nutrition info
    ```
 
+   **Security (endpoint):** File type (ALLOWED_TYPES), size limit (MAX_IMAGE_SIZE), and image integrity (PIL verify) are enforced above; authentication and rate limiting via `Depends(require_pro_tier)`, `Depends(rate_limit_llm)`.
+
 4. **Добавить calorie estimation**
    - Portion size estimation (reference object)
    - Calorie calculation (food_db lookup)

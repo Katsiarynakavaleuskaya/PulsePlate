@@ -125,6 +125,12 @@ So we **do** use a lock-file strategy: pinned, reproducible installs via pip-too
 
 - Setuptools in repo:
   `grep -rn setuptools requirements.in requirements.txt requirements-dev.txt .github/workflows/ Dockerfile`
+  Output (sample):
+  ```text
+  requirements.in:32:setuptools>=78.1.1,<79.0.0
+  requirements.txt:50:setuptools==78.1.1
+  requirements-dev.txt:45:setuptools==78.1.1
+  ```
 - No setup.cfg:
   `ls -la setup.cfg 2>/dev/null` → not present.
 - No build-system in pyproject:

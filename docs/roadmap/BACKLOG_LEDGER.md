@@ -882,8 +882,8 @@ If it is not recorded here — it does not exist.
   - Reason (EN): PersonaPlex (open-source, NVIDIA) provides full-duplex speech-to-speech, persona switching, and backchannel for a "live" conversational feel. Fit: personalize AI assistant and nutrition coach by style (e.g. strict teacher, friendly consultant); optional voice mode. Current stack is text-only; PersonaPlex would be additive (voice layer). Prerequisites: NVIDIA GPU or hosted API, NVIDIA Open Model License, WebSocket/streaming for real-time audio. (RU: PersonaPlex (NVIDIA, open-source) — full-duplex S2S, переключение персон, поддакивания; можно использовать для персонализированного ассистента и коуча. Сейчас у нас только текст; голос — опционально.)
   - Links:
     - docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md (integration options, prerequisites, risks)
-    - https://huggingface.co/nvidia/personaplex-7b-v1
-    - https://github.com/NVIDIA/personaplex
+    - <https://huggingface.co/nvidia/personaplex-7b-v1>
+    - <https://github.com/NVIDIA/personaplex>
     - docs/design/NUTRITION_COACHING_DESIGN.md (coach flows)
     - core/insight/creative_scientific_innovations.md (FitChef)
   - Prerequisites:
@@ -901,7 +901,7 @@ If it is not recorded here — it does not exist.
   - Reason (EN): Lenny's Podcast Transcripts (269 episodes, 50+ topics) provide product/growth/PMF/leadership advice from world-class PM and growth experts. Fit: enrich insights docs, marketing-strategist playbooks, Bayesian business analyzer prior/context, FitChef RAG, and nutrition coaching design. Options: (1) curated references doc, (2) RAG subset with citation, (3) MCP or internal API. License: personal/educational; internal use with attribution is low risk. (RU: Транскрипты Lenny's Podcast — продукт/рост/PMF/лидерство; можно использовать для инсайтов, маркетинга, байесовского контекста и FitChef/коучинг.)
   - Links:
     - docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md (mapping to insights, Bayesian, marketing, FitChef; integration options)
-    - https://github.com/ChatPRD/lennys-podcast-transcripts
+    - <https://github.com/ChatPRD/lennys-podcast-transcripts>
     - core/insight/analysis_insights.md
     - core/insight/creative_scientific_innovations.md
     - .cursor/agents/marketing-strategist.md
@@ -917,8 +917,8 @@ If it is not recorded here — it does not exist.
   - Reason (EN): Loot Drop (loot-drop.io) catalogs 925+ failed VC-backed startups with structured failure analysis (product, competition, pricing, lost focus, marketing, cash, legal/regulatory, etc.). Health/BioTech failures are 94% legal/regulatory. Use as anti-pattern checklist to avoid repeating epic fails: e.g. LLM cost burn, scope creep, wellness vs medical positioning. (RU: «Кладбище стартапов» — уроки провалов; чеклист по 10 категориям и revival themes для снижения рисков.)
   - Links:
     - docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md (risk matrix, PulsePlate mapping, recommendations)
-    - https://www.loot-drop.io/
-    - https://www.loot-drop.io/insights.html
+    - <https://www.loot-drop.io/>
+    - <https://www.loot-drop.io/insights.html>
     - core/insight/analysis_insights.md (Lessons from failed startups subsection)
   - DoD:
     - Before major product/GTM bets or post-launch review: run through Loot Drop 10 categories + revival themes

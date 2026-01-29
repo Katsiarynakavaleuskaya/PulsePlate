@@ -22,9 +22,9 @@
 
 | Asset | Description | PulsePlate relevance |
 |-------|-------------|----------------------|
-| **episodes/** | 269 transcripts, one folder per guest, `transcript.md` with YAML frontmatter | Parsable by scripts; guest, title, duration, description, youtube_url |
+| **episodes/** | 269 transcripts, one folder per guest, `transcript.md` with YAML frontmatter | Parsable by scripts; guest, title, duration, description, YouTube URL |
 | **index/** | 50+ topic files (e.g. product-management.md, growth-strategy.md, product-market-fit.md) | Direct mapping to our domains: PMF, growth, product strategy, leadership |
-| **Frontmatter** | guest, title, youtube_url, video_id, publish_date, description, duration_seconds, view_count | Filtering by topic/date; citation and "source" for insights |
+| **Frontmatter** | guest, title, YouTube URL, video_id, publish_date, description, duration_seconds, view_count | Filtering by topic/date; citation and "source" for insights |
 
 ### 2.2 Topic Coverage (sample)
 
@@ -107,7 +107,7 @@ Relevance to PulsePlate: product-market fit, growth tactics, retention, experime
 
 ---
 
-**References**
+## References
 
 - Lenny's Podcast Transcripts: <https://github.com/ChatPRD/lennys-podcast-transcripts>
 - Index (topics): <https://github.com/ChatPRD/lennys-podcast-transcripts/blob/main/index/README.md>
