@@ -157,6 +157,43 @@
 
 ---
 
+## 3.1) Решение по `.markdownlint.json` (audit-owner)
+
+- **Вариант A (рекомендован):** config остаётся в этом PR как инфраструктурное улучшение docs. В **PR-description и ответе CodeRabbit** обязательно добавить одну строку:
+  > Added markdownlint config to reflect existing project style (tables, long lines); no behavioral code changes.
+- **Вариант B:** вынести `.markdownlint.json` в отдельный docs/infra PR; в этом PR оставить только правки audit.md.
+
+**Выбрано: вариант A** — config остаётся в этом PR.
+
+---
+
+## 3.2) Шаг 2 — копипаст для PR description и ответов ботам
+
+### PR description (добавить в "What changed" / "Notes")
+
+Одна строка:
+> **Docs-only:** Added `.markdownlint.json` to align markdownlint with existing repo docs style (tables + longer lines); no runtime/code behavior changes.
+
+Или bullets:
+* Docs-only: fix audit markdownlint (MD036/MD060) + clarify Evidence as Opinion
+* Docs-only: add `.markdownlint.json` to align docs linting (tables + line length); no code/runtime changes
+
+### CodeRabbit (reply)
+> Fixed remaining docs-only issues: MD036/MD060 cleaned up, and Evidence explicitly marked as **Opinion** (no fabricated stdout). Also added `.markdownlint.json` to align markdownlint with the repo's docs style (tables + line length). No code/runtime behavior changes.
+
+### cubic (reply)
+> Docs-only follow-up: markdownlint fixes in audit doc + lint config alignment. No code changes.
+
+### Sourcery (reply)
+> Docs-only updates (audit markdownlint cleanup + markdownlint config alignment). No code changes.
+
+### Re-review перед merge
+* CI зелёный
+* `npx markdownlint-cli2 docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md` → 0 errors
+* PR description содержит строку про `.markdownlint.json`
+
+---
+
 ## 4) Definition of Done для TP2
 
 * [x] core/db_fallback без configure, без Any
