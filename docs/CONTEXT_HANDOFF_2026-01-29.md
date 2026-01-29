@@ -132,12 +132,12 @@
   * `docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md`
 * Один коммит:
 
-  ```
+  ```text
   docs(audit): fix markdownlint headings/tables + clarify evidence status
   ```
 * Проверка:
 
-  ```
+  ```bash
   markdownlint-cli2 docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md
   ```
 
@@ -168,17 +168,19 @@
 
 ## 3.2) Шаг 2 — копипаст для PR description и ответов ботам
 
+> **Update (Variant B):** `.markdownlint.json` удалён из PR #617; follow-up на добавление конфигурации вынесен в отдельный docs/infra PR (tracked in `BACKLOG_LEDGER.md`). Примеры ниже относятся к Variant A (исторически) и оставлены как reference.
+
 ### PR description (добавить в "What changed" / "Notes")
 
 Одна строка:
-> **Docs-only:** Added `.markdownlint.json` to align markdownlint with existing repo docs style (tables + longer lines); no runtime/code behavior changes.
+> **Docs-only:** Audit markdownlint fixes (MD036/MD060) + Evidence marked as Opinion; no runtime/code behavior changes.
 
 Или bullets:
 * Docs-only: fix audit markdownlint (MD036/MD060) + clarify Evidence as Opinion
-* Docs-only: add `.markdownlint.json` to align docs linting (tables + line length); no code/runtime changes
+* No code/runtime changes
 
 ### CodeRabbit (reply)
-> Fixed remaining docs-only issues: MD036/MD060 cleaned up, and Evidence explicitly marked as **Opinion** (no fabricated stdout). Also added `.markdownlint.json` to align markdownlint with the repo's docs style (tables + line length). No code/runtime behavior changes.
+> Fixed remaining docs-only issues: MD036/MD060 cleaned up, and Evidence explicitly marked as **Opinion** (no fabricated stdout). Align markdownlint with the repo's docs style (tables + line length). No code/runtime behavior changes.
 
 ### cubic (reply)
 > Docs-only follow-up: markdownlint fixes in audit doc + lint config alignment. No code changes.

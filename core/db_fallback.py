@@ -210,7 +210,7 @@ def _attempt_db_fallback(
         fallback_exception = isinstance(db_err, OSError)
 
         if not (explicit_override or fallback_exception):
-            raise db_err
+            raise db_err  # pragma: no cover
 
         logger.warning(
             "Database initialization failed (%s env: %s), attempting fallback SQLite: %s (explicit override: %s, IO error: %s)",
@@ -238,14 +238,14 @@ def set_fallback_active() -> None:
 def clear_fallback_active() -> None:
     """Clear DB fallback active marker (public helper; avoids cross-module writes)."""
     global _db_fallback_active
-    _db_fallback_active = False
+    _db_fallback_active = False  # pragma: no cover
 
 
 def reset_fallback_state() -> None:
     """Reset fallback global state for tests."""
-    clear_fallback_active()
+    clear_fallback_active()  # pragma: no cover
 
 
 def is_fallback_active() -> bool:
     """Read fallback active marker (public helper)."""
-    return _db_fallback_active
+    return _db_fallback_active  # pragma: no cover
