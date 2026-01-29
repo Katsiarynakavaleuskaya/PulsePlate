@@ -21,8 +21,8 @@
 ### 2.1 Repository Layout
 
 | Asset | Description | PulsePlate relevance |
-|-------|-------------|----------------------|
-| **episodes/** | 269 transcripts, one folder per guest, `transcript.md` with YAML frontmatter | Parsable by scripts; guest, title, duration, description, YouTube URL |
+| --- | --- | --- |
+| **episodes/** | 269 transcripts, one folder per guest, Markdown file `transcript.md` with YAML frontmatter | Parsable by scripts; guest, title, duration, description, YouTube URL |
 | **index/** | 50+ topic files (e.g. product-management.md, growth-strategy.md, product-market-fit.md) | Direct mapping to our domains: PMF, growth, product strategy, leadership |
 | **Frontmatter** | guest, title, YouTube URL, video_id, publish_date, description, duration_seconds, view_count | Filtering by topic/date; citation and "source" for insights |
 
@@ -42,7 +42,7 @@ Relevance to PulsePlate: product-market fit, growth tactics, retention, experime
 ### 3.1 Insights and Analysis
 
 | Project document | Lenny application |
-|------------------|-------------------|
+| --- | --- |
 | **docs/insights/*** (philosophy, recursion, CBT, performance) | Use Lenny as **external prior**: "how do top PMs reason about PMF, experimentation, retention?" — enrich RAG or prompt context for strategy/experimentation insights. |
 | **docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md** | Lenny episodes on **decision-making**, **prioritization**, **experimentation** can feed into structured reasoning and coaching flows (e.g. CBT-style goal-setting, evidence-based decisions). |
 | **core/insight/analysis_insights.md** | Critical paths (production hardening, feature integration) — Lenny topics on **focus**, **prioritization**, **OKRs** as optional narrative/playbook layer for roadmap communication. |
@@ -50,21 +50,21 @@ Relevance to PulsePlate: product-market fit, growth tactics, retention, experime
 ### 3.2 Innovations and FitChef
 
 | Project document | Lenny application |
-|------------------|-------------------|
+| --- | --- |
 | **core/insight/creative_scientific_innovations.md** (FitChef AI Companion) | **RAG corpus**: add a curated subset (e.g. "motivation", "habit formation", "user research") so FitChef responses can cite product/behavioral best practices. |
 | **docs/design/NUTRITION_COACHING_DESIGN.md** | Episodes on **mentorship**, **feedback**, **communication**, **psychology** as reference for coach persona and dialogue design (no direct medical claims; wellness/behavior only). |
 
 ### 3.3 Bayesian Business Analysis
 
 | Project asset | Lenny application |
-|--------------|-------------------|
+| --- | --- |
 | **core/business_bayesian_analyzer.py** (BusinessCategory: monetization, retention, pricing, growth, etc.) | Use Lenny as **prior/context**: short summaries or key quotes per category (e.g. "what experts say about retention") to inform analyzer outputs or human-readable recommendations. Not replacement for code; additive "expert prior" for reports. |
 | **docs/roadmap/BAYESIAN_ROLLOUT.md** | Lenny content on **product-led growth**, **pricing**, **experimentation** as optional narrative in rollout/feature docs. |
 
 ### 3.4 Marketing and Growth
 
 | Project asset | Lenny application |
-|---------------|-------------------|
+| --- | --- |
 | **.cursor/agents/marketing-strategist.md** | **Playbooks**: curate Lenny episodes (or extracts) by topic (ASO, growth, conversion, positioning) into a small knowledge pack or RAG slice that the marketing-strategist agent can reference. |
 | **AGENTS.md** (Easy Entry, Marketing & GTM) | Lenny's **growth strategy**, **startup growth**, **word-of-mouth** episodes as inspiration for "easy entry" and GTM tactics; document links in RUNBOOK or marketing playbook. |
 
@@ -74,7 +74,7 @@ Relevance to PulsePlate: product-market fit, growth tactics, retention, experime
 
 ### 4.1 Low effort — Curated playlists + docs
 
-- **Action:** Maintain a short markdown doc (e.g. `docs/marketing/LENNYS_REFERENCES.md`) with links to Lenny index topics and 5–10 episode picks per theme (PMF, growth, retention, wellness-adjacent).
+- **Action:** Maintain a short Markdown doc (e.g. `docs/marketing/LENNYS_REFERENCES.md`) with links to Lenny index topics and 5–10 episode picks per theme (PMF, growth, retention, wellness-adjacent).
 - **Use:** Humans and marketing-strategist agent read this for context; no code change.
 - **DoD:** Doc exists, linked from BACKLOG_LEDGER and marketing-strategist instructions.
 

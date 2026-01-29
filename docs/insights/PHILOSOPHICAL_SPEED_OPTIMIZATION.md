@@ -11,6 +11,8 @@
 
 ---
 
+> **Note:** Code examples in this document are illustrative and represent proposed design patterns, not current implementation.
+
 ## Executive Summary
 
 **Key Insight:** Philosophical principles can optimize **speed** (not just quality) by:

@@ -11,6 +11,8 @@
 
 ---
 
+> **Note:** Code examples in this document are illustrative and represent proposed optimization patterns, not current implementation.
+
 ## Executive Summary
 
 **Current Architecture:**

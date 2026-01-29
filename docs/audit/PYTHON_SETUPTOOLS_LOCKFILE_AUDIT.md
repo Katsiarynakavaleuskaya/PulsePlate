@@ -10,7 +10,7 @@
 ## Executive Summary
 
 | Topic | Current state | Risk | Recommendation |
-|-------|----------------|------|----------------|
+| --- | --- | --- | --- |
 | **Setuptools** | Used as pinned dependency in `requirements.in` (security); not used as build backend; no `setup.cfg` | Low | Keep current approach; no change required for setuptools 78.x deprecations |
 | **Lock file** | pip-tools (`pip-compile`) → `requirements.txt` / `requirements-dev.txt`; `requirements-lock.txt` present | Low | Retain pip-tools; optionally evaluate PEP 751 (`pylock.toml`) when tooling stabilizes |
 | **Dependabot** | `package-ecosystem: pip` only; no uv | Low | Optional: add uv later to benefit from Dependabot uv support |
@@ -75,7 +75,7 @@ So we **do** use a lock-file strategy: pinned, reproducible installs via pip-too
 ### 2.3 Summary
 
 | Question | Answer |
-|----------|--------|
+| --- | --- |
 | Do we use a lock file? | Yes: `requirements.txt` (and dev lock) from pip-compile. |
 | Do we use PEP 751 `pylock.toml`? | No. |
 | Is that a problem? | No; current approach is valid and reproducible. |
