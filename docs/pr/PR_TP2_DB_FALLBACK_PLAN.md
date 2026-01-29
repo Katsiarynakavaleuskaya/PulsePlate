@@ -77,9 +77,9 @@
 
 ### Phase 1 — Extract module (minimal move, no integration change yet)
 **Steps:**
-1) Create `core/db/fallback.py`
+1) Create `core/db_fallback.py`
 2) Move 5 functions + global flag **verbatim** (копипаст/перенос), без изменения логики
-3) Ensure imports in `core/db/fallback.py` отражают текущие runtime зависимости:
+3) Ensure imports in `core/db_fallback.py` отражают текущие runtime зависимости:
    - `sqlalchemy.create_engine`
    - `core.models` / `Base.metadata.create_all` (как сейчас)
    - `core.db` symbols (SessionLocal/_RAW_ENGINE/engine/EngineCompat)
@@ -99,15 +99,15 @@
 ### Phase 2 — Rewire legacy_app.py to thin proxy (single source of truth)
 **Steps:**
 1) Replace internal calls в `legacy_app.py`:
-   - `lifespan()` вызывает `core.db.fallback._attempt_db_fallback`
+   - `lifespan()` вызывает `core.db_fallback._attempt_db_fallback`
 2) Health endpoint:
-   - заменяет чтение локального `_db_fallback_active` на импорт из `core.db.fallback`
+   - заменяет чтение локального `_db_fallback_active` на импорт из `core.db_fallback`
    - или использует accessor (если решим добавить) — но по текущим ограничениям **не добавляем новую абстракцию**, только прямой импорт.
 3) Remove the extracted function bodies and `_db_fallback_active` from `legacy_app.py`
    - `legacy_app.py` остаётся thin-proxy: роутинг/инициализация/вызов helper'ов, без DB fallback реализации.
 
 **Exit criteria:**
-- В репо существует ровно 1 реализация fallback логики: `core/db/fallback.py`
+- В репо существует ровно 1 реализация fallback логики: `core/db_fallback.py`
 - `legacy_app.py` не содержит fallback function definitions и flag
 
 ---
@@ -115,7 +115,7 @@
 ### Phase 3 — Tests alignment + guard re-validation (behavior parity)
 **Steps:**
 1) Update tests that directly import from `legacy_app.py`:
-   - `tests/test_app_db_fallback_97.py`: перепривязка к `core.db.fallback`
+   - `tests/test_app_db_fallback_97.py`: перепривязка к `core.db_fallback`
    - ensure test setup/teardown resets `_db_fallback_active` in the new module as it did previously
 2) Ensure health tests still pass (indirect usage)
 3) Run full targeted checks (см. Section 5)
@@ -130,16 +130,16 @@
 ## 4) Import Order / Cycle Mitigation
 
 ### 4.1 Known sensitive edges
-- `core.db` <-> `core.db.fallback` риск циклов:
+- `core.db` <-> `core.db_fallback` риск циклов:
   - fallback модуль будет импортировать `core.db` для мутирования SessionLocal/_RAW_ENGINE/engine
-  - `core.db` **не должен** импортировать `core.db.fallback` на import-time
+  - `core.db` **не должен** импортировать `core.db_fallback` на import-time
 
 ### 4.2 Rule (hard)
-- `core/db.py` не импортирует `core/db/fallback.py` на module import level.
+- `core/db.py` не импортирует `core/db_fallback.py` на module import level.
 - `legacy_app.py` импортирует fallback функции **локально** или на module-level только если проверено отсутствие циклов.
 
 ### 4.3 Implementation tactic (planned)
-- Если цикл появляется: перевести импорт `from core.db import ...` внутри функций в `core/db/fallback.py` (function-scope), сохраняя поведение.
+- Если цикл появляется: перевести импорт `from core.db import ...` внутри функций в `core/db_fallback.py` (function-scope), сохраняя поведение.
 - Это допустимо как "refactor-only" при условии: error types/messages unchanged.
 
 ---
@@ -160,7 +160,7 @@
 ### 5.3 Smoke import cycle checks
 - Import app entrypoints:
   - `python -c "import legacy_app"` (or module equivalent)
-  - `python -c "from core.db import SessionLocal; import core.db.fallback"`
+  - `python -c "from core.db import SessionLocal; import core.db_fallback"`
 
 ---
 
@@ -187,12 +187,12 @@
 
 ### Codebase hygiene
 - ✅ `legacy_app.py` contains no DB fallback implementations (thin proxy only)
-- ✅ Single source of truth: `core/db/fallback.py`
+- ✅ Single source of truth: `core/db_fallback.py`
 
 ### Quality gates
 - ✅ Guards green
 - ✅ Coverage thresholds met (total + diff)
-- ✅ No forbidden patterns introduced (sys.modules mutation, builtins.__import__ patching)
+- ✅ No forbidden patterns introduced (sys.modules mutation, `builtins.__import__` patching)
 
 ### Docs & Process
 - ✅ BACKLOG_LEDGER: TP2 moved to "In Progress" → "Merged" on completion
@@ -205,8 +205,8 @@
 
 ## 8) Decision Log (Plan-level)
 
-- **Target module:** `core/db/fallback.py` (chosen to keep DB concerns in core/db and avoid app-layer leakage)
-- **Amendment (CI import collision):** Original target `core/db/fallback.py` rejected because introducing `core/db/` (package) alongside `core/db.py` (file) causes Python to resolve `core.db` as the package in CI; tests then see `SessionLocal is None` and fail. **New target:** `core/db_fallback.py` (flat module); removed `core/db/` package and guard exception.
+- **Target module:** `core/db_fallback.py` (flat module; avoids `core/db.py` vs `core/db/` collision)
+- **Amendment (CI import collision):** Original target `core/db/fallback.py` (package) rejected because introducing `core/db/` (package) alongside `core/db.py` (file) causes Python to resolve `core.db` as the package in CI; tests then see `SessionLocal is None` and fail. **New target:** `core/db_fallback.py` (flat module); removed `core/db/` package and guard exception.
 - **Approach:** 3-phase extraction with rewiring + tests alignment
 - **Risk posture:** preserve behavior; avoid module/package collision (AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists)
 
