@@ -1,5 +1,5 @@
 """
-Targeted tests for core.db.fallback DB fallback logic to reach 97% coverage.
+Targeted tests for core.db_fallback DB fallback logic to reach 97% coverage.
 
 Covers _attempt_db_fallback function branches:
 - Production in-memory fallback rejection
@@ -14,20 +14,21 @@ import pytest
 
 
 class TestAppDBFallback97:
-    """Tests for core.db.fallback DB fallback logic to achieve 97% coverage."""
+    """Tests for core.db_fallback DB fallback logic to achieve 97% coverage."""
 
     TRUTHY: set[str] = {"1", "true", "yes", "on"}
 
     @pytest.fixture(autouse=True)
-    def _reset_fallback_flag(self) -> None:
+    def _reset_fallback_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Reset _db_fallback_active before each test to avoid cross-test leakage."""
-        import core.db.fallback as fallback_mod
+        import core.db_fallback as fallback_mod
 
         fallback_mod._db_fallback_active = False
+        monkeypatch.delenv("DB_HEALTH_DEGRADED", raising=False)
 
     def test_attempt_db_fallback_production_inmemory_rejected(self) -> None:
         """Production environment rejects in-memory DB fallback."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         # Simulate production environment with in-memory fallback
         with patch.dict(os.environ, {"DB_FALLBACK_URL": "sqlite:///:memory:"}):
@@ -45,7 +46,7 @@ class TestAppDBFallback97:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Production rejects fallback when ALLOW_DB_PERSISTENT_FALLBACK not set."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./fallback.db")
         # Ensure ALLOW_DB_PERSISTENT_FALLBACK is NOT set
@@ -65,7 +66,7 @@ class TestAppDBFallback97:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Production allows persistent fallback when explicitly enabled."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./prod_fallback.db")
         monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
@@ -99,7 +100,7 @@ class TestAppDBFallback97:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Non-production environment allows in-memory fallback."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         monkeypatch.delenv("ALLOW_DB_INMEMORY_FALLBACK", raising=False)
@@ -128,7 +129,7 @@ class TestAppDBFallback97:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Non-production with explicit ALLOW_DB_INMEMORY_FALLBACK=1."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         monkeypatch.setenv("ALLOW_DB_INMEMORY_FALLBACK", "true")
@@ -154,7 +155,7 @@ class TestAppDBFallback97:
 
     def test_attempt_db_fallback_fallback_init_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback DB initialization failure re-raises original error."""
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         mock_err = OSError("Primary DB failed")

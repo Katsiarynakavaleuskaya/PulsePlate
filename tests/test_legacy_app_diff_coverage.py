@@ -94,42 +94,46 @@ async def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyP
 def test_configure_session_bindings_sets_sessionlocal_when_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover the SessionLocal None branch in legacy_app._configure_session_bindings."""
-    from core import db as core_db
+    """Cover the SessionLocal None branch in core.db_fallback._configure_session_bindings.
 
-    original_session_local = getattr(core_db, "SessionLocal", None)
-    try:
-        monkeypatch.setattr(core_db, "SessionLocal", None)
-        engine = create_engine("sqlite:///:memory:")
-        legacy_app._configure_session_bindings(
-            engine=engine,
-            is_production=False,
-            fallback_url="sqlite:///:memory:",
-            env_name="test",
-        )
-        assert core_db.SessionLocal is not None
-    finally:
-        monkeypatch.setattr(core_db, "SessionLocal", original_session_local, raising=False)
+    Fallback mutates core.db (core/db.py); assert on that module.
+    """
+    from core import db as core_db
+    from core.db_fallback import _configure_session_bindings
+
+    engine = create_engine("sqlite:///:memory:")
+    _configure_session_bindings(
+        engine=engine,
+        is_production=False,
+        fallback_url="sqlite:///:memory:",
+        env_name="test",
+    )
+    assert core_db.SessionLocal is not None
 
 
 def test_configure_session_bindings_configure_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover the branch where SessionLocal exists and configure() is called (line ~584)."""
-    from core import db as core_db
+    """Cover the branch where SessionLocal exists and configure() is called (core.db_fallback).
 
-    engine = create_engine("sqlite:///:memory:")
-    original_session_local = getattr(core_db, "SessionLocal", None)
-    try:
-        # Ensure SessionLocal is a sessionmaker instance with configure()
-        core_db.SessionLocal = core_db.sessionmaker(autoflush=False, autocommit=False, future=True)
-        legacy_app._configure_session_bindings(
-            engine=engine,
-            is_production=False,
-            fallback_url="sqlite:///:memory:",
-            env_name="test",
-        )
-        assert core_db.SessionLocal is not None
-    finally:
-        monkeypatch.setattr(core_db, "SessionLocal", original_session_local, raising=False)
+    First call creates SessionLocal; second call hits the configure(bind=...) path.
+    """
+    from core import db as core_db
+    from core.db_fallback import _configure_session_bindings
+
+    engine1 = create_engine("sqlite:///:memory:")
+    engine2 = create_engine("sqlite:///:memory:")
+    _configure_session_bindings(
+        engine=engine1,
+        is_production=False,
+        fallback_url="sqlite:///:memory:",
+        env_name="test",
+    )
+    _configure_session_bindings(
+        engine=engine2,
+        is_production=False,
+        fallback_url="sqlite:///:memory:",
+        env_name="test",
+    )
+    assert core_db.SessionLocal is not None
 
 
 def test_bmi_request_normalizes_with_visualization_values() -> None:

@@ -450,12 +450,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         init_db()
         logger.info("Database schema initialized")
         # Clear degraded marker if a real database is available
-        from core.db import fallback as _fallback_mod
+        import core.db_fallback as _fallback_mod
 
         _fallback_mod._db_fallback_active = False
         os.environ.pop("DB_HEALTH_DEGRADED", None)
     except Exception as db_err:
-        from core.db.fallback import _attempt_db_fallback
+        from core.db_fallback import _attempt_db_fallback
 
         _attempt_db_fallback(env_name, is_production, db_err, truthy)
 
@@ -969,7 +969,7 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
     """
 
     try:
-        import core.db.fallback as _fallback_mod
+        import core.db_fallback as _fallback_mod
 
         if _fallback_mod._db_fallback_active or os.getenv("DB_HEALTH_DEGRADED") == "1":
             raise HTTPException(status_code=503, detail="Database unavailable")

@@ -76,10 +76,6 @@ def test_no_dynamic_imports_in_app_core() -> None:
 
     for path in list(_iter_py_files("app/**/*.py")) + list(_iter_py_files("core/**/*.py")):
         rel = _rel(path)
-        # TP2 cycle-mitigation exception: core/db/ uses function-scope import (PLAN 4.3).
-        # Review/remove when module layout is stabilized (core/db.py vs core/db/ collision).
-        if rel.startswith("core/db/"):
-            continue
         content = _read(path)
         if any(tok in content for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS):
             offenders.append(rel)
