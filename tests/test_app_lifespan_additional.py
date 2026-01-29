@@ -67,3 +67,20 @@ async def test_lifespan_background_update_failure(monkeypatch: pytest.MonkeyPatc
     # Should suppress the failing start call and still enter context
     async with app.lifespan(app.app):
         pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_init_db_raises_calls_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover legacy_app lifespan except path (lines 458–459): init_db raises -> _attempt_db_fallback."""
+    from unittest.mock import patch
+
+    def init_db_raises() -> None:
+        raise OSError("DB unreachable")
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "init_db", init_db_raises)
+
+    with patch("core.db_fallback._attempt_db_fallback", side_effect=OSError("DB unreachable")):
+        with pytest.raises(OSError, match="DB unreachable"):
+            async with app.lifespan(app.app):
+                pass

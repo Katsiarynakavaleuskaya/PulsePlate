@@ -51,12 +51,39 @@ def test_lifespan_success_clears_fallback_flag(monkeypatch: pytest.MonkeyPatch) 
 
     import core.db_fallback as fallback_mod
 
-    monkeypatch.setattr(fallback_mod, "_db_fallback_active", True)
+    fallback_mod.set_fallback_active()
     monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
 
     with TestClient(cast(ASGIApp, legacy_app.app)) as client:
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert not fallback_mod._db_fallback_active
+    assert fallback_mod.is_fallback_active() is False
     assert os.environ.get("DB_HEALTH_DEGRADED") is None
+
+
+def test_lifespan_init_db_failure_triggers_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover legacy_app lifespan fallback import path when init_db fails."""
+    import core.db_fallback as fallback_mod
+
+    called: list[Exception] = []
+
+    def _raise_init_db() -> None:
+        raise RuntimeError("boom")
+
+    def _fake_attempt(
+        env_name: str | None, is_production: bool, db_err: Exception, truthy: set[str]
+    ) -> None:
+        called.append(db_err)
+
+    monkeypatch.setattr(legacy_app, "init_db", _raise_init_db)
+    monkeypatch.setattr(fallback_mod, "_attempt_db_fallback", _fake_attempt)
+
+    with TestClient(cast(ASGIApp, legacy_app.app)) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert called
+    assert isinstance(called[0], RuntimeError)

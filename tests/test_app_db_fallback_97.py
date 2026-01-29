@@ -23,7 +23,7 @@ class TestAppDBFallback97:
         """Reset fallback state and ENV before each test to avoid cross-test leakage."""
         import core.db_fallback as fallback_mod
 
-        monkeypatch.setattr(fallback_mod, "_db_fallback_active", False)
+        fallback_mod.reset_fallback_state()
         for key in ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL"):
             monkeypatch.delenv(key, raising=False)
 
@@ -193,6 +193,36 @@ class TestAppDBFallback97:
             )
 
             mock_create_engine.assert_called_once()
+
+    def test_attempt_db_fallback_nonproduction_no_override_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-production without override and non-OSError should re-raise original error."""
+        from core.db_fallback import _attempt_db_fallback
+
+        monkeypatch.delenv("ALLOW_DB_INMEMORY_FALLBACK", raising=False)
+        mock_err = Exception("Primary DB failed")
+
+        with pytest.raises(Exception, match="Primary DB failed"):
+            _attempt_db_fallback(
+                env_name="dev",
+                is_production=False,
+                db_err=mock_err,
+                truthy=self.TRUTHY,
+            )
+
+    def test_fallback_state_helpers(self) -> None:
+        """Cover fallback state helpers: set/clear/reset/is."""
+        import core.db_fallback as fallback_mod
+
+        fallback_mod.clear_fallback_active()
+        assert fallback_mod.is_fallback_active() is False
+
+        fallback_mod.set_fallback_active()
+        assert fallback_mod.is_fallback_active() is True
+
+        fallback_mod.reset_fallback_state()
+        assert fallback_mod.is_fallback_active() is False
 
     def test_attempt_db_fallback_fallback_init_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback DB initialization failure re-raises original error."""
