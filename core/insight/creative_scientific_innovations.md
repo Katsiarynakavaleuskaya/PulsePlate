@@ -918,5 +918,11 @@
 
 ---
 
+### Curated repos reference (learning & architecture)
+
+Подборка репозиториев (Frontend/UI, AI/LLM, RAG, Multimodal, MCP, ML/CV, Qwen, RL, PyTorch, Generative AI) привязана к нашим инновациям и стеку в **docs/insights/CURATED_REPOS_REFERENCE.md**: LLaVA/CLIP/Transformers для multimodal и FitChef, RAG from Scratch и Awesome LLM Apps для RAG и cost control, shadcn/ui и Awesome React для фронта, MCP Python SDK для инструментов, PyTorch и Awesome CV для Bayesian Food Vision и CV_ML_GAMIFICATION_PLAN. Использовать как закладки при реализации RAG, multimodal pipeline или UI-компонентов.
+
+---
+
 **Последнее обновление:** 2026-01-28
 **Версия:** 1.0 (initial version с четкими путями применения)

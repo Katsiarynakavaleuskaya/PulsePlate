@@ -276,10 +276,20 @@ class BayesianPersonalizer:
 
         # Posterior: P(preferences | actions) ∝ P(actions | preferences) * P(preferences)
         posterior = {}
+        unnormalized_posteriors = {}
+
+        # Compute unnormalized posteriors
         for pref_type in self.prior_preferences:
-            posterior[pref_type] = (
+            unnormalized_posteriors[pref_type] = (
                 likelihood[pref_type] * self.prior_preferences[pref_type]
-            ) / self._normalize(likelihood, self.prior_preferences)
+            )
+
+        # Compute normalizing constant (marginal likelihood)
+        normalizer = sum(unnormalized_posteriors.values())
+
+        # Compute normalized posteriors
+        for pref_type in self.prior_preferences:
+            posterior[pref_type] = unnormalized_posteriors[pref_type] / normalizer
 
         # Обновить prior для следующей итерации
         self.prior_preferences = posterior

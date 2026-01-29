@@ -932,9 +932,58 @@ class RecursiveAIAssistant:
 
 ### Cost Considerations
 
-- **Increased LLM calls:** 3-5x more calls per query (recursive methods)
-- **Latency:** 2-3x slower (multiple iterations)
-- **Mitigation:** Caching, parallelization, early stopping
+**Assumptions (plug in your numbers):**
+- `current_query_volume` = queries/month
+- `current_cost_per_query` = $/query
+- Recursive methods typically add **3-5x** LLM calls/query and **2-3x** end-to-end latency (multiple iterations)
+
+**Cost-per-query comparison (relative):**
+
+| Metric | Current | Recursive methods (typical) |
+| --- | ---: | ---: |
+| LLM calls / query | 1x | 3-5x |
+| Cost / query | `current_cost_per_query` | `current_cost_per_query * (3-5)` |
+| Latency / query | 1x | 2-3x |
+
+**Monthly budget impact (simple model):**
+- `current_monthly_cost = current_query_volume * current_cost_per_query`
+- `delta_cost = current_query_volume * current_cost_per_query * (multiplier - 1)`
+- `new_monthly_cost = current_monthly_cost + delta_cost`
+
+| Call multiplier (`multiplier`) | New cost / query | Monthly delta (`delta_cost`) |
+| ---: | ---: | ---: |
+| 3x | `3 * current_cost_per_query` | `2 * current_query_volume * current_cost_per_query` |
+| 4x | `4 * current_cost_per_query` | `3 * current_query_volume * current_cost_per_query` |
+| 5x | `5 * current_cost_per_query` | `4 * current_query_volume * current_cost_per_query` |
+
+Example (illustrative): if `current_query_volume = 1_000_000` and `current_cost_per_query = $0.01`, then baseline is
+**$10k/month** and recursion adds **+$20k / +$30k / +$40k per month** (3x/4x/5x).
+
+**ROI sanity check (keep it simple):**
+Let `delta_value_per_query` be the expected value of improved answer quality (fewer escalations, better conversion,
+lower churn, etc). ROI is positive when:
+- `delta_value_per_query >= current_cost_per_query * (multiplier - 1)`
+
+Equivalently on a monthly basis:
+- `current_query_volume * delta_value_per_query >= delta_cost`
+
+**Cost optimization levers (with sensitivity examples):**
+- **Caching hit rate (`h`) on extra sub-calls:** `effective_multiplier ~= 1 + (multiplier - 1) * (1 - h)`.
+  Example: `multiplier=4`, `h=40%` -> `effective_multiplier~=2.8` (delta cost drops ~33%; $30k -> ~$18k/month
+  in the example above).
+- **Early-stopping / max-depth thresholds:** reduce average `multiplier` by stopping when confidence is high or
+  marginal gain is small. Example: cap reduces average `multiplier` from `5.0` to `3.2` -> delta cost $40k ->
+  ~$22k/month (same example baseline).
+- **Parallelization tradeoffs:** parallel steps can cut wall-clock latency without increasing calls if the call budget
+  is fixed; fanning out branches can improve latency but increases calls/cost. Example: keep `multiplier=4` but run
+  2 sub-steps concurrently -> ~30% p95 latency reduction at ~0% cost change; fan out to 2 branches per step might
+  push `multiplier` 4->6 (+50% cost) for ~25-35% latency improvement.
+
+> **Abuse / attack-surface note:** The repo backlog flags a **$72k/month cost attack risk** for LLM endpoints without
+> rate limiting (see [`docs/roadmap/BACKLOG_LEDGER.md`](../roadmap/BACKLOG_LEDGER.md), "Rate limiting for LLM
+> endpoints"). Recursive methods increase per-request call amplification, so worst-case exposure scales roughly with
+> the same `multiplier` (e.g., ~$72k/month -> ~$216k-$360k/month at 3-5x) unless mitigations (rate limits,
+> per-request call budgets, tier gating, caching) are in place.
 
 ---
 

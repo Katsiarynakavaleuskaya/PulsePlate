@@ -924,7 +924,20 @@ If it is not recorded here — it does not exist.
     - Before major product/GTM bets or post-launch review: run through Loot Drop 10 categories + revival themes
     - Update LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md if new risks or mitigations identified
 
+- [ ] P2 Optional: Use curated repos (Frontend/UI, AI/LLM, RAG, Multimodal, MCP, ML/CV) as learning and reference
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; when implementing RAG upgrade, multimodal pipeline, or frontend components)
+  - Target PR: N/A (reference only; adopt patterns/libraries via normal PR)
+  - Status: 📋 Planned
+  - Reason (EN): Curated set (22 repos): Flexbox Froggy, shadcn/ui, 50projects50days, Awesome React/CSS; LLaVA, CLIP, Transformers, Awesome Multimodal ML, RAG from Scratch, Awesome LLM Apps, LLM Engineer Handbook; MCP Python SDK; Awesome ML/CV, ZenML; Qwen/Qwen-Finetuning; Spinning Up, Sutton&Barto RL; PyTorch, Awesome Generative AI. Map to our vision: RAG (RAG from Scratch, Awesome LLM Apps), multimodal/FitChef (LLaVA, CLIP, Transformers), frontend (shadcn, Awesome React), MCP (python-sdk), CV (Awesome CV, PyTorch). (RU: Закладки для RAG, multimodal, фронта, MCP, ML/CV; использовать при реализации фич.)
+  - Links:
+    - docs/insights/CURATED_REPOS_REFERENCE.md (full mapping to LLM_RAG, CV_ML, creative_scientific_innovations, RECURSIVE_METHODS, COMPREHENSIVE)
+    - core/insight/creative_scientific_innovations.md (Curated repos reference subsection)
+  - DoD:
+    - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
+    - No mandatory code dependency; adopt via normal PR/backlog
+
 ---
 
-**Last updated:** 2026-01-28 (Add Loot Drop Startup Graveyard audit, insight ref, P2 optional anti-pattern checklist)
+**Last updated:** 2026-01-28 (Curated repos reference doc, P2 optional backlog item, COMPREHENSIVE duplicate def fix, RECURSIVE cost refactor)
 **Maintainer:** @katsiaryna_kavaleuskaya
