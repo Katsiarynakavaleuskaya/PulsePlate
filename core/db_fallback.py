@@ -6,6 +6,8 @@ CRITICAL:
 - Startup critical path.
 - Keep behavior identical to legacy_app.py pre-TP2.
 - No OpenAPI / contract changes.
+
+Location: core/db_fallback.py (flat module) to avoid core/db.py vs core/db/ package collision.
 """
 
 from __future__ import annotations
@@ -25,7 +27,6 @@ def _validate_fallback_url(
     env_name: Optional[str],
     is_production: bool,
     fallback_url: str,
-    truthy: set[str],
     db_err: Exception,
 ) -> None:
     """Validate fallback URL against production constraints.
@@ -134,41 +135,8 @@ def _configure_session_bindings(
     Sets SessionLocal, _RAW_ENGINE, engine wrapper, _db_fallback_active flag,
     and updates os.environ with appropriate markers.
     """
-    # Import from core/db.py file (not the package)
-    # When both core/db.py (file) and core/db/ (package) exist,
-    # Python resolves 'core.db' to the package.
-    # According to PLAN Section 4.3, we use function-scope import
-    # to access the file module as a mitigation strategy.
-    #
-    # NOTE: This uses importlib.util.spec_from_file_location which is
-    # normally forbidden (AGENTS.md), but PLAN Section 4.3 explicitly
-    # allows function-scope imports as a mitigation for import cycles.
-    # This is function-scope (inside _configure_session_bindings),
-    # not module-level, which makes it acceptable per PLAN.
-    import sys
-    import importlib.util
-    from pathlib import Path
-
-    # Try to find the file module in sys.modules first (if imported before package)
-    core_db = None
-    for mod_name, mod in sys.modules.items():
-        if mod_name == "core.db" and hasattr(mod, "__file__"):
-            mod_file = getattr(mod, "__file__", "")
-            # Check if it's the file (db.py) not the package (__init__.py)
-            if mod_file and "db.py" in mod_file and "__init__" not in mod_file:
-                core_db = mod
-                break
-
-    if core_db is None:
-        # File module not in sys.modules - import it directly using function-scope import
-        # This is allowed per PLAN Section 4.3 as a mitigation strategy
-        _db_py_path = Path(__file__).parent.parent / "db.py"
-        _spec = importlib.util.spec_from_file_location("core.db_file_module", _db_py_path)
-        if _spec and _spec.loader:
-            core_db = importlib.util.module_from_spec(_spec)
-            _spec.loader.exec_module(core_db)  # type: ignore[union-attr]
-        else:
-            raise ImportError(f"Could not load core/db.py file from {_db_py_path}")
+    # core.db is the module core/db.py (no package collision: we use core/db_fallback.py).
+    from core import db as core_db
 
     global _db_fallback_active
 
@@ -246,7 +214,7 @@ def _attempt_db_fallback(
     fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
 
     # Validate fallback URL against production constraints
-    _validate_fallback_url(env_name, is_production, fallback_url, truthy, db_err)
+    _validate_fallback_url(env_name, is_production, fallback_url, db_err)
 
     if is_production:
         # Production: enforce strict constraints
