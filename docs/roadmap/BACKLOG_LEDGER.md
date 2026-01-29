@@ -874,7 +874,26 @@ If it is not recorded here — it does not exist.
     - Decision documented: adopt / defer / won't do for PEP 751 and for uv
     - If adopt: migration PR with updated REQUIREMENTS.md and CI; Dependabot config updated if uv adopted
 
+- [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; depends on voice UX roadmap)
+  - Target PR: TBD (evaluation first, then integration if approved)
+  - Status: 📋 Planned
+  - Reason (EN): PersonaPlex (open-source, NVIDIA) provides full-duplex speech-to-speech, persona switching, and backchannel for a "live" conversational feel. Fit: personalize AI assistant and nutrition coach by style (e.g. strict teacher, friendly consultant); optional voice mode. Current stack is text-only; PersonaPlex would be additive (voice layer). Prerequisites: NVIDIA GPU or hosted API, NVIDIA Open Model License, WebSocket/streaming for real-time audio. (RU: PersonaPlex (NVIDIA, open-source) — full-duplex S2S, переключение персон, поддакивания; можно использовать для персонализированного ассистента и коуча. Сейчас у нас только текст; голос — опционально.)
+  - Links:
+    - docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md (integration options, prerequisites, risks)
+    - https://huggingface.co/nvidia/personaplex-7b-v1
+    - https://github.com/NVIDIA/personaplex
+    - docs/design/NUTRITION_COACHING_DESIGN.md (coach flows)
+    - core/insight/creative_scientific_innovations.md (FitChef)
+  - Prerequisites:
+    - Voice UX / real-time audio on product roadmap (or explicit decision to prototype)
+    - Inference option: GPU (A100/H100) or hosted API; license accepted
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PersonaPlex voice layer
+    - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
+
 ---
 
-**Last updated:** 2026-01-28 (Add Python setuptools/lock file audit and optional P2 backlog item)
+**Last updated:** 2026-01-28 (Add PersonaPlex integration audit and P2 optional backlog item)
 **Maintainer:** @katsiaryna_kavaleuskaya
