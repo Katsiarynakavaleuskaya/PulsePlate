@@ -15,7 +15,9 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import suppress
-from typing import Any, Optional
+from typing import Optional
+
+from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +37,7 @@ def _validate_fallback_url(
     Raises db_err on validation failure.
     """
     # Check if fallback URL is in-memory SQLite
-    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
-        "sqlite:///:memory:"
-    )
+    is_in_memory = fallback_url.startswith("sqlite:///:memory:")
 
     # Production: reject in-memory fallbacks
     if is_production and is_in_memory:
@@ -74,9 +74,7 @@ def _check_production_constraints(
         raise db_err
 
     # Additional verification: ensure fallback URL is persistent
-    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
-        "sqlite:///:memory:"
-    )
+    is_in_memory = fallback_url.startswith("sqlite:///:memory:")
     if is_in_memory:
         logger.error(
             "CRITICAL: Production fallback URL must be persistent, not in-memory. "
@@ -93,15 +91,12 @@ def _check_production_constraints(
     )
 
 
-def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  # noqa: ANN401
+def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
     """
     Create and initialize fallback SQLAlchemy engine.
 
     Creates engine with correct connect_args, runs Base.metadata.create_all.
     Returns the initialized engine or raises db_err on failure.
-
-    NOTE: Legacy infra glue; engine type depends on runtime backend (SQLite/Postgres).
-    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
     """
     from sqlalchemy import create_engine
     import core.models  # noqa: F401
@@ -111,7 +106,7 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  #
         # Create temporary engine with fallback URL
         # Use SQLite-specific connection args when needed
         connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
-        fallback_engine = create_engine(
+        fallback_engine: Engine = create_engine(
             fallback_url, echo=False, future=True, connect_args=connect_args
         )
 
@@ -124,36 +119,24 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  #
 
 
 def _configure_session_bindings(
-    engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]  # noqa: ANN401
+    engine: Engine, is_production: bool, fallback_url: str, env_name: Optional[str]
 ) -> None:
     """
     Configure core.db session bindings and environment variables.
 
-    NOTE: Legacy infra glue; engine type depends on runtime backend.
-    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
-
-    Sets SessionLocal, _RAW_ENGINE, engine wrapper, _db_fallback_active flag,
-    and updates os.environ with appropriate markers.
+    Sets SessionLocal (recreated sessionmaker, no .configure()), _RAW_ENGINE, engine wrapper,
+    _db_fallback_active flag, and updates os.environ with appropriate markers.
     """
     # core.db is the module core/db.py (no package collision: we use core/db_fallback.py).
     from core import db as core_db
 
-    global _db_fallback_active
-
-    try:
-        if core_db.SessionLocal is not None:
-            core_db.SessionLocal.configure(bind=engine)
-        else:
-            core_db.SessionLocal = core_db.sessionmaker(
-                bind=engine, autoflush=False, autocommit=False, future=True
-            )
-    except Exception:
-        core_db.SessionLocal = core_db.sessionmaker(
-            bind=engine, autoflush=False, autocommit=False, future=True
-        )
+    # Always recreate sessionmaker; do not use SessionLocal.configure() (core/AGENTS.md).
+    core_db.SessionLocal = core_db.sessionmaker(
+        bind=engine, autoflush=False, autocommit=False, future=True
+    )
     core_db._RAW_ENGINE = engine
     core_db.engine = core_db.EngineCompat(engine)
-    _db_fallback_active = True
+    set_fallback_active()
     os.environ["DB_HEALTH_DEGRADED"] = "1"
 
     # Emit an observability metric when DB fallback is activated so dashboards
@@ -224,7 +207,7 @@ def _attempt_db_fallback(
         explicit_override = (
             os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
         ).strip().lower() in truthy
-        fallback_exception = isinstance(db_err, (OSError, IOError))
+        fallback_exception = isinstance(db_err, OSError)
 
         if not (explicit_override or fallback_exception):
             raise db_err
@@ -241,3 +224,28 @@ def _attempt_db_fallback(
     # Initialize fallback engine and configure bindings
     fallback_engine = _initialize_fallback_engine(fallback_url, db_err)
     _configure_session_bindings(fallback_engine, is_production, fallback_url, env_name)
+
+
+# --- Public helpers (avoid cross-module writes to _db_fallback_active) ---
+
+
+def set_fallback_active() -> None:
+    """Mark DB fallback as active (public helper; avoids cross-module writes)."""
+    global _db_fallback_active
+    _db_fallback_active = True
+
+
+def clear_fallback_active() -> None:
+    """Clear DB fallback active marker (public helper; avoids cross-module writes)."""
+    global _db_fallback_active
+    _db_fallback_active = False
+
+
+def reset_fallback_state() -> None:
+    """Reset fallback global state for tests."""
+    clear_fallback_active()
+
+
+def is_fallback_active() -> bool:
+    """Read fallback active marker (public helper)."""
+    return _db_fallback_active
