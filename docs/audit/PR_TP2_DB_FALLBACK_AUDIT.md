@@ -276,7 +276,7 @@
 
 ## 7) Audit Conclusion
 
-### 6.1. Behavior Preservation
+### 7.1. Behavior Preservation
 
 | Constraint | Current Behavior | Must Preserve |
 |------------|------------------|---------------|
@@ -288,14 +288,14 @@
 | **Metrics** | Optional lazy import, no-op on failure | ✅ Exact same pattern |
 | **Global flag** | `_db_fallback_active` module-level flag | ✅ Preserve visibility |
 
-### 6.2. Import Order Dependencies
+### 7.2. Import Order Dependencies
 
 | Dependency | Order | Rationale |
 |------------|-------|------------|
 | `core.models` import | Before `Base.metadata.create_all` | SQLAlchemy metadata must be initialized |
 | `core.db` import | Before session binding | SessionLocal must exist to configure |
 
-### 6.3. Test Compatibility
+### 7.3. Test Compatibility
 
 | Test File | Current Import | Required Change |
 |-----------|----------------|-----------------|
@@ -319,7 +319,7 @@
 
 ## 9) Evidence Collection
 
-### 11.1. Function Locations
+### 9.1. Function Locations
 
 ```bash
 # Verify function locations
@@ -333,7 +333,7 @@ rg -n "^def _validate_fallback_url|^def _check_production_constraints|^def _init
 - `_configure_session_bindings`: line 546
 - `_attempt_db_fallback`: line 617
 
-### 11.2. Usage Points
+### 9.2. Usage Points
 
 ```bash
 # Verify usage in lifespan
@@ -344,7 +344,7 @@ rg -n "_attempt_db_fallback|_validate_fallback_url|_check_production_constraints
 - `lifespan()`: line 681 (calls `_attempt_db_fallback`)
 - Health endpoint: line 1193 (checks `_db_fallback_active`)
 
-### 11.3. Test Coverage
+### 9.3. Test Coverage
 
 ```bash
 # Verify test file exists
