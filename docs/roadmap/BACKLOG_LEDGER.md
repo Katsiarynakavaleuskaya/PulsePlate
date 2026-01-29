@@ -118,17 +118,17 @@ If it is not recorded here — it does not exist.
     - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
     - ✅ PR merged
 
-- [ ] PR-TP2 Thin-proxy cleanup (DB fallback) — in progress (PR #617)
+- [x] PR-TP2 Thin-proxy cleanup (DB fallback) — merged 2026-01-29 (PR #617)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR #617 (`refactor/tp2-db-fallback`)
-  - Status: 📋 Done (PR open; collision fix: fallback in `core/db_fallback.py`)
+  - Status: ✅ Merged (squash merge SHA: 19e0b8f5; 2026-01-29)
   - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Original target `core/db/fallback.py` caused `core.db` module/package collision in CI; amended to `core/db_fallback.py`.
   - Links:
     - PR #617
     - docs/pr/PR_TP2_DB_FALLBACK_PLAN.md
     - docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md
-    - docs/CONTEXT_HANDOFF_2026-01-28.md
+    - docs/CONTEXT_HANDOFF_2026-01-29.md
   - Preconditions:
     - ✅ TP1 merged (helpers-1 cleanup complete)
   - DoD:
@@ -136,7 +136,7 @@ If it is not recorded here — it does not exist.
     - ✅ `legacy_app.py` thin proxy only (no DB fallback logic)
     - ✅ Tests rebound to `core.db_fallback`; guard tests pass (no guard exception)
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
-    - [ ] CI green on PR #617 → merge → post-merge sanity
+    - ✅ CI green on PR #617 → merge → post-merge sanity
 
 - [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
