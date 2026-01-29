@@ -918,6 +918,12 @@
 
 ---
 
+### Scientific innovation analysis (external review, 2026-01)
+
+Комплексный анализ документов (философско-математический фундамент, рекурсивные методы оптимизации, AI/LLM практики, кросс-функциональные синергии) подтверждает позиционирование PulsePlate как **научно-инженерного гибрида**, а не только wellness-платформы. **Канонический документ:** **docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md** (полный текст анализа, фазы roadmap, метрики, конкурентная матрица). Ключевые выводы: (1) **Байесовская персонализация** — P(adherence | user_context), доверительные интервалы для целей (уникальное преимущество vs статические калькуляторы); (2) **Рекурсивная оптимизация** — divide-and-conquer для недельных планов (10–30 с → 2–5 с), lazy day generation, O(n log n) агрегация нутриентов; (3) **Формальная логика** — wellness-правила (Pregnant → ¬Keto и т.п.) как guardrails для LLM; (4) **CBT-геймификация** — learning cycles вместо streaks, non-coercive soft paywall; (5) **Кросс-фичевые синергии** — BMI × Sports × Adherence, Recipe × Regional catalog × Shoplist. Рекомендации отражены в **docs/roadmap/BACKLOG_LEDGER.md** (P2: Bayesian adherence + uncertainty, recursive weekly plans, cross-feature integration tests; P2 Optional: scientific publication track). Источники: SCIENTIFIC_INNOVATION_ANALYSIS, COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS, RECURSIVE_OPTIMIZATION_STRATEGY, PHILOSOPHICAL_SPEED_OPTIMIZATION, CROSS_FEATURE_SYNERGIES, PEER_REVIEW_ANALYSIS.
+
+---
+
 ### Curated repos reference (learning & architecture)
 
 Подборка репозиториев (Frontend/UI, AI/LLM, RAG, Multimodal, MCP, ML/CV, Qwen, RL, PyTorch, Generative AI) привязана к нашим инновациям и стеку в **docs/insights/CURATED_REPOS_REFERENCE.md**: LLaVA/CLIP/Transformers для multimodal и FitChef, RAG from Scratch и Awesome LLM Apps для RAG и cost control, shadcn/ui и Awesome React для фронта, MCP Python SDK для инструментов, PyTorch и Awesome CV для Bayesian Food Vision и CV_ML_GAMIFICATION_PLAN. Использовать как закладки при реализации RAG, multimodal pipeline или UI-компонентов.

@@ -937,7 +937,70 @@ If it is not recorded here — it does not exist.
     - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
     - No mandatory code dependency; adopt via normal PR/backlog
 
+- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
+  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
+  - Status: 📋 Planned
+  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
+    - core/insight/creative_scientific_innovations.md (FitChef personalization)
+  - DoD:
+    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
+    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
+    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
+
+- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (when VIP weekly plan performance is in scope)
+  - Target PR: TBD (implementation after design)
+  - Status: 📋 Planned
+  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
+    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
+    - app/routers/vip.py (current weekly plan flow)
+  - DoD:
+    - Design: recursive week planning and/or lazy day generation documented
+    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
+    - No regression on constraint satisfaction or nutrition targets
+
+- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality assurance; prevent regressions)
+  - Target PR: TBD (tests only)
+  - Status: 📋 Planned
+  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
+    - tests/ (existing unit/integration structure)
+  - DoD:
+    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
+    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
+
+- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
+  - Target PR: N/A (decision + optional draft)
+  - Status: 📋 Planned
+  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
+  - DoD:
+    - Decision documented: pursue / defer / won't do for publication track
+    - If pursue: venue + outline for one paper; no mandatory timeline
+
 ---
 
-**Last updated:** 2026-01-28 (Curated repos reference doc, P2 optional backlog item, COMPREHENSIVE duplicate def fix, RECURSIVE cost refactor)
+**Last updated:** 2026-01-28 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
 **Maintainer:** @katsiaryna_kavaleuskaya
