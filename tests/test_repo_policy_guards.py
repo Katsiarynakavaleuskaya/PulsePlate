@@ -76,8 +76,8 @@ def test_no_dynamic_imports_in_app_core() -> None:
 
     for path in list(_iter_py_files("app/**/*.py")) + list(_iter_py_files("core/**/*.py")):
         rel = _rel(path)
-        # Allow core/db/ package initialization (TP2: function-scope import per PLAN 4.3)
-        # This is a known mitigation for core/db.py file vs core/db/ package conflict
+        # TP2 cycle-mitigation exception: core/db/ uses function-scope import (PLAN 4.3).
+        # Review/remove when module layout is stabilized (core/db.py vs core/db/ collision).
         if rel.startswith("core/db/"):
             continue
         content = _read(path)

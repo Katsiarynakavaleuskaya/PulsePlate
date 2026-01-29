@@ -116,27 +116,37 @@ If it is not recorded here — it does not exist.
     - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
     - ✅ PR merged
 
-- [ ] PR-TP2 Thin-proxy cleanup (DB fallback) — next
+- [x] PR-TP2 Thin-proxy cleanup (DB fallback) — Done (PR #617 open)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TP2 (branch: TBD)
-  - Status: 📋 Ready to start (TP1 merged)
-  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Requires careful testing of DB connection fallback logic. Deferred from TP1 to keep scope manageable.
+  - Target PR: PR #617 (branch: `refactor/tp2-db-fallback`)
+  - Status: ✅ Done (ready to merge after CI green)
+  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Completed audit → plan → Phase 1 (extract) → Phase 2 (rewire) → Phase 3 (tests) → policy docs.
   - Links:
-    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md (Step 5)
-    - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
+    - PR #617
+    - docs/pr/PR_TP2_DB_FALLBACK_PLAN.md
+    - docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md
+    - docs/CONTEXT_HANDOFF_2026-01-28.md
   - Preconditions:
     - ✅ TP1 merged (helpers-1 cleanup complete)
   - DoD:
-    - DB fallback helpers moved to canonical module (TBD: `core/db/fallback.py` or `app/utils/db_fallback.py`)
-    - `legacy_app.py` contains only thin proxies (no DB fallback logic)
-    - Tests pass (DB fallback behavior preserved)
-    - OpenAPI unchanged
-    - Guard tests pass
+    - ✅ DB fallback in `core/db/fallback.py` (single source of truth)
+    - ✅ `legacy_app.py` thin proxy only (no DB fallback logic)
+    - ✅ Tests rebound to `core.db.fallback`; guard tests pass
+    - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
+    - [ ] CI green on PR #617 → merge → post-merge sanity
 
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [ ] core/db.py vs core/db/ collision cleanup (post-TP2)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Reason: TP2 introduced `core/db/` package alongside `core/db.py` (file); Python resolves `core.db` to the package. Re-exports and guard exception are documented. Follow-up: stabilize module layout (e.g. rename `core/db.py` or consolidate) and remove guard exception when safe.
+  - Links: AGENTS.md (DB fallback policy), tests/test_repo_policy_guards.py (core/db/ exception)
+  - DoD: Module layout stabilized; guard exception removed or justified long-term; no new runtime behavior.
 
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
