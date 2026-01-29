@@ -1,4 +1,4 @@
-# PR-TP2 — DB Fallback Extraction Plan (legacy_app.py → core/db/fallback.py)
+# PR-TP2 — DB Fallback Extraction Plan (legacy_app.py → core/db_fallback.py)
 
 **Project:** PulsePlate
 **PR:** TP2 (DB fallback extraction)
@@ -13,7 +13,7 @@
 ## 0) Goal / Non-goals
 
 ### Goal
-Вынести DB fallback helpers из `legacy_app.py` в **новый модуль** `core/db/fallback.py`, оставив `legacy_app.py` строго **thin proxy only**, без изменения поведения.
+Вынести DB fallback helpers из `legacy_app.py` в **новый модуль** `core/db_fallback.py`, оставив `legacy_app.py` строго **thin proxy only**, без изменения поведения.
 
 ### Non-goals (explicit)
 - ❌ Изменение fallback поведения
@@ -27,7 +27,7 @@
 ## 1) Target Design (To-Be)
 
 ### 1.1 New module
-- **Create:** `core/db/fallback.py`
+- **Create:** `core/db_fallback.py` (flat module; avoids `core/db.py` vs `core/db/` package collision)
 
 ### 1.2 Symbols to move (1:1)
 Из `legacy_app.py` переносим **без изменения логики**:
@@ -40,7 +40,7 @@
 
 ### 1.3 Integration points (keep behavior)
 - `legacy_app.py`:
-  - В `lifespan()` остаётся тот же контрольный поток, но вызов идёт в `core.db.fallback._attempt_db_fallback`
+  - В `lifespan()` остаётся тот же контрольный поток, но вызов идёт в `core.db_fallback._attempt_db_fallback`
   - Health endpoint продолжает возвращать degraded state **по тем же условиям**:
     - `_db_fallback_active` OR `DB_HEALTH_DEGRADED == "1"`
 
@@ -197,8 +197,8 @@
 ### Docs & Process
 - ✅ BACKLOG_LEDGER: TP2 moved to "In Progress" → "Merged" on completion
 - ✅ Add/update AGENTS.md rule:
-  - "DB fallback implementation must live in `core/db/fallback.py`; legacy_app.py thin-proxy only"
-  - "Tests referencing fallback must import from core.db.fallback, not legacy_app.py"
+  - "DB fallback implementation must live in `core/db_fallback.py`; legacy_app.py thin-proxy only"
+  - "Tests referencing fallback must import from core.db_fallback, not legacy_app.py"
   - (only if this policy isn't already documented)
 
 ---
@@ -206,8 +206,9 @@
 ## 8) Decision Log (Plan-level)
 
 - **Target module:** `core/db/fallback.py` (chosen to keep DB concerns in core/db and avoid app-layer leakage)
+- **Amendment (CI import collision):** Original target `core/db/fallback.py` rejected because introducing `core/db/` (package) alongside `core/db.py` (file) causes Python to resolve `core.db` as the package in CI; tests then see `SessionLocal is None` and fail. **New target:** `core/db_fallback.py` (flat module); removed `core/db/` package and guard exception.
 - **Approach:** 3-phase extraction with rewiring + tests alignment
-- **Risk posture:** preserve behavior; mitigate import cycles via local imports if needed
+- **Risk posture:** preserve behavior; avoid module/package collision (AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists)
 
 ---
 

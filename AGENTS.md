@@ -155,13 +155,14 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 
 **DB fallback policy (hard, TP2):**
 
-- DB fallback implementation lives **only** in `core/db/fallback.py`. Single source of truth.
-- `legacy_app.py` must **not** define fallback helpers or `_db_fallback_active`; it may only *delegate* to `core.db.fallback`.
+- DB fallback implementation lives **only** in `core/db_fallback.py`. Single source of truth.
+- `legacy_app.py` must **not** define fallback helpers or `_db_fallback_active`; it may only *delegate* to `core.db_fallback`.
 - Health/status checks must read `_db_fallback_active` via **module access**, e.g.
-  `import core.db.fallback as fallback_mod` → `fallback_mod._db_fallback_active`.
-  **Forbidden:** `from core.db.fallback import _db_fallback_active` (stale-value risk).
-- Tests must import/patch fallback only via `core.db.fallback`; any global flag must be reset via fixture (autouse allowed).
-- **TP2 exception:** `core/db/__init__.py` exists for backward-compat and to mitigate import cycles due to coexistence of `core/db.py` (file) and `core/db/` (package); keep changes minimal and avoid new runtime behavior. Guard exception for `core/db/` in `test_no_dynamic_imports_in_app_core` is a TP2 cycle-mitigation exception; review/remove when module layout is stabilized.
+  `import core.db_fallback as fallback_mod` → `fallback_mod._db_fallback_active`.
+  **Forbidden:** `from core.db_fallback import _db_fallback_active` (stale-value risk).
+- Tests must import/patch fallback only via `core.db_fallback`; any global flag must be reset via fixture (autouse allowed).
+
+**Module/package collision (hard):** Never introduce `core/<name>/` (package) when `core/<name>.py` (module) exists; Python would resolve `core.<name>` to the package and break imports. Use a non-colliding name (e.g. `core/db_fallback.py`) instead.
 
 **Dockerfile policy (hard):**
 

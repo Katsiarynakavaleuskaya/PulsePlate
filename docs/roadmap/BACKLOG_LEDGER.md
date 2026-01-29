@@ -130,9 +130,9 @@ If it is not recorded here — it does not exist.
   - Preconditions:
     - ✅ TP1 merged (helpers-1 cleanup complete)
   - DoD:
-    - ✅ DB fallback in `core/db/fallback.py` (single source of truth)
+    - ✅ DB fallback in `core/db_fallback.py` (single source of truth; no package collision)
     - ✅ `legacy_app.py` thin proxy only (no DB fallback logic)
-    - ✅ Tests rebound to `core.db.fallback`; guard tests pass
+    - ✅ Tests rebound to `core.db_fallback`; guard tests pass (no guard exception)
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
     - [ ] CI green on PR #617 → merge → post-merge sanity
 
@@ -140,13 +140,12 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] core/db.py vs core/db/ collision cleanup (post-TP2)
+- [x] core/db.py vs core/db/ collision resolved (TP2 amendment 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD
-  - Reason: TP2 introduced `core/db/` package alongside `core/db.py` (file); Python resolves `core.db` to the package. Re-exports and guard exception are documented. Follow-up: stabilize module layout (e.g. rename `core/db.py` or consolidate) and remove guard exception when safe.
-  - Links: AGENTS.md (DB fallback policy), tests/test_repo_policy_guards.py (core/db/ exception)
-  - DoD: Module layout stabilized; guard exception removed or justified long-term; no new runtime behavior.
+  - Target PR: PR #617 (amendment)
+  - Reason: TP2 originally used `core/db/fallback.py` which caused `core.db` to resolve as package in CI. Resolved by moving fallback to `core/db_fallback.py` (flat module) and removing `core/db/` package; no guard exception needed.
+  - DoD: Done. Fallback in `core/db_fallback.py`; AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists.
 
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
