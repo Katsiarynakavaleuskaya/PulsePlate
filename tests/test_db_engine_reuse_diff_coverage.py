@@ -30,10 +30,8 @@ def test_raw_engine_reuses_same_engine_for_same_url(
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'a.sqlite'}")
 
     _reset_engine()
-    core_db.init_db()
-
-    e1 = getattr(core_db, "_RAW_ENGINE")
-    e2 = getattr(core_db, "_RAW_ENGINE")
+    e1 = core_db.init_db()
+    e2 = core_db.init_db()
     assert e1 is e2
 
     _reset_engine()
@@ -54,11 +52,11 @@ def test_raw_engine_recreates_engine_when_url_changes(
     url1 = str(e1.url)
 
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db2}")
-    _reset_engine()
     core_db.init_db()
     e2 = getattr(core_db, "_RAW_ENGINE")
     url2 = str(e2.url)
 
+    assert e1 is not e2
     assert url1 != url2
 
     _reset_engine()
