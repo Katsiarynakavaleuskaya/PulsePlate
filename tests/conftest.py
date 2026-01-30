@@ -272,10 +272,15 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     if engine is not None:
         Base.metadata.create_all(bind=engine)
         inspector = sa_inspect(engine)
-        required = {"users", "nutrition_events", "analyzer_state"}
-        missing = required - set(inspector.get_table_names())
+        expected = set(Base.metadata.tables.keys())
+        actual = set(inspector.get_table_names())
+        missing = expected - actual
         if missing:
-            raise RuntimeError(f"DB schema incomplete, missing tables: {missing}")
+            pytest.fail(
+                "SQLite test DB missing required tables: "
+                f"{sorted(missing)}. "
+                "This indicates a test DB setup / model import problem."
+            )
 
     # Ensure SQLite file is writable for tests
     try:

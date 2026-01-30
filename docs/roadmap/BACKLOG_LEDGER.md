@@ -138,7 +138,7 @@ If it is not recorded here — it does not exist.
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
     - ✅ CI green on PR #617 → merge → post-merge sanity
 
-- [x] PR-619 DB fallback canonical API in legacy_app — merged 2026-01-30
+- [x] [PR `#619`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619) DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
   - Owner: `@katsiaryna_kavaleuskaya`
   - Priority: P1 (maintenance)
   - Target PR: [PR `#619`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619)
