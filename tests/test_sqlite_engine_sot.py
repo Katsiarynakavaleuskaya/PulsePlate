@@ -21,6 +21,10 @@ def test_sqlite_engine_url_is_single_source_of_truth(client: TestClient) -> None
     """
     import core.db
 
+    # Trigger app DB init (readiness touches DB; /health does not)
+    resp = client.get("/ready")
+    assert resp.status_code in (200, 503)
+
     # Get database URL from environment (set by configure_sqlite_database fixture)
     expected_url = os.environ.get("DATABASE_URL", "")
 
@@ -34,7 +38,7 @@ def test_sqlite_engine_url_is_single_source_of_truth(client: TestClient) -> None
 
     # Get actual engine URL from app/core.db layer
     engine = getattr(core.db, "_RAW_ENGINE", None) or getattr(core.db, "engine", None)
-    assert engine is not None, "core.db engine not initialized"
+    assert engine is not None, "core.db engine not initialized by app request"
 
     actual_url = str(engine.url)
 
@@ -64,10 +68,11 @@ def test_sqlite_db_file_per_worker_under_xdist() -> None:
     run tests concurrently.
     """
     db_url = os.environ.get("DATABASE_URL", "")
-    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+    if not db_url or not db_url.startswith("sqlite"):
+        pytest.skip("SQLite-specific per-worker DB check; DATABASE_URL is not SQLite")
 
-    if worker_id == "gw0" and "PYTEST_XDIST_WORKER" not in os.environ:
-        # Serial run (no xdist) - skip check
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER")
+    if not worker_id:
         pytest.skip("Not running under xdist, per-worker check not applicable")
 
     # DB path must contain worker ID to ensure isolation
