@@ -138,16 +138,16 @@ If it is not recorded here — it does not exist.
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
     - ✅ CI green on PR #617 → merge → post-merge sanity
 
-- [x] PR-619 DB fallback canonical API in legacy_app — merged 2026-01-30
+- [x] PR-619 DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintenance)
   - Target PR: PR #619
   - Status: ✅ Merged
-  - Reason: Align legacy_app.py with DB fallback policy — no direct read/write of _db_fallback_active outside core/db_fallback.py; use is_fallback_active() and clear_fallback_active().
+  - Reason: Align `legacy_app.py` with DB fallback policy — no direct read/write of `_db_fallback_active` outside `core/db_fallback.py`; use `is_fallback_active()` and `clear_fallback_active()`.
   - Links:
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619>
   - DoD:
-    - ✅ No direct _db_fallback_active in legacy_app.py
+    - ✅ No direct `_db_fallback_active` in `legacy_app.py`
     - ✅ Guards + tests green; CI green
   - Next after merge: P0 rate-limiting for LLM endpoints
 
@@ -238,40 +238,6 @@ If it is not recorded here — it does not exist.
     - Create `ExportFormat` enum (CSV, PDF, JSON)
     - Replace hardcoded values with constants/enum
     - Tests verify no functionality broken
-
-- [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL security)
-  - Target PR: TBD (security fix)
-  - Status: 📋 Ready to start
-  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
-    - core/insight/analysis_insights.md ($72k/month potential abuse)
-  - DoD:
-    - Uncomment and configure rate-limiting (slowapi)
-    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
-    - Add `@limiter.limit("5/hour")` to PDF export endpoints
-    - Add rate-limiting to WebSocket (if exists, verify first)
-    - Tests verify rate-limiting works (429 responses when limit exceeded)
-    - Cost tracking added (token usage, API calls)
-
-- [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL security)
-  - Target PR: TBD (security fix)
-  - Status: 📋 Ready to start
-  - Reason: `/api/v1/insight` uses `_get_api_key_dynamic` (API key check only, not tier-aware) → FREE users can access expensive LLM API. `/insight` has no auth at all. LLM should be VIP-only feature.
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
-    - legacy_app.py:2256-2301 (`/api/v1/insight`), 2305-2348 (`/insight`)
-  - DoD:
-    - Replace `_get_api_key_dynamic` with `require_vip_tier()` on `/api/v1/insight`
-    - Remove `/insight` endpoint (deprecated, no auth) OR add VIP tier guard
-    - Tests verify FREE/PRO users get 403, VIP users get 200
-    - Update OpenAPI schema (insight endpoints require VIP tier)
 
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
