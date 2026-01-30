@@ -55,7 +55,7 @@
 1. `git checkout main && git pull --ff-only origin main`
 2. `pytest -n auto -q tests/test_nutrition_log_api.py` (на main)
 3. При необходимости — прогнать nightly full tests (если есть отдельный workflow)
-4. **BACKLOG_LEDGER.md:** добавить запись PR #622 — Merged, кратко «nightly sqlite bootstrap xdist-safe»
+4. **BACKLOG_LEDGER.md:** добавить запись PR #622 — Merged, кратко «nightly SQLite bootstrap xdist-safe»
 5. Удалить remote-ветку `fix/nightly-sqlite-schema-xdist` (и локальную при желании)
 
 ---
@@ -67,7 +67,7 @@
 - [x] models imported before create_all/inspection
 - [x] xdist pass locally / CI
 - [x] markdownlint clean
-- [x] DS_Store untracked
+- [x] .DS_Store untracked
 - [x] `.secrets.baseline` explained (no new secrets)
 
 ---
@@ -76,7 +76,7 @@
 
 - **AGENTS.md:** уже обновлён (SQLite bootstrap + pytest.fail + SoT + import-models). Дополнительно не требуется.
 - **BACKLOG_LEDGER:** после merge добавить пункт вида:
-  - `[x] PR-622 nightly sqlite bootstrap (xdist-safe) — merged YYYY-MM-DD`
+  - `[x] PR-622 nightly SQLite bootstrap (xdist-safe) — merged YYYY-MM-DD`
   - Owner, Target PR: #622, Status: Merged, DoD: xdist + pytest.fail + SoT, Next: P0 rate-limiting / security
 
 ---
