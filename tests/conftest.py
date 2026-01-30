@@ -264,6 +264,19 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
 
     db_module.init_db()
 
+    # Belt-and-suspenders: ensure all tables exist (xdist-safe; init_db may have raced)
+    from core.db import Base
+    from sqlalchemy import inspect as sa_inspect
+
+    engine = getattr(db_module, "_RAW_ENGINE", None) or getattr(db_module, "engine", None)
+    if engine is not None:
+        Base.metadata.create_all(bind=engine)
+        inspector = sa_inspect(engine)
+        required = {"users", "nutrition_events", "analyzer_state"}
+        missing = required - set(inspector.get_table_names())
+        if missing:
+            raise RuntimeError(f"DB schema incomplete, missing tables: {missing}")
+
     # Ensure SQLite file is writable for tests
     try:
         resolved_path.chmod(0o666)
