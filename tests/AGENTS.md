@@ -19,6 +19,10 @@
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 
+### SQLite test bootstrap rule (xdist / nightly)
+
+Any test touching DB must ensure full schema initialization (`import models` + `Base.metadata.create_all`) before execution. Teardown must be idempotent and tolerate missing tables (e.g. catch `OperationalError` and rollback instead of failing). This prevents "no such table" and thread-safety issues under `pytest -n auto`.
+
 ## Coverage / diff-cover (process invariant)
 
 - CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
