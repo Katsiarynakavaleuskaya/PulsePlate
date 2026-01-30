@@ -247,5 +247,10 @@ def reset_fallback_state() -> None:
 
 
 def is_fallback_active() -> bool:
-    """Read fallback active marker (public helper)."""
+    """
+    Indicates whether a database fallback is currently active.
+
+    Returns:
+        `True` if a fallback is active, `False` otherwise.
+    """
     return _db_fallback_active
