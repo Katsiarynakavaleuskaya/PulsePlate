@@ -259,6 +259,8 @@ def _get_raw_engine() -> "Engine":
 
     Thread-safe and DATABASE_URL-aware: recreates engine if DATABASE_URL changes.
     Critical for pytest-xdist workers where each worker may have different DATABASE_URL.
+
+    For SQLite in tests: uses NullPool to avoid connection reuse across threads.
     """
     global _RAW_ENGINE, SessionLocal
 
@@ -267,8 +269,20 @@ def _get_raw_engine() -> "Engine":
     if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         with _init_lock:
             if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:  # pragma: no branch
+                # Detect SQLite file-based URL for pool config
+                poolclass = None
+                if db_url.startswith("sqlite:///") and ":memory:" not in db_url:
+                    # NullPool prevents connection reuse across threads (critical for xdist)
+                    from sqlalchemy.pool import NullPool
+
+                    poolclass = NullPool
+
                 _RAW_ENGINE = create_engine(
-                    db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+                    db_url,
+                    echo=False,
+                    future=True,
+                    connect_args=_sqlite_connect_args(db_url),
+                    poolclass=poolclass,
                 )
                 # Clear SessionLocal so next call rebuilds a sessionmaker bound to the new engine,
                 # avoiding sessions tied to a stale URL (e.g., pytest-xdist overrides).
