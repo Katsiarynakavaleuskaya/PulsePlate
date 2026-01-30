@@ -44,6 +44,10 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 - `Database locked` errors → verify per-worker isolation (each worker has unique DB file path).
 
 **Guard test:** `tests/test_sqlite_engine_sot.py` enforces engine/URL consistency and per-worker isolation.
+
+- **RU:** Любой тест, меняющий `DATABASE_URL`, обязан вызывать reset `_RAW_ENGINE` до и после (и возвращать env).
+- **EN:** Any test mutating `DATABASE_URL` must reset `_RAW_ENGINE` before and after (and restore env).
+
 ## Coverage / diff-cover (process invariant)
 
 - CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
