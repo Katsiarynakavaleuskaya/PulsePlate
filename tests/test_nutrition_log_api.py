@@ -7,6 +7,7 @@ EN: Tests for nutrition log endpoints.
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from app import app as fastapi_app
 from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
@@ -52,6 +53,9 @@ class TestNutritionLogAPI:
                 AnalyzerStateModel.user_id == self.user_id
             ).delete(synchronize_session=False)
             session.commit()
+        except OperationalError:
+            # Tables may not exist if init failed (e.g. xdist); teardown must be idempotent
+            session.rollback()
         finally:
             session.close()
 
