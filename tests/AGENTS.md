@@ -25,6 +25,7 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 
 - Schema-missing failures must use `pytest.fail()` (not `RuntimeError`).
 - Expected schema must be derived from SoT (`Base.metadata` or shared constant), never hardcoded in fixtures.
+- When using `Base.metadata` as schema SoT, ensure all ORM models are imported before `create_all()` / table checks.
 
 ## Coverage / diff-cover (process invariant)
 
