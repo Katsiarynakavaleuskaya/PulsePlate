@@ -138,10 +138,10 @@ If it is not recorded here — it does not exist.
     - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
     - ✅ CI green on PR #617 → merge → post-merge sanity
 
-- [x] [PR `#619`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619) DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
-  - Owner: `@katsiaryna_kavaleuskaya`
+- [x] PR-619 DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
+  - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintenance)
-  - Target PR: [PR `#619`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619)
+  - Target PR: PR #619
   - Status: ✅ Merged
   - Reason: Align `legacy_app.py` with DB fallback policy — no direct read/write of `_db_fallback_active` outside `core/db_fallback.py`; use `is_fallback_active()` and `clear_fallback_active()`.
   - Links:
