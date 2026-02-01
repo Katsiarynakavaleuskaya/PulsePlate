@@ -6,6 +6,7 @@ If it is not recorded here — it does not exist.
 **Language policy:** Primary language: English. Russian details allowed in linked design/analysis docs for clarity, but backlog entries must include English summary/translation for maintainability and tooling compatibility.
 
 ## Rules (non-negotiable)
+
 1) Any postponed work MUST be recorded here immediately.
 2) Each item MUST include:
    - Owner
@@ -21,6 +22,7 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P0 — Next (Must happen)
+
 - [x] PR-560 CI iOS stability (merged 2026-01-21)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-560
@@ -150,6 +152,21 @@ If it is not recorded here — it does not exist.
     - ✅ No direct `_db_fallback_active` in `legacy_app.py`
     - ✅ Guards + tests green; CI green
   - Next after merge: P0 rate-limiting for LLM endpoints
+
+- [x] PR-623 SQLite xdist dual-engine leak + hermetic tests + SoT reset — merged 2026-01-30
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (infra)
+  - Target PR: PR #623 (`fix/sqlite-xdist-threading-engine-sot`)
+  - Status: ✅ Merged
+  - Reason: Fix SQLite xdist dual-engine leak: single-engine SoT reset in fixture, hermetic tests when mutating env, NullPool gated to test/xdist via `make_url`, diff-coverage tests for protective branches. 97% threshold unchanged.
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/623>
+    - docs/CONTEXT_HANDOFF_2026-01-30.md
+  - DoD:
+    - ✅ SoT reset in fixture; hermetic engine reuse tests
+    - ✅ NullPool only for file-based SQLite in test/xdist
+    - ✅ diff-coverage tests for `_get_sqlite_poolclass` branches
+    - ✅ CI green; guards pass
 
 - [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
