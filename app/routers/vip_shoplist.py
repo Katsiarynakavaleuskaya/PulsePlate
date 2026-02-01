@@ -37,6 +37,20 @@ from app.services.catalog_adapter import CatalogProvider, _get_provider, enrich_
 from app.services.shoplist_export.csv_export import export_shoplist_to_csv
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
+from fastapi import Request
+
+# Rate limiting imports (PR-628)
+try:
+    from app.security.rate_limit import limit_if_available, RATE_LIMIT_EXPORTS
+except ImportError:
+    # No-op decorator if rate limiting unavailable
+    def limit_if_available(rate: str):  # type: ignore[misc]
+        def decorator(func):  # type: ignore[misc]
+            return func
+
+        return decorator
+
+    RATE_LIMIT_EXPORTS = "20/minute"
 from core.shoplist_engine.models import (
     FoodForm,
     FoodRef,
@@ -504,7 +518,10 @@ async def vip_shoplist_weekly(
 
 @router.post(
     "/export",
-    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    responses={
+        **COMMON_VIP_SHOPLIST_RESPONSES,
+        429: {"description": "Rate limit exceeded"},
+    },
     summary="Export VIP shoplist to CSV or PDF",
     description=(
         "Export shoplist in CSV or PDF format. "
@@ -512,7 +529,9 @@ async def vip_shoplist_weekly(
         "Deterministic ordering: store_id, aisle, food_id."
     ),
 )
+@limit_if_available(RATE_LIMIT_EXPORTS)
 async def vip_shoplist_export(
+    request: Request,  # Required by slowapi for rate limiting
     payload: ShoplistGenerateRequest,
     export_format: Annotated[
         str | None, Query(description="Export format (export_format; csv or pdf)")

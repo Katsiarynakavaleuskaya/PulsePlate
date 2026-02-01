@@ -34,6 +34,19 @@ from reportlab.platypus.tables import Table as RLTable
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
+# Rate limiting imports (PR-628)
+try:
+    from app.security.rate_limit import limit_if_available, RATE_LIMIT_EXPORTS
+except ImportError:
+    # No-op decorator if rate limiting unavailable
+    def limit_if_available(rate: str):  # type: ignore[misc]
+        def decorator(func):  # type: ignore[misc]
+            return func
+
+        return decorator
+
+    RATE_LIMIT_EXPORTS = "20/minute"
+
 # Export Table for backward compatibility with tests
 Table = RLTable
 
@@ -344,7 +357,8 @@ def _require_valid_token(request: Request) -> None:
         raise HTTPException(status_code=403, detail="invalid or expired token")
 
 
-@plan_router.get("/week/export.csv")
+@plan_router.get("/week/export.csv", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
     totals = sum_week_macros(week)
@@ -441,7 +455,8 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
     return story
 
 
-@plan_router.get("/week/export.pdf")
+@plan_router.get("/week/export.pdf", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_pdf(
     request: Request,
     lang: str = Query(DEFAULT_LANG, pattern="^(en|ru|de)$"),
@@ -558,8 +573,9 @@ def export_week_pdf(
     )
 
 
-@export_router.post("/sign")
-def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
+@export_router.post("/sign", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def sign_export_link(payload: SignRequest, request: Request) -> Dict[str, Any]:
     path = payload.path
     if not path.startswith("/api/"):
         raise HTTPException(status_code=400, detail="path must start with /api/")

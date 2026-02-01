@@ -19,6 +19,20 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen import canvas
+from fastapi import Request
+
+# Rate limiting imports (PR-628)
+try:
+    from app.security.rate_limit import limit_if_available, RATE_LIMIT_EXPORTS
+except ImportError:
+    # No-op decorator if rate limiting unavailable
+    def limit_if_available(rate: str):  # type: ignore[misc]
+        def decorator(func):  # type: ignore[misc]
+            return func
+
+        return decorator
+
+    RATE_LIMIT_EXPORTS = "20/minute"
 
 logger = logging.getLogger(__name__)
 
@@ -227,15 +241,17 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 
-@router.get("")
-def get_shoplist() -> Dict[str, Any]:
+@router.get("", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def get_shoplist(request: Request) -> Dict[str, Any]:
     """Return the current shoplist in JSON form."""
 
     return _demo_shoplist()
 
 
-@router.get("/export.csv")
-def export_shoplist_csv() -> Response:
+@router.get("/export.csv", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def export_shoplist_csv(request: Request) -> Response:
     """Export the current shoplist as a CSV attachment."""
 
     shop = _demo_shoplist()
@@ -255,8 +271,9 @@ def export_shoplist_csv() -> Response:
     )
 
 
-@router.get("/export.pdf")
-def export_shoplist_pdf() -> Response:
+@router.get("/export.pdf", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def export_shoplist_pdf(request: Request) -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
 
     shop = _demo_shoplist()

@@ -109,6 +109,34 @@ from app.utils.nutrition_wrappers import (
     _calculate_all_tdee_wrapper,
 )
 
+# Rate limiting imports (PR-628)
+# RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
+# EN: Rate limiting imports (lazy imports only if slowapi is available).
+try:
+    from app.security.rate_limit import (
+        limiter,
+        limit_if_available,
+        RATE_LIMIT_INSIGHT,
+        RATE_LIMIT_EXPORTS,
+    )
+except ImportError:
+    limiter = None  # type: ignore[assignment]
+    RATE_LIMIT_INSIGHT = None  # type: ignore[assignment]
+    RATE_LIMIT_EXPORTS = None  # type: ignore[assignment]
+
+    # No-op decorator if rate limiting is unavailable
+    from collections.abc import Callable as _Callable
+    from typing import Any as _Any, TypeVar as _TypeVar
+
+    _F = _TypeVar("_F", bound=_Callable[..., _Any])
+
+    def limit_if_available(rate: str) -> _Callable[[_F], _F]:
+        def decorator(func: _F) -> _F:
+            return func
+
+        return decorator
+
+
 # PRO router registration (explicit, no import-side-effects)
 # Moved to app/routers/pro_registration.py for centralized registration
 # See register_pro_routes() for schema-only mode guard and conditional imports
@@ -638,6 +666,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Wire rate limiting (PR-628)
+# RU: Подключаем rate-limiting для дорогих endpoints (LLM, exports).
+# EN: Wire rate limiting for expensive endpoints (LLM, exports).
+try:
+    from app.security.rate_limit import wire_rate_limiting
+
+    wire_rate_limiting(app)
+except ImportError:
+    logger.warning("Rate limiting module not available; rate limiting disabled")
+
 
 # The previous explicit startup handler using @app.on_event("startup")
 # has been removed in favor of the lifespan handler above to avoid
@@ -1019,22 +1057,9 @@ def legacy_category_label(cat: str, lang: str) -> str:
     return cat
 
 
-# Rate limiting setup (only if slowapi is available)
-def _is_rate_limiting_available() -> bool:
-    return (
-        slowapi_available
-        and Limiter is not None
-        # and RateLimitExceeded is not None
-        # and _rate_limit_exceeded_handler is not None
-    )
-
-
-if _is_rate_limiting_available():
-    pass
-    # limiter = Limiter(key_func=get_remote_address)  # type: ignore
-    # app.state.limiter = limiter
-    # app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
-    # app.add_middleware(SlowAPIMiddleware)  # type: ignore
+# Rate limiting setup (PR-628)
+# Wiring is centralized in app.security.rate_limit; import after app creation
+# to avoid import-order issues with FastAPI instance
 
 
 # ---------- Models ----------
@@ -2038,11 +2063,15 @@ def _load_llm_get_provider() -> Callable[[], Any]:
     "/api/v1/insight",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=InsightResponse,
+    responses={429: {"description": "Rate limit exceeded"}},
 )
-async def insight_v1(req: InsightRequest) -> InsightResponse:
+@limit_if_available(RATE_LIMIT_INSIGHT or "10/minute")
+async def insight_v1(request: Request, req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
+
+    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
     """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
@@ -2086,11 +2115,15 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
 @app.post(
     "/insight",
     response_model=InsightResponse,
+    responses={429: {"description": "Rate limit exceeded"}},
 )
-async def insight(req: InsightRequest) -> InsightResponse:
+@limit_if_available(RATE_LIMIT_INSIGHT or "10/minute")
+async def insight(request: Request, req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
+
+    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
     """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
@@ -4693,9 +4726,12 @@ if EXPORTS_ENABLED and not _export_testing_flag:
 if EXPORTS_ENABLED:
 
     @app.get(
-        "/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)]
+        "/api/v1/premium/exports/day/{plan_id}.csv",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses={429: {"description": "Rate limit exceeded"}},
     )
-    async def export_daily_plan_csv(plan_id: str) -> Response:
+    @limit_if_available(RATE_LIMIT_EXPORTS or "20/minute")
+    async def export_daily_plan_csv(request: Request, plan_id: str) -> Response:
         """Test/demo only — do not expose in production.
 
         RU: Экспортировать дневной план в CSV.
@@ -4778,8 +4814,10 @@ if EXPORTS_ENABLED:
     @app.post(
         "/api/v1/export/pdf",
         dependencies=[Depends(_get_api_key_dynamic)],
+        responses={429: {"description": "Rate limit exceeded"}},
     )
-    async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
+    @limit_if_available(RATE_LIMIT_EXPORTS or "20/minute")
+    async def export_pdf_generic(request: Request, payload: Dict[str, Any]) -> Response:
         """Test/demo only — do not expose in production.
 
         Generic PDF export endpoint for tests' error-handling coverage.
@@ -4830,8 +4868,10 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/week/{plan_id}.csv",
         dependencies=[Depends(_get_api_key_dynamic)],
+        responses={429: {"description": "Rate limit exceeded"}},
     )
-    async def export_weekly_plan_csv(plan_id: str) -> Response:
+    @limit_if_available(RATE_LIMIT_EXPORTS or "20/minute")
+    async def export_weekly_plan_csv(request: Request, plan_id: str) -> Response:
         """Test/demo only — do not expose in production.
 
         RU: Экспортировать недельный план в CSV.
@@ -4939,9 +4979,12 @@ if EXPORTS_ENABLED:
             raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
     @app.get(
-        "/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)]
+        "/api/v1/premium/exports/day/{plan_id}.pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses={429: {"description": "Rate limit exceeded"}},
     )
-    async def export_daily_plan_pdf(plan_id: str) -> Response:
+    @limit_if_available(RATE_LIMIT_EXPORTS or "20/minute")
+    async def export_daily_plan_pdf(request: Request, plan_id: str) -> Response:
         # sourcery skip: raise-from-previous-error
         """Test/demo only — do not expose in production.
 
@@ -5026,8 +5069,10 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/week/{plan_id}.pdf",
         dependencies=[Depends(_get_api_key_dynamic)],
+        responses={429: {"description": "Rate limit exceeded"}},
     )
-    async def export_weekly_plan_pdf(plan_id: str) -> Response:
+    @limit_if_available(RATE_LIMIT_EXPORTS or "20/minute")
+    async def export_weekly_plan_pdf(request: Request, plan_id: str) -> Response:
         # sourcery skip: raise-from-previous-error
         """Test/demo only — do not expose in production.
 
