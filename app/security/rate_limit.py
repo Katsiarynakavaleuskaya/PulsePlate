@@ -12,7 +12,6 @@ This module provides:
 
 from __future__ import annotations
 
-import functools
 import ipaddress
 import logging
 import os
