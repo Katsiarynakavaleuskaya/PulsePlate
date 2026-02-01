@@ -60,6 +60,7 @@ If diff-cover shows uncovered helpers that have zero call sites → **delete the
 
 **Hard rule:** Expensive endpoints (LLM, exports) MUST be rate-limited AND MUST have deterministic 429 tests.
 PRs that add expensive endpoints MUST include deterministic 429 tests (no smoke-only substitutes).
+If adding rate-limit to endpoints, use thin **route wrappers**; do not change callable function signatures used by coverage tests.
 
 **Enforcement:**
 

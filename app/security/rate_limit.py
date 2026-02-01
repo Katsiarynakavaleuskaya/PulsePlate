@@ -25,32 +25,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Rate limit defaults (override via env vars)
-RATE_LIMIT_INSIGHT = os.getenv("RATE_LIMIT_INSIGHT", "10/minute")
-RATE_LIMIT_EXPORTS = os.getenv("RATE_LIMIT_EXPORTS", "20/minute")
+
+def rate_limit_insight_value() -> str:
+    """Return current insight rate limit string (env-backed)."""
+    return os.getenv("RATE_LIMIT_INSIGHT", "10/minute")
+
+
+def rate_limit_exports_value() -> str:
+    """Return current exports rate limit string (env-backed)."""
+    return os.getenv("RATE_LIMIT_EXPORTS", "20/minute")
+
+
+# Backward-compat names (existing imports expect these).
+# NOTE: These are captured at import-time; tests that override env must reload this module.
+RATE_LIMIT_INSIGHT = rate_limit_insight_value()
+RATE_LIMIT_EXPORTS = rate_limit_exports_value()
 
 # OpenAPI response spec for 429
 RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]] = {
     429: {"description": "Rate limit exceeded"}
 }
-
-
-def _is_truthy(value: str | None) -> bool:
-    """Return True if env-style value is truthy."""
-    if value is None:
-        return False
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _rate_limiting_enabled() -> bool:
-    """Decide whether rate limiting should be enabled for this process.
-
-    Default: enabled.
-    In tests: disabled unless explicitly enabled via RATE_LIMITING_IN_TESTS=true.
-    """
-    if _is_truthy(os.getenv("TESTING")) and not _is_truthy(os.getenv("RATE_LIMITING_IN_TESTS")):
-        return False
-    return True
 
 
 def parse_trusted_proxies(
@@ -164,7 +158,6 @@ try:
 
     # Create limiter instance
     limiter = Limiter(key_func=rate_limit_client_key)
-    limiter.enabled = _rate_limiting_enabled()
 
 except ImportError:
     # SlowAPI not available - create no-op stubs
@@ -207,9 +200,6 @@ def wire_rate_limiting(app: FastAPI) -> None:
     if limiter is None:
         logger.warning("SlowAPI not available; rate limiting disabled")
         return
-    if not getattr(limiter, "enabled", True):
-        logger.info("Rate limiting disabled by env (tests)")
-        return
 
     # Attach limiter to app state
     app.state.limiter = limiter
@@ -225,10 +215,11 @@ def wire_rate_limiting(app: FastAPI) -> None:
     logger.info("Rate limiting enabled (slowapi)")
 
 
+LimitValue = str | Callable[[], str]
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-def limit_if_available(rate: str) -> Callable[[F], F]:
+def limit_if_available(rate: LimitValue) -> Callable[[F], F]:
     """Conditional rate limit decorator (no-op if limiter is None).
 
     RU: Условный декоратор rate-limit (no-op если limiter недоступен).
@@ -259,9 +250,11 @@ __all__ = [
     "rate_limit_client_key",
     "wire_rate_limiting",
     "limit_if_available",
+    "RATE_LIMIT_429_RESPONSES",
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
-    "RATE_LIMIT_429_RESPONSES",
+    "rate_limit_insight_value",
+    "rate_limit_exports_value",
     "parse_trusted_proxies",
     "is_trusted_proxy",
     "extract_client_ip",

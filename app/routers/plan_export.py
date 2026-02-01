@@ -562,9 +562,7 @@ def export_week_pdf(
     )
 
 
-@export_router.post("/sign", responses={429: {"description": "Rate limit exceeded"}})
-@limit_if_available(RATE_LIMIT_EXPORTS)
-def sign_export_link(payload: SignRequest, request: Request) -> Dict[str, Any]:
+def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
     path = payload.path
     if not path.startswith("/api/"):
         raise HTTPException(status_code=400, detail="path must start with /api/")
@@ -575,6 +573,12 @@ def sign_export_link(payload: SignRequest, request: Request) -> Dict[str, Any]:
     signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
+
+
+@export_router.post("/sign", responses={429: {"description": "Rate limit exceeded"}})
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def sign_export_link_route(request: Request, payload: SignRequest) -> Dict[str, Any]:
+    return sign_export_link(payload)
 
 
 __all__ = ["plan_router", "export_router"]
