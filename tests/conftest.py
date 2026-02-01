@@ -222,6 +222,15 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     Yields:
         The DB module for use by dependent fixtures (e.g., _cleanup_users).
     """
+    # RU: Жёсткий reset глобального engine между тестами.
+    # EN: Hard reset of global engine between tests.
+    import core.db as core_db
+
+    engine = getattr(core_db, "_RAW_ENGINE", None)
+    if engine is not None:
+        engine.dispose()
+        core_db._RAW_ENGINE = None
+
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
 
