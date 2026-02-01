@@ -5,6 +5,7 @@ EN: Rate limiting configuration for expensive endpoints (LLM, exports).
 
 This module provides:
 - SlowAPI Limiter instance (optional dependency)
+- Proxy-aware client key (pseudonymous) with CIDR trusted proxies support
 - 429 JSON handler
 - FastAPI wiring helper
 """
@@ -12,6 +13,7 @@ This module provides:
 from __future__ import annotations
 
 import functools
+import ipaddress
 import logging
 import os
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
@@ -34,6 +36,83 @@ RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
+def parse_trusted_proxies(
+    env_value: str,
+) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network | str]:
+    """Parse TRUSTED_PROXIES env var into list of networks/hosts.
+
+    RU: Парсит TRUSTED_PROXIES в список сетей/хостов.
+    EN: Parses TRUSTED_PROXIES into list of networks/hosts.
+
+    Supports:
+    - IP addresses (e.g., "127.0.0.1")
+    - CIDR networks (e.g., "172.30.100.0/24")
+    - Hostnames (e.g., "caddy")
+    """
+    result: list[ipaddress.IPv4Network | ipaddress.IPv6Network | str] = []
+    for entry in env_value.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+            result.append(network)
+        except ValueError:
+            result.append(entry)
+    return result
+
+
+def is_trusted_proxy(
+    remote_host: str,
+    trusted_entries: list[ipaddress.IPv4Network | ipaddress.IPv6Network | str],
+) -> bool:
+    """Check if remote_host is in the trusted proxies list (CIDR/IP/hostname)."""
+    for entry in trusted_entries:
+        if isinstance(entry, str):
+            if remote_host == entry:
+                return True
+            continue
+        try:
+            remote_ip = ipaddress.ip_address(remote_host)
+        except ValueError:
+            continue
+        if remote_ip in entry:
+            return True
+    return False
+
+
+def extract_client_ip(request: Request, trusted_entries: list) -> str:
+    """Extract client IP from request with proxy-aware header precedence.
+
+    Precedence (only when request comes from a trusted proxy):
+    1. CF-Connecting-IP
+    2. X-Forwarded-For (first IP)
+    3. request.client.host
+    """
+    remote_host = request.client.host if request.client else ""
+
+    if is_trusted_proxy(remote_host, trusted_entries):
+        cf_ip = request.headers.get("cf-connecting-ip", "").strip()
+        if cf_ip:
+            try:
+                ipaddress.ip_address(cf_ip)
+                return cf_ip
+            except ValueError:
+                pass
+
+        forwarded_for = request.headers.get("x-forwarded-for", "").strip()
+        if forwarded_for:
+            forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
+            if forwarded_ips:
+                try:
+                    ipaddress.ip_address(forwarded_ips[0])
+                    return forwarded_ips[0]
+                except ValueError:
+                    pass
+
+    return remote_host
+
+
 def rate_limit_client_key(request: Request) -> str:
     """Return pseudonymous client key for rate limiting.
 
@@ -41,7 +120,7 @@ def rate_limit_client_key(request: Request) -> str:
     EN: Returns pseudonymous client key for rate limiting.
 
     This function is used as key_func for SlowAPI Limiter.
-    For compatibility and privacy, we reuse the existing core fingerprint helper.
+    Produces a pseudonymous fingerprint (hash), never the raw IP.
 
     Args:
         request: FastAPI request object
@@ -49,9 +128,13 @@ def rate_limit_client_key(request: Request) -> str:
     Returns:
         Pseudonymous fingerprint (hashed, privacy-friendly)
     """
-    from core.fingerprint_security import _client_fingerprint
+    from core.fingerprint_security import compute_fingerprint
 
-    return _client_fingerprint(request) or "unknown"
+    trusted_entries = parse_trusted_proxies(os.getenv("TRUSTED_PROXIES", ""))
+    client_ip = extract_client_ip(request, trusted_entries)
+    if not client_ip:
+        return "unknown"
+    return compute_fingerprint(client_ip)
 
 
 # Lazy import of SlowAPI (optional dependency in runtime)
@@ -156,4 +239,7 @@ __all__ = [
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
     "RATE_LIMIT_429_RESPONSES",
+    "parse_trusted_proxies",
+    "is_trusted_proxy",
+    "extract_client_ip",
 ]
