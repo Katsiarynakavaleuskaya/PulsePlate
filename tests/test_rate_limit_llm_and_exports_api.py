@@ -64,7 +64,7 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # IMPORTANT: Don't reload after import - that would double the middleware!
     for name in list(sys.modules.keys()):
         if any(x in name for x in ("app.security", "app.routers", "legacy_app")):
-            sys.modules.pop(name, None)
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
     # Re-import rate_limit first (creates fresh limiter)
     import app.security.rate_limit as rate_limit_mod
