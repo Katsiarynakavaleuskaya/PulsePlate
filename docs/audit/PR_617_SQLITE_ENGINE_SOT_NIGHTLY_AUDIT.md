@@ -130,6 +130,87 @@ tests/test_sqlite_engine_sot.py::test_sqlite_engine_url_is_single_source_of_trut
 
 ## What actually failed in Nightly (Observed)
 
+### Evidence 1: Order-dependent DB state leak (GitHub Actions run 21559415692)
+
+**Symptom observed:**
+
+```text
+FAILED tests/test_nutrition_log_api.py::TestNutritionLogAPI::test_meal_log_updates_adherence_state
+sqlite3.OperationalError: no such table: nutrition_events
+
+FAILED tests/test_simple_coverage_boost.py::TestSimpleCoverageBoost::test_users_endpoint
+sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread
+```
+
+**Root cause identified:** `tests/test_core_db_coverage.py::TestCoreDB::test_init_db` вызывал `db.init_db("sqlite:///:memory:")` и не восстанавливал `DATABASE_URL` + не сбрасывал `core.db` state в teardown.
+
+**Fix (commit 1):** Добавлен `try/finally` с restore env + `reset_db_for_tests()` + `init_db()` для возврата к file-based DB.
+
+**Local verification (после fix 1):**
+
+```bash
+pytest -q tests/test_core_db_coverage.py::TestCoreDB::test_init_db \
+  tests/test_nutrition_log_api.py::TestNutritionLogAPI::test_meal_log_updates_adherence_state \
+  tests/test_simple_coverage_boost.py::TestSimpleCoverageBoost::test_users_endpoint \
+  tests/test_users_api.py::test_get_user_not_found
+# Result: .... [100%] ✅
+
+pytest -q -n 2 tests/test_core_db_coverage.py::TestCoreDB::test_init_db \
+  tests/test_nutrition_log_api.py::TestNutritionLogAPI::test_meal_log_updates_adherence_state \
+  tests/test_simple_coverage_boost.py::TestSimpleCoverageBoost::test_users_endpoint \
+  tests/test_users_api.py::test_get_user_not_found
+# Result: .... [100%] ✅
+```
+
+---
+
+### Evidence 2: Fixture ordering race (table already exists)
+
+**Symptom observed (user report + CI):**
+
+```text
+sqlite3.OperationalError: table nutrition_events already exists
+```
+
+Это происходило на setup (до самих тестов) в `core_db.init_db()` → `Base.metadata.create_all(bind=_RAW_ENGINE)`.
+
+**Root cause identified:**
+
+`tests/conftest.py` содержал два `autouse=True, scope="session"` fixtures без явной зависимости:
+
+1. `_init_db_for_api_suite()` — вызывает `core_db.init_db()`
+2. `configure_sqlite_database()` — выставляет per-worker `DATABASE_URL` и снова вызывает `db_module.init_db()` + redundant `Base.metadata.create_all()`
+
+**Проблема:** pytest мог запустить их в любом порядке. Если `_init_db_for_api_suite` запустилась первой:
+- `init_db()` использовал default URL (возможно shared между workers)
+- Затем `configure_sqlite_database` менял URL и снова вызывал `init_db()` + redundant `create_all()`
+- Два xdist workers могли одновременно выполнять `create_all()` на одном файле → race → "table already exists"
+
+**Fix (commit 3):**
+1. Добавлена явная зависимость: `_init_db_for_api_suite(configure_sqlite_database: Any)`
+2. Удалён redundant `Base.metadata.create_all()` из `configure_sqlite_database`
+3. Оставлена verification-only проверка (без создания таблиц)
+
+**Ensures:**
+- per-worker `DATABASE_URL` выставляется **до** любых `init_db()` вызовов
+- `init_db()` запускается ровно один раз на worker
+- Нет DDL race между workers
+
+**Local verification (после fix 2):**
+
+```bash
+pytest -q tests/test_nutrition_log_api.py::TestNutritionLogAPI::test_meal_log_updates_adherence_state
+# Result: . [100%] ✅
+
+pytest -q -n 2 tests/test_nutrition_log_api.py
+# Result: .......... [100%] ✅
+
+pytest -q -n 2 tests/test_core_db_coverage.py::TestCoreDB::test_init_db tests/test_nutrition_log_api.py
+# Result: ........... [100%] ✅
+```
+
+---
+
 ### Symptom
 
 Nightly `pytest -n auto` падал на API-тестах с отсутствующими таблицами:
@@ -285,7 +366,7 @@ exit_code: 0
 2. ✅ Локально зелёные ключевые репро-тесты + `make test-fast`.
 3. ✅ Import-time engine creation **не обнаружено** (engine lazy); проблема была в утечке состояния из теста.
 4. ✅ Guard на SoT (`tests/test_sqlite_engine_sot.py`) остаётся релевантным; теперь ещё и устранили order-dependent leak.
-5. ⏳ (опционально) После открытия PR обновить этот файл: заменить `PR-TBD` на реальный номер PR и добавить ссылку на CI run.
+5. ⏳ (опционально) После открытия PR обновить этот файл: PR-617 (CI: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/617/checks).
 
 ---
 
