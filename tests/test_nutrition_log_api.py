@@ -53,9 +53,11 @@ class TestNutritionLogAPI:
                 AnalyzerStateModel.user_id == self.user_id
             ).delete(synchronize_session=False)
             session.commit()
-        except OperationalError:
-            # Tables may not exist if init failed (e.g. xdist); teardown must be idempotent
-            session.rollback()
+        except OperationalError as exc:
+            if "no such table" in str(exc).lower():
+                session.rollback()
+            else:
+                raise
         finally:
             session.close()
 
