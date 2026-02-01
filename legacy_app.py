@@ -119,24 +119,24 @@ try:
         RATE_LIMIT_EXPORTS,
         RATE_LIMIT_INSIGHT,
     )
-except ImportError:
-    limiter = None  # type: ignore[assignment]
+except ImportError:  # pragma: no cover - optional dependency in runtime
+    limiter = None  # type: ignore[assignment]  # pragma: no cover
 
     # No-op decorator if rate limiting is unavailable
-    from typing import TypeVar as _TypeVar
+    from typing import TypeVar as _TypeVar  # pragma: no cover
 
-    _F = _TypeVar("_F", bound=Callable[..., Any])
+    _F = _TypeVar("_F", bound=Callable[..., Any])  # pragma: no cover
 
-    _LimitValue = str | Callable[[], str]
+    _LimitValue = str | Callable[[], str]  # pragma: no cover
 
-    def limit_if_available(rate: _LimitValue) -> Callable[[_F], _F]:
-        def decorator(func: _F) -> _F:
-            return func
+    def limit_if_available(rate: _LimitValue) -> Callable[[_F], _F]:  # pragma: no cover
+        def decorator(func: _F) -> _F:  # pragma: no cover
+            return func  # pragma: no cover
 
-        return decorator
+        return decorator  # pragma: no cover
 
-    RATE_LIMIT_INSIGHT = "10/minute"
-    RATE_LIMIT_EXPORTS = "20/minute"
+    RATE_LIMIT_INSIGHT = "10/minute"  # pragma: no cover
+    RATE_LIMIT_EXPORTS = "20/minute"  # pragma: no cover
 
 
 # PRO router registration (explicit, no import-side-effects)
@@ -675,8 +675,8 @@ try:
     from app.security.rate_limit import wire_rate_limiting
 
     wire_rate_limiting(app)
-except ImportError:
-    logger.warning("Rate limiting module not available; rate limiting disabled")
+except ImportError:  # pragma: no cover - optional dependency
+    logger.warning("Rate limiting module not available; rate limiting disabled")  # pragma: no cover
 
 
 # The previous explicit startup handler using @app.on_event("startup")
@@ -1065,8 +1065,8 @@ def _is_rate_limiting_available() -> bool:
         from app.security.rate_limit import limiter
 
         return limiter is not None
-    except Exception:
-        return False
+    except Exception:  # pragma: no cover - defensive
+        return False  # pragma: no cover
 
 
 # Rate limiting setup (PR-628)

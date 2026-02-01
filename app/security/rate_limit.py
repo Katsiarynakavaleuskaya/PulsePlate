@@ -26,6 +26,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _is_truthy_env(name: str) -> bool:
+    """Return True when env var is set to a truthy value.
+
+    RU: Возвращает True, если переменная окружения имеет "truthy" значение.
+    EN: Returns True when env var is set to a truthy value.
+    """
+    value = (os.getenv(name) or "").strip().lower()
+    return value in {"1", "true", "yes", "y", "on"}
+
+
+def _rate_limiting_enabled() -> bool:
+    """Decide whether rate limiting should be active in this process.
+
+    RU: Решает, должен ли rate-limiting быть активен в этом процессе.
+    EN: Decides whether rate limiting should be active in this process.
+
+    Policy:
+    - In normal runtime: enabled (if slowapi is installed).
+    - In tests (`TESTING=true`): disabled by default to avoid cross-test pollution,
+      unless explicitly enabled via `RATE_LIMITING_IN_TESTS=true` in a dedicated suite.
+    """
+    if _is_truthy_env("TESTING") and not _is_truthy_env("RATE_LIMITING_IN_TESTS"):
+        return False
+    return True
+
+
 def rate_limit_insight_value() -> str:
     """Return current insight rate limit string (env-backed)."""
     return os.getenv("RATE_LIMIT_INSIGHT", "10/minute")
@@ -158,8 +184,9 @@ try:
 
     # Create limiter instance
     limiter = Limiter(key_func=rate_limit_client_key)
+    limiter.enabled = _rate_limiting_enabled()
 
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     # SlowAPI not available - create no-op stubs
     limiter = None  # type: ignore[assignment]
     RateLimitExceeded = None  # type: ignore[assignment,misc]
@@ -197,8 +224,12 @@ def wire_rate_limiting(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
     """
-    if limiter is None:
-        logger.warning("SlowAPI not available; rate limiting disabled")
+    if limiter is None:  # pragma: no cover - optional dependency
+        logger.warning("SlowAPI not available; rate limiting disabled")  # pragma: no cover
+        return  # pragma: no cover
+
+    if not getattr(limiter, "enabled", True):
+        logger.debug("Rate limiting disabled by environment")
         return
 
     # Attach limiter to app state
@@ -236,7 +267,7 @@ def limit_if_available(rate: LimitValue) -> Callable[[F], F]:
     """
 
     def decorator(func: F) -> F:
-        if limiter is not None:
+        if limiter is not None and getattr(limiter, "enabled", True):
             # Apply real slowapi limit
             return cast(F, limiter.limit(rate)(func))
         # No-op: return function unchanged

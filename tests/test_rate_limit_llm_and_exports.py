@@ -33,6 +33,7 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # Deterministic low limits (captured at import-time by decorators)
     monkeypatch.setenv("RATE_LIMIT_INSIGHT", "2/minute")
     monkeypatch.setenv("RATE_LIMIT_EXPORTS", "2/minute")
+    monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "true")
 
     # Enable LLM endpoint + configure auth for /api/v1/insight and protected routers
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
@@ -50,14 +51,11 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
     importlib.reload(rate_limit_mod)
 
-    # Ensure legacy_app reload will re-import routers so their decorators capture new env values.
-    # (We don't reload router modules directly; we just evict them so legacy_app pulls them fresh.)
+    # Ensure legacy_app reload will re-import routers so their decorators capture the
+    # enabled limiter instance from app.security.rate_limit (test-only behavior).
     for name in (
         "app.routers.plan_export",
         "app.routers.shoplist_export",
-        "app.routers.vip_shoplist",
-        "app.routers.vip",
-        "app.routers.vip_registration",
     ):
         monkeypatch.delitem(sys.modules, name, raising=False)
 
@@ -77,7 +75,27 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
     legacy_app._load_llm_get_provider = lambda: (lambda: dummy_get_provider())  # noqa: E731
 
-    yield TestClient(legacy_app.app)
+    client = TestClient(legacy_app.app)
+    yield client
+
+    # Teardown: restore baseline app/module state for the rest of the suite.
+    #
+    # RU: Возвращаем состояние модулей к "обычному тестовому" режиму, чтобы
+    # детерминированные 429-тесты не ломали другие тесты (например, coverage/edges).
+    # EN: Restore module state to baseline so deterministic 429 tests do not
+    # pollute the rest of the test suite.
+    client.close()
+    monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "false")
+    monkeypatch.setenv("FEATURE_INSIGHT", "false")
+
+    for name in (
+        "app.routers.plan_export",
+        "app.routers.shoplist_export",
+    ):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+
+    importlib.reload(rate_limit_mod)
+    importlib.reload(legacy_app)
 
 
 def test_insight_v1_rate_limited_200_then_429(rl_client: TestClient) -> None:

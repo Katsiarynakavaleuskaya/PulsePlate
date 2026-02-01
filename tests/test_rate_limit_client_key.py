@@ -21,6 +21,7 @@ from app.security.rate_limit import (
     extract_client_ip,
     is_trusted_proxy,
     parse_trusted_proxies,
+    rate_limit_client_key,
 )
 
 
@@ -105,6 +106,11 @@ class TestIsTrustedProxy:
         trusted = parse_trusted_proxies("172.30.100.0/24, caddy")
         assert not is_trusted_proxy("192.168.1.1", trusted)
 
+    def test_remote_host_not_ip_skips_cidr_entries(self) -> None:
+        """Non-IP remote_host should not crash CIDR checks (returns False)."""
+        trusted = parse_trusted_proxies("172.30.100.0/24")
+        assert not is_trusted_proxy("caddy", trusted)
+
 
 class TestExtractClientIP:
     """Tests for extract_client_ip() header precedence."""
@@ -182,3 +188,14 @@ class TestExtractClientIP:
 
         result = extract_client_ip(request, trusted)
         assert result == "203.0.113.5"
+
+
+class TestRateLimitClientKey:
+    """Tests for rate_limit_client_key() fallback behavior."""
+
+    def test_returns_unknown_when_client_ip_missing(self) -> None:
+        """No client host + no trusted proxy headers → "unknown" fingerprint."""
+        request = Mock()
+        request.client = None
+        request.headers = {}
+        assert rate_limit_client_key(request) == "unknown"
