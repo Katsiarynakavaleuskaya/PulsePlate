@@ -957,6 +957,8 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
+**Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.
+
 **Incident response (if force-push to main occurred):**
 
 If a force-push to `main` happened (even for recovery purposes):
