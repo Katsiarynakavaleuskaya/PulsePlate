@@ -6,7 +6,7 @@ Enable runtime rate limiting for **expensive endpoints** (LLM insight + PDF/CSV 
 
 **Audit:** `docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md`
 
-**Branch:** `fix/pr-628-rate-limit`
+**Branch:** `security/pr-628-rate-limit-llm-exports`
 
 ---
 
@@ -65,7 +65,7 @@ Implement `rate_limit_client_key(request)` based on `core.fingerprint_security._
 ### 5) OpenAPI + governance
 
 - Document `429` responses in OpenAPI (minimum on insight + export).
-- Update `AGENTS.md`: “expensive endpoints MUST be rate-limited + MUST have 429 tests”.
+- Update `AGENTS.md` (commit: `docs(agents): update instructions`): document `limit_if_available` / `RATE_LIMIT_429_RESPONSES` policy + deterministic 429 test guidance.
 
 ---
 
