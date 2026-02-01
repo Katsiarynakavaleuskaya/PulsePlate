@@ -35,7 +35,7 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 2. **Per-worker DB path** must include `PYTEST_XDIST_WORKER` env var (e.g., `test_db_gw0.sqlite3`).
 3. **NullPool required** for file-based SQLite to prevent connection reuse across threads.
 4. **`check_same_thread=False`** must be set in `connect_args` (TestClient + anyio may use threads).
-5. **Single engine SoT**: app code must use the same engine/URL as test fixture (no dual-engine topology).
+5. **Single-engine SoT**: app code must use the same engine/URL as test fixture (no dual-engine topology).
 
 **Troubleshooting:**
 
