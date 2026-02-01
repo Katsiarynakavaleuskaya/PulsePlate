@@ -114,15 +114,34 @@ class TestCoreDB:
         from core import db
         from sqlalchemy.schema import MetaData
 
+        # RU: Этот тест временно инициализирует DB в памяти и обязан восстановить
+        # окружение/глобалы, иначе он ломает API-тесты в xdist (order-dependent).
+        # EN: This test temporarily initializes an in-memory DB and must restore
+        # env/module globals, otherwise it breaks API tests under xdist.
+        original_db_url = os.environ.get("DATABASE_URL")
+
         # Ensure init_db goes through the "first init" path
         db.reset_db_for_tests()
 
-        # Patch create_all on MetaData class (Base.metadata is a MetaData instance)
-        # This is the canonical way to mock SQLAlchemy 2.x metadata methods
-        with patch.object(MetaData, "create_all") as mock_create_all:
-            db.init_db("sqlite:///:memory:")
-            # Verify create_all was called once
-            mock_create_all.assert_called_once()
+        try:
+            # Patch create_all on MetaData class (Base.metadata is a MetaData instance)
+            # This is the canonical way to mock SQLAlchemy 2.x metadata methods
+            with patch.object(MetaData, "create_all") as mock_create_all:
+                db.init_db("sqlite:///:memory:")
+                # Verify create_all was called once
+                mock_create_all.assert_called_once()
+        finally:
+            # RU: Сбросить engine/sessionmaker, чтобы не "утекла" in-memory DB конфигурация.
+            # EN: Reset engine/sessionmaker so in-memory DB config cannot leak.
+            db.reset_db_for_tests()
+
+            # RU/EN: Restore env and re-init DB using canonical DATABASE_URL from conftest.
+            if original_db_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = original_db_url
+            # Re-initialize DB for the rest of the suite (session-scoped fixtures won't rerun).
+            db.init_db()
 
     def test_init_db_with_models_import(self):
         """Test init_db imports models correctly."""
