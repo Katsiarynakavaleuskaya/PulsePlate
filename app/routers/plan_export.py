@@ -67,6 +67,14 @@ class SignRequest(BaseModel):
     ttl_seconds: Optional[int] = None
 
 
+class SignedLinkResponse(BaseModel):
+    """Response model for signed export links."""
+
+    url: str
+    exp: int
+    ttl: int
+
+
 FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
 FONT_NAME = "DejaVuSans"
@@ -575,10 +583,10 @@ def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
 
 
-@export_router.post("/sign", responses=RATE_LIMIT_429_RESPONSES)
+@export_router.post("/sign", responses=RATE_LIMIT_429_RESPONSES, response_model=SignedLinkResponse)
 @limit_if_available(RATE_LIMIT_EXPORTS)
-def sign_export_link_route(request: Request, payload: SignRequest) -> Dict[str, Any]:
-    return sign_export_link(payload)
+def sign_export_link_route(request: Request, payload: SignRequest) -> SignedLinkResponse:
+    return SignedLinkResponse(**sign_export_link(payload))
 
 
 __all__ = ["plan_router", "export_router"]

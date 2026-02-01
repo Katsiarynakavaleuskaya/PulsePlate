@@ -5180,7 +5180,7 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/day/{plan_id}.csv",
         dependencies=[Depends(_get_api_key_dynamic)],
-        responses={429: {"description": "Rate limit exceeded"}},
+        responses=RATE_LIMIT_429_RESPONSES,
     )
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_daily_plan_csv_route(request: Request, plan_id: str) -> Response:
@@ -5189,7 +5189,7 @@ if EXPORTS_ENABLED:
     @app.post(
         "/api/v1/export/pdf",
         dependencies=[Depends(_get_api_key_dynamic)],
-        responses={429: {"description": "Rate limit exceeded"}},
+        responses=RATE_LIMIT_429_RESPONSES,
     )
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_pdf_generic_route(request: Request, payload: Dict[str, Any]) -> Response:
@@ -5198,7 +5198,7 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/week/{plan_id}.csv",
         dependencies=[Depends(_get_api_key_dynamic)],
-        responses={429: {"description": "Rate limit exceeded"}},
+        responses=RATE_LIMIT_429_RESPONSES,
     )
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_weekly_plan_csv_route(request: Request, plan_id: str) -> Response:
@@ -5207,7 +5207,7 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/day/{plan_id}.pdf",
         dependencies=[Depends(_get_api_key_dynamic)],
-        responses={429: {"description": "Rate limit exceeded"}},
+        responses=RATE_LIMIT_429_RESPONSES,
     )
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_daily_plan_pdf_route(request: Request, plan_id: str) -> Response:
@@ -5216,7 +5216,7 @@ if EXPORTS_ENABLED:
     @app.get(
         "/api/v1/premium/exports/week/{plan_id}.pdf",
         dependencies=[Depends(_get_api_key_dynamic)],
-        responses={429: {"description": "Rate limit exceeded"}},
+        responses=RATE_LIMIT_429_RESPONSES,
     )
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_weekly_plan_pdf_route(request: Request, plan_id: str) -> Response:

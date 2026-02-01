@@ -2903,6 +2903,98 @@
         "title": "ShoplistGenerateResponse",
         "type": "object"
       },
+      "ShoplistGroup": {
+        "description": "Group of items by aisle.",
+        "properties": {
+          "aisle": {
+            "title": "Aisle",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "aisle",
+          "items"
+        ],
+        "title": "ShoplistGroup",
+        "type": "object"
+      },
+      "ShoplistItem": {
+        "description": "Single item in the shoplist.",
+        "properties": {
+          "aisle": {
+            "title": "Aisle",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "aisle"
+        ],
+        "title": "ShoplistItem",
+        "type": "object"
+      },
       "ShoplistItemDTO": {
         "description": "Shopping list item specification (food, quantity, form).",
         "properties": {
@@ -3023,6 +3115,46 @@
           "items"
         ],
         "title": "ShoplistPreviewResponse",
+        "type": "object"
+      },
+      "ShoplistResponse": {
+        "description": "Response model for shoplist endpoint.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ShoplistGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShoplistItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "store": {
+            "title": "Store",
+            "type": "string"
+          },
+          "total_estimated": {
+            "title": "Total Estimated",
+            "type": "number"
+          }
+        },
+        "required": [
+          "store",
+          "currency",
+          "total_estimated",
+          "groups",
+          "items"
+        ],
+        "title": "ShoplistResponse",
         "type": "object"
       },
       "ShoplistSourceDTO": {
@@ -3350,6 +3482,30 @@
           "path"
         ],
         "title": "SignRequest",
+        "type": "object"
+      },
+      "SignedLinkResponse": {
+        "description": "Response model for signed export links.",
+        "properties": {
+          "exp": {
+            "title": "Exp",
+            "type": "integer"
+          },
+          "ttl": {
+            "title": "Ttl",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "exp",
+          "ttl"
+        ],
+        "title": "SignedLinkResponse",
         "type": "object"
       },
       "SoftPaywallAvailability": {
@@ -5027,6 +5183,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5056,9 +5219,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Sign Export Link Route Api V1 Export Sign Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SignedLinkResponse"
                 }
               }
             },
@@ -5517,6 +5678,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5562,6 +5730,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5607,6 +5782,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5652,6 +5834,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -6379,9 +6568,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Shoplist Api V1 Shoplist Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShoplistResponse"
                 }
               }
             },

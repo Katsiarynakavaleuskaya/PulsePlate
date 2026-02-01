@@ -3530,6 +3530,36 @@ export interface components {
             unpacked?: components["schemas"]["UnpackedLineDTO"][];
         };
         /**
+         * ShoplistGroup
+         * @description Group of items by aisle.
+         */
+        ShoplistGroup: {
+            /** Aisle */
+            aisle: string;
+            /** Items */
+            items: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ShoplistItem
+         * @description Single item in the shoplist.
+         */
+        ShoplistItem: {
+            /** Aisle */
+            aisle: string;
+            /** Id */
+            id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Qty */
+            qty?: number | null;
+            /** Unit */
+            unit?: string | null;
+        };
+        /**
          * ShoplistItemDTO
          * @description Shopping list item specification (food, quantity, form).
          */
@@ -3599,6 +3629,22 @@ export interface components {
             /** Items */
             items: components["schemas"]["ShoplistPreviewItem"][];
             meta?: components["schemas"]["ShoplistPreviewMeta"];
+        };
+        /**
+         * ShoplistResponse
+         * @description Response model for shoplist endpoint.
+         */
+        ShoplistResponse: {
+            /** Currency */
+            currency: string;
+            /** Groups */
+            groups: components["schemas"]["ShoplistGroup"][];
+            /** Items */
+            items: components["schemas"]["ShoplistItem"][];
+            /** Store */
+            store: string;
+            /** Total Estimated */
+            total_estimated: number;
         };
         /**
          * ShoplistSourceDTO
@@ -3773,6 +3819,18 @@ export interface components {
          * @enum {string}
          */
         ShopUnit: "g" | "kg" | "ml" | "l" | "pcs";
+        /**
+         * SignedLinkResponse
+         * @description Response model for signed export links.
+         */
+        SignedLinkResponse: {
+            /** Exp */
+            exp: number;
+            /** Ttl */
+            ttl: number;
+            /** Url */
+            url: string;
+        };
         /** SignRequest */
         SignRequest: {
             /** Path */
@@ -4708,7 +4766,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -4731,9 +4791,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SignedLinkResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5053,7 +5111,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5091,7 +5151,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5129,7 +5191,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5167,7 +5231,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5649,9 +5715,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ShoplistResponse"];
                 };
             };
             /** @description Rate limit exceeded */

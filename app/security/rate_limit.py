@@ -215,14 +215,28 @@ except ImportError:  # pragma: no cover - optional dependency
 def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON error envelope for 429 rate limit exceeded.
 
-    RU: Возвращает JSON-конверт для 429 (лимит превышен).
-    EN: Returns JSON error envelope for 429 (rate limit exceeded).
+    RU: Возвращает JSON-конверт для 429 (лимит превышен) с i18n.
+    EN: Returns JSON error envelope for 429 (rate limit exceeded) with i18n.
 
     Uses standard FastAPI error contract: {"detail": "..."}
+    Language is determined from request state or Accept-Language header.
     """
+    from core.i18n import normalize_lang, t
+
+    # Get language from request state (middleware-set) or Accept-Language header
+    lang_raw = getattr(getattr(request, "state", None), "lang", None)
+    if not lang_raw:
+        lang_raw = request.headers.get("accept-language", "en")
+    lang = normalize_lang(lang_raw)
+
+    try:
+        detail = t(lang, "rate_limit.exceeded")
+    except KeyError:
+        detail = "Rate limit exceeded"
+
     return JSONResponse(
         status_code=429,
-        content={"detail": "Rate limit exceeded"},
+        content={"detail": detail},
     )
 
 
@@ -301,6 +315,7 @@ __all__ = [
     "wire_rate_limiting",
     "limit_if_available",
     "RATE_LIMIT_429_RESPONSES",
+    "RateLimitErrorResponse",
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
     "rate_limit_insight_value",

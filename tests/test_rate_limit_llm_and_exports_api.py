@@ -22,6 +22,17 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+_RATE_ENV_KEYS = (
+    "RATE_LIMIT_INSIGHT",
+    "RATE_LIMIT_EXPORTS",
+    "RATE_LIMITING_IN_TESTS",
+    "TRUSTED_PROXIES",
+    "FEATURE_INSIGHT",
+    "VIP_MODULE_ENABLED",
+    "API_KEY",
+    "APP_ENV",
+)
+
 
 @pytest.fixture()
 def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
@@ -29,39 +40,45 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
     RU: Создаёт TestClient с детерминированно применёнными rate-limit (через reload).
     EN: Creates TestClient with rate-limits applied deterministically (via reload).
+
+    Key design:
+    - Hard reset env first (prevents cross-test pollution)
+    - Set deterministic config (captured at import-time by decorators)
+    - Ensure routers are re-imported with fresh decorators
     """
-    # Deterministic low limits (captured at import-time by decorators)
+    # 1) Hard reset env first (prevents cross-test pollution)
+    for k in _RATE_ENV_KEYS:
+        monkeypatch.delenv(k, raising=False)
+
+    # 2) Set deterministic config (captured at import-time by decorators)
     monkeypatch.setenv("RATE_LIMIT_INSIGHT", "2/minute")
     monkeypatch.setenv("RATE_LIMIT_EXPORTS", "2/minute")
     monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "true")
-
-    # Enable LLM endpoint + configure auth for /api/v1/insight and protected routers
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", "test-key")
     monkeypatch.setenv("APP_ENV", "test")
-
-    # Ensure proxy-aware key_func trusts XFF/CF headers in TestClient
     monkeypatch.setenv("TRUSTED_PROXIES", "testclient,testserver,127.0.0.1")
 
-    # Ensure VIP routes are registered if they are env-gated at registration time
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    # 3) Ensure routers are re-imported with fresh decorators and limiter
+    # IMPORTANT: Don't reload after import - that would double the middleware!
+    for name in list(sys.modules.keys()):
+        if any(x in name for x in ("app.security", "app.routers", "legacy_app")):
+            sys.modules.pop(name, None)
 
-    # Reload rate_limit after env is set so backward-compat constants are refreshed.
+    # Re-import rate_limit first (creates fresh limiter)
     import app.security.rate_limit as rate_limit_mod
 
-    importlib.reload(rate_limit_mod)
+    # Clear limiter storage to ensure tests start fresh
+    if rate_limit_mod.limiter is not None:
+        try:
+            # Clear all rate limit buckets in memory storage
+            rate_limit_mod.limiter._limiter.storage.reset()  # type: ignore[union-attr]
+        except Exception:
+            pass  # Storage might not support reset
 
-    # Ensure legacy_app reload will re-import routers so their decorators capture the
-    # enabled limiter instance from app.security.rate_limit (test-only behavior).
-    for name in (
-        "app.routers.plan_export",
-        "app.routers.shoplist_export",
-    ):
-        monkeypatch.delitem(sys.modules, name, raising=False)
-
+    # Import legacy_app (wire_rate_limiting is called once at import time)
     import legacy_app
-
-    importlib.reload(legacy_app)
 
     # Mock LLM provider loader to ensure endpoints return 200 before hitting 429.
     class DummyProvider:
@@ -76,26 +93,13 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     legacy_app._load_llm_get_provider = lambda: (lambda: dummy_get_provider())  # noqa: E731
 
     client = TestClient(legacy_app.app)
-    yield client
-
-    # Teardown: restore baseline app/module state for the rest of the suite.
-    #
-    # RU: Возвращаем состояние модулей к "обычному тестовому" режиму, чтобы
-    # детерминированные 429-тесты не ломали другие тесты (например, coverage/edges).
-    # EN: Restore module state to baseline so deterministic 429 tests do not
-    # pollute the rest of the test suite.
-    client.close()
-    monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "false")
-    monkeypatch.setenv("FEATURE_INSIGHT", "false")
-
-    for name in (
-        "app.routers.plan_export",
-        "app.routers.shoplist_export",
-    ):
-        monkeypatch.delitem(sys.modules, name, raising=False)
-
-    importlib.reload(rate_limit_mod)
-    importlib.reload(legacy_app)
+    try:
+        yield client
+    finally:
+        # Teardown: restore baseline app/module state for the rest of the suite.
+        client.close()
+        for k in _RATE_ENV_KEYS:
+            monkeypatch.delenv(k, raising=False)
 
 
 def test_insight_v1_rate_limited_200_then_429(rl_client: TestClient) -> None:
@@ -110,11 +114,12 @@ def test_insight_v1_rate_limited_200_then_429(rl_client: TestClient) -> None:
     assert r2.status_code == 200
     assert r3.status_code == 429
     assert r3.headers.get("content-type", "").startswith("application/json")
-    assert r3.json() == {"detail": "Rate limit exceeded"}
+    # i18n message for rate limit (English locale)
+    assert "Rate limit exceeded" in r3.json()["detail"]
 
 
 def test_insight_legacy_rate_limited_200_then_429(rl_client: TestClient) -> None:
-    headers = {"x-forwarded-for": "1.2.3.4"}
+    headers = {"x-forwarded-for": "1.2.3.5"}  # Different IP to avoid cross-test pollution
     payload = {"text": "hello"}
 
     r1 = rl_client.post("/insight", json=payload, headers=headers)
@@ -125,11 +130,12 @@ def test_insight_legacy_rate_limited_200_then_429(rl_client: TestClient) -> None
     assert r2.status_code == 200
     assert r3.status_code == 429
     assert r3.headers.get("content-type", "").startswith("application/json")
-    assert r3.json() == {"detail": "Rate limit exceeded"}
+    # i18n message for rate limit (English locale)
+    assert "Rate limit exceeded" in r3.json()["detail"]
 
 
 def test_shoplist_export_rate_limited_200_then_429(rl_client: TestClient) -> None:
-    headers = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.4"}
+    headers = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.6"}  # Unique IP per test
 
     r1 = rl_client.get("/api/v1/shoplist/export.csv", headers=headers)
     r2 = rl_client.get("/api/v1/shoplist/export.csv", headers=headers)
@@ -139,14 +145,15 @@ def test_shoplist_export_rate_limited_200_then_429(rl_client: TestClient) -> Non
     assert r2.status_code == 200
     assert r3.status_code == 429
     assert r3.headers.get("content-type", "").startswith("application/json")
-    assert r3.json() == {"detail": "Rate limit exceeded"}
+    # i18n message for rate limit (English locale)
+    assert "Rate limit exceeded" in r3.json()["detail"]
 
 
 def test_plan_week_export_csv_rate_limited_200_then_429(rl_client: TestClient) -> None:
     # Plan exports are token-protected when PRIVATE_EXPORTS_ENABLED=true, so we obtain a signed URL first.
     # IMPORTANT: Use a different client key for signing vs exporting to avoid consuming the export rate budget.
-    headers_sign = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.1"}
-    headers_export = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.4"}
+    headers_sign = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.7"}  # Unique IP
+    headers_export = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.8"}  # Unique IP
 
     sign_payload = {"path": "/api/v1/plan/week/export.csv", "ttl_seconds": 60}
     signed = rl_client.post("/api/v1/export/sign", json=sign_payload, headers=headers_sign)
@@ -162,11 +169,12 @@ def test_plan_week_export_csv_rate_limited_200_then_429(rl_client: TestClient) -
     assert r2.status_code == 200
     assert r3.status_code == 429
     assert r3.headers.get("content-type", "").startswith("application/json")
-    assert r3.json() == {"detail": "Rate limit exceeded"}
+    # i18n message for rate limit (English locale)
+    assert "Rate limit exceeded" in r3.json()["detail"]
 
 
 def test_export_sign_rate_limited_200_then_429(rl_client: TestClient) -> None:
-    headers = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.4"}
+    headers = {"x-api-key": "test-key", "x-forwarded-for": "1.2.3.9"}  # Unique IP
 
     sign_payload = {"path": "/api/v1/plan/week/export.csv", "ttl_seconds": 60}
     s1 = rl_client.post("/api/v1/export/sign", json=sign_payload, headers=headers)
@@ -177,4 +185,5 @@ def test_export_sign_rate_limited_200_then_429(rl_client: TestClient) -> None:
     assert s2.status_code == 200
     assert s3.status_code == 429
     assert s3.headers.get("content-type", "").startswith("application/json")
-    assert s3.json() == {"detail": "Rate limit exceeded"}
+    # i18n message for rate limit (English locale)
+    assert "Rate limit exceeded" in s3.json()["detail"]

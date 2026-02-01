@@ -12,14 +12,44 @@ from datetime import datetime, timezone
 import logging
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import APIRouter, Request, Response
+from pydantic import BaseModel
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen import canvas
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
+
+
+class ShoplistItem(BaseModel):
+    """Single item in the shoplist."""
+
+    aisle: str
+    id: Optional[str] = None
+    name: Optional[str] = None
+    qty: Optional[float] = None
+    unit: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ShoplistGroup(BaseModel):
+    """Group of items by aisle."""
+
+    aisle: str
+    items: List[Dict[str, Any]]
+
+
+class ShoplistResponse(BaseModel):
+    """Response model for shoplist endpoint."""
+
+    store: str
+    currency: str
+    total_estimated: float
+    groups: List[ShoplistGroup]
+    items: List[ShoplistItem]
+
 
 logger = logging.getLogger(__name__)
 
@@ -228,12 +258,12 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 
-@router.get("", responses=RATE_LIMIT_429_RESPONSES)
+@router.get("", responses=RATE_LIMIT_429_RESPONSES, response_model=ShoplistResponse)
 @limit_if_available(RATE_LIMIT_EXPORTS)
-def get_shoplist(request: Request) -> Dict[str, Any]:
+def get_shoplist(request: Request) -> ShoplistResponse:
     """Return the current shoplist in JSON form."""
 
-    return _demo_shoplist()
+    return ShoplistResponse(**_demo_shoplist())
 
 
 @router.get("/export.csv", responses=RATE_LIMIT_429_RESPONSES)
