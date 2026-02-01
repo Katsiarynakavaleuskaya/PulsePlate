@@ -200,9 +200,9 @@ If it is not recorded here — it does not exist.
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/628>
   - DoD:
     - Uncomment and configure rate-limiting (slowapi)
-    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
-    - Add `@limiter.limit("5/hour")` to PDF export endpoints
-    - Add rate-limiting to WebSocket (if exists, verify first)
+    - Add `@limiter.limit("10/minute")` to `/api/v1/insight` (or use `RATE_LIMIT_INSIGHT` env override)
+    - Add `@limiter.limit("20/minute")` to export endpoints (or use `RATE_LIMIT_EXPORTS` env override)
+    - WebSocket: N/A (no endpoints found; see WebSocket investigation item)
     - Tests verify rate-limiting works (429 responses when limit exceeded)
     - Cost tracking added (token usage, API calls)
 
