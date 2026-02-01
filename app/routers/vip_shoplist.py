@@ -39,18 +39,7 @@ from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from fastapi import Request
 
-# Rate limiting imports (PR-628)
-try:
-    from app.security.rate_limit import limit_if_available, RATE_LIMIT_EXPORTS
-except ImportError:
-    # No-op decorator if rate limiting unavailable
-    def limit_if_available(rate: str):  # type: ignore[misc]
-        def decorator(func):  # type: ignore[misc]
-            return func
-
-        return decorator
-
-    RATE_LIMIT_EXPORTS = "20/minute"
+from app.security.rate_limit import RATE_LIMIT_EXPORTS, limit_if_available
 from core.shoplist_engine.models import (
     FoodForm,
     FoodRef,

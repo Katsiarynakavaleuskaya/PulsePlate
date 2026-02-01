@@ -15,7 +15,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -223,7 +223,7 @@ def limit_if_available(rate: str) -> Callable[[F], F]:
     def decorator(func: F) -> F:
         if limiter is not None:
             # Apply real slowapi limit
-            return limiter.limit(rate)(func)  # type: ignore[return-value]
+            return cast(F, limiter.limit(rate)(func))
         # No-op: return function unchanged
         return func
 
