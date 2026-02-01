@@ -127,14 +127,16 @@ except ImportError:
 
     _F = _TypeVar("_F", bound=Callable[..., Any])
 
-    def limit_if_available(rate: str) -> Callable[[_F], _F]:
+    _LimitValue = str | Callable[[], str]
+
+    def limit_if_available(rate: _LimitValue) -> Callable[[_F], _F]:
         def decorator(func: _F) -> _F:
             return func
 
         return decorator
 
-    RATE_LIMIT_INSIGHT = "10/minute"  # type: ignore[assignment]
-    RATE_LIMIT_EXPORTS = "20/minute"  # type: ignore[assignment]
+    RATE_LIMIT_INSIGHT = "10/minute"
+    RATE_LIMIT_EXPORTS = "20/minute"
 
 
 # PRO router registration (explicit, no import-side-effects)
