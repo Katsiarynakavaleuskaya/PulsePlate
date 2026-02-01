@@ -10,7 +10,7 @@ pytest-split~=0.10.0
 hypothesis~=6.151.4
 faker~=40.1.2  # Test data generation
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.13.1
+coverage~=7.13.2
 diff-cover~=10.2.0
 # Code quality tools: use compatible release for stability
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
