@@ -47,6 +47,8 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 
 - **RU:** Любой тест, меняющий `DATABASE_URL`, обязан вызывать reset `_RAW_ENGINE` до и после (и возвращать env).
 - **EN:** Any test mutating `DATABASE_URL` must reset `_RAW_ENGINE` before and after (and restore env).
+- **RU:** Fixture `configure_sqlite_database` — source of truth и всегда делает hard-reset `_RAW_ENGINE`.
+- **EN:** `configure_sqlite_database` fixture is SoT and always hard-resets `_RAW_ENGINE`.
 
 ## Coverage / diff-cover (process invariant)
 
