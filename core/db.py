@@ -31,6 +31,7 @@ from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Call
 
 from sqlalchemy import create_engine, text
 from sqlalchemy import exc as sa_exc
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
@@ -187,6 +188,32 @@ def _build_engine_url() -> str:
     return database_url
 
 
+def _get_sqlite_poolclass(db_url: str) -> type | None:
+    """Return NullPool for file-based SQLite in test/xdist only; None otherwise.
+
+    Robust detection via SQLAlchemy make_url (covers sqlite+pysqlite, sqlite:////path, etc.).
+    NullPool is applied only when APP_ENV=test or pytest is running to avoid changing
+    production SQLite behavior.
+    """
+    try:
+        url = make_url(db_url)
+    except Exception:  # pragma: no cover - invalid URL
+        return None
+    if url.get_backend_name() != "sqlite":
+        return None
+    database = (url.database or "").strip()
+    is_memory = database == ":memory:"
+    if is_memory:
+        return None
+    is_test = os.environ.get("APP_ENV") == "test" or "PYTEST_CURRENT_TEST" in os.environ
+    is_xdist = "PYTEST_XDIST_WORKER" in os.environ
+    if not (is_test or is_xdist):
+        return None
+    from sqlalchemy.pool import NullPool
+
+    return NullPool
+
+
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
     args: dict[str, object] = {"check_same_thread": False} if url.startswith("sqlite") else {}
@@ -259,6 +286,8 @@ def _get_raw_engine() -> "Engine":
 
     Thread-safe and DATABASE_URL-aware: recreates engine if DATABASE_URL changes.
     Critical for pytest-xdist workers where each worker may have different DATABASE_URL.
+
+    For SQLite in tests: uses NullPool to avoid connection reuse across threads.
     """
     global _RAW_ENGINE, SessionLocal
 
@@ -267,8 +296,14 @@ def _get_raw_engine() -> "Engine":
     if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         with _init_lock:
             if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:  # pragma: no branch
+                poolclass = _get_sqlite_poolclass(db_url)
+
                 _RAW_ENGINE = create_engine(
-                    db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+                    db_url,
+                    echo=False,
+                    future=True,
+                    connect_args=_sqlite_connect_args(db_url),
+                    poolclass=poolclass,
                 )
                 # Clear SessionLocal so next call rebuilds a sessionmaker bound to the new engine,
                 # avoiding sessions tied to a stale URL (e.g., pytest-xdist overrides).
@@ -805,8 +840,13 @@ def init_db(database_url: str | None = None) -> "Engine":
                             )
 
         # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
+        poolclass = _get_sqlite_poolclass(db_url)
         new_engine = create_engine(
-            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+            db_url,
+            echo=False,
+            future=True,
+            connect_args=_sqlite_connect_args(db_url),
+            poolclass=poolclass,
         )
         new_session_local = sessionmaker(
             bind=new_engine, autoflush=False, autocommit=False, future=True
