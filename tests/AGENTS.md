@@ -27,6 +27,29 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 - Expected schema must be derived from SoT (`Base.metadata` or shared constant), never hardcoded in fixtures.
 - When using `Base.metadata` as schema SoT, ensure all ORM models are imported before `create_all()` / table checks.
 
+### SQLite threading and engine SoT (xdist)
+
+**Hard rules for SQLite in tests:**
+
+1. **File-based SQLite only** under xdist (no `:memory:` — each worker needs isolated DB file).
+2. **Per-worker DB path** must include `PYTEST_XDIST_WORKER` env var (e.g., `test_db_gw0.sqlite3`).
+3. **NullPool required** for file-based SQLite to prevent connection reuse across threads.
+4. **`check_same_thread=False`** must be set in `connect_args` (TestClient + anyio may use threads).
+5. **Single-engine SoT**: app code must use the same engine/URL as test fixture (no dual-engine topology).
+
+**Troubleshooting:**
+
+- `sqlite3.ProgrammingError: SQLite objects created in a thread...` → verify `NullPool` + `check_same_thread=False`.
+- `no such table: <table>` → check engine URL consistency (fixture vs app) via `test_sqlite_engine_sot.py` guard.
+- `Database locked` errors → verify per-worker isolation (each worker has unique DB file path).
+
+**Guard test:** `tests/test_sqlite_engine_sot.py` enforces engine/URL consistency and per-worker isolation.
+
+- **RU:** Любой тест, меняющий `DATABASE_URL`, обязан вызывать reset `_RAW_ENGINE` до и после (и возвращать env).
+- **EN:** Any test mutating `DATABASE_URL` must reset `_RAW_ENGINE` before and after (and restore env).
+- **RU:** Fixture `configure_sqlite_database` — source of truth и всегда делает hard-reset `_RAW_ENGINE`.
+- **EN:** `configure_sqlite_database` fixture is SoT and always hard-resets `_RAW_ENGINE`.
+
 ## Coverage / diff-cover (process invariant)
 
 - CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
