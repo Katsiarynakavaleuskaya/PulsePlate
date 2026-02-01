@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
 #
-alembic==1.18.1
+alembic==1.18.3
     # via -r requirements.in
 annotated-doc==0.0.4
     # via fastapi
@@ -80,7 +80,7 @@ numpy==2.4.0
     # via
     #   contourpy
     #   matplotlib
-openai==2.15.0
+openai==2.16.0
     # via -r requirements.in
 packaging==25.0
     # via
