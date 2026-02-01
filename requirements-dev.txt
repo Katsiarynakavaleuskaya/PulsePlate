@@ -95,7 +95,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   safety
-hypothesis==6.150.3
+hypothesis==6.151.4
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
