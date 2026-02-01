@@ -19,21 +19,12 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from app.utils.feature_flags import _is_truthy
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
-
-
-def _is_truthy_env(name: str) -> bool:
-    """Return True when env var is set to a truthy value.
-
-    RU: Возвращает True, если переменная окружения имеет "truthy" значение.
-    EN: Returns True when env var is set to a truthy value.
-    """
-    value = (os.getenv(name) or "").strip().lower()
-    return value in {"1", "true", "yes", "y", "on"}
 
 
 def _rate_limiting_enabled() -> bool:
@@ -47,7 +38,7 @@ def _rate_limiting_enabled() -> bool:
     - In tests (`TESTING=true`): disabled by default to avoid cross-test pollution,
       unless explicitly enabled via `RATE_LIMITING_IN_TESTS=true` in a dedicated suite.
     """
-    if _is_truthy_env("TESTING") and not _is_truthy_env("RATE_LIMITING_IN_TESTS"):
+    if _is_truthy(os.getenv("TESTING")) and not _is_truthy(os.getenv("RATE_LIMITING_IN_TESTS")):
         return False
     return True
 
