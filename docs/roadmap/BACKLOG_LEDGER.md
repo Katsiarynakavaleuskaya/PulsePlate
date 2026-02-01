@@ -168,6 +168,24 @@ If it is not recorded here — it does not exist.
     - ✅ diff-coverage tests for `_get_sqlite_poolclass` branches
     - ✅ CI green; guards pass
 
+- [x] PR-627 xdist SQLite race conditions (table exists + no-table errors) — merged 2026-02-01
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (infra)
+  - Target PR: PR #627 (`fix/p1-sqlite-engine-sot`)
+  - Status: ✅ Merged
+  - Reason: Fix two independent xdist race conditions: (1) in-memory DB leak from `test_init_db` (no teardown → "no such table" in API tests), (2) fixture ordering race (duplicate `init_db()` + redundant `create_all()` → "table already exists").
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/627>
+    - docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md
+    - docs/CONTEXT_HANDOFF_2026-01-30.md
+  - DoD:
+    - ✅ Fix 1: `test_init_db` + `try/finally` cleanup (restore env + `reset_db_for_tests()`)
+    - ✅ Fix 2: Explicit fixture dependency + remove redundant `create_all()`
+    - ✅ Tests green under xdist -n 2 (targeted subset + full nutrition_log suite)
+    - ✅ `make test-fast` passes (exit_code 0)
+    - ✅ SoT guard test remains green (no regression)
+    - ✅ CI green; PR merged
+
 - [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
