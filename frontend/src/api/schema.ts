@@ -3228,6 +3228,16 @@ export interface components {
              */
             value: string;
         };
+        /**
+         * RateLimitErrorResponse
+         * @description Error response for 429 rate-limit exceeded.
+         *
+         *     Matches FastAPI/Starlette HTTPException envelope: {"detail": "..."}.
+         */
+        RateLimitErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
         /** Recipe */
         Recipe: {
             /** Allergens */
@@ -4740,7 +4750,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -4899,7 +4911,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -4926,7 +4940,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -4964,7 +4980,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5641,7 +5659,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5668,7 +5688,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -5695,7 +5717,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };
@@ -6812,7 +6836,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
             };
         };
     };

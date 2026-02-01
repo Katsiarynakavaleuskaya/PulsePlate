@@ -34,7 +34,7 @@ from reportlab.platypus.tables import Table as RLTable
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
-from app.security.rate_limit import RATE_LIMIT_EXPORTS, limit_if_available
+from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 
 # Export Table for backward compatibility with tests
 Table = RLTable
@@ -229,7 +229,7 @@ class PageNumCanvas(Canvas):
         Canvas.save(self)
 
     def draw_page_number(self, page_count: int) -> None:
-        page_num = f"p {self._pageNumber}/{page_count}"
+        page_num = f"p {self.getPageNumber()}/{page_count}"
         self.setFont("Helvetica", 9)
         self.setFillColor(BRAND_NAVY)
         self.drawRightString(200 * mm, 10 * mm, page_num)
@@ -346,7 +346,7 @@ def _require_valid_token(request: Request) -> None:
         raise HTTPException(status_code=403, detail="invalid or expired token")
 
 
-@plan_router.get("/week/export.csv", responses={429: {"description": "Rate limit exceeded"}})
+@plan_router.get("/week/export.csv", responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
@@ -444,7 +444,7 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
     return story
 
 
-@plan_router.get("/week/export.pdf", responses={429: {"description": "Rate limit exceeded"}})
+@plan_router.get("/week/export.pdf", responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_pdf(
     request: Request,
@@ -469,7 +469,7 @@ def export_week_pdf(
     doc.author = "PulsePlate"
     doc.subject = "PulsePlate weekly plan export (kcal)"
     doc.creator = "PulsePlate"
-    doc.keywords = "PulsePlate,kcal"
+    doc.keywords = ["PulsePlate", "kcal"]
 
     styles = getSampleStyleSheet()
     base_style = ParagraphStyle(
@@ -575,7 +575,7 @@ def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
 
 
-@export_router.post("/sign", responses={429: {"description": "Rate limit exceeded"}})
+@export_router.post("/sign", responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def sign_export_link_route(request: Request, payload: SignRequest) -> Dict[str, Any]:
     return sign_export_link(payload)

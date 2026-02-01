@@ -219,6 +219,8 @@ If it is not recorded here — it does not exist.
     - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
     - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
 
+### P0 Move LLM insight to VIP tier
+
 - [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)

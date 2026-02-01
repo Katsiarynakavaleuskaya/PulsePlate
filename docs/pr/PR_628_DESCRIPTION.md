@@ -84,7 +84,7 @@ Implement `rate_limit_client_key(request)` based on `core.fingerprint_security._
 **Local verification:**
 
 ```bash
-pytest -q tests/test_rate_limit_client_key.py tests/test_rate_limit_llm_and_exports.py
+pytest -q tests/test_rate_limit_client_key_api.py tests/test_rate_limit_llm_and_exports_api.py
 # Result: [100%] ✅
 ```
 
@@ -123,4 +123,4 @@ pre-commit run --all-files
 
 ## Deferred / Follow-ups
 
-- P0 CRITICAL: Move LLM insight to VIP tier (separate PR; tracked in ledger).
+- P0 CRITICAL: Move LLM insight to VIP tier (separate PR; tracked in ledger: `docs/roadmap/BACKLOG_LEDGER.md#p0-move-llm-insight-to-vip-tier`).

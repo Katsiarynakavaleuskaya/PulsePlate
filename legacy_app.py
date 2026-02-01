@@ -112,13 +112,17 @@ from app.utils.nutrition_wrappers import (
 # Rate limiting imports (PR-628)
 # RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
 # EN: Rate limiting imports (lazy imports only if slowapi is available).
+RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]]
 try:
     from app.security.rate_limit import (
         limiter,
         limit_if_available,
         RATE_LIMIT_EXPORTS,
         RATE_LIMIT_INSIGHT,
+        RATE_LIMIT_429_RESPONSES as _RATE_LIMIT_429_RESPONSES,
     )
+
+    RATE_LIMIT_429_RESPONSES = _RATE_LIMIT_429_RESPONSES
 except ImportError:  # pragma: no cover - optional dependency in runtime
     limiter = None  # type: ignore[assignment]  # pragma: no cover
 
@@ -137,6 +141,7 @@ except ImportError:  # pragma: no cover - optional dependency in runtime
 
     RATE_LIMIT_INSIGHT = "10/minute"  # pragma: no cover
     RATE_LIMIT_EXPORTS = "20/minute"  # pragma: no cover
+    RATE_LIMIT_429_RESPONSES = {429: {"description": "Rate limit exceeded"}}  # pragma: no cover
 
 
 # PRO router registration (explicit, no import-side-effects)
@@ -2164,7 +2169,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
     "/api/v1/insight",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=InsightResponse,
-    responses={429: {"description": "Rate limit exceeded"}},
+    responses=RATE_LIMIT_429_RESPONSES,
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
 async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResponse:
@@ -2175,7 +2180,7 @@ async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResp
 @app.post(
     "/insight",
     response_model=InsightResponse,
-    responses={429: {"description": "Rate limit exceeded"}},
+    responses=RATE_LIMIT_429_RESPONSES,
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
 async def insight_route(request: Request, req: InsightRequest) -> InsightResponse:

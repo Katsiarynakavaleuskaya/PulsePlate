@@ -56,7 +56,7 @@ Or individually:
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
 
-**Rate Limiting Policy (PR-628):**
+**Rate Limiting Policy:**
 
 **Hard rule:** Expensive endpoints (LLM, exports) MUST be rate-limited AND MUST have deterministic 429 tests.
 PRs that add expensive endpoints MUST include deterministic 429 tests (no smoke-only substitutes).
@@ -82,7 +82,7 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 
 - Audit: `docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md`
 - Implementation: `app/security/rate_limit.py`
-- Tests: `tests/test_rate_limit_llm_and_exports.py`, `tests/test_rate_limit_client_key.py`
+- Tests: `tests/test_rate_limit_llm_and_exports_api.py`, `tests/test_rate_limit_client_key_api.py`
 
 ---
 

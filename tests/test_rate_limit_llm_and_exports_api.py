@@ -109,6 +109,7 @@ def test_insight_v1_rate_limited_200_then_429(rl_client: TestClient) -> None:
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
     assert r3.json() == {"detail": "Rate limit exceeded"}
 
 
@@ -123,6 +124,7 @@ def test_insight_legacy_rate_limited_200_then_429(rl_client: TestClient) -> None
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
     assert r3.json() == {"detail": "Rate limit exceeded"}
 
 
@@ -136,6 +138,7 @@ def test_shoplist_export_rate_limited_200_then_429(rl_client: TestClient) -> Non
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
     assert r3.json() == {"detail": "Rate limit exceeded"}
 
 
@@ -148,6 +151,7 @@ def test_plan_week_export_csv_rate_limited_200_then_429(rl_client: TestClient) -
     sign_payload = {"path": "/api/v1/plan/week/export.csv", "ttl_seconds": 60}
     signed = rl_client.post("/api/v1/export/sign", json=sign_payload, headers=headers_sign)
     assert signed.status_code == 200
+    assert signed.headers.get("content-type", "").startswith("application/json")
     url = signed.json()["url"]
 
     r1 = rl_client.get(url, headers=headers_export)
@@ -157,6 +161,7 @@ def test_plan_week_export_csv_rate_limited_200_then_429(rl_client: TestClient) -
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
     assert r3.json() == {"detail": "Rate limit exceeded"}
 
 
@@ -171,4 +176,5 @@ def test_export_sign_rate_limited_200_then_429(rl_client: TestClient) -> None:
     assert s1.status_code == 200
     assert s2.status_code == 200
     assert s3.status_code == 429
+    assert s3.headers.get("content-type", "").startswith("application/json")
     assert s3.json() == {"detail": "Rate limit exceeded"}

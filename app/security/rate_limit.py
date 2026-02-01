@@ -15,11 +15,13 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from app.utils.feature_flags import _is_truthy
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -58,9 +60,19 @@ def rate_limit_exports_value() -> str:
 RATE_LIMIT_INSIGHT = rate_limit_insight_value()
 RATE_LIMIT_EXPORTS = rate_limit_exports_value()
 
+
+class RateLimitErrorResponse(BaseModel):
+    """Error response for 429 rate-limit exceeded.
+
+    Matches FastAPI/Starlette HTTPException envelope: {"detail": "..."}.
+    """
+
+    detail: str
+
+
 # OpenAPI response spec for 429
 RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]] = {
-    429: {"description": "Rate limit exceeded"}
+    429: {"description": "Rate limit exceeded", "model": RateLimitErrorResponse}
 }
 
 
@@ -88,6 +100,21 @@ def parse_trusted_proxies(
         except ValueError:
             result.append(entry)
     return result
+
+
+@lru_cache(maxsize=32)
+def _trusted_proxies_cached(
+    env_value: str,
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network | str, ...]:
+    """Cached parsing of TRUSTED_PROXIES entries.
+
+    RU: Кэшированный парсинг TRUSTED_PROXIES.
+    EN: Cached parsing of TRUSTED_PROXIES.
+
+    Env values are treated as immutable for the lifetime of the process in runtime.
+    In tests, suites that change env must reload this module (canonical pattern).
+    """
+    return tuple(parse_trusted_proxies(env_value))
 
 
 def is_trusted_proxy(
@@ -160,7 +187,7 @@ def rate_limit_client_key(request: Request) -> str:
     """
     from core.fingerprint_security import compute_fingerprint
 
-    trusted_entries = parse_trusted_proxies(os.getenv("TRUSTED_PROXIES", ""))
+    trusted_entries = list(_trusted_proxies_cached(os.getenv("TRUSTED_PROXIES", "")))
     client_ip = extract_client_ip(request, trusted_entries)
     if not client_ip:
         return "unknown"
@@ -219,6 +246,7 @@ def wire_rate_limiting(app: FastAPI) -> None:
         logger.warning("SlowAPI not available; rate limiting disabled")  # pragma: no cover
         return  # pragma: no cover
 
+    limiter.enabled = _rate_limiting_enabled()
     if not getattr(limiter, "enabled", True):
         logger.debug("Rate limiting disabled by environment")
         return

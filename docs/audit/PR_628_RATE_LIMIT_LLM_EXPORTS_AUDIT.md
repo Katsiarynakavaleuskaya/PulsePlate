@@ -25,39 +25,33 @@ Format: **METHOD + PATH + file:line**
 
 ### A) LLM / Insight
 
-| Method | Path | Evidence |
-|---|---|---|
-| POST | `/api/v1/insight` | `legacy_app.py:2037-2042` |
-| POST | `/insight` (legacy) | `legacy_app.py:2085-2089` |
+| Method | Path                | Evidence                   |
+| ------ | ------------------- | -------------------------- |
+| POST   | `/api/v1/insight`   | `legacy_app.py:2037-2042`  |
+| POST   | `/insight` (legacy) | `legacy_app.py:2085-2089`  |
 
 ### B) Export / PDF / CSV (real routers)
 
-| Method | Path | Evidence |
-|---|---|---|
-| GET | `/api/v1/plan/week/export.csv` | `app/routers/plan_export.py:347` (router prefix at `:42`) |
-| GET | `/api/v1/plan/week/export.pdf` | `app/routers/plan_export.py:444` (router prefix at `:42`) |
-| POST | `/api/v1/export/sign` | `app/routers/plan_export.py:561` (router prefix at `:43`) |
-| GET | `/api/v1/shoplist` | `app/routers/shoplist_export.py:230` (router prefix at `:25`) |
-| GET | `/api/v1/shoplist/export.csv` | `app/routers/shoplist_export.py:237` |
-| GET | `/api/v1/shoplist/export.pdf` | `app/routers/shoplist_export.py:258` |
+- GET `/api/v1/plan/week/export.csv` — `app/routers/plan_export.py:347` (router prefix at `:42`)
+- GET `/api/v1/plan/week/export.pdf` — `app/routers/plan_export.py:444` (router prefix at `:42`)
+- POST `/api/v1/export/sign` — `app/routers/plan_export.py:561` (router prefix at `:43`)
+- GET `/api/v1/shoplist` — `app/routers/shoplist_export.py:230` (router prefix at `:25`)
+- GET `/api/v1/shoplist/export.csv` — `app/routers/shoplist_export.py:237`
+- GET `/api/v1/shoplist/export.pdf` — `app/routers/shoplist_export.py:258`
 
 ### C) Export / PDF / CSV (VIP)
 
-| Method | Path | Evidence |
-|---|---|---|
-| POST | `/api/v1/vip/shoplist/export` | `app/routers/vip_shoplist.py:505` (VIP prefix: `app/routers/vip.py:127` + include: `:130`) |
+- POST `/api/v1/vip/shoplist/export` — `app/routers/vip_shoplist.py:505` (VIP prefix: `app/routers/vip.py:127` + include: `:130`)
 
 ### D) Export / PDF / CSV (test/demo endpoints in legacy_app.py)
 
 These are gated by `EXPORTS_ENABLED` (see “Feature flags / route registration” below), but **still represent surface area** when enabled.
 
-| Method | Path | Evidence |
-|---|---|---|
-| GET | `/api/v1/premium/exports/day/{plan_id}.csv` | `legacy_app.py:4695-4697` |
-| POST | `/api/v1/export/pdf` (generic) | `legacy_app.py:4778-4781` |
-| GET | `/api/v1/premium/exports/week/{plan_id}.csv` | `legacy_app.py:4830-4833` |
-| GET | `/api/v1/premium/exports/day/{plan_id}.pdf` | `legacy_app.py:4941-4943` |
-| GET | `/api/v1/premium/exports/week/{plan_id}.pdf` | `legacy_app.py:5026-5029` |
+- GET `/api/v1/premium/exports/day/{plan_id}.csv` — `legacy_app.py:4695-4697`
+- POST `/api/v1/export/pdf` (generic) — `legacy_app.py:4778-4781`
+- GET `/api/v1/premium/exports/week/{plan_id}.csv` — `legacy_app.py:4830-4833`
+- GET `/api/v1/premium/exports/day/{plan_id}.pdf` — `legacy_app.py:4941-4943`
+- GET `/api/v1/premium/exports/week/{plan_id}.pdf` — `legacy_app.py:5026-5029`
 
 ---
 

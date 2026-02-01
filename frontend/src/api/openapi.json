@@ -2366,6 +2366,20 @@
         "title": "QuantityDTO",
         "type": "object"
       },
+      "RateLimitErrorResponse": {
+        "description": "Error response for 429 rate-limit exceeded.\n\nMatches FastAPI/Starlette HTTPException envelope: {\"detail\": \"...\"}.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "RateLimitErrorResponse",
+        "type": "object"
+      },
       "Recipe": {
         "properties": {
           "allergens": {
@@ -5061,6 +5075,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5309,6 +5330,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5333,6 +5361,13 @@
             "description": "Successful Response"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -5383,6 +5418,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -6346,6 +6388,13 @@
             "description": "Successful Response"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -6374,6 +6423,13 @@
             "description": "Successful Response"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -6402,6 +6458,13 @@
             "description": "Successful Response"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
@@ -7908,6 +7971,13 @@
             "description": "Validation Error"
           },
           "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
             "description": "Rate limit exceeded"
           }
         },
