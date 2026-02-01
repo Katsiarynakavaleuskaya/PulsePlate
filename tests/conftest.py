@@ -151,7 +151,7 @@ logger = logging.getLogger(__name__)
 # DATABASE INITIALIZATION FOR API TESTS
 # ============================================================================
 @pytest.fixture(autouse=True, scope="session")
-def _init_db_for_api_suite() -> None:
+def _init_db_for_api_suite(configure_sqlite_database: Any) -> None:
     """
     RU: Глобальная инициализация DB для API тестов (legacy expectation: SessionLocal is ready).
     EN: Initialize DB once for API tests; keeps legacy tests stable without import-time side effects.
@@ -161,6 +161,8 @@ def _init_db_for_api_suite() -> None:
 
     CRITICAL: Import core.models here to ensure models are registered with the canonical Base
     before any tests run. This prevents dual-Base issues.
+
+    CRITICAL: Depends on configure_sqlite_database to ensure per-worker DATABASE_URL is set first.
     """
     import core.db as core_db
     import core.models  # noqa: F401  # Ensure models are registered with Base
@@ -273,13 +275,14 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
 
     db_module.init_db()
 
-    # Belt-and-suspenders: ensure all tables exist (xdist-safe; init_db may have raced)
+    # Verification: ensure all expected tables exist
+    # RU: Проверка, что init_db() создала все таблицы (без повторного create_all).
+    # EN: Verify that init_db() created all tables (without redundant create_all).
     from core.db import Base
     from sqlalchemy import inspect as sa_inspect
 
     engine = getattr(db_module, "_RAW_ENGINE", None) or getattr(db_module, "engine", None)
     if engine is not None:
-        Base.metadata.create_all(bind=engine)
         inspector = sa_inspect(engine)
         expected = set(Base.metadata.tables.keys())
         actual = set(inspector.get_table_names())
