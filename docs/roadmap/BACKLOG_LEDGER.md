@@ -220,6 +220,19 @@ If it is not recorded here — it does not exist.
     - Tests verify FREE/PRO users get 403, VIP users get 200
     - Update OpenAPI schema (insight endpoints require VIP tier)
 
+- [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL)
+  - Target PR: PR-629
+  - Status: 📋 Ready to start
+  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
+  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
+  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update
+  - DoD:
+    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
+    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
+    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
+
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security)

@@ -22,6 +22,9 @@ class TestNutritionLogAPI:
         # Ensure DB schema exists before tests (CI may run this file without app lifespan).
         import core.db as core_db
 
+        # Ensure app-owned tables are registered before init_db/create_all.
+        import app.models  # noqa: F401
+
         core_db.init_db()
         # Guarantee analyzer_state exists on same engine (init_db imports core.models; idempotent).
         import core.models  # noqa: F401

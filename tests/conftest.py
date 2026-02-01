@@ -603,17 +603,23 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     try:
         _truncate()
     except (OperationalError, ProgrammingError, UnboundExecutionError) as e:
-        # Database not accessible or table doesn't exist - proceed without failing the suite
+        # Fail-fast policy (P0 nightly): if schema is missing, try init_db() once and fail
+        # loudly if tables are still missing. This prevents silent "warn+continue" masking.
         logger.warning(f"Database not accessible or users table missing during test setup: {e}")
         try:
             configured_db.init_db()
             try:
                 _truncate()
             except Exception as retry_err:  # pragma: no cover - defensive
-                logger.warning(f"Retrying users cleanup after init_db failed: {retry_err}")
+                pytest.fail(
+                    "Test DB schema bootstrap failed: 'users' table still missing after init_db(). "
+                    f"Original error: {e}. Retry error: {retry_err}"
+                )
         except Exception as init_err:
-            logger.error(f"init_db during cleanup setup failed: {init_err}")
-            # Don't return - must yield to ensure fixture lifecycle completes
+            pytest.fail(
+                "Test DB schema bootstrap failed: init_db() raised during users cleanup setup. "
+                f"Original error: {e}. init_db error: {init_err}"
+            )
     except Exception as e:
         # Handle any other unexpected exceptions
         logger.error(f"Unexpected error during test setup cleanup: {e}", exc_info=True)

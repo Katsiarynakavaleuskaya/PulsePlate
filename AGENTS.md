@@ -456,6 +456,7 @@ Source of truth:
 - CI requires >=97% coverage; keep tests updated.
 - Never push to `main`; use feature branches.
 - Test DB isolation: each xdist worker uses a unique SQLite path.
+- Tests that call `init_db()` / `Base.metadata.create_all()` MUST import the model package(s) that own the tables (e.g., `import app.models`) before schema creation, otherwise metadata may be incomplete and CI can fail with "no such table".
 - Require Marshmallow >=4.1.2 (CVE fix).
 - Formatting: Black line-length=100; keep PEP 8; ruff linting enforced.
 - Pre-commit hooks run tests on changed files; keep changes minimal and focused.
