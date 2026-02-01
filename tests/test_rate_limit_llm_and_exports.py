@@ -31,6 +31,8 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # Deterministic low limits
     monkeypatch.setenv("RATE_LIMIT_INSIGHT", "2/minute")
     monkeypatch.setenv("RATE_LIMIT_EXPORTS", "2/minute")
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("RATE_LIMITING_IN_TESTS", "true")
 
     # Enable LLM endpoint + configure auth for /api/v1/insight and protected routers
     monkeypatch.setenv("FEATURE_INSIGHT", "true")

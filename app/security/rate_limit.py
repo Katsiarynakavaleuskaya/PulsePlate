@@ -35,6 +35,24 @@ RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
+def _is_truthy(value: str | None) -> bool:
+    """Return True if env-style value is truthy."""
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rate_limiting_enabled() -> bool:
+    """Decide whether rate limiting should be enabled for this process.
+
+    Default: enabled.
+    In tests: disabled unless explicitly enabled via RATE_LIMITING_IN_TESTS=true.
+    """
+    if _is_truthy(os.getenv("TESTING")) and not _is_truthy(os.getenv("RATE_LIMITING_IN_TESTS")):
+        return False
+    return True
+
+
 def parse_trusted_proxies(
     env_value: str,
 ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network | str]:
@@ -80,7 +98,9 @@ def is_trusted_proxy(
     return False
 
 
-def extract_client_ip(request: Request, trusted_entries: list) -> str:
+def extract_client_ip(
+    request: Request, trusted_entries: list[ipaddress.IPv4Network | ipaddress.IPv6Network | str]
+) -> str:
     """Extract client IP from request with proxy-aware header precedence.
 
     Precedence (only when request comes from a trusted proxy):
@@ -144,6 +164,7 @@ try:
 
     # Create limiter instance
     limiter = Limiter(key_func=rate_limit_client_key)
+    limiter.enabled = _rate_limiting_enabled()
 
 except ImportError:
     # SlowAPI not available - create no-op stubs
@@ -185,6 +206,9 @@ def wire_rate_limiting(app: FastAPI) -> None:
     """
     if limiter is None:
         logger.warning("SlowAPI not available; rate limiting disabled")
+        return
+    if not getattr(limiter, "enabled", True):
+        logger.info("Rate limiting disabled by env (tests)")
         return
 
     # Attach limiter to app state

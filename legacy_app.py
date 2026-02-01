@@ -125,12 +125,11 @@ except ImportError:
     RATE_LIMIT_EXPORTS = None  # type: ignore[assignment]
 
     # No-op decorator if rate limiting is unavailable
-    from collections.abc import Callable as _Callable
-    from typing import Any as _Any, TypeVar as _TypeVar
+    from typing import TypeVar as _TypeVar
 
-    _F = _TypeVar("_F", bound=_Callable[..., _Any])
+    _F = _TypeVar("_F", bound=Callable[..., Any])
 
-    def limit_if_available(rate: str) -> _Callable[[_F], _F]:
+    def limit_if_available(rate: str) -> Callable[[_F], _F]:
         def decorator(func: _F) -> _F:
             return func
 

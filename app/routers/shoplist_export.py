@@ -14,12 +14,11 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen import canvas
-from fastapi import Request
 from app.security.rate_limit import RATE_LIMIT_EXPORTS, limit_if_available
 
 logger = logging.getLogger(__name__)

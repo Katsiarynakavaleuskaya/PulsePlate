@@ -75,11 +75,23 @@ def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch
 @pytest.mark.asyncio
 async def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch):
     import app as appmod
+    from starlette.requests import Request
 
     # Ensure to_pdf_day is missing/non-callable
     monkeypatch.setattr(appmod, "to_pdf_day", None)
     with pytest.raises(appmod.HTTPException) as ei:
-        await appmod.export_pdf_generic({"meals": []})
+        req = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/export/pdf",
+                "headers": [],
+                "client": ("testclient", 1234),
+                "server": ("testserver", 80),
+                "scheme": "http",
+            }
+        )
+        await appmod.export_pdf_generic(req, {"meals": []})
     assert ei.value.status_code == 503
 
 
