@@ -66,8 +66,10 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 
 - All LLM endpoints (`/api/v1/insight`, `/insight`) MUST use `@limit_if_available(RATE_LIMIT_INSIGHT)`.
 - All export endpoints (CSV/PDF) MUST use `@limit_if_available(RATE_LIMIT_EXPORTS)`.
-- OpenAPI MUST document 429 responses for rate-limited endpoints: `responses={429: {"description": "Rate limit exceeded"}}`.
+- OpenAPI MUST document 429 responses for rate-limited endpoints: `responses=RATE_LIMIT_429_RESPONSES` (from `app/security/rate_limit.py`).
 - Tests MUST verify 200 → 429 transitions with low limits (2/minute in tests).
+- Rate-limited endpoints MUST accept `request: Request` in the handler signature (SlowAPI requirement).
+- Runtime behavior is env-gated: in tests (`TESTING=true`) rate limiting is disabled unless `RATE_LIMITING_IN_TESTS=true`.
 - Client identification uses proxy-aware key_func with CIDR support (`app/security/rate_limit.py`).
 
 **Rationale:**
