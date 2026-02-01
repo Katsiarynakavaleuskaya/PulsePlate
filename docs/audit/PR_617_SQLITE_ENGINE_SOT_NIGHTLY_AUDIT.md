@@ -366,7 +366,7 @@ exit_code: 0
 2. ✅ Локально зелёные ключевые репро-тесты + `make test-fast`.
 3. ✅ Import-time engine creation **не обнаружено** (engine lazy); проблема была в утечке состояния из теста.
 4. ✅ Guard на SoT (`tests/test_sqlite_engine_sot.py`) остаётся релевантным; теперь ещё и устранили order-dependent leak.
-5. ⏳ (опционально) После открытия PR обновить этот файл: PR-617 (CI: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/617/checks).
+5. ⏳ (опционально) После открытия PR обновить этот файл: PR-617 (CI: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/617/checks>).
 
 ---
 
