@@ -4980,8 +4980,7 @@
     },
     "/api/v1/export/pdf": {
       "post": {
-        "description": "Test/demo only — do not expose in production.\n\nGeneric PDF export endpoint for tests' error-handling coverage.\n\nAccepts a JSON payload and attempts to render a simple PDF using to_pdf_day\nif present; otherwise returns an appropriate error. For empty payloads,\nFastAPI/Pydantic will trigger 422 automatically due to missing body shape.\n\nFallback behavior: returns 400 for empty payloads and 503 if the PDF helper is\nunavailable.",
-        "operationId": "export_pdf_generic_api_v1_export_pdf_post",
+        "operationId": "export_pdf_generic_route_api_v1_export_pdf_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5012,6 +5011,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5019,12 +5021,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Pdf Generic"
+        "summary": "Export Pdf Generic Route"
       }
     },
     "/api/v1/export/sign": {
       "post": {
-        "operationId": "sign_export_link_api_v1_export_sign_post",
+        "operationId": "sign_export_link_route_api_v1_export_sign_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5041,7 +5043,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Sign Export Link Api V1 Export Sign Post",
+                  "title": "Response Sign Export Link Route Api V1 Export Sign Post",
                   "type": "object"
                 }
               }
@@ -5057,6 +5059,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5064,7 +5069,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Sign Export Link",
+        "summary": "Sign Export Link Route",
         "tags": [
           "export"
         ]
@@ -5271,8 +5276,7 @@
     },
     "/api/v1/insight": {
       "post": {
-        "description": "Generate insight using LLM provider (v1 with API key).\n\nPrivacy: user text may be sent to external providers; see /privacy.",
-        "operationId": "insight_v1_api_v1_insight_post",
+        "operationId": "insight_v1_route_api_v1_insight_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5303,6 +5307,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5310,7 +5317,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Insight V1"
+        "summary": "Insight V1 Route"
       }
     },
     "/api/v1/plan/week/export.csv": {
@@ -5324,6 +5331,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5371,6 +5381,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5430,8 +5443,7 @@
     },
     "/api/v1/premium/exports/day/{plan_id}.csv": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать дневной план в CSV.\nEN: Export daily meal plan to CSV.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    CSV file download\n\nFallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.",
-        "operationId": "export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get",
+        "operationId": "export_daily_plan_csv_route_api_v1_premium_exports_day__plan_id__csv_get",
         "parameters": [
           {
             "in": "path",
@@ -5461,6 +5473,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5468,13 +5483,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Daily Plan Csv"
+        "summary": "Export Daily Plan Csv Route"
       }
     },
     "/api/v1/premium/exports/day/{plan_id}.pdf": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать дневной план в PDF.\nEN: Export daily meal plan to PDF.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    PDF file download\n\nFallback behavior: returns 503 when the PDF helper is unavailable and 500 if\nReportLab is not installed.",
-        "operationId": "export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get",
+        "operationId": "export_daily_plan_pdf_route_api_v1_premium_exports_day__plan_id__pdf_get",
         "parameters": [
           {
             "in": "path",
@@ -5504,6 +5518,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5511,13 +5528,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Daily Plan Pdf"
+        "summary": "Export Daily Plan Pdf Route"
       }
     },
     "/api/v1/premium/exports/week/{plan_id}.csv": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать недельный план в CSV.\nEN: Export weekly meal plan to CSV.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    CSV file download\n\nFallback behavior: returns a minimal CSV response when the CSV helper is unavailable.",
-        "operationId": "export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get",
+        "operationId": "export_weekly_plan_csv_route_api_v1_premium_exports_week__plan_id__csv_get",
         "parameters": [
           {
             "in": "path",
@@ -5547,6 +5563,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5554,13 +5573,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Weekly Plan Csv"
+        "summary": "Export Weekly Plan Csv Route"
       }
     },
     "/api/v1/premium/exports/week/{plan_id}.pdf": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать недельный план в PDF.\nEN: Export weekly meal plan to PDF.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    PDF file download\n\nFallback behavior: returns 503 when the PDF helper is unavailable.",
-        "operationId": "export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get",
+        "operationId": "export_weekly_plan_pdf_route_api_v1_premium_exports_week__plan_id__pdf_get",
         "parameters": [
           {
             "in": "path",
@@ -5590,6 +5608,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5597,7 +5618,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Weekly Plan Pdf"
+        "summary": "Export Weekly Plan Pdf Route"
       }
     },
     "/api/v1/premium/gaps": {
@@ -6323,6 +6344,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -6348,6 +6372,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -6373,6 +6400,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -7457,6 +7487,9 @@
           "422": {
             "description": "Validation error (invalid enum / DTO)"
           },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
           "500": {
             "description": "Invariant violation (internal)"
           }
@@ -7842,8 +7875,7 @@
     },
     "/insight": {
       "post": {
-        "description": "Generate insight using LLM provider (legacy path without API key).\n\nPrivacy: user text may be sent to external providers; see /privacy.",
-        "operationId": "insight_insight_post",
+        "operationId": "insight_route_insight_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7874,9 +7906,12 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
-        "summary": "Insight"
+        "summary": "Insight Route"
       }
     },
     "/plan": {

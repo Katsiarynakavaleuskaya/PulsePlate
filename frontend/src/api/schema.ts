@@ -426,20 +426,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Export Pdf Generic
-         * @description Test/demo only — do not expose in production.
-         *
-         *     Generic PDF export endpoint for tests' error-handling coverage.
-         *
-         *     Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
-         *     if present; otherwise returns an appropriate error. For empty payloads,
-         *     FastAPI/Pydantic will trigger 422 automatically due to missing body shape.
-         *
-         *     Fallback behavior: returns 400 for empty payloads and 503 if the PDF helper is
-         *     unavailable.
-         */
-        post: operations["export_pdf_generic_api_v1_export_pdf_post"];
+        /** Export Pdf Generic Route */
+        post: operations["export_pdf_generic_route_api_v1_export_pdf_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -455,8 +443,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sign Export Link */
-        post: operations["sign_export_link_api_v1_export_sign_post"];
+        /** Sign Export Link Route */
+        post: operations["sign_export_link_route_api_v1_export_sign_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -545,13 +533,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Insight V1
-         * @description Generate insight using LLM provider (v1 with API key).
-         *
-         *     Privacy: user text may be sent to external providers; see /privacy.
-         */
-        post: operations["insight_v1_api_v1_insight_post"];
+        /** Insight V1 Route */
+        post: operations["insight_v1_route_api_v1_insight_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -627,22 +610,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Export Daily Plan Csv
-         * @description Test/demo only — do not expose in production.
-         *
-         *     RU: Экспортировать дневной план в CSV.
-         *     EN: Export daily meal plan to CSV.
-         *
-         *     Args:
-         *         plan_id: ID of the daily plan to export
-         *
-         *     Returns:
-         *         CSV file download
-         *
-         *     Fallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.
-         */
-        get: operations["export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get"];
+        /** Export Daily Plan Csv Route */
+        get: operations["export_daily_plan_csv_route_api_v1_premium_exports_day__plan_id__csv_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -658,23 +627,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Export Daily Plan Pdf
-         * @description Test/demo only — do not expose in production.
-         *
-         *     RU: Экспортировать дневной план в PDF.
-         *     EN: Export daily meal plan to PDF.
-         *
-         *     Args:
-         *         plan_id: ID of the daily plan to export
-         *
-         *     Returns:
-         *         PDF file download
-         *
-         *     Fallback behavior: returns 503 when the PDF helper is unavailable and 500 if
-         *     ReportLab is not installed.
-         */
-        get: operations["export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get"];
+        /** Export Daily Plan Pdf Route */
+        get: operations["export_daily_plan_pdf_route_api_v1_premium_exports_day__plan_id__pdf_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -690,22 +644,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Export Weekly Plan Csv
-         * @description Test/demo only — do not expose in production.
-         *
-         *     RU: Экспортировать недельный план в CSV.
-         *     EN: Export weekly meal plan to CSV.
-         *
-         *     Args:
-         *         plan_id: ID of the weekly plan to export
-         *
-         *     Returns:
-         *         CSV file download
-         *
-         *     Fallback behavior: returns a minimal CSV response when the CSV helper is unavailable.
-         */
-        get: operations["export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get"];
+        /** Export Weekly Plan Csv Route */
+        get: operations["export_weekly_plan_csv_route_api_v1_premium_exports_week__plan_id__csv_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -721,22 +661,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Export Weekly Plan Pdf
-         * @description Test/demo only — do not expose in production.
-         *
-         *     RU: Экспортировать недельный план в PDF.
-         *     EN: Export weekly meal plan to PDF.
-         *
-         *     Args:
-         *         plan_id: ID of the weekly plan to export
-         *
-         *     Returns:
-         *         PDF file download
-         *
-         *     Fallback behavior: returns 503 when the PDF helper is unavailable.
-         */
-        get: operations["export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get"];
+        /** Export Weekly Plan Pdf Route */
+        get: operations["export_weekly_plan_pdf_route_api_v1_premium_exports_week__plan_id__pdf_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1908,13 +1834,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Insight
-         * @description Generate insight using LLM provider (legacy path without API key).
-         *
-         *     Privacy: user text may be sent to external providers; see /privacy.
-         */
-        post: operations["insight_insight_post"];
+        /** Insight Route */
+        post: operations["insight_route_insight_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4739,7 +4660,7 @@ export interface operations {
             };
         };
     };
-    export_pdf_generic_api_v1_export_pdf_post: {
+    export_pdf_generic_route_api_v1_export_pdf_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4772,9 +4693,16 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    sign_export_link_api_v1_export_sign_post: {
+    sign_export_link_route_api_v1_export_sign_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4806,6 +4734,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4928,7 +4863,7 @@ export interface operations {
             };
         };
     };
-    insight_v1_api_v1_insight_post: {
+    insight_v1_route_api_v1_insight_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4959,6 +4894,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     export_week_csv_api_v1_plan_week_export_csv_get: {
@@ -4978,6 +4920,13 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5009,6 +4958,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5045,7 +5001,7 @@ export interface operations {
             };
         };
     };
-    export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get: {
+    export_daily_plan_csv_route_api_v1_premium_exports_day__plan_id__csv_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5073,10 +5029,17 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
-    export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get: {
+    export_daily_plan_pdf_route_api_v1_premium_exports_day__plan_id__pdf_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5104,10 +5067,17 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
-    export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get: {
+    export_weekly_plan_csv_route_api_v1_premium_exports_week__plan_id__csv_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5135,10 +5105,17 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
-    export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get: {
+    export_weekly_plan_pdf_route_api_v1_premium_exports_week__plan_id__pdf_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5166,6 +5143,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5652,6 +5636,13 @@ export interface operations {
                     };
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     export_shoplist_csv_api_v1_shoplist_export_csv_get: {
@@ -5672,6 +5663,13 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     export_shoplist_pdf_api_v1_shoplist_export_pdf_get: {
@@ -5691,6 +5689,13 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6438,6 +6443,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Invariant violation (internal) */
             500: {
                 headers: {
@@ -6764,7 +6776,7 @@ export interface operations {
             };
         };
     };
-    insight_insight_post: {
+    insight_route_insight_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6794,6 +6806,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
