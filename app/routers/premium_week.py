@@ -15,10 +15,10 @@ from typing import Any, Dict, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.middleware.api_tiers import require_pro_tier
-from app.models.nutrition import TargetsIn
+from app.schemas.nutrition_targets import TargetsIn
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -67,7 +67,7 @@ def _get_recipe_db() -> RecipeDB:
     return _premium_recipe_db_cache
 
 
-class WeekPlanRequest(BaseModel):
+class PremiumWeekPlanRequest(BaseModel):
     # режим A: передают готовые targets
     targets: Optional[TargetsIn] = None
     # режим B: быстрый профиль (fallback)
@@ -82,8 +82,12 @@ class WeekPlanRequest(BaseModel):
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
 
+    model_config = ConfigDict(title="PremiumWeekPlanRequest")
 
-class WeekPlanResponse(BaseModel):
+
+class PremiumWeekPlanResponse(BaseModel):
+    model_config = ConfigDict(title="PremiumWeekPlanResponse")
+
     daily_menus: List[Dict]
     weekly_coverage: Dict[str, float]
     shopping_list: Dict[str, float]
@@ -174,7 +178,7 @@ def estimate_targets_minimal(
 
 @router.post(
     "/plan/week-flexible",
-    response_model=WeekPlanResponse,
+    response_model=PremiumWeekPlanResponse,
     dependencies=[Depends(require_pro_tier)],
     deprecated=True,
     openapi_extra={
@@ -208,7 +212,9 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JSONResponse]:
+async def generate_week_plan(
+    req: PremiumWeekPlanRequest,
+) -> Union[PremiumWeekPlanResponse, JSONResponse]:
     """
     [DEPRECATED] Generate weekly meal plan with PRO tier features.
 
@@ -267,9 +273,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
     # 2) Построить неделю (generation stage) + postprocess (pipeline with ordering guard)
     from core.menu_engine_new import PlateDayTargets
 
-    # Wrap WeekPlanResponse constructor to match postprocess_fn signature
-    def _postprocess_week(week: dict[str, Any]) -> WeekPlanResponse:
-        return WeekPlanResponse(**week)
+    # Wrap PremiumWeekPlanResponse constructor to match postprocess_fn signature
+    def _postprocess_week(week: dict[str, Any]) -> PremiumWeekPlanResponse:
+        return PremiumWeekPlanResponse(**week)
 
     result = run_weekly_pipeline_guarded(
         generation_fn=build_week,
@@ -305,6 +311,6 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
         # IMPORTANT: bypass response_model validation
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    if not isinstance(result, WeekPlanResponse):
-        raise TypeError(f"Expected WeekPlanResponse, got {type(result).__name__}")
+    if not isinstance(result, PremiumWeekPlanResponse):
+        raise TypeError(f"Expected PremiumWeekPlanResponse, got {type(result).__name__}")
     return result

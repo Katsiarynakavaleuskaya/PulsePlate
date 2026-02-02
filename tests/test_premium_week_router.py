@@ -10,7 +10,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.routers.premium_week import TargetsIn, WeekPlanRequest, WeekPlanResponse, router
+from app.routers.premium_week import (
+    PremiumWeekPlanRequest,
+    PremiumWeekPlanResponse,
+    TargetsIn,
+    router,
+)
 
 
 class TestPremiumWeekRouter:
@@ -253,7 +258,7 @@ class TestPremiumWeekRouter:
 
     def test_week_plan_request_model(self) -> None:
         """Test WeekPlanRequest model."""
-        request = WeekPlanRequest(
+        request = PremiumWeekPlanRequest(
             sex="female",
             age=25,
             height_cm=165,
@@ -275,7 +280,7 @@ class TestPremiumWeekRouter:
 
     def test_week_plan_response_model(self) -> None:
         """Test WeekPlanResponse model."""
-        response = WeekPlanResponse(
+        response = PremiumWeekPlanResponse(
             daily_menus=[{"day": "Monday", "meals": []}],
             weekly_coverage={"protein": 0.95, "carbs": 0.90},
             shopping_list={"chicken": 1.0},

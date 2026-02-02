@@ -230,12 +230,12 @@ class TestPRORouterDiffCoverage:
         self, monkeypatch, kwargs: Dict[str, Any], expected_field: str
     ):
         """Cover all missing profile field branches in PRO router."""
-        from app.routers.pro import WeekPlanRequest, generate_week_plan
+        from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.pro.get_recipe_db", lambda: MagicMock())
 
-        req = WeekPlanRequest(**kwargs)
+        req = ProWeekPlanRequest(**kwargs)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)
@@ -246,7 +246,7 @@ class TestPRORouterDiffCoverage:
     @pytest.mark.asyncio
     async def test_generate_week_plan_hard_guard_not_dict(self, monkeypatch):
         """Cover hard guard: targets is not a dict → 400."""
-        from app.routers.pro import WeekPlanRequest, generate_week_plan
+        from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
         # Mock dependencies
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
@@ -256,7 +256,7 @@ class TestPRORouterDiffCoverage:
             lambda *args, **kwargs: "not_a_dict",  # Type guard should catch this
         )
 
-        req = WeekPlanRequest(sex="female", age=25, height_cm=165, weight_kg=60)
+        req = ProWeekPlanRequest(sex="female", age=25, height_cm=165, weight_kg=60)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)
@@ -267,7 +267,7 @@ class TestPRORouterDiffCoverage:
     @pytest.mark.asyncio
     async def test_generate_week_plan_hard_guard_incomplete(self, monkeypatch):
         """Cover hard guard: targets dict incomplete → 400."""
-        from app.routers.pro import WeekPlanRequest, generate_week_plan
+        from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
         # Mock dependencies
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
@@ -277,7 +277,7 @@ class TestPRORouterDiffCoverage:
             lambda *args, **kwargs: {"kcal": 2000, "macros": {}, "micro": {}},  # Missing keys
         )
 
-        req = WeekPlanRequest(sex="male", age=30, height_cm=175, weight_kg=70)
+        req = ProWeekPlanRequest(sex="male", age=30, height_cm=175, weight_kg=70)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)
@@ -288,7 +288,7 @@ class TestPRORouterDiffCoverage:
     @pytest.mark.asyncio
     async def test_generate_week_plan_with_valid_targets(self, monkeypatch):
         """Cover happy path: valid targets dict from request."""
-        from app.routers.pro import WeekPlanRequest, generate_week_plan
+        from app.routers.pro import ProWeekPlanRequest, generate_week_plan
 
         monkeypatch.setattr("app.routers.pro.get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.pro.get_recipe_db", lambda: MagicMock())
@@ -303,7 +303,7 @@ class TestPRORouterDiffCoverage:
             },
         )
 
-        req = WeekPlanRequest(
+        req = ProWeekPlanRequest(
             targets={
                 "kcal": 2000,
                 "macros": {
@@ -493,7 +493,7 @@ class TestPremiumWeekDiffCoverage:
     async def test_deprecation_event_both_states(self, monkeypatch):
         """Cover deprecation logging Event transitions (not set → set)."""
         from app.routers.premium_week import (
-            WeekPlanRequest,
+            PremiumWeekPlanRequest,
             _deprecation_logged,
             generate_week_plan,
         )
@@ -515,7 +515,7 @@ class TestPremiumWeekDiffCoverage:
         # Clear event to cover "not set" → "set" transition
         _deprecation_logged.clear()
 
-        req = WeekPlanRequest(
+        req = PremiumWeekPlanRequest(
             targets={
                 "kcal": 2000,
                 "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
@@ -535,7 +535,7 @@ class TestPremiumWeekDiffCoverage:
     @pytest.mark.asyncio
     async def test_hard_guard_malformed_targets(self, monkeypatch):
         """Cover hard guard for malformed targets after derivation."""
-        from app.routers.premium_week import WeekPlanRequest, generate_week_plan
+        from app.routers.premium_week import PremiumWeekPlanRequest, generate_week_plan
 
         # Mock dependencies
         monkeypatch.setattr("app.routers.premium_week._get_food_db", lambda: MagicMock())
@@ -545,7 +545,7 @@ class TestPremiumWeekDiffCoverage:
             lambda *args, **kwargs: {"kcal": 2000},  # Incomplete
         )
 
-        req = WeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
+        req = PremiumWeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)
@@ -556,7 +556,7 @@ class TestPremiumWeekDiffCoverage:
     @pytest.mark.asyncio
     async def test_premium_hard_guard_targets_not_dict(self, monkeypatch):
         """Cover hard guard where derived targets are not a dict."""
-        from app.routers.premium_week import WeekPlanRequest, generate_week_plan
+        from app.routers.premium_week import PremiumWeekPlanRequest, generate_week_plan
 
         monkeypatch.setattr("app.routers.premium_week._get_food_db", lambda: MagicMock())
         monkeypatch.setattr("app.routers.premium_week._get_recipe_db", lambda: MagicMock())
@@ -565,7 +565,7 @@ class TestPremiumWeekDiffCoverage:
             lambda *args, **kwargs: "not_a_dict",
         )
 
-        req = WeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
+        req = PremiumWeekPlanRequest(sex="female", age=28, height_cm=160, weight_kg=55)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)
@@ -607,7 +607,7 @@ class TestPremiumWeekDiffCoverage:
         self, monkeypatch, kwargs: Dict[str, Any], expected_field: str
     ):
         """Cover missing profile field branches in premium router."""
-        from app.routers.premium_week import WeekPlanRequest, generate_week_plan
+        from app.routers.premium_week import PremiumWeekPlanRequest, generate_week_plan
 
         monkeypatch.setattr("app.routers.premium_week._get_food_db", lambda: MagicMock())
         monkeypatch.setattr(
@@ -615,7 +615,7 @@ class TestPremiumWeekDiffCoverage:
             lambda: MagicMock(),
         )
 
-        req = WeekPlanRequest(**kwargs)
+        req = PremiumWeekPlanRequest(**kwargs)
 
         with pytest.raises(HTTPException) as exc_info:
             await generate_week_plan(req)

@@ -40,7 +40,7 @@ def test_premium_week_pipeline_type_mismatch_raises_typeerror(
 
     client = TestClient(app)
     try:
-        with pytest.raises(TypeError, match=r"Expected WeekPlanResponse"):
+        with pytest.raises(TypeError, match=r"Expected PremiumWeekPlanResponse"):
             _ = client.post("/api/v1/premium/plan/week-flexible", json={})
     finally:
         client.close()

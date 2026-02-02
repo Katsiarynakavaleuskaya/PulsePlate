@@ -663,21 +663,10 @@ Source of truth:
 ### SQLAlchemy model import policy (critical)
 
 - **Forbidden**: Import SQLAlchemy models at module level in routers that are included in OpenAPI generation.
-- Routers that import `app.models.*` must be conditionally imported when `PULSEPLATE_OPENAPI=1` to prevent SQLAlchemy "Table already defined" errors.
+- **Forbidden**: Import `app.models.*` (ORM models) at module level in any module that is reachable from OpenAPI generation (`make openapi` → `scripts/generate_openapi.py` → `app.main:app`).
+- **Required wording (canonical)**: OpenAPI generation must be **side-effect free**: no import-time loading of ORM models and no `Base.metadata` registration along the OpenAPI import path.
 - **Allowed**: Import models inside endpoint functions or dependencies (lazy loading).
 - **Rationale**: OpenAPI generation must not trigger SQLAlchemy table creation to ensure deterministic schema generation.
-
-### OpenAPI generation mode
-
-- Generator sets `PULSEPLATE_OPENAPI=1` before importing app.
-- Routers that import SQLAlchemy models (e.g., `premium_week`, `pro`) are skipped in this mode.
-- This ensures schema generation does not load DB layer and prevents double-loading errors.
-
-**Schema-only contract (single source of truth):**
-See `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract` (do not duplicate env/flag lists elsewhere).
-
-**Checklist:**
-- [ ] If you change schema-only OpenAPI behavior (env/flags/router exclusions), update ADR-002 contract section above.
 
 ### Determinism requirement
 

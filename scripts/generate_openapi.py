@@ -92,52 +92,32 @@ def normalize_openapi_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
-    # Make OpenAPI generation deterministic across dev/CI
-    # Enable schema-only mode to avoid SQLAlchemy model double-loading
-    # This prevents "Table already defined" errors and ensures deterministic schema
-    os.environ["PULSEPLATE_OPENAPI"] = "1"
-
-    # Hard pin environment and feature flags for schema-only mode
-    # IMPORTANT: This is schema-only mode (temporary). Premium/pro routers are disabled
-    # because they import SQLAlchemy models at module level, causing double-load errors.
-    # Follow-up PR-509: eliminate import-time ORM dependencies to enable full schema.
-    # CI uses APP_ENV=test/ENVIRONMENT=test, so we align here
+    # Make OpenAPI generation deterministic across dev/CI.
+    #
+    # IMPORTANT (PR-631): This is FULL schema mode.
+    # OpenAPI generation must not rely on schema-only router skips or import-time ORM hacks.
+    #
+    # CI uses APP_ENV=test/ENVIRONMENT=test, so we align here.
     os.environ["APP_ENV"] = "test"
     os.environ["ENVIRONMENT"] = "test"
     os.environ["ENABLE_TEST_ROUTES"] = "1"
-    # Disable routers that import SQLAlchemy models at module level (temporary)
-    # These will be re-enabled in PR-509 after moving models to lazy imports or app/schemas
-    os.environ["FEATURE_PREMIUM_WEEK_ENABLED"] = "false"
-    os.environ["FEATURE_BMI_PRO_ENABLED"] = "false"
-    os.environ["BUSINESS_MODULE_ENABLED"] = "false"
+    # Enable feature-flagged routers during schema generation to produce a full schema.
+    # RU: Включаем фичи для полной схемы (только для генерации OpenAPI).
+    # EN: Enable features for full OpenAPI schema generation (generator-only).
+    os.environ["FEATURE_PREMIUM_WEEK_ENABLED"] = "true"
+    os.environ["FEATURE_BMI_PRO_ENABLED"] = "true"
+    os.environ["BUSINESS_MODULE_ENABLED"] = "true"
 
     repo_root = Path(__file__).resolve().parent.parent
     out_path = repo_root / "frontend" / "src" / "api" / "openapi.json"
 
     # IMPORTANT: canonical entrypoint (applies register_metrics bootstrap)
-    # PULSEPLATE_OPENAPI=1 must be set BEFORE importing app to prevent SQLAlchemy double-loading
     from app.main import (
         app,
     )  # noqa: WPS433, ANN401 (intentional runtime import, dynamic typing needed)
 
     schema = app.openapi()
     schema = normalize_openapi_schema(schema)
-
-    # Add explicit marker for schema-only mode (transparency for reviewers/consumers)
-    if "info" not in schema:
-        schema["info"] = {}
-    schema["info"]["x-openapi-mode"] = "schema-only"
-    schema["info"]["x-excluded-routers"] = ["premium_week", "pro"]
-    if "description" in schema["info"]:
-        schema["info"]["description"] += (
-            "\n\n⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. "
-            "Full schema will be restored in PR-509 after eliminating import-time ORM deps."
-        )
-    else:
-        schema["info"]["description"] = (
-            "⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. "
-            "Full schema will be restored in PR-509 after eliminating import-time ORM deps."
-        )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

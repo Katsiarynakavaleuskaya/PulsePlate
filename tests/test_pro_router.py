@@ -134,7 +134,7 @@ class TestProRouterIsolated:
 
         monkeypatch.setattr(self.pro_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
 
-        with pytest.raises(TypeError, match=r"Expected WeekPlanResponse"):
+        with pytest.raises(TypeError, match=r"Expected ProWeekPlanResponse"):
             _ = self.client.post("/api/v1/pro/meal/weekly", json={})
 
     def test_weekly_meal_plan_missing_profile_field_400(
