@@ -7,6 +7,10 @@ Strategy: HERMETIC APP per test
 - Each test gets a fresh Limiter + FastAPI app (no shared state)
 - No imports of the production app entrypoints (avoid global side effects)
 - No module-cache manipulation
+
+Note:
+- This file intentionally does NOT do any “module refresh” (_MODULES_TO_REFRESH) logic anymore.
+  It creates an isolated limiter+app per test to avoid cross-test pollution.
 """
 
 from __future__ import annotations
