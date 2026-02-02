@@ -1,6 +1,6 @@
 # Providers Implementation — Detailed Analysis
 
-**Date:** 2026-01-12
+**Originally drafted:** 2026-01-12
 **Purpose:** Document how `providers/` is implemented and how it is wired into runtime (via `llm.py` + `legacy_app.py` insight endpoints).
 
 ---
@@ -262,6 +262,10 @@ def get_provider():
 
 ### Where Providers Are NOT Used (directly)
 
+**Verified via (reproducible check):**
+- Run: `rg -n --type=py 'providers\.' app/routers app/services`
+- Expected outcome: **no matches** (no direct `providers.*` imports in those directories).
+
 **1. `app/routers/` (directly):**
 - No direct imports of `providers/*` (LLM wiring for insight currently lives in `legacy_app.py`)
 
@@ -322,6 +326,7 @@ Evidence pointers (runtime truth):
 **Implication for OpenAPI:**
 - Providers are not OpenAPI consumers themselves, but they are part of runtime behavior via insight endpoints.
 - OpenAPI stability policy still primarily serves thin clients (web types from OpenAPI) and unknown external consumers.
+- See ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (schema-only contract + exit criteria).
 
 **OpenAPI Stability Rationale (separate from providers):**
 - Web frontend generates types from OpenAPI (`openapi.json` → `schema.ts`)

@@ -78,11 +78,15 @@ See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#exit-criteria`
 ## Enforced invariants (selected, evidence-driven)
 
 - **One BMI Engine**
-  - BMI formulas/thresholds must live in `core/bmi/*` only; guard tests scan for leaks.
+  - BMI formulas/thresholds must live in `core/bmi/*` only; guards:
+    - `tests/test_bmi_canonical_guard.py:26-77`
+    - `tests/test_no_bmi_math_outside_core.py:31-54`
 - **Import hygiene / no dynamic module loading**
-  - Tests forbid `sys.path.insert` and dynamic import execution patterns (guarded).
+  - Tests forbid `sys.path.insert` and dynamic import execution patterns; guard:
+    - `tests/test_import_hygiene_guard.py:12-41`
 - **OpenAPI determinism**
-  - `make openapi` must be deterministic; CI compares hashes for `openapi.json` and `schema.ts`.
+  - `make openapi` must be deterministic; guard:
+    - `tests/test_openapi_determinism.py:16-64` (hash comparison)
 - **Rate limiting for expensive endpoints**
   - LLM/exports endpoints must be rate-limited and have deterministic 429 tests; rate limiting is proxy-aware and privacy-friendly.
 
