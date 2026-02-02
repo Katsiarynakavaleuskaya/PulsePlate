@@ -12,13 +12,44 @@ from datetime import datetime, timezone
 import logging
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
+from pydantic import BaseModel
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen import canvas
+from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
+
+
+class ShoplistItem(BaseModel):
+    """Single item in the shoplist."""
+
+    aisle: str
+    id: Optional[str] = None
+    name: Optional[str] = None
+    qty: Optional[float] = None
+    unit: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ShoplistGroup(BaseModel):
+    """Group of items by aisle."""
+
+    aisle: str
+    items: List[Dict[str, Any]]
+
+
+class ShoplistResponse(BaseModel):
+    """Response model for shoplist endpoint."""
+
+    store: str
+    currency: str
+    total_estimated: float
+    groups: List[ShoplistGroup]
+    items: List[ShoplistItem]
+
 
 logger = logging.getLogger(__name__)
 
@@ -227,15 +258,17 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 
-@router.get("")
-def get_shoplist() -> Dict[str, Any]:
+@router.get("", responses=RATE_LIMIT_429_RESPONSES, response_model=ShoplistResponse)
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def get_shoplist(request: Request) -> ShoplistResponse:
     """Return the current shoplist in JSON form."""
 
-    return _demo_shoplist()
+    return ShoplistResponse(**_demo_shoplist())
 
 
-@router.get("/export.csv")
-def export_shoplist_csv() -> Response:
+@router.get("/export.csv", responses=RATE_LIMIT_429_RESPONSES)
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def export_shoplist_csv(request: Request) -> Response:
     """Export the current shoplist as a CSV attachment."""
 
     shop = _demo_shoplist()
@@ -255,8 +288,9 @@ def export_shoplist_csv() -> Response:
     )
 
 
-@router.get("/export.pdf")
-def export_shoplist_pdf() -> Response:
+@router.get("/export.pdf", responses=RATE_LIMIT_429_RESPONSES)
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def export_shoplist_pdf(request: Request) -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
 
     shop = _demo_shoplist()

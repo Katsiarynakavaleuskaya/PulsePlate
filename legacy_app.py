@@ -109,6 +109,41 @@ from app.utils.nutrition_wrappers import (
     _calculate_all_tdee_wrapper,
 )
 
+# Rate limiting imports (PR-628)
+# RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
+# EN: Rate limiting imports (lazy imports only if slowapi is available).
+RATE_LIMIT_429_RESPONSES: dict[int | str, dict[str, Any]]
+try:
+    from app.security.rate_limit import (
+        limiter,
+        limit_if_available,
+        RATE_LIMIT_EXPORTS,
+        RATE_LIMIT_INSIGHT,
+        RATE_LIMIT_429_RESPONSES as _RATE_LIMIT_429_RESPONSES,
+    )
+
+    RATE_LIMIT_429_RESPONSES = _RATE_LIMIT_429_RESPONSES
+except ImportError:  # pragma: no cover - optional dependency in runtime
+    limiter = None  # type: ignore[assignment]  # pragma: no cover
+
+    # No-op decorator if rate limiting is unavailable
+    from typing import TypeVar as _TypeVar  # pragma: no cover
+
+    _F = _TypeVar("_F", bound=Callable[..., Any])  # pragma: no cover
+
+    _LimitValue = str | Callable[[], str]  # pragma: no cover
+
+    def limit_if_available(rate: _LimitValue) -> Callable[[_F], _F]:  # pragma: no cover
+        def decorator(func: _F) -> _F:  # pragma: no cover
+            return func  # pragma: no cover
+
+        return decorator  # pragma: no cover
+
+    RATE_LIMIT_INSIGHT = "10/minute"  # pragma: no cover
+    RATE_LIMIT_EXPORTS = "20/minute"  # pragma: no cover
+    RATE_LIMIT_429_RESPONSES = {429: {"description": "Rate limit exceeded"}}  # pragma: no cover
+
+
 # PRO router registration (explicit, no import-side-effects)
 # Moved to app/routers/pro_registration.py for centralized registration
 # See register_pro_routes() for schema-only mode guard and conditional imports
@@ -638,6 +673,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Wire rate limiting (PR-628)
+# RU: Подключаем rate-limiting для дорогих endpoints (LLM, exports).
+# EN: Wire rate limiting for expensive endpoints (LLM, exports).
+try:
+    from app.security.rate_limit import wire_rate_limiting
+
+    wire_rate_limiting(app)
+except ImportError:  # pragma: no cover - optional dependency
+    logger.warning("Rate limiting module not available; rate limiting disabled")  # pragma: no cover
+
 
 # The previous explicit startup handler using @app.on_event("startup")
 # has been removed in favor of the lifespan handler above to avoid
@@ -1019,22 +1064,19 @@ def legacy_category_label(cat: str, lang: str) -> str:
     return cat
 
 
-# Rate limiting setup (only if slowapi is available)
+# Legacy/compat helper expected by coverage tests.
 def _is_rate_limiting_available() -> bool:
-    return (
-        slowapi_available
-        and Limiter is not None
-        # and RateLimitExceeded is not None
-        # and _rate_limit_exceeded_handler is not None
-    )
+    try:
+        from app.security.rate_limit import limiter
+
+        return limiter is not None
+    except Exception:  # pragma: no cover - defensive
+        return False  # pragma: no cover
 
 
-if _is_rate_limiting_available():
-    pass
-    # limiter = Limiter(key_func=get_remote_address)  # type: ignore
-    # app.state.limiter = limiter
-    # app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
-    # app.add_middleware(SlowAPIMiddleware)  # type: ignore
+# Rate limiting setup (PR-628)
+# Wiring is centralized in app.security.rate_limit; import after app creation
+# to avoid import-order issues with FastAPI instance
 
 
 # ---------- Models ----------
@@ -2034,15 +2076,12 @@ def _load_llm_get_provider() -> Callable[[], Any]:
     return get_provider
 
 
-@app.post(
-    "/api/v1/insight",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=InsightResponse,
-)
 async def insight_v1(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
+
+    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
     """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
@@ -2082,15 +2121,12 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
-# Backward-compatible simple insight endpoint (no API key)
-@app.post(
-    "/insight",
-    response_model=InsightResponse,
-)
 async def insight(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
+
+    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
     """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
@@ -2127,6 +2163,28 @@ async def insight(req: InsightRequest) -> InsightResponse:
     except Exception:
         logger.exception("Insight provider call failed (/insight)")
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
+
+
+@app.post(
+    "/api/v1/insight",
+    dependencies=[Depends(_get_api_key_dynamic)],
+    response_model=InsightResponse,
+    responses=RATE_LIMIT_429_RESPONSES,
+)
+@limit_if_available(RATE_LIMIT_INSIGHT)
+async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResponse:
+    return await insight_v1(req)
+
+
+# Backward-compatible simple insight endpoint (no API key)
+@app.post(
+    "/insight",
+    response_model=InsightResponse,
+    responses=RATE_LIMIT_429_RESPONSES,
+)
+@limit_if_available(RATE_LIMIT_INSIGHT)
+async def insight_route(request: Request, req: InsightRequest) -> InsightResponse:
+    return await insight(req)
 
 
 MenuEngineCallable = Callable[..., Any]
@@ -4692,9 +4750,6 @@ if EXPORTS_ENABLED and not _export_testing_flag:
 
 if EXPORTS_ENABLED:
 
-    @app.get(
-        "/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)]
-    )
     async def export_daily_plan_csv(plan_id: str) -> Response:
         """Test/demo only — do not expose in production.
 
@@ -4775,10 +4830,6 @@ if EXPORTS_ENABLED:
             # Unexpected errors are treated as 500
             raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
-    @app.post(
-        "/api/v1/export/pdf",
-        dependencies=[Depends(_get_api_key_dynamic)],
-    )
     async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
         """Test/demo only — do not expose in production.
 
@@ -4827,10 +4878,6 @@ if EXPORTS_ENABLED:
             # Return 500 to satisfy error handling expectations
             raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
-    @app.get(
-        "/api/v1/premium/exports/week/{plan_id}.csv",
-        dependencies=[Depends(_get_api_key_dynamic)],
-    )
     async def export_weekly_plan_csv(plan_id: str) -> Response:
         """Test/demo only — do not expose in production.
 
@@ -4938,9 +4985,6 @@ if EXPORTS_ENABLED:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
-    @app.get(
-        "/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)]
-    )
     async def export_daily_plan_pdf(plan_id: str) -> Response:
         # sourcery skip: raise-from-previous-error
         """Test/demo only — do not expose in production.
@@ -5023,10 +5067,6 @@ if EXPORTS_ENABLED:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
-    @app.get(
-        "/api/v1/premium/exports/week/{plan_id}.pdf",
-        dependencies=[Depends(_get_api_key_dynamic)],
-    )
     async def export_weekly_plan_pdf(plan_id: str) -> Response:
         # sourcery skip: raise-from-previous-error
         """Test/demo only — do not expose in production.
@@ -5136,6 +5176,51 @@ if EXPORTS_ENABLED:
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+
+    @app.get(
+        "/api/v1/premium/exports/day/{plan_id}.csv",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses=RATE_LIMIT_429_RESPONSES,
+    )
+    @limit_if_available(RATE_LIMIT_EXPORTS)
+    async def export_daily_plan_csv_route(request: Request, plan_id: str) -> Response:
+        return await export_daily_plan_csv(plan_id)
+
+    @app.post(
+        "/api/v1/export/pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses=RATE_LIMIT_429_RESPONSES,
+    )
+    @limit_if_available(RATE_LIMIT_EXPORTS)
+    async def export_pdf_generic_route(request: Request, payload: Dict[str, Any]) -> Response:
+        return await export_pdf_generic(payload)
+
+    @app.get(
+        "/api/v1/premium/exports/week/{plan_id}.csv",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses=RATE_LIMIT_429_RESPONSES,
+    )
+    @limit_if_available(RATE_LIMIT_EXPORTS)
+    async def export_weekly_plan_csv_route(request: Request, plan_id: str) -> Response:
+        return await export_weekly_plan_csv(plan_id)
+
+    @app.get(
+        "/api/v1/premium/exports/day/{plan_id}.pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses=RATE_LIMIT_429_RESPONSES,
+    )
+    @limit_if_available(RATE_LIMIT_EXPORTS)
+    async def export_daily_plan_pdf_route(request: Request, plan_id: str) -> Response:
+        return await export_daily_plan_pdf(plan_id)
+
+    @app.get(
+        "/api/v1/premium/exports/week/{plan_id}.pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+        responses=RATE_LIMIT_429_RESPONSES,
+    )
+    @limit_if_available(RATE_LIMIT_EXPORTS)
+    async def export_weekly_plan_pdf_route(request: Request, plan_id: str) -> Response:
+        return await export_weekly_plan_pdf(plan_id)
 
 
 # Include bodyfat router if available

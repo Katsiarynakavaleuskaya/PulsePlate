@@ -56,6 +56,34 @@ Or individually:
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
 
+**Rate Limiting Policy:**
+
+**Hard rule:** Expensive endpoints (LLM, exports) MUST be rate-limited AND MUST have deterministic 429 tests.
+PRs that add expensive endpoints MUST include deterministic 429 tests (no smoke-only substitutes).
+If adding rate-limit to endpoints, use thin **route wrappers**; do not change callable function signatures used by coverage tests.
+
+**Enforcement:**
+
+- All LLM endpoints (`/api/v1/insight`, `/insight`) MUST use `@limit_if_available(RATE_LIMIT_INSIGHT)`.
+- All export endpoints (CSV/PDF) MUST use `@limit_if_available(RATE_LIMIT_EXPORTS)`.
+- OpenAPI MUST document 429 responses for rate-limited endpoints: `responses=RATE_LIMIT_429_RESPONSES` (from `app/security/rate_limit.py`).
+- Tests MUST verify 200 → 429 transitions with low limits (2/minute in tests).
+- Rate-limited endpoints MUST accept `request: Request` in the handler signature (SlowAPI requirement).
+- Runtime behavior is env-gated: in tests (`TESTING=true`) rate limiting is disabled unless `RATE_LIMITING_IN_TESTS=true`.
+- Client identification uses proxy-aware key_func with CIDR support (`app/security/rate_limit.py`).
+
+**Rationale:**
+
+- LLM endpoints: $72k/month abuse risk (documented in `BACKLOG_LEDGER.md`).
+- Export endpoints: Resource-intensive (PDF generation, CSV streaming) → DoS risk.
+- Deterministic tests prevent time-window flakiness.
+
+**See:**
+
+- Audit: `docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md`
+- Implementation: `app/security/rate_limit.py`
+- Tests: `tests/test_rate_limit_llm_and_exports_api.py`, `tests/test_rate_limit_client_key_api.py`
+
 ---
 
 ## REQUIRED READING (before any change)

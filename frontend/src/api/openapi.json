@@ -2366,6 +2366,20 @@
         "title": "QuantityDTO",
         "type": "object"
       },
+      "RateLimitErrorResponse": {
+        "description": "Error response for 429 rate-limit exceeded.\n\nMatches FastAPI/Starlette HTTPException envelope: {\"detail\": \"...\"}.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "RateLimitErrorResponse",
+        "type": "object"
+      },
       "Recipe": {
         "properties": {
           "allergens": {
@@ -2889,6 +2903,98 @@
         "title": "ShoplistGenerateResponse",
         "type": "object"
       },
+      "ShoplistGroup": {
+        "description": "Group of items by aisle.",
+        "properties": {
+          "aisle": {
+            "title": "Aisle",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "aisle",
+          "items"
+        ],
+        "title": "ShoplistGroup",
+        "type": "object"
+      },
+      "ShoplistItem": {
+        "description": "Single item in the shoplist.",
+        "properties": {
+          "aisle": {
+            "title": "Aisle",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "aisle"
+        ],
+        "title": "ShoplistItem",
+        "type": "object"
+      },
       "ShoplistItemDTO": {
         "description": "Shopping list item specification (food, quantity, form).",
         "properties": {
@@ -3009,6 +3115,46 @@
           "items"
         ],
         "title": "ShoplistPreviewResponse",
+        "type": "object"
+      },
+      "ShoplistResponse": {
+        "description": "Response model for shoplist endpoint.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ShoplistGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShoplistItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "store": {
+            "title": "Store",
+            "type": "string"
+          },
+          "total_estimated": {
+            "title": "Total Estimated",
+            "type": "number"
+          }
+        },
+        "required": [
+          "store",
+          "currency",
+          "total_estimated",
+          "groups",
+          "items"
+        ],
+        "title": "ShoplistResponse",
         "type": "object"
       },
       "ShoplistSourceDTO": {
@@ -3336,6 +3482,30 @@
           "path"
         ],
         "title": "SignRequest",
+        "type": "object"
+      },
+      "SignedLinkResponse": {
+        "description": "Response model for signed export links.",
+        "properties": {
+          "exp": {
+            "title": "Exp",
+            "type": "integer"
+          },
+          "ttl": {
+            "title": "Ttl",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "exp",
+          "ttl"
+        ],
+        "title": "SignedLinkResponse",
         "type": "object"
       },
       "SoftPaywallAvailability": {
@@ -4980,8 +5150,7 @@
     },
     "/api/v1/export/pdf": {
       "post": {
-        "description": "Test/demo only — do not expose in production.\n\nGeneric PDF export endpoint for tests' error-handling coverage.\n\nAccepts a JSON payload and attempts to render a simple PDF using to_pdf_day\nif present; otherwise returns an appropriate error. For empty payloads,\nFastAPI/Pydantic will trigger 422 automatically due to missing body shape.\n\nFallback behavior: returns 400 for empty payloads and 503 if the PDF helper is\nunavailable.",
-        "operationId": "export_pdf_generic_api_v1_export_pdf_post",
+        "operationId": "export_pdf_generic_route_api_v1_export_pdf_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5012,6 +5181,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5019,12 +5198,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Pdf Generic"
+        "summary": "Export Pdf Generic Route"
       }
     },
     "/api/v1/export/sign": {
       "post": {
-        "operationId": "sign_export_link_api_v1_export_sign_post",
+        "operationId": "sign_export_link_route_api_v1_export_sign_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5040,9 +5219,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Sign Export Link Api V1 Export Sign Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SignedLinkResponse"
                 }
               }
             },
@@ -5057,6 +5234,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5064,7 +5251,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Sign Export Link",
+        "summary": "Sign Export Link Route",
         "tags": [
           "export"
         ]
@@ -5271,8 +5458,7 @@
     },
     "/api/v1/insight": {
       "post": {
-        "description": "Generate insight using LLM provider (v1 with API key).\n\nPrivacy: user text may be sent to external providers; see /privacy.",
-        "operationId": "insight_v1_api_v1_insight_post",
+        "operationId": "insight_v1_route_api_v1_insight_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5303,6 +5489,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5310,7 +5506,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Insight V1"
+        "summary": "Insight V1 Route"
       }
     },
     "/api/v1/plan/week/export.csv": {
@@ -5324,6 +5520,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5371,6 +5577,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5430,8 +5646,7 @@
     },
     "/api/v1/premium/exports/day/{plan_id}.csv": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать дневной план в CSV.\nEN: Export daily meal plan to CSV.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    CSV file download\n\nFallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.",
-        "operationId": "export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get",
+        "operationId": "export_daily_plan_csv_route_api_v1_premium_exports_day__plan_id__csv_get",
         "parameters": [
           {
             "in": "path",
@@ -5461,6 +5676,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5468,13 +5693,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Daily Plan Csv"
+        "summary": "Export Daily Plan Csv Route"
       }
     },
     "/api/v1/premium/exports/day/{plan_id}.pdf": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать дневной план в PDF.\nEN: Export daily meal plan to PDF.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    PDF file download\n\nFallback behavior: returns 503 when the PDF helper is unavailable and 500 if\nReportLab is not installed.",
-        "operationId": "export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get",
+        "operationId": "export_daily_plan_pdf_route_api_v1_premium_exports_day__plan_id__pdf_get",
         "parameters": [
           {
             "in": "path",
@@ -5504,6 +5728,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5511,13 +5745,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Daily Plan Pdf"
+        "summary": "Export Daily Plan Pdf Route"
       }
     },
     "/api/v1/premium/exports/week/{plan_id}.csv": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать недельный план в CSV.\nEN: Export weekly meal plan to CSV.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    CSV file download\n\nFallback behavior: returns a minimal CSV response when the CSV helper is unavailable.",
-        "operationId": "export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get",
+        "operationId": "export_weekly_plan_csv_route_api_v1_premium_exports_week__plan_id__csv_get",
         "parameters": [
           {
             "in": "path",
@@ -5547,6 +5780,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5554,13 +5797,12 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Weekly Plan Csv"
+        "summary": "Export Weekly Plan Csv Route"
       }
     },
     "/api/v1/premium/exports/week/{plan_id}.pdf": {
       "get": {
-        "description": "Test/demo only — do not expose in production.\n\nRU: Экспортировать недельный план в PDF.\nEN: Export weekly meal plan to PDF.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    PDF file download\n\nFallback behavior: returns 503 when the PDF helper is unavailable.",
-        "operationId": "export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get",
+        "operationId": "export_weekly_plan_pdf_route_api_v1_premium_exports_week__plan_id__pdf_get",
         "parameters": [
           {
             "in": "path",
@@ -5590,6 +5832,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -5597,7 +5849,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Export Weekly Plan Pdf"
+        "summary": "Export Weekly Plan Pdf Route"
       }
     },
     "/api/v1/premium/gaps": {
@@ -6316,13 +6568,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Shoplist Api V1 Shoplist Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShoplistResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -6348,6 +6608,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -6373,6 +6643,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -7457,6 +7737,9 @@
           "422": {
             "description": "Validation error (invalid enum / DTO)"
           },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
           "500": {
             "description": "Invariant violation (internal)"
           }
@@ -7842,8 +8125,7 @@
     },
     "/insight": {
       "post": {
-        "description": "Generate insight using LLM provider (legacy path without API key).\n\nPrivacy: user text may be sent to external providers; see /privacy.",
-        "operationId": "insight_insight_post",
+        "operationId": "insight_route_insight_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7874,9 +8156,19 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
-        "summary": "Insight"
+        "summary": "Insight Route"
       }
     },
     "/plan": {

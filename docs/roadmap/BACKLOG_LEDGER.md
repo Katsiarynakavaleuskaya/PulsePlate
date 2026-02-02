@@ -189,20 +189,37 @@ If it is not recorded here — it does not exist.
 - [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
-  - Target PR: TBD (security fix)
-  - Status: 📋 Ready to start
+  - Target PR: PR-628
+  - Status: 👀 In review
   - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
     - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
     - core/insight/analysis_insights.md ($72k/month potential abuse)
+    - docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/628>
   - DoD:
     - Uncomment and configure rate-limiting (slowapi)
-    - Add `@limiter.limit("10/hour")` to `/api/v1/insight`
-    - Add `@limiter.limit("5/hour")` to PDF export endpoints
-    - Add rate-limiting to WebSocket (if exists, verify first)
+    - Add `@limiter.limit("10/minute")` to `/api/v1/insight` (or use `RATE_LIMIT_INSIGHT` env override)
+    - Add `@limiter.limit("20/minute")` to export endpoints (or use `RATE_LIMIT_EXPORTS` env override)
+    - WebSocket: N/A (no endpoints found; see WebSocket investigation item)
     - Tests verify rate-limiting works (429 responses when limit exceeded)
     - Cost tracking added (token usage, API calls)
+
+- [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL)
+  - Target PR: PR-629
+  - Status: 📋 Ready to start
+  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
+  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
+  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update
+  - DoD:
+    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
+    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
+    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
+
+### P0 Move LLM insight to VIP tier
 
 - [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
   - Owner: @katsiaryna_kavaleuskaya

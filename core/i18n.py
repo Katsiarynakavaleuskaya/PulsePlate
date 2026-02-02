@@ -119,6 +119,8 @@ TRANSLATIONS = {
         "business_analysis_failed": (
             "Ошибка бизнес-анализа. Попробуйте снова или обратитесь в поддержку"
         ),
+        # Rate Limiting
+        "rate_limit.exceeded": "Превышен лимит запросов. Пожалуйста, попробуйте позже.",
     },
     "en": {
         # BMI Categories
@@ -229,6 +231,8 @@ TRANSLATIONS = {
         "business_module_disabled": "Business analysis module is disabled",
         "business_payload_too_large": "Code payload too large (max 100 KB)",
         "business_analysis_failed": "Business analysis failed. Please try again or contact support",
+        # Rate Limiting
+        "rate_limit.exceeded": "Rate limit exceeded. Please try again later.",
     },
     "es": {
         # BMI Categories
@@ -342,6 +346,8 @@ TRANSLATIONS = {
         "business_analysis_failed": (
             "Error en análisis empresarial. Inténtelo de nuevo o contacte al soporte"
         ),
+        # Rate Limiting
+        "rate_limit.exceeded": "Límite de solicitudes excedido. Por favor, inténtelo más tarde.",
     },
 }
 
