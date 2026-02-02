@@ -477,7 +477,12 @@ def export_week_pdf(
     doc.author = "PulsePlate"
     doc.subject = "PulsePlate weekly plan export (kcal)"
     doc.creator = "PulsePlate"
-    doc.keywords = ["PulsePlate", "kcal"]
+    # PDF metadata expects Keywords as a comma-separated string (not a Python list).
+    # RU: PDF метаданные ожидают Keywords строкой, а не списком.
+    #
+    # Note: reportlab's type stubs sometimes model `keywords` as list-like; storing via
+    # __dict__ keeps runtime behavior correct (string) while satisfying static typing.
+    doc.__dict__["keywords"] = "PulsePlate,kcal"
 
     styles = getSampleStyleSheet()
     base_style = ParagraphStyle(
