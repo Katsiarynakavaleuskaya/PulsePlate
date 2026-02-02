@@ -5,8 +5,8 @@ EN: Deterministic 429 tests for rate-limiting (PR-628).
 
 Strategy: HERMETIC APP per test
 - Each test gets a fresh Limiter + FastAPI app (no shared state)
-- NO importing legacy_app/app.main (no global side effects)
-- NO sys.modules manipulation
+- No imports of the production app entrypoints (avoid global side effects)
+- No module-cache manipulation
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import pytest
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from limits.storage import MemoryStorage
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -24,8 +23,10 @@ from core.i18n import normalize_lang, t
 
 
 def _simple_key_func(request: Request) -> str:
-    """Simple key function for testing - uses client host."""
-    return request.client.host if request.client else "unknown"
+    """Simple key function for testing (isolation-friendly)."""
+    host = request.client.host if request.client else "unknown"
+    test_id = request.headers.get("x-test-id", "default")
+    return f"{host}:{test_id}"
 
 
 def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -91,7 +92,7 @@ def test_insight_v1_rate_limited_200_then_429() -> None:
     """Test /api/v1/insight returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "en"}
+    headers = {"accept-language": "en", "x-test-id": "insight-v1"}
     payload = {"text": "hello"}
 
     r1 = client.post("/api/v1/insight", json=payload, headers=headers)
@@ -113,7 +114,7 @@ def test_insight_legacy_rate_limited_200_then_429() -> None:
     """Test /insight (legacy) returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "ru"}
+    headers = {"accept-language": "ru", "x-test-id": "insight-legacy"}
     payload = {"text": "hello"}
 
     r1 = client.post("/insight", json=payload, headers=headers)
@@ -135,7 +136,7 @@ def test_shoplist_export_rate_limited_200_then_429() -> None:
     """Test /api/v1/shoplist/export.csv returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "en"}
+    headers = {"accept-language": "en", "x-test-id": "shoplist-export"}
 
     r1 = client.get("/api/v1/shoplist/export.csv", headers=headers)
     r2 = client.get("/api/v1/shoplist/export.csv", headers=headers)
@@ -156,7 +157,7 @@ def test_plan_week_export_csv_rate_limited_200_then_429() -> None:
     """Test /api/v1/plan/week/export.csv returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "es"}
+    headers = {"accept-language": "es", "x-test-id": "plan-week-export"}
 
     r1 = client.get("/api/v1/plan/week/export.csv", headers=headers)
     r2 = client.get("/api/v1/plan/week/export.csv", headers=headers)
@@ -177,7 +178,7 @@ def test_export_sign_rate_limited_200_then_429() -> None:
     """Test /api/v1/export/sign returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "en"}
+    headers = {"accept-language": "en", "x-test-id": "export-sign"}
     payload = {"path": "/api/v1/plan/week/export.csv", "ttl_seconds": 60}
 
     s1 = client.post("/api/v1/export/sign", json=payload, headers=headers)
