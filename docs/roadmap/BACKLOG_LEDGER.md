@@ -369,6 +369,37 @@ If it is not recorded here — it does not exist.
     - OpenAPI generation works with routers enabled
     - Determinism test stays green
 
+- [ ] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (drift prevention)
+  - Target PR: TBD (follow-up after PR-631)
+  - Status: 📋 Ready to start
+  - Reason: There are currently two `TargetsIn` schemas (`legacy_app.TargetsIn` and `app.schemas.nutrition_targets.TargetsIn`). This is a potential source of drift over time, even though PR-631 intentionally kept them separate to stay scope-minimal (remediation only).
+  - Links:
+    - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
+  - Evidence:
+    - `app/schemas/nutrition_targets.py` (import-safe schema)
+    - `legacy_app.py` (`TargetsIn` used in legacy endpoints)
+  - DoD:
+    - One canonical schema (single source of truth) with a thin wrapper/alias where needed
+    - Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
+    - No contract break for legacy endpoints (explicitly verified in tests)
+
+- [ ] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability / import hygiene)
+  - Target PR: TBD (follow-up after PR-631)
+  - Status: 📋 Ready to start
+  - Reason: `app.routers.nutrition_log` uses repeated lazy-import of `NutritionEvent` model to avoid import-time ORM side effects. A tiny helper (import-safe) would reduce duplication and make future additions safer.
+  - Links:
+    - PR #631 (remediation): moved ORM model import from module-level to lazy-import inside handlers
+  - Evidence:
+    - `app/routers/nutrition_log.py` (repeated lazy imports of `NutritionEvent`)
+  - DoD:
+    - Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
+    - Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
+    - No runtime behavior change (pure refactor)
+
 - [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (maintainability)
