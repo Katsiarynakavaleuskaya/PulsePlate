@@ -673,6 +673,12 @@ Source of truth:
 - Routers that import SQLAlchemy models (e.g., `premium_week`, `pro`) are skipped in this mode.
 - This ensures schema generation does not load DB layer and prevents double-loading errors.
 
+**Schema-only contract (single source of truth):**
+See `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract` (do not duplicate env/flag lists elsewhere).
+
+**Checklist:**
+- [ ] If you change schema-only OpenAPI behavior (env/flags/router exclusions), update ADR-002 contract section above.
+
 ### Determinism requirement
 
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
@@ -1474,6 +1480,12 @@ There must be a **single source of truth** for each class of instruction.
    - Long-term lessons → `docs/ENGINEERING_LESSONS.md`
    - Operational/debug procedures → `RUNBOOK_AGENT.md`
    - Do not overload AGENTS with runbook-level detail.
+
+7) **Architecture docs must be evidence-driven**
+   - Any architecture doc that claims a “truth” (entrypoint, compat shim, schema-only mode, guard enforcement) MUST cite evidence as `file:line` pointers.
+   - Any temporary seam (e.g. schema-only OpenAPI, sys.modules compat mapping, whitelists) MUST have:
+     - an ADR with explicit **exit criteria**, and
+     - a Backlog Ledger item with DoD / blockers.
 
 ### Non-goals
 
