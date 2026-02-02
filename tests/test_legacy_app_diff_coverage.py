@@ -102,6 +102,7 @@ def test_configure_session_bindings_sets_sessionlocal_when_none(
 
     from core import db as core_db
     from core.db_fallback import _configure_session_bindings
+    from core.db_fallback import reset_fallback_state
 
     orig_sessionlocal = core_db.SessionLocal
     orig_raw_engine = getattr(core_db, "_RAW_ENGINE", None)
@@ -121,14 +122,20 @@ def test_configure_session_bindings_sets_sessionlocal_when_none(
         )
         assert core_db.SessionLocal is not None
     finally:
-        monkeypatch.setattr(core_db, "SessionLocal", orig_sessionlocal, raising=False)
+        # Restore globals via direct assignment (NOT via monkeypatch) to avoid
+        # monkeypatch teardown reverting to the fallback-mutated values.
+        core_db.SessionLocal = orig_sessionlocal
         core_db._RAW_ENGINE = orig_raw_engine
         core_db.engine = orig_engine
+        reset_fallback_state()
         for k, v in env_snapshot.items():
             if v is None:
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
+        # Re-initialize the canonical test DB bindings after fallback mutation
+        # to prevent cross-test pollution (SessionLocal/env were temporarily rebound).
+        core_db.init_db()
 
 
 def test_configure_session_bindings_replaces_sessionlocal_on_repeat(
@@ -142,8 +149,11 @@ def test_configure_session_bindings_replaces_sessionlocal_on_repeat(
 
     from core import db as core_db
     from core.db_fallback import _configure_session_bindings
+    from core.db_fallback import reset_fallback_state
 
     orig_sessionlocal = getattr(core_db, "SessionLocal", None)
+    orig_raw_engine = getattr(core_db, "_RAW_ENGINE", None)
+    orig_engine = getattr(core_db, "engine", None)
     orig_env = {
         k: os.environ.get(k) for k in ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL")
     }
@@ -164,12 +174,16 @@ def test_configure_session_bindings_replaces_sessionlocal_on_repeat(
         )
         assert core_db.SessionLocal is not None
     finally:
-        monkeypatch.setattr(core_db, "SessionLocal", orig_sessionlocal, raising=False)
+        core_db.SessionLocal = orig_sessionlocal
+        core_db._RAW_ENGINE = orig_raw_engine
+        core_db.engine = orig_engine
+        reset_fallback_state()
         for k, v in orig_env.items():
             if v is None:
-                monkeypatch.delenv(k, raising=False)
+                os.environ.pop(k, None)
             else:
-                monkeypatch.setenv(k, v)
+                os.environ[k] = v
+        core_db.init_db()
 
 
 def test_bmi_request_normalizes_with_visualization_values() -> None:

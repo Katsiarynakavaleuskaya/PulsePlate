@@ -237,59 +237,22 @@ If it is not recorded here — it does not exist.
     - Tests verify FREE/PRO users get 403, VIP users get 200
     - Update OpenAPI schema (insight endpoints require VIP tier)
 
-- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
+- [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (security)
-  - Target PR: N/A (investigation only)
-  - Status: ✅ Resolved — No WebSocket endpoints found
-  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
+  - Priority: P0 (CRITICAL)
+  - Target PR: PR-629
+  - Status: 🟡 In progress (PR-629)
+  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
+  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
+  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update (implemented in PR-629)
   - Links:
-    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
+    - PR-629: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/629>
+    - CI nightly failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103>
+    - Failing job (tests): <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103/job/62166939568>
   - DoD:
-    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
-    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
-    - ✅ Checked OpenAPI schema (no WebSocket paths)
-    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
-    - ✅ Marked as resolved — security gap does not exist
-
-- [ ] P1: Implement WebSocket endpoint with security from start
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (feature + security)
-  - Target PR: TBD (feature implementation)
-  - Status: 📋 Planned
-  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
-  - Links:
-    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
-    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
-    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
-  - Prerequisites:
-    - ✅ Security requirements defined (auth + rate-limiting)
-    - ⏳ Use cases defined (what real-time features need WebSocket)
-  - DoD:
-    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
-    - Authentication required (token in query params or headers)
-    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
-    - Tests verify unauthenticated connections are rejected (403/401)
-    - Tests verify rate-limiting works (429 when limit exceeded)
-    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
-    - Documentation: WebSocket API contract, authentication flow, rate limits
-
-- [ ] P1: Extract hardcoded constants (BMR, export formats)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (maintainability)
-  - Target PR: TBD
-  - Status: 📋 Ready to start
-  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
-    - legacy_app.py:97 (nutrition_core imports), export functions
-  - DoD:
-    - Extract BMR constants to `core/bmr.py` module
-    - Create `ExportFormat` enum (CSV, PDF, JSON)
-    - Replace hardcoded values with constants/enum
-    - Tests verify no functionality broken
+    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
+    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
+    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
 
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
