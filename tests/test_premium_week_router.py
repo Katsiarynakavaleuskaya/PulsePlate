@@ -257,7 +257,7 @@ class TestPremiumWeekRouter:
             )
 
     def test_week_plan_request_model(self) -> None:
-        """Test WeekPlanRequest model."""
+        """Test PremiumWeekPlanRequest model."""
         request = PremiumWeekPlanRequest(
             sex="female",
             age=25,

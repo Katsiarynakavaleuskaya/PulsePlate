@@ -88,7 +88,7 @@ class PremiumWeekPlanRequest(BaseModel):
 class PremiumWeekPlanResponse(BaseModel):
     model_config = ConfigDict(title="PremiumWeekPlanResponse")
 
-    daily_menus: List[Dict]
+    daily_menus: List[Dict[str, Any]]
     weekly_coverage: Dict[str, float]
     shopping_list: Dict[str, float]
     total_cost: float
