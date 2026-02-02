@@ -228,6 +228,10 @@ If it is not recorded here — it does not exist.
   - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
   - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
   - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update
+  - Links:
+    - PR-629: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/629>
+    - CI nightly failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103>
+    - Failing job (tests): <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103/job/62166939568>
   - DoD:
     - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
     - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
