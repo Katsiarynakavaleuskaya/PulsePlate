@@ -7,6 +7,8 @@
 
 **Claim:** The canonical runtime entrypoint is `uvicorn app.main:app`.
 
+**Anchor (stable):** `Dockerfile CMD -> uvicorn app.main:app`
+
 **Evidence:**
 - `Dockerfile:102-105` — CMD uses `python -m uvicorn app.main:app ...`
 - `app/main.py:11-22` — defines `app` by re-exporting `legacy_app.app` and applying bootstrap.
@@ -17,11 +19,14 @@
 
 **Claim:** `legacy_app.py` still registers most routers and hosts compatibility shims; `app/main.py` is the canonical entrypoint wrapper that applies bootstrap (metrics + pro-contract routes).
 
+**Anchor (stable):** `app/main.py -> bootstrap + legacy_app re-export`
+
 **Evidence:**
 - `app/main.py:11-22` — bootstrap is applied here (`register_metrics`, `register_pro_contract_routes`).
 - `legacy_app.py:811-850` — central router registration via `app.include_router(...)` + calls to centralized VIP/PRO registration.
 
 **Compat shims observed:**
+**Anchor (stable):** `app/__init__.py -> PEP 562 shim + app_module mapping`
 - `app/__init__.py:44-56` — PEP 562 forwarder + `sys.modules.setdefault("app_module", legacy)`
 
 **Risk:** compat shims without explicit boundaries become “magic layers” that hide import-order risks and break patchability.
@@ -29,6 +34,8 @@
 ## 3) OpenAPI schema-only mode (why it exists, what it disables)
 
 **Claim:** OpenAPI generation is currently forced into **schema-only mode** and disables certain feature routers to avoid import-time ORM double-loading.
+
+**Anchor (stable):** `scripts/generate_openapi.py -> schema-only env/flags; pro_registration -> schema-only guard`
 
 **Evidence:**
 - `scripts/generate_openapi.py:94-113` — sets `PULSEPLATE_OPENAPI=1` and disables:
@@ -64,6 +71,8 @@
 ## 5) Providers wiring truth (runtime reality)
 
 **Claim:** LLM providers **are wired into runtime** through `legacy_app.py` insight endpoints using `llm.get_provider()`.
+
+**Anchor (stable):** `legacy_app.py -> /api/v1/insight + /insight -> llm.get_provider() -> provider.generate()`
 
 **Evidence:**
 - `legacy_app.py:2066-2076` — `_load_llm_get_provider()` imports `llm.get_provider`

@@ -645,6 +645,12 @@ Source of truth:
 - Routers that import SQLAlchemy models (e.g., `premium_week`, `pro`) are skipped in this mode.
 - This ensures schema generation does not load DB layer and prevents double-loading errors.
 
+**Schema-only contract (single source of truth):**
+See `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract` (do not duplicate env/flag lists elsewhere).
+
+**Checklist:**
+- [ ] If you change schema-only OpenAPI behavior (env/flags/router exclusions), update ADR-002 contract section above.
+
 ### Determinism requirement
 
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.

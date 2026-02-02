@@ -2,6 +2,12 @@
 
 **Goal:** give a quick, stable picture of PulsePlate architecture and the key enforced invariants.
 
+## Anchors (stable)
+
+- [Canonical entrypoint](#canonical-entrypoint)
+- [Routing map](#routing-map-source-of-truth)
+- [OpenAPI generation mode](#openapi-generation-mode-current)
+
 ## Containers / Modules (high level)
 
 - **Clients**
@@ -61,8 +67,13 @@ flowchart LR
 
 ## OpenAPI generation mode (current)
 
-- OpenAPI generator runs in **schema-only mode** to avoid import-time ORM double-loading.
-- Details and exit criteria: `docs/architecture/ADR-002-openapi-schema-only-mode.md`
+OpenAPI generator runs in **schema-only mode** to avoid import-time ORM double-loading.
+
+**Schema-only contract (single source of truth):**
+See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract`
+
+**Exit criteria:**
+See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#exit-criteria`
 
 ## Enforced invariants (selected, evidence-driven)
 
@@ -77,7 +88,8 @@ flowchart LR
 
 ## Maintenance rule
 
-When any of these change, update this doc in the same PR:
+Checklist (lightweight):
+- [ ] If you change any of the following, update this doc **or** state “no system-overview update needed” in the PR description:
 - entrypoint (`uvicorn ...`)
 - tier namespaces (`/api/v1/bmi/*`, `/api/v1/pro/*`, `/api/v1/vip/*`)
 - rate-limit wiring for LLM/exports
