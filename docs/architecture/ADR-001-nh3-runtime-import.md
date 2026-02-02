@@ -72,6 +72,21 @@ def _require_nh3() -> _NH3Protocol:
 - Slightly less conventional than top-level imports
 - Error raised at call-time, not import-time (acceptable for optional dependencies)
 
+## Exit criteria (when this ADR can be retired)
+
+This runtime-import pattern is intended to remain until one of the following becomes true:
+
+- **nh3 becomes a mandatory dependency** for all supported deployments (no “optional” mode).
+  Then we can reconsider moving to normal module-level import, provided it stays deterministic in CI/xdist.
+- **The sanitization feature is removed or replaced** with a non-`nh3` implementation that is import-safe.
+
+Until then, prefer **runtime import without module-level caching** for this optional dependency.
+
+## Follow-ups
+
+- If API semantics need improvement, follow the existing TODO:
+  - Convert runtime `RuntimeError` mapping to a clearer HTTP status (e.g., 424/503) with structured JSON error response.
+
 ## Implementation
 
 **Location:** `core/data_sanitizer.py`
