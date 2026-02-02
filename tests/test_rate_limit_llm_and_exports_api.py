@@ -5,19 +5,19 @@ EN: Deterministic 429 tests for rate-limiting (PR-628).
 
 Key constraint:
 - RATE_LIMIT_* values are captured at import-time (decorator argument), therefore tests must
-  set env BEFORE importing/reloading `app.security.rate_limit` and `legacy_app`.
+  set env BEFORE importing `app.security.rate_limit` and `legacy_app`.
 
 Test strategy (canonical for this repo):
-- Build a dedicated TestClient after env is set by reloading modules.
+- Build a dedicated TestClient after env is set by surgical module removal + re-import.
 - Mock LLM provider loader so /api/v1/insight and /insight return 200 (before limit).
 - Use trusted proxy + X-Forwarded-For to ensure stable client key.
+- Surgical sys.modules removal: ONLY rate_limit and legacy_app (NOT app.routers.* to avoid pollution).
 """
 
 from __future__ import annotations
 
-import importlib
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +33,35 @@ _RATE_ENV_KEYS = (
     "APP_ENV",
 )
 
+# Modules to surgically remove for fresh import.
+# IMPORTANT: Only rate-limited routers, NOT app.routers.test (used by other tests)!
+_MODULES_TO_REFRESH = (
+    "app.security.rate_limit",
+    "app.routers.shoplist_export",
+    "app.routers.plan_export",
+    "app.routers.vip_shoplist",
+    "legacy_app",
+)
+
+
+class DummyProvider:
+    """Dummy LLM provider for testing."""
+
+    name = "dummy"
+
+    async def generate(self, prompt: str) -> str:
+        """Return a dummy response."""
+        return "ok"
+
+
+def _dummy_provider_loader() -> Callable[[], DummyProvider]:
+    """Return a factory that creates DummyProvider instances."""
+
+    def _get_provider() -> DummyProvider:
+        return DummyProvider()
+
+    return _get_provider
+
 
 @pytest.fixture()
 def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
@@ -44,7 +73,8 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     Key design:
     - Hard reset env first (prevents cross-test pollution)
     - Set deterministic config (captured at import-time by decorators)
-    - Ensure routers are re-imported with fresh decorators
+    - Surgical module removal: ONLY rate_limit + legacy_app (NOT app.routers.*)
+    - Use monkeypatch.setattr for LLM mock (proper teardown)
     """
     # 1) Hard reset env first (prevents cross-test pollution)
     for k in _RATE_ENV_KEYS:
@@ -60,14 +90,14 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("TRUSTED_PROXIES", "testclient,testserver,127.0.0.1")
 
-    # 3) Ensure routers are re-imported with fresh decorators and limiter
-    # IMPORTANT: Don't reload after import - that would double the middleware!
-    for name in list(sys.modules.keys()):
-        if any(x in name for x in ("app.security", "app.routers", "legacy_app")):
-            monkeypatch.delitem(sys.modules, name, raising=False)
+    # 3) Surgical module removal: ONLY rate_limit + legacy_app
+    # DO NOT remove app.routers.* — that causes cross-test pollution!
+    for mod_name in _MODULES_TO_REFRESH:
+        monkeypatch.delitem(sys.modules, mod_name, raising=False)
 
-    # Re-import rate_limit first (creates fresh limiter)
+    # 4) Fresh import after env set (decorators will capture new values)
     import app.security.rate_limit as rate_limit_mod
+    import legacy_app
 
     # Clear limiter storage to ensure tests start fresh
     if rate_limit_mod.limiter is not None:
@@ -77,29 +107,15 @@ def rl_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         except Exception:
             pass  # Storage might not support reset
 
-    # Import legacy_app (wire_rate_limiting is called once at import time)
-    import legacy_app
-
-    # Mock LLM provider loader to ensure endpoints return 200 before hitting 429.
-    class DummyProvider:
-        name = "dummy"
-
-        async def generate(self, prompt: str) -> str:
-            return "ok"
-
-    def dummy_get_provider() -> DummyProvider:
-        return DummyProvider()
-
-    legacy_app._load_llm_get_provider = lambda: (lambda: dummy_get_provider())  # noqa: E731
+    # 5) Mock LLM provider loader using monkeypatch (proper teardown)
+    monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _dummy_provider_loader)
 
     client = TestClient(legacy_app.app)
     try:
         yield client
     finally:
-        # Teardown: restore baseline app/module state for the rest of the suite.
+        # Teardown: close client, env cleanup handled by monkeypatch automatically
         client.close()
-        for k in _RATE_ENV_KEYS:
-            monkeypatch.delenv(k, raising=False)
 
 
 def test_insight_v1_rate_limited_200_then_429(rl_client: TestClient) -> None:
