@@ -346,6 +346,86 @@ If it is not recorded here — it does not exist.
   - Reason: PR #617 scope reduced to docs-only (audit + handoff); markdownlint config moved out to avoid diff-coverage/CI scope. Add repo-wide markdownlint config in dedicated PR.
   - DoD: New PR with `.markdownlint.json` only; CI green; no mixing with code/audit PRs.
 
+- [ ] Restore full OpenAPI schema (remove temporary schema-only mode)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract velocity)
+  - Target PR: TBD (post PR-628/629 to avoid scope collision)
+  - Status: 📋 Ready to start (technical work), but intentionally deferred while PR-628/629 are in flight
+  - Reason: OpenAPI generation currently runs in **schema-only mode** and forcibly disables multiple feature routers. This reduces thin-client contract velocity and increases silent drift risk.
+  - Evidence:
+    - `scripts/generate_openapi.py:94-113` (schema-only mode + forced feature disables)
+    - `app/routers/pro_registration.py:26-36` (schema-only guard conditions)
+    - `docs/architecture/ADR-002-openapi-schema-only-mode.md` (exit criteria)
+  - Risk:
+    - Thin clients cannot “type reality” for excluded routes; integration slows and drift risk increases.
+  - Blocked-by:
+    - Process-only: PR-628/629 (avoid mixed-scope / CI churn); re-evaluate after they merge
+  - Exit criteria:
+    - `make openapi` succeeds without forcing `FEATURE_*_ENABLED=false` in the generator
+    - No SQLAlchemy “Table already defined” errors during OpenAPI generation
+    - `tests/test_openapi_determinism.py` remains green
+  - DoD:
+    - OpenAPI generator runs in full-schema mode (no schema-only marker)
+    - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` regenerated + committed (if changed)
+    - Add/adjust any focused regression tests needed to prevent return of import-time ORM hazards
+
+- [ ] Eliminate import-time ORM/model imports in routers included in OpenAPI generation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (determinism / import hygiene)
+  - Target PR: TBD (post PR-628/629)
+  - Status: 📋 Ready to start
+  - Reason: Schema-only exists because some routers import SQLAlchemy models at module level, causing import-time side effects during OpenAPI generation.
+  - Evidence:
+    - `app/routers/pro_registration.py:76-80` (documents import-time ORM hazard)
+    - `scripts/generate_openapi.py:100-113` (disables routers because of ORM import-time issues)
+  - Risk:
+    - Import-order nondeterminism, “double-load” failures, OpenAPI gaps.
+  - Blocked-by:
+    - Process-only: PR-628/629 (avoid scope collision)
+  - Exit criteria:
+    - Routers used in OpenAPI generation do not import ORM models at module import time
+  - DoD:
+    - Move ORM model imports to runtime (inside handlers/dependencies/services), one router at a time
+    - OpenAPI generation works with routers enabled
+    - Determinism test stays green
+
+- [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (maintainability)
+  - Target PR: TBD (post PR-628/629)
+  - Status: 📋 Ready to start
+  - Reason: `app/__init__.py` sets `sys.modules.setdefault("app_module", legacy_app)` for backward compatibility. This is intentional but must be tightly bounded to avoid “magic layer” imports/patches.
+  - Evidence:
+    - `app/__init__.py:44-56` (sys.modules mapping)
+  - Risk:
+    - Hard-to-debug patch behavior, hidden aliasing, accidental reliance by new code/tests.
+  - Blocked-by:
+    - None (small focused PR), but recommended after PR-628/629 to keep scopes clean
+  - Exit criteria:
+    - Mapping is either removed OR explicitly documented + guarded (no new uses)
+  - DoD:
+    - Add a short evidence-driven doc note describing why the mapping exists and what may rely on it
+    - Add a small guard test preventing expansion (no overwrites / no new module injection patterns)
+    - Define removal plan (conditions under which it can be deleted)
+
+- [ ] Auto-generate architecture diagrams (Mermaid baseline + optional Graphviz import graph)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (docs/tooling)
+  - Target PR: PR-630 (docs-only) or follow-up docs PR
+  - Status: ✅ Baseline Mermaid added; automation optional
+  - Reason: Architecture is enforced by guards, but reviewers/onboarding benefit from quick visuals. Automation reduces doc drift.
+  - Evidence:
+    - `docs/architecture/system_overview.md` (Mermaid system overview)
+    - `docs/architecture/backend_routing_map.md` (evidence-driven routing map)
+    - `docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md` (evidence pack)
+  - Risk:
+    - Without maintenance/automation, diagrams drift and become misleading.
+  - Exit criteria:
+    - Diagram updates happen in the same PR as entrypoint/router/flag changes (enforced culturally or via light guard)
+  - DoD:
+    - Keep Mermaid as canonical diagram (single source of truth)
+    - Optional: add a script that emits a filtered import graph (`.dot`/`.svg`) for selected slices (app/core/providers) with stable filtering rules
+
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
