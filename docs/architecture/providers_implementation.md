@@ -1,7 +1,7 @@
 # Providers Implementation — Detailed Analysis
 
 **Date:** 2026-01-12
-**Purpose:** Document how `providers/` is implemented and why it's not connected to runtime
+**Purpose:** Document how `providers/` is implemented and how it is wired into runtime (via `llm.py` + `legacy_app.py` insight endpoints).
 
 ---
 
@@ -182,44 +182,30 @@ def get_provider():
 
 ---
 
-## ❌ Current Runtime Usage: NONE (Confirmed)
+## ✅ Current Runtime Usage: WIRED (via `legacy_app.py` insight endpoints)
 
-### Evidence: Providers Not Connected to Runtime
+### Evidence: Providers are used via `legacy_app.py → llm.py → providers/*`
 
-**1. No imports in app routers:**
-```bash
-rg "from providers|import providers|providers\." app/routers/
-# Result: empty (no matches)
-```
+**1. Insight endpoints live in `legacy_app.py` (not in `app/routers/`)**
 
-**2. No imports in app services:**
-```bash
-rg "from providers|import providers|providers\." app/services/
-# Result: empty (no matches)
-```
+- Evidence:
+  - `legacy_app.py:2168-2187` defines HTTP routes:
+    - `POST /api/v1/insight` (API key gated)
+    - `POST /insight` (legacy path)
 
-**3. Only usage: `llm.py` (root level)**
-- `llm.py` imports providers (lines 59, 67, 74)
-- But `llm.py` itself is **not imported** by app routers/services
-- `llm.py` is standalone script/module
+**2. `legacy_app.py` loads `llm.get_provider` lazily and calls `provider.generate()`**
 
-**4. `/insight` endpoint exists in OpenAPI but not in app routers:**
-- OpenAPI schema shows `/api/v1/insight` endpoint (in `app/static/openapi.json`)
-- But no router handler found in `app/routers/` for `/insight`
-- Likely: endpoint exists in `legacy_app.py` but not actively used
+- Evidence:
+  - `legacy_app.py:2066-2076` — `_load_llm_get_provider()` imports `llm.get_provider`
+  - `legacy_app.py:2098-2117` — `provider = get_provider()` and `await provider.generate(prompt_text)`
 
-**5. Verification commands:**
-```bash
-# Check providers imports (excluding tests)
-rg -n "from\s+providers|import\s+providers|providers\." . --type py | grep -v "test_" | grep -v "providers/__init__"
-# Result: only llm.py and providers/ollama.py (self-import)
+**3. `llm.py` imports `providers/*` and selects provider by env var**
 
-# Check llm.py usage in app
-rg "from llm|import llm|llm\.get_provider" app/
-# Result: empty
-```
+- Evidence:
+  - `llm.py:57-79` — optional imports of `providers.grok`, `providers.ollama`, `providers.pico`
+  - `llm.py:91-153` — `get_provider()` selects provider based on `LLM_PROVIDER`
 
-**Conclusion:** `providers/` exists but is **not wired into runtime** (no FastAPI endpoints in `app/routers/` use it).
+**Conclusion:** `providers/` is wired into runtime through the insight endpoints in `legacy_app.py`, with `llm.get_provider()` acting as the factory/adapter layer.
 
 ---
 
@@ -243,12 +229,12 @@ rg "from llm|import llm|llm\.get_provider" app/
 - ✅ Factory function (`llm.py`)
 - ✅ Tests (unit tests for each provider)
 
-**Not implemented:**
-- ❌ FastAPI endpoints using providers
-- ❌ Integration with app routers
-- ❌ Runtime usage in production
+**Runtime wiring (current):**
+- ✅ Insight endpoints in `legacy_app.py` call `llm.get_provider()` and then `provider.generate()`
 
-**Status:** Providers are "warehouse" (implemented but not connected).
+**Historical note (superseded):**
+- Earlier versions of this doc claimed providers were “not wired into runtime” because `app/routers/` did not import them.
+  That was incomplete: the wiring lives in `legacy_app.py` (root module), not in `app/routers/`.
 
 ---
 
@@ -274,15 +260,13 @@ rg "from llm|import llm|llm\.get_provider" app/
 - `docs/finetune/README.md` — mentions providers
 - `docs/archive/2025-09-16/` — historical docs
 
-### Where Providers Are NOT Used
+### Where Providers Are NOT Used (directly)
 
-**1. App routers:**
-- No `/api/v1/*/insight` endpoint
-- No LLM features in FastAPI
+**1. `app/routers/` (directly):**
+- No direct imports of `providers/*` (LLM wiring for insight currently lives in `legacy_app.py`)
 
-**2. App services:**
-- No service uses `llm.get_provider()`
-- No LLM integration in business logic
+**2. `app/services/` (directly):**
+- No direct `providers/*` usage (LLM integration is routed through `llm.py` and called from `legacy_app.py`)
 
 **3. Core domain:**
 - No LLM calls in `core/` modules
@@ -318,42 +302,26 @@ rg "from llm|import llm|llm\.get_provider" app/
 
 ---
 
-## ✅ Verification: Providers Not Connected
+## ✅ Verification: Providers wired into runtime
 
-### Commands to Verify
+Evidence pointers (runtime truth):
 
-```bash
-# 1. Check imports in app routers
-rg "from providers|import providers|providers\." app/routers/
-# Expected: empty
-
-# 2. Check imports in app services
-rg "from providers|import providers|providers\." app/services/
-# Expected: empty
-
-# 3. Check llm.py usage in app
-rg "from llm|import llm|llm\.get_provider" app/
-# Expected: empty
-
-# 4. Check LLM endpoints
-rg "/insight|/llm|/ai" app/routers/
-# Expected: empty (or not found)
-```
-
-**Result:** Providers exist but are **not connected to runtime**.
+- `legacy_app.py:2168-2187` — insight HTTP endpoints exist (`/api/v1/insight`, `/insight`)
+- `legacy_app.py:2066-2076` — lazy loader imports `llm.get_provider`
+- `legacy_app.py:2098-2117` — calls `provider.generate(...)`
+- `llm.py:57-79` + `91-153` — imports/selects `providers/*` via `LLM_PROVIDER`
 
 ---
 
-## 📝 Implications for PR-521
+## 📝 Implications for OpenAPI stability
 
 ### OpenAPI Stability
 
-**Fact:** `providers/` exists but is not wired into runtime.
+**Fact:** `providers/` is wired into runtime via insight endpoints (legacy_app → llm → providers).
 
 **Implication for OpenAPI:**
-- Providers are **not** OpenAPI consumers (they don't generate SDKs from OpenAPI)
-- Providers are **not** wired into runtime (no FastAPI endpoints use them)
-- **Therefore:** Providers do **not** affect OpenAPI stability policy
+- Providers are not OpenAPI consumers themselves, but they are part of runtime behavior via insight endpoints.
+- OpenAPI stability policy still primarily serves thin clients (web types from OpenAPI) and unknown external consumers.
 
 **OpenAPI Stability Rationale (separate from providers):**
 - Web frontend generates types from OpenAPI (`openapi.json` → `schema.ts`)
@@ -374,7 +342,7 @@ rg "/insight|/llm|/ai" app/routers/
 
 **Current status:**
 - ✅ Implemented (code exists)
-- ❌ Not connected to runtime (no FastAPI endpoints use them)
+- ✅ Wired into runtime via `legacy_app.py` insight endpoints and `llm.get_provider()`
 - ✅ Tested (unit tests exist)
 
 **Why they exist:**
@@ -389,5 +357,5 @@ rg "/insight|/llm|/ai" app/routers/
 
 ---
 
-**Last updated:** 2026-01-12
-**Status:** Providers exist but not connected to runtime
+**Last updated:** 2026-02-02
+**Status:** Providers exist and are wired into runtime via insight endpoints
