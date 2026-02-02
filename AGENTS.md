@@ -1447,6 +1447,12 @@ There must be a **single source of truth** for each class of instruction.
    - Operational/debug procedures → `RUNBOOK_AGENT.md`
    - Do not overload AGENTS with runbook-level detail.
 
+7) **Architecture docs must be evidence-driven**
+   - Any architecture doc that claims a “truth” (entrypoint, compat shim, schema-only mode, guard enforcement) MUST cite evidence as `file:line` pointers.
+   - Any temporary seam (e.g. schema-only OpenAPI, sys.modules compat mapping, whitelists) MUST have:
+     - an ADR with explicit **exit criteria**, and
+     - a Backlog Ledger item with DoD / blockers.
+
 ### Non-goals
 
 - AGENTS files are NOT changelogs.
