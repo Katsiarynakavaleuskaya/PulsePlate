@@ -89,16 +89,15 @@ These are gated by `EXPORTS_ENABLED` (see “Feature flags / route registration�
 
 ### What is true today
 
-**Rate limiting is NOT active in runtime.**
+**Rate limiting IS active in runtime (wired), and gracefully degrades if SlowAPI is unavailable.**
 
-- SlowAPI import is optional (present as dependency but not wired):
-  - `legacy_app.py:144-153`
-- All wiring is commented out:
-  - `legacy_app.py:1022-1037`
+- Wiring is executed during FastAPI app creation:
+  - `legacy_app.py:679-688` (imports `wire_rate_limiting` and calls `wire_rate_limiting(app)`).
+- Wiring helper (canonical implementation):
+  - `app/security/rate_limit.py:243-280` (`wire_rate_limiting` attaches limiter, 429 handler, middleware).
 
-**Evidence snippet (commented setup):**
-
-- `legacy_app.py:1022-1037` (middleware + handler + limiter are commented)
+Note: SlowAPI remains an optional dependency (ImportError → no-op stubs), but when installed the limiter
+is enabled by default in runtime and disabled by default in tests unless explicitly enabled (see below).
 
 ---
 
@@ -131,25 +130,26 @@ No explicit Caddy rule for `CF-Connecting-IP` is present; therefore the app must
 
 ### Existing foundation (usable today)
 
-There is already a proxy-aware “client key” helper:
+There is a proxy-aware “client key” helper implemented for SlowAPI:
 
-- `_client_fingerprint()` in `core/fingerprint_security.py:179-226`
+- `app/security/rate_limit.py:173-195` (`rate_limit_client_key`)
+- `app/security/rate_limit.py:139-171` (`extract_client_ip`)
 
 Key properties:
 
-- Trusts `X-Forwarded-For` **only when** the immediate `request.client.host` is in `TRUSTED_PROXIES`.
+- Trusts forwarded headers **only when** the immediate `request.client.host` is in `TRUSTED_PROXIES`.
 - Otherwise falls back to `request.client.host`.
 - Returns a **pseudonymous fingerprint** (hashed), not the raw IP (privacy-friendly).
 
-### Critical gap (must fix for PR-628)
+### Critical gap (historical)
 
-`TRUSTED_PROXIES` matching is currently **exact-string only** (no CIDR). That is fragile for production where:
+Earlier audits flagged that `TRUSTED_PROXIES` matching was **exact-string only** (no CIDR).
+This has since been addressed in the canonical implementation:
 
-- `--forwarded-allow-ips` is configured as a **CIDR network** in production docker-compose,
-- proxy/container IPs are not stable single values,
-- exact-IP allowlists tend to break after redeploy/network changes.
+- `app/security/rate_limit.py:79-136` implements CIDR parsing + membership checks (`parse_trusted_proxies`,
+  `is_trusted_proxy`).
 
-**Requirement for PR-628:** add **CIDR support** for trusted proxies, and in trusted-proxy mode prefer:
+Header precedence (trusted-proxy mode):
 
 1) `CF-Connecting-IP` (when present)
 2) `X-Forwarded-For` (first IP)
@@ -161,9 +161,10 @@ Key properties:
 
 ### Current state
 
-- No existing tests validating real 429 from SlowAPI (only import/coverage tests).
-- Existing `TestClient` fixture exists:
-  - `tests/conftest.py:443-446`
+Deterministic tests exist and are hermetic (no shared limiter state across tests):
+
+- `tests/test_rate_limit_llm_and_exports_api.py` (200 → 429 transitions for insight + representative exports)
+- `tests/test_rate_limit_client_key_api.py` (CIDR + header precedence + handler i18n contract)
 
 ### Required tests (DoD-level)
 
