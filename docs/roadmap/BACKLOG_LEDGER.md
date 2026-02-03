@@ -457,7 +457,7 @@ If it is not recorded here — it does not exist.
     - `.github/workflows/trivy.yml` (builds `production` target and scans the image)
   - DoD:
     - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
-    - 🔄 ждём next scan, чтобы alerts #533/#534 закрылись (merged ≠ scanner rerun)
+    - Notes: 🔄 waiting for next scan to confirm alerts #533/#534 are closed (merged ≠ scanner rerun)
 
 - [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
