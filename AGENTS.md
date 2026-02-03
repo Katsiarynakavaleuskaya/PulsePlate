@@ -30,8 +30,7 @@ Or individually:
   2. Check `git status` for modified files (e.g., `.secrets.baseline`, whitespace fixes, formatting)
   3. **Commit hook modifications as a separate commit:** `chore(pre-commit): apply hook fixes`
   4. **Important:** If `detect-secrets` updated `.secrets.baseline`, this must be committed (it's a legitimate baseline update, not a secret leak)
-- **Sourcery + baseline note:** `.secrets.baseline` is a **generated** `detect-secrets` artifact and may contain hashed fingerprints that some scanners misclassify as “Generic API Key”.
-  - Sourcery is configured to **ignore only** `.secrets.baseline` (see `.sourcery.yaml`) to avoid false-positive PR blocks; this does **not** replace `detect-secrets` enforcement.
+- **Policy note:** `.secrets.baseline` is a generated `detect-secrets` artifact with hashed fingerprints; it is excluded from Sourcery scans (false-positive “Generic API Key”).
 - CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
 - This is not optional: uncommitted hook modifications guarantee CI failure.
 - **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
