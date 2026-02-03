@@ -4,7 +4,6 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 
 import logging
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +12,7 @@ from fastapi.testclient import TestClient
 # Import the FastAPI app from the app package
 from app import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+import legacy_app
 
 
 class TestTargetedCoverageBoost:
@@ -97,8 +97,12 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_lines_758_760(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
-        # Remove module from sys.modules to simulate it's not available
-        monkeypatch.delitem(sys.modules, "llm", raising=False)
+
+        def _raise_import_error() -> None:
+            raise ImportError("LLM module is not available")
+
+        # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
 
         data = {"text": "test"}
         response = self.client.post("/api/v1/insight", json=data, headers=self.vip_headers)
@@ -106,8 +110,12 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_line_914(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 914 in main.py (insight endpoint with missing llm module)."""
-        # Remove module from sys.modules to simulate it's not available
-        monkeypatch.delitem(sys.modules, "llm", raising=False)
+
+        def _raise_import_error() -> None:
+            raise ImportError("LLM module is not available")
+
+        # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
 
         data = {"text": "test"}
         response = self.client.post("/insight", json=data, headers=self.vip_headers)
