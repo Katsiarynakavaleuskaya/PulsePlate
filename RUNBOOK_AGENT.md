@@ -56,6 +56,56 @@ The coordinator will automatically delegate to specialized agents and synthesize
 
 **Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
 
+---
+
+## Agent Orchestration Protocols
+
+**Purpose:** Canonical protocols for multi-agent coordination.
+
+**Location:** `docs/orchestration/`
+
+### Protocol Index
+
+| Protocol | Purpose | When to Use |
+|----------|---------|-------------|
+| [Context Map](docs/orchestration/AGENT_CONTEXT_MAP.md) | Define which files each agent must load | Every task (Pre-flight Checklist) |
+| [Capability Matrix](docs/orchestration/AGENT_CAPABILITY_MATRIX.md) | Agent routing guide (advisory) | Task assignment |
+| [Handoff Protocol](docs/orchestration/AGENT_HANDOFF_PROTOCOL.md) | Sequential agent delegation | Multi-agent tasks (A → B → C) |
+| [Dialogue Template](docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md) | Multi-agent brainstorming | Multiple valid approaches |
+| [Parallel Work Protocol](docs/orchestration/PARALLEL_WORK_PROTOCOL.md) | Parallel agent execution | Independent subtasks |
+
+### Pre-flight Checklist (Mandatory)
+
+Before starting any task, coordinator must complete the Pre-flight Checklist:
+
+```markdown
+- [ ] Root `AGENTS.md` loaded
+- [ ] Module `AGENTS.md` loaded (all affected modules)
+- [ ] `RUNBOOK_AGENT.md` loaded
+- [ ] Contract docs loaded (if applicable)
+- [ ] All invariants identified
+- [ ] All quality gates known
+```
+
+**Reference:** `.cursor/agents/agent-coordinator.md` (Pre-flight Checklist section)
+
+---
+
+### E2E Example: Multi-Agent Task
+
+**Task:** “Implement RAG endpoint for VIP tier with frontend UI and tests”
+
+**Execution (high-level):**
+
+1. **Coordinator:** Pre-flight Checklist (load required `AGENTS.md`, contract docs, runbook)
+2. **Track 1 (Backend):** Architecture + AI Innovation → endpoint + OpenAPI
+3. **Track 2 (Frontend):** Creative Designer → UI component
+4. **Track 3 (Tests):** Bug Hunter → contract tests + coverage
+5. **Sync Points:** SP1 (OpenAPI ready), SP2 (UI ready), SP3 (tests green)
+6. **Post-flight Verification:** all sync points passed; deliverables returned
+7. **Synthesis:** coordinator merges tracks into one coherent outcome
+8. **DoD:** verify quality gates + record postponements in `BACKLOG_LEDGER.md`
+
 ## Quality Gates (Canonical)
 
 **Before merge, verify:**
