@@ -21,7 +21,7 @@ class TestCoverage97UltimateFinal:
         """Clean up test environment."""
         os.environ.pop("API_KEY", None)
 
-    def test_app_openapi_schema(self):
+    def test_app_openapi_schema(self) -> None:
         """Test OpenAPI schema generation."""
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/openapi.json")
@@ -30,19 +30,19 @@ class TestCoverage97UltimateFinal:
         assert "openapi" in schema
         assert "info" in schema
 
-    def test_app_docs_endpoint(self):
+    def test_app_docs_endpoint(self) -> None:
         """Test docs endpoint."""
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/docs")
         assert response.status_code in [200, 500, 503]
 
-    def test_app_redoc_endpoint(self):
+    def test_app_redoc_endpoint(self) -> None:
         """Test redoc endpoint."""
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/redoc")
         assert response.status_code in [200, 500, 503]
 
-    def test_app_bmi_with_all_params(self):
+    def test_app_bmi_with_all_params(self) -> None:
         """Test BMI endpoint with all parameters."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -59,7 +59,7 @@ class TestCoverage97UltimateFinal:
         response = client.post("/bmi", json=payload)
         assert response.status_code in [200, 422]
 
-    def test_app_bodyfat_with_all_params(self):
+    def test_app_bodyfat_with_all_params(self) -> None:
         """Test bodyfat endpoint with all parameters."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -82,7 +82,7 @@ class TestCoverage97UltimateFinal:
         response = client.post("/insight", json=payload, headers=vip_headers)
         assert response.status_code in [200, 422, 503]
 
-    def test_app_premium_bmr_with_lang(self):
+    def test_app_premium_bmr_with_lang(self) -> None:
         """Test premium BMR endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -98,7 +98,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403]
 
-    def test_app_premium_tdee_with_lang(self):
+    def test_app_premium_tdee_with_lang(self) -> None:
         """Test premium TDEE endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -114,7 +114,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_premium_plate_with_lang(self):
+    def test_app_premium_plate_with_lang(self) -> None:
         """Test premium plate endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -131,7 +131,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403]
 
-    def test_app_premium_gaps_with_lang(self):
+    def test_app_premium_gaps_with_lang(self) -> None:
         """Test premium gaps endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -151,14 +151,14 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 500, 503]
 
-    def test_app_vip_echo_with_lang(self):
+    def test_app_vip_echo_with_lang(self) -> None:
         """Test VIP echo endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"test": "data", "lang": "en"}
         response = client.post("/api/v1/vip/echo", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_weekly_menu_with_lang(self):
+    def test_app_vip_weekly_menu_with_lang(self) -> None:
         """Test VIP weekly menu endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -177,7 +177,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_recipes_with_lang(self):
+    def test_app_vip_recipes_with_lang(self) -> None:
         """Test VIP recipes endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -190,7 +190,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_shoplist_with_lang(self):
+    def test_app_vip_shoplist_with_lang(self) -> None:
         """Test VIP shoplist endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -204,7 +204,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_auto_repair_with_lang(self):
+    def test_app_vip_auto_repair_with_lang(self) -> None:
         """Test VIP auto repair endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -216,7 +216,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_region_catalog_with_lang(self):
+    def test_app_vip_region_catalog_with_lang(self) -> None:
         """Test VIP region catalog endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"region": "US", "category": "fruits", "lang": "en"}
@@ -225,7 +225,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_product_search_with_lang(self):
+    def test_app_vip_product_search_with_lang(self) -> None:
         """Test VIP product search endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"query": "apple", "region": "US", "lang": "en"}
@@ -234,7 +234,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_nutrition_analysis_with_lang(self):
+    def test_app_vip_nutrition_analysis_with_lang(self) -> None:
         """Test VIP nutrition analysis endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"food_items": ["apple", "banana"], "quantities": [1, 2], "lang": "en"}
@@ -243,7 +243,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_user_profile_with_lang(self):
+    def test_app_vip_user_profile_with_lang(self) -> None:
         """Test VIP user profile endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -260,7 +260,7 @@ class TestCoverage97UltimateFinal:
         )
         assert response.status_code in [200, 422, 403, 404]
 
-    def test_app_vip_micronutrient_targets_with_lang(self):
+    def test_app_vip_micronutrient_targets_with_lang(self) -> None:
         """Test VIP micronutrient targets endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
