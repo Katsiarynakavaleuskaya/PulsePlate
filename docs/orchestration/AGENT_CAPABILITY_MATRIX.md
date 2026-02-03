@@ -4,6 +4,8 @@
 
 **Status:** Advisory (not permissions) — final authority belongs to coordinator.
 
+**Язык:** RU-first; английские термины — в скобках или `code` при первом упоминании.
+
 ---
 
 ## Overview
