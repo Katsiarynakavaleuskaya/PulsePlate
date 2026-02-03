@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import os
 import secrets
 import sys
@@ -36,7 +35,6 @@ from pydantic import (
     Field,
     StrictFloat,
     ValidationError,
-    field_validator,
     model_validator,
 )
 from sqlalchemy import text
@@ -72,6 +70,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
 from app.services.food_store import get_food
 
@@ -109,6 +108,9 @@ from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
 )
+
+# PR-633: thin alias to canonical import-safe schema (no local validation).
+TargetsIn = CanonicalTargetsIn
 
 # Rate limiting imports (PR-628)
 # RU: Импорты для rate-limiting (медленные imports только если slowapi доступен).
@@ -2874,49 +2876,9 @@ def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
 
 
 # WHO-Based Nutrition Models
-
-
-class TargetsIn(BaseModel):
-    """Validated nutrition targets with strict non-negative checks.
-
-    Similar to app.routers.premium_week.TargetsIn but used in main app endpoints.
-    """
-
-    model_config = ConfigDict(title="LegacyTargetsIn")
-
-    kcal: int = Field(..., gt=500, lt=6000)
-    macros: Dict[str, float]
-    micro: Dict[str, float]
-    water_ml: int = Field(0, ge=0)
-    activity_week: Optional[Dict[str, int]] = None
-
-    @field_validator("macros")
-    @classmethod
-    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
-        for key, val in v.items():
-            # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
-
-            # Check if value is finite (not NaN or Infinity) and non-negative
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
-        return v
-
-    @field_validator("micro")
-    @classmethod
-    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
-        for key, val in v.items():
-            # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-
-            # Check if value is finite (not NaN or Infinity) and non-negative
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-        return v
+#
+# NOTE (PR-633): `TargetsIn` is canonical in `app.schemas.nutrition_targets` (import-safe).
+# Legacy endpoints must not define a second validation path to avoid drift.
 
 
 class LegacyWeekPlanRequest(WHOTargetsRequest):
