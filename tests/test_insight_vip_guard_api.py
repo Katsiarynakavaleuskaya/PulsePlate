@@ -6,6 +6,8 @@ EN: P0 tests: insight endpoint must be strictly VIP-only.
 
 from __future__ import annotations
 
+from unittest.mock import Mock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,7 +21,9 @@ class _EchoProvider:
         return f"ok:{text}"
 
 
+@patch("llm.get_provider", return_value=_EchoProvider())
 def test_insight_v1_requires_vip_tier(
+    mock_get_provider: Mock,
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     pro_headers: dict[str, str],
@@ -29,10 +33,7 @@ def test_insight_v1_requires_vip_tier(
 
     Note: VIP guard returns 403 for missing key by policy (VIP is a feature-gate).
     """
-    import llm
-
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
 
     payload = {"text": "hello"}
 
@@ -50,7 +51,9 @@ def test_insight_v1_requires_vip_tier(
     assert data["insight"].startswith("ok:")
 
 
+@patch("llm.get_provider", return_value=_EchoProvider())
 def test_insight_legacy_requires_vip_tier(
+    mock_get_provider: Mock,
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     pro_headers: dict[str, str],
@@ -60,10 +63,7 @@ def test_insight_legacy_requires_vip_tier(
 
     Note: Legacy /insight is hidden from OpenAPI but still VIP-guarded.
     """
-    import llm
-
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
 
     payload = {"text": "hello"}
 

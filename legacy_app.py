@@ -74,7 +74,7 @@ from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
 from app.services.food_store import get_food
 
-# Legacy BMI helpers removed from request-path (PR-457=A)
+# tegacy BMI helpers removed from request-path (PR-457=A)
 # /plan now delegates to canonical BMI engine via compat layer
 from decimal import Decimal
 
