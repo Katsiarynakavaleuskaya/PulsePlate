@@ -124,19 +124,10 @@ This map reduces “missing context” failures by making required inputs explic
 
 ## Pre-flight Context Verification (Coordinator)
 
-Use this checklist before routing.
+Context verification is performed as part of the canonical Pre-flight Checklist defined in:
+`.cursor/agents/agent-coordinator.md`
 
-```markdown
-## Pre-flight Context Verification
-
-- [ ] Root `AGENTS.md` loaded
-- [ ] `RUNBOOK_AGENT.md` loaded
-- [ ] All affected module `AGENTS.md` loaded
-- [ ] Contract docs loaded (only if API/schema changes)
-- [ ] Relevant guard tests identified
-```
-
-**Failure condition:** if any required item is missing → stop and request context (do not guess).
+This document is a reference map (what to load), not the checklist source of truth.
 
 ---
 

@@ -74,20 +74,12 @@ The coordinator will automatically delegate to specialized agents and synthesize
 | [Dialogue Template](docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md) | Multi-agent brainstorming | Multiple valid approaches |
 | [Parallel Work Protocol](docs/orchestration/PARALLEL_WORK_PROTOCOL.md) | Parallel agent execution | Independent subtasks |
 
-### Pre-flight Checklist (Mandatory)
+### Pre-flight Checklist (Canonical)
 
-Before starting any task, coordinator must complete the Pre-flight Checklist:
+Canonical Pre-flight Checklist is defined only here:
+`.cursor/agents/agent-coordinator.md` (Pre-flight Checklist section)
 
-```markdown
-- [ ] Root `AGENTS.md` loaded
-- [ ] Module `AGENTS.md` loaded (all affected modules)
-- [ ] `RUNBOOK_AGENT.md` loaded
-- [ ] Contract docs loaded (if applicable)
-- [ ] All invariants identified
-- [ ] All quality gates known
-```
-
-**Reference:** `.cursor/agents/agent-coordinator.md` (Pre-flight Checklist section)
+Rule: RUNBOOK does not duplicate checklists; it only links to the canonical source.
 
 ---
 

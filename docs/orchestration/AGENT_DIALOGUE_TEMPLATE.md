@@ -1,57 +1,57 @@
-# Agent Dialogue Template
+# Шаблон диалога агентов (Agent Dialogue Template)
 
-**Purpose:** Formal protocol for multi-agent brainstorming and decision-making.
+**Назначение:** Формальный протокол для брейншторма и принятия решений несколькими агентами.
 
-**Status:** Canonical (PR-634)
+**Status:** Canonical (PR-634). Канонический источник истины для лимита итераций диалога.
 
 ---
 
 ## Overview
 
-When a task has **multiple valid approaches**, agents engage in a structured dialogue to:
-- Explore alternatives
-- Identify trade-offs
-- Reach consensus (or escalate to coordinator)
+Когда у задачи есть **несколько валидных подходов**, агенты ведут структурный диалог, чтобы:
+- изучить альтернативы,
+- выявить компромиссы (trade-offs),
+- прийти к консенсусу (или эскалировать в координатора).
 
-**Critical:** Dialogue is time-boxed (≤3 iterations) to prevent infinite debate.
-
----
-
-## When to Use Dialogue
-
-Use dialogue when:
-- Multiple valid design approaches exist
-- Trade-offs are unclear
-- Cross-domain expertise is needed
-
-Do not use dialogue when:
-- A single approach is obvious
-- Coordinator already decided
-- The task is trivial
+**Критично:** диалог ограничен по времени и итерациям (≤3), чтобы не допускать бесконечных обсуждений.
 
 ---
 
-## Dialogue Hard Limit
+## Когда использовать диалог (When to Use Dialogue)
 
-**Max iterations:** 3 total (across all agents in the dialogue)
+Используйте диалог, когда:
+- есть несколько валидных дизайн-подходов,
+- компромиссы неочевидны,
+- нужна экспертиза из разных доменов.
 
-**Escalation path:**
-1. Iteration 1–2: brainstorm, propose alternatives, discuss trade-offs
-2. Iteration 3: converge or state blockers explicitly
-3. After iteration 3: coordinator makes the final decision and closes discussion
-
-No exceptions: if consensus is not reached after 3 iterations:
-- Coordinator synthesizes the best available solution
-- Documents trade-offs and risks
-- Proceeds with an explicit “forced decision” marker
-
-Rationale: prevent infinite LLM debate loops; ensure task completion.
+Не используйте диалог, когда:
+- один подход очевиден,
+- координатор уже принял решение,
+- задача тривиальная.
 
 ---
 
-## Coordinator Intervention Rule
+## Жёсткий лимит диалога (Dialogue Hard Limit)
 
-Coordinator MUST NOT:
+**Максимум итераций:** 3 всего (на весь диалог, для всех агентов)
+
+**Путь эскалации:**
+1. Итерации 1–2: брейншторм, альтернативы, trade-offs
+2. Итерация 3: конвергенция (convergence) или явное перечисление блокеров
+3. После итерации 3: координатор фиксирует итог (если консенсус есть) или принимает `forced decision` и закрывает обсуждение
+
+Без исключений: если консенсус не достигнут за 3 итерации, координатор:
+- синтезирует лучший доступный вариант,
+- документирует trade-offs и риски,
+- продолжает с явным маркером `forced decision`.
+
+Rationale (обоснование): предотвратить бесконечные LLM-дискуссии и обеспечить завершение задачи.
+
+---
+
+## Правило вмешательства координатора (Coordinator Intervention Rule)
+
+Координатор НЕ ДОЛЖЕН:
 - предлагать решения,
 - делать synthesis,
 - принимать решения
@@ -59,232 +59,232 @@ Coordinator MUST NOT:
 до завершения **Iteration 3**.
 
 Единственное исключение:
-- Coordinator clarifies constraints or success criteria,
+- координатор уточняет ограничения или критерии успеха,
   НЕ предлагая решений и НЕ синтезируя выводы.
 
 ---
 
-## Dialogue Format
+## Формат диалога (Dialogue Format)
 
-### Problem Statement
+### Формулировка проблемы (Problem Statement)
 
-[What are we solving? What’s unclear?]
+[Что решаем? Что неясно?]
 
-**Constraints:**
-- [Invariants affected]
-- [Quality gates]
-- [Deadlines]
+**Constraints (ограничения):**
+- [Какие инварианты затрагиваем]
+- [Какие quality gates применимы]
+- [Дедлайны/таймбоксы]
 
-**Success criteria:**
-- [What would a “good solution” look like?]
+**Success criteria (критерии успеха):**
+- [Как выглядит “хорошее решение”?]
 
 ---
 
-### Iteration 1: Initial Proposals
+### Итерация 1: первичные предложения (Iteration 1: Initial Proposals)
 
 #### Agent A (e.g., Architecture)
 
-**Proposal:**
-- [Design idea or approach]
+**Предложение (Proposal):**
+- [Идея/подход]
 
-**Pros:**
-- [What’s good about this approach]
+**Плюсы (Pros):**
+- [Что хорошо в этом подходе]
 
-**Cons:**
-- [What’s risky or unclear]
+**Минусы/риски (Cons):**
+- [Что рискованно или неясно]
 
-**Invariants affected:**
-- [Which rules this approach touches]
+**Затронутые инварианты (Invariants affected):**
+- [Какие правила/инварианты затрагиваем]
 
-**Questions for Agent B:**
-- [Specific question for B’s domain]
+**Вопросы к Agent B:**
+- [Конкретный вопрос по домену B]
 
 ---
 
 #### Agent B (e.g., Bug Hunter)
 
-**Response to Agent A:**
-- [Answer to A’s question]
+**Ответ Agent A:**
+- [Ответ на вопрос A]
 
-**Proposal:**
-- [Alternative or refinement of A’s approach]
+**Предложение (Proposal):**
+- [Альтернатива или уточнение подхода A]
 
-**Pros:**
-- [What’s good]
+**Плюсы (Pros):**
+- [Что хорошо]
 
-**Cons:**
-- [What’s risky]
+**Минусы/риски (Cons):**
+- [Что рискованно]
 
-**Testing strategy:**
-- [How to verify this approach]
+**Testing strategy (как проверяем):**
+- [Как верифицируем подход]
 
-**Questions for Agent C (if 3+ agents):**
-- [Specific question for C’s domain]
+**Вопросы к Agent C (если 3+ агентов):**
+- [Конкретный вопрос по домену C]
 
 ---
 
-### Iteration 2: Refinement
+### Итерация 2: уточнение (Iteration 2: Refinement)
 
 #### Agent A (refined)
 
-**Response to Agent B:**
-- [Address B’s concerns]
+**Ответ на замечания Agent B:**
+- [Как учитываем/снимаем concerns]
 
-**Updated proposal:**
-- [Refined approach incorporating B’s feedback]
+**Обновлённое предложение:**
+- [Уточнённый подход с учётом фидбэка]
 
-**Trade-offs accepted:**
-- [What we’re willing to sacrifice]
+**Принятые trade-offs:**
+- [Чем готовы пожертвовать]
 
-**Remaining questions:**
-- [Unresolved blockers]
+**Оставшиеся вопросы:**
+- [Неразрешённые блокеры]
 
 ---
 
 #### Agent B (refined)
 
-**Response to Agent A:**
-- [Address A’s updates]
+**Ответ на обновление Agent A:**
+- [Реакция на обновление]
 
-**Convergence check:**
-- ✅ Agreement reached: [Describe consensus]
-- ⏳ Still discussing: [What’s blocking consensus]
-- ❌ Disagreement: [Fundamental conflict]
+**Проверка конвергенции (Convergence check):**
+- ✅ Консенсус достигнут: [описать]
+- ⏳ Всё ещё обсуждаем: [что блокирует]
+- ❌ Несогласие: [фундаментальный конфликт]
 
 ---
 
-### Iteration 3: Final Decision or Escalation
+### Итерация 3: финал (Iteration 3: Final Decision or Escalation)
 
-If consensus reached:
+Если консенсус достигнут:
 
 #### Agent A + Agent B (joint)
 
-**Final approach:**
-- [Combined solution]
+**Финальный подход:**
+- [Совместное решение]
 
-**Rationale:**
-- [Why this approach was chosen]
+**Обоснование (Rationale):**
+- [Почему выбран именно этот вариант]
 
 **Trade-offs:**
-- [What we accept]
+- [Что принимаем]
 
-**Implementation plan:**
-- [Next steps]
+**План имплементации:**
+- [Следующие шаги]
 
 ---
 
-If consensus not reached:
+Если консенсус не достигнут:
 
 #### Coordinator (forced decision)
 
-**Escalation reason:**
-- [Why agents could not converge]
+**Причина эскалации (Escalation reason):**
+- [Почему агенты не смогли прийти к консенсусу]
 
-**Final decision:**
-- [Coordinator’s choice]
+**Финальное решение (Final decision):**
+- [Выбор координатора]
 
-**Rationale:**
-- [Why this option chosen despite disagreement]
+**Обоснование (Rationale):**
+- [Почему выбран этот вариант, несмотря на разногласия]
 
-**Risks accepted:**
-- [Known trade-offs]
+**Принятые риски (Risks accepted):**
+- [Известные trade-offs]
 
 **Follow-up:**
-- [Review plan if decision proves wrong]
+- [План пересмотра, если решение окажется неверным]
 
-**Forced decision marker:** ⚠️ Coordinator override (iteration 3 limit)
-
----
-
-## Multi-Agent Dialogue (3+ agents)
-
-When 3+ agents participate:
-
-Iteration structure:
-1. Round 1: each agent proposes (parallel)
-2. Round 2: each agent responds to others (sequential)
-3. Round 3: convergence or escalation
-
-**Critical:** still ≤3 total iterations (not 3 per agent).
+**Маркер принудительного решения (`forced decision`):** ⚠️ override координатора (iteration 3 limit)
 
 ---
 
-## Example: RAG Implementation Dialogue
+## Мульти-диалог (3+ агентов) (Multi-Agent Dialogue)
 
-### Problem Statement
+Когда участвуют 3+ агентов:
 
-Should we use a vector DB (Pinecone) or local embeddings (ChromaDB) for RAG?
+Структура:
+1. Раунд 1: каждый агент предлагает (parallel)
+2. Раунд 2: ответы друг другу (sequential)
+3. Раунд 3: конвергенция или эскалация
 
-**Constraints:**
-- Must work offline (optional requirement)
-- Budget: prefer low-cost
-- Latency: <500ms query time
-
-**Success criteria:**
-- Accurate retrieval (≥80% relevance)
-- Maintainable (no vendor lock-in)
+**Критично:** всё равно ≤3 итераций всего (не “3 на каждого агента”).
 
 ---
 
-### Iteration 1
+## Пример: диалог по RAG (Example: RAG Implementation Dialogue)
+
+### Формулировка проблемы
+
+Используем векторную БД (Pinecone) или локальные эмбеддинги (ChromaDB) для RAG?
+
+**Ограничения (Constraints):**
+- Должно работать offline (опционально)
+- Бюджет: минимальные расходы
+- Латентность: <500ms
+
+**Критерии успеха (Success criteria):**
+- Качество retrieval (≥80% релевантности)
+- Поддерживаемость (no vendor lock-in)
+
+---
+
+### Итерация 1
 
 #### Architecture Specialist
 
-**Proposal:** Use ChromaDB (local embeddings)
+**Предложение (Proposal):** ChromaDB (локальные эмбеддинги)
 
-**Pros:**
-- No API costs
-- Works offline
-- No vendor lock-in
+**Плюсы (Pros):**
+- Нет расходов на API
+- Работает offline
+- Нет vendor lock-in
 
-**Cons:**
-- Slower than Pinecone
-- Need to manage embedding model
+**Минусы (Cons):**
+- Медленнее Pinecone
+- Нужна поддержка embedding-модели
 
-**Questions for AI Innovation:**
-- Can ChromaDB meet <500ms latency?
+**Вопросы к AI Innovation:**
+- Сможем ли уложиться в <500ms на ChromaDB?
 
 ---
 
 #### AI Innovation Specialist
 
-**Response to Architecture:**
-- ChromaDB can meet <500ms with cached embeddings (tested)
+**Ответ Architecture:**
+- ChromaDB укладывается в <500ms при кэшировании эмбеддингов (проверено)
 
-**Proposal:** Hybrid approach — ChromaDB for dev, Pinecone for prod
+**Предложение (Proposal):** Hybrid approach — ChromaDB for dev, Pinecone for prod
 
-**Pros:**
+**Плюсы (Pros):**
 - Best of both worlds
-- Dev independence
-- Prod performance
+- Независимость dev
+- Производительность в prod
 
-**Cons:**
-- Dual config complexity
-- Testing both paths
+**Минусы (Cons):**
+- Сложность dual config
+- Нужно тестировать оба пути
 
-**Questions for Security:**
-- Data residency concerns with Pinecone?
+**Вопросы к Security:**
+- Есть ли риски data residency при Pinecone?
 
 ---
 
 #### Security Auditor
 
-**Response to AI Innovation:**
-- Pinecone has EU/US data centers (acceptable)
-- But: API key management risk
+**Ответ AI Innovation:**
+- Pinecone имеет EU/US дата-центры (приемлемо)
+- Но: риск управления API ключами
 
-**Proposal:** ChromaDB only (avoid external dependency)
+**Предложение (Proposal):** Только ChromaDB (без внешней зависимости)
 
-**Pros:**
-- No data exfiltration risk
-- Simpler security model
+**Плюсы (Pros):**
+- Меньше риск data exfiltration
+- Проще security model
 
-**Cons:**
-- Performance trade-off
+**Минусы (Cons):**
+- Компромисс по производительности
 
 ---
 
-### Iteration 2
+### Итерация 2
 
 #### Architecture Specialist
 - Уточняет архитектурные trade-offs
@@ -300,39 +300,58 @@ Should we use a vector DB (Pinecone) or local embeddings (ChromaDB) for RAG?
 
 ---
 
-### Iteration 3
+### Итерация 3 (конвергенция агентов)
 
-#### Coordinator Synthesis
+#### Architecture Specialist + AI Innovation Specialist + Security Auditor (consensus)
 
-**Final Decision:**
-Использовать ChromaDB (локально) как единственное RAG-хранилище.
+**Итоговый подход:** ChromaDB (локальные эмбеддинги)
 
-**Rationale:**
+**Обоснование (Rationale):**
 - latency < 500ms подтверждена
 - низкая стоимость
 - минимальный security risk
 - отсутствие vendor lock-in
 
-**Trade-offs:**
+**Принятые trade-offs:**
 - необходимость поддержки embedding модели локально
 
-**Marker:** ✅ Consensus reached
+**План имплементации:**
+1. Установить ChromaDB
+2. Реализовать кэширование эмбеддингов
+3. Провести бенчмарк на реальных данных
+4. Документировать план отката на Pinecone при деградации латентности
+
+**Marker:** ✅ консенсус достигнут (`consensus reached`)
 
 ---
 
-## Verification Checklist
+### После итерации 3: запись координатора (без новых решений)
 
-Before starting dialogue, verify:
-- [ ] Problem is well-defined
-- [ ] Multiple valid approaches exist
-- [ ] Trade-offs are unclear
-- [ ] All relevant agents identified
+#### Coordinator (record only)
 
-If any item is unclear, clarify before starting.
+**Зафиксированный итог:**
+- Консенсус достигнут в итерации 3
+- Итоговый подход: ChromaDB (локальные эмбеддинги)
+
+**Примечания (Notes):**
+- `forced decision` не требуется
+- Follow-ups (если есть) фиксируем в `BACKLOG_LEDGER.md`
 
 ---
 
-## Related Documentation
+## Проверочный чек-лист (Verification Checklist)
+
+Перед началом диалога проверьте:
+- [ ] проблема сформулирована
+- [ ] есть несколько валидных подходов
+- [ ] trade-offs неочевидны
+- [ ] определены релевантные агенты
+
+Если что-то неясно, уточните до старта.
+
+---
+
+## Связанные документы (Related Documentation)
 
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Parallel Work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`

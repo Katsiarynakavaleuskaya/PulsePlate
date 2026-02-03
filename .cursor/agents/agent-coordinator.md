@@ -64,12 +64,14 @@ Required:
 
 ---
 
-## Dialogue Hard Limit
+## Dialogue Enforcement
 
-When agents engage in multi-agent dialogue (see `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`):
+Coordinator must follow and enforce dialogue limits defined in:
+`docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 
-- **Max iterations:** 3 total (across all agents in the dialogue)
-- **After iteration 3:** you MUST make a final decision and close discussion (forced decision if needed)
+Forbidden:
+- Redefining or extending the iteration limit
+- Introducing coordinator “synthesis/decision” before the protocol allows it
 
 ---
 
