@@ -1,0 +1,126 @@
+# Agent Capability Matrix
+
+**Purpose:** Define recommended agent routing based on domain expertise.
+
+**Status:** Advisory (not permissions) — final authority belongs to coordinator.
+
+---
+
+## Overview
+
+This matrix describes **recommended** agent assignments based on:
+- Domain expertise
+- Layer knowledge
+- Review capabilities
+- Delegation paths
+
+**Important:** This is a **routing guide**, not a **permission system**.
+Coordinator may assign agents outside their primary domain if justified.
+
+---
+
+## Agent Capabilities
+
+| Agent | Primary Layers | Primary Domains | Can Review | Can Delegate To |
+|-------|----------------|-----------------|------------|-----------------|
+| **Coordinator** | All | Routing, synthesis, orchestration | All agents | All agents |
+| **Architecture** | `core/`, `app/`, `frontend/`, `ios/` | Design patterns, invariants, layer boundaries | Bug Hunter, Security | AI Innovation, Bug Hunter |
+| **Bug Hunter** | `tests/`, CI | Test failures, coverage gaps, guard violations | Coordinator, Architecture | Architecture, Security |
+| **AI Innovation** | `core/`, `providers/` | LLM, RAG, R&D, prototypes | Architecture, Security | Bug Hunter (for testing) |
+| **Security** | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
+| **Marketing** | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
+| **Creative Designer** | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
+
+---
+
+## Routing Examples
+
+### Example 1: Pure Backend Task
+
+**Task:** “Implement new BMI calculation for pregnant users”
+
+**Routing:**
+- **Primary:** Architecture Specialist
+  - Reason: Core domain logic + invariant (One BMI Engine)
+  - Files: `core/bmi/engine.py`, `core/bmi/risk.py`
+- **Secondary:** Bug Hunter
+  - Reason: Coverage ≥97% + contract tests
+  - Files: `tests/test_bmi_pregnant.py`
+- **Review:** Security Auditor (optional)
+  - Reason: Health data + calculation accuracy
+
+---
+
+### Example 2: Multi-Domain Task (Backend + Frontend)
+
+**Task:** “Add soft paywall hook to BMI results page”
+
+**Routing (Parallel Tracks):**
+- **Track 1 (Backend):** Architecture Specialist
+  - Subtask: Define soft paywall schema + API endpoint
+  - Files: `app/schemas/bmi.py`, `app/routers/_helpers.py`
+- **Track 2 (Frontend):** Creative Designer
+  - Subtask: Design paywall UI component
+  - Files: `frontend/src/components/SoftPaywall.tsx`
+  - Depends on: Track 1 (OpenAPI schema ready)
+- **Track 3 (Tests):** Bug Hunter
+  - Subtask: Contract tests for soft paywall
+  - Files: `tests/test_soft_paywall_contract.py`
+  - Depends on: Track 1 + Track 2
+
+Coordinator synthesizes all tracks at final Sync Point.
+
+---
+
+### Example 3: Research Task
+
+**Task:** “Evaluate RAG for meal plan personalization”
+
+**Routing:**
+- **Primary:** AI Innovation Specialist
+  - Reason: R&D + prototyping
+  - Deliverable: ADR + PoC
+- **Review:** Architecture Specialist
+  - Reason: Integration with existing `core/`
+  - Check: Layer boundaries + invariants
+- **Review:** Security Auditor
+  - Reason: User data + LLM risks
+  - Check: Data leakage, prompt injection
+
+---
+
+## Flexibility Rules
+
+Coordinator may assign agents outside primary domain if:
+
+1. Primary agent unavailable
+2. Cross-domain expertise needed
+3. Learning opportunity (explicitly documented)
+
+**Exception process:**
+- Coordinator documents the reason in Task Analysis
+- Coordinator provides extra context/handoff to the non-primary agent
+- Coordinator assigns a reviewer from the primary domain when needed
+
+---
+
+## Authority Clarification
+
+**Capability Matrix = recommended routing.**
+**Final authority = `agent-coordinator`.**
+
+This matrix does not grant “permission” or “rights” to agents.
+It exists to help the coordinator route work efficiently.
+
+---
+
+## Related Documentation
+
+- Coordinator: `.cursor/agents/agent-coordinator.md`
+- Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
+- Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
+
+---
+
+**Last updated:** 2026-02-03 (PR-634)
+**Status:** Advisory
