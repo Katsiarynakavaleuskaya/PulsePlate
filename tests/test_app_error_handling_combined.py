@@ -11,10 +11,49 @@ import pytest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
+import re
 from typing import NoReturn, cast
 from starlette.types import ASGIApp
 
 import app
+
+_UPSTREAM_PROVIDER_TOKENS = (
+    "openai",
+    "anthropic",
+    "azure",
+    "vertex",
+    "claude",
+    "groq",
+)
+
+# Keep this intentionally loose to avoid brittle coupling to exact wording.
+_GENERIC_DETAIL_RE = re.compile(r"(error|unavailable|timeout|failed|disabled)", re.IGNORECASE)
+
+
+def _assert_json_error_hygiene(response) -> str:
+    """Assert error response is JSON and does not leak upstream details."""
+    assert response.headers["content-type"].startswith("application/json")
+
+    body = response.json()
+    assert isinstance(body, dict)
+    assert "detail" in body
+
+    detail = str(body["detail"])
+    lowered = detail.lower()
+
+    # No urls
+    assert "http://" not in lowered
+    assert "https://" not in lowered
+
+    # No provider identifiers
+    for token in _UPSTREAM_PROVIDER_TOKENS:
+        assert token not in lowered
+
+    # Keep message generic but meaningful (avoid blank/garbage)
+    assert detail.strip() != ""
+    assert _GENERIC_DETAIL_RE.search(detail) is not None
+
+    return detail
 
 
 class TestAppCriticalLines97:
@@ -148,57 +187,53 @@ class TestAppExceptionHandlersCoverage:
         assert response.status_code in [500, 503]
 
     def test_connection_error_handler(
-        self, client: TestClient, vip_headers: dict[str, str]
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test connection error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("Connection failed")):
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+        with patch(
+            "httpx.AsyncClient.post",
+            side_effect=httpx.ConnectError("Connection failed"),
+        ) as mocked_post:
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
                 headers=vip_headers,
             )
+            assert mocked_post.called is True
             # Should handle connection error gracefully
             assert response.status_code in [500, 503, 502]
-            assert response.headers["content-type"].startswith("application/json")
-            body = response.json()
-            assert isinstance(body, dict)
-            assert "detail" in body
-
-            detail = str(body["detail"])
-            lowered_detail = detail.lower()
-
+            detail = _assert_json_error_hygiene(response)
             assert "Connection failed" not in detail
 
-            assert "http://" not in lowered_detail
-            assert "https://" not in lowered_detail
-
-            for provider in ("openai", "anthropic", "azure", "vertex", "claude", "groq"):
-                assert provider not in lowered_detail
-
-    def test_timeout_error_handler(self, client: TestClient, vip_headers: dict[str, str]) -> None:
+    def test_timeout_error_handler(
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test timeout error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Request timeout")):
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("LLM_PROVIDER", "ollama")
+
+        with patch(
+            "httpx.AsyncClient.post",
+            side_effect=httpx.ReadTimeout("Request timeout"),
+        ) as mocked_post:
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
                 headers=vip_headers,
             )
+            assert mocked_post.called is True
             # Should handle timeout error gracefully - expect 503 Service Unavailable
             assert response.status_code == 503
-            assert response.headers["content-type"].startswith("application/json")
-            body = response.json()
-            assert isinstance(body, dict)
-            assert "detail" in body
-
-            detail = str(body["detail"])
-            lowered_detail = detail.lower()
-
+            detail = _assert_json_error_hygiene(response)
             assert "Request timeout" not in detail
-
-            assert "http://" not in lowered_detail
-            assert "https://" not in lowered_detail
-
-            for provider in ("openai", "anthropic", "azure", "vertex", "claude", "groq"):
-                assert provider not in lowered_detail
