@@ -9706,54 +9706,6 @@
         "summary": "Database Health"
       }
     },
-    "/insight": {
-      "post": {
-        "operationId": "insight_route_insight_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InsightRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsightResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RateLimitErrorResponse"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Insight Route"
-      }
-    },
     "/plan": {
       "post": {
         "description": "RU: Legacy endpoint /plan (contract must remain stable in PR-457=A).\nEN: Legacy /plan endpoint (contract must remain stable in PR-457=A).\n\nPR-457=A: Delegates to canonical BMI engine but preserves legacy response contract.",
