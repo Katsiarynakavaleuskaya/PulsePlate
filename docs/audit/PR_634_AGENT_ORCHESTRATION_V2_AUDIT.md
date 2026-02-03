@@ -61,6 +61,12 @@ Evidence (formal vs advisory semantics in matrix):
 (EN: Formal review is limited to agents listed in “Can Review”; others may only provide advisory consultation.)
 ```
 
+Observed (rg "Formal review" docs/orchestration/AGENT_CAPABILITY_MATRIX.md):
+
+```text
+docs/orchestration/AGENT_CAPABILITY_MATRIX.md:40:**Formal review** разрешён ТОЛЬКО агентам, перечисленным в колонке **Can Review**.
+```
+
 ---
 
 ### 2) Drift risk from duplicated rules
@@ -76,6 +82,12 @@ Evidence (SoT section exists in workflow):
 ## Canonical Pre-flight Checklist (SoT)
 ...
 #### 1) Context loading
+```
+
+Observed (rg "Canonical Pre-flight Checklist \\(SoT\\)" docs/orchestration/workflow.md):
+
+```text
+docs/orchestration/workflow.md:51:## Canonical Pre-flight Checklist (SoT)
 ```
 
 Evidence (other surfaces link to the SoT, do not duplicate):
@@ -100,6 +112,13 @@ Evidence (canonical dialogue hard limit + coordinator intervention rule with EN 
 (EN: Coordinator must not propose solutions/synthesis/decisions until Iteration 3 completes...)
 ```
 
+Observed (rg "Dialogue Hard Limit|Coordinator Intervention Rule" docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md):
+
+```text
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:36:## Жёсткий лимит диалога (Dialogue Hard Limit)
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:54:## Правило вмешательства координатора (Coordinator Intervention Rule)
+```
+
 Evidence (coordinator links to dialogue template for enforcement):
 
 ```19:54:.cursor/agents/agent-coordinator.md
@@ -122,6 +141,13 @@ Evidence:
 ### After Iteration 3: Coordinator Record (no new decisions)
 ```
 
+Observed (rg "Iteration 3 \\(Agents convergence\\)|After Iteration 3: Coordinator Record" docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md):
+
+```text
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:318:### Iteration 3 (Agents convergence)
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:344:### After Iteration 3: Coordinator Record (no new decisions)
+```
+
 ---
 
 ### 4) Avoid over-orchestration: task-scoped context
@@ -135,6 +161,12 @@ Evidence:
 - `docs/orchestration/*` — **только** когда:
 ...
 (EN: Orchestration docs are conditional; load them only for multi-agent or when the workflow is required.)
+```
+
+Observed (rg "Условно \\(только если нужно\\)" docs/orchestration/AGENT_CONTEXT_MAP.md):
+
+```text
+docs/orchestration/AGENT_CONTEXT_MAP.md:26:**Условно (только если нужно):**
 ```
 
 ---
@@ -151,6 +183,13 @@ Evidence (post-flight verification exists and is ordered before synthesis):
 ## Step 5: Synthesis
 ```
 
+Observed (rg "Step 4: Post-flight Verification|Step 5: Synthesis" docs/orchestration/workflow.md):
+
+```text
+docs/orchestration/workflow.md:123:## Step 4: Post-flight Verification (NEW)
+docs/orchestration/workflow.md:162:## Step 5: Synthesis
+```
+
 ---
 
 ### 6) Markdown hygiene: MD001 heading increment
@@ -163,6 +202,13 @@ Evidence:
 ## Blocked Sync Point Example
 
 ### SP2: Frontend UI Ready
+```
+
+Observed (rg "Blocked Sync Point Example|SP2: Frontend UI Ready" docs/orchestration/PARALLEL_WORK_PROTOCOL.md):
+
+```text
+docs/orchestration/PARALLEL_WORK_PROTOCOL.md:239:## Blocked Sync Point Example
+docs/orchestration/PARALLEL_WORK_PROTOCOL.md:241:### SP2: Frontend UI Ready
 ```
 
 ---
@@ -179,21 +225,64 @@ Observed:
 79c0c28 docs(agents): clarify coordinator timing in dialogue protocol
 ```
 
-### Single-location checklist content
+### Finding 1 — Formal vs Advisory semantics
 
-Observed (only `workflow.md` contains `#### 1) Context loading`):
+Observed (rg "Formal review" docs/orchestration/AGENT_CAPABILITY_MATRIX.md):
 
 ```text
-docs/orchestration/workflow.md
+docs/orchestration/AGENT_CAPABILITY_MATRIX.md:40:**Formal review** разрешён ТОЛЬКО агентам, перечисленным в колонке **Can Review**.
 ```
 
-### MD001 heading check
+### Finding 2.1 — Pre-flight Checklist SoT uniqueness
 
-Observed:
+Observed (rg "Canonical Pre-flight Checklist \\(SoT\\)" docs/orchestration/workflow.md):
 
 ```text
-239:## Blocked Sync Point Example
-241:### SP2: Frontend UI Ready
+docs/orchestration/workflow.md:51:## Canonical Pre-flight Checklist (SoT)
+```
+
+### Finding 2.2 — Dialogue iteration limit canonical location
+
+Observed (rg "Dialogue Hard Limit|Coordinator Intervention Rule" docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md):
+
+```text
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:36:## Жёсткий лимит диалога (Dialogue Hard Limit)
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:54:## Правило вмешательства координатора (Coordinator Intervention Rule)
+```
+
+### Finding 3 — Termination artifact structure
+
+Observed (rg "Iteration 3 \\(Agents convergence\\)|After Iteration 3: Coordinator Record" docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md):
+
+```text
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:318:### Iteration 3 (Agents convergence)
+docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:344:### After Iteration 3: Coordinator Record (no new decisions)
+```
+
+### Finding 4 — Conditional context loading rules
+
+Observed (rg "Условно \\(только если нужно\\)" docs/orchestration/AGENT_CONTEXT_MAP.md):
+
+```text
+docs/orchestration/AGENT_CONTEXT_MAP.md:26:**Условно (только если нужно):**
+```
+
+### Finding 5 — Post-flight ordering (Step 4 before Step 5)
+
+Observed (rg "Step 4: Post-flight Verification|Step 5: Synthesis" docs/orchestration/workflow.md):
+
+```text
+docs/orchestration/workflow.md:123:## Step 4: Post-flight Verification (NEW)
+docs/orchestration/workflow.md:162:## Step 5: Synthesis
+```
+
+### Finding 6 — MD001 heading increment
+
+Observed (rg "Blocked Sync Point Example|SP2: Frontend UI Ready" docs/orchestration/PARALLEL_WORK_PROTOCOL.md):
+
+```text
+docs/orchestration/PARALLEL_WORK_PROTOCOL.md:239:## Blocked Sync Point Example
+docs/orchestration/PARALLEL_WORK_PROTOCOL.md:241:### SP2: Frontend UI Ready
 ```
 
 ---
