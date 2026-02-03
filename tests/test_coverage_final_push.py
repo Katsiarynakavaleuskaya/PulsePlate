@@ -189,6 +189,7 @@ class TestFinalCoveragePush:
             response = client.post("/bmi", json=payload)
             assert response.status_code in [200, 422]  # Success or validation error
             if response.status_code == 200:
+                assert response.headers.get("content-type", "").startswith("application/json")
                 data = response.json()
                 assert "bmi" in data
 

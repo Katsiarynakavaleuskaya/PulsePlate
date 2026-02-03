@@ -604,6 +604,7 @@ Source of truth:
 - **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
 - **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
+- **Never call `response.json()` without asserting `Content-Type` starts with `application/json`** — prevents cryptic errors when endpoint returns HTML or plain text on error.
 - **Type hints required for all new or modified functions** (including tests).
 - OK: `def test_x(vip_headers: dict[str, str]) -> None:` or `def test_x(pro_headers: dict[str, str]) -> None:`
 - Not OK: `def test_x(vip_headers):` (missing types)

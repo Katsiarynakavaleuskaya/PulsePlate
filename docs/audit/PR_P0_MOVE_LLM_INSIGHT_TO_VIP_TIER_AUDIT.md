@@ -4,7 +4,7 @@
 **Branch:** `fix/p0-vip-guard-insight`
 **Ledger item (source of truth):** `docs/roadmap/BACKLOG_LEDGER.md` → “P0 CRITICAL: Move LLM insight to VIP tier”
 
-### Goal
+# Goal
 
 - Make all LLM-backed “insight” endpoints **VIP-only** to prevent FREE/PRO access to expensive LLM calls.
 - Ensure there is **no public unguarded** insight path.
