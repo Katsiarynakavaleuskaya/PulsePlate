@@ -1,6 +1,7 @@
 import math
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import legacy_app
@@ -91,6 +92,20 @@ def test_targets_in_accepts_numeric_strings(payload: dict[str, object]) -> None:
             "micro": {"vitamin_c_mg": 90.0},
             "water_ml": 2000,
         },
+        # micro invalid (negative)
+        {
+            "kcal": 2000,
+            "macros": {"protein_g": 150.0},
+            "micro": {"vitamin_c_mg": -1.0},
+            "water_ml": 2000,
+        },
+        # water_ml invalid (negative)
+        {
+            "kcal": 2000,
+            "macros": {"protein_g": 150.0},
+            "micro": {"vitamin_c_mg": 90.0},
+            "water_ml": -1,
+        },
     ],
 )
 def test_targets_in_rejects_invalid_values(payload: dict[str, object]) -> None:
@@ -106,7 +121,7 @@ def test_targets_in_rejects_invalid_values(payload: dict[str, object]) -> None:
 
 
 def test_legacy_week_endpoint_accepts_numeric_string_targets(
-    client, api_key: str, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, vip_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """RU: Legacy endpoint не должен ломаться при targets с числовыми строками.
     EN: Legacy endpoint must not break when targets contains numeric strings.
@@ -115,6 +130,8 @@ def test_legacy_week_endpoint_accepts_numeric_string_targets(
     import app as app_module
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    # Legacy API-key guard compares against env API_KEY; align it to the VIP test key.
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
     monkeypatch.setattr(app_module, "make_weekly_menu", _weekly_menu_stub)
 
     payload = {
@@ -130,25 +147,31 @@ def test_legacy_week_endpoint_accepts_numeric_string_targets(
             "water_ml": 2000,
         },
     }
-    r = client.post("/api/v1/premium/plan/week", json=payload, headers={"X-API-Key": api_key})
+    r = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)
     assert r.status_code == 200, r.text
+
+    data = r.json()
+    assert isinstance(data, dict)
+    for key in ("weekly_coverage", "shopping_list", "total_cost"):
+        assert key in data
+    assert isinstance(data["weekly_coverage"], dict)
+    assert isinstance(data["shopping_list"], dict)
+    assert isinstance(data["total_cost"], (int, float))
 
 
 @pytest.mark.parametrize(
-    "bad_macros",
+    "bad_targets",
     [
-        {"protein_g": True},
-        # JSON payload cannot carry NaN/Inf floats; send strings to hit the same validator branch.
-        {"protein_g": "nan"},
-        {"protein_g": "inf"},
-        {"protein_g": -1.0},
+        {"macros": {"protein_g": True}},
+        {"micro": {"vitamin_c_mg": -1.0}},
+        {"water_ml": -1},
     ],
 )
 def test_legacy_week_endpoint_rejects_invalid_targets_values(
-    client,
-    api_key: str,
+    client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
-    bad_macros: dict[str, object],
+    bad_targets: dict[str, object],
 ) -> None:
     """RU: Legacy endpoint отклоняет невалидные значения в structured targets (contract no-break).
     EN: Legacy endpoint rejects invalid values in structured targets (contract no-break).
@@ -157,20 +180,24 @@ def test_legacy_week_endpoint_rejects_invalid_targets_values(
     import app as app_module
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
     monkeypatch.setattr(app_module, "make_weekly_menu", _weekly_menu_stub)
 
-    payload = {
+    targets: dict[str, object] = {
+        "kcal": 2000,
+        "macros": {"protein_g": 150.0},
+        "micro": {"vitamin_c_mg": 90.0},
+        "water_ml": 2000,
+    }
+    targets.update(bad_targets)
+
+    payload: dict[str, object] = {
         "sex": "male",
         "age": 30,
         "height_cm": 175,
         "weight_kg": 70,
         "activity": "moderate",
-        "targets": {
-            "kcal": 2000,
-            "macros": bad_macros,
-            "micro": {"vitamin_c_mg": 90.0},
-            "water_ml": 2000,
-        },
+        "targets": targets,
     }
-    r = client.post("/api/v1/premium/plan/week", json=payload, headers={"X-API-Key": api_key})
+    r = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)
     assert r.status_code == 422, r.text
