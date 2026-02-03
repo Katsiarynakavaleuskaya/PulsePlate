@@ -22,13 +22,19 @@ class TestCoverage97UltimateFinal:
         os.environ.pop("API_KEY", None)
 
     def test_app_openapi_schema(self) -> None:
-        """Test OpenAPI schema generation."""
+        """Test OpenAPI schema generation and verify /insight is hidden."""
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/openapi.json")
         assert response.status_code in [200, 500, 503]
+        assert response.headers.get("content-type", "").startswith("application/json")
         schema = response.json()
         assert "openapi" in schema
         assert "info" in schema
+
+        # Verify legacy /insight is hidden from OpenAPI, canonical /api/v1/insight is visible
+        paths = schema.get("paths", {})
+        assert "/insight" not in paths
+        assert "/api/v1/insight" in paths
 
     def test_app_docs_endpoint(self) -> None:
         """Test docs endpoint."""

@@ -47,4 +47,44 @@ def test_insight_v1_requires_vip_tier(
     assert data["insight"].startswith("ok:")
 
 
+def test_insight_legacy_requires_vip_tier(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    """FREE/PRO are rejected; VIP can call legacy /insight (VIP-only).
+
+    Note: Legacy /insight is hidden from OpenAPI but still VIP-guarded.
+    """
+    import llm
+
+    class EchoProvider:
+        name = "echo"
+
+        async def generate(self, text: str) -> str:
+            return f"ok:{text}"
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
+
+    payload = {"text": "hello"}
+
+    # FREE → 403
+    r_free = client.post("/insight", json=payload)
+    assert r_free.status_code == 403
+
+    # PRO → 403
+    r_pro = client.post("/insight", json=payload, headers=pro_headers)
+    assert r_pro.status_code == 403
+
+    # VIP → 200
+    r_vip = client.post("/insight", json=payload, headers=vip_headers)
+    assert r_vip.status_code == 200
+    assert r_vip.headers.get("content-type", "").startswith("application/json")
+    data = r_vip.json()
+    assert data["provider"] == "echo"
+    assert data["insight"].startswith("ok:")
+
+
 # End of file
