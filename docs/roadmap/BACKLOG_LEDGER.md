@@ -458,6 +458,20 @@ If it is not recorded here — it does not exist.
     - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
     - Trivy Code Scanning alerts remain closed on `main`
 
+- [ ] Resolve pip CVE-2026-1703 (pip 25.2 → 26.0+) in Docker image (GitHub alerts #533/#534)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-636
+  - Status: 🟡 In progress
+  - Reason: Code Scanning alerts #533/#534 report CVE-2026-1703 for `pip 25.2` detected in two locations inside the built image (`/usr/local/lib/...` and `/opt/venv/lib/...`). Fix is to ensure Docker build upgrades pip to ≥26.0 (without exact pin in Dockerfile per policy).
+  - Links:
+    - GitHub alerts #533 / #534
+    - `Dockerfile` (builder venv + runtime-base system pip)
+    - `.github/workflows/trivy.yml` (builds `production` target and scans the image)
+  - DoD:
+    - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
+    - Alerts #533/#534 are closed on `main` after the next scan
+
 - [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

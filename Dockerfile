@@ -20,6 +20,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PIP_NO_PYTHON_VERSION_WARNING=1
 
+# SECURITY (CVE-2026-1703):
+# Ensure pip is upgraded in the venv before installing dependencies.
+# Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+RUN /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "pip>=26.0,<27.0"
+
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt && \
@@ -42,6 +47,12 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app"
+
+# SECURITY (CVE-2026-1703):
+# The base image may ship with an affected pip (e.g., 25.2) in system site-packages.
+# Upgrade it so scanners do not detect pip 25.2 at /usr/local/lib/... in the runtime image.
+# Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.0,<27.0"
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
 # NOTE: libtasn1-6 comes transitively via libgnutls30 (required for TLS/HTTPS).
