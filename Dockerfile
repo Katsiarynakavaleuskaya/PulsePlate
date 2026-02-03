@@ -8,7 +8,6 @@ ARG PIP_VERSION_RANGE="pip>=26.0,<27.0"
 FROM python:3.13.6-slim-bookworm AS builder
 
 # Set build arguments
-ARG PIP_VERSION_RANGE
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
@@ -24,8 +23,13 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_PYTHON_VERSION_WARNING=1
 
+# Centralize pip version range (SoT) for CVE fixes.
+ARG PIP_VERSION_RANGE
+
 # SECURITY (CVE-2026-1703):
 # Ensure pip is upgraded in the venv before installing dependencies.
+# We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
+# requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
 RUN /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
 
@@ -58,6 +62,8 @@ ENV PYTHONUNBUFFERED=1 \
 # SECURITY (CVE-2026-1703):
 # The base image may ship with an affected pip (e.g., 25.2) in system site-packages.
 # Upgrade it so scanners do not detect pip 25.2 at /usr/local/lib/... in the runtime image.
+# We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
+# requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
 RUN python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
 
