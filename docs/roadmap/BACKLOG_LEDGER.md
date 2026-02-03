@@ -206,19 +206,6 @@ If it is not recorded here — it does not exist.
     - Tests verify rate-limiting works (429 responses when limit exceeded)
     - Cost tracking added (token usage, API calls)
 
-- [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL)
-  - Target PR: PR-629
-  - Status: 📋 Ready to start
-  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
-  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
-  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update
-  - DoD:
-    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
-    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
-    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
-
 ### P0 Move LLM insight to VIP tier
 
 - [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
@@ -458,11 +445,11 @@ If it is not recorded here — it does not exist.
     - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
     - Trivy Code Scanning alerts remain closed on `main`
 
-- [ ] Resolve pip CVE-2026-1703 (pip 25.2 → 26.0+) in Docker image (GitHub alerts #533/#534)
+- [x] Resolve pip CVE-2026-1703 (pip 25.2 → 26.0+) in Docker image (GitHub alerts #533/#534)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-636
-  - Status: 🟡 In progress
+  - Status: ✅ Merged (PR-636)
   - Reason: Code Scanning alerts #533/#534 report CVE-2026-1703 for `pip 25.2` detected in two locations inside the built image (`/usr/local/lib/...` and `/opt/venv/lib/...`). Fix is to ensure Docker build upgrades pip to ≥26.0 (without exact pin in Dockerfile per policy).
   - Links:
     - GitHub alerts #533 / #534
@@ -470,7 +457,7 @@ If it is not recorded here — it does not exist.
     - `.github/workflows/trivy.yml` (builds `production` target and scans the image)
   - DoD:
     - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
-    - Alerts #533/#534 are closed on `main` after the next scan
+    - 🔄 ждём next scan, чтобы alerts #533/#534 закрылись (merged ≠ scanner rerun)
 
 - [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
@@ -596,7 +583,8 @@ If it is not recorded here — it does not exist.
 - [ ] Standardize audit verification blocks (require minimal stdout excerpt)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: TBD
+  - Target PR: PR-637
+  - Status: 🟡 In progress (PR-637)
   - Reason: Audit items labeled “Verified” must include minimal observed stdout evidence (1–3 lines) to remain reproducible and reviewable.
   - Links:
     - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md (section F)

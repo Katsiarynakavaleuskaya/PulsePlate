@@ -748,11 +748,14 @@ This rule exists to prevent accidental regressions, keep PR reviews focused and 
 
 ### Verification-audit rule (docs/audit/*)
 
-- Any audit labeled **"Verified"** MUST include minimal **observed output** (1–3 lines) for each key evidence command.
+- Any audit labeled **"Verified"** MUST include, for each key evidence command:
+  - the command (single line)
+  - minimal **observed output** (1–3 raw stdout/rg lines)
+  - **exit code**
 - If observed output is missing, the audit is an **Opinion**, not **Evidence** (must not be treated as verified).
 
 **Canonical policy:** This section in `AGENTS.md` is the source of truth.
-**Last updated:** 2026-01-11
+**Last updated:** 2026-02-03
 
 Violation of this rule blocks merge.
 
