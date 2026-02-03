@@ -378,8 +378,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
   - Evidence:
-    - `app/schemas/nutrition_targets.py` (import-safe schema)
-    - `legacy_app.py` (`TargetsIn` used in legacy endpoints)
+    - `app/schemas/nutrition_targets.py:L1-L58` (import-safe schema + `TargetsIn` validators)
+    - `legacy_app.py:L2879-L2919` (`legacy_app.TargetsIn` definition)
+    - `legacy_app.py:L2939-L2954` (`TargetsIn.model_validate(...)` use in legacy request validator)
   - DoD:
     - One canonical schema (single source of truth) with a thin wrapper/alias where needed
     - Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
@@ -394,7 +395,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - PR #631 (remediation): moved ORM model import from module-level to lazy-import inside handlers
   - Evidence:
-    - `app/routers/nutrition_log.py` (repeated lazy imports of `NutritionEvent`)
+    - `app/routers/nutrition_log.py:L68-L84` (lazy-import inside `_fetch_existing_event`)
+    - `app/routers/nutrition_log.py:L172-L176` (lazy-import inside `log_meal`)
+    - `app/routers/nutrition_log.py:L241-L245` (lazy-import inside `close_day`)
   - DoD:
     - Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
     - Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
