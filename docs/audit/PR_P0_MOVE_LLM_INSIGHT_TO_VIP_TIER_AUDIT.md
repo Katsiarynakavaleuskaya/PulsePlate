@@ -49,9 +49,9 @@ compat only), without breaking known clients.
 ## 3) Current auth/tier logic (evidence)
 
 - VIP tier dependency exists and is canonical:
-  - `app/middleware/api_tiers.py:205+` (`require_vip_tier`)
+  - `app/middleware/api_tiers.py` → function `require_vip_tier()`
 - Test fixtures for tiered access exist:
-  - `tests/conftest.py:539-566` (`pro_headers`, `vip_headers`)
+  - `tests/conftest.py` → fixtures `pro_headers`, `vip_headers`
 
 ---
 
