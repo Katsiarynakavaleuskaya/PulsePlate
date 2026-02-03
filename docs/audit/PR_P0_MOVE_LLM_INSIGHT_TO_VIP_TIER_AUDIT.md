@@ -1,7 +1,7 @@
 ## PR (P0): Move LLM insight to VIP tier — Audit (evidence-first)
 
-**Date:** 3 February 2026  
-**Branch:** `fix/p0-vip-guard-insight`  
+**Date:** 3 February 2026
+**Branch:** `fix/p0-vip-guard-insight`
 **Ledger item (source of truth):** `docs/roadmap/BACKLOG_LEDGER.md` → “P0 CRITICAL: Move LLM insight to VIP tier”
 
 ### Goal
@@ -97,4 +97,3 @@ with `vip_headers`, so the tests continue to validate “no error detail leakage
 - VIP can call insight: `200`
 - No public unguarded `/insight` (either removed or VIP-guarded + hidden)
 - Targeted pytest suite green + `make verify` green
-
