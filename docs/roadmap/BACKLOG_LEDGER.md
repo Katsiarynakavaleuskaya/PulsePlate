@@ -186,24 +186,26 @@ If it is not recorded here — it does not exist.
     - ✅ SoT guard test remains green (no regression)
     - ✅ CI green; PR merged
 
-- [ ] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
+- [x] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
-  - Target PR: PR-628
-  - Status: 👀 In review
-  - Reason: `/api/v1/insight` and `/insight` endpoints have no rate-limiting → potential $72k/month abuse via unlimited LLM API calls. Rate-limiting code exists but is commented out (legacy_app.py:1251-1256). PDF exports also lack rate-limiting (DoS risk).
+  - Target PR: PR-639 (supersedes PR-628)
+  - Status: ✅ Done (superseded by PR-639)
+  - Reason: Close PR-628 via PR-639: audit drift fixed (runtime wiring + proxy-aware CIDR client key + deterministic tests are present) and 429 OpenAPI schema standardized for VIP export; OpenAPI artifacts regenerated.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
     - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
     - core/insight/analysis_insights.md ($72k/month potential abuse)
     - docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/628>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/639>
   - DoD:
-    - Uncomment and configure rate-limiting (slowapi)
-    - Add `@limiter.limit("10/minute")` to `/api/v1/insight` (or use `RATE_LIMIT_INSIGHT` env override)
-    - Add `@limiter.limit("20/minute")` to export endpoints (or use `RATE_LIMIT_EXPORTS` env override)
+    - ✅ Rate-limiting wired in runtime (SlowAPI middleware + 429 handler)
+    - ✅ Proxy-aware key function supports trusted proxies with CIDR + CF/XFF precedence
+    - ✅ `@limit_if_available(RATE_LIMIT_INSIGHT)` on `/api/v1/insight` + `/insight`
+    - ✅ `@limit_if_available(RATE_LIMIT_EXPORTS)` on export endpoints (plan/shoplist/VIP export + legacy demo exports when enabled)
     - WebSocket: N/A (no endpoints found; see WebSocket investigation item)
-    - Tests verify rate-limiting works (429 responses when limit exceeded)
+    - ✅ Tests verify rate-limiting works (deterministic 200→429)
     - Cost tracking added (token usage, API calls)
 
 ### P0 Move LLM insight to VIP tier
