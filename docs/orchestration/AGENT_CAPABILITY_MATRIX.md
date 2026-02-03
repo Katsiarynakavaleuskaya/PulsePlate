@@ -33,17 +33,12 @@ Coordinator may assign agents outside their primary domain if justified.
 
 ---
 
-## Review Enforcement Rule
+## Семантика review (Formal vs Advisory)
 
-**Formal review** может выполняться ТОЛЬКО агентами,
-явно перечисленными в колонке **Can Review**.
+**Formal review** разрешён ТОЛЬКО агентам, перечисленным в колонке **Can Review**.
+Все остальные участия — это **advisory consultation** (консультация), а не formal review.
 
-Другие агенты могут:
-- участвовать в обсуждении,
-- давать консультации,
-- указывать риски и альтернативы,
-
-но это **НЕ считается formal review**.
+(EN: Formal review is limited to agents listed in “Can Review”; others may only provide advisory consultation.)
 
 ---
 

@@ -51,16 +51,17 @@ Rationale (обоснование): предотвратить бесконеч�
 
 ## Правило вмешательства координатора (Coordinator Intervention Rule)
 
-Координатор НЕ ДОЛЖЕН:
+**Координатор НЕ ДОЛЖЕН**:
 - предлагать решения,
 - делать synthesis,
-- принимать решения
+- принимать финальные решения
 
 до завершения **Iteration 3**.
 
-Единственное исключение:
-- координатор уточняет ограничения или критерии успеха,
-  НЕ предлагая решений и НЕ синтезируя выводы.
+**Единственное исключение:** координатор может уточнять constraints / критерии успеха,
+**не предлагая решений** и **не синтезируя выводы**.
+
+(EN: Coordinator must not propose solutions/synthesis/decisions until Iteration 3 completes. Only allowed: clarifying constraints/success criteria without proposing solutions.)
 
 ---
 
@@ -300,42 +301,43 @@ Rationale (обоснование): предотвратить бесконеч�
 
 ---
 
-### Итерация 3 (конвергенция агентов)
+### Iteration 3 (Agents convergence)
 
 #### Architecture Specialist + AI Innovation Specialist + Security Auditor (consensus)
 
-**Итоговый подход:** ChromaDB (локальные эмбеддинги)
+**Final approach:** ChromaDB (local embeddings)
 
-**Обоснование (Rationale):**
-- latency < 500ms подтверждена
-- низкая стоимость
-- минимальный security risk
-- отсутствие vendor lock-in
+**Rationale:**
+- Meets latency requirement (350ms < 500ms)
+- No API costs
+- No vendor lock-in
+- Simpler security model
 
-**Принятые trade-offs:**
-- необходимость поддержки embedding модели локально
+**Trade-offs accepted:**
+- Slightly slower than Pinecone (acceptable)
+- Need to manage embedding model (acceptable)
 
-**План имплементации:**
-1. Установить ChromaDB
-2. Реализовать кэширование эмбеддингов
-3. Провести бенчмарк на реальных данных
-4. Документировать план отката на Pinecone при деградации латентности
+**Implementation plan:**
+1. Install ChromaDB
+2. Implement embedding cache
+3. Benchmark with real data
+4. Document rollback to Pinecone if latency degrades
 
-**Marker:** ✅ консенсус достигнут (`consensus reached`)
+**Marker:** ✅ Consensus reached
 
 ---
 
-### После итерации 3: запись координатора (без новых решений)
+### After Iteration 3: Coordinator Record (no new decisions)
 
 #### Coordinator (record only)
 
-**Зафиксированный итог:**
-- Консенсус достигнут в итерации 3
-- Итоговый подход: ChromaDB (локальные эмбеддинги)
+**Outcome recorded:**
+- Consensus reached in Iteration 3
+- Final approach: ChromaDB (local embeddings)
 
-**Примечания (Notes):**
-- `forced decision` не требуется
-- Follow-ups (если есть) фиксируем в `BACKLOG_LEDGER.md`
+**Notes:**
+- No forced decision needed
+- Any follow-ups should be recorded in `BACKLOG_LEDGER.md` if deferred
 
 ---
 

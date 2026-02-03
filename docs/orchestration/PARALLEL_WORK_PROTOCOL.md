@@ -238,7 +238,7 @@ Coordinator Synthesis
 
 ## Blocked Sync Point Example
 
-#### SP2: Frontend UI Ready
+### SP2: Frontend UI Ready
 
 **Status:** ❌ Blocked
 

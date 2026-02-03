@@ -44,7 +44,39 @@ Task
 - Agent(s) assigned
 - Expected outcome defined
 
-**Pre-flight Checklist:** See `.cursor/agents/agent-coordinator.md` (mandatory).
+**Pre-flight Checklist (SoT):** See “Canonical Pre-flight Checklist (SoT)” below (mandatory).
+
+---
+
+## Canonical Pre-flight Checklist (SoT)
+
+**Канон:** этот чек-лист — единственный source of truth для “Pre-flight Checklist”.
+Все остальные документы **не дублируют пункты**, а **ссылаются сюда**.
+
+(EN: This checklist is the single source of truth; other docs must link here.)
+
+### Pre-flight Checklist
+
+#### 1) Context loading
+- [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)
+- [ ] Загружен `RUNBOOK_AGENT.md` (операционные команды/проверки)
+- [ ] Определены затронутые модули (core/app/frontend/ios/tests/…)
+- [ ] Загружены `AGENTS.md` для **каждого** затронутого модуля
+
+#### 2) Contract docs (если меняется API/схемы/tiers)
+- [ ] Загружены релевантные contract-docs (например `API_CANONICAL_MAP`, `PRODUCT_TIER_MAP`,
+  `OPENAPI_VISIBILITY_MATRIX`, `soft_paywall`)
+
+#### 3) Quality gates
+- [ ] Ясно какие проверки обязательны (pytest/coverage/mypy/lint/openapi determinism/guards)
+- [ ] Список guard-тестов для задачи понятен
+
+#### 4) Routing readiness
+- [ ] Назначен primary agent
+- [ ] Назначены secondary agents (если multi-domain)
+- [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
+
+**Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
 
 ---
 
@@ -79,7 +111,7 @@ Task
 
 ---
 
-## Step 5.5: Post-flight Verification (NEW)
+## Step 4: Post-flight Verification (NEW)
 
 **When:** After Work Review, before Synthesis
 
@@ -118,9 +150,9 @@ Task
 
 ---
 
-## Step 4: Synthesis
+## Step 5: Synthesis
 
-**When:** After Work Review (especially for multi-agent tasks)
+**When:** After Post-flight Verification
 
 **Action:** Coordinator synthesizes outputs into coherent solution
 
@@ -133,7 +165,7 @@ Task
 
 ---
 
-## Step 5: DoD (Definition of Done)
+## Step 6: DoD (Definition of Done)
 
 **When:** Before PR merge
 

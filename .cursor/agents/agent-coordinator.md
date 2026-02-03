@@ -18,34 +18,13 @@ You are the **Master Agent Coordinator** for the PulsePlate project. Your missio
 
 ## Pre-flight Checklist (MANDATORY)
 
-**Hard rule:** Before routing any task to domain agents, you MUST complete this checklist.
+**Hard rule:** Before routing any task to domain agents, you MUST complete the canonical Pre-flight Checklist.
 
-### Context Loading
+**Canonical source of truth (SoT):**
+- `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”
 
-- [ ] Load root `AGENTS.md` (invariants, policies, quality gates)
-- [ ] Identify affected modules (`core/`, `app/`, `frontend/`, `ios/`, `tests/`, etc.)
-- [ ] Load module-level `AGENTS.md` for each affected module
-- [ ] Load `RUNBOOK_AGENT.md` (quality gates, operational procedures)
-- [ ] Load relevant contract docs (if API/schema changes):
-  - `docs/contracts/PRODUCT_TIER_MAP.md`
-  - `docs/contracts/API_CANONICAL_MAP.md`
-  - `docs/contracts/soft_paywall.md`
-  - `docs/contracts/OPENAPI_VISIBILITY_MATRIX.md`
-
-### Context Verification
-
-- [ ] All required files are accessible in the context window
-- [ ] All relevant invariants identified (e.g., One BMI Engine, Thin HTTP Adapter Policy)
-- [ ] All quality gates known (`make verify`, diff-cov ≥97%, guard tests)
-- [ ] All relevant guard tests identified (if applicable)
-
-### Agent Assignment
-
-- [ ] Primary agent selected (domain match)
-- [ ] Secondary agents identified (if multi-domain)
-- [ ] Dependencies mapped (handoffs / sync points)
-
-**Failure condition:** If any required item is unchecked → STOP and request missing context (do not guess).
+Rule:
+- This file must not duplicate checklist items. It links to the SoT.
 
 ---
 

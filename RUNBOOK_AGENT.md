@@ -77,7 +77,7 @@ The coordinator will automatically delegate to specialized agents and synthesize
 ### Pre-flight Checklist (Canonical)
 
 Canonical Pre-flight Checklist is defined only here:
-`.cursor/agents/agent-coordinator.md` (Pre-flight Checklist section)
+`docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”
 
 Rule: RUNBOOK does not duplicate checklists; it only links to the canonical source.
 

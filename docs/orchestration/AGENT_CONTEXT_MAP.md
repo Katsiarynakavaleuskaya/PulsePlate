@@ -19,10 +19,18 @@ This map reduces “missing context” failures by making required inputs explic
 
 ### Coordinator (`agent-coordinator`)
 
-**Primary (always required):**
+**Обязательный минимум (всегда):**
 - `AGENTS.md` (root) — invariants, policies, quality gates
 - `RUNBOOK_AGENT.md` — operational procedures
-- `docs/orchestration/*` — workflow + templates + protocols
+
+**Условно (только если нужно):**
+- `docs/orchestration/*` — **только** когда:
+  - задача multi-agent (handoff / parallel / dialogue),
+  - требуется формальное применение workflow,
+  - есть неоднозначность и нужен протокол принятия решения,
+  - или изменяется сама orchestration-layer.
+
+(EN: Orchestration docs are conditional; load them only for multi-agent or when the workflow is required.)
 
 **Secondary (task-dependent):**
 - Nearest module `AGENTS.md` for every affected module:
@@ -122,12 +130,10 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-## Pre-flight Context Verification (Coordinator)
+## Verification Protocol
 
-Context verification is performed as part of the canonical Pre-flight Checklist defined in:
-`.cursor/agents/agent-coordinator.md`
-
-This document is a reference map (what to load), not the checklist source of truth.
+Канонический checklist не дублируем.
+См. `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 
 ---
 
