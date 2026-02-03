@@ -1273,8 +1273,10 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
    - Reason for deferral
    - Links to relevant audit/docs
    - DoD (acceptance criteria)
-3. Every PR description MUST include a "Deferred / Follow-ups" section with links to ledger items (and GitHub issues if present).
-4. Closing a ledger item requires:
+3. Backlog entries must be English-first; non-English text MUST include an English summary on the same line.
+   Automated review bots may block PRs that violate English-first ledger entries.
+4. Every PR description MUST include a "Deferred / Follow-ups" section with links to ledger items (and GitHub issues if present).
+5. Closing a ledger item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
 **Agent enforcement:**
