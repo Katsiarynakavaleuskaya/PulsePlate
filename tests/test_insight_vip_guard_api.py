@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 class _EchoProvider:
     """Deterministic mock provider for insight tests."""
 
-    name = "echo"
+    name: str = "echo"
 
     async def generate(self, text: str) -> str:
         return f"ok:{text}"
