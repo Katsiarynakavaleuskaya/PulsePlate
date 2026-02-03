@@ -32,6 +32,7 @@ from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     StrictFloat,
     ValidationError,
@@ -2881,6 +2882,8 @@ class TargetsIn(BaseModel):
     Similar to app.routers.premium_week.TargetsIn but used in main app endpoints.
     """
 
+    model_config = ConfigDict(title="LegacyTargetsIn")
+
     kcal: int = Field(..., gt=500, lt=6000)
     macros: Dict[str, float]
     micro: Dict[str, float]
@@ -2916,13 +2919,15 @@ class TargetsIn(BaseModel):
         return v
 
 
-class WeekPlanRequest(WHOTargetsRequest):
+class LegacyWeekPlanRequest(WHOTargetsRequest):
     """Extended request for week plan with optional pre-calculated targets.
 
     Supports two modes:
     - Mode A: With targets (pre-calculated nutrition goals)
     - Mode B: Calculate targets from user profile (sex, age, etc.)
     """
+
+    model_config = ConfigDict(title="LegacyWeekPlanRequest")
 
     # Make base fields optional when targets are provided
     sex: Optional[Sex] = None  # type: ignore[assignment]
@@ -2932,7 +2937,7 @@ class WeekPlanRequest(WHOTargetsRequest):
     activity: Optional[Activity] = None  # type: ignore[assignment]
 
     @model_validator(mode="after")
-    def _validate_request_mode(self) -> "WeekPlanRequest":
+    def _validate_request_mode(self) -> "LegacyWeekPlanRequest":
         """Ensure either targets or profile data is provided.
 
         - If ``targets`` contains a structured payload with ``macros`` / ``micro``,
@@ -4267,7 +4272,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     response_model=WeeklyMenuResponse,
     deprecated=True,
 )
-async def api_weekly_menu(req: WeekPlanRequest) -> WeeklyMenuResponse:
+async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
     """
     RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.

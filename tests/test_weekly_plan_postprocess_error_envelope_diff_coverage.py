@@ -51,12 +51,12 @@ def test_pro_weekly_returns_error_envelope_on_postprocess_failure(
         raising=True,
     )
 
-    # Force postprocess (WeekPlanResponse(**week)) to fail.
+    # Force postprocess (ProWeekPlanResponse(**week)) to fail.
     class BoomWeekPlanResponse:
         def __init__(self, **_kwargs: Any) -> None:
             raise ValueError("postprocess failed")
 
-    monkeypatch.setattr(pro_router, "WeekPlanResponse", BoomWeekPlanResponse, raising=True)
+    monkeypatch.setattr(pro_router, "ProWeekPlanResponse", BoomWeekPlanResponse, raising=True)
 
     resp = client.post(
         "/api/v1/pro/meal/weekly",
@@ -96,7 +96,9 @@ def test_premium_weekly_returns_error_envelope_on_postprocess_failure(
         def __init__(self, **_kwargs: Any) -> None:
             raise ValueError("postprocess failed")
 
-    monkeypatch.setattr(premium_router, "WeekPlanResponse", BoomWeekPlanResponse, raising=True)
+    monkeypatch.setattr(
+        premium_router, "PremiumWeekPlanResponse", BoomWeekPlanResponse, raising=True
+    )
 
     resp = client.post(
         "/api/v1/premium/plan/week-flexible",

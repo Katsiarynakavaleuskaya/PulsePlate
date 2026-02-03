@@ -1,6 +1,7 @@
 """Test that OpenAPI generation is deterministic across multiple runs."""
 
 import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -39,6 +40,19 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    # Sanity-check: generator must produce FULL schema (no schema-only markers) and include
+    # key endpoints that were previously excluded behind schema-only mode.
+    schema = json.loads(openapi_path.read_text(encoding="utf-8"))
+    info = schema.get("info") or {}
+    assert info.get("x-openapi-mode") != "schema-only"
+    paths = schema.get("paths") or {}
+    assert "/api/v1/pro/meal/weekly" in paths
+    assert "/api/v1/pro/nutrition/daily" in paths
+    assert "/api/v1/pro/nutrition/meal-log" in paths
+    assert "/api/v1/premium/plan/week-flexible" in paths
+    assert "/api/v1/pro/bmi/calculate" in paths
+    assert "/api/v1/business/analyze" in paths
+
     h1: tuple[str, str] = (_sha256(openapi_path), _sha256(schema_path))
 
     subprocess.check_call(
@@ -70,10 +84,8 @@ def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> N
 
     from app.routers.pro_registration import register_pro_routes
 
-    # Ensure we are NOT in schema-only mode so openapi_mode resolves to False
-    monkeypatch.delenv("PULSEPLATE_OPENAPI", raising=False)
-    monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("ENVIRONMENT", "test")
+    # Ensure feature flags do not accidentally alter the cached early-return path.
+    monkeypatch.setenv("FEATURE_PREMIUM_WEEK_ENABLED", "true")
 
     app = FastAPI()
 
@@ -81,7 +93,6 @@ def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> N
     sentinel_pro = APIRouter()
     sentinel_week = APIRouter()
     app.state._pro_routes_registered = True
-    app.state._pro_routes_registered_openapi_mode = False
     app.state._cached_pro_router = sentinel_pro
     app.state._cached_premium_week_router = sentinel_week
 

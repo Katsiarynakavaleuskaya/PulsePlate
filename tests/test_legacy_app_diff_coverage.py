@@ -520,7 +520,7 @@ async def test_week_plan_missing_required_fields_raises_422(
     model_construct.
     """
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    req = legacy_app.WeekPlanRequest.model_construct(
+    req = legacy_app.LegacyWeekPlanRequest.model_construct(
         sex=None,
         age=None,
         height_cm=None,

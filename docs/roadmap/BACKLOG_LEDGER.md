@@ -253,6 +253,9 @@ If it is not recorded here — it does not exist.
     - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
     - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
     - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
+  - Notes (3 February 2026, America/New_York):
+    - Fix: close leaked TestClients (context-managed `tests/conftest.py::client` + close in `tests/test_nutrition_log_api.py` teardown) to ensure lifespan runs deterministically under xdist.
+    - Verification (local): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed; CI link: TBD (after run completes).
 
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
@@ -368,6 +371,40 @@ If it is not recorded here — it does not exist.
     - Move ORM model imports to runtime (inside handlers/dependencies/services), one router at a time
     - OpenAPI generation works with routers enabled
     - Determinism test stays green
+
+- [ ] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (drift prevention)
+  - Target PR: TBD (follow-up after PR-631)
+  - Status: 📋 Ready to start
+  - Reason: There are currently two `TargetsIn` schemas (`legacy_app.TargetsIn` and `app.schemas.nutrition_targets.TargetsIn`). This is a potential source of drift over time, even though PR-631 intentionally kept them separate to stay scope-minimal (remediation only).
+  - Links:
+    - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
+  - Evidence:
+    - `app/schemas/nutrition_targets.py:L1-L58` (import-safe schema + `TargetsIn` validators)
+    - `legacy_app.py:L2879-L2919` (`legacy_app.TargetsIn` definition)
+    - `legacy_app.py:L2939-L2954` (`TargetsIn.model_validate(...)` use in legacy request validator)
+  - DoD:
+    - One canonical schema (single source of truth) with a thin wrapper/alias where needed
+    - Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
+    - No contract break for legacy endpoints (explicitly verified in tests)
+
+- [ ] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability / import hygiene)
+  - Target PR: TBD (follow-up after PR-631)
+  - Status: 📋 Ready to start
+  - Reason: `app.routers.nutrition_log` uses repeated lazy-import of `NutritionEvent` model to avoid import-time ORM side effects. A tiny helper (import-safe) would reduce duplication and make future additions safer.
+  - Links:
+    - PR #631 (remediation): moved ORM model import from module-level to lazy-import inside handlers
+  - Evidence:
+    - `app/routers/nutrition_log.py:L68-L84` (lazy-import inside `_fetch_existing_event`)
+    - `app/routers/nutrition_log.py:L172-L176` (lazy-import inside `log_meal`)
+    - `app/routers/nutrition_log.py:L241-L245` (lazy-import inside `close_day`)
+  - DoD:
+    - Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
+    - Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
+    - No runtime behavior change (pure refactor)
 
 - [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya

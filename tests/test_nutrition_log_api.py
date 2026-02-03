@@ -6,6 +6,8 @@ EN: Tests for nutrition log endpoints.
 
 from __future__ import annotations
 
+from contextlib import suppress
+
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
@@ -35,34 +37,39 @@ class TestNutritionLogAPI:
             Base.metadata.create_all(bind=raw_engine)
 
     def teardown_method(self) -> None:
-        fastapi_app.dependency_overrides.clear()
-
-        # Clean up analyzer state for this test subject to avoid cross-test interference
-        import core.db as core_db
-
-        # API tests expect DB initialized; if a test called reset_db_for_tests() or otherwise
-        # invalidated the SessionLocal binding, re-init and rebuild the session factory.
-        if core_db.SessionLocal is None:
-            core_db.init_db()
-
-        session_factory = core_db.get_session_factory()
-        session = session_factory()
-        if getattr(session, "bind", None) is None:
-            session.close()
-            core_db.init_db()
-            session = core_db.get_session_factory()()
         try:
-            session.query(AnalyzerStateModel).filter(
-                AnalyzerStateModel.user_id == self.user_id
-            ).delete(synchronize_session=False)
-            session.commit()
-        except OperationalError as exc:
-            if "no such table" in str(exc).lower():
-                session.rollback()
-            else:
-                raise
+            fastapi_app.dependency_overrides.clear()
+
+            # Clean up analyzer state for this test subject to avoid cross-test interference
+            import core.db as core_db
+
+            # API tests expect DB initialized; if a test called reset_db_for_tests() or otherwise
+            # invalidated the SessionLocal binding, re-init and rebuild the session factory.
+            if core_db.SessionLocal is None:
+                core_db.init_db()
+
+            session_factory = core_db.get_session_factory()
+            session = session_factory()
+            if getattr(session, "bind", None) is None:
+                session.close()
+                core_db.init_db()
+                session = core_db.get_session_factory()()
+            try:
+                session.query(AnalyzerStateModel).filter(
+                    AnalyzerStateModel.user_id == self.user_id
+                ).delete(synchronize_session=False)
+                session.commit()
+            except OperationalError as exc:
+                if "no such table" in str(exc).lower():
+                    session.rollback()
+                else:
+                    raise
+            finally:
+                session.close()
         finally:
-            session.close()
+            # Ensure TestClient shutdown runs (prevents leaked background threads in xdist)
+            with suppress(Exception):
+                self.client.close()
 
     def test_meal_log_updates_adherence_state(self) -> None:
         response = self.client.post(

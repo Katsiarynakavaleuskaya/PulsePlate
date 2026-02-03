@@ -19,10 +19,10 @@ from typing import Any, Dict, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.middleware.api_tiers import require_pro_tier
-from app.models.nutrition import TargetsIn
+from app.schemas.nutrition_targets import TargetsIn
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -82,13 +82,15 @@ def get_recipe_db() -> RecipeDB:
     return _recipe_db_cache
 
 
-class WeekPlanRequest(BaseModel):
+class ProWeekPlanRequest(BaseModel):
     """Request model for weekly meal plan generation.
 
     Supports two modes:
     - Mode A: Provide ready targets
     - Mode B: Quick profile (fallback)
     """
+
+    model_config = ConfigDict(title="ProWeekPlanRequest")
 
     # Mode A: Provide ready targets
     targets: Optional[TargetsIn] = None
@@ -105,8 +107,10 @@ class WeekPlanRequest(BaseModel):
     lang: Language = "en"
 
 
-class WeekPlanResponse(BaseModel):
+class ProWeekPlanResponse(BaseModel):
     """Response model for weekly meal plan."""
+
+    model_config = ConfigDict(title="ProWeekPlanResponse")
 
     daily_menus: List[Dict]
     weekly_coverage: Dict[str, float]
@@ -240,7 +244,7 @@ def estimate_targets_minimal(
 
 @router.post(
     "/meal/weekly",
-    response_model=WeekPlanResponse,
+    response_model=ProWeekPlanResponse,
     dependencies=[Depends(require_pro_tier)],
     summary="Generate weekly meal plan (PRO tier)",
     description="""
@@ -259,14 +263,14 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JSONResponse]:
+async def generate_week_plan(req: ProWeekPlanRequest) -> Union[ProWeekPlanResponse, JSONResponse]:
     """Generate weekly meal plan with PRO tier features.
 
     Args:
-        req: WeekPlanRequest with targets or user profile
+        req: ProWeekPlanRequest with targets or user profile
 
     Returns:
-        WeekPlanResponse with daily menus, coverage, shopping list, and metrics
+        ProWeekPlanResponse with daily menus, coverage, shopping list, and metrics
 
     Raises:
         HTTPException: 400 if profile data is missing or invalid
@@ -317,9 +321,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
     # Build week (generation stage) + postprocess (pipeline with ordering guard)
     from core.menu_engine_new import PlateDayTargets
 
-    # Wrap WeekPlanResponse constructor to match postprocess_fn signature
-    def _postprocess_week(week: Dict[str, Any]) -> WeekPlanResponse:
-        return WeekPlanResponse(**week)
+    # Wrap ProWeekPlanResponse constructor to match postprocess_fn signature
+    def _postprocess_week(week: Dict[str, Any]) -> ProWeekPlanResponse:
+        return ProWeekPlanResponse(**week)
 
     result = run_weekly_pipeline_guarded(
         generation_fn=build_week,
@@ -354,9 +358,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
         # IMPORTANT: bypass response_model validation
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    if not isinstance(result, WeekPlanResponse):
+    if not isinstance(result, ProWeekPlanResponse):
         raise TypeError(
-            "Expected WeekPlanResponse from weekly pipeline, "
+            "Expected ProWeekPlanResponse from weekly pipeline, "
             f"got type={type(result).__name__} value={result!r}"
         )
     return result

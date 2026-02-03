@@ -87,6 +87,367 @@
         "title": "AdherenceResponse",
         "type": "object"
       },
+      "BMICalculateProRequest": {
+        "additionalProperties": false,
+        "description": "PRO tier BMI calculation request (extends FREE with hip_cm for WHR).\n\nRU: Запрос расчета BMI для PRO уровня (расширяет FREE с hip_cm для WHR).\nEN: PRO tier BMI calculation request (extends FREE with hip_cm for WHR).",
+        "properties": {
+          "age": {
+            "description": "Age in years. Range: 1-120.",
+            "examples": [
+              25,
+              30,
+              45,
+              65
+            ],
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Age",
+            "type": "integer"
+          },
+          "athlete": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "default": false,
+            "description": "Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by schema.",
+            "examples": [
+              "no",
+              "yes",
+              false,
+              true
+            ],
+            "title": "Athlete"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gender: 'male' or 'female'. Normalized by schema validator. Guaranteed to be str after validation.",
+            "examples": [
+              "male",
+              "female",
+              "муж",
+              "жен",
+              null
+            ],
+            "title": "Gender"
+          },
+          "height_cm": {
+            "description": "Height in centimeters. Must be positive.",
+            "examples": [
+              170.0,
+              175.5,
+              180.0
+            ],
+            "exclusiveMinimum": 0.0,
+            "title": "Height Cm",
+            "type": "number"
+          },
+          "hip_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hip circumference in centimeters (optional, PRO tier only). If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation.",
+            "examples": [
+              95.0,
+              100.5,
+              null
+            ],
+            "title": "Hip Cm"
+          },
+          "lang": {
+            "default": "en",
+            "description": "Language for localized responses: 'ru', 'en', or 'es'.",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "examples": [
+              "en",
+              "ru",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "pregnant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "default": false,
+            "description": "Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.",
+            "examples": [
+              "no",
+              "yes",
+              false,
+              true
+            ],
+            "title": "Pregnant"
+          },
+          "waist_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.",
+            "examples": [
+              80.0,
+              90.5,
+              null
+            ],
+            "title": "Waist Cm"
+          },
+          "weight_kg": {
+            "description": "Weight in kilograms. Must be positive.",
+            "examples": [
+              65.5,
+              70.0,
+              80.3
+            ],
+            "exclusiveMinimum": 0.0,
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "weight_kg",
+          "height_cm",
+          "age"
+        ],
+        "title": "BMICalculateProRequest",
+        "type": "object"
+      },
+      "BMICalculateProResponse": {
+        "additionalProperties": false,
+        "description": "PRO tier BMI calculation response (extends FREE with whr).\n\nRU: Ответ расчета BMI для PRO уровня (расширяет FREE с whr).\nEN: PRO tier BMI calculation response (extends FREE with whr).",
+        "properties": {
+          "age_band": {
+            "description": "Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).",
+            "enum": [
+              "too_young",
+              "child",
+              "teen",
+              "adult",
+              "elderly"
+            ],
+            "examples": [
+              "adult",
+              "teen",
+              "elderly"
+            ],
+            "title": "Age Band",
+            "type": "string"
+          },
+          "bmi": {
+            "description": "Calculated BMI value (weight_kg / (height_m ** 2)).",
+            "examples": [
+              22.5,
+              25.3,
+              18.7
+            ],
+            "title": "Bmi",
+            "type": "number"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "BMI category (localized). None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands - not an error, medical disclaimer. BMI categories are not provided during pregnancy or for users in 'too_young', 'child' and 'teen' age bands.",
+            "examples": [
+              "normal",
+              "overweight",
+              null
+            ],
+            "title": "Category"
+          },
+          "group": {
+            "description": "User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'teen', 'too_young', 'pregnant'.",
+            "examples": [
+              "general",
+              "athlete",
+              "elderly"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "group_display": {
+            "description": "Localized display name for the group.",
+            "examples": [
+              "General",
+              "Athlete",
+              "Elderly"
+            ],
+            "title": "Group Display",
+            "type": "string"
+          },
+          "interpretation": {
+            "description": "Localized interpretation text for the BMI value in the context of the group.",
+            "examples": [
+              "Your BMI is within the normal range for your age group."
+            ],
+            "title": "Interpretation",
+            "type": "string"
+          },
+          "interpretation_v1": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BMIInterpretationV1Schema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional structured interpretation (v1). i18n keys only. Currently may be None while wiring is in progress. Planned behavior: None only for too_young; pregnancy returns structured interpretation (goal=medical_review, target=prenatal_guidelines), and pregnant+athlete includes additional athlete disclaimers.",
+            "examples": [
+              {
+                "disclaimers": [
+                  "bmi.interpretation.disclaimer.general"
+                ],
+                "goal_direction": "maintain",
+                "priority_notes": [],
+                "risk_flags": [],
+                "target_range": {
+                  "max": 25.0,
+                  "min": 18.5
+                }
+              },
+              null
+            ]
+          },
+          "notes": {
+            "description": "Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
+            "examples": [
+              [],
+              [
+                "Increased waist-related risk"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "soft_paywall": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SoftPaywallHook"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional soft paywall hook for PRO tier upsell (wellness positioning only)."
+          },
+          "visualization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BMIScaleV1Spec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional BMI scale visualization spec (v1). Frontend should render this if available."
+          },
+          "waist_risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaistRiskResultSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waist risk assessment result. Present only if waist_cm was provided and risk was calculated.",
+            "examples": [
+              {
+                "notes": [
+                  "Increased waist-related risk"
+                ],
+                "risk_level": "moderate",
+                "wht_ratio": 0.52
+              },
+              null
+            ]
+          },
+          "whr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waist-to-Hip Ratio (WHR, PRO tier only). Calculated only if both waist_cm and hip_cm were provided and >0.",
+            "examples": [
+              0.8,
+              0.95,
+              null
+            ],
+            "title": "Whr"
+          },
+          "wht_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.",
+            "examples": [
+              0.47,
+              0.52,
+              null
+            ],
+            "title": "Wht Ratio"
+          }
+        },
+        "required": [
+          "bmi",
+          "group",
+          "group_display",
+          "interpretation",
+          "age_band"
+        ],
+        "title": "BMICalculateProResponse",
+        "type": "object"
+      },
       "BMICalculateRequest": {
         "additionalProperties": false,
         "description": "RU: Запрос для расчета BMI через единый engine.\nEN: Request for BMI calculation via unified engine.\n\nFREE tier endpoint (no API key required).",
@@ -521,6 +882,143 @@
           "value"
         ],
         "title": "BMIMarkerSpec",
+        "type": "object"
+      },
+      "BMIProRequest": {
+        "properties": {
+          "age": {
+            "maximum": 100.0,
+            "minimum": 10.0,
+            "title": "Age",
+            "type": "integer"
+          },
+          "bodyfat_percent": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfat Percent"
+          },
+          "height_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height Cm",
+            "type": "number"
+          },
+          "hip_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hip Cm"
+          },
+          "lang": {
+            "default": "en",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "sex": {
+            "enum": [
+              "female",
+              "male"
+            ],
+            "title": "Sex",
+            "type": "string"
+          },
+          "waist_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Waist Cm",
+            "type": "number"
+          },
+          "weight_kg": {
+            "exclusiveMinimum": 0.0,
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "height_cm",
+          "weight_kg",
+          "sex",
+          "age",
+          "waist_cm"
+        ],
+        "title": "BMIProRequest",
+        "type": "object"
+      },
+      "BMIProResponse": {
+        "properties": {
+          "bmi": {
+            "title": "Bmi",
+            "type": "number"
+          },
+          "ffmi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ffmi"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "risk_level": {
+            "enum": [
+              "low",
+              "moderate",
+              "high"
+            ],
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "whr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whr"
+          },
+          "whtr": {
+            "title": "Whtr",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bmi",
+          "whtr",
+          "whr",
+          "ffmi",
+          "risk_level",
+          "notes"
+        ],
+        "title": "BMIProResponse",
         "type": "object"
       },
       "BMIRangeSpec": {
@@ -1118,6 +1616,105 @@
         "title": "BodyFatRequest",
         "type": "object"
       },
+      "BusinessAnalysisRequest": {
+        "description": "Request model for business analysis.",
+        "properties": {
+          "code": {
+            "description": "Code to analyze (max 100KB)",
+            "title": "Code",
+            "type": "string"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "test_name": {
+            "default": "business_analysis",
+            "title": "Test Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "BusinessAnalysisRequest",
+        "type": "object"
+      },
+      "BusinessAnalysisResponse": {
+        "description": "Response model for business analysis.",
+        "properties": {
+          "business_category": {
+            "title": "Business Category",
+            "type": "string"
+          },
+          "cost_impact": {
+            "title": "Cost Impact",
+            "type": "string"
+          },
+          "customer_impact": {
+            "title": "Customer Impact",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "error_type": {
+            "title": "Error Type",
+            "type": "string"
+          },
+          "optimization_potential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Potential"
+          },
+          "revenue_impact": {
+            "title": "Revenue Impact",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          },
+          "test_name": {
+            "title": "Test Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "test_name",
+          "success",
+          "business_category",
+          "error_type",
+          "error_message",
+          "revenue_impact",
+          "cost_impact",
+          "customer_impact",
+          "optimization_potential"
+        ],
+        "title": "BusinessAnalysisResponse",
+        "type": "object"
+      },
       "CatalogInfoDTO": {
         "description": "RU: Каталожная информация для enrichment слоя (adapter-only).\nEN: Catalog enrichment info (adapter-only).\n\nThis is attached to shoplist lines when region_id/store_id are provided.\nMissing catalog is not an error (fail-soft).",
         "properties": {
@@ -1443,6 +2040,80 @@
         "title": "CurrencyDTO",
         "type": "string"
       },
+      "DailyGoals": {
+        "description": "Daily nutrition goals.",
+        "properties": {
+          "carbs": {
+            "description": "Target carbohydrate servings",
+            "minimum": 0.0,
+            "title": "Carbs",
+            "type": "number"
+          },
+          "fats": {
+            "description": "Target fat servings",
+            "minimum": 0.0,
+            "title": "Fats",
+            "type": "number"
+          },
+          "protein": {
+            "description": "Target protein servings",
+            "minimum": 0.0,
+            "title": "Protein",
+            "type": "number"
+          },
+          "vegetables": {
+            "description": "Target vegetable servings",
+            "minimum": 0.0,
+            "title": "Vegetables",
+            "type": "number"
+          }
+        },
+        "required": [
+          "vegetables",
+          "protein",
+          "carbs",
+          "fats"
+        ],
+        "title": "DailyGoals",
+        "type": "object"
+      },
+      "DailyNutritionResponse": {
+        "description": "Daily nutrition data for Plate view.",
+        "properties": {
+          "daily_goals": {
+            "$ref": "#/components/schemas/DailyGoals",
+            "description": "Daily nutrition goals"
+          },
+          "date": {
+            "description": "Date in ISO 8601 format (YYYY-MM-DD)",
+            "title": "Date",
+            "type": "string"
+          },
+          "segments": {
+            "description": "Nutrition segments for plate visualization",
+            "items": {
+              "$ref": "#/components/schemas/NutritionSegmentData"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "total_progress": {
+            "description": "Overall daily progress (0.0-1.0)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Total Progress",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "segments",
+          "total_progress",
+          "daily_goals"
+        ],
+        "title": "DailyNutritionResponse",
+        "type": "object"
+      },
       "DayCloseRequest": {
         "description": "Close a day with an adherence score.\n\nRU: Закрыть день с оценкой выполнения.\nEN: Close day with adherence score.",
         "properties": {
@@ -1758,6 +2429,190 @@
         "title": "InsightResponse",
         "type": "object"
       },
+      "LegacyWeekPlanRequest": {
+        "additionalProperties": false,
+        "description": "Extended request for week plan with optional pre-calculated targets.\n\nSupports two modes:\n- Mode A: With targets (pre-calculated nutrition goals)\n- Mode B: Calculate targets from user profile (sex, age, etc.)",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sedentary",
+                  "light",
+                  "moderate",
+                  "active",
+                  "very_active"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "bodyfat": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 3.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfat"
+          },
+          "deficit_pct": {
+            "anyOf": [
+              {
+                "maximum": 25.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deficit Pct"
+          },
+          "diet_flags": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "VEG",
+                    "GF",
+                    "DAIRY_FREE",
+                    "LOW_COST",
+                    "HIGH_PROTEIN",
+                    "LOW_CARB",
+                    "MEDITERRANEAN",
+                    "VEGAN",
+                    "KETO",
+                    "PALEO"
+                  ],
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diet Flags"
+          },
+          "goal": {
+            "default": "maintain",
+            "enum": [
+              "loss",
+              "maintain",
+              "gain"
+            ],
+            "title": "Goal",
+            "type": "string"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "lang": {
+            "default": "en",
+            "title": "Lang",
+            "type": "string"
+          },
+          "life_stage": {
+            "default": "adult",
+            "enum": [
+              "child",
+              "teen",
+              "adult",
+              "pregnant",
+              "lactating",
+              "elderly"
+            ],
+            "title": "Life Stage",
+            "type": "string"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          },
+          "surplus_pct": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surplus Pct"
+          },
+          "targets": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targets"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "title": "LegacyWeekPlanRequest",
+        "type": "object"
+      },
       "MealLogRequest": {
         "description": "Log a meal-related event.\n\nRU: Логировать событие приёма пищи.\nEN: Log a meal event.",
         "properties": {
@@ -1936,6 +2791,55 @@
           "adherence_score"
         ],
         "title": "NutrientGapsResponse",
+        "type": "object"
+      },
+      "NutritionSegmentData": {
+        "description": "Single nutrition segment (e.g., Vegetables, Protein, Carbs, Fats).",
+        "properties": {
+          "color": {
+            "description": "Color identifier (e.g., 'green', 'red')",
+            "title": "Color",
+            "type": "string"
+          },
+          "current_value": {
+            "description": "Current servings consumed",
+            "minimum": 0.0,
+            "title": "Current Value",
+            "type": "number"
+          },
+          "icon": {
+            "description": "SF Symbol icon name (e.g., 'leaf.fill')",
+            "title": "Icon",
+            "type": "string"
+          },
+          "name": {
+            "description": "Segment name (e.g., 'Vegetables')",
+            "title": "Name",
+            "type": "string"
+          },
+          "percentage": {
+            "description": "Percentage of plate (0-100)",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percentage",
+            "type": "number"
+          },
+          "target_value": {
+            "description": "Target servings for the day",
+            "minimum": 0.0,
+            "title": "Target Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "current_value",
+          "target_value",
+          "percentage",
+          "color",
+          "icon"
+        ],
+        "title": "NutritionSegmentData",
         "type": "object"
       },
       "PackageRuleDTO": {
@@ -2278,6 +3182,340 @@
           "meals"
         ],
         "title": "PlateResponse",
+        "type": "object"
+      },
+      "PremiumWeekPlanRequest": {
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sedentary",
+                  "light",
+                  "moderate",
+                  "active",
+                  "very_active"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "moderate",
+            "title": "Activity"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 90.0,
+                "exclusiveMinimum": 10.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "diet_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diet Flags",
+            "type": "array"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "loss",
+                  "maintain",
+                  "gain"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "maintain",
+            "title": "Goal"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 220.0,
+                "exclusiveMinimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "lang": {
+            "default": "en",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          },
+          "targets": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TargetsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 300.0,
+                "exclusiveMinimum": 30.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "title": "PremiumWeekPlanRequest",
+        "type": "object"
+      },
+      "PremiumWeekPlanResponse": {
+        "properties": {
+          "adherence_score": {
+            "title": "Adherence Score",
+            "type": "number"
+          },
+          "daily_menus": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Daily Menus",
+            "type": "array"
+          },
+          "shopping_list": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Shopping List",
+            "type": "object"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "weekly_coverage": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Weekly Coverage",
+            "type": "object"
+          }
+        },
+        "required": [
+          "daily_menus",
+          "weekly_coverage",
+          "shopping_list",
+          "total_cost",
+          "adherence_score"
+        ],
+        "title": "PremiumWeekPlanResponse",
+        "type": "object"
+      },
+      "ProWeekPlanRequest": {
+        "description": "Request model for weekly meal plan generation.\n\nSupports two modes:\n- Mode A: Provide ready targets\n- Mode B: Quick profile (fallback)",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sedentary",
+                  "light",
+                  "moderate",
+                  "active",
+                  "very_active"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "moderate",
+            "title": "Activity"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 90.0,
+                "exclusiveMinimum": 10.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "diet_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diet Flags",
+            "type": "array"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "loss",
+                  "maintain",
+                  "gain"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "maintain",
+            "title": "Goal"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 220.0,
+                "exclusiveMinimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "lang": {
+            "default": "en",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          },
+          "targets": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TargetsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 300.0,
+                "exclusiveMinimum": 30.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "title": "ProWeekPlanRequest",
+        "type": "object"
+      },
+      "ProWeekPlanResponse": {
+        "description": "Response model for weekly meal plan.",
+        "properties": {
+          "adherence_score": {
+            "title": "Adherence Score",
+            "type": "number"
+          },
+          "daily_menus": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Daily Menus",
+            "type": "array"
+          },
+          "shopping_list": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Shopping List",
+            "type": "object"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "number"
+          },
+          "weekly_coverage": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Weekly Coverage",
+            "type": "object"
+          }
+        },
+        "required": [
+          "daily_menus",
+          "weekly_coverage",
+          "shopping_list",
+          "total_cost",
+          "adherence_score"
+        ],
+        "title": "ProWeekPlanResponse",
         "type": "object"
       },
       "QuantityDTO-Input": {
@@ -3639,6 +4877,58 @@
         "title": "SoftPaywallMessage",
         "type": "object"
       },
+      "TargetsIn": {
+        "description": "Nutrition targets input model.\n\nRU: Входная схема таргетов питания (используется в PRO/Premium эндпоинтах).\nEN: Input schema for nutrition targets (used by PRO/Premium endpoints).",
+        "properties": {
+          "activity_week": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Week"
+          },
+          "kcal": {
+            "exclusiveMaximum": 6000.0,
+            "exclusiveMinimum": 500.0,
+            "title": "Kcal",
+            "type": "integer"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Macros",
+            "type": "object"
+          },
+          "micro": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Micro",
+            "type": "object"
+          },
+          "water_ml": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Water Ml",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kcal",
+          "macros",
+          "micro"
+        ],
+        "title": "TargetsIn",
+        "type": "object"
+      },
       "TestResponse": {
         "description": "Standard test response model.",
         "properties": {
@@ -4096,190 +5386,6 @@
         "title": "WaistRiskResultSchema",
         "type": "object"
       },
-      "WeekPlanRequest": {
-        "additionalProperties": false,
-        "description": "Extended request for week plan with optional pre-calculated targets.\n\nSupports two modes:\n- Mode A: With targets (pre-calculated nutrition goals)\n- Mode B: Calculate targets from user profile (sex, age, etc.)",
-        "properties": {
-          "activity": {
-            "anyOf": [
-              {
-                "enum": [
-                  "sedentary",
-                  "light",
-                  "moderate",
-                  "active",
-                  "very_active"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity"
-          },
-          "age": {
-            "anyOf": [
-              {
-                "maximum": 120.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "maximum": 60.0,
-                "minimum": 3.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "deficit_pct": {
-            "anyOf": [
-              {
-                "maximum": 25.0,
-                "minimum": 5.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deficit Pct"
-          },
-          "diet_flags": {
-            "anyOf": [
-              {
-                "items": {
-                  "enum": [
-                    "VEG",
-                    "GF",
-                    "DAIRY_FREE",
-                    "LOW_COST",
-                    "HIGH_PROTEIN",
-                    "LOW_CARB",
-                    "MEDITERRANEAN",
-                    "VEGAN",
-                    "KETO",
-                    "PALEO"
-                  ],
-                  "type": "string"
-                },
-                "type": "array",
-                "uniqueItems": true
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diet Flags"
-          },
-          "goal": {
-            "default": "maintain",
-            "enum": [
-              "loss",
-              "maintain",
-              "gain"
-            ],
-            "title": "Goal",
-            "type": "string"
-          },
-          "height_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Cm"
-          },
-          "lang": {
-            "default": "en",
-            "title": "Lang",
-            "type": "string"
-          },
-          "life_stage": {
-            "default": "adult",
-            "enum": [
-              "child",
-              "teen",
-              "adult",
-              "pregnant",
-              "lactating",
-              "elderly"
-            ],
-            "title": "Life Stage",
-            "type": "string"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "enum": [
-                  "female",
-                  "male"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          },
-          "surplus_pct": {
-            "anyOf": [
-              {
-                "maximum": 20.0,
-                "minimum": 5.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Surplus Pct"
-          },
-          "targets": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Targets"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg"
-          }
-        },
-        "title": "WeekPlanRequest",
-        "type": "object"
-      },
       "WeeklyMenuResponse": {
         "description": "RU: Ответ с недельным меню.\nEN: Response with weekly menu.",
         "properties": {
@@ -4371,17 +5477,12 @@
       "name": "PulsePlate API Support",
       "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
     },
-    "description": "\n## PulsePlate - Nutrition & Meal Planning API\n\n**Mobile-first API** for iOS and web applications with tiered subscription access.\n\n### Subscription Tiers\n\n- **FREE**: BMI calculations, food/recipe search, user management\n- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking\n- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists\n\n### Authentication\n\nPremium endpoints require API key in `X-API-Key` header:\n- PRO tier: Use API key with PRO access level\n- VIP tier: Use API key with VIP access level\n\n### Test API Keys (Development Only)\n\n- PRO: `YOUR_PRO_TEST_KEY`\n- VIP: `YOUR_VIP_TEST_KEY`\n\n**Note**: Replace with actual test keys from your environment variables or Config.plist.\n**Production**: Test keys are disabled in production environments.\n\n### Documentation\n\n- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`\n- iOS Integration: `docs/IOS_API_INTEGRATION.md`\n\n\n⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. Full schema will be restored in PR-509 after eliminating import-time ORM deps.",
+    "description": "\n## PulsePlate - Nutrition & Meal Planning API\n\n**Mobile-first API** for iOS and web applications with tiered subscription access.\n\n### Subscription Tiers\n\n- **FREE**: BMI calculations, food/recipe search, user management\n- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking\n- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists\n\n### Authentication\n\nPremium endpoints require API key in `X-API-Key` header:\n- PRO tier: Use API key with PRO access level\n- VIP tier: Use API key with VIP access level\n\n### Test API Keys (Development Only)\n\n- PRO: `YOUR_PRO_TEST_KEY`\n- VIP: `YOUR_VIP_TEST_KEY`\n\n**Note**: Replace with actual test keys from your environment variables or Config.plist.\n**Production**: Test keys are disabled in production environments.\n\n### Documentation\n\n- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`\n- iOS Integration: `docs/IOS_API_INTEGRATION.md`\n",
     "license": {
       "name": "MIT"
     },
     "title": "PulsePlate",
-    "version": "0.1.0",
-    "x-excluded-routers": [
-      "premium_week",
-      "pro"
-    ],
-    "x-openapi-mode": "schema-only"
+    "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4943,6 +6044,56 @@
         ]
       }
     },
+    "/api/v1/bmi/pro": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy BMI Pro endpoint (deprecated).\n\nThis endpoint is maintained for backward compatibility only.\nNew clients should use the canonical endpoint: POST /api/v1/pro/bmi\n\nArgs:\n    req: BMI Pro request payload\n    _: Pro tier guard (required, ensures tier check before proxying)\n\nReturns:\n    BMI Pro response with analysis results",
+        "operationId": "bmi_pro_legacy_alias_api_v1_bmi_pro_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BMIProRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BMIProResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Bmi Pro Legacy Alias",
+        "tags": [
+          "bmi"
+        ],
+        "x-alias-of": "/api/v1/pro/bmi",
+        "x-migration-path": "Migrate to POST /api/v1/pro/bmi (same contract)"
+      }
+    },
     "/api/v1/bodyfat": {
       "post": {
         "operationId": "calc_bodyfat_api_v1_bodyfat_post",
@@ -4981,6 +6132,81 @@
           }
         },
         "summary": "Calc Bodyfat"
+      }
+    },
+    "/api/v1/business/analyze": {
+      "post": {
+        "description": "Analyze code from a business perspective.\n\nProvides business insights on monetization strategies, cost optimization,\ncustomer acquisition, revenue growth, and customer retention.",
+        "operationId": "analyze_business_code_api_v1_business_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BusinessAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BusinessAnalysisResponse"
+                  },
+                  "title": "Response Analyze Business Code Api V1 Business Analyze Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Analyze Business Code",
+        "tags": [
+          "business"
+        ]
+      }
+    },
+    "/api/v1/business/status": {
+      "get": {
+        "description": "Check if the business module is enabled.",
+        "operationId": "business_status_api_v1_business_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Business Status Api V1 Business Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Business Status",
+        "tags": [
+          "business"
+        ]
       }
     },
     "/api/v1/catalog/regions": {
@@ -5905,7 +7131,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WeekPlanRequest"
+                "$ref": "#/components/schemas/LegacyWeekPlanRequest"
               }
             }
           },
@@ -5939,6 +7165,56 @@
           }
         ],
         "summary": "Api Weekly Menu"
+      }
+    },
+    "/api/v1/premium/plan/week-flexible": {
+      "post": {
+        "deprecated": true,
+        "description": "⚠️ **DEPRECATED**: This endpoint is deprecated and will be removed in v2.0.\n\n    Please use `/api/v1/pro/meal/weekly` instead.\n\n    Migration guide:\n    - Update your API client to use `/api/v1/pro/meal/weekly`\n    - Request/response format remains the same\n    - API key validation remains the same (PRO tier required)\n\n    Original description:\n    Generate weekly meal plan with PRO tier features.\n\n    RU: Генерация недельного плана питания с функциями PRO уровня.\n    EN: Generate weekly meal plan with PRO tier features.\n\n    Requires: PRO tier API key in X-API-Key header\n\n    Features:\n    - WHO-based nutrition targets\n    - Macro and micronutrient planning\n    - Dietary restrictions support\n    - Weekly shopping list\n    - Cost estimation",
+        "operationId": "generate_week_plan_api_v1_premium_plan_week_flexible_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PremiumWeekPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PremiumWeekPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "[DEPRECATED] Generate weekly meal plan",
+        "tags": [
+          "premium"
+        ],
+        "x-alias-of": "/api/v1/pro/meal/weekly",
+        "x-migration-path": "Migrate to /api/v1/pro/meal/weekly (same contract)"
       }
     },
     "/api/v1/premium/plate": {
@@ -6037,6 +7313,101 @@
         "x-migration-path": "Migrate to /api/v1/pro/nutrition/targets (same contract)"
       }
     },
+    "/api/v1/pro/bmi": {
+      "post": {
+        "deprecated": true,
+        "description": "DEPRECATED: This endpoint uses legacy BMI calculation logic outside canonical engine.\n    Use `/api/v1/pro/bmi/calculate` instead (canonical engine-based endpoint with WHR support).\n\n    RU: Устаревший endpoint. Используйте /api/v1/pro/bmi/calculate.\n    EN: Deprecated endpoint. Use /api/v1/pro/bmi/calculate instead.",
+        "operationId": "bmi_pro_api_v1_pro_bmi_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BMIProRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BMIProResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "[DEPRECATED] Legacy PRO BMI endpoint",
+        "tags": [
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/bmi/calculate": {
+      "post": {
+        "description": "PRO tier BMI calculation endpoint with WHR (Waist-to-Hip Ratio) support.\n\n    RU: Расчет BMI с поддержкой WHR для PRO уровня.\n    EN: PRO tier BMI calculation with WHR support.\n\n    Requires: PRO tier API key in X-API-Key header\n\n    Features:\n    - All FREE tier features (BMI, category, WHtR, waist risk)\n    - WHR calculation (requires hip_cm)\n    - PRO tier soft paywall hooks",
+        "operationId": "calculate_bmi_pro_api_v1_pro_bmi_calculate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BMICalculateProRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BMICalculateProResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Calculate BMI with WHR (PRO tier)",
+        "tags": [
+          "pro"
+        ]
+      }
+    },
     "/api/v1/pro/meal/shopping-list": {
       "post": {
         "description": "Generate shopping list from weekly meal plan.\n\n**Input:**\n- `weekly_plan_id`: Optional ID of saved weekly plan (from DB)\n- `plan_data`: Optional inline weekly plan JSON\n- `preferences`: Shopping list generation preferences\n\n**Output:**\n- Categories with grouped items\n- Total item count\n- Generation metadata\n\n**Algorithm:**\n1. Validate input (XOR: weekly_plan_id OR plan_data)\n2. Extract ingredients from plan_data\n3. Normalize keys and aggregate quantities\n4. Group by categories\n5. Return structured DTO with warnings",
@@ -6082,6 +7453,211 @@
         "tags": [
           "pro",
           "shopping-list"
+        ]
+      }
+    },
+    "/api/v1/pro/meal/weekly": {
+      "post": {
+        "description": "Generate weekly meal plan with PRO tier features.\n\n    RU: Генерация недельного плана питания с функциями PRO уровня.\n    EN: Generate weekly meal plan with PRO tier features.\n\n    Requires: PRO tier API key in X-API-Key header\n\n    Features:\n    - WHO-based nutrition targets\n    - Macro and micronutrient planning\n    - Dietary restrictions support\n    - Weekly shopping list\n    - Cost estimation",
+        "operationId": "generate_week_plan_api_v1_pro_meal_weekly_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProWeekPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProWeekPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Generate weekly meal plan (PRO tier)",
+        "tags": [
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/daily": {
+      "get": {
+        "description": "Get daily nutrition tracking data for Plate view based on WHO targets.\n\n    RU: Получить данные по питанию за день для визуализации тарелки на основе таргетов ВОЗ.\n    EN: Get daily nutrition tracking data for Plate view based on WHO targets.\n\n    Requires: PRO tier API key in X-API-Key header\n\n    Features:\n    - WHO/USDA-based personalized targets\n    - Plate segment visualization\n    - Overall progress tracking\n\n    Query Parameters:\n    - date: Date in YYYY-MM-DD format (required)\n    - sex: Biological sex (required)\n    - age: Age in years (required)\n    - height_cm: Height in centimeters (required)\n    - weight_kg: Weight in kilograms (required)\n    - activity: Activity level (optional, default: moderate)\n    - goal: Nutrition goal (optional, default: maintain)\n    - lang: Language for localized segment names (optional, default: en)\n\n    Note: Current consumption values (current_value) are 0.0 until meal logging is implemented.",
+        "operationId": "get_daily_nutrition_api_v1_pro_nutrition_daily_get",
+        "parameters": [
+          {
+            "description": "Date in ISO 8601 format (YYYY-MM-DD)",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "description": "Date in ISO 8601 format (YYYY-MM-DD)",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Biological sex",
+            "in": "query",
+            "name": "sex",
+            "required": true,
+            "schema": {
+              "description": "Biological sex",
+              "enum": [
+                "female",
+                "male"
+              ],
+              "title": "Sex",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Age in years (10-100 inclusive)",
+            "in": "query",
+            "name": "age",
+            "required": true,
+            "schema": {
+              "description": "Age in years (10-100 inclusive)",
+              "maximum": 100,
+              "minimum": 10,
+              "title": "Age",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Height in centimeters",
+            "in": "query",
+            "name": "height_cm",
+            "required": true,
+            "schema": {
+              "description": "Height in centimeters",
+              "exclusiveMaximum": 250,
+              "exclusiveMinimum": 100,
+              "title": "Height Cm",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Weight in kilograms",
+            "in": "query",
+            "name": "weight_kg",
+            "required": true,
+            "schema": {
+              "description": "Weight in kilograms",
+              "exclusiveMaximum": 300,
+              "exclusiveMinimum": 30,
+              "title": "Weight Kg",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Activity level",
+            "in": "query",
+            "name": "activity",
+            "required": false,
+            "schema": {
+              "default": "moderate",
+              "description": "Activity level",
+              "enum": [
+                "sedentary",
+                "light",
+                "moderate",
+                "active",
+                "very_active"
+              ],
+              "title": "Activity",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nutrition goal",
+            "in": "query",
+            "name": "goal",
+            "required": false,
+            "schema": {
+              "default": "maintain",
+              "description": "Nutrition goal",
+              "enum": [
+                "loss",
+                "maintain",
+                "gain"
+              ],
+              "title": "Goal",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Language for localized content",
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "en",
+              "description": "Language for localized content",
+              "enum": [
+                "ru",
+                "en",
+                "es"
+              ],
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyNutritionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get daily nutrition data (PRO tier)",
+        "tags": [
+          "pro"
         ]
       }
     },

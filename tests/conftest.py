@@ -441,9 +441,14 @@ def app(app_module: ModuleType) -> FastAPI:
 
 
 @pytest.fixture
-def client(app: FastAPI) -> TestClient:
-    """Return a TestClient for the FastAPI app."""
-    return TestClient(app)
+def client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Return a TestClient for the FastAPI app (always closed).
+
+    Using TestClient as a context manager ensures lifespan startup/shutdown runs
+    deterministically and prevents leaking background threads across tests.
+    """
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 # --- VIP shoplist test fixtures ---
@@ -501,21 +506,23 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
     # NOTE: We do NOT override require_vip_module_enabled - it should check the feature flag
     # Tests can use monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", ...)
 
-    route = _find_route_by_endpoint_name(app_instance, "vip_shoplist_generate")
-    assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
+    route_level_deps: list[Callable] = []
+    try:
+        route = _find_route_by_endpoint_name(app_instance, "vip_shoplist_generate")
+        assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
 
-    # Route has API-key dependency applied at route level (via app.include_router);
-    # override it here to avoid requiring headers/env in tests.
-    route_level_deps = list(_iter_route_dependencies(route))
-    for dep_fn in route_level_deps:
-        app_instance.dependency_overrides[dep_fn] = mock_api_key
+        # Route has API-key dependency applied at route level (via app.include_router);
+        # override it here to avoid requiring headers/env in tests.
+        route_level_deps = list(_iter_route_dependencies(route))
+        for dep_fn in route_level_deps:
+            app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-    client = TestClient(app_instance)
-    yield client
-
-    app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
-    for dep_fn in route_level_deps:
-        app_instance.dependency_overrides.pop(dep_fn, None)
+        with TestClient(app_instance) as client:
+            yield client
+    finally:
+        app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
+        for dep_fn in route_level_deps:
+            app_instance.dependency_overrides.pop(dep_fn, None)
 
 
 @pytest.fixture
