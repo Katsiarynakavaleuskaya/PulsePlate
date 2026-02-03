@@ -6,6 +6,7 @@
 # misclassified as "Generic API Key" by security scanners.
 ignore:
   - .secrets.baseline
+  - ./.secrets.baseline
 
 # GitHub integration
 github:
