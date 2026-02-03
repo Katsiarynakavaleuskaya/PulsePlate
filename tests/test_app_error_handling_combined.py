@@ -160,6 +160,21 @@ class TestAppExceptionHandlersCoverage:
             )
             # Should handle connection error gracefully
             assert response.status_code in [500, 503, 502]
+            assert response.headers["content-type"].startswith("application/json")
+            body = response.json()
+            assert isinstance(body, dict)
+            assert "detail" in body
+
+            detail = str(body["detail"])
+            lowered_detail = detail.lower()
+
+            assert "Connection failed" not in detail
+
+            assert "http://" not in lowered_detail
+            assert "https://" not in lowered_detail
+
+            for provider in ("openai", "anthropic", "azure", "vertex", "claude", "groq"):
+                assert provider not in lowered_detail
 
     def test_timeout_error_handler(self, client: TestClient, vip_headers: dict[str, str]) -> None:
         """Test timeout error handler coverage"""
@@ -172,3 +187,18 @@ class TestAppExceptionHandlersCoverage:
             )
             # Should handle timeout error gracefully - expect 503 Service Unavailable
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("application/json")
+            body = response.json()
+            assert isinstance(body, dict)
+            assert "detail" in body
+
+            detail = str(body["detail"])
+            lowered_detail = detail.lower()
+
+            assert "Request timeout" not in detail
+
+            assert "http://" not in lowered_detail
+            assert "https://" not in lowered_detail
+
+            for provider in ("openai", "anthropic", "azure", "vertex", "claude", "groq"):
+                assert provider not in lowered_detail

@@ -85,7 +85,9 @@ class TestAppEndpointsCoverage:
         )
         assert response.status_code in [200, 422]
 
-    def test_app_insight_endpoint_coverage(self, client, vip_headers: dict[str, str]) -> None:
+    def test_app_insight_endpoint_coverage(
+        self, client: TestClient, vip_headers: dict[str, str]
+    ) -> None:
         """Тест покрытия app.py insight endpoint"""
         # Тестируем insight endpoint
         response = client.post(

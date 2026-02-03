@@ -365,7 +365,7 @@ class TestInsightEndpoints:
             assert data["provider"] == "test_provider"
             assert data["insight"] == "Generated insight"
 
-    def test_api_v1_insight_no_llm_module(self):
+    def test_api_v1_insight_no_llm_module(self) -> None:
         """Test API v1 insight when LLM module not available."""
         # Remove module from sys.modules to simulate it's not available
         original_module = sys.modules.get("llm")
