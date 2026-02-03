@@ -1,6 +1,13 @@
 # Sourcery AI Configuration for PulsePlate
 # https://docs.sourcery.ai/
 
+# Sourcery should not analyze generated / non-code artifacts.
+# In particular, `.secrets.baseline` contains hashed_secret fingerprints that can be
+# misclassified as "Generic API Key" by security scanners.
+ignore:
+  - ".secrets.baseline"
+  - "./.secrets.baseline"
+
 # GitHub integration
 github:
   request_review: always
