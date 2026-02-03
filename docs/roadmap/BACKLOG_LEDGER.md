@@ -253,6 +253,9 @@ If it is not recorded here — it does not exist.
     - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
     - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
     - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
+  - Notes (3 February 2026, America/New_York):
+    - Fix: close leaked TestClients (context-managed `tests/conftest.py::client` + close in `tests/test_nutrition_log_api.py` teardown) to ensure lifespan runs deterministically under xdist.
+    - Verification (local): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed; CI link: TBD (after run completes).
 
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
