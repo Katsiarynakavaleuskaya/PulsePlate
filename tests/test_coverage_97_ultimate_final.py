@@ -75,13 +75,11 @@ class TestCoverage97UltimateFinal:
         response = client.post("/bodyfat", json=payload)
         assert response.status_code in [200, 422, 404]
 
-    def test_app_insight_with_lang(self):
+    def test_app_insight_with_lang(self, vip_headers: dict[str, str]) -> None:
         """Test insight endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"text": "test insight", "lang": "en"}
-        from app.middleware.api_tiers import TEST_KEY_VIP
-
-        response = client.post("/insight", json=payload, headers={"X-API-Key": TEST_KEY_VIP})
+        response = client.post("/insight", json=payload, headers=vip_headers)
         assert response.status_code in [200, 422, 503]
 
     def test_app_premium_bmr_with_lang(self):

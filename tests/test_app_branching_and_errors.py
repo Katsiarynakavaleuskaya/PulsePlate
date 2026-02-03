@@ -49,7 +49,7 @@ def test_export_csv_no_key_auth_only(client: TestClient) -> None:
 
 
 def test_export_pdf_no_reportlab_with_key(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, api_key_headers
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, pro_headers: dict[str, str]
 ) -> None:
     """Checks graceful degradation (503) when reportlab is missing on protected PDF export endpoint.
 
@@ -72,9 +72,7 @@ def test_export_pdf_no_reportlab_with_key(
     assert app_module.app is not None, "app must be initialized"
     reloaded_client = TestClient(cast(FastAPI, app_module.app))
     # Test GET endpoint (POST endpoint doesn't exist at this path)
-    response = reloaded_client.get(
-        "/api/v1/premium/exports/day/plan123.pdf", headers=api_key_headers
-    )
+    response = reloaded_client.get("/api/v1/premium/exports/day/plan123.pdf", headers=pro_headers)
     # Expect 503 Service Unavailable when reportlab is missing, or 403 if API key is invalid
     assert response.status_code in [503, 403]
     if response.status_code == 503:
@@ -85,27 +83,19 @@ def test_export_pdf_no_reportlab_with_key(
         )
 
 
-# Fixture for API key headers
-@pytest.fixture
-def api_key_headers() -> dict[str, str]:
-    from app.middleware.api_tiers import TEST_KEY_VIP
-
-    return {"X-API-Key": TEST_KEY_VIP}
-
-
 def test_rag_context_fallback(
-    client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    client: TestClient, vip_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Проверяет fallback-ветку RAG (core.rag) — ImportError не должен ломать insight endpoint."""
     disable_optional_modules(monkeypatch, "core.rag.simple_rag")
     payload = {"text": "What is BMI?"}
-    response = client.post("/api/v1/insight", json=payload, headers=api_key_headers)
+    response = client.post("/api/v1/insight", json=payload, headers=vip_headers)
     # VIP tier gate runs before handler; FEATURE_INSIGHT may still be disabled (503).
     assert response.status_code in [200, 503]
 
 
 def test_premium_nutrient_gaps_fallback(
-    client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Проверяет fallback-ветку premium nutrient gaps (analyze_nutrient_gaps ImportError)."""
     disable_optional_modules(monkeypatch, "core.menu_engine")
@@ -118,19 +108,19 @@ def test_premium_nutrient_gaps_fallback(
         # Expected when optional modules are missing - app.py should handle this gracefully
         pass
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/gaps", json=payload, headers=api_key_headers)
+    response = client.post("/api/v1/premium/gaps", json=payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 503/500
     assert response.status_code in (503, 500, 403)
 
 
-def test_bmi_endpoint_invalid_payload(client: TestClient, api_key_headers: dict[str, str]) -> None:
+def test_bmi_endpoint_invalid_payload(client: TestClient, pro_headers: dict[str, str]) -> None:
     """Проверяет 422 Unprocessable Entity для невалидного запроса к /api/v1/bmi."""
-    response = client.post("/api/v1/bmi", json={"weight_kg": None}, headers=api_key_headers)
+    response = client.post("/api/v1/bmi", json={"weight_kg": None}, headers=pro_headers)
     # If API key is invalid, expect 403, else 422
     assert response.status_code in [422, 403]
 
 
-def test_bmi_endpoint_value_error(client: TestClient, api_key_headers: dict[str, str]) -> None:
+def test_bmi_endpoint_value_error(client: TestClient, pro_headers: dict[str, str]) -> None:
     """Проверяет 400 Bad Request при ValueError в /api/v1/bmi (например, строка вместо числа)."""
     bad_payload = {
         "weight_kg": "not_a_number",
@@ -139,36 +129,36 @@ def test_bmi_endpoint_value_error(client: TestClient, api_key_headers: dict[str,
         "sex": "male",
         "activity": "sedentary",
     }
-    response = client.post("/api/v1/bmi", json=bad_payload, headers=api_key_headers)
+    response = client.post("/api/v1/bmi", json=bad_payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 400/422
     assert response.status_code in (400, 422, 403)
 
 
 def test_premium_bmr_403_if_feature_flag(
-    client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Проверяет 503 Service Unavailable если FEATURE_PREMIUM_NUTRITION=0."""
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "0")
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/bmr", json=payload, headers=api_key_headers)
+    response = client.post("/api/v1/premium/bmr", json=payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 503
     assert response.status_code in [503, 403]
 
 
 def test_export_pdf_error(
-    client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Проверяет 500 Internal Server Error при ошибке экспорта PDF."""
     # Test PDF export endpoint - it may not exist or return 404/403
     response = client.post(
-        "/api/v1/premium/exports/day/pdf", json={"meals": [], "totals": {}}, headers=api_key_headers
+        "/api/v1/premium/exports/day/pdf", json={"meals": [], "totals": {}}, headers=pro_headers
     )
     # Endpoint does not exist, expect 404, or 403 if forbidden
     assert response.status_code in [404, 403]
 
 
 def test_weekly_menu_generation_error(
-    client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Проверяет 500 Internal Server Error при ошибке генерации недельного меню."""
 
@@ -179,7 +169,7 @@ def test_weekly_menu_generation_error(
 
     monkeypatch.setattr(app_module, "make_weekly_menu", raise_menu)
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/plan/week", json=payload, headers=api_key_headers)
+    response = client.post("/api/v1/premium/plan/week", json=payload, headers=pro_headers)
     # Endpoint requires API key, may return 403 if key is invalid, or 500 if error
     assert response.status_code in [500, 403]
 
@@ -263,8 +253,8 @@ def test_vip_module_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
 
 
-def test_invalid_method(client: TestClient, api_key_headers: dict[str, str]) -> None:
-    response = client.put("/api/v1/health", headers=api_key_headers)
+def test_invalid_method(client: TestClient, pro_headers: dict[str, str]) -> None:
+    response = client.put("/api/v1/health", headers=pro_headers)
     assert response.status_code in (405, 404)
 
 

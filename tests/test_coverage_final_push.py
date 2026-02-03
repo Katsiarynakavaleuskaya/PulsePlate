@@ -156,32 +156,22 @@ class TestFinalCoveragePush:
             # Basic health check
             response = client.get("/api/v1/health")
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "status" in data
 
             # Health check with query params
             response = client.get("/api/v1/health?details=true")
             assert response.status_code == 200
-            # Basic health check
-            response = client.get("/api/v1/health")
-            assert response.status_code == 200
-            data = response.json()
-            assert "status" in data
+            assert response.headers.get("content-type", "").startswith("application/json")
 
-            # Health check with query params
-            response = client.get("/api/v1/health?details=true")
-            assert response.status_code == 200
-
-    def test_export_functionality(self) -> None:
+    def test_export_functionality(self, vip_headers: dict[str, str]) -> None:
         """Test insight endpoint functionality."""
         import app
 
         with TestClient(cast(ASGIApp, app.app)) as client:
             payload = {"weight_kg": 70, "height_cm": 170, "age_years": 30, "gender": "male"}
-
-            from app.middleware.api_tiers import TEST_KEY_VIP
-
-            response = client.post("/insight", json=payload, headers={"X-API-Key": TEST_KEY_VIP})
+            response = client.post("/insight", json=payload, headers=vip_headers)
             assert response.status_code in [
                 200,
                 422,
