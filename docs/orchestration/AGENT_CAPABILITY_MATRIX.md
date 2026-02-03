@@ -33,6 +33,20 @@ Coordinator may assign agents outside their primary domain if justified.
 
 ---
 
+## Review Enforcement Rule
+
+**Formal review** может выполняться ТОЛЬКО агентами,
+явно перечисленными в колонке **Can Review**.
+
+Другие агенты могут:
+- участвовать в обсуждении,
+- давать консультации,
+- указывать риски и альтернативы,
+
+но это **НЕ считается formal review**.
+
+---
+
 ## Routing Examples
 
 ### Example 1: Pure Backend Task
@@ -72,20 +86,28 @@ Coordinator synthesizes all tracks at final Sync Point.
 
 ---
 
-### Example 3: Research Task
+### Example 3: Research / R&D задача
 
-**Task:** “Evaluate RAG for meal plan personalization”
+**Задача:** “Оценить RAG для персонализации недельного плана”
 
-**Routing:**
+**Роутинг:**
 - **Primary:** AI Innovation Specialist
-  - Reason: R&D + prototyping
-  - Deliverable: ADR + PoC
-- **Review:** Architecture Specialist
-  - Reason: Integration with existing `core/`
-  - Check: Layer boundaries + invariants
-- **Review:** Security Auditor
-  - Reason: User data + LLM risks
-  - Check: Data leakage, prompt injection
+  Deliverable: ADR + PoC (dev-only)
+
+- **Advisory consultation:** Architecture Specialist
+  Цель: проверить соответствие архитектурным инвариантам
+  Статус: ❗ консультация, НЕ formal review
+
+- **Advisory consultation:** Security Auditor
+  Цель: оценить риски (data leakage, prompt injection)
+  Статус: ❗ консультация, НЕ formal review
+
+**Formal Review:**
+- ❌ Не назначается (R&D задача, dev-only)
+
+**Rationale:**
+R&D задачи могут получать консультации от других доменов,
+но formal review выполняется **только агентами, разрешёнными матрицей**.
 
 ---
 

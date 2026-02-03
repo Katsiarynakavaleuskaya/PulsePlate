@@ -49,6 +49,21 @@ Rationale: prevent infinite LLM debate loops; ensure task completion.
 
 ---
 
+## Coordinator Intervention Rule
+
+Coordinator MUST NOT:
+- предлагать решения,
+- делать synthesis,
+- принимать решения
+
+до завершения **Iteration 3**.
+
+Единственное исключение:
+- Coordinator clarifies constraints or success criteria,
+  НЕ предлагая решений и НЕ синтезируя выводы.
+
+---
+
 ## Dialogue Format
 
 ### Problem Statement
@@ -271,44 +286,37 @@ Should we use a vector DB (Pinecone) or local embeddings (ChromaDB) for RAG?
 
 ### Iteration 2
 
-#### Coordinator Synthesis
+#### Architecture Specialist
+- Уточняет архитектурные trade-offs
+- Подтверждает, что ChromaDB не нарушает layer boundaries
 
-**Convergence check:** ⏳ still discussing (performance vs security)
+#### AI Innovation Specialist
+- Предоставляет benchmark: ChromaDB + LRU cache ≈ 350ms
+- Подтверждает достижение latency < 500ms
 
-Refined question:
-- Can we meet latency with ChromaDB + optimization?
-
-#### AI Innovation (test results)
-
-**Benchmark:**
-- ChromaDB + LRU cache = 350ms avg latency ✅
-- Meets requirement
-
-**Recommendation:** ChromaDB only (no hybrid needed)
+#### Security Auditor
+- Подтверждает, что локальное решение снижает attack surface
+- Отмечает отсутствие vendor lock-in как плюс
 
 ---
 
 ### Iteration 3
 
-#### All Agents (consensus)
+#### Coordinator Synthesis
 
-**Final approach:** ChromaDB (local embeddings)
+**Final Decision:**
+Использовать ChromaDB (локально) как единственное RAG-хранилище.
 
 **Rationale:**
-- Meets latency requirement (350ms < 500ms)
-- No API costs
-- No vendor lock-in
-- Simpler security model
+- latency < 500ms подтверждена
+- низкая стоимость
+- минимальный security risk
+- отсутствие vendor lock-in
 
-**Trade-offs accepted:**
-- Slightly slower than Pinecone (acceptable)
-- Need to manage embedding model (acceptable)
+**Trade-offs:**
+- необходимость поддержки embedding модели локально
 
-**Implementation plan:**
-1. Install ChromaDB
-2. Implement embedding cache
-3. Benchmark with real data
-4. Document rollback to Pinecone if latency degrades
+**Marker:** ✅ Consensus reached
 
 ---
 
