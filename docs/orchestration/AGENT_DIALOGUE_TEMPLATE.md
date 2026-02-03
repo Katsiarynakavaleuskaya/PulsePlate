@@ -4,6 +4,8 @@
 
 **Status:** Canonical (PR-634). Канонический источник истины для лимита итераций диалога.
 
+**Язык:** RU-first; английские термины — в скобках или `code` при первом упоминании.
+
 ---
 
 ## Overview
@@ -51,17 +53,30 @@ Rationale (обоснование): предотвратить бесконеч�
 
 ## Правило вмешательства координатора (Coordinator Intervention Rule)
 
-**Координатор НЕ ДОЛЖЕН**:
+### Во время диалога (Iterations 1–3)
+
+Координатор НЕ ДОЛЖЕН:
 - предлагать решения,
-- делать synthesis,
-- принимать финальные решения
+- делать синтез (synthesis),
+- принимать финальные решения,
 
-до завершения **Iteration 3**.
+пока не завершены **все Iterations 1–3** текущего диалога.
 
-**Единственное исключение:** координатор может уточнять constraints / критерии успеха,
-**не предлагая решений** и **не синтезируя выводы**.
+Единственное исключение:
+- координатор может **уточнить ограничения (constraints)** или **критерии успеха (success criteria)**,
+  НЕ предлагая решений и НЕ синтезируя выводы.
 
-(EN: Coordinator must not propose solutions/synthesis/decisions until Iteration 3 completes. Only allowed: clarifying constraints/success criteria without proposing solutions.)
+### После диалога (post-dialogue)
+
+После завершения Iteration 3 диалог считается **закрытым**, и координатор **возвращается к обязанностям синтеза**:
+- фиксирует исход (record) при наличии консенсуса,
+- либо делает `forced decision` при отсутствии консенсуса,
+- затем выполняет финальную сборку решения на этапе финализации / sync point.
+
+См. также:
+- `.cursor/agents/agent-coordinator.md` → **Work Synthesis & Quality Assurance**
+- `docs/orchestration/workflow.md` → шаг **Synthesis**
+- `docs/orchestration/PARALLEL_WORK_PROTOCOL.md` → **Sync Point** (финализация треков)
 
 ---
 
@@ -288,8 +303,7 @@ Rationale (обоснование): предотвратить бесконеч�
 ### Итерация 2
 
 #### Architecture Specialist
-- Уточняет архитектурные trade-offs
-- Подтверждает, что ChromaDB не нарушает layer boundaries
+- Уточняет архитектурные trade-offs и подтверждает, что ChromaDB не нарушает layer boundaries (границы слоёв)
 
 #### AI Innovation Specialist
 - Предоставляет benchmark: ChromaDB + LRU cache ≈ 350ms
