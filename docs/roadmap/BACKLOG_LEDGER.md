@@ -833,6 +833,63 @@ If it is not recorded here — it does not exist.
 
 ## P2 — Future (Low priority / research)
 
+### Orchestration Enhancements (follow-ups to PR-634)
+
+- [ ] Agent Context Cache (avoid re-loading AGENTS.md)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: productivity
+  - Reason: Coordinator repeatedly re-loads the same canonical context files (root/module `AGENTS.md`, runbook, orchestration docs).
+  - Links:
+    - docs/orchestration/AGENT_CONTEXT_MAP.md
+    - docs/orchestration/workflow.md
+  - DoD:
+    - Coordinator has an explicit caching strategy (doc or lightweight tool) for stable context inputs
+    - Cache invalidation rules documented (file change / branch change)
+
+- [ ] Orchestration Telemetry (metrics)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: observability
+  - Reason: We have no visibility into orchestration performance (agents used, iterations, sync points, end-to-end time).
+  - Links:
+    - docs/orchestration/PARALLEL_WORK_PROTOCOL.md
+    - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+  - DoD:
+    - Minimal telemetry spec defined (what metrics, where recorded, retention)
+    - Metrics collection does not affect runtime product behavior
+
+- [ ] Dialogue Visualization (interaction graph)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: tooling
+  - Reason: Multi-agent dialogue is hard to audit without a visual interaction graph.
+  - Links:
+    - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+  - DoD:
+    - Mermaid output format defined (inputs + expected diagram)
+    - Example visualization added to orchestration docs or runbook
+
+- [ ] Auto-verification script (Pre-flight Checklist)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: automation
+  - Reason: Pre-flight Checklist is manual; automation can fail-fast on missing required context.
+  - Links:
+    - docs/orchestration/AGENT_CONTEXT_MAP.md
+    - .cursor/agents/agent-coordinator.md
+  - DoD:
+    - A script/tool verifies required context files are present and referenced correctly
+    - Failure mode is explicit and does not block unrelated tasks (scoped to orchestration workflow)
+
 - [ ] Test skips cleanup (low priority batch)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
