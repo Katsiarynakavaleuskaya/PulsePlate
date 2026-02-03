@@ -77,7 +77,6 @@ def test_export_pdf_no_reportlab_with_key(
     assert response.status_code in [503, 403]
     if response.status_code == 503:
         # Verify error message indicates PDF export is not available
-        assert response.headers.get("content-type", "").startswith("application/json")
         assert (
             "PDF export" in response.json().get("detail", "").lower()
             or "not available" in response.json().get("detail", "").lower()

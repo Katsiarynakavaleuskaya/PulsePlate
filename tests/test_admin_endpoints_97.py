@@ -29,9 +29,7 @@ def client(app: FastAPI):
 class TestAdminEndpoints:
     """Тесты admin endpoints - ключ к 97%"""
 
-    def test_force_update_endpoint(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_force_update_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/force-update (блок 1566-1595)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
@@ -49,9 +47,7 @@ class TestAdminEndpoints:
             data = response.json()
             assert "detail" in data
 
-    def test_check_updates_endpoint(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_check_updates_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/check-updates (блок 1607-1624)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
@@ -63,7 +59,7 @@ class TestAdminEndpoints:
             data = response.json()
             assert "message" in data
 
-    def test_rollback_endpoint(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rollback_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/rollback (блок 1640-1662)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
@@ -75,9 +71,7 @@ class TestAdminEndpoints:
 
         assert response.status_code in [200, 400, 422, 500, 503]
 
-    def test_admin_endpoints_integration(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_admin_endpoints_integration(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin endpoints with real behavior"""
         monkeypatch.setenv("API_KEY", "test_key")
 
@@ -105,12 +99,8 @@ class TestAdminEndpoints:
 class TestRemainingBlocks:
     """Тесты для покрытия оставшихся мелких блоков"""
 
-    def test_insight_endpoints(
-        self, client: TestClient, vip_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_insight_endpoints(self, client, vip_headers: dict[str, str]) -> None:
         """Тест insight endpoints"""
-        monkeypatch.setenv("API_KEY", "test_key")
-
         # Basic insight
         response = client.post(
             "/insight",
@@ -127,37 +117,45 @@ class TestRemainingBlocks:
         assert response.status_code in [200, 422, 500, 503]
 
         # API v1 insight
-        response = client.post(
-            "/api/v1/insight",
-            headers=vip_headers,
-            json={
-                "weight_kg": 70,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-            },
-        )
-        assert response.status_code in [200, 422, 500, 503]
+        os.environ["API_KEY"] = "test_key"
+        try:
+            response = client.post(
+                "/api/v1/insight",
+                headers=vip_headers,
+                json={
+                    "weight_kg": 70,
+                    "height_m": 1.75,
+                    "age": 30,
+                    "gender": "male",
+                    "pregnant": "no",
+                    "athlete": "no",
+                },
+            )
+            assert response.status_code in [200, 422, 500, 503]
+        finally:
+            if "API_KEY" in os.environ:
+                del os.environ["API_KEY"]
 
-    def test_api_v1_bmi(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_api_v1_bmi(self, client):
         """Тест API v1 BMI endpoint"""
-        monkeypatch.setenv("API_KEY", "test_key")
-
-        response = client.post(
-            "/api/v1/bmi",
-            headers={"X-API-Key": "test_key"},
-            json={
-                "weight_kg": 70,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-            },
-        )
-        assert response.status_code in [200, 422, 500]
+        os.environ["API_KEY"] = "test_key"
+        try:
+            response = client.post(
+                "/api/v1/bmi",
+                headers={"X-API-Key": "test_key"},
+                json={
+                    "weight_kg": 70,
+                    "height_m": 1.75,
+                    "age": 30,
+                    "gender": "male",
+                    "pregnant": "no",
+                    "athlete": "no",
+                },
+            )
+            assert response.status_code in [200, 422, 500]
+        finally:
+            if "API_KEY" in os.environ:
+                del os.environ["API_KEY"]
 
     def test_edge_cases_comprehensive(self, client):
         """Комплексные edge cases для добивания покрытия"""

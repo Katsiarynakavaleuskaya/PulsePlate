@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from the app package
 from app import app
+from app.middleware.api_tiers import TEST_KEY_VIP
 import legacy_app
 
 
@@ -22,6 +23,7 @@ class TestTargetedCoverageBoost:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
+        self.vip_headers = {"X-API-Key": TEST_KEY_VIP}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -93,9 +95,7 @@ class TestTargetedCoverageBoost:
         assert result["premium"] is True
         assert "premium_reco" in result
 
-    def test_app_py_lines_758_760(
-        self, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
-    ) -> None:
+    def test_app_py_lines_758_760(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
 
         def _raise_import_error() -> None:
@@ -105,12 +105,10 @@ class TestTargetedCoverageBoost:
         monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
 
         data = {"text": "test"}
-        response = self.client.post("/api/v1/insight", json=data, headers=vip_headers)
+        response = self.client.post("/api/v1/insight", json=data, headers=self.vip_headers)
         assert response.status_code == 503
 
-    def test_app_py_line_914(
-        self, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
-    ) -> None:
+    def test_app_py_line_914(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 914 in main.py (insight endpoint with missing llm module)."""
 
         def _raise_import_error() -> None:
@@ -120,7 +118,7 @@ class TestTargetedCoverageBoost:
         monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
 
         data = {"text": "test"}
-        response = self.client.post("/insight", json=data, headers=vip_headers)
+        response = self.client.post("/insight", json=data, headers=self.vip_headers)
         assert response.status_code == 503
 
     def test_app_py_line_1215(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -131,7 +129,7 @@ class TestTargetedCoverageBoost:
         monkeypatch.setattr(scheduler, "_scheduler_instance", None)
 
         # Patch get_update_scheduler to raise an exception
-        async def fake_get_scheduler_error() -> None:
+        async def fake_get_scheduler_error():
             raise Exception("Test error")
 
         # Patch scheduler module's get_update_scheduler

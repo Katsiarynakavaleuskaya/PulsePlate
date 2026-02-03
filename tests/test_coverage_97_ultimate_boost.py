@@ -429,7 +429,7 @@ class TestCoverage97UltimateBoost:
         self,
         test_environment,
         vip_headers: dict[str, str],
-    ) -> None:
+    ):
         """Тест покрытия app.py строк 1325-1326, 1328-1329 - VIP endpoints с различными данными"""
         import app
 
@@ -491,7 +491,7 @@ class TestCoverage97UltimateBoost:
         self,
         test_environment,
         vip_headers: dict[str, str],
-    ) -> None:
+    ):
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
         import app
 
