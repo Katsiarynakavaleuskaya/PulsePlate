@@ -79,7 +79,9 @@ class TestCoverage97UltimateFinal:
         """Test insight endpoint with language parameter."""
         client = TestClient(cast(ASGIApp, app.app))
         payload = {"text": "test insight", "lang": "en"}
-        response = client.post("/insight", json=payload)
+        from app.middleware.api_tiers import TEST_KEY_VIP
+
+        response = client.post("/insight", json=payload, headers={"X-API-Key": TEST_KEY_VIP})
         assert response.status_code in [200, 422, 503]
 
     def test_app_premium_bmr_with_lang(self):

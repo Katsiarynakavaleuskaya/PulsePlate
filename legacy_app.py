@@ -104,6 +104,7 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _resolve_app_callable, _short_git_sha
 from app.utils.feature_flags import _is_truthy
+from app.middleware.api_tiers import require_vip_tier
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
@@ -2170,7 +2171,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
 
 @app.post(
     "/api/v1/insight",
-    dependencies=[Depends(_get_api_key_dynamic)],
+    dependencies=[Depends(require_vip_tier)],
     response_model=InsightResponse,
     responses=RATE_LIMIT_429_RESPONSES,
 )
@@ -2182,6 +2183,9 @@ async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResp
 # Backward-compatible simple insight endpoint (no API key)
 @app.post(
     "/insight",
+    include_in_schema=False,
+    deprecated=True,
+    dependencies=[Depends(require_vip_tier)],
     response_model=InsightResponse,
     responses=RATE_LIMIT_429_RESPONSES,
 )

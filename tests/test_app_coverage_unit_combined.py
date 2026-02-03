@@ -28,12 +28,14 @@ class TestAppCoverage:
         # Groups endpoint should return 404 as it's not implemented
         assert response.status_code == 404
 
-    def test_insight_endpoint_coverage(self, client: TestClient) -> None:
+    def test_insight_endpoint_coverage(
+        self, client: TestClient, vip_headers: dict[str, str]
+    ) -> None:
         """Test insight endpoint for coverage."""
         response = client.post(
             "/api/v1/insight",
             json={"text": "test insight"},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         # With test_environment fixture, should return 200 or 503 (if LLM unavailable)
         assert response.status_code in [200, 503]

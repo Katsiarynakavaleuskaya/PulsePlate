@@ -90,7 +90,9 @@ class TestAppMissingLinesExtra:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "maybe"}, clear=False),
             patch("llm.get_provider", return_value=_Stub()),
         ):
-            r = self.client.post("/insight", json={"text": "x"})
+            r = self.client.post(
+                "/insight", json={"text": "x"}, headers={"X-API-Key": "test_vip_key"}
+            )
             assert r.status_code == 503
             assert "disabled" in r.json().get("detail", "").lower()
 

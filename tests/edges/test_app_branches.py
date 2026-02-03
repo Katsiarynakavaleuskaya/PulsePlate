@@ -1,6 +1,7 @@
 from typing import cast
 
 from starlette.types import ASGIApp
+from app.middleware.api_tiers import TEST_KEY_VIP
 
 
 def test_api_key_strict_production_requires_config(monkeypatch):
@@ -43,7 +44,7 @@ def test_insight_feature_disabled_and_import_error(monkeypatch):
     # RU: FEATURE_INSIGHT выключен → 503 (legacy path)
     # EN: FEATURE_INSIGHT disabled → 503 (legacy path)
     monkeypatch.delenv("FEATURE_INSIGHT", raising=False)
-    r = client.post("/insight", json={"text": "hello"})
+    r = client.post("/insight", json={"text": "hello"}, headers={"X-API-Key": TEST_KEY_VIP})
     assert r.status_code == 503
 
     # RU: Включаем флаг и ломаем импорт llm → 503 (v1 path)
@@ -54,10 +55,10 @@ def test_insight_feature_disabled_and_import_error(monkeypatch):
     r2 = client.post(
         "/api/v1/insight",
         json={"text": "hello"},
-        headers={"X-API-Key": "test_key"},
+        headers={"X-API-Key": TEST_KEY_VIP},
     )
-    # Accept both 503 (service unavailable) and 403 (auth check before service check)
-    assert r2.status_code in [403, 503]
+    # Feature enabled but llm import broken → 503
+    assert r2.status_code == 503
 
 
 def test_admin_status_scheduler_error_paths(monkeypatch, api_key):

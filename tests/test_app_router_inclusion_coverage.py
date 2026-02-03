@@ -48,15 +48,17 @@ class TestAppRouterInclusionCoverage:
         response = client.get("/api/v1/bodyfat")
         assert response.status_code in [200, 405]
 
-    def test_app_router_inclusion_insight_coverage(self, client):
+    def test_app_router_inclusion_insight_coverage(
+        self, client, vip_headers: dict[str, str]
+    ) -> None:
         """Тест покрытия app.py insight router inclusion (строка 2151)"""
         # Тестируем insight router inclusion
         response = client.post(
             "/api/v1/insight",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
-        assert response.status_code in [200, 404, 422]
+        assert response.status_code in [200, 422, 503]
 
         # Проверяем, что insight router работает
         response = client.get("/api/v1/insight")

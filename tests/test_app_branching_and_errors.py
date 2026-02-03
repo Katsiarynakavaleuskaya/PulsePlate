@@ -88,7 +88,9 @@ def test_export_pdf_no_reportlab_with_key(
 # Fixture for API key headers
 @pytest.fixture
 def api_key_headers() -> dict[str, str]:
-    return {"X-API-Key": "test"}
+    from app.middleware.api_tiers import TEST_KEY_VIP
+
+    return {"X-API-Key": TEST_KEY_VIP}
 
 
 def test_rag_context_fallback(
@@ -98,8 +100,8 @@ def test_rag_context_fallback(
     disable_optional_modules(monkeypatch, "core.rag.simple_rag")
     payload = {"text": "What is BMI?"}
     response = client.post("/api/v1/insight", json=payload, headers=api_key_headers)
-    # If API key is invalid, expect 403, else 200
-    assert response.status_code in [200, 403]
+    # VIP tier gate runs before handler; FEATURE_INSIGHT may still be disabled (503).
+    assert response.status_code in [200, 503]
 
 
 def test_premium_nutrient_gaps_fallback(

@@ -11,6 +11,7 @@ import sys
 import os
 
 from app import app
+from app.middleware.api_tiers import TEST_KEY_VIP
 
 fake = Faker()
 
@@ -43,7 +44,9 @@ class TestAppMissingLinesTargeted:
         with patch.dict("os.environ", {"FEATURE_INSIGHT": "0"}):
             test_data = {"text": fake.text(max_nb_chars=100), "lang": "en"}
 
-            response = self.client.post("/insight", json=test_data)
+            response = self.client.post(
+                "/insight", json=test_data, headers={"X-API-Key": TEST_KEY_VIP}
+            )
             # Should return 503 when feature is disabled
             assert response.status_code in [503, 400, 422]
 
@@ -140,7 +143,11 @@ class TestAppMissingLinesTargeted:
             return self.client.get("/health")
 
         def make_insight_request():
-            return self.client.post("/insight", json={"text": fake.sentence(), "lang": "en"})
+            return self.client.post(
+                "/insight",
+                json={"text": fake.sentence(), "lang": "en"},
+                headers={"X-API-Key": TEST_KEY_VIP},
+            )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = []
@@ -184,7 +191,7 @@ class TestAppLargePayloadsAndLimits:
 
         test_data = {"text": long_text, "lang": "en"}
 
-        response = self.client.post("/insight", json=test_data)
+        response = self.client.post("/insight", json=test_data, headers={"X-API-Key": TEST_KEY_VIP})
         assert response.status_code in [200, 400, 413, 422, 503]
 
     def test_plan_endpoint_with_complex_data(self) -> None:
@@ -230,7 +237,9 @@ class TestAppErrorHandlingPaths:
         # Test with various environment combinations
         with patch.dict("os.environ", {"FEATURE_INSIGHT": "0", "VIP_MODULE_ENABLED": "false"}):
             # Test insight when disabled
-            response = self.client.post("/insight", json={"text": "test", "lang": "en"})
+            response = self.client.post(
+                "/insight", json={"text": "test", "lang": "en"}, headers={"X-API-Key": TEST_KEY_VIP}
+            )
             assert response.status_code in [503, 400, 422]
 
     def test_authentication_error_paths(self) -> None:

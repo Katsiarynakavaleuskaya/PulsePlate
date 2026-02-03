@@ -115,7 +115,7 @@ class TestAdminEndpoints:
 class TestRemainingBlocks:
     """Тесты для покрытия оставшихся мелких блоков"""
 
-    def test_insight_endpoints(self, client):
+    def test_insight_endpoints(self, client, vip_headers: dict[str, str]) -> None:
         """Тест insight endpoints"""
         # Basic insight
         response = client.post(
@@ -128,15 +128,16 @@ class TestRemainingBlocks:
                 "pregnant": "no",
                 "athlete": "no",
             },
+            headers=vip_headers,
         )
-        assert response.status_code in [200, 422, 500]
+        assert response.status_code in [200, 422, 500, 503]
 
         # API v1 insight
         os.environ["API_KEY"] = "test_key"
         try:
             response = client.post(
                 "/api/v1/insight",
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
                 json={
                     "weight_kg": 70,
                     "height_m": 1.75,

@@ -247,7 +247,9 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_generate_failure(mock_get_provider: Mock, client: TestClient) -> None:
+def test_api_insight_provider_generate_failure(
+    mock_get_provider: Mock, client: TestClient, vip_headers: dict[str, str]
+) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
 
@@ -262,9 +264,7 @@ def test_api_insight_provider_generate_failure(mock_get_provider: Mock, client: 
     original_feature = os.environ.get("FEATURE_INSIGHT")
     os.environ["FEATURE_INSIGHT"] = "true"
 
-    response = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
-    )
+    response = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/json")
     data = response.json()
@@ -279,7 +279,9 @@ def test_api_insight_provider_generate_failure(mock_get_provider: Mock, client: 
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_none(mock_get_provider: Mock, client: TestClient) -> None:
+def test_api_insight_provider_none(
+    mock_get_provider: Mock, client: TestClient, vip_headers: dict[str, str]
+) -> None:
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
@@ -289,9 +291,7 @@ def test_api_insight_provider_none(mock_get_provider: Mock, client: TestClient) 
     original_feature = os.environ.get("FEATURE_INSIGHT")
     os.environ["FEATURE_INSIGHT"] = "true"
 
-    response = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
-    )
+    response = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/json")
     data = response.json()
@@ -379,7 +379,8 @@ def test_v1_insight_invalid_api_key(client):
         )
         assert r.status_code == 403
         data = r.json()
-        assert "Invalid API Key" in data["detail"]
+        # VIP tier gate: wrong key → VIP access denied (tier-aware error message).
+        assert "VIP" in data["detail"]
     finally:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]

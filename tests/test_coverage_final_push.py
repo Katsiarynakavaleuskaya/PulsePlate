@@ -149,17 +149,19 @@ class TestFinalCoveragePush:
         import app
 
         with TestClient(cast(ASGIApp, app.app)) as client:
-            # Test with missing required fields
-            payload = {}
+            # Test with missing required fields - should error
+            response = client.post("/plan", json={})
+            assert response.status_code in [422, 503]
 
-            response = client.post("/plan", json=payload)
-            assert response.status_code in [422, 503]  # Validation error or service unavailable
+            # Basic health check
+            response = client.get("/api/v1/health")
+            assert response.status_code == 200
+            data = response.json()
+            assert "status" in data
 
-    def test_health_endpoint_comprehensive(self) -> None:
-        """Test health endpoint with different scenarios."""
-        import app
-
-        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Health check with query params
+            response = client.get("/api/v1/health?details=true")
+            assert response.status_code == 200
             # Basic health check
             response = client.get("/api/v1/health")
             assert response.status_code == 200
@@ -177,7 +179,9 @@ class TestFinalCoveragePush:
         with TestClient(cast(ASGIApp, app.app)) as client:
             payload = {"weight_kg": 70, "height_cm": 170, "age_years": 30, "gender": "male"}
 
-            response = client.post("/insight", json=payload)
+            from app.middleware.api_tiers import TEST_KEY_VIP
+
+            response = client.post("/insight", json=payload, headers={"X-API-Key": TEST_KEY_VIP})
             assert response.status_code in [
                 200,
                 422,

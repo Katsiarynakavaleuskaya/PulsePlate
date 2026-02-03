@@ -253,7 +253,9 @@ class TestCoverage97UltimateBoost:
             )
             assert response.status_code in [200, 422]
 
-    def test_app_coverage_ultimate_boost_missing_lines_1008_1012(self, test_environment):
+    def test_app_coverage_ultimate_boost_missing_lines_1008_1012(
+        self, test_environment, vip_headers: dict[str, str]
+    ) -> None:
         """Тест покрытия app.py строк 1008-1012 - insight endpoint с различными данными"""
         import app
 
@@ -272,7 +274,7 @@ class TestCoverage97UltimateBoost:
             response = client.post(
                 "/api/v1/insight",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]
 
