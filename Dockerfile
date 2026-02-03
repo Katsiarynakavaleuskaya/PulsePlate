@@ -1,6 +1,9 @@
 # Multi-stage Dockerfile for PulsePlate
 # Optimized for production with minimal image size and security
 
+# Centralize pip upgrade range (SoT) to avoid drift across stages.
+ARG PIP_VERSION_RANGE="pip>=26.0,<27.0"
+
 # Stage 1: Build stage
 FROM python:3.13.6-slim-bookworm AS builder
 
@@ -17,8 +20,18 @@ RUN apt-get update && apt-get install -y \
 # Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-ENV PIP_NO_PYTHON_VERSION_WARNING=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_PYTHON_VERSION_WARNING=1
+
+# Centralize pip version range (SoT) for CVE fixes.
+ARG PIP_VERSION_RANGE
+
+# SECURITY (CVE-2026-1703):
+# Ensure pip is upgraded in the venv before installing dependencies.
+# We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
+# requirements.in cannot affect pip shipped in the base image.
+# Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+RUN /opt/venv/bin/python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
@@ -37,11 +50,22 @@ PY
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
 FROM python:3.13.6-slim-bookworm AS runtime-base
 
+# Re-declare build arg in this stage.
+ARG PIP_VERSION_RANGE
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app"
+
+# SECURITY (CVE-2026-1703):
+# The base image may ship with an affected pip (e.g., 25.2) in system site-packages.
+# Upgrade it so scanners do not detect pip 25.2 at /usr/local/lib/... in the runtime image.
+# We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
+# requirements.in cannot affect pip shipped in the base image.
+# Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+RUN python -m pip install --no-cache-dir --upgrade "${PIP_VERSION_RANGE}"
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
 # NOTE: libtasn1-6 comes transitively via libgnutls30 (required for TLS/HTTPS).
