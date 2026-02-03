@@ -11,24 +11,25 @@ IMPORTANT:
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
-def _validate_numeric_dict(v: Dict[str, float], field_name: str) -> Dict[str, float]:
-    """Shared numeric-dict validator.
-
-    RU: Общая проверка словаря чисел >= 0 и finite.
-    EN: Shared validator for numeric dict values (finite, >= 0).
+def _validate_numeric_dict(v: Dict[str, Any], field_name: str) -> Dict[str, Any]:
+    """RU: Проверка словаря чисел (finite, >=0), bool запрещён.
+    EN: Validate numeric dict values (finite, >=0), bool is forbidden.
     """
 
     for key, val in v.items():
-        # bool is subclass of int -> exclude explicitly
-        if not isinstance(val, (int, float)) or isinstance(val, bool):
+        # bool is a subclass of int -> must reject explicitly (before Pydantic coercion).
+        if isinstance(val, bool):
             raise ValueError(f"{field_name}[{key}] must be a finite number >= 0")
-        val_f = float(val)
-        if not math.isfinite(val_f) or val_f < 0:
+        try:
+            num = float(val)
+        except (TypeError, ValueError):
+            raise ValueError(f"{field_name}[{key}] must be a finite number >= 0") from None
+        if not math.isfinite(num) or num < 0:
             raise ValueError(f"{field_name}[{key}] must be a finite number >= 0")
     return v
 
@@ -46,12 +47,12 @@ class TargetsIn(BaseModel):
     water_ml: int = Field(0, ge=0)
     activity_week: Optional[Dict[str, int]] = None
 
-    @field_validator("macros")
+    @field_validator("macros", mode="before")
     @classmethod
-    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def _validate_macros(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         return _validate_numeric_dict(v, "macros")
 
-    @field_validator("micro")
+    @field_validator("micro", mode="before")
     @classmethod
-    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def _validate_micro(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         return _validate_numeric_dict(v, "micro")

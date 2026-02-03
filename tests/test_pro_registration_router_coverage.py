@@ -27,7 +27,7 @@ def _install_dummy_router_module(
     """
 
     dummy_mod = types.ModuleType(module_name)
-    dummy_mod.router = router_obj  # type: ignore[attr-defined]
+    setattr(dummy_mod, "router", router_obj)
     monkeypatch.setitem(sys.modules, module_name, dummy_mod)
 
 
