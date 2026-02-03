@@ -29,87 +29,71 @@ def client(app: FastAPI):
 class TestAdminEndpoints:
     """Тесты admin endpoints - ключ к 97%"""
 
-    def test_force_update_endpoint(self, client):
+    def test_force_update_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/force-update (блок 1566-1595)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.post(
-                "/api/v1/admin/force-update",
-                headers={"X-API-Key": "test_key"},
-                json={"source": "usda"},
-            )
+        monkeypatch.setenv("API_KEY", "test_key")
 
-            # Endpoint может работать или падать в зависимости от реализации
-            assert response.status_code in [200, 400, 500, 503]
+        response = client.post(
+            "/api/v1/admin/force-update",
+            headers={"X-API-Key": "test_key"},
+            json={"source": "usda"},
+        )
 
-            if response.status_code == 500:
-                # Проверим что получили правильную ошибку
-                data = response.json()
-                assert "detail" in data
+        # Endpoint может работать или падать в зависимости от реализации
+        assert response.status_code in [200, 400, 500, 503]
 
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        if response.status_code == 500:
+            # Проверим что получили правильную ошибку
+            data = response.json()
+            assert "detail" in data
 
-    def test_check_updates_endpoint(self, client):
+    def test_check_updates_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/check-updates (блок 1607-1624)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
+        monkeypatch.setenv("API_KEY", "test_key")
 
-            assert response.status_code in [200, 500, 503]
+        response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
 
-            if response.status_code == 200:
-                data = response.json()
-                assert "message" in data
+        assert response.status_code in [200, 500, 503]
 
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        if response.status_code == 200:
+            data = response.json()
+            assert "message" in data
 
-    def test_rollback_endpoint(self, client):
+    def test_rollback_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/rollback (блок 1640-1662)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.post(
-                "/api/v1/admin/rollback",
-                headers={"X-API-Key": "test_key"},
-                json={"source": "usda", "target_version": "1.0.0"},
-            )
+        monkeypatch.setenv("API_KEY", "test_key")
 
-            assert response.status_code in [200, 400, 422, 500, 503]
+        response = client.post(
+            "/api/v1/admin/rollback",
+            headers={"X-API-Key": "test_key"},
+            json={"source": "usda", "target_version": "1.0.0"},
+        )
 
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        assert response.status_code in [200, 400, 422, 500, 503]
 
-    def test_admin_endpoints_integration(self, client):
+    def test_admin_endpoints_integration(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin endpoints with real behavior"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Test force-update (real request, no invasive sys.modules patching)
-            response = client.post(
-                "/api/v1/admin/force-update",
-                headers={"X-API-Key": "test_key"},
-                json={"source": "usda"},
-            )
-            assert response.status_code in [200, 400, 404, 422, 500, 503]
+        monkeypatch.setenv("API_KEY", "test_key")
 
-            # Test check-updates
-            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
-            assert response.status_code in [200, 404, 500, 503]
+        # Test force-update (real request, no invasive sys.modules patching)
+        response = client.post(
+            "/api/v1/admin/force-update",
+            headers={"X-API-Key": "test_key"},
+            json={"source": "usda"},
+        )
+        assert response.status_code in [200, 400, 404, 422, 500, 503]
 
-            # Test rollback
-            response = client.post(
-                "/api/v1/admin/rollback",
-                headers={"X-API-Key": "test_key"},
-                json={"source": "usda", "target_version": "1.0.0"},
-            )
-            assert response.status_code in [200, 400, 404, 422, 500, 503]
+        # Test check-updates
+        response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
+        assert response.status_code in [200, 404, 500, 503]
 
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        # Test rollback
+        response = client.post(
+            "/api/v1/admin/rollback",
+            headers={"X-API-Key": "test_key"},
+            json={"source": "usda", "target_version": "1.0.0"},
+        )
+        assert response.status_code in [200, 400, 404, 422, 500, 503]
 
 
 class TestRemainingBlocks:

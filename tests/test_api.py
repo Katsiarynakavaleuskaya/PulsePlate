@@ -248,7 +248,10 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
 
 @patch("llm.get_provider")
 def test_api_insight_provider_generate_failure(
-    mock_get_provider: Mock, client: TestClient, vip_headers: dict[str, str]
+    mock_get_provider: Mock,
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
@@ -258,11 +261,8 @@ def test_api_insight_provider_generate_failure(
     mock_provider.generate.side_effect = Exception("Generate failed")
     mock_get_provider.return_value = mock_provider
 
-    # Устанавливаем переменные окружения для теста
-    import os
-
-    original_feature = os.environ.get("FEATURE_INSIGHT")
-    os.environ["FEATURE_INSIGHT"] = "true"
+    # Deterministic env setup with auto-cleanup
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     response = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
     assert response.status_code == 503
@@ -271,37 +271,25 @@ def test_api_insight_provider_generate_failure(
     # Privacy/safety: never leak raw exception details to the client.
     assert "Generate failed" not in data.get("detail", "")
 
-    # Восстанавливаем переменные окружения
-    if original_feature is not None:
-        os.environ["FEATURE_INSIGHT"] = original_feature
-    else:
-        del os.environ["FEATURE_INSIGHT"]
-
 
 @patch("llm.get_provider")
 def test_api_insight_provider_none(
-    mock_get_provider: Mock, client: TestClient, vip_headers: dict[str, str]
+    mock_get_provider: Mock,
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
-    # Устанавливаем переменные окружения для теста
-    import os
-
-    original_feature = os.environ.get("FEATURE_INSIGHT")
-    os.environ["FEATURE_INSIGHT"] = "true"
+    # Deterministic env setup with auto-cleanup
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     response = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     assert "No LLM provider configured" in data["detail"]
-
-    # Восстанавливаем переменные окружения
-    if original_feature is not None:
-        os.environ["FEATURE_INSIGHT"] = original_feature
-    else:
-        del os.environ["FEATURE_INSIGHT"]
 
 
 def test_metrics(client):
@@ -371,19 +359,14 @@ def test_compute_wht_ratio_round_exception(client) -> None:
 # These tests are obsolete as they tested API key validation on BMI endpoint
 
 
-def test_v1_insight_invalid_api_key(client):
-    os.environ["API_KEY"] = "valid_key"
-    try:
-        r = client.post(
-            "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"}
-        )
-        assert r.status_code == 403
-        data = r.json()
-        # VIP tier gate: wrong key → VIP access denied (tier-aware error message).
-        assert "VIP" in data["detail"]
-    finally:
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+def test_v1_insight_invalid_api_key(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_KEY", "valid_key")
+
+    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"})
+    assert r.status_code == 403
+    data = r.json()
+    # VIP tier gate: wrong key → VIP access denied (tier-aware error message).
+    assert "VIP" in data["detail"]
 
 
 def test_slowapi_import_failure(client):
