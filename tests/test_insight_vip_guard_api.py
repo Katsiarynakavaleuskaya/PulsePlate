@@ -10,6 +10,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+class _EchoProvider:
+    """Deterministic mock provider for insight tests."""
+
+    name = "echo"
+
+    async def generate(self, text: str) -> str:
+        return f"ok:{text}"
+
+
 def test_insight_v1_requires_vip_tier(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -22,14 +31,8 @@ def test_insight_v1_requires_vip_tier(
     """
     import llm
 
-    class EchoProvider:
-        name = "echo"
-
-        async def generate(self, text: str) -> str:
-            return f"ok:{text}"
-
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
 
     payload = {"text": "hello"}
 
@@ -59,14 +62,8 @@ def test_insight_legacy_requires_vip_tier(
     """
     import llm
 
-    class EchoProvider:
-        name = "echo"
-
-        async def generate(self, text: str) -> str:
-            return f"ok:{text}"
-
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
 
     payload = {"text": "hello"}
 
