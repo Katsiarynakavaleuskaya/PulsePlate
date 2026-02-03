@@ -15,43 +15,43 @@
 - **Cost abuse** (LLM calls at scale; ledger notes “\$72k/month cost attack” risk).
 - **DoS risk** (PDF/CSV endpoints can be heavy; repeated calls can exhaust CPU/memory).
 
-**Goal (PR-628):** Enable a correct, proxy-aware rate limiter in runtime and apply limits to LLM + export surfaces, with deterministic tests and OpenAPI documentation.
+**Goal (PR-628):** Enable a correct, proxy-aware rate limiter at runtime and apply limits to LLM + export surfaces, with deterministic tests and OpenAPI documentation.
 
 ---
 
 ## 1) Surface Area (candidates to rate-limit)
 
-Format: **METHOD + PATH + file:line**
+Format: **METHOD + PATH + evidence anchor**
 
 ### A) LLM / Insight
 
 | Method | Path                | Evidence                   |
 | ------ | ------------------- | -------------------------- |
-| POST   | `/api/v1/insight`   | `legacy_app.py:2037-2042`  |
-| POST   | `/insight` (legacy) | `legacy_app.py:2085-2089`  |
+| POST   | `/api/v1/insight`   | `legacy_app.py` → route wrapper `insight_v1_route` |
+| POST   | `/insight` (legacy) | `legacy_app.py` → route wrapper `insight_route` |
 
 ### B) Export / PDF / CSV (real routers)
 
-- GET `/api/v1/plan/week/export.csv` — `app/routers/plan_export.py:347` (router prefix at `:42`)
-- GET `/api/v1/plan/week/export.pdf` — `app/routers/plan_export.py:444` (router prefix at `:42`)
-- POST `/api/v1/export/sign` — `app/routers/plan_export.py:561` (router prefix at `:43`)
-- GET `/api/v1/shoplist` — `app/routers/shoplist_export.py:230` (router prefix at `:25`)
-- GET `/api/v1/shoplist/export.csv` — `app/routers/shoplist_export.py:237`
-- GET `/api/v1/shoplist/export.pdf` — `app/routers/shoplist_export.py:258`
+- GET `/api/v1/plan/week/export.csv` — `app/routers/plan_export.py` → `plan_router.get("/week/export.csv")`
+- GET `/api/v1/plan/week/export.pdf` — `app/routers/plan_export.py` → `plan_router.get("/week/export.pdf")`
+- POST `/api/v1/export/sign` — `app/routers/plan_export.py` → `export_router.post("/sign")`
+- GET `/api/v1/shoplist` — `app/routers/shoplist_export.py` → `router.get("")`
+- GET `/api/v1/shoplist/export.csv` — `app/routers/shoplist_export.py` → `router.get("/export.csv")`
+- GET `/api/v1/shoplist/export.pdf` — `app/routers/shoplist_export.py` → `router.get("/export.pdf")`
 
 ### C) Export / PDF / CSV (VIP)
 
-- POST `/api/v1/vip/shoplist/export` — `app/routers/vip_shoplist.py:505` (VIP prefix: `app/routers/vip.py:127` + include: `:130`)
+- POST `/api/v1/vip/shoplist/export` — `app/routers/vip_shoplist.py` → `router.post("/export")`
 
 ### D) Export / PDF / CSV (test/demo endpoints in legacy_app.py)
 
 These are gated by `EXPORTS_ENABLED` (see “Feature flags / route registration” below), but **still represent surface area** when enabled.
 
-- GET `/api/v1/premium/exports/day/{plan_id}.csv` — `legacy_app.py:4695-4697`
-- POST `/api/v1/export/pdf` (generic) — `legacy_app.py:4778-4781`
-- GET `/api/v1/premium/exports/week/{plan_id}.csv` — `legacy_app.py:4830-4833`
-- GET `/api/v1/premium/exports/day/{plan_id}.pdf` — `legacy_app.py:4941-4943`
-- GET `/api/v1/premium/exports/week/{plan_id}.pdf` — `legacy_app.py:5026-5029`
+- GET `/api/v1/premium/exports/day/{plan_id}.csv` — `legacy_app.py` → exports block (gated by `EXPORTS_ENABLED`)
+- POST `/api/v1/export/pdf` (generic) — `legacy_app.py` → exports block (gated by `EXPORTS_ENABLED`)
+- GET `/api/v1/premium/exports/week/{plan_id}.csv` — `legacy_app.py` → exports block (gated by `EXPORTS_ENABLED`)
+- GET `/api/v1/premium/exports/day/{plan_id}.pdf` — `legacy_app.py` → exports block (gated by `EXPORTS_ENABLED`)
+- GET `/api/v1/premium/exports/week/{plan_id}.pdf` — `legacy_app.py` → exports block (gated by `EXPORTS_ENABLED`)
 
 ---
 
@@ -60,44 +60,43 @@ These are gated by `EXPORTS_ENABLED` (see “Feature flags / route registration�
 ### A) Insight gating flag
 
 - `FEATURE_INSIGHT` gates both insight paths:
-  - `legacy_app.py:2047-2049` (`/api/v1/insight`)
-  - `legacy_app.py:2095-2098` (`/insight`)
+  - `legacy_app.py` → `insight_v1()` and `insight()` (feature-flag gate)
 
 ### B) VIP module gating flag
 
 - `VIP_MODULE_ENABLED` parsed via `app/utils/feature_flags.py:24-26`
 - Registration is centralized:
-  - `app/routers/vip_registration.py:42-57` (includes `app/routers/vip.py` router)
+  - `app/routers/vip_registration.py` (includes `app/routers/vip.py` router)
 
 ### C) Legacy “exports enabled” gating
 
 `legacy_app.py` defines:
 
 - `EXPORTS_ENABLED` computed from `FEATURE_EXPORTS` and test/debug heuristics:
-  - `legacy_app.py:4676-4693`
+  - `legacy_app.py` → `EXPORTS_ENABLED = ...` and `if EXPORTS_ENABLED:` exports block
 - When enabled, legacy “test/demo” export endpoints are defined (see surface table above).
 
 ### D) Signed export token gating (plan_export)
 
 - `PRIVATE_EXPORTS_ENABLED` (env) parsed in `settings.py:10-14`
 - Token guard logic:
-  - `app/routers/plan_export.py:332-345`
+  - `app/routers/plan_export.py` → `_require_valid_token(request)`
 
 ---
 
-## 3) Current State (rate limiting in runtime)
+## 3) Current State (rate limiting at runtime)
 
 ### What is true today
 
-**Rate limiting IS active in runtime (wired), and gracefully degrades if SlowAPI is unavailable.**
+**Rate limiting IS active at runtime (wired), and gracefully degrades if SlowAPI is unavailable.**
 
 - Wiring is executed during FastAPI app creation:
-  - `legacy_app.py:679-688` (imports `wire_rate_limiting` and calls `wire_rate_limiting(app)`).
+  - `legacy_app.py` → app initialization block (calls `wire_rate_limiting(app)`).
 - Wiring helper (canonical implementation):
-  - `app/security/rate_limit.py:243-280` (`wire_rate_limiting` attaches limiter, 429 handler, middleware).
+  - `app/security/rate_limit.py` → `wire_rate_limiting(app)` (attaches limiter, 429 handler, middleware).
 
 Note: SlowAPI remains an optional dependency (ImportError → no-op stubs), but when installed the limiter
-is enabled by default in runtime and disabled by default in tests unless explicitly enabled (see below).
+is enabled by default at runtime and disabled by default in tests unless explicitly enabled (see below).
 
 ---
 
@@ -132,8 +131,8 @@ No explicit Caddy rule for `CF-Connecting-IP` is present; therefore the app must
 
 There is a proxy-aware “client key” helper implemented for SlowAPI:
 
-- `app/security/rate_limit.py:173-195` (`rate_limit_client_key`)
-- `app/security/rate_limit.py:139-171` (`extract_client_ip`)
+- `app/security/rate_limit.py` → `rate_limit_client_key(request)`
+- `app/security/rate_limit.py` → `extract_client_ip(request, trusted_entries)`
 
 Key properties:
 
@@ -146,7 +145,7 @@ Key properties:
 Earlier audits flagged that `TRUSTED_PROXIES` matching was **exact-string only** (no CIDR).
 This has since been addressed in the canonical implementation:
 
-- `app/security/rate_limit.py:79-136` implements CIDR parsing + membership checks (`parse_trusted_proxies`,
+- `app/security/rate_limit.py` implements CIDR parsing + membership checks (`parse_trusted_proxies`,
   `is_trusted_proxy`).
 
 Header precedence (trusted-proxy mode):
@@ -220,7 +219,7 @@ and should return a stable JSON payload (minimum acceptable):
 
 ## 8) Definition of Done (PR-628)
 
-- SlowAPI is active in runtime (Limiter + middleware + 429 handler).
+- SlowAPI is active at runtime (Limiter + middleware + 429 handler).
 - Proxy-aware key function works behind Cloudflare/Caddy/Uvicorn and does not collapse all users under one IP.
 - Limits applied to:
   - `/api/v1/insight` and `/insight`
@@ -252,8 +251,8 @@ and should return a stable JSON payload (minimum acceptable):
 
 - Ledger: `docs/roadmap/BACKLOG_LEDGER.md` (P0 CRITICAL: Rate-limiting for LLM endpoints)
 - LLM endpoints: `legacy_app.py` (`/api/v1/insight`, `/insight`)
-- SlowAPI wiring (commented): `legacy_app.py:1022-1037`
-- Client fingerprint helper: `core/fingerprint_security.py:_client_fingerprint`
+- SlowAPI wiring: `legacy_app.py` → app initialization block (calls `wire_rate_limiting(app)`)
+- Client fingerprint helper: `core/fingerprint_security.py:compute_fingerprint`
 - Proxy infra:
   - `deploy/Caddyfile`, `deploy/Caddyfile.production`
   - `deploy/docker-compose.staging.yaml`, `deploy/docker-compose.production.yaml`

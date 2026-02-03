@@ -15,6 +15,7 @@ from starlette.types import ASGIApp
 
 # Import the canonical FastAPI app (registers metrics, etc.)
 from app.main import app
+from app.middleware.api_tiers import TEST_KEY_VIP
 
 
 @pytest.mark.slow
@@ -286,11 +287,12 @@ class TestInsightEndpoints:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(cast(ASGIApp, app))
+        self.vip_headers = {"X-API-Key": TEST_KEY_VIP}
 
     def test_insight_endpoint_disabled_explicitly(self) -> None:
         """Test insight endpoint when explicitly disabled."""
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "false"}):
-            response = self.client.post("/insight", json={"text": "test"})
+            response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
             assert response.headers["content-type"].startswith("application/json")
             assert "disabled" in response.json()["detail"]
@@ -301,7 +303,7 @@ class TestInsightEndpoints:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=None),
         ):
-            response = self.client.post("/insight", json={"text": "test"})
+            response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
             assert response.headers["content-type"].startswith("application/json")
             assert "No LLM provider configured" in response.json()["detail"]
@@ -315,7 +317,7 @@ class TestInsightEndpoints:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=mock_provider),
         ):
-            response = self.client.post("/insight", json={"text": "test"})
+            response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
             # Privacy/safety: do not leak provider exception details.
             assert response.headers["content-type"].startswith("application/json")
@@ -333,7 +335,9 @@ class TestInsightEndpoints:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=mock_provider),
         ):
-            response = self.client.post("/insight", json={"text": "test query"})
+            response = self.client.post(
+                "/insight", json={"text": "test query"}, headers=self.vip_headers
+            )
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("application/json")
             data = response.json()
@@ -352,9 +356,8 @@ class TestInsightEndpoints:
             patch.dict(os.environ, {"API_KEY": "test_key", "FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=mock_provider),
         ):
-            headers = {"X-API-Key": "test_key"}
             response = self.client.post(
-                "/api/v1/insight", json={"text": "test query"}, headers=headers
+                "/api/v1/insight", json={"text": "test query"}, headers=self.vip_headers
             )
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("application/json")
@@ -371,10 +374,10 @@ class TestInsightEndpoints:
 
         try:
             with patch.dict(os.environ, {"API_KEY": "test_key"}):
-                headers = {"X-API-Key": "test_key"}
                 response = self.client.post(
-                    "/api/v1/insight", json={"text": "test query"}, headers=headers
+                    "/api/v1/insight", json={"text": "test query"}, headers=self.vip_headers
                 )
+                # VIP guard passes; default FEATURE_INSIGHT may still be disabled → 503.
                 assert response.status_code == 503
                 assert "FEATURE_INSIGHT is disabled" in response.json()["detail"]
         finally:

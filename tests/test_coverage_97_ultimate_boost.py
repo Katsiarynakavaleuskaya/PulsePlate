@@ -2,7 +2,7 @@
 Ультимативные тесты для достижения 97% покрытия - финальный буст
 """
 
-from typing import cast
+from typing import Generator, cast
 
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
@@ -253,7 +253,9 @@ class TestCoverage97UltimateBoost:
             )
             assert response.status_code in [200, 422]
 
-    def test_app_coverage_ultimate_boost_missing_lines_1008_1012(self, test_environment):
+    def test_app_coverage_ultimate_boost_missing_lines_1008_1012(
+        self, test_environment: Generator[None, None, None], vip_headers: dict[str, str]
+    ) -> None:
         """Тест покрытия app.py строк 1008-1012 - insight endpoint с различными данными"""
         import app
 
@@ -272,7 +274,7 @@ class TestCoverage97UltimateBoost:
             response = client.post(
                 "/api/v1/insight",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]
 
@@ -425,9 +427,9 @@ class TestCoverage97UltimateBoost:
 
     def test_app_coverage_ultimate_boost_missing_lines_1325_1326_1328_1329(
         self,
-        test_environment,
+        test_environment: Generator[None, None, None],
         vip_headers: dict[str, str],
-    ):
+    ) -> None:
         """Тест покрытия app.py строк 1325-1326, 1328-1329 - VIP endpoints с различными данными"""
         import app
 
@@ -487,9 +489,9 @@ class TestCoverage97UltimateBoost:
 
     def test_app_coverage_ultimate_boost_missing_lines_1342_1365(
         self,
-        test_environment,
+        test_environment: Generator[None, None, None],
         vip_headers: dict[str, str],
-    ):
+    ) -> None:
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
         import app
 

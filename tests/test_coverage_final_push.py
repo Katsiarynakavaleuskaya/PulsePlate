@@ -149,35 +149,29 @@ class TestFinalCoveragePush:
         import app
 
         with TestClient(cast(ASGIApp, app.app)) as client:
-            # Test with missing required fields
-            payload = {}
+            # Test with missing required fields - should error
+            response = client.post("/plan", json={})
+            assert response.status_code in [422, 503]
 
-            response = client.post("/plan", json=payload)
-            assert response.status_code in [422, 503]  # Validation error or service unavailable
-
-    def test_health_endpoint_comprehensive(self) -> None:
-        """Test health endpoint with different scenarios."""
-        import app
-
-        with TestClient(cast(ASGIApp, app.app)) as client:
             # Basic health check
             response = client.get("/api/v1/health")
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "status" in data
 
             # Health check with query params
             response = client.get("/api/v1/health?details=true")
             assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
 
-    def test_export_functionality(self) -> None:
+    def test_export_functionality(self, vip_headers: dict[str, str]) -> None:
         """Test insight endpoint functionality."""
         import app
 
         with TestClient(cast(ASGIApp, app.app)) as client:
             payload = {"weight_kg": 70, "height_cm": 170, "age_years": 30, "gender": "male"}
-
-            response = client.post("/insight", json=payload)
+            response = client.post("/insight", json=payload, headers=vip_headers)
             assert response.status_code in [
                 200,
                 422,
@@ -195,6 +189,7 @@ class TestFinalCoveragePush:
             response = client.post("/bmi", json=payload)
             assert response.status_code in [200, 422]  # Success or validation error
             if response.status_code == 200:
+                assert response.headers.get("content-type", "").startswith("application/json")
                 data = response.json()
                 assert "bmi" in data
 

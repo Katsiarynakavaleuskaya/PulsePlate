@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import main  # Import at module level so import errors surface during collection
+from app.middleware.api_tiers import TEST_KEY_VIP
 
 fake = Faker()
 
@@ -123,8 +124,10 @@ class TestAppRealisticData:
             "lang": fake.random_element(["en", "ru", "es"]),
         }
 
-        response = self.client.post("/insight", json=insight_data)
-        assert response.status_code in [200, 400, 422]
+        response = self.client.post(
+            "/insight", json=insight_data, headers={"X-API-Key": TEST_KEY_VIP}
+        )
+        assert response.status_code in [200, 400, 422, 503]
 
     def test_health_endpoints(self):
         """Test health check endpoints"""

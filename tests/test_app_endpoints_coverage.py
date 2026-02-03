@@ -85,15 +85,16 @@ class TestAppEndpointsCoverage:
         )
         assert response.status_code in [200, 422]
 
-    def test_app_insight_endpoint_coverage(self, client):
+    def test_app_insight_endpoint_coverage(self, client, vip_headers: dict[str, str]) -> None:
         """Тест покрытия app.py insight endpoint"""
         # Тестируем insight endpoint
         response = client.post(
             "/api/v1/insight",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
-        assert response.status_code in [200, 404, 422]
+        # Coverage test: endpoint may return 422 for payload validation, or 200/503 depending on LLM availability.
+        assert response.status_code in [200, 422, 503]
 
     def test_app_vip_endpoints_coverage(
         self,

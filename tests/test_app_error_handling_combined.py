@@ -11,7 +11,8 @@ import pytest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from typing import NoReturn
+from typing import NoReturn, cast
+from starlette.types import ASGIApp
 
 import app
 
@@ -123,47 +124,51 @@ class TestAppExceptionHandlersCoverage:
         response = client.delete("/health")
         assert response.status_code == 405
 
-    def test_runtime_error_handler(self, client: TestClient) -> None:
+    def test_runtime_error_handler(self, client: TestClient, vip_headers: dict[str, str]) -> None:
         """Test runtime error handler coverage: BMI endpoint is now public, test on another."""
 
         # BMI endpoint no longer uses get_api_key, use insight endpoint
-        def _fail_api_key(_: str = "") -> NoReturn:
+        def _fail_vip_guard() -> NoReturn:
             raise RuntimeError("boom")
 
         if app.app is None:
             pytest.skip("app.app is None - cannot run integration test")
 
+        from app.middleware.api_tiers import require_vip_tier
+
         with patch.dict(
-            app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False
+            app.app.dependency_overrides, {require_vip_tier: _fail_vip_guard}, clear=False
         ):
-            response = client.post(
-                "/api/v1/insight",
-                json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
+            # Use a client that does not re-raise server exceptions so we can assert on HTTP status codes.
+            local_client = TestClient(cast(ASGIApp, app.app), raise_server_exceptions=False)
+            response = local_client.post(
+                "/api/v1/insight", json={"text": "test"}, headers=vip_headers
             )
         # Runtime error can result in either 500 (internal error) or 503 (service unavailable)
         assert response.status_code in [500, 503]
 
-    def test_connection_error_handler(self, client: TestClient) -> None:
+    def test_connection_error_handler(
+        self, client: TestClient, vip_headers: dict[str, str]
+    ) -> None:
         """Test connection error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
         with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("Connection failed")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             # Should handle connection error gracefully
             assert response.status_code in [500, 503, 502]
 
-    def test_timeout_error_handler(self, client: TestClient) -> None:
+    def test_timeout_error_handler(self, client: TestClient, vip_headers: dict[str, str]) -> None:
         """Test timeout error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
         with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Request timeout")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             # Should handle timeout error gracefully - expect 503 Service Unavailable
             assert response.status_code == 503

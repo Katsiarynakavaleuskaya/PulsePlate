@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app as app_mod
+from app.middleware.api_tiers import TEST_KEY_VIP
 
 
 class TestAppMissingLinesExtra:
@@ -90,7 +91,9 @@ class TestAppMissingLinesExtra:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "maybe"}, clear=False),
             patch("llm.get_provider", return_value=_Stub()),
         ):
-            r = self.client.post("/insight", json={"text": "x"})
+            r = self.client.post(
+                "/insight", json={"text": "x"}, headers={"X-API-Key": TEST_KEY_VIP}
+            )
             assert r.status_code == 503
             assert "disabled" in r.json().get("detail", "").lower()
 

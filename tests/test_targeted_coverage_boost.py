@@ -4,7 +4,6 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 
 import logging
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,6 +11,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from the app package
 from app import app
+import legacy_app
 
 
 class TestTargetedCoverageBoost:
@@ -93,41 +93,35 @@ class TestTargetedCoverageBoost:
         assert result["premium"] is True
         assert "premium_reco" in result
 
-    def test_app_py_lines_758_760(self) -> None:
+    def test_app_py_lines_758_760(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+    ) -> None:
         """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
-        # Remove module from sys.modules to simulate it's not available
-        original_module = sys.modules.get("llm")
-        if "llm" in sys.modules:
-            del sys.modules["llm"]
-        try:
-            data = {"text": "test"}
-            response = self.client.post(
-                "/api/v1/insight", json=data, headers={"X-API-Key": "test_key"}
-            )
-            assert response.status_code == 503
-        finally:
-            # Restore original module
-            if original_module is not None:
-                sys.modules["llm"] = original_module
-            elif "llm" in sys.modules:
-                del sys.modules["llm"]
 
-    def test_app_py_line_914(self) -> None:
+        def _raise_import_error() -> None:
+            raise ImportError("LLM module is not available")
+
+        # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+
+        data = {"text": "test"}
+        response = self.client.post("/api/v1/insight", json=data, headers=vip_headers)
+        assert response.status_code == 503
+
+    def test_app_py_line_914(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+    ) -> None:
         """Test line 914 in main.py (insight endpoint with missing llm module)."""
-        # Remove module from sys.modules to simulate it's not available
-        original_module = sys.modules.get("llm")
-        if "llm" in sys.modules:
-            del sys.modules["llm"]
-        try:
-            data = {"text": "test"}
-            response = self.client.post("/insight", json=data)
-            assert response.status_code == 503
-        finally:
-            # Restore original module
-            if original_module is not None:
-                sys.modules["llm"] = original_module
-            elif "llm" in sys.modules:
-                del sys.modules["llm"]
+
+        def _raise_import_error() -> None:
+            raise ImportError("LLM module is not available")
+
+        # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+
+        data = {"text": "test"}
+        response = self.client.post("/insight", json=data, headers=vip_headers)
+        assert response.status_code == 503
 
     def test_app_py_line_1215(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 1215 in main.py (get_database_status with missing scheduler)."""
@@ -137,7 +131,7 @@ class TestTargetedCoverageBoost:
         monkeypatch.setattr(scheduler, "_scheduler_instance", None)
 
         # Patch get_update_scheduler to raise an exception
-        async def fake_get_scheduler_error():
+        async def fake_get_scheduler_error() -> None:
             raise Exception("Test error")
 
         # Patch scheduler module's get_update_scheduler
@@ -328,9 +322,9 @@ class TestTargetedCoverageBoost:
         """Test line 425 in menu_engine.py (_enhance_meals_with_micros)."""
         from core.menu_engine import _enhance_meals_with_micros
 
-        meals = [{"title": "Test Meal"}]  # Fix the key name
-        food_db = {}
-        recipe_db = {}
+        meals: list[dict[str, str]] = [{"title": "Test Meal"}]  # Fix the key name
+        food_db: dict[str, object] = {}
+        recipe_db: dict[str, object] = {}
         result = _enhance_meals_with_micros(
             meals, food_db, recipe_db, set()
         )  # Changed None to set()
@@ -340,8 +334,8 @@ class TestTargetedCoverageBoost:
         """Test line 467 in menu_engine.py (_calculate_total_nutrients)."""
         from core.menu_engine import _calculate_total_nutrients
 
-        meals = []
-        food_db = {}
+        meals: list[object] = []
+        food_db: dict[str, object] = {}
         result = _calculate_total_nutrients(meals, food_db)
         assert isinstance(result, dict)
 
@@ -349,8 +343,8 @@ class TestTargetedCoverageBoost:
         """Test line 490 in menu_engine.py (_estimate_daily_cost)."""
         from core.menu_engine import _estimate_daily_cost
 
-        meals = []
-        food_db = {}
+        meals: list[object] = []
+        food_db: dict[str, object] = {}
         result = _estimate_daily_cost(meals, food_db)
         assert isinstance(result, (int, float))
 

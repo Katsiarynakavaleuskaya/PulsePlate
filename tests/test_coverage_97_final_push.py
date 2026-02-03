@@ -162,7 +162,9 @@ class TestCoverage97FinalPush:
         )
         assert response.status_code in [200, 422]
 
-    def test_app_coverage_missing_lines_1008_1012(self, test_environment):
+    def test_app_coverage_missing_lines_1008_1012(
+        self, test_environment, vip_headers: dict[str, str]
+    ) -> None:
         """Тест покрытия app.py строк 1008-1012"""
         import app
 
@@ -172,14 +174,14 @@ class TestCoverage97FinalPush:
         response = client.post(
             "/api/v1/insight",
             json={"bmi": 22.5, "age": 30, "sex": "male"},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 422]
 
         response = client.post(
             "/api/v1/insight",
             json={"bmi": 25.0, "age": 25, "sex": "female"},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 422]
 

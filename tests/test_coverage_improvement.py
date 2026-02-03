@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from app.py file
 from app import app
+from app.middleware.api_tiers import TEST_KEY_VIP
 import legacy_app
 
 
@@ -22,6 +23,7 @@ class TestCoverageImprovement:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
+        self.vip_headers = {"X-API-Key": TEST_KEY_VIP}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -91,7 +93,7 @@ class TestCoverageImprovement:
         """Test uncovered paths in insight endpoints."""
         # Test /insight endpoint with feature disabled via env var
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "0"}):
-            response = self.client.post("/insight", json={"text": "test"})
+            response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
 
         # Test /insight endpoint with feature explicitly enabled but no provider
@@ -99,7 +101,7 @@ class TestCoverageImprovement:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "1"}),
             patch("llm.get_provider", return_value=None),
         ):
-            response = self.client.post("/insight", json={"text": "test"})
+            response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
 
     def test_scheduler_uncovered_lines(self) -> None:
