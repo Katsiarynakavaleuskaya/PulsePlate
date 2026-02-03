@@ -304,6 +304,14 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] P1 (maintenance): Type-hints carryover cleanup (tests)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintenance)
+  - Target PR: PR #642
+  - Status: 🟡 In review (implemented in PR #642; pending merge)
+  - Reason: Previously-agreed test typing/hygiene changes were missed in a prior PR and intentionally carried over to keep bots/review consistent. Non-functional change (tests only).
+  - Notes: Missed in prior PR; carried over intentionally.
+
 - [x] core/db.py vs core/db/ collision resolved (TP2 amendment 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
