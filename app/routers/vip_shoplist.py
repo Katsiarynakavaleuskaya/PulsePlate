@@ -39,7 +39,7 @@ from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from fastapi import Request
 
-from app.security.rate_limit import RATE_LIMIT_EXPORTS, limit_if_available
+from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 from core.shoplist_engine.models import (
     FoodForm,
     FoodRef,
@@ -509,7 +509,7 @@ async def vip_shoplist_weekly(
     "/export",
     responses={
         **COMMON_VIP_SHOPLIST_RESPONSES,
-        429: {"description": "Rate limit exceeded"},
+        **RATE_LIMIT_429_RESPONSES,
     },
     summary="Export VIP shoplist to CSV or PDF",
     description=(
