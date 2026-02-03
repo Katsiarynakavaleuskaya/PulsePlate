@@ -311,7 +311,7 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==25.3
+pip==26.0
     # via
     #   pip-api
     #   pip-tools
