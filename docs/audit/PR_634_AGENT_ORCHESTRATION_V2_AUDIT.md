@@ -19,7 +19,7 @@
 - ✅ **Orchestration docs conditional load** (снятие конфликта “не открывать docs без нужды”)
 - ✅ **Workflow step numbering** выровнена
 - ✅ **Dialogue example**: “Agents convergence” + “Coordinator record-only”
-- ✅ **MD001** (markdown heading increment) исправлен в parallel-work протоколе
+- ✅ **MD001** (Markdown heading increment) исправлен в parallel-work протоколе
 
 ---
 
@@ -176,9 +176,7 @@ This section includes minimal observed outputs for key evidence commands.
 Observed:
 
 ```text
-87eab27f docs(agents): centralize pre-flight SoT + fix orchestration protocol consistency
-979fecfc docs: centralize canonical rules and fix language consistency
-2036aa02 docs: fix orchestration examples to match enforcement rules
+79c0c28 docs(agents): clarify coordinator timing in dialogue protocol
 ```
 
 ### Single-location checklist content
