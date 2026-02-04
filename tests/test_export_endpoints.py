@@ -7,6 +7,7 @@ EN: Tests for export endpoints.
 
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import app
@@ -119,3 +120,38 @@ class TestExportEndpoints:
         )
         # Export endpoints may not be fully implemented, expect 200, 404, or 500
         assert response.status_code in [200, 404, 500]
+
+
+def test_export_format_media_type_fail_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover fail-fast branch when ExportFormat mapping is incomplete."""
+    from core.export_format import ExportFormat
+    import core.export_format as export_format_module
+
+    media_types = dict(export_format_module._MEDIA_TYPES)
+    media_types.pop(ExportFormat.JSON, None)
+    monkeypatch.setattr(export_format_module, "_MEDIA_TYPES", media_types)
+
+    with pytest.raises(NotImplementedError, match="Missing media_type mapping"):
+        _ = ExportFormat.JSON.media_type
+
+
+def test_legacy_export_daily_csv_sets_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover legacy Response constructor path for CSV exports."""
+    monkeypatch.setenv("API_KEY", "test_key")
+
+    import legacy_app
+
+    def _fake_to_csv_day(_: object) -> bytes:
+        return b"Meal,Food Item\nBreakfast,Oatmeal\n"
+
+    monkeypatch.setattr(legacy_app, "to_csv_day", _fake_to_csv_day)
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/v1/premium/exports/day/test_plan.csv",
+        headers={"X-API-Key": "test_key"},
+    )
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("text/csv")
+    assert "attachment" in response.headers.get("content-disposition", "")
+    assert "daily_plan_test_plan.csv" in response.headers.get("content-disposition", "")
