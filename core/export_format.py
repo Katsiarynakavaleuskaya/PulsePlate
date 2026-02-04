@@ -7,10 +7,10 @@ EN: Export format primitives (extension, Content-Type).
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 
 
-class ExportFormat(StrEnum):
+class ExportFormat(str, Enum):
     """Supported export formats for file downloads."""
 
     CSV = "csv"
@@ -23,8 +23,16 @@ class ExportFormat(StrEnum):
 
     @property
     def media_type(self) -> str:
-        if self is ExportFormat.CSV:
-            return "text/csv"
-        if self is ExportFormat.PDF:
-            return "application/pdf"
-        return "application/json"
+        try:
+            return _MEDIA_TYPES[self]
+        except KeyError as exc:  # pragma: no cover
+            raise NotImplementedError(
+                f"Missing media_type mapping for export format: {self}"
+            ) from exc
+
+
+_MEDIA_TYPES: dict[ExportFormat, str] = {
+    ExportFormat.CSV: "text/csv",
+    ExportFormat.PDF: "application/pdf",
+    ExportFormat.JSON: "application/json",
+}
