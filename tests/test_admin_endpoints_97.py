@@ -161,7 +161,7 @@ class TestRemainingBlocks:
         )
         assert response.status_code in [200, 422, 500]
 
-    def test_edge_cases_comprehensive(self, client):
+    def test_edge_cases_comprehensive(self, client: TestClient) -> None:
         """Комплексные edge cases для добивания покрытия"""
         # Экстремальные комбинации
         extreme_cases = [
@@ -217,7 +217,7 @@ class TestRemainingBlocks:
                 response = client.post(endpoint, json=case)
                 assert response.status_code in [200, 422]
 
-    def test_invalid_parameters(self, client):
+    def test_invalid_parameters(self, client: TestClient) -> None:
         """Тест с невалидными параметрами"""
         invalid_cases = [
             {"weight_kg": "not_a_number", "height_m": 1.75, "age": 30, "gender": "male"},
@@ -234,7 +234,7 @@ class TestRemainingBlocks:
                 # Может быть 200 если сервер успешно обработал валидацию
                 assert response.status_code in [200, 400, 422]
 
-    def test_admin_without_api_key(self, client):
+    def test_admin_without_api_key(self, client: TestClient) -> None:
         """Тест admin endpoints без API key"""
         admin_endpoints = [
             "/api/v1/admin/force-update",
