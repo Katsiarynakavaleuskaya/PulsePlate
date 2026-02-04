@@ -101,6 +101,7 @@ from core.bmr import (
     calculate_all_bmr,
     calculate_all_tdee,
 )
+from core.export_format import ExportFormat
 from app.scheduler_helpers import (
     resolve_scheduler_starter,
     resolve_stop_callable,
@@ -4796,8 +4797,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=csv_data,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
+                media_type=ExportFormat.CSV.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=daily_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                    )
+                },
             )
 
         except HTTPException:
@@ -4848,7 +4853,7 @@ if EXPORTS_ENABLED:
             mock_plan = payload or {"meals": [], "totals": {}}
             pdf_data = _to_pdf_day(mock_plan)
 
-            return Response(content=pdf_data, media_type="application/pdf")
+            return Response(content=pdf_data, media_type=ExportFormat.PDF.media_type)
         except HTTPException:
             raise
         except Exception as e:
@@ -4945,9 +4950,11 @@ if EXPORTS_ENABLED:
                 # Fallback CSV response when helper is unavailable (keeps tests permissive)
                 return Response(
                     content=b"plan_id,meals\n",
-                    media_type="text/csv",
+                    media_type=ExportFormat.CSV.media_type,
                     headers={
-                        "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"
+                        "Content-Disposition": (
+                            f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                        )
                     },
                 )
 
@@ -4955,8 +4962,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=csv_data,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
+                media_type=ExportFormat.CSV.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                    )
+                },
             )
 
         except Exception as e:
@@ -5031,8 +5042,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=pdf_data,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
+                media_type=ExportFormat.PDF.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=daily_plan_{plan_id}.{ExportFormat.PDF.extension}"
+                    )
+                },
             )
 
         except HTTPException:
@@ -5141,8 +5156,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=pdf_data,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
+                media_type=ExportFormat.PDF.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.PDF.extension}"
+                    )
+                },
             )
 
         except HTTPException:
