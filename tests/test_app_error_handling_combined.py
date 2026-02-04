@@ -24,6 +24,7 @@ _UPSTREAM_PROVIDER_TOKENS = (
     "vertex",
     "claude",
     "groq",
+    "ollama",
 )
 
 # Keep this intentionally loose to avoid brittle coupling to exact wording.

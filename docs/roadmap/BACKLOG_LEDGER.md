@@ -311,6 +311,8 @@ If it is not recorded here — it does not exist.
   - Status: 🟡 In review (implemented in PR #642; pending merge)
   - Reason: Previously-agreed test typing/hygiene changes were missed in a prior PR and intentionally carried over to keep bots/review consistent. Non-functional change (tests only).
   - Notes: Missed in prior PR; carried over intentionally.
+  - Links: PR #642; policy: AGENTS.md (carryover rule); related: PR #640/#641 (context)
+  - DoD: CI green; reviewers sign-off; PR #642 merged; no new skips; only tests/docs changed
 
 - [x] core/db.py vs core/db/ collision resolved (TP2 amendment 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
