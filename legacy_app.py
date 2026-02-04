@@ -94,7 +94,13 @@ from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from core.data_sanitizer import MissingOptionalDependencyError
 import core.utils as core_utils
-from nutrition_core import calculate_all_bmr, calculate_all_tdee
+from core.bmr import (
+    FALLBACK_BMR_KCAL_PER_KG_PER_DAY,
+    WEIGHT_GAIN_MULTIPLIER,
+    WEIGHT_LOSS_MULTIPLIER,
+    calculate_all_bmr,
+    calculate_all_tdee,
+)
 from app.scheduler_helpers import (
     resolve_scheduler_starter,
     resolve_stop_callable,
@@ -3743,7 +3749,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             }
             activity_level = activity_descriptions.get(req.activity, req.activity)
 
-            base_bmr = 24 * req.weight_kg
+            base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
             activity_factor = get_activity_factor(req.activity)
             primary_tdee = int(base_bmr * activity_factor)
 
@@ -3753,8 +3759,8 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
                 activity_level=activity_level,
                 recommended_intake={
                     "maintenance": float(primary_tdee),
-                    "weight_loss": float(primary_tdee * 0.8),
-                    "weight_gain": float(primary_tdee * 1.2),
+                    "weight_loss": float(primary_tdee * WEIGHT_LOSS_MULTIPLIER),
+                    "weight_gain": float(primary_tdee * WEIGHT_GAIN_MULTIPLIER),
                 },
                 formulas_used=["stub"],
                 notes=["Using fallback calculation due to unavailable backend"],
@@ -3942,7 +3948,7 @@ def _fallback_targets_response(
 
             life_stage_warning_factory = _ls_warnings
 
-    base_bmr = 24 * req.weight_kg
+    base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
     activity_factor = get_activity_factor(req.activity)
     tdee = int(base_bmr * activity_factor)
 
