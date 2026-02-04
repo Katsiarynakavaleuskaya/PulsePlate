@@ -288,10 +288,11 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintainability)
-  - Target PR: TBD
-  - Status: 📋 Ready to start
+  - Target PR: PR #644
+  - Status: 🟡 In progress (PR #644)
   - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
   - Links:
+    - PR #644
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
     - legacy_app.py:97 (nutrition_core imports), export functions
   - DoD:
