@@ -73,6 +73,18 @@ _KATCH_BASE: float = 370.0
 _KATCH_LEAN_MASS_COEFF: float = 21.6
 
 
+def _validate_sex(sex: object) -> str:
+    """Validate sex value to avoid silent fall-through.
+
+    RU: Явная валидация, чтобы не было silent fall-through.
+    EN: Explicit validation to avoid silent fall-through.
+    """
+    value = str(sex).strip().lower()
+    if value not in ("male", "female"):
+        raise ValueError("sex must be 'male' or 'female'")
+    return value
+
+
 def bmr_mifflin(weight: float, height: float, age: int, sex: Sex) -> float:
     """
     Calculate BMR using Mifflin-St Jeor equation.
@@ -86,7 +98,8 @@ def bmr_mifflin(weight: float, height: float, age: int, sex: Sex) -> float:
     if age > 120:
         raise ValueError("Age must be realistic (≤120 years)")
 
-    sex_factor = _MIFFLIN_SEX_MALE if sex == "male" else _MIFFLIN_SEX_FEMALE
+    sex_value = _validate_sex(sex)
+    sex_factor = _MIFFLIN_SEX_MALE if sex_value == "male" else _MIFFLIN_SEX_FEMALE
     bmr = (
         _MIFFLIN_WEIGHT_COEFF * weight
         + _MIFFLIN_HEIGHT_COEFF * height
@@ -109,7 +122,8 @@ def bmr_harris(weight: float, height: float, age: int, sex: Sex) -> float:
     if age > 120:
         raise ValueError("Age must be realistic (≤120 years)")
 
-    if sex == "male":
+    sex_value = _validate_sex(sex)
+    if sex_value == "male":
         bmr = (
             _HARRIS_MALE_BASE
             + _HARRIS_MALE_WEIGHT_COEFF * weight
