@@ -5,7 +5,6 @@ Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
 import os
-import sys
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -367,25 +366,22 @@ class TestInsightEndpoints:
 
     def test_api_v1_insight_no_llm_module(self) -> None:
         """Test API v1 insight when LLM module not available."""
-        # Remove module from sys.modules to simulate it's not available
-        original_module = sys.modules.get("llm")
-        if "llm" in sys.modules:
-            del sys.modules["llm"]
-
-        try:
-            with patch.dict(os.environ, {"API_KEY": "test_key"}):
-                response = self.client.post(
-                    "/api/v1/insight", json={"text": "test query"}, headers=self.vip_headers
-                )
-                # VIP guard passes; default FEATURE_INSIGHT may still be disabled → 503.
-                assert response.status_code == 503
-                assert "FEATURE_INSIGHT is disabled" in response.json()["detail"]
-        finally:
-            # Restore original module if it existed
-            if original_module is not None:
-                sys.modules["llm"] = original_module
-            elif "llm" in sys.modules:
-                del sys.modules["llm"]
+        with (
+            patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}, clear=False),
+            patch(
+                "legacy_app._load_llm_get_provider",
+                side_effect=ModuleNotFoundError("No module named 'llm'"),
+            ) as mocked_loader,
+        ):
+            response = self.client.post(
+                "/api/v1/insight",
+                json={"text": "test query"},
+                headers=self.vip_headers,
+            )
+            assert mocked_loader.called is True
+            assert response.status_code == 503
+            assert response.headers.get("content-type", "").startswith("application/json")
+            assert "LLM module is not available" in response.json()["detail"]
 
 
 class TestPremiumEndpoints:
