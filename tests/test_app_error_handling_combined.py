@@ -31,7 +31,7 @@ _UPSTREAM_PROVIDER_TOKENS = (
 _GENERIC_DETAIL_RE = re.compile(r"(error|unavailable|timeout|failed|disabled)", re.IGNORECASE)
 
 
-def _assert_json_error_hygiene(response) -> str:
+def _assert_json_error_hygiene(response: httpx.Response) -> str:
     """Assert error response is JSON and does not leak upstream details."""
     assert response.headers["content-type"].startswith("application/json")
 
