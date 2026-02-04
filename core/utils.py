@@ -24,7 +24,8 @@ def get_activity_factor(activity: str) -> float:
     """
     # RU: Держим один источник истины для коэффициентов активности в `core.bmr`.
     # EN: Keep a single source of truth for PAL factors in `core.bmr`.
-    return PAL_FACTORS.get(str(activity), PAL_FACTORS["moderate"])
+    key = str(activity).strip().lower()
+    return PAL_FACTORS.get(key, PAL_FACTORS["moderate"])
 
 
 def _resolve_module_candidate(candidate: Any) -> Optional[Any]:
