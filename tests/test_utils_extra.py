@@ -34,16 +34,22 @@ class TestGetActivityFactor:
         assert get_activity_factor(1.5) == 1.55
 
     def test_case_sensitivity(self):
-        """Test that activity factors are case-sensitive."""
-        assert get_activity_factor("SEDENTARY") == 1.55  # defaults to moderate
-        assert get_activity_factor("Light") == 1.55  # defaults to moderate
-        assert get_activity_factor("MODERATE") == 1.55  # defaults to moderate
+        """Test that activity factors normalize case."""
+        assert get_activity_factor("SEDENTARY") == get_activity_factor("sedentary")
+        assert get_activity_factor("SEDENTARY") == 1.2
+
+        assert get_activity_factor("Light") == get_activity_factor("light")
+        assert get_activity_factor("Light") == 1.375
+
+        assert get_activity_factor("MODERATE") == get_activity_factor("moderate")
+        assert get_activity_factor("MODERATE") == 1.55
 
     def test_whitespace_handling(self):
         """Test handling of whitespace in activity level strings."""
-        assert get_activity_factor(" sedentary ") == 1.55  # defaults due to spaces
-        assert get_activity_factor("sedentary\n") == 1.55  # defaults due to newline
-        assert get_activity_factor("\tsedentary") == 1.55  # defaults due to tab
+        assert get_activity_factor(" sedentary ") == get_activity_factor("sedentary")
+        assert get_activity_factor(" sedentary ") == 1.2
+        assert get_activity_factor("sedentary\n") == 1.2
+        assert get_activity_factor("\tsedentary") == 1.2
 
     def test_alternative_spellings(self):
         """Test common alternative spellings or typos."""
