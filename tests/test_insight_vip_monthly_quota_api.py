@@ -50,7 +50,13 @@ def _seed_usage_row(
 ) -> None:
     session_scope = getattr(db_module, "session_scope")
     with session_scope() as session:
-        session.execute(text("DELETE FROM vip_llm_monthly_usage"))
+        session.execute(
+            text("""
+                DELETE FROM vip_llm_monthly_usage
+                WHERE key_fingerprint = :fp AND month_start_date = :month_start
+                """),
+            {"fp": key_fp, "month_start": month_start},
+        )
         session.execute(
             text("""
                 INSERT INTO vip_llm_monthly_usage (key_fingerprint, month_start_date, used_requests)
