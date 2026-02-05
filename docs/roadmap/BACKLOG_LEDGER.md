@@ -289,7 +289,8 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintainability)
   - Target PR: PR #644
-  - Status: 🟡 In progress (PR #644)
+  - Status: ✅ Merged (PR #644)
+  - Merge SHA: fda459d743e848b72c2c818b8dd7bef62af99aec
   - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
   - Links:
     - PR #644
