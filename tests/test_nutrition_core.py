@@ -185,6 +185,14 @@ class TestTDEE:
         assert result <= bmr * 2.5  # Reasonable upper bound
 
 
+def test_get_activity_factor_normalizes_key() -> None:
+    from core.utils import get_activity_factor
+
+    assert get_activity_factor("moderate") == get_activity_factor("Moderate")
+    assert get_activity_factor("moderate") == get_activity_factor("  MODERATE  ")
+    assert get_activity_factor("unknown") == get_activity_factor("moderate")
+
+
 class TestCalculateAllBMR:
     """Test combined BMR calculations."""
 

@@ -11,6 +11,8 @@ import sys
 import types
 from typing import Any, Iterable, Optional
 
+from core.bmr import PAL_FACTORS
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,14 +22,10 @@ def get_activity_factor(activity: str) -> float:
     Values match usage across premium endpoints and tests.
     Defaults to "moderate" (1.55) if unknown.
     """
-    mapping = {
-        "sedentary": 1.2,
-        "light": 1.375,
-        "moderate": 1.55,
-        "active": 1.725,
-        "very_active": 1.9,
-    }
-    return mapping.get(str(activity), 1.55)
+    # RU: Держим один источник истины для коэффициентов активности в `core.bmr`.
+    # EN: Keep a single source of truth for PAL factors in `core.bmr`.
+    key = str(activity).strip().lower()
+    return PAL_FACTORS.get(key, PAL_FACTORS["moderate"])
 
 
 def _resolve_module_candidate(candidate: Any) -> Optional[Any]:

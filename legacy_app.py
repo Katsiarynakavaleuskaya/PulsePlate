@@ -94,7 +94,14 @@ from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from core.data_sanitizer import MissingOptionalDependencyError
 import core.utils as core_utils
-from nutrition_core import calculate_all_bmr, calculate_all_tdee
+from core.bmr import (
+    FALLBACK_BMR_KCAL_PER_KG_PER_DAY,
+    WEIGHT_GAIN_MULTIPLIER,
+    WEIGHT_LOSS_MULTIPLIER,
+    calculate_all_bmr,
+    calculate_all_tdee,
+)
+from core.export_format import ExportFormat
 from app.scheduler_helpers import (
     resolve_scheduler_starter,
     resolve_stop_callable,
@@ -3743,7 +3750,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             }
             activity_level = activity_descriptions.get(req.activity, req.activity)
 
-            base_bmr = 24 * req.weight_kg
+            base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
             activity_factor = get_activity_factor(req.activity)
             primary_tdee = int(base_bmr * activity_factor)
 
@@ -3753,8 +3760,8 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
                 activity_level=activity_level,
                 recommended_intake={
                     "maintenance": float(primary_tdee),
-                    "weight_loss": float(primary_tdee * 0.8),
-                    "weight_gain": float(primary_tdee * 1.2),
+                    "weight_loss": float(primary_tdee * WEIGHT_LOSS_MULTIPLIER),
+                    "weight_gain": float(primary_tdee * WEIGHT_GAIN_MULTIPLIER),
                 },
                 formulas_used=["stub"],
                 notes=["Using fallback calculation due to unavailable backend"],
@@ -3942,7 +3949,7 @@ def _fallback_targets_response(
 
             life_stage_warning_factory = _ls_warnings
 
-    base_bmr = 24 * req.weight_kg
+    base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
     activity_factor = get_activity_factor(req.activity)
     tdee = int(base_bmr * activity_factor)
 
@@ -4790,8 +4797,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=csv_data,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
+                media_type=ExportFormat.CSV.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=daily_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                    )
+                },
             )
 
         except HTTPException:
@@ -4842,7 +4853,7 @@ if EXPORTS_ENABLED:
             mock_plan = payload or {"meals": [], "totals": {}}
             pdf_data = _to_pdf_day(mock_plan)
 
-            return Response(content=pdf_data, media_type="application/pdf")
+            return Response(content=pdf_data, media_type=ExportFormat.PDF.media_type)
         except HTTPException:
             raise
         except Exception as e:
@@ -4939,9 +4950,11 @@ if EXPORTS_ENABLED:
                 # Fallback CSV response when helper is unavailable (keeps tests permissive)
                 return Response(
                     content=b"plan_id,meals\n",
-                    media_type="text/csv",
+                    media_type=ExportFormat.CSV.media_type,
                     headers={
-                        "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"
+                        "Content-Disposition": (
+                            f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                        )
                     },
                 )
 
@@ -4949,8 +4962,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=csv_data,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
+                media_type=ExportFormat.CSV.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
+                    )
+                },
             )
 
         except Exception as e:
@@ -5025,8 +5042,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=pdf_data,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
+                media_type=ExportFormat.PDF.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=daily_plan_{plan_id}.{ExportFormat.PDF.extension}"
+                    )
+                },
             )
 
         except HTTPException:
@@ -5135,8 +5156,12 @@ if EXPORTS_ENABLED:
 
             return Response(
                 content=pdf_data,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
+                media_type=ExportFormat.PDF.media_type,
+                headers={
+                    "Content-Disposition": (
+                        f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.PDF.extension}"
+                    )
+                },
             )
 
         except HTTPException:
