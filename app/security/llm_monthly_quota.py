@@ -113,6 +113,11 @@ def attempt_consume_vip_llm_monthly_quota(
     bucket = month_start or month_start_date_utc()
     limit_val = limit_requests if limit_requests is not None else vip_llm_monthly_limit_requests()
 
+    if limit_val < 1:
+        # RU: Fail closed — неверная конфигурация/параметр не должен давать доступ.
+        # EN: Fail closed — invalid config/param must not grant access.
+        return False
+
     # Single-statement upsert with guard:
     # - First request: insert (used_requests=1)
     # - Subsequent: update (used_requests += 1) only if current used_requests < limit
@@ -122,8 +127,8 @@ def attempt_consume_vip_llm_monthly_quota(
         INSERT INTO vip_llm_monthly_usage (key_fingerprint, month_start_date, used_requests)
         VALUES (:fp, :month_start, 1)
         ON CONFLICT(key_fingerprint, month_start_date)
-        DO UPDATE SET used_requests = used_requests + 1
-        WHERE used_requests < :limit_val
+        DO UPDATE SET used_requests = vip_llm_monthly_usage.used_requests + 1
+        WHERE vip_llm_monthly_usage.used_requests < :limit_val
         RETURNING used_requests
         """)
 

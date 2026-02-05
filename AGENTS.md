@@ -79,6 +79,7 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - All LLM endpoints MUST enforce a **server-side monthly hard quota** **before** any provider call.
 - Minimal baseline quota unit is **`requests/month`** (budget/cost-based quotas may be added later).
 - Quota MUST be deterministic (no soft-limit-only behavior) and have tests that prove enforcement.
+- Feature flags MUST be checked **before** quota consumption (no charging when a feature is disabled).
 - CI container smoke-start MUST set `SERVER_SALT` (dummy value allowed) so app startup can pass fail-fast requirements.
 
 **Rationale:**

@@ -2207,6 +2207,8 @@ def _enforce_vip_llm_monthly_quota(vip_key: str) -> None:
 async def insight_v1_route(
     request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
 ) -> InsightResponse:
+    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight_v1(req)
 
@@ -2223,6 +2225,8 @@ async def insight_v1_route(
 async def insight_route(
     request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
 ) -> InsightResponse:
+    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight(req)
 
