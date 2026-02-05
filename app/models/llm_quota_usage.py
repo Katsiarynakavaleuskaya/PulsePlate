@@ -22,7 +22,6 @@ class VipLlmMonthlyUsage(Base):
     """
 
     __tablename__ = "vip_llm_monthly_usage"
-    __table_args__ = {"extend_existing": True}
 
     key_fingerprint: Mapped[str] = mapped_column(String(64), primary_key=True)
     month_start_date: Mapped[date] = mapped_column(Date, primary_key=True)
