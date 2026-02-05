@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import threading
+from collections.abc import Callable
 from datetime import date
 
 import pytest
@@ -33,7 +34,7 @@ def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     EN: Patch loader so the handler always gets fake provider.
     """
 
-    def _fake_load_llm_get_provider():  # noqa: ANN202 - fixture helper
+    def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
         return lambda: FakeLLMProvider()
 
     monkeypatch.setattr(

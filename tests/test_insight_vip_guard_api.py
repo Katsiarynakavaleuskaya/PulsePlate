@@ -6,6 +6,8 @@ EN: P0 tests: insight endpoint must be strictly VIP-only.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,7 +23,7 @@ def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     EN: Patch loader so the handler always gets fake provider.
     """
 
-    def _fake_load_llm_get_provider():  # noqa: ANN202 - fixture helper
+    def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
         return lambda: FakeLLMProvider()
 
     monkeypatch.setattr(
