@@ -210,21 +210,44 @@ If it is not recorded here — it does not exist.
 
 ### P0 Move LLM insight to VIP tier
 
-- [ ] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+- [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: PR-640 (runtime), PR-646 (docs-only closure)
+  - Status: ✅ Done
+  - Reason: Implemented VIP-only access for `/api/v1/insight` and legacy `/insight` (VIP-guarded, hidden from OpenAPI) + kept rate-limiting. This ledger entry was stale vs `main`.
+  - Residual risk / follow-up: monthly hard quota/budget enforcement is still required (see next P0 item). Until then,
+    LLM endpoints remain economically unsafe per `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - PR-640: Enforce VIP tier for LLM Insight (runtime implementation)
+    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md (evidence + ledger closure)
+  - DoD:
+    - ✅ `/api/v1/insight` uses `require_vip_tier()` (VIP-only)
+    - ✅ `/insight` is VIP-guarded (deprecated + hidden from OpenAPI)
+    - ✅ Tests verify FREE/PRO users get 403, VIP users get 200
+    - ✅ OpenAPI shows `/api/v1/insight` and hides `/insight`
+
+- [ ] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
   - Target PR: TBD (security fix)
   - Status: 📋 Ready to start
-  - Reason: `/api/v1/insight` uses `_get_api_key_dynamic` (API key check only, not tier-aware) → FREE users can access expensive LLM API. `/insight` has no auth at all. LLM should be VIP-only feature.
+  - Reason: VIP-only + rate limit prevent bursts but do not provide a monthly cost ceiling; without quota, sustained
+    usage can still create an economic DoS. Policy requires a hard cost cap for LLM endpoints.
   - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
-    - legacy_app.py:2256-2301 (`/api/v1/insight`), 2305-2348 (`/insight`)
+    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
+    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md
   - DoD:
-    - Replace `_get_api_key_dynamic` with `require_vip_tier()` on `/api/v1/insight`
-    - Remove `/insight` endpoint (deprecated, no auth) OR add VIP tier guard
-    - Tests verify FREE/PRO users get 403, VIP users get 200
-    - Update OpenAPI schema (insight endpoints require VIP tier)
+    - Server-side authoritative quota per VIP key (requests/month OR tokens/month OR estimated cost/month)
+    - Hard-stop before provider call when quota exceeded
+    - Deterministic non-leaky error response on exceed (prefer `429`, e.g. `quota_exceeded`)
+    - Tests:
+      - VIP under quota → 200
+      - VIP over quota → 429
+      - FREE/PRO remain → 403
+    - Minimal observability: counters/logging for usage and quota decisions
 
 - [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya
