@@ -46,7 +46,7 @@ Use a single versioned key for both clients:
 
 ### Language policy (RU/EN/ES)
 
-**Question**: does onboarding “on 2 languages” conflict with “3 languages planned”?
+**Question**: does onboarding “in 2 languages” conflict with “3 languages planned”?
 
 - **No**, as long as fallback works (web already falls back to `en`; iOS uses system/app localization fallback).
 - **However**, shipping RU+EN only while ES exists in-app creates a **partially localized first-run experience** (low trust moment).
