@@ -58,6 +58,10 @@ Or individually:
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
 
+**Local env required vars (hard rule):**
+
+- If a new env var becomes required at startup, update `.env.example` + root `docker-compose.yaml` in the same PR.
+
 **Rate Limiting Policy:**
 
 **Hard rule:** Expensive endpoints (LLM, exports) MUST be rate-limited AND MUST have deterministic 429 tests.
