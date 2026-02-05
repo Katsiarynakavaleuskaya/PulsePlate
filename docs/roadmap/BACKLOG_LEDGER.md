@@ -229,16 +229,18 @@ If it is not recorded here — it does not exist.
     - ✅ Tests verify FREE/PRO users get 403, VIP users get 200
     - ✅ OpenAPI shows `/api/v1/insight` and hides `/insight`
 
-- [ ] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
+- [x] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
   - Target PR: PR-647 (security fix)
-  - Status: 🟡 In progress (PR-647)
+  - Status: ✅ Merged (PR-647)
   - Reason: VIP-only + rate limit prevent bursts but do not provide a monthly cost ceiling; without quota, sustained
     usage can still create an economic DoS. Policy requires a hard cost cap for LLM endpoints.
   - Links:
     - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
     - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md
+    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
+    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
   - DoD:
     - Server-side authoritative quota per VIP key (requests/month OR tokens/month OR estimated cost/month)
     - Hard-stop before provider call when quota exceeded
