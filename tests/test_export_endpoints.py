@@ -135,10 +135,12 @@ def test_export_format_media_type_fail_fast(monkeypatch: pytest.MonkeyPatch) -> 
         _ = ExportFormat.JSON.media_type
 
 
-def test_legacy_export_daily_csv_sets_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_legacy_export_daily_csv_sets_headers(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    api_key: str,
+) -> None:
     """Cover legacy Response constructor path for CSV exports."""
-    monkeypatch.setenv("API_KEY", "test_key")
-
     import legacy_app
 
     def _fake_to_csv_day(_: object) -> bytes:
@@ -146,12 +148,12 @@ def test_legacy_export_daily_csv_sets_headers(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(legacy_app, "to_csv_day", _fake_to_csv_day)
 
-    client = TestClient(app)
     response = client.get(
         "/api/v1/premium/exports/day/test_plan.csv",
-        headers={"X-API-Key": "test_key"},
+        headers={"X-API-Key": api_key},
     )
     assert response.status_code == 200
     assert response.headers.get("content-type", "").startswith("text/csv")
-    assert "attachment" in response.headers.get("content-disposition", "")
-    assert "daily_plan_test_plan.csv" in response.headers.get("content-disposition", "")
+    cd = response.headers.get("content-disposition", "")
+    assert "attachment" in cd
+    assert "daily_plan_test_plan.csv" in cd
