@@ -8,38 +8,139 @@
 
 ---
 
-## 1) Executive Summary
+## Summary (high signal)
+
+- The ledger item “Move LLM insight to VIP tier” exists and was stale vs runtime. Evidence: [E1]
+- Runtime routes exist for both `POST /api/v1/insight` and legacy `POST /insight`. Evidence: [E2]
+- OpenAPI includes **only** `/api/v1/insight` (legacy `/insight` is hidden). Evidence: [E3], [E4], [E5]
+- Both insight endpoints are **VIP-guarded** and **rate-limited**. Evidence: [E6], [E8]
+- `_get_api_key_dynamic` is not used on insight endpoints. Evidence: [E7]
+- Tests already prove **FREE→403**, **PRO→403**, **VIP→200** and error hygiene (no provider exception leaks). Evidence: [E9]
+- Runtime implementation landed earlier as PR #640 (ledger closure should reference it). Evidence: [E10]
+- Remaining gap (non-goal for PR-646): monthly hard quota/budget enforcement is **not** evidenced here. Per policy
+  `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`, the endpoint remains economically unsafe until quota exists; this must
+  be tracked as a separate open P0 ledger item.
+
+---
+
+## 1) Scope (PR-646)
 
 ### Goal (ledger)
 
 Make LLM Insight available **ONLY** to VIP tier:
 
 - `POST /api/v1/insight` → VIP-only
-- `POST /insight` (legacy) → removed **or** VIP-guarded (and not exposed in OpenAPI)
-- Both endpoints must remain **rate-limited** (cost-abuse control)
+- `POST /insight` (legacy) → VIP-guarded + hidden from OpenAPI (or removed)
+- Both endpoints remain **rate-limited** (`RATE_LIMIT_INSIGHT`)
 
-### Audit finding (current `main`)
+Ledger anchor evidence: [E1]
 
-**The target state is already implemented on `main`**:
+### Allowed / forbidden areas (docs-only)
 
-- `POST /api/v1/insight` is **VIP-guarded** with `require_vip_tier`
-- `POST /insight` is **VIP-guarded** with `require_vip_tier`, **deprecated**, and **hidden from OpenAPI**
-- Both endpoints are **rate-limited** with `@limit_if_available(RATE_LIMIT_INSIGHT)`
-- Tests already exist and pass for **FREE→403**, **PRO→403**, **VIP→200** + error hygiene (no exception leaks)
-
-**Implication:** a runtime PR that “implements VIP-only insight” would be **no-op** and is forbidden by repo workflow.
-PR-646 should be executed as a **docs-only ledger-correction closure** (this audit + ledger update to ✅ Done,
-linked to the already-merged implementation PR).
+- This PR is **docs-only**: audit + ledger status updates (+ policy doc).
+- Frontend/iOS are frozen (no runtime changes). OpenAPI client artifacts are **not** regenerated here because
+  OpenAPI already reflects correct visibility. Evidence: [E4], [E5]
 
 ---
 
-## 2) Audit Meta (Scope + Allowed files)
+## 2) Findings (current `main`)
 
-### Ledger scope anchor
+### 2.1 Endpoint surface
 
-**Question answered:** What exact ledger item is PR-646 supposed to close?
+Routes exist at runtime for both:
 
-**Evidence**
+1) `POST /api/v1/insight`
+2) `POST /insight` (legacy)
+
+Evidence: [E2]
+
+OpenAPI visibility:
+
+- `/api/v1/insight` **is present** in OpenAPI. Evidence: [E3], [E4]
+- `/insight` **is not present** in OpenAPI (hidden). Evidence: [E3], [E5]
+
+### 2.2 Auth / tier guard behavior
+
+Both insight endpoints are guarded with `require_vip_tier`.
+
+Evidence: [E6]
+
+`_get_api_key_dynamic` exists in `legacy_app.py` but is not used by insight endpoints.
+
+Evidence: [E7]
+
+### 2.3 Rate limiting (cost-abuse control)
+
+Both insight endpoints are decorated with:
+
+- `@limit_if_available(RATE_LIMIT_INSIGHT)`
+- `responses=RATE_LIMIT_429_RESPONSES` (OpenAPI 429 documentation)
+
+Evidence: [E8]
+
+---
+
+## 3) Decision: legacy `/insight`
+
+**Decision:** Keep `/insight` as a deprecated legacy alias that remains:
+
+- VIP-only (`require_vip_tier`)
+- Hidden from OpenAPI (`include_in_schema=False`)
+- Rate-limited (`RATE_LIMIT_INSIGHT`)
+
+Rationale (security + compatibility): removes unauthenticated surface while preserving backward compatibility,
+without expanding the public contract (hidden from OpenAPI).
+
+Evidence: [E6], [E3], [E8]
+
+---
+
+## 4) Tests (security-critical)
+
+Existing tests prove:
+
+- Tier matrix: **FREE → 403**, **PRO → 403**, **VIP → 200**
+- Error hygiene: provider exception text is not leaked
+
+Evidence: [E9]
+
+---
+
+## 5) Ledger drift + closure
+
+The ledger description for this item was stale vs runtime: it claimed `_get_api_key_dynamic` and unauthenticated
+legacy insight. Current runtime is already VIP-only + rate-limited. Evidence: [E6], [E7], [E8]
+
+Runtime implementation already merged in PR #640. Evidence: [E10]
+
+---
+
+## 6) Exit criteria (DoD)
+
+This audit is satisfied when the following are true (all evidence exists in Appendix):
+
+- VIP-only access: FREE/PRO rejected, VIP allowed. Evidence: [E9], [E6]
+- Rate limiting present + 429 documented. Evidence: [E8]
+- Legacy `/insight` not exposed in OpenAPI. Evidence: [E3], [E5]
+- `_get_api_key_dynamic` not used for insight routes. Evidence: [E7]
+- Ledger entry updated to ✅ Done with links to PR #640 and this audit. (docs-only)
+- Separate P0 ledger item exists for monthly hard quota enforcement per `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`.
+
+---
+
+## 7) Risk notes (P0 security)
+
+- **Financial risk:** cost-abuse surface for LLM; mitigations here are VIP-only + rate limiting.
+  Note: rate limiting is not a unit-economics cost cap; quotas/budgets are documented separately.
+- **Contract risk:** legacy `/insight` remains hidden from OpenAPI, preventing new client adoption.
+
+Evidence for “$72k/month cost attack risk” note: [E11]
+
+---
+
+## Appendix: Evidence (append-only)
+
+### [E1] Ledger item exists (before closure)
 
 Command:
 ```bash
@@ -55,23 +156,7 @@ Raw output (truncated):
 
 Exit code: `0`
 
-### Allowed / forbidden areas (policy)
-
-- **Allowed**: `legacy_app.py` / `app/security/*` / `tests/*` **only if** new behavior is needed; `docs/audit/*`,
-  `docs/roadmap/BACKLOG_LEDGER.md` (ledger status).
-- **Forbidden**: `frontend/` and `ios/` runtime changes (frozen until P0 backend-security is done).
-  **Note:** generated OpenAPI artifacts under `frontend/src/api/*` are allowed **only** when runtime OpenAPI changes
-  in this PR require regeneration. In this specific case, OpenAPI already reflects the correct visibility.
-
----
-
-## 3) Current State (Evidence: BEFORE)
-
-### 3.1 Endpoint surface (what routes exist)
-
-**Question answered:** Do `/api/v1/insight` and `/insight` exist at runtime? Is `/insight` exposed in OpenAPI?
-
-**Evidence A — runtime route registration**
+### [E2] Runtime route registration
 
 Command:
 ```bash
@@ -93,7 +178,7 @@ True
 
 Exit code: `0`
 
-**Evidence B — OpenAPI visibility (canonical)**
+### [E3] OpenAPI visibility (live)
 
 Command:
 ```bash
@@ -115,7 +200,7 @@ False
 
 Exit code: `0`
 
-**Evidence C — generated frontend OpenAPI artifact contains only canonical path**
+### [E4] Generated client OpenAPI contains canonical insight path
 
 Command:
 ```bash
@@ -129,6 +214,8 @@ Raw output (truncated):
 
 Exit code: `0`
 
+### [E5] Generated client OpenAPI does not include legacy `/insight`
+
 Command:
 ```bash
 rg -n "\"/insight\"" frontend/src/api/openapi.json -n
@@ -141,18 +228,7 @@ Raw output:
 
 Exit code: `1`
 
-**Notes**
-
-- `app/static/openapi.json` currently contains `/insight`, but **it is not the canonical OpenAPI artifact**
-  for clients. Canonical OpenAPI for clients is generated via `make openapi` and committed into
-  `frontend/src/api/openapi.json` (per `AGENTS.md` OpenAPI policy).
-- Canonical evidence is **live** `app.app.openapi()` output + the generated client artifact.
-
-### 3.2 Auth & tier guard behavior
-
-**Question answered:** What guard is used now? Is `_get_api_key_dynamic` used for Insight?
-
-**Evidence — route decorators in `legacy_app.py`**
+### [E6] VIP guard on both insight endpoints (route decorators)
 
 Command:
 ```bash
@@ -164,10 +240,6 @@ Raw output (truncated):
 2180:    "/api/v1/insight",
 2181:    dependencies=[Depends(require_vip_tier)],
 2185:@limit_if_available(RATE_LIMIT_INSIGHT)
-```
-
-Raw output (truncated):
-```text
 2192:    "/insight",
 2193:    include_in_schema=False,
 2195:    dependencies=[Depends(require_vip_tier)],
@@ -175,7 +247,7 @@ Raw output (truncated):
 
 Exit code: `0`
 
-**Evidence — `_get_api_key_dynamic` is present but not used on Insight**
+### [E7] `_get_api_key_dynamic` is not used for insight endpoints
 
 Command:
 ```bash
@@ -189,11 +261,7 @@ Raw output:
 
 Exit code: `0`
 
-### 3.3 Rate limiting (cost-abuse control)
-
-**Question answered:** Are Insight endpoints rate-limited with `RATE_LIMIT_INSIGHT` and documented as 429?
-
-**Evidence**
+### [E8] Rate limiting + 429 documentation for insight endpoints
 
 Command:
 ```bash
@@ -209,38 +277,7 @@ Raw output (truncated):
 
 Exit code: `0`
 
----
-
-## 4) Target State (Policy Alignment)
-
-### 4.1 Canonical policy hooks (hard rules)
-
-- **Tier policy:** LLM Insight must be **VIP-only**.
-- **Rate limit policy:** All LLM endpoints must use `@limit_if_available(RATE_LIMIT_INSIGHT)` and document 429
-  via `responses=RATE_LIMIT_429_RESPONSES` (root `AGENTS.md`).
-- **Thin HTTP adapter policy:** No client-side (frontend/iOS) computation; clients are thin transport adapters.
-
-### 4.2 Alignment check
-
-Based on the evidence in §3:
-
-- `/api/v1/insight` uses `dependencies=[Depends(require_vip_tier)]` ✅
-- `/insight` uses `dependencies=[Depends(require_vip_tier)]`, is deprecated + hidden from schema ✅
-- Both are decorated with `@limit_if_available(RATE_LIMIT_INSIGHT)` and declare 429 responses ✅
-
----
-
-## 5) Tests (Security-Critical)
-
-### 5.1 Tier guard matrix (FREE/PRO/VIP)
-
-**Question answered:** Do we have tests proving FREE→403, PRO→403, VIP→200?
-
-**Evidence — existing test file**
-
-Anchor: `tests/test_insight_vip_guard_api.py` (contains both `/api/v1/insight` and `/insight` assertions).
-
-**Evidence — test run**
+### [E9] Tests: VIP-only matrix + error hygiene
 
 Command:
 ```bash
@@ -254,47 +291,7 @@ Raw output:
 
 Exit code: `0`
 
-### 5.2 Error hygiene (no exception leak)
-
-**Question answered:** Do Insight endpoints avoid leaking provider exception text?
-
-Anchor: `tests/test_insight_error_hygiene.py` asserts sensitive substrings do not appear in response `detail`.
-
----
-
-## 6) Decision (фиксируемое решение по `/insight`)
-
-**Decision:** Keep `/insight` as a **deprecated legacy alias** that is:
-
-- VIP-only (`require_vip_tier`)
-- Hidden from OpenAPI (`include_in_schema=False`)
-- Rate-limited (`@limit_if_available(RATE_LIMIT_INSIGHT)`)
-
-**Rationale (security + compatibility):**
-
-- Removes unauthenticated surface (VIP guard required).
-- Preserves backward compatibility for any legacy client that might still call `/insight`.
-- Avoids expanding public contract (legacy is not in OpenAPI, so new clients will not adopt it).
-
-**Evidence anchor:** `legacy_app.py` decorators for `/insight` show `include_in_schema=False` + VIP dependency + rate limit
-(see §3.2 and §3.3).
-
----
-
-## 7) Ledger Drift Analysis (Why PR-646 is “already done”)
-
-### 7.1 Ledger item text is stale vs code reality
-
-Ledger claims:
-
-- `/api/v1/insight` uses `_get_api_key_dynamic`
-- `/insight` has no auth
-
-But code evidence shows both endpoints are VIP-guarded and rate-limited (see §3).
-
-### 7.2 Implementation PR already merged
-
-**Evidence**
+### [E10] Runtime implementation already merged (PR #640)
 
 Command:
 ```bash
@@ -308,45 +305,7 @@ Raw output:
 
 Exit code: `0`
 
-**Conclusion:** PR-646 should not be a runtime PR; it should close the ledger item with evidence + audit doc.
-
----
-
-## 8) Exit Criteria (DoD) — Evidence Checklist
-
-- [x] **FREE → 403**, **PRO → 403**, **VIP → 200** for `/api/v1/insight`
-  Evidence: `tests/test_insight_vip_guard_api.py` + `pytest -q ...` (see §5.1)
-- [x] `/api/v1/insight` does **not** use `_get_api_key_dynamic`
-  Evidence: decorator uses `require_vip_tier` + `_get_api_key_dynamic` not referenced for insight routes (see §3.2)
-- [x] `/insight` is **VIP-guarded** and **not exposed in OpenAPI**
-  Evidence: `app.app.openapi()` membership is `False` (see §3.1), `include_in_schema=False` (see §3.2)
-- [x] Rate limiting present on both Insight endpoints
-  Evidence: `@limit_if_available(RATE_LIMIT_INSIGHT)` on both routes (see §3.3)
-- [ ] Ledger item updated: `P0: Move LLM insight to VIP tier` → ✅ Done, with link to PR #640 and this audit
-  (Docs-only change; must not include runtime code changes.)
-
----
-
-## 9) PR-646 Recommended Execution (No-op prevention)
-
-**Hard rule:** Avoid no-op runtime PRs. Therefore:
-
-1. Create a **docs-only PR-646** containing:
-   - this audit: `docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md`
-   - ledger update: mark item ✅ Done and link PR #640 + this audit
-2. Verify docs-only scope (policy):
-   - `git diff --name-only origin/main...HEAD | rg -v "\\.md$|README\\.md$|AGENTS\\.md$|RUNBOOK_AGENT\\.md$|DEPLOYMENT\\.md$"` must be empty
-
----
-
-## 10) Risk Notes (P0 Security)
-
-- **Financial risk (cost abuse):** LLM endpoints are expensive; VIP-only gating + rate limiting is the primary mitigation.
-- **Security risk (data handling):** Privacy text explicitly warns that `/insight` and `/api/v1/insight` may transmit user text
-  to external AI providers (anchor: `legacy_app.py` privacy info section includes these endpoints).
-- **Contract risk:** Keeping `/insight` hidden from OpenAPI prevents new client adoption and limits blast radius.
-
-### Evidence — $72k/month cost attack note
+### [E11] $72k/month cost attack risk note (project context)
 
 Command:
 ```bash
