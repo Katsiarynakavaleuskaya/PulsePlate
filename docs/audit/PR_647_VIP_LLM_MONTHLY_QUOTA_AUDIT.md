@@ -103,6 +103,117 @@ Evidence: [E7]
 
 ---
 
+## 2) Quota Model (Design decisions)
+
+### Q10. Quota unit (first iteration)
+
+✅ **`requests/month` per VIP key**
+
+Rationale (budget-first P0):
+
+- Cheapest enforceable hard cap (does not require provider token accounting or pricing tables).
+- Provides a strict upper bound on LLM spend by limiting the number of paid provider calls per month.
+
+### Q11. Limit source (config)
+
+✅ **ENV**: `VIP_LLM_INSIGHT_REQUESTS_PER_MONTH` (with a safe default in code)
+
+Constraints:
+
+- Server-side authoritative (no trust in client).
+- Must be easy to tune without code changes (ops-friendly).
+
+### Q11. Counter storage (authoritative usage table)
+
+✅ **DB (SQLAlchemy) usage table**, authoritative
+
+Constraints (security + determinism):
+
+- **Never store raw VIP key**. Store `key_fingerprint = sha256(raw_key + server_salt)`, where `server_salt` is read from env.
+- `server_salt`: **required env (no default)**; rotation requires counter migration policy (non-goal for P0).
+- Bucket is **UTC calendar month**: `YYYY-MM-01T00:00:00Z`. Store as `month_start_date` (`date`) for simplicity.
+- **Atomicity (hard requirement):** check + increment must be one atomic operation (single statement or transactional
+  upsert/increment with guard), otherwise parallel requests can break the hard cap.
+
+### Q12. VIP tier binding (P0)
+
+✅ One shared limit for all VIP keys (per key), P0 baseline.
+
+Non-goals (explicitly out of scope for P0):
+
+- Per-plan quotas
+- Tokens/month or cost/month accounting
+- Paid add-ons / rollover / proration
+
+---
+
+## 3) Enforcement semantics (Hard)
+
+### 3.1 Where enforcement runs (hard stop seam)
+
+Quota enforcement must run **inside the handler** and must hard-stop **before** the provider call
+(`await provider.generate(...)`).
+
+Evidence seam: `legacy_app.py:2127` and `legacy_app.py:2172` (see [E7]).
+
+### 3.2 What enforcement does (attempt-consume semantics)
+
+Define a single server-side authoritative operation (conceptual name: `attempt_consume_quota(...)`):
+
+- If allowed: atomically **increment** usage for `(key_fingerprint, month_start_date)` and continue request handling.
+- If exceeded: return **HTTP 429** with deterministic payload:
+  - `{"detail": "quota_exceeded"}`
+  - No provider exception leakage (stable error contract).
+
+### 3.3 Bucket (monthly boundary)
+
+`month_start_date = first_day_utc(today_utc)` (UTC calendar month), stored as `date`:
+
+- Example: `2026-02-01` represents `2026-02-01T00:00:00Z`.
+
+### 3.4 Idempotency / retries (explicit non-goal for P0)
+
+Non-goal (P0): idempotency keys / deduplication.
+
+Constraints:
+
+- Quota counts **per request attempt**.
+- Clients must not automatically retry on 5xx without an idempotency key; otherwise retries may consume quota twice.
+
+---
+
+## 4) Reset semantics (Time boundaries)
+
+Reset is achieved by selecting a **new UTC calendar month bucket** (`month_start_date`) automatically:
+
+- No cron/job is required for reset.
+- Old usage rows are retained (non-goal for P0: cleanup/compaction).
+
+---
+
+## 5) Tests + DoD (P0 minimum)
+
+### 5.1 Tests (security-critical matrix)
+
+Minimum required tests for P0:
+
+1. **VIP under quota → 200**
+2. **VIP over quota → 429** with deterministic payload `{"detail": "quota_exceeded"}` and no-leak checks
+3. **FREE/PRO → 403** (no regression vs VIP tier guard)
+4. **Concurrency / atomicity proof**: `limit=1`, two parallel requests → exactly **1 succeeds**, **1 returns quota_exceeded**
+
+### 5.2 DoD (runtime)
+
+P0 is complete only if:
+
+- Quota enforcement runs **before** provider call (`provider.generate(...)`).
+- Counter is stored in DB keyed by `(key_fingerprint, month_start_date)`.
+- `server_salt` is **required env** (no default) and startup fails with a clear error if missing.
+- OpenAPI and client artifacts are unchanged.
+- Targeted pytest suite for quota is green, and `pre-commit` is green.
+
+---
+
 ## Appendix: Evidence (append-only)
 
 ### [E1] Ledger item exists (SoT)
