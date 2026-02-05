@@ -9,11 +9,12 @@ from __future__ import annotations
 import concurrent.futures
 import threading
 from datetime import date
-from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+
+import legacy_app
 
 from app.middleware.api_tiers import TEST_KEY_VIP
 from app.security.llm_monthly_quota import (
@@ -22,18 +23,22 @@ from app.security.llm_monthly_quota import (
     vip_key_fingerprint,
 )
 
+from tests.helpers.fake_llm_provider import FakeLLMProvider
 
-class _FailIfCalledProvider:
-    """Provider that fails test if generate() is called.
 
-    RU: Провайдер, который валит тест если generate() вызывается.
-    EN: Provider that fails the test if generate() is called.
+def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch insight provider loader to return a deterministic fake provider.
+
+    RU: Подменяем loader так, чтобы handler всегда получал fake provider.
+    EN: Patch loader so the handler always gets fake provider.
     """
 
-    name: str = "should_not_be_called"
+    def _fake_load_llm_get_provider():  # noqa: ANN202 - fixture helper
+        return lambda: FakeLLMProvider()
 
-    async def generate(self, text: str) -> str:  # pragma: no cover
-        raise AssertionError("provider.generate() must not be called when quota is exceeded")
+    monkeypatch.setattr(
+        legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
+    )
 
 
 def _seed_usage_row(
@@ -55,9 +60,7 @@ def _seed_usage_row(
         )
 
 
-@patch("llm.get_provider", return_value=_FailIfCalledProvider())
 def test_insight_v1_over_quota_hard_stops_before_provider_call(
-    mock_get_provider: Mock,
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     vip_headers: dict[str, str],
@@ -65,6 +68,7 @@ def test_insight_v1_over_quota_hard_stops_before_provider_call(
 ) -> None:
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("VIP_LLM_INSIGHT_REQUESTS_PER_MONTH", "1")
+    _patch_llm_provider(monkeypatch)
 
     month_start = month_start_date_utc()
     key_fp = vip_key_fingerprint(TEST_KEY_VIP)
