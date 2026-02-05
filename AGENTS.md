@@ -74,6 +74,14 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Runtime behavior is env-gated: in tests (`TESTING=true`) rate limiting is disabled unless `RATE_LIMITING_IN_TESTS=true`.
 - Client identification uses proxy-aware key_func with CIDR support (`app/security/rate_limit.py`).
 
+**LLM Monthly Quota Policy (Hard rule):**
+
+- All LLM endpoints MUST enforce a **server-side monthly hard quota** **before** any provider call.
+- Minimal baseline quota unit is **`requests/month`** (budget/cost-based quotas may be added later).
+- Quota MUST be deterministic (no soft-limit-only behavior) and have tests that prove enforcement.
+- Feature flags MUST be checked **before** quota consumption (no charging when a feature is disabled).
+- CI container smoke-start MUST set `SERVER_SALT` (dummy value allowed) so app startup can pass fail-fast requirements.
+
 **Rationale:**
 
 - LLM endpoints: $72k/month abuse risk (documented in `BACKLOG_LEDGER.md`).

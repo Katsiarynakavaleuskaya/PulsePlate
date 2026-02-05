@@ -232,8 +232,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL security)
-  - Target PR: TBD (security fix)
-  - Status: 📋 Ready to start
+  - Target PR: PR-647 (security fix)
+  - Status: 🟡 In progress (PR-647)
   - Reason: VIP-only + rate limit prevent bursts but do not provide a monthly cost ceiling; without quota, sustained
     usage can still create an economic DoS. Policy requires a hard cost cap for LLM endpoints.
   - Links:

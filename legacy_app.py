@@ -112,6 +112,11 @@ from app.scheduler_helpers import (
 from app.utils.helpers import _resolve_app_callable, _short_git_sha
 from app.utils.feature_flags import _is_truthy
 from app.middleware.api_tiers import require_vip_tier
+from app.security.llm_monthly_quota import (
+    attempt_consume_vip_llm_monthly_quota,
+    require_server_salt,
+    require_vip_llm_monthly_limit,
+)
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
@@ -491,6 +496,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
     is_production = env_name not in {"", "local", "dev", "development", "staging", "test", "ci"}
     truthy = {"1", "true", "yes", "on"}
+
+    # PR-647 (P0 security): Monthly quota fingerprinting requires a secret salt.
+    # Fail-fast on startup to avoid running with predictable/empty fingerprints.
+    require_server_salt()
+    require_vip_llm_monthly_limit()
 
     try:
         init_db()
@@ -2176,14 +2186,30 @@ async def insight(req: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
+def _enforce_vip_llm_monthly_quota(vip_key: str) -> None:
+    """Enforce VIP monthly hard quota before any provider call.
+
+    RU: Жёсткий стоп-кран ДО provider.generate(...).
+    EN: Hard stop before provider.generate(...).
+    """
+
+    allowed = attempt_consume_vip_llm_monthly_quota(vip_key)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="quota_exceeded")
+
+
 @app.post(
     "/api/v1/insight",
-    dependencies=[Depends(require_vip_tier)],
     response_model=InsightResponse,
     responses=RATE_LIMIT_429_RESPONSES,
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
-async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResponse:
+async def insight_v1_route(
+    request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
+) -> InsightResponse:
+    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+    await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight_v1(req)
 
 
@@ -2192,12 +2218,16 @@ async def insight_v1_route(request: Request, req: InsightRequest) -> InsightResp
     "/insight",
     include_in_schema=False,
     deprecated=True,
-    dependencies=[Depends(require_vip_tier)],
     response_model=InsightResponse,
     responses=RATE_LIMIT_429_RESPONSES,
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
-async def insight_route(request: Request, req: InsightRequest) -> InsightResponse:
+async def insight_route(
+    request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
+) -> InsightResponse:
+    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+    await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight(req)
 
 

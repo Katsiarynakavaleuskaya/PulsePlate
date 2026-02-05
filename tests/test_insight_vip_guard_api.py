@@ -6,24 +6,32 @@ EN: P0 tests: insight endpoint must be strictly VIP-only.
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
 
+import legacy_app
 
-class _EchoProvider:
-    """Deterministic mock provider for insight tests."""
-
-    name: str = "echo"
-
-    async def generate(self, text: str) -> str:
-        return f"ok:{text}"
+from tests.helpers.fake_llm_provider import FakeLLMProvider
 
 
-@patch("llm.get_provider", return_value=_EchoProvider())
+def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch insight provider loader to return a deterministic fake provider.
+
+    RU: Подменяем loader так, чтобы handler всегда получал fake provider.
+    EN: Patch loader so the handler always gets fake provider.
+    """
+
+    def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
+        return lambda: FakeLLMProvider()
+
+    monkeypatch.setattr(
+        legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
+    )
+
+
 def test_insight_v1_requires_vip_tier(
-    mock_get_provider: Mock,
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     pro_headers: dict[str, str],
@@ -34,6 +42,7 @@ def test_insight_v1_requires_vip_tier(
     Note: VIP guard returns 403 for missing key by policy (VIP is a feature-gate).
     """
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    _patch_llm_provider(monkeypatch)
 
     payload = {"text": "hello"}
 
@@ -47,13 +56,11 @@ def test_insight_v1_requires_vip_tier(
     assert r_vip.status_code == 200
     assert r_vip.headers.get("content-type", "").startswith("application/json")
     data = r_vip.json()
-    assert data["provider"] == "echo"
-    assert data["insight"].startswith("ok:")
+    assert data["provider"] == "fake-llm"
+    assert data["insight"] == "ok"
 
 
-@patch("llm.get_provider", return_value=_EchoProvider())
 def test_insight_legacy_requires_vip_tier(
-    mock_get_provider: Mock,
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     pro_headers: dict[str, str],
@@ -64,6 +71,7 @@ def test_insight_legacy_requires_vip_tier(
     Note: Legacy /insight is hidden from OpenAPI but still VIP-guarded.
     """
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    _patch_llm_provider(monkeypatch)
 
     payload = {"text": "hello"}
 
@@ -80,8 +88,8 @@ def test_insight_legacy_requires_vip_tier(
     assert r_vip.status_code == 200
     assert r_vip.headers.get("content-type", "").startswith("application/json")
     data = r_vip.json()
-    assert data["provider"] == "echo"
-    assert data["insight"].startswith("ok:")
+    assert data["provider"] == "fake-llm"
+    assert data["insight"] == "ok"
 
 
 # End of file

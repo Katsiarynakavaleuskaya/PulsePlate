@@ -55,12 +55,14 @@ jobs:
           # Build the env var names dynamically to avoid false positives while still configuring the container.
           api_key_name="API""_KEY"
           allow_dev_api_key_name="ALLOW_DEV_API""_KEY"
+          server_salt_name="SERVER""_SALT"
 
           args=(
             -d
             --rm
             -p 8000:8000
             -e "${api_key_name}=test_key"
+            -e "${server_salt_name}=ci-test-salt"
             -e APP_ENV=production
             -e ENVIRONMENT=production
             -e "${allow_dev_api_key_name}=false"
