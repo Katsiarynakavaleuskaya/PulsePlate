@@ -1,7 +1,7 @@
 ## LLM Unit Economics Guardrails (Hard Policy)
 
-**Last updated:** 5 February 2026  
-**Scope:** Backend only (LLM endpoints, e.g. `/api/v1/insight`).  
+**Last updated:** 5 February 2026
+**Scope:** Backend only (LLM endpoints, e.g. `/api/v1/insight`).
 **Goal:** Guarantee **positive unit economics under worst-case usage**.
 
 ---
@@ -66,7 +66,7 @@ Where:
 - **Tax**: effective tax rate (use pessimistic estimate)
 - **MarginTarget**: desired retained margin (profit + reserves)
 
-**RU:** Квота в запросах/токенах должна быть производной от этого бюджета.  
+**RU:** Квота в запросах/токенах должна быть производной от этого бюджета.
 **EN:** Request/token quotas must be derived from this budget.
 
 ---
@@ -85,6 +85,5 @@ To guarantee a cost ceiling:
 
 ## 6) Security notes
 
-**RU:** Quotas are security controls (economic DoS prevention), not “optimizations”.  
+**RU:** Quotas are security controls (economic DoS prevention), not “optimizations”.
 **EN:** Quotas are security controls (economic DoS prevention), not “optimizations”.
-

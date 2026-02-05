@@ -1,9 +1,9 @@
 ## PR-646 — VIP-only LLM Insight (P0 Security) — Audit
 
-**Date:** 5 February 2026  
-**Owner:** @katsiaryna_kavaleuskaya  
-**PR:** PR-646  
-**Branch (planned):** `security/p0-vip-only-llm-insight-pr646`  
+**Date:** 5 February 2026
+**Owner:** @katsiaryna_kavaleuskaya
+**PR:** PR-646
+**Branch (planned):** `security/p0-vip-only-llm-insight-pr646`
 **Scope (hard):** backend/security + docs only. **No frontend/iOS/product refactors.**
 
 ---
@@ -59,7 +59,7 @@ Exit code: `0`
 
 - **Allowed**: `legacy_app.py` / `app/security/*` / `tests/*` **only if** new behavior is needed; `docs/audit/*`,
   `docs/roadmap/BACKLOG_LEDGER.md` (ledger status).
-- **Forbidden**: `frontend/` and `ios/` runtime changes (frozen until P0 backend-security is done).  
+- **Forbidden**: `frontend/` and `ios/` runtime changes (frozen until P0 backend-security is done).
   **Note:** generated OpenAPI artifacts under `frontend/src/api/*` are allowed **only** when runtime OpenAPI changes
   in this PR require regeneration. In this specific case, OpenAPI already reflects the correct visibility.
 
@@ -314,15 +314,15 @@ Exit code: `0`
 
 ## 8) Exit Criteria (DoD) — Evidence Checklist
 
-- [x] **FREE → 403**, **PRO → 403**, **VIP → 200** for `/api/v1/insight`  
+- [x] **FREE → 403**, **PRO → 403**, **VIP → 200** for `/api/v1/insight`
   Evidence: `tests/test_insight_vip_guard_api.py` + `pytest -q ...` (see §5.1)
-- [x] `/api/v1/insight` does **not** use `_get_api_key_dynamic`  
+- [x] `/api/v1/insight` does **not** use `_get_api_key_dynamic`
   Evidence: decorator uses `require_vip_tier` + `_get_api_key_dynamic` not referenced for insight routes (see §3.2)
-- [x] `/insight` is **VIP-guarded** and **not exposed in OpenAPI**  
+- [x] `/insight` is **VIP-guarded** and **not exposed in OpenAPI**
   Evidence: `app.app.openapi()` membership is `False` (see §3.1), `include_in_schema=False` (see §3.2)
-- [x] Rate limiting present on both Insight endpoints  
+- [x] Rate limiting present on both Insight endpoints
   Evidence: `@limit_if_available(RATE_LIMIT_INSIGHT)` on both routes (see §3.3)
-- [ ] Ledger item updated: `P0: Move LLM insight to VIP tier` → ✅ Done, with link to PR #640 and this audit  
+- [ ] Ledger item updated: `P0: Move LLM insight to VIP tier` → ✅ Done, with link to PR #640 and this audit
   (Docs-only change; must not include runtime code changes.)
 
 ---
@@ -360,4 +360,3 @@ Raw output (truncated):
 ```
 
 Exit code: `0`
-
