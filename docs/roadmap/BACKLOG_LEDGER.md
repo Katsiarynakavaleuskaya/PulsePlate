@@ -256,7 +256,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: PR-649
   - Status: 🟡 In progress (PR-649)
-  - Reason: PR-647 introduced fail-fast required `SERVER_SALT` at app startup (VIP LLM monthly quota). Local/root
+  - Reason: PR-647 introduced a fail-fast requirement for `SERVER_SALT` at app startup (VIP LLM monthly quota). Local/root
     `docker-compose.yaml` and `.env.example` must reflect required env vars to avoid confusing local startup failures.
   - Links:
     - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
