@@ -10,6 +10,7 @@ Tests cover:
 
 import os
 from unittest.mock import patch
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,13 +20,13 @@ from app import app
 
 def test_bmr_rejects_invalid_sex() -> None:
     """Core-level guard: invalid sex must not silently fall through."""
-    from core.bmr import bmr_harris, bmr_mifflin
+    from core.bmr import Sex, bmr_harris, bmr_mifflin
 
     with pytest.raises(ValueError, match=r"sex must be 'male' or 'female'"):
-        bmr_mifflin(weight=70, height=175, age=30, sex="unknown")  # type: ignore[arg-type]
+        bmr_mifflin(weight=70, height=175, age=30, sex=cast(Sex, "unknown"))
 
     with pytest.raises(ValueError, match=r"sex must be 'male' or 'female'"):
-        bmr_harris(weight=70, height=175, age=30, sex="UNKNOWN")  # type: ignore[arg-type]
+        bmr_harris(weight=70, height=175, age=30, sex=cast(Sex, "UNKNOWN"))
 
 
 @pytest.fixture

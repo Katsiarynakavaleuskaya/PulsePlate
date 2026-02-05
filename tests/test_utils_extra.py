@@ -9,7 +9,7 @@ from core.utils import get_activity_factor, resolve_attr
 class TestGetActivityFactor:
     """Test activity factor mapping and edge cases."""
 
-    def test_standard_activity_levels(self):
+    def test_standard_activity_levels(self) -> None:
         """Test all standard activity level mappings."""
         assert get_activity_factor("sedentary") == 1.2
         assert get_activity_factor("light") == 1.375
@@ -17,23 +17,23 @@ class TestGetActivityFactor:
         assert get_activity_factor("active") == 1.725
         assert get_activity_factor("very_active") == 1.9
 
-    def test_unknown_activity_defaults_to_moderate(self):
+    def test_unknown_activity_defaults_to_moderate(self) -> None:
         """Test that unknown activity levels default to moderate (1.55)."""
         assert get_activity_factor("unknown") == 1.55
         assert get_activity_factor("invalid") == 1.55
         assert get_activity_factor("") == 1.55
         assert get_activity_factor("extreme") == 1.55
 
-    def test_none_input_converted_to_string(self):
+    def test_none_input_converted_to_string(self) -> None:
         """Test that None input is converted to string and defaults."""
         assert get_activity_factor(None) == 1.55
 
-    def test_numeric_input_converted_to_string(self):
+    def test_numeric_input_converted_to_string(self) -> None:
         """Test that numeric inputs are converted to string and default."""
         assert get_activity_factor(123) == 1.55
         assert get_activity_factor(1.5) == 1.55
 
-    def test_case_sensitivity(self):
+    def test_case_sensitivity(self) -> None:
         """Test that activity factors normalize case."""
         assert get_activity_factor("SEDENTARY") == get_activity_factor("sedentary")
         assert get_activity_factor("SEDENTARY") == 1.2
@@ -44,20 +44,20 @@ class TestGetActivityFactor:
         assert get_activity_factor("MODERATE") == get_activity_factor("moderate")
         assert get_activity_factor("MODERATE") == 1.55
 
-    def test_whitespace_handling(self):
+    def test_whitespace_handling(self) -> None:
         """Test handling of whitespace in activity level strings."""
         assert get_activity_factor(" sedentary ") == get_activity_factor("sedentary")
         assert get_activity_factor(" sedentary ") == 1.2
         assert get_activity_factor("sedentary\n") == 1.2
         assert get_activity_factor("\tsedentary") == 1.2
 
-    def test_alternative_spellings(self):
+    def test_alternative_spellings(self) -> None:
         """Test common alternative spellings or typos."""
         assert get_activity_factor("moderete") == 1.55  # typo -> default moderate
         assert get_activity_factor("activee") == 1.55  # typo -> default moderate
         assert get_activity_factor("lightly") == 1.55  # variant -> default moderate
 
-    def test_boundary_cases(self):
+    def test_boundary_cases(self) -> None:
         """Test boundary cases and special values."""
         assert get_activity_factor("0") == 1.55  # numeric string -> default
         assert get_activity_factor("-1") == 1.55  # negative -> default
