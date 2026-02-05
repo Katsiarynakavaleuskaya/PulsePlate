@@ -1,7 +1,7 @@
 ## Audit Meta
 
-- **PR**: PR-652
-- **Branch**: `product/p0-welcome-onboarding-4screens-pr652`
+- **PR**: PR-653
+- **Branch**: `product/p0-welcome-onboarding-4screens-pr653`
 - **Owner**: @katsiaryna_kavaleuskaya
 - **Date**: 6 February 2026
 - **Scope**: P0 product onboarding only (4-screen Welcome), **iOS only**
