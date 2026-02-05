@@ -17,6 +17,7 @@
 - Backend `app` facade is stable: FastAPI instance is defined in backend
   (`app.app` == `legacy_app.app`). Missing endpoints on iOS usually indicate
   backend feature flags or environment issues, not iOS routing bugs.
+- PR-652 scope guard (P0 Welcome): iOS only — do not mix web/backend/analytics/Lottie/deeplinks.
 
 ## Backend coordination (important)
 

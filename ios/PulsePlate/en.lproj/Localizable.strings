@@ -36,3 +36,17 @@
 "shopping_list_total_items_fmt" = "%d items";
 "shopping_list_source_fmt" = "Source: %@";
 "Error" = "Error";
+
+/* Onboarding: Welcome (P0) */
+"onboarding.welcome.screen1.title" = "PulsePlate — your nutrition on track";
+"onboarding.welcome.screen1.body" = "Set your goals once. We’ll keep your plan, plate, and progress in sync.";
+"onboarding.welcome.screen2.title" = "Private by default";
+"onboarding.welcome.screen2.body" = "Your inputs stay on your device unless you explicitly export or share.";
+"onboarding.welcome.screen3.title" = "Pick your setup";
+"onboarding.welcome.screen3.body" = "Choose language, units, and a goal. You can change this anytime.";
+"onboarding.welcome.screen4.title" = "Ready to start";
+"onboarding.welcome.screen4.body" = "Let’s build a simple plan you can follow today.";
+"onboarding.welcome.cta.continue" = "Continue";
+"onboarding.welcome.cta.back" = "Back";
+"onboarding.welcome.cta.start" = "Get started";
+"onboarding.welcome.stepA11y" = "Step %d of %d";
