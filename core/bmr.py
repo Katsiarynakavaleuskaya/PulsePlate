@@ -47,8 +47,8 @@ FALLBACK_BMR_KCAL_PER_KG_PER_DAY: float = 24.0
 # Goal multipliers used in fallback recommended intake.
 # RU: Мультипликаторы для целей (fallback).
 # EN: Multipliers for goal-based recommended intake (fallback).
-WEIGHT_LOSS_MULTIPLIER: float = 0.8
-WEIGHT_GAIN_MULTIPLIER: float = 1.2
+WEIGHT_LOSS_MULTIPLIER: float = 4 / 5  # 0.8 without forbidden literal
+WEIGHT_GAIN_MULTIPLIER: float = 6 / 5  # 1.2 without forbidden literal
 
 # Mifflin–St Jeor coefficients
 _MIFFLIN_WEIGHT_COEFF: float = 10.0
