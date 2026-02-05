@@ -251,11 +251,11 @@ If it is not recorded here — it does not exist.
       - FREE/PRO remain → 403
     - Minimal observability: counters/logging for usage and quota decisions
 
-- [ ] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
+- [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL)
   - Target PR: PR-629
-  - Status: 🟡 In progress (PR-629)
+  - Status: ✅ Merged (PR-629)
   - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
   - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
   - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update (implemented in PR-629)
@@ -269,7 +269,8 @@ If it is not recorded here — it does not exist.
     - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
   - Notes (3 February 2026, America/New_York):
     - Fix: close leaked TestClients (context-managed `tests/conftest.py::client` + close in `tests/test_nutrition_log_api.py` teardown) to ensure lifespan runs deterministically under xdist.
-    - Verification (local): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed; CI link: TBD (after run completes).
+    - Verification (local, 6 February 2026): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed on `main` (post-merge).
+    - Verification (local, 6 February 2026): `pytest -q tests/test_db_engine_reuse_diff_coverage.py tests/test_sqlite_engine_sot.py` passed on `main`.
 
 - [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
