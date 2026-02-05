@@ -15,6 +15,8 @@ services:
       - PYTHONPATH=/app
       - API_KEY=${API_KEY}
       - ENVIRONMENT=production
+      - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
+      - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
     volumes:
       - ./data:/app/data:ro
       - cache-volume:/app/cache:rw
@@ -43,6 +45,8 @@ services:
       - PYTHONPATH=/app
       - API_KEY=${API_KEY}
       - ENVIRONMENT=development
+      - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
+      - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
     volumes:
       - .:/app:rw
       - /app/__pycache__
@@ -72,7 +76,8 @@ services:
     environment:
       - POSTGRES_DB=pulseplate
       - POSTGRES_USER=pulseplate
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
+      # Default is for local/dev only (service is profile-gated).
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dev_postgres_password}
     ports:
       - "5432:5432"
     volumes:
