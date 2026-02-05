@@ -42,7 +42,7 @@ def test_require_vip_llm_monthly_limit_raises_on_lt_1(monkeypatch: pytest.Monkey
         quota.require_vip_llm_monthly_limit()
 
 
-def test_month_start_date_utc_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_month_start_date_utc_bucket() -> None:
     # Cover month_start_date_utc(now=...) deterministic path.
     now = datetime(2026, 2, 5, 12, 30, tzinfo=timezone.utc)
     assert str(quota.month_start_date_utc(now)) == "2026-02-01"
