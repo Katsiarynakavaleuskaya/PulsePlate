@@ -6,7 +6,7 @@ EN: Tests for VIP LLM monthly quota config validation (fail-fast).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -46,3 +46,8 @@ def test_month_start_date_utc_bucket() -> None:
     # Cover month_start_date_utc(now=...) deterministic path.
     now = datetime(2026, 2, 5, 12, 30, tzinfo=timezone.utc)
     assert str(quota.month_start_date_utc(now)) == "2026-02-01"
+
+
+def test_month_start_date_utc_naive_datetime_treated_as_utc() -> None:
+    naive = datetime(2026, 2, 15, 12, 0, 0)  # no tzinfo
+    assert quota.month_start_date_utc(now=naive) == date(2026, 2, 1)

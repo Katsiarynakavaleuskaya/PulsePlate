@@ -80,6 +80,10 @@ def month_start_date_utc(now: datetime | None = None) -> date:
     """Return UTC calendar month bucket start date (YYYY-MM-01)."""
 
     dt = now or datetime.now(timezone.utc)
+    # RU: Наивные datetime трактуем как UTC (а не local time), иначе astimezone() может сместить месяц.
+    # EN: Treat naive datetimes as UTC (not local time) to avoid month bucket drift.
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     dt_utc = dt.astimezone(timezone.utc)
     return date(dt_utc.year, dt_utc.month, 1)
 
