@@ -348,6 +348,23 @@ If it is not recorded here — it does not exist.
   - Reason: TP2 originally used `core/db/fallback.py` which caused `core.db` to resolve as package in CI. Resolved by moving fallback to `core/db_fallback.py` (flat module) and removing `core/db/` package; no guard exception needed.
   - DoD: Done. Fallback in `core/db_fallback.py`; AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists.
 
+- [x] P1: Local/dev env alignment for SERVER_SALT + quota limit (post PR-647)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-649
+  - Status: ✅ Merged (PR-649)
+  - Reason: PR-647 introduced a fail-fast requirement for `SERVER_SALT` at app startup (VIP LLM monthly quota). Local/root
+    `docker-compose.yaml` and `.env.example` must reflect required env vars to avoid confusing local startup failures.
+  - Links:
+    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
+    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
+    - PR-649: env.example + docker-compose alignment for SERVER_SALT fail-fast
+    - docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md
+  - DoD:
+    - ✅ `.env.example` includes `SERVER_SALT` + `VIP_LLM_INSIGHT_REQUESTS_PER_MONTH` (with validation guidance)
+    - ✅ Root `docker-compose.yaml` passes both vars; missing `SERVER_SALT` fails fast at compose evaluation time
+    - ✅ Local compose boots deterministically when `SERVER_SALT` is provided
+
 - [ ] docs(infra): add `.markdownlint.json` (follow-up after PR #617)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
