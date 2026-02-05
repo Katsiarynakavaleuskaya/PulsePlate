@@ -23,14 +23,14 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] PR-652 P0 Welcome onboarding gate (iOS-only)
+- [ ] PR-653 P0 Welcome onboarding gate (iOS-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-652
-  - Status: 🟡 In progress (mark ✅ Merged when PR-652 is merged)
+  - Target PR: PR-653
+  - Status: 🟡 In progress (mark ✅ Merged when PR-653 is merged)
   - Reason: Store readiness — ensure deterministic first-run value framing with a single entry gate (`has_seen_welcome_v1`) before `RootTabs()`.
   - Links:
-    - docs/audit/PR_652_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
+    - docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
   - DoD:
     - iOS entrypoint gates `RootTabs()` via `WelcomeGateView`
     - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
