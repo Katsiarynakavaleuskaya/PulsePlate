@@ -115,6 +115,7 @@ from app.middleware.api_tiers import require_vip_tier
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
     require_server_salt,
+    require_vip_llm_monthly_limit,
 )
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
@@ -499,6 +500,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # PR-647 (P0 security): Monthly quota fingerprinting requires a secret salt.
     # Fail-fast on startup to avoid running with predictable/empty fingerprints.
     require_server_salt()
+    require_vip_llm_monthly_limit()
 
     try:
         init_db()

@@ -27,6 +27,8 @@ _VIP_LIMIT_ENV = "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH"
 # NOTE: Table name must match app/models/llm_quota_usage.py.
 _USAGE_TABLE = "vip_llm_monthly_usage"
 
+DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH = 30
+
 
 def require_server_salt() -> str:
     """Return SERVER_SALT or raise (fail-fast contract).
@@ -44,19 +46,34 @@ def require_server_salt() -> str:
     return salt
 
 
-def vip_llm_monthly_limit_requests() -> int:
-    """Return VIP monthly request limit (env-backed, safe default)."""
+def require_vip_llm_monthly_limit() -> int:
+    """Validate VIP LLM monthly limit at startup (fail-fast).
+
+    RU: Валидируем лимит на старте. Падаем сразу при некорректном значении.
+    EN: Validate quota limit at startup. Fail fast on invalid config.
+    """
 
     raw = (os.getenv(_VIP_LIMIT_ENV) or "").strip()
-    if not raw:
-        return 30
+    if raw == "":
+        return DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH
+
     try:
         value = int(raw)
     except ValueError as exc:
-        raise ValueError(f"{_VIP_LIMIT_ENV} must be an integer, got {raw!r}") from exc
+        raise RuntimeError(f"{_VIP_LIMIT_ENV} must be an integer >= 1.") from exc
+
     if value < 1:
-        raise ValueError(f"{_VIP_LIMIT_ENV} must be >= 1, got {value}")
+        raise RuntimeError(f"{_VIP_LIMIT_ENV} must be an integer >= 1.")
+
     return value
+
+
+def vip_llm_monthly_limit_requests() -> int:
+    """Return VIP monthly request limit (env-backed, safe default)."""
+
+    # Keep this helper stable: runtime code may call it outside startup.
+    # Startup validation is enforced by require_vip_llm_monthly_limit().
+    return require_vip_llm_monthly_limit()
 
 
 def month_start_date_utc(now: datetime | None = None) -> date:
