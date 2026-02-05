@@ -123,7 +123,7 @@ Constraints:
 - Server-side authoritative (no trust in client).
 - Must be easy to tune without code changes (ops-friendly).
 
-### Q11. Counter storage (authoritative usage table)
+### Q12. Counter storage (authoritative usage table)
 
 ✅ **DB (SQLAlchemy) usage table**, authoritative
 
@@ -135,7 +135,7 @@ Constraints (security + determinism):
 - **Atomicity (hard requirement):** check + increment must be one atomic operation (single statement or transactional
   upsert/increment with guard), otherwise parallel requests can break the hard cap.
 
-### Q12. VIP tier binding (P0)
+### Q13. VIP tier binding (P0)
 
 ✅ One shared limit for all VIP keys (per key), P0 baseline.
 
