@@ -3,6 +3,7 @@ Test coverage boost to reach 97%
 """
 
 import asyncio
+import json
 import importlib
 import inspect
 import os
@@ -34,7 +35,10 @@ class TestCoverageFinalBoost:
                     patch("mcp_pulseplate_server.PulsePlateMCPServer") as mock_server,
                     patch(
                         "mcp_pulseplate_server.sys.stdin.readline",
-                        side_effect=['{"method": "tools/list"}', ""],
+                        side_effect=[
+                            '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}',
+                            "",
+                        ],
                     ),
                 ):
                     mock_instance = mock_server.return_value
@@ -50,10 +54,17 @@ class TestCoverageFinalBoost:
                     mock_server.assert_called_once()
 
                     # Assert the mocked instance method was awaited
-                    mock_instance.handle_request.assert_awaited_once_with({"method": "tools/list"})
+                    mock_instance.handle_request.assert_awaited_once_with(
+                        {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+                    )
 
-                    # Assert expected prints or side-effects via the patched print
-                    mock_print.assert_any_call('{"result": "success"}')
+                    # Assert JSON-RPC 2.0 envelope is printed for requests with id
+                    mock_print.assert_called()
+                    printed = mock_print.call_args[0][0]
+                    payload = json.loads(printed)
+                    assert payload["jsonrpc"] == "2.0"
+                    assert payload["id"] == 1
+                    assert payload["result"] == {"result": "success"}
 
     def test_setup_custom_mcp_coverage(self):
         """Test setup_custom_mcp.py coverage"""

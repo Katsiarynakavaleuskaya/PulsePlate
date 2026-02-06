@@ -791,28 +791,69 @@ class TestMcpPulseplateServerCoverage:
                             mock_flush.assert_called()
 
     @pytest.mark.asyncio
-    async def test_main_function_exception(self):
-        """Test main function with general exception"""
+    async def test_main_function_invalid_request_missing_jsonrpc_with_id(self) -> None:
+        """Invalid request (missing jsonrpc) must return JSON-RPC Invalid Request when id is present."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
                 with patch("sys.stdin.readline") as mock_readline:
                     with patch("builtins.print") as mock_print:
                         with patch("sys.stdout.flush") as mock_flush:
                             mock_readline.side_effect = [
-                                '{"method": "tools/list"}\n',
+                                '{"id": 1, "method": "tools/list", "params": {}}\n',
                                 "",  # Empty line to break the loop
                             ]
 
-                            # Mock handle_request to raise exception
-                            with patch.object(
-                                mcp_pulseplate_server.PulsePlateMCPServer,
-                                "handle_request",
-                                side_effect=Exception("Test error"),
-                            ):
-                                await mcp_pulseplate_server.main()
+                            await mcp_pulseplate_server.main()
 
-                                mock_print.assert_called()
-                                mock_flush.assert_called()
+                            mock_print.assert_called()
+                            mock_flush.assert_called()
+                            printed = mock_print.call_args[0][0]
+                            response = json.loads(printed)
+                            assert response["jsonrpc"] == "2.0"
+                            assert response["id"] == 1
+                            assert response["error"]["code"] == -32600
+
+    @pytest.mark.asyncio
+    async def test_main_function_invalid_request_method_not_string(self) -> None:
+        """Invalid request (method not a string) must return JSON-RPC Invalid Request when id is present."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with patch("builtins.print") as mock_print:
+                        with patch("sys.stdout.flush") as mock_flush:
+                            mock_readline.side_effect = [
+                                '{"jsonrpc":"2.0","id":1,"method":123,"params":{}}\n',
+                                "",
+                            ]
+
+                            await mcp_pulseplate_server.main()
+
+                            mock_print.assert_called()
+                            mock_flush.assert_called()
+                            printed = mock_print.call_args[0][0]
+                            response = json.loads(printed)
+                            assert response["jsonrpc"] == "2.0"
+                            assert response["id"] == 1
+                            assert response["error"]["code"] == -32600
+
+    @pytest.mark.asyncio
+    async def test_main_function_notification_no_response(self) -> None:
+        """JSON-RPC notifications (no id) must not produce a response."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with patch("builtins.print") as mock_print:
+                        with patch("sys.stdout.flush") as mock_flush:
+                            mock_readline.side_effect = [
+                                '{"jsonrpc":"2.0","method":"ping","params":{}}\n',
+                                "",
+                            ]
+
+                            await mcp_pulseplate_server.main()
+
+                            mock_print.assert_not_called()
+                            # We do not flush because we did not print.
+                            mock_flush.assert_not_called()
 
     def test_main_execution(self):
         """Test main execution when script is run directly"""

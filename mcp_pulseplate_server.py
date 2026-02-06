@@ -460,35 +460,61 @@ async def main() -> None:
 
             # RU: MCP ожидает JSON-RPC 2.0 envelope в ответах.
             # EN: MCP expects JSON-RPC 2.0 envelopes in responses.
-            if (
-                isinstance(request, dict)
-                and request.get("jsonrpc") == "2.0"
-                and isinstance(request.get("method"), str)
-            ):
-                has_id = "id" in request
-                request_id: JsonRpcId = request.get("id")
-                # Notifications (no id) must not produce a response.
+            #
+            # Protocol rule:
+            # - Requests with no `id` are notifications → MUST NOT produce a response.
+            # - Invalid requests with an `id` MUST return an error envelope (Invalid Request).
+            # - Never emit a non-enveloped response.
+
+            if not isinstance(request, dict):
+                # Non-object request. Per plan: respond only if an id exists; otherwise treat as notification.
+                continue
+
+            has_id = "id" in request
+            request_id: JsonRpcId = request.get("id")
+            method = request.get("method")
+            is_jsonrpc = request.get("jsonrpc") == "2.0"
+
+            if not (is_jsonrpc and isinstance(method, str)):
                 if not has_id:
-                    await server.handle_request(request)
+                    # Treat as notification: do not respond.
+                    #
+                    # Backward-compat: some tests/clients may omit `jsonrpc` but still send a valid
+                    # request shape with a string method. We allow executing the request while
+                    # keeping stdout protocol-consistent (no raw response emission).
+                    if isinstance(method, str):
+                        await server.handle_request(request)
                     continue
-
-                result = await server.handle_request(request)
-                if isinstance(result, dict) and set(result.keys()) == {"error"}:
-                    message = str(result["error"])
-                    code = -32601 if message.startswith("Unknown method:") else -32000
-                    response = {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {"code": code, "message": message},
-                    }
-                else:
-                    response = {"jsonrpc": "2.0", "id": request_id, "result": result}
-
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": (
+                        request_id
+                        if isinstance(request_id, (int, str)) or request_id is None
+                        else None
+                    ),
+                    "error": {"code": -32600, "message": "Invalid Request"},
+                }
                 print(json.dumps(response))
                 sys.stdout.flush()
                 continue
 
-            response = await server.handle_request(request)
+            # Valid JSON-RPC 2.0 request. Notifications must not produce a response.
+            if not has_id:
+                await server.handle_request(request)
+                continue
+
+            result = await server.handle_request(request)
+            if isinstance(result, dict) and set(result.keys()) == {"error"}:
+                message = str(result["error"])
+                code = -32601 if message.startswith("Unknown method:") else -32000
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": code, "message": message},
+                }
+            else:
+                response = {"jsonrpc": "2.0", "id": request_id, "result": result}
+
             print(json.dumps(response))
             sys.stdout.flush()
 
