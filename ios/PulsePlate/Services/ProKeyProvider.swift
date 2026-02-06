@@ -19,7 +19,14 @@ enum ProKeyProvider {
 
         // Production-safe: retrieve from Keychain.
         // RU: В релизе никаких fallback ключей быть не должно.
-        return (try? store.getString(account: account)) ?? nil
+        do {
+            return try store.getString(account: account)
+        } catch {
+            #if DEBUG
+            assertionFailure("Keychain error while reading PRO key: \(error)")
+            #endif
+            return nil
+        }
     }
 
     static func set(value: String) throws {

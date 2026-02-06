@@ -4,13 +4,17 @@ import XCTest
 
 final class ProKeyProviderTests: XCTestCase {
     func test_value_returnsNil_whenNoEnvKeyAndNoKeychainKey() throws {
-        // We cannot reliably control ProcessInfo environment in tests,
-        // but in CI/local runs it should not contain PRO_API_KEY by default.
+        if ProcessInfo.processInfo.environment["PRO_API_KEY"] != nil {
+            throw XCTSkip("PRO_API_KEY is set; skipping no-env-key assertion.")
+        }
         try ProKeyProvider.clear()
         XCTAssertNil(ProKeyProvider.value())
     }
 
     func test_value_returnsKeychainValue_whenSet() throws {
+        if ProcessInfo.processInfo.environment["PRO_API_KEY"] != nil {
+            throw XCTSkip("PRO_API_KEY is set; skipping keychain value assertion.")
+        }
         try ProKeyProvider.clear()
         try ProKeyProvider.set(value: "pro_key_abc_123")
         XCTAssertEqual(ProKeyProvider.value(), "pro_key_abc_123")

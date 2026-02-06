@@ -9,7 +9,6 @@ struct KeychainStore: Sendable {
     enum KeychainError: Error, Equatable {
         case unexpectedStatus(OSStatus)
         case unexpectedData
-        case stringEncodingFailed
     }
 
     let service: String
@@ -48,7 +47,7 @@ struct KeychainStore: Sendable {
 
     func setString(_ value: String, account: String) throws {
         guard let data = value.data(using: .utf8) else {
-            throw KeychainError.stringEncodingFailed
+            throw KeychainError.unexpectedData
         }
 
         let query: [CFString: Any] = [
