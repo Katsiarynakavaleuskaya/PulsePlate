@@ -29,8 +29,14 @@ git show origin/main:docs/roadmap/IOS_ROADMAP.md | rg -n "Entry point:|PR-652"
 ```
 
 - **Repo truth (code)**
-  - `ios/PulsePlate/PulsePlateApp.swift:7` → `WelcomeGateView()`
-  - `ios/PulsePlate/Welcome/WelcomeGateView.swift:7-11` → `RootTabs()` gated by `has_seen_welcome_v1`
+  - **Evidence command (stable):**
+
+```bash
+rg -n "WelcomeGateView\\(" ios/PulsePlate/PulsePlateApp.swift
+rg -n "@AppStorage\\(\"has_seen_welcome_v1\"\\)|RootTabs\\(" ios/PulsePlate/Welcome/WelcomeGateView.swift
+```
+
+  - **Expected snippet:** `PulsePlateApp.swift` renders `WelcomeGateView()` and `WelcomeGateView` gates `RootTabs()` behind `has_seen_welcome_v1`.
 
 ### 2) Key handling drift (docs claimed placeholder fallback)
 
@@ -47,23 +53,47 @@ git show origin/main:docs/IOS_API_INTEGRATION.md | rg -n "test_pro_key"
 ```
 
 - **Repo truth (code)**
-  - `ios/PulsePlate/Services/ProKeyProvider.swift:12-28` (DEBUG reads `PRO_API_KEY`, release-safe Keychain, no placeholder fallbacks)
-  - `ios/PulsePlate/Services/KeychainStore.swift:20-100` (Keychain storage)
-  - `ios/PulsePlateTests/Services/ProKeyProviderTests.swift:6-22` (missing-key returns nil; keychain value when set)
+  - **Evidence command (stable):**
+
+```bash
+rg -n "PRO_API_KEY|KeychainStore\\(|assertionFailure\\(\"Keychain error\"|return nil" ios/PulsePlate/Services/ProKeyProvider.swift -S
+rg -n "struct KeychainStore|SecItemCopyMatching|SecItemAdd|SecItemUpdate|SecItemDelete" ios/PulsePlate/Services/KeychainStore.swift -S
+rg -n "XCTSkip\\(\"PRO_API_KEY\"|ProKeyProvider\\.(value|set|clear)" ios/PulsePlateTests/Services/ProKeyProviderTests.swift -S
+```
+
+  - **Expected snippet:** `ProKeyProvider` reads `PRO_API_KEY` in DEBUG, uses Keychain otherwise, and returns `nil` on missing key; tests cover nil + keychain value.
 
 ### 3) Nutrition endpoint story drift + security risk (legacy alias)
 
 - **Repo truth (iOS client)**
-  - `ios/PulsePlate/Models/NutritionData.swift:38-58` calls legacy `api/nutrition/<date>` and claims endpoint is “not yet implemented”.
+  - **Evidence command (stable):**
+
+```bash
+rg -n "api/nutrition/\\$\\{|api/nutrition/|not yet implemented" ios/PulsePlate/Models/NutritionData.swift -n
+```
+
+  - **Expected snippet:** iOS client currently builds path `api/nutrition/<date>` and contains a TODO claiming it is not implemented (docs must forbid this as SoT).
 
 - **Repo truth (backend)**
-  - `legacy_app.py:875-905` defines legacy alias `GET /api/nutrition/{date_str}` and directly calls `app/routers/pro.py:get_daily_nutrition(...)`.
-  - `app/routers/pro.py:400+` defines canonical `GET /api/v1/pro/nutrition/daily` (PRO, requires profile query params).
+  - **Evidence command (stable):**
+
+```bash
+rg -n "/api/nutrition/\\{date_str\\}" legacy_app.py
+rg -n "Depends\\(api_key_header\\)|from app\\.routers\\.pro import get_daily_nutrition|await get_daily_nutrition" legacy_app.py -S
+rg -n "\"/nutrition/daily\"|dependencies=\\[Depends\\(require_pro_tier\\)\\]" app/routers/pro.py -n
+```
+
+  - **Expected snippet:** legacy alias exists on `legacy_app.py` and calls `get_daily_nutrition(...)` directly; canonical endpoint declares `Depends(require_pro_tier)` on the route.
 
 - **Security concern (alias auth bypass risk)**
-  - `legacy_app.py:884` uses `Depends(api_key_header)` which extracts header but does **not** enforce tier.
-  - `app/middleware/api_tiers.py:165-202` shows the actual tier guard is `require_pro_tier(...)`.
-  - Because the alias calls `get_daily_nutrition` directly, the PRO-tier dependency is not executed for the alias path unless enforced explicitly.
+  - **Evidence command (stable):**
+
+```bash
+rg -n "api_key_header\\s*=\\s*APIKeyHeader\\(" app/routers/api_key.py
+rg -n "async def require_pro_tier\\b|_validate_api_key_tier\\(" app/middleware/api_tiers.py -n
+```
+
+  - **Expected snippet:** `api_key_header` is header extraction only (`auto_error=False`), while `require_pro_tier` performs the actual 401/403 tier validation. Direct function calls bypass decorator-level dependencies unless the alias enforces them explicitly.
 
 ### 4) Placeholder token presence policy (app sources vs guard tests)
 
