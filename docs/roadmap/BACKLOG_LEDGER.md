@@ -36,7 +36,7 @@ If it is not recorded here — it does not exist.
     - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
     - RU/EN/ES strings ship for `onboarding.welcome.*`
     - `make ios-test` passes
-- [ ] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
+- [x] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (release safety)
   - Target PR: PR-656
@@ -65,58 +65,6 @@ If it is not recorded here — it does not exist.
     - A deterministic guard/unit test fails CI if placeholder key strings appear in `ios/PulsePlate/**`
     - Test excludes fixtures/mocks as needed (no false positives)
     - Documented allowlist policy (if any) in `ios/AGENTS.md`
-
-- [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (Free MVP polish)
-  - Target PR: TBD (iOS-only)
-  - Status: 📋 Ready to start
-  - Reason: BMI calculator exists but is not clearly reachable from the main navigation (Free MVP must make value moment obvious).
-  - Links:
-    - `ios/PulsePlate/Views/RootTabs.swift`
-    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
-    - `ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift`
-  - DoD:
-    - User can reach BMI from the default tab flow (Home card or dedicated tab)
-    - Loading/error/validation states remain user-friendly (no debug-y messages)
-    - `make ios-test` passes
-
-- [ ] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (Feature integration)
-  - Target PR: TBD (iOS-only; backend follow-ups tracked separately)
-  - Status: 📋 Ready to start
-  - Reason: iOS currently uses legacy `/api/nutrition/{date}` path and assumes it is unimplemented; canonical PRO endpoint exists and requires query profile + X-API-Key.
-  - Links:
-    - `app/routers/pro.py` (canonical: `/api/v1/pro/nutrition/daily`)
-    - `legacy_app.py` (deprecated shim: `/api/nutrition/{date_str}`)
-    - `ios/PulsePlate/Models/NutritionData.swift` (current iOS client path + TODO)
-    - `ios/PulsePlate/Views/PlateView.swift` / `ios/PulsePlate/Views/PlateViewPP.swift`
-    - `ios/PulsePlate/Services/ProKeyProvider.swift`
-  - DoD:
-    - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
-    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env
-    - UX: explicit states for missing PRO key / missing profile / 422 validation errors
-    - Tests:
-      - unit test for building daily nutrition request query (deterministic)
-      - `make ios-test` passes
-
-- [ ] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (Demo / TestFlight)
-  - Target PR: TBD (iOS-only)
-  - Status: 📋 Ready to start
-  - Reason: WeeklyPlanReaderView + VM exist but are not mounted in the app; feature flag is defined but only shown as a usage example.
-  - Links:
-    - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
-    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
-    - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
-    - `ios/PulsePlate/Services/WeeklyPlanService.swift`
-  - DoD:
-    - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
-    - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
-    - Errors for 400/401/403 are rendered as user-readable states (not crashes)
-    - `make ios-test` passes
 
 - [ ] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
@@ -455,6 +403,58 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Free MVP polish)
+  - Target PR: TBD (iOS-only)
+  - Status: 📋 Ready to start
+  - Reason: BMI calculator exists but is not clearly reachable from the main navigation (Free MVP must make value moment obvious).
+  - Links:
+    - `ios/PulsePlate/Views/RootTabs.swift`
+    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
+    - `ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift`
+  - DoD:
+    - User can reach BMI from the default tab flow (Home card or dedicated tab)
+    - Loading/error/validation states remain user-friendly (no debug-y messages)
+    - `make ios-test` passes
+
+- [ ] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Feature integration)
+  - Target PR: TBD (iOS-only; backend follow-ups tracked separately)
+  - Status: 📋 Ready to start
+  - Reason: iOS currently uses legacy `/api/nutrition/{date}` path and assumes it is unimplemented; canonical PRO endpoint exists and requires query profile + X-API-Key.
+  - Links:
+    - `app/routers/pro.py` (canonical: `/api/v1/pro/nutrition/daily`)
+    - `legacy_app.py` (deprecated shim: `/api/nutrition/{date_str}`)
+    - `ios/PulsePlate/Models/NutritionData.swift` (current iOS client path + TODO)
+    - `ios/PulsePlate/Views/PlateView.swift` / `ios/PulsePlate/Views/PlateViewPP.swift`
+    - `ios/PulsePlate/Services/ProKeyProvider.swift`
+  - DoD:
+    - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
+    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env
+    - UX: explicit states for missing PRO key / missing profile / 422 validation errors
+    - Tests:
+      - unit test for building daily nutrition request query (deterministic)
+      - `make ios-test` passes
+
+- [ ] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Demo / TestFlight)
+  - Target PR: TBD (iOS-only)
+  - Status: 📋 Ready to start
+  - Reason: WeeklyPlanReaderView + VM exist but are not mounted in the app; feature flag is defined but only shown as a usage example.
+  - Links:
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
+    - `ios/PulsePlate/Services/WeeklyPlanService.swift`
+  - DoD:
+    - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
+    - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
+    - Errors for 400/401/403 are rendered as user-readable states (not crashes)
+    - `make ios-test` passes
 
 - [x] P1 (maintenance): Type-hints carryover cleanup (tests)
   - Owner: @katsiaryna_kavaleuskaya
