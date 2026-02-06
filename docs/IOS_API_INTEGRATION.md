@@ -67,11 +67,14 @@ Hard rule: avoid tests that call real endpoints; they are flaky and violate dete
 
 ## Key handling (CURRENT)
 
-Document the current reality explicitly (even if it is not release-safe yet).
+Document the current repo truth explicitly.
 
 - **PRO key**: `ios/PulsePlate/Services/ProKeyProvider.swift`
-  - **WARNING**: contains a placeholder fallback (`"test_pro_key"`) in DEBUG.
-  - **Release requirement**: placeholder keys must be removed before any public release.
+  - **DEBUG (local dev / TestFlight internal workflows)**: may read `PRO_API_KEY` from Xcode Scheme → Run → Environment Variables (never commit it).
+  - **Release-safe storage**: Keychain (`ios/PulsePlate/Services/KeychainStore.swift`).
+  - **Hard rule**: no hardcoded keys / placeholder fallbacks in sources.
+  - **Missing-key behavior**: must return `nil` (explicit + testable), not a silent fallback.
+  - **Tests**: `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
 
 If you need new key types (e.g., VIP), add providers deliberately and track secure storage work in the ledger.
 

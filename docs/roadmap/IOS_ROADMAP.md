@@ -10,10 +10,8 @@
 
 ### App entry + navigation
 
-- Entry point: `ios/PulsePlate/PulsePlateApp.swift` → `RootTabs()`
+- Entry point: `ios/PulsePlate/PulsePlateApp.swift` → `WelcomeGateView()` → `RootTabs()`
 - Primary navigation: `ios/PulsePlate/Views/RootTabs.swift` (TabView)
-
-> Note: PR-652 proposes a first-run Welcome gate before `RootTabs`. Keep that change in PR-652 scope only.
 
 ### Networking SoT (thin client)
 
@@ -30,14 +28,18 @@
 
 ## What changed recently
 
-- PR-652 (pending): iOS P0 Welcome gate (versioned key `has_seen_welcome_v1`) + RU/EN/ES welcome copy.
+- PR-653 (merged): iOS P0 Welcome gate (versioned key `has_seen_welcome_v1`) + RU/EN/ES welcome copy.
 
 ---
 
 ## P0 Next Actions (real follow-ups only)
 
-- Remove placeholder PRO key fallback and make key handling release-safe (tracked in `BACKLOG_LEDGER.md`).
-- Add a guard/test that fails CI if placeholder keys like `test_pro_key` appear in app sources (tracked in `BACKLOG_LEDGER.md`).
+- ✅ Remove placeholder PRO key fallback and make key handling release-safe (PR-656; tracked in `BACKLOG_LEDGER.md`).
+- ✅ Add a guard/test that fails CI if placeholder keys like `test_pro_key` appear in app sources (PR-657; tracked in `BACKLOG_LEDGER.md`).
+- Next (P1, see `BACKLOG_LEDGER.md`):
+  - Expose BMI screen from Home / RootTabs (Free MVP UX)
+  - Plate (PRO): align iOS to canonical `GET /api/v1/pro/nutrition/daily` + profile input
+  - Mount WeeklyPlanReader behind feature flag (PRO demo slice)
 
 ---
 
