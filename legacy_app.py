@@ -44,6 +44,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from app.dependencies import validate_template_dir
+from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
@@ -872,7 +873,12 @@ app.include_router(shoplist_day_router)
 
 # Legacy alias for iOS nutrition endpoint compatibility
 # Maps /api/nutrition/{date} to /api/v1/pro/nutrition/daily with default profile
-@app.get("/api/nutrition/{date_str}", tags=["pro", "legacy"])
+@app.get(
+    "/api/nutrition/{date_str}",
+    tags=["pro", "legacy"],
+    deprecated=True,
+    include_in_schema=False,
+)
 async def get_daily_nutrition_legacy(
     date_str: str,
     sex: str = Query("female", description="Biological sex (female/male)"),
@@ -881,7 +887,7 @@ async def get_daily_nutrition_legacy(
     weight_kg: float = Query(65, gt=30, lt=300, description="Weight in kg"),
     activity: str = Query("moderate", description="Activity level"),
     goal: str = Query("maintain", description="Nutrition goal"),
-    api_key: str = Depends(api_key_header),
+    _: str = Depends(require_pro_tier),
 ) -> Dict[str, Any]:
     """Legacy alias for iOS nutrition endpoint - redirects to PRO endpoint.
 
