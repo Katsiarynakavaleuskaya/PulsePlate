@@ -348,6 +348,30 @@ def test_legacy_nutrition_endpoint(client: TestClient) -> None:
     assert data["date"] == "2025-12-15"
 
 
+def test_legacy_nutrition_endpoint_requires_pro_key(client: TestClient) -> None:
+    """Legacy nutrition alias must enforce PRO tier guard.
+
+    RU: Устаревший алиас должен требовать PRO API ключ (без bypass tier-guard).
+    EN: Legacy alias must require a PRO API key (no tier-guard bypass).
+    """
+    response = client.get("/api/nutrition/2025-12-15")
+    assert response.status_code == 401
+
+
+def test_legacy_nutrition_endpoint_rejects_invalid_pro_key(client: TestClient) -> None:
+    """Legacy nutrition alias must reject invalid API keys.
+
+    RU: Устаревший алиас должен отклонять невалидные ключи (403).
+    EN: Legacy alias must reject invalid keys (403).
+    """
+    response = client.get(
+        "/api/nutrition/2025-12-15",
+        headers={"X-API-Key": "not_a_pro_key"},
+    )
+    assert response.status_code == 403
+    assert response.headers["content-type"].startswith("application/json")
+
+
 def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
     """Test legacy endpoint uses defaults for missing optional params.
 
