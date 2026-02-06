@@ -76,13 +76,11 @@ rg -n "api/nutrition/\\$\\{|api/nutrition/|not yet implemented" ios/PulsePlate/M
 
 - **Repo truth (backend)**
   - **Evidence command (stable):**
-
-```bash
-rg -n "/api/nutrition/\\{date_str\\}" legacy_app.py
-rg -n "Depends\\(api_key_header\\)|from app\\.routers\\.pro import get_daily_nutrition|await get_daily_nutrition" legacy_app.py -S
-rg -n "\"/nutrition/daily\"|dependencies=\\[Depends\\(require_pro_tier\\)\\]" app/routers/pro.py -n
-```
-
+    ```bash
+    rg -n "/api/nutrition/\\{date_str\\}" legacy_app.py
+    rg -n "Depends\\(api_key_header\\)|from app\\.routers\\.pro import get_daily_nutrition|await get_daily_nutrition" legacy_app.py -S
+    rg -n "\"/nutrition/daily\"|dependencies=\\[Depends\\(require_pro_tier\\)\\]" app/routers/pro.py -n
+    ```
   - **Expected snippet:** legacy alias exists on `legacy_app.py` and calls `get_daily_nutrition(...)` directly; canonical endpoint declares `Depends(require_pro_tier)` on the route.
 
 - **Security concern (alias auth bypass risk)**
