@@ -104,7 +104,7 @@ Anchor audit: `docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md`
 Supporting packets:
 
 - Design direction: `docs/design/WELCOME_GATE_VISUAL_DIRECTION.md`
-- Visual philosophy + canvas artifact: `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`, `docs/design/WELCOME_GATE_CANVAS.png`
+- Visual philosophy: `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md` (canvas is maintained externally in Figma / PR thread)
 - Copy deck (RU/EN/ES variants): `docs/marketing/WELCOME_GATE_COPY_DECK.md`
 - Paywall positioning (ethical): `docs/marketing/WELCOME_GATE_PAYWALL_POSITIONING.md`
 - iOS-only experiment plan: `docs/marketing/WELCOME_GATE_EXPERIMENT_PLAN.md`
