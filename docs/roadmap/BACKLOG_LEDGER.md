@@ -426,6 +426,21 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (observability / migration)
+  - Target PR: TBD (backend-only)
+  - Status: 📋 Planned
+  - Reason: `GET /api/nutrition/{date_str}` is a deprecated compatibility alias. Before removing it safely, we need
+    basic usage telemetry (by client/platform) to confirm iOS migration completion and avoid breaking unknown consumers.
+  - Links:
+    - `legacy_app.py` (`/api/nutrition/{date_str}` legacy alias)
+    - `docs/roadmap/BACKLOG_LEDGER.md` (P0 security fix item for alias guard)
+  - DoD:
+    - Count requests to `/api/nutrition/{date_str}` with low-cardinality labels (e.g., platform/client + status)
+    - Dashboard/query recipe documented (where to check usage)
+    - Removal decision recorded (remove alias date / keep longer with rationale)
+
 - [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Free MVP polish)
