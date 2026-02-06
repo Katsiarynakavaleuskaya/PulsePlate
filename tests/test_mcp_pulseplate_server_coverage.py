@@ -4,7 +4,7 @@ Test coverage for mcp_pulseplate_server.py
 
 import json
 import os
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
@@ -266,6 +266,16 @@ class TestMcpPulseplateServerCoverage:
         # Cleanup
         mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
 
+    def test_reset_model_cache(self) -> None:
+        """Test _reset_model_cache clears cache flags."""
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = {"gpt-4o"}
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = True
+
+        mcp_pulseplate_server.PulsePlateMCPServer._reset_model_cache()
+
+        assert mcp_pulseplate_server.PulsePlateMCPServer._cached_models is None
+        assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is False
+
     def test_fetch_available_models_failed_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test _fetch_available_models returns fallback when cache failed (lines 83-88)"""
         # Set cache as failed
@@ -468,11 +478,27 @@ class TestMcpPulseplateServerCoverage:
                 request = {"method": "initialize", "params": {"protocolVersion": "2024-11-05"}}
                 response = await server.handle_request(request)
 
-                assert response["protocolVersion"] == "2024-11-05"
-                assert "capabilities" in response
-                assert "tools" in response["capabilities"]
-                assert "serverInfo" in response
-                assert response["serverInfo"]["name"] == "pulseplate-chatgpt"
+                assert isinstance(response, mcp_pulseplate_server.RpcOk)
+                assert response.result["protocolVersion"] == "2024-11-05"
+                assert "capabilities" in response.result
+                assert "tools" in response.result["capabilities"]
+                assert "serverInfo" in response.result
+                assert response.result["serverInfo"]["name"] == "pulseplate-chatgpt"
+
+    @pytest.mark.asyncio
+    async def test_handle_request_initialize_default_protocol_version(self) -> None:
+        """Test initialize uses DEFAULT_PROTOCOL_VERSION when protocolVersion is missing."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                response = await server.handle_request({"method": "initialize", "params": {}})
+
+                assert isinstance(response, mcp_pulseplate_server.RpcOk)
+                assert (
+                    response.result["protocolVersion"]
+                    == mcp_pulseplate_server.DEFAULT_PROTOCOL_VERSION
+                )
 
     @pytest.mark.asyncio
     async def test_handle_request_resources_and_prompts_list(self) -> None:
@@ -482,10 +508,12 @@ class TestMcpPulseplateServerCoverage:
                 server = mcp_pulseplate_server.PulsePlateMCPServer()
 
                 resources = await server.handle_request({"method": "resources/list"})
-                assert resources == {"resources": []}
+                assert isinstance(resources, mcp_pulseplate_server.RpcOk)
+                assert resources.result == {"resources": []}
 
                 prompts = await server.handle_request({"method": "prompts/list"})
-                assert prompts == {"prompts": []}
+                assert isinstance(prompts, mcp_pulseplate_server.RpcOk)
+                assert prompts.result == {"prompts": []}
 
     @pytest.mark.asyncio
     async def test_handle_request_tools_list(self) -> None:
@@ -497,9 +525,10 @@ class TestMcpPulseplateServerCoverage:
                 request = {"method": "tools/list"}
                 response = await server.handle_request(request)
 
-                assert "tools" in response
-                assert isinstance(response["tools"], list)
-                assert len(response["tools"]) > 0
+                assert isinstance(response, mcp_pulseplate_server.RpcOk)
+                assert "tools" in response.result
+                assert isinstance(response.result["tools"], list)
+                assert len(response.result["tools"]) > 0
 
     @pytest.mark.asyncio
     async def test_handle_request_tools_call(self):
@@ -514,7 +543,9 @@ class TestMcpPulseplateServerCoverage:
                 }
 
                 with patch.object(server, "_call_tool") as mock_call_tool:
-                    mock_call_tool.return_value = {"result": "test"}
+                    mock_call_tool.return_value = mcp_pulseplate_server.RpcOk(
+                        result={"result": "test"}
+                    )
                     _ = await server.handle_request(request)
 
                     mock_call_tool.assert_called_once_with(request["params"])
@@ -529,8 +560,10 @@ class TestMcpPulseplateServerCoverage:
                 request = {"method": "unknown_method"}
                 response = await server.handle_request(request)
 
-                assert "error" in response
-                assert "Unknown method: unknown_method" in response["error"]
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32601
+                assert response.message == "Method not found"
+                assert response.data == {"method": "unknown_method"}
 
     @pytest.mark.asyncio
     async def test_handle_request_exception(self):
@@ -544,8 +577,10 @@ class TestMcpPulseplateServerCoverage:
                     request = {"method": "tools/list"}
                     response = await server.handle_request(request)
 
-                    assert "error" in response
-                    assert "Test error" in response["error"]
+                    assert isinstance(response, mcp_pulseplate_server.RpcError)
+                    assert response.code == -32603
+                    assert response.message == "Internal error"
+                    assert response.data == {"error": "Test error"}
 
     @pytest.mark.asyncio
     async def test_list_tools(self):
@@ -631,8 +666,35 @@ class TestMcpPulseplateServerCoverage:
 
                 response = await server._call_tool(params)
 
-                assert "error" in response
-                assert "Unknown tool: unknown_tool" in response["error"]
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32602
+                assert response.message == "Invalid params"
+                assert response.data == {"error": "Unknown tool: unknown_tool"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "patched_attr"),
+        [
+            ("chatgpt_query", "_chatgpt_query"),
+            ("code_review", "_code_review"),
+            ("generate_code", "_generate_code"),
+        ],
+    )
+    async def test_call_tool_maps_tool_error_to_rpc_error(
+        self, tool_name: str, patched_attr: str
+    ) -> None:
+        """Tool helpers that return {'error': ...} must map to RpcError (-32000)."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                with patch.object(server, patched_attr, return_value={"error": "boom"}):
+                    response = await server._call_tool({"name": tool_name, "arguments": {}})
+
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32000
+                assert response.message == "Tool error"
+                assert response.data == {"error": "boom"}
 
     @pytest.mark.asyncio
     async def test_chatgpt_query_success(self):
@@ -773,7 +835,7 @@ class TestMcpPulseplateServerCoverage:
 
     @pytest.mark.asyncio
     async def test_main_function_json_error(self):
-        """Test main function with JSON parsing error"""
+        """Test main function with JSON parsing error (-32700 Parse error)."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
                 with patch("sys.stdin.readline") as mock_readline:
@@ -786,9 +848,123 @@ class TestMcpPulseplateServerCoverage:
 
                             await mcp_pulseplate_server.main()
 
-                            # Should print error response
                             mock_print.assert_called()
                             mock_flush.assert_called()
+                            printed = mock_print.call_args[0][0]
+                            payload = json.loads(printed)
+                            assert payload["jsonrpc"] == "2.0"
+                            assert payload["id"] is None
+                            assert payload["error"]["code"] == -32700
+
+    @pytest.mark.asyncio
+    async def test_main_function_internal_error_preserves_id(self) -> None:
+        """Internal exception after parsing must map to -32603 and preserve id."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with (
+                        patch.object(
+                            mcp_pulseplate_server.PulsePlateMCPServer,
+                            "handle_request",
+                            new=AsyncMock(side_effect=RuntimeError("boom")),
+                        ),
+                        patch("builtins.print") as mock_print,
+                        patch("sys.stdout.flush") as mock_flush,
+                    ):
+                        mock_readline.side_effect = [
+                            '{"jsonrpc":"2.0","id":123,"method":"ping","params":{}}\n',
+                            "",
+                        ]
+
+                        await mcp_pulseplate_server.main()
+
+                        mock_print.assert_called()
+                        mock_flush.assert_called()
+                        printed = mock_print.call_args[0][0]
+                        payload = json.loads(printed)
+                        assert payload["jsonrpc"] == "2.0"
+                        assert payload["id"] == 123
+                        assert payload["error"]["code"] == -32603
+                        assert payload["error"]["data"]["error"] == "boom"
+
+    @pytest.mark.asyncio
+    async def test_main_function_notification_exception_logs(self) -> None:
+        """Notification exceptions must be logged and must not write to stdout."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with (
+                        patch.object(
+                            mcp_pulseplate_server.PulsePlateMCPServer,
+                            "handle_request",
+                            new=AsyncMock(side_effect=RuntimeError("boom")),
+                        ),
+                        patch("builtins.print") as mock_print,
+                        patch("mcp_pulseplate_server.logger") as mock_logger,
+                    ):
+                        mock_readline.side_effect = [
+                            '{"jsonrpc":"2.0","method":"ping","params":{}}\n',
+                            "",
+                        ]
+
+                        await mcp_pulseplate_server.main()
+
+                        mock_print.assert_not_called()
+                        mock_logger.exception.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_main_function_non_object_request_no_response(self) -> None:
+        """Non-object JSON (e.g., list) must not produce a response (treated as notification)."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with patch("builtins.print") as mock_print:
+                        mock_readline.side_effect = [
+                            "[1, 2, 3]\n",
+                            "",
+                        ]
+
+                        await mcp_pulseplate_server.main()
+
+                        mock_print.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_main_function_rpc_error_is_wrapped(self) -> None:
+        """RpcError from handle_request must be wrapped into a JSON-RPC error envelope."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                with patch("sys.stdin.readline") as mock_readline:
+                    with (
+                        patch.object(
+                            mcp_pulseplate_server.PulsePlateMCPServer,
+                            "handle_request",
+                            new=AsyncMock(
+                                return_value=mcp_pulseplate_server.RpcError(
+                                    code=-32601,
+                                    message="Method not found",
+                                    data={"method": "nope"},
+                                )
+                            ),
+                        ),
+                        patch("builtins.print") as mock_print,
+                        patch("sys.stdout.flush") as mock_flush,
+                    ):
+                        mock_readline.side_effect = [
+                            '{"jsonrpc":"2.0","id":7,"method":"tools/list","params":{}}\n',
+                            "",
+                        ]
+
+                        await mcp_pulseplate_server.main()
+
+                        mock_print.assert_called()
+                        mock_flush.assert_called()
+                        printed = mock_print.call_args[0][0]
+                        payload = json.loads(printed)
+                        assert payload["jsonrpc"] == "2.0"
+                        assert payload["id"] == 7
+                        assert payload["error"]["code"] == -32601
+                        assert payload["error"]["message"] == "Method not found"
+                        assert payload["error"]["data"] == {"method": "nope"}
 
     @pytest.mark.asyncio
     async def test_main_function_invalid_request_missing_jsonrpc_with_id(self) -> None:

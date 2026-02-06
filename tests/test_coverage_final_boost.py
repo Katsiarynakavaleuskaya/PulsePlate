@@ -42,7 +42,9 @@ class TestCoverageFinalBoost:
                     ),
                 ):
                     mock_instance = mock_server.return_value
-                    mock_instance.handle_request = AsyncMock(return_value={"result": "success"})
+                    mock_instance.handle_request = AsyncMock(
+                        return_value=mcp_pulseplate_server.RpcOk(result={"result": "success"})
+                    )
                     main_fn = mcp_pulseplate_server.main
                     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
                         if inspect.iscoroutinefunction(main_fn):
