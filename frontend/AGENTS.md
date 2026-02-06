@@ -18,6 +18,7 @@
 - Keep UI changes in sync with backend schema updates.
 - For coordinated iOS+frontend work (designer/marketing/dev), follow:
   `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
+- This is a workflow reference only (no runtime behavior).
 
 ## Thin HTTP Adapter Policy (Hard Rule)
 

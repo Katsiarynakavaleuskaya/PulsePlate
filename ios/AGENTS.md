@@ -20,6 +20,7 @@
 - PR-653 scope guard (P0 Welcome): iOS only — do not mix web/backend/analytics/Lottie/deeplinks.
 - For coordinated iOS+frontend work (designer/marketing/dev), follow:
   `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
+- This is a workflow reference only (no runtime behavior).
 
 ## Backend coordination (important)
 
