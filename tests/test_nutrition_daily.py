@@ -348,28 +348,34 @@ def test_legacy_nutrition_endpoint(client: TestClient) -> None:
     assert data["date"] == "2025-12-15"
 
 
-def test_legacy_nutrition_endpoint_requires_pro_key(client: TestClient) -> None:
-    """Legacy nutrition alias must enforce PRO tier guard.
+@pytest.mark.parametrize(
+    "headers, expected_status",
+    [
+        ({}, 401),
+        ({"X-API-Key": "not_a_pro_key"}, 403),
+    ],
+)
+def test_legacy_nutrition_endpoint_auth_guard_contract(
+    client: TestClient,
+    headers: dict[str, str],
+    expected_status: int,
+) -> None:
+    """Legacy alias must enforce tier guard and return JSON error contract."""
+    response = client.get("/api/nutrition/2025-12-15", headers=headers)
 
-    RU: Устаревший алиас должен требовать PRO API ключ (без bypass tier-guard).
-    EN: Legacy alias must require a PRO API key (no tier-guard bypass).
-    """
-    response = client.get("/api/nutrition/2025-12-15")
-    assert response.status_code == 401
-
-
-def test_legacy_nutrition_endpoint_rejects_invalid_pro_key(client: TestClient) -> None:
-    """Legacy nutrition alias must reject invalid API keys.
-
-    RU: Устаревший алиас должен отклонять невалидные ключи (403).
-    EN: Legacy alias must reject invalid keys (403).
-    """
-    response = client.get(
-        "/api/nutrition/2025-12-15",
-        headers={"X-API-Key": "not_a_pro_key"},
-    )
-    assert response.status_code == 403
+    assert response.status_code == expected_status
     assert response.headers["content-type"].startswith("application/json")
+
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert "detail" in payload
+
+
+def test_legacy_nutrition_endpoint_hidden_from_openapi(client: TestClient) -> None:
+    resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+    schema = resp.json()
+    assert "/api/nutrition/{date_str}" not in schema.get("paths", {})
 
 
 def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
