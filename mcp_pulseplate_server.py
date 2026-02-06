@@ -9,12 +9,14 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import openai
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+JsonRpcId = int | str
 
 
 class PulsePlateMCPServer:
@@ -231,6 +233,17 @@ class PulsePlateMCPServer:
             method = request.get("method")
             params = request.get("params", {})
 
+            if method == "initialize":
+                # RU: MCP использует JSON-RPC 2.0 и требует handshake initialize.
+                # EN: MCP uses JSON-RPC 2.0 and requires an initialize handshake.
+                protocol_version = params.get("protocolVersion", "2024-11-05")
+                return {
+                    "protocolVersion": protocol_version,
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "pulseplate-chatgpt", "version": "0.1.0"},
+                }
+            if method in {"notifications/initialized", "ping"}:
+                return {}
             if method == "tools/list":
                 return await self._list_tools()
             elif method == "tools/call":
@@ -440,12 +453,52 @@ async def main() -> None:
                 break
 
             request = json.loads(line.strip())
+
+            # RU: MCP ожидает JSON-RPC 2.0 envelope в ответах.
+            # EN: MCP expects JSON-RPC 2.0 envelopes in responses.
+            if (
+                isinstance(request, dict)
+                and request.get("jsonrpc") == "2.0"
+                and isinstance(request.get("method"), str)
+            ):
+                request_id: Optional[JsonRpcId] = request.get("id")
+                # Notifications (no id) must not produce a response.
+                if request_id is None:
+                    await server.handle_request(request)
+                    continue
+
+                result = await server.handle_request(request)
+                if isinstance(result, dict) and set(result.keys()) == {"error"}:
+                    message = str(result["error"])
+                    code = -32601 if message.startswith("Unknown method:") else -32000
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {"code": code, "message": message},
+                    }
+                else:
+                    response = {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+                print(json.dumps(response))
+                sys.stdout.flush()
+                continue
+
             response = await server.handle_request(request)
             print(json.dumps(response))
             sys.stdout.flush()
 
         except Exception as e:
-            error_response = {"error": str(e)}
+            # RU: Даже ошибки должны быть валидным JSON, иначе клиент MCP "ломается".
+            # EN: Even errors must be valid JSON, otherwise MCP clients fail to parse.
+            error_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {
+                    "code": -32700,
+                    "message": "Parse error",
+                    "data": {"error": str(e)},
+                },
+            }
             print(json.dumps(error_response))
             sys.stdout.flush()
 

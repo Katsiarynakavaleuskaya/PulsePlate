@@ -459,6 +459,22 @@ class TestMcpPulseplateServerCoverage:
                 assert len(context["key_features"]) > 0
 
     @pytest.mark.asyncio
+    async def test_handle_request_initialize(self) -> None:
+        """Test handle_request with initialize handshake"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                request = {"method": "initialize", "params": {"protocolVersion": "2024-11-05"}}
+                response = await server.handle_request(request)
+
+                assert response["protocolVersion"] == "2024-11-05"
+                assert "capabilities" in response
+                assert "tools" in response["capabilities"]
+                assert "serverInfo" in response
+                assert response["serverInfo"]["name"] == "pulseplate-chatgpt"
+
+    @pytest.mark.asyncio
     async def test_handle_request_tools_list(self) -> None:
         """Test handle_request with tools/list method"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -719,7 +735,7 @@ class TestMcpPulseplateServerCoverage:
                 assert "Code generation failed: API Error" in response["error"]
 
     @pytest.mark.asyncio
-    async def test_main_function_success(self):
+    async def test_main_function_success(self) -> None:
         """Test main function with successful request"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
@@ -727,7 +743,7 @@ class TestMcpPulseplateServerCoverage:
                     with patch("builtins.print") as mock_print:
                         with patch("sys.stdout.flush") as mock_flush:
                             mock_readline.side_effect = [
-                                '{"method": "tools/list"}\n',
+                                '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n',
                                 "",  # Empty line to break the loop
                             ]
 
@@ -735,6 +751,12 @@ class TestMcpPulseplateServerCoverage:
 
                             mock_print.assert_called()
                             mock_flush.assert_called()
+                            printed = mock_print.call_args[0][0]
+                            response = json.loads(printed)
+                            assert response["jsonrpc"] == "2.0"
+                            assert response["id"] == 1
+                            assert "result" in response
+                            assert "tools" in response["result"]
 
     @pytest.mark.asyncio
     async def test_main_function_json_error(self):
