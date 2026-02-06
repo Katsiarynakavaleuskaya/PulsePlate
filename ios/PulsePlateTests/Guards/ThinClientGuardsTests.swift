@@ -94,6 +94,57 @@ final class ThinClientGuardsTests: XCTestCase {
         )
     }
 
+    func test_noPlaceholderApiKeysInAppSources() throws {
+        let root = try repoRoot(from: #filePath)
+
+        // Scan whole app source tree; exclude tests/fixtures/mocks.
+        let includeDir = "ios/PulsePlate"
+        let excludeSubpaths = [
+            "/PulsePlateTests/",
+            "/Tests/",
+            "/Fixtures/",
+            "/Mocks/"
+        ]
+
+        let textFiles = try collectTextFiles(
+            root: root,
+            includeDirs: [includeDir],
+            excludeSubpaths: excludeSubpaths,
+            allowedExtensions: ["swift", "plist"]
+        )
+
+        XCTAssertFalse(textFiles.isEmpty, "Guard scan found 0 files. Check paths.")
+
+        // Hard-forbidden placeholder key(s).
+        //
+        // RU: Запрещаем placeholder-строку в исходниках приложения.
+        // EN: Forbid placeholder key strings in app sources (release safety).
+        let forbiddenExact = ["test_pro_key"]
+
+        var hits: [String] = []
+
+        for file in textFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            for pat in forbiddenExact where content.contains(pat) {
+                hits.append("\(relativePath(file, root: root)): contains placeholder '\(pat)'")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: placeholder API key strings detected in iOS app sources.
+
+            Fix:
+            - Remove placeholder keys from iOS sources.
+            - Provide keys via env (DEBUG) or Keychain storage, never hardcoded.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))
@@ -132,6 +183,20 @@ private func collectSwiftFiles(
     includeDirs: [String],
     excludeSubpaths: [String]
 ) throws -> [URL] {
+    try collectTextFiles(
+        root: root,
+        includeDirs: includeDirs,
+        excludeSubpaths: excludeSubpaths,
+        allowedExtensions: ["swift"]
+    )
+}
+
+private func collectTextFiles(
+    root: URL,
+    includeDirs: [String],
+    excludeSubpaths: [String],
+    allowedExtensions: Set<String>
+) throws -> [URL] {
     var results: [URL] = []
 
     for dir in includeDirs {
@@ -145,7 +210,8 @@ private func collectSwiftFiles(
         )
 
         while let item = enumerator?.nextObject() as? URL {
-            guard item.pathExtension == "swift" else { continue }
+            let ext = item.pathExtension.lowercased()
+            guard allowedExtensions.contains(ext) else { continue }
             guard !excludeSubpaths.contains(where: { item.path.contains($0) }) else { continue }
             results.append(item)
         }
