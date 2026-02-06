@@ -57,10 +57,9 @@ final class ThinClientGuardsTests: XCTestCase {
 
         for file in swiftFiles {
             let content = try String(contentsOf: file, encoding: .utf8)
-            let scanContent = content
-                .split(separator: "\n", omittingEmptySubsequences: false)
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                .joined(separator: "\n")
+            // RU: Убираем комментарии, чтобы guard сканировал только исполняемый код.
+            // EN: Strip comments so the guard scans executable code only.
+            let scanContent = stripSwiftComments(from: content)
 
             for pat in forbiddenExact where scanContent.contains(pat) {
                 hits.append("\(relativePath(file, root: root)): forbidden '\(pat)'")
@@ -110,7 +109,7 @@ final class ThinClientGuardsTests: XCTestCase {
             root: root,
             includeDirs: [includeDir],
             excludeSubpaths: excludeSubpaths,
-            allowedExtensions: ["swift", "plist"]
+            allowedExtensions: Set(["swift", "plist"])
         )
 
         XCTAssertFalse(textFiles.isEmpty, "Guard scan found 0 files. Check paths.")
@@ -124,8 +123,22 @@ final class ThinClientGuardsTests: XCTestCase {
         var hits: [String] = []
 
         for file in textFiles {
-            let content = try String(contentsOf: file, encoding: .utf8)
-            for pat in forbiddenExact where content.contains(pat) {
+            let ext = file.pathExtension.lowercased()
+            let data = try Data(contentsOf: file)
+
+            guard let content =
+                String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .utf16)
+            else {
+                hits.append("\(relativePath(file, root: root)): unreadable text (non-UTF8/UTF-16)")
+                continue
+            }
+
+            // RU: Игнорируем закомментированные placeholder-строки, чтобы не ловить false positives.
+            // EN: Ignore commented-out placeholders to avoid guard false positives in Swift sources.
+            let scanContent = ext == "swift" ? stripSwiftComments(from: content) : content
+
+            for pat in forbiddenExact where scanContent.contains(pat) {
                 hits.append("\(relativePath(file, root: root)): contains placeholder '\(pat)'")
             }
         }
@@ -187,7 +200,7 @@ private func collectSwiftFiles(
         root: root,
         includeDirs: includeDirs,
         excludeSubpaths: excludeSubpaths,
-        allowedExtensions: ["swift"]
+        allowedExtensions: Set(["swift"])
     )
 }
 
@@ -210,6 +223,9 @@ private func collectTextFiles(
         )
 
         while let item = enumerator?.nextObject() as? URL {
+            if (try? item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) != true {
+                continue
+            }
             let ext = item.pathExtension.lowercased()
             guard allowedExtensions.contains(ext) else { continue }
             guard !excludeSubpaths.contains(where: { item.path.contains($0) }) else { continue }
@@ -218,4 +234,189 @@ private func collectTextFiles(
     }
 
     return results
+}
+
+private func stripSwiftComments(from source: String) -> String {
+    // RU: Удаляет // и /* */ комментарии из Swift исходника, сохраняя строковые литералы.
+    // EN: Strips // and /* */ comments from Swift source while preserving string literals.
+    let bytes = Array(source.utf8)
+
+    var out: [UInt8] = []
+    out.reserveCapacity(bytes.count)
+
+    var index = 0
+    var inLineComment = false
+    var blockCommentDepth = 0
+
+    var inString = false
+    var inMultilineString = false
+    var stringDelimiterHashes = 0
+
+    func isNewline(_ byte: UInt8) -> Bool {
+        byte == 0x0A || byte == 0x0D
+    }
+
+    while index < bytes.count {
+        let byte = bytes[index]
+
+        if inLineComment {
+            if isNewline(byte) {
+                out.append(byte)
+                inLineComment = false
+            }
+            index += 1
+            continue
+        }
+
+        if blockCommentDepth > 0 {
+            if isNewline(byte) {
+                out.append(byte)
+                index += 1
+                continue
+            }
+            if byte == 0x2F, index + 1 < bytes.count, bytes[index + 1] == 0x2A { // /*
+                blockCommentDepth += 1
+                index += 2
+                continue
+            }
+            if byte == 0x2A, index + 1 < bytes.count, bytes[index + 1] == 0x2F { // */
+                blockCommentDepth -= 1
+                index += 2
+                continue
+            }
+            index += 1
+            continue
+        }
+
+        if inString {
+            if inMultilineString {
+                if byte == 0x22, index + 2 < bytes.count,
+                   bytes[index + 1] == 0x22, bytes[index + 2] == 0x22 {
+                    let hashStart = index + 3
+                    let hashEnd = hashStart + stringDelimiterHashes
+                    if hashEnd <= bytes.count,
+                       bytes[hashStart..<hashEnd].allSatisfy({ $0 == 0x23 }) {
+                        out.append(0x22)
+                        out.append(0x22)
+                        out.append(0x22)
+                        out.append(contentsOf: bytes[hashStart..<hashEnd])
+                        index = hashEnd
+                        inString = false
+                        inMultilineString = false
+                        stringDelimiterHashes = 0
+                        continue
+                    }
+                }
+
+                out.append(byte)
+                index += 1
+                continue
+            }
+
+            if stringDelimiterHashes > 0 {
+                if byte == 0x22 {
+                    let hashStart = index + 1
+                    let hashEnd = hashStart + stringDelimiterHashes
+                    if hashEnd <= bytes.count,
+                       bytes[hashStart..<hashEnd].allSatisfy({ $0 == 0x23 }) {
+                        out.append(0x22)
+                        out.append(contentsOf: bytes[hashStart..<hashEnd])
+                        index = hashEnd
+                        inString = false
+                        stringDelimiterHashes = 0
+                        continue
+                    }
+                }
+
+                out.append(byte)
+                index += 1
+                continue
+            }
+
+            if byte == 0x22 {
+                var backslashCount = 0
+                var scan = index
+                while scan > 0, bytes[scan - 1] == 0x5C { // '\'
+                    backslashCount += 1
+                    scan -= 1
+                }
+
+                out.append(byte)
+                index += 1
+                if backslashCount % 2 == 0 {
+                    inString = false
+                }
+                continue
+            }
+
+            out.append(byte)
+            index += 1
+            continue
+        }
+
+        // Raw string start: #"... "#, ##"... "##, including multiline #""" ... """#
+        if byte == 0x23 { // '#'
+            let start = index
+            var hashCount = 0
+            while index < bytes.count, bytes[index] == 0x23 {
+                hashCount += 1
+                index += 1
+            }
+
+            if index < bytes.count, bytes[index] == 0x22 { // '"'
+                let quoteCount = (index + 2 < bytes.count && bytes[index + 1] == 0x22 && bytes[index + 2] == 0x22)
+                    ? 3
+                    : 1
+
+                out.append(contentsOf: bytes[start..<(index + quoteCount)])
+                index += quoteCount
+
+                inString = true
+                inMultilineString = quoteCount == 3
+                stringDelimiterHashes = hashCount
+                continue
+            }
+
+            out.append(contentsOf: bytes[start..<index])
+            continue
+        }
+
+        // Normal string start: "..." or multiline """ ... """
+        if byte == 0x22 { // '"'
+            let quoteCount = (index + 2 < bytes.count && bytes[index + 1] == 0x22 && bytes[index + 2] == 0x22)
+                ? 3
+                : 1
+
+            out.append(contentsOf: bytes[index..<(index + quoteCount)])
+            index += quoteCount
+
+            inString = true
+            inMultilineString = quoteCount == 3
+            stringDelimiterHashes = 0
+            continue
+        }
+
+        // Comment start (only outside strings).
+        if byte == 0x2F, index + 1 < bytes.count {
+            let next = bytes[index + 1]
+            if next == 0x2F { // //
+                inLineComment = true
+                index += 2
+                continue
+            }
+            if next == 0x2A { // /*
+                if out.last != 0x20, out.last != 0x09, out.last != 0x0A, out.last != 0x0D {
+                    out.append(0x20)
+                }
+                blockCommentDepth = 1
+                index += 2
+                continue
+            }
+        }
+
+        out.append(byte)
+        index += 1
+    }
+
+    return String(decoding: out, as: UTF8.self)
 }
