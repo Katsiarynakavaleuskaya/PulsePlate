@@ -55,31 +55,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/nutrition/{date_str}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Daily Nutrition Legacy
-         * @description Legacy alias for iOS nutrition endpoint - redirects to PRO endpoint.
-         *
-         *     RU: Устаревший алиас для iOS совместимости - перенаправляет на PRO endpoint.
-         *     EN: Legacy alias for iOS compatibility - redirects to PRO endpoint.
-         *
-         *     NOTE: This route is deprecated. Use /api/v1/pro/nutrition/daily instead.
-         */
-        get: operations["get_daily_nutrition_legacy_api_nutrition__date_str__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/check-updates": {
         parameters: {
             query?: never;
@@ -5017,52 +4992,6 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_daily_nutrition_legacy_api_nutrition__date_str__get: {
-        parameters: {
-            query?: {
-                /** @description Activity level */
-                activity?: string;
-                /** @description Age in years */
-                age?: number;
-                /** @description Nutrition goal */
-                goal?: string;
-                /** @description Height in cm */
-                height_cm?: number;
-                /** @description Biological sex (female/male) */
-                sex?: string;
-                /** @description Weight in kg */
-                weight_kg?: number;
-            };
-            header?: never;
-            path: {
-                date_str: string;
-            };
             cookie?: never;
         };
         requestBody?: never;
