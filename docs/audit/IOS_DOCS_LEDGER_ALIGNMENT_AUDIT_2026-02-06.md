@@ -36,6 +36,14 @@ rg -n "WelcomeGateView\\(" ios/PulsePlate/PulsePlateApp.swift
 rg -n "@AppStorage\\(\"has_seen_welcome_v1\"\\)|RootTabs\\(" ios/PulsePlate/Welcome/WelcomeGateView.swift
 ```
 
+  - **Output (raw)**:
+
+```text
+7:            WelcomeGateView()
+4:    @AppStorage("has_seen_welcome_v1") private var hasSeenWelcome: Bool = false
+8:            RootTabs()
+```
+
   - **Expected snippet:** `PulsePlateApp.swift` renders `WelcomeGateView()` and `WelcomeGateView` gates `RootTabs()` behind `has_seen_welcome_v1`.
 
 ### 2) Key handling drift (docs claimed placeholder fallback)
@@ -61,6 +69,17 @@ rg -n "struct KeychainStore|SecItemCopyMatching|SecItemAdd|SecItemUpdate|SecItem
 rg -n "XCTSkip\\(\"PRO_API_KEY\"|ProKeyProvider\\.(value|set|clear)" ios/PulsePlateTests/Services/ProKeyProviderTests.swift -S
 ```
 
+  - **Output (raw)**:
+
+```text
+5:    private static let store = KeychainStore(service: "com.pulseplate.pro-key")
+14:        if let envKey = ProcessInfo.processInfo.environment["PRO_API_KEY"],
+28:            return nil
+8:struct KeychainStore: Sendable {
+10:        try ProKeyProvider.clear()
+11:        XCTAssertNil(ProKeyProvider.value())
+```
+
   - **Expected snippet:** `ProKeyProvider` reads `PRO_API_KEY` in DEBUG, uses Keychain otherwise, and returns `nil` on missing key; tests cover nil + keychain value.
 
 ### 3) Nutrition endpoint story drift + security risk (legacy alias)
@@ -72,6 +91,13 @@ rg -n "XCTSkip\\(\"PRO_API_KEY\"|ProKeyProvider\\.(value|set|clear)" ios/PulsePl
 rg -n "api/nutrition/\\$\\{|api/nutrition/|not yet implemented" ios/PulsePlate/Models/NutritionData.swift -n
 ```
 
+  - **Output (raw)**:
+
+```text
+38:  // TODO: Backend endpoint /api/nutrition/{date} not yet implemented (GitHub issue)
+57:      let path = "api/nutrition/\\(dateString)"
+```
+
   - **Expected snippet:** iOS client currently builds path `api/nutrition/<date>` and contains a TODO claiming it is not implemented (docs must forbid this as SoT).
 
 - **Repo truth (backend)**
@@ -81,6 +107,14 @@ rg -n "api/nutrition/\\$\\{|api/nutrition/|not yet implemented" ios/PulsePlate/M
     rg -n "Depends\\(api_key_header\\)|from app\\.routers\\.pro import get_daily_nutrition|await get_daily_nutrition" legacy_app.py -S
     rg -n "\"/nutrition/daily\"|dependencies=\\[Depends\\(require_pro_tier\\)\\]" app/routers/pro.py -n
     ```
+  - **Output (raw)**:
+
+```text
+875:@app.get("/api/nutrition/{date_str}", tags=["pro", "legacy"])
+884:    api_key: str = Depends(api_key_header),
+896:    response = await get_daily_nutrition(
+372:    dependencies=[Depends(require_pro_tier)],
+```
   - **Expected snippet:** legacy alias exists on `legacy_app.py` and calls `get_daily_nutrition(...)` directly; canonical endpoint declares `Depends(require_pro_tier)` on the route.
 
 - **Security concern (alias auth bypass risk)**
@@ -89,6 +123,13 @@ rg -n "api/nutrition/\\$\\{|api/nutrition/|not yet implemented" ios/PulsePlate/M
 ```bash
 rg -n "api_key_header\\s*=\\s*APIKeyHeader\\(" app/routers/api_key.py
 rg -n "async def require_pro_tier\\b|_validate_api_key_tier\\(" app/middleware/api_tiers.py -n
+```
+
+  - **Output (raw)**:
+
+```text
+4:api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+165:async def require_pro_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
 ```
 
   - **Expected snippet:** `api_key_header` is header extraction only (`auto_error=False`), while `require_pro_tier` performs the actual 401/403 tier validation. Direct function calls bypass decorator-level dependencies unless the alias enforces them explicitly.
