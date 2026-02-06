@@ -1404,6 +1404,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - **Allowed:** `continue-on-error: true` **only** as metadata at job/step level in YAML, when the step is genuinely optional (e.g., non-blocking notifications, optional reports).
 - **Note:** `continue-on-error: true` is allowed only at YAML level (job/step), **not** inside shell commands.
 - **Rationale:** Prevents "false green" CI runs where real issues are hidden. Shell-level masking (`|| true`) breaks `set -euo pipefail` safety; YAML-level `continue-on-error` is explicit and auditable.
+- **Timeout single-source-of-truth (hard rule):** CI timeouts must be defined in workflow env (or step env) and consumed from env by scripts/tests. Do not duplicate default timeout literals across shell + embedded scripts (drift/flake risk). If an env var is required for determinism, fail fast with a clear error.
 
 ---
 
