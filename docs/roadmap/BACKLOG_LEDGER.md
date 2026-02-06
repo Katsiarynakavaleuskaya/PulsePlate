@@ -23,11 +23,11 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] PR-653 P0 Welcome onboarding gate (iOS-only)
+- [x] PR-653 P0 Welcome onboarding gate (iOS-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-653
-  - Status: 🟡 In progress (mark ✅ Merged when PR-653 is merged)
+  - Status: ✅ Merged (PR-653, 2026-02-06)
   - Reason: Store readiness — ensure deterministic first-run value framing with a single entry gate (`has_seen_welcome_v1`) before `RootTabs()`.
   - Links:
     - docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
