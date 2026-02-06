@@ -89,6 +89,12 @@ This is the canonical mapping format for turning backend capability into a **shi
   - paste key
   - see success/failure states deterministically
 
+#### Slice P2) Plate (PRO) — canonical daily nutrition endpoint alignment
+
+- **Goal:** iOS Plate uses canonical `GET /api/v1/pro/nutrition/daily` (contract-first) with `X-API-Key` + required profile query params.
+- **Forbidden:** treat `GET /api/nutrition/{date}` legacy alias as iOS source-of-truth (deprecated; guard/contract drift risk).
+- **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md` (P1: “iOS: Plate (PRO) align…”), plus P0 security item for alias guard enforcement.
+
 #### Slice V1) Plan / Weekly plan reader (if backend supports)
 
 - **Goal:** show the plan in a “trustworthy Apple-native” way (loading/error/empty states).

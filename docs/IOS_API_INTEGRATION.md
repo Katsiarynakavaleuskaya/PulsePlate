@@ -27,6 +27,13 @@ Use the existing networking implementation. Do **not** create a parallel transpo
 - **Contracts first**: request/response DTOs must mirror backend contracts (snake_case on wire; `convertToSnakeCase` is configured in `APIClient` encoder).
 - **Errors**: use `APIError` from `ios/PulsePlate/Networking/APIError.swift` (transport vs validation vs api errors are distinct).
 
+### Deprecated / legacy endpoints (do not treat as SoT)
+
+- **Forbidden as iOS source-of-truth:** `GET /api/nutrition/{date}` (legacy alias; deprecated).
+- **Canonical (PRO):** `GET /api/v1/pro/nutrition/daily` (requires `X-API-Key` + profile query params).
+
+Rationale: legacy aliases may have contract/guard drift; iOS must integrate against canonical endpoints only.
+
 Policy anchors:
 
 - `ios/AGENTS.md` (iOS Thin Client Policy + CI enforcement)

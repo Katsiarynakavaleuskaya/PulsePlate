@@ -89,8 +89,10 @@ Note: `test_pro_key` is expected to exist in **guard tests** (e.g., `ios/PulsePl
   - Update P0 Next Actions to reflect PR-656/PR-657 done; point to P1 follow-ups in ledger.
 - `docs/IOS_API_INTEGRATION.md`
   - Remove placeholder fallback claim; document `PRO_API_KEY` (debug) + Keychain (release-safe) repo truth.
+  - Explicitly forbid legacy `GET /api/nutrition/{date}` as iOS source-of-truth; point to canonical `GET /api/v1/pro/nutrition/daily`.
 - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
   - Move placeholder-key removal + guard items to “done” and add App Store rule for key entry UX.
+  - Add Plate slice note: canonical `/api/v1/pro/nutrition/daily`, legacy alias forbidden as SoT.
 
 ## Self-audit checklist
 
@@ -99,6 +101,7 @@ Note: `test_pro_key` is expected to exist in **guard tests** (e.g., `ios/PulsePl
 - [ ] `docs/roadmap/BACKLOG_LEDGER.md` PR-656 checkbox is `[x]` and PR-657 is marked ✅ merged
 - [ ] `docs/roadmap/BACKLOG_LEDGER.md` contains a P0 security item for `/api/nutrition/{date_str}` alias enforcement
 - [ ] `rg -n "test_pro_key" ios/PulsePlate -S` has no matches (token only appears in tests/guards)
+- [ ] `docs/IOS_API_INTEGRATION.md` forbids legacy `/api/nutrition/{date}` as iOS SoT and points to canonical `/api/v1/pro/nutrition/daily`
 
 ## Verification
 
