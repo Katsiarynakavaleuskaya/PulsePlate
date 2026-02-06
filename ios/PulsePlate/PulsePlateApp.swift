@@ -4,7 +4,7 @@ import SwiftUI
 struct PulsePlateApp: App {
     var body: some Scene {
         WindowGroup {
-            RootTabs()
+            WelcomeGateView()
         }
     }
 }
