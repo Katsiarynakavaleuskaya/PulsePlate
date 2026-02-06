@@ -95,15 +95,7 @@ This is the canonical mapping format for turning backend capability into a **shi
 
 ## 4) “Visibility loop” (so you *see* progress daily)
 
-### Daily (required for iOS work days)
-
-- **Build:** TestFlight (or local simulator build) with the latest Welcome Gate + current slice.
-- **Screenshots:** 6–10 screenshots:
-  - Light/Dark
-  - RU/EN (ES weekly spot-check)
-  - Dynamic Type (one screenshot at larger text)
-- **Video:** 20–30s capture of the main happy path.
-- **Changelog:** 5 bullets posted in PR description or a daily note (“What changed in the app today”).
+See canonical visibility loop: `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md#visibility-loop-single-source-of-truth`
 
 ### Weekly (required)
 

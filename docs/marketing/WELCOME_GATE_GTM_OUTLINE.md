@@ -13,9 +13,7 @@
   - “Did you understand what to do next?”
   - “Did anything feel pushy or confusing?”
 
-**Artifacts per build:**
-- 6–10 screenshots (Light/Dark, RU/EN; ES spot-check)
-- 20–30s screen recording of the full welcome flow
+See canonical visibility loop: `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md#visibility-loop-single-source-of-truth`
 
 ---
 

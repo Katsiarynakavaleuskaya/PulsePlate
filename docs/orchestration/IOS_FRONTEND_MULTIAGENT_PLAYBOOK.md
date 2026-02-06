@@ -79,7 +79,14 @@ Follow `docs/orchestration/workflow.md`, but for iOS/frontend tasks add these **
 
 ---
 
-## 3) “Visibility loop” (so progress is undeniable)
+## Visibility Loop (Single Source of Truth)
+
+Daily visibility requirements:
+- 6–10 screenshots (RU/EN, light/dark if relevant)
+- 20–30s screen recording of the flow
+- Short daily changelog (3–7 bullets)
+
+This section is the canonical reference. Other documents must link here and must not duplicate the rules.
 
 ### Daily artifacts (required while a task is in progress)
 
@@ -104,10 +111,10 @@ Anchor audit: `docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md`
 Supporting packets:
 
 - Design direction: `docs/design/WELCOME_GATE_VISUAL_DIRECTION.md`
-- Visual philosophy + canvas artifact: `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`, `docs/design/WELCOME_GATE_CANVAS.png`
+- Visual philosophy: `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md` (canvas is maintained externally in Figma / PR thread)
 - Copy deck (RU/EN/ES variants): `docs/marketing/WELCOME_GATE_COPY_DECK.md`
 - Paywall positioning (ethical): `docs/marketing/WELCOME_GATE_PAYWALL_POSITIONING.md`
-- iOS-only experiment plan: `docs/marketing/WELCOME_GATE_EXPERIMENT_PLAN.md`
+- iOS-only experiment plan: `docs/marketing/WELCOME_GATE_EXPERIMENT_PLAN.md#variant-mapping-single-reference`
 - GTM outline: `docs/marketing/WELCOME_GATE_GTM_OUTLINE.md`
 
 ### Required keys (namespace)
