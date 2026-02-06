@@ -475,6 +475,19 @@ class TestMcpPulseplateServerCoverage:
                 assert response["serverInfo"]["name"] == "pulseplate-chatgpt"
 
     @pytest.mark.asyncio
+    async def test_handle_request_resources_and_prompts_list(self) -> None:
+        """Test handle_request with resources/list and prompts/list methods"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                resources = await server.handle_request({"method": "resources/list"})
+                assert resources == {"resources": []}
+
+                prompts = await server.handle_request({"method": "prompts/list"})
+                assert prompts == {"prompts": []}
+
+    @pytest.mark.asyncio
     async def test_handle_request_tools_list(self) -> None:
         """Test handle_request with tools/list method"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):

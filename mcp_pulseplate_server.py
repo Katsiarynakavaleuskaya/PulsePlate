@@ -9,14 +9,14 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import openai
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-JsonRpcId = int | str
+JsonRpcId = int | str | None
 
 
 class PulsePlateMCPServer:
@@ -244,6 +244,10 @@ class PulsePlateMCPServer:
                 }
             if method in {"notifications/initialized", "ping"}:
                 return {}
+            if method == "resources/list":
+                return {"resources": []}
+            if method == "prompts/list":
+                return {"prompts": []}
             if method == "tools/list":
                 return await self._list_tools()
             elif method == "tools/call":
@@ -461,9 +465,10 @@ async def main() -> None:
                 and request.get("jsonrpc") == "2.0"
                 and isinstance(request.get("method"), str)
             ):
-                request_id: Optional[JsonRpcId] = request.get("id")
+                has_id = "id" in request
+                request_id: JsonRpcId = request.get("id")
                 # Notifications (no id) must not produce a response.
-                if request_id is None:
+                if not has_id:
                     await server.handle_request(request)
                     continue
 
