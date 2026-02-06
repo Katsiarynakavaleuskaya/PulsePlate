@@ -52,11 +52,11 @@ If it is not recorded here — it does not exist.
     - Missing-key path is explicit and testable (UI/service fails with clear error, not silent fallback)
     - iOS tests updated / added for missing-key behavior (deterministic)
 
-- [ ] iOS: Guard test forbids placeholder API keys in app sources
+- [x] iOS: Guard test forbids placeholder API keys in app sources
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (release safety)
   - Target PR: PR-657
-  - Status: 🟡 In review (PR-657)
+  - Status: ✅ Merged (PR-657, 2026-02-06)
   - Reason: Prevent accidental shipping of placeholder keys like `test_pro_key` in iOS sources; enforce via CI.
   - Links:
     - `ios/PulsePlate/Services/ProKeyProvider.swift`
@@ -403,6 +403,19 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [x] Backend: Make VIP insight guard tests CI-deterministic
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability)
+  - Target PR: PR-658
+  - Status: ✅ Merged (PR-658, 2026-02-06)
+  - Reason: VIP insight guard tests should validate tier gating (403/200) without coupling to provider/quota internals, avoiding CI flakiness.
+  - Links:
+    - `tests/test_insight_vip_guard_api.py`
+    - PR-658
+  - DoD:
+    - Tests patch quota/provider paths deterministically
+    - `diff-coverage` passes on PRs touching these guard tests
 
 - [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
   - Owner: @katsiaryna_kavaleuskaya
