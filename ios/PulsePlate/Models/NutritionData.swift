@@ -51,26 +51,30 @@ enum PlateLoadIssue: Equatable, Sendable {
   case decoding(message: String)
   case unknown(message: String)
 
+  private static func l(_ key: String) -> String {
+    NSLocalizedString(key, comment: "")
+  }
+
   var title: String {
     switch self {
     case .missingProKey:
-      return "PRO access required"
+      return Self.l("plate_issue_title_missing_pro_key")
     case .missingProfile:
-      return "Profile required"
+      return Self.l("plate_issue_title_missing_profile")
     case .unauthorized:
-      return "Unauthorized"
+      return Self.l("plate_issue_title_unauthorized")
     case .forbidden:
-      return "Forbidden"
+      return Self.l("plate_issue_title_forbidden")
     case .validation:
-      return "Check your details"
+      return Self.l("plate_issue_title_validation")
     case .api(let statusCode, _):
-      return "Server error (HTTP \(statusCode))"
+      return String(format: Self.l("plate_issue_title_api_format"), statusCode)
     case .transport:
-      return "Network error"
+      return Self.l("plate_issue_title_transport")
     case .decoding:
-      return "Unexpected response"
+      return Self.l("plate_issue_title_decoding")
     case .unknown:
-      return "Something went wrong"
+      return Self.l("plate_issue_title_unknown")
     }
   }
 
@@ -78,26 +82,26 @@ enum PlateLoadIssue: Equatable, Sendable {
     switch self {
     case .missingProKey:
       #if DEBUG
-      return "Configure PRO API key (PRO_API_KEY) in the Xcode scheme environment."
+      return Self.l("plate_issue_message_missing_pro_key_debug")
       #else
-      return "PRO is not available on this device."
+      return Self.l("plate_issue_message_missing_pro_key")
       #endif
     case .missingProfile:
-      return "Open Profile and enter sex, age, height, and weight."
+      return Self.l("plate_issue_message_missing_profile")
     case .unauthorized:
-      return "Your PRO key is missing or invalid."
+      return Self.l("plate_issue_message_unauthorized")
     case .forbidden:
-      return "Your account does not have PRO access."
+      return Self.l("plate_issue_message_forbidden")
     case .validation:
-      return "Some of the data you entered looks invalid. Please check Profile and try again."
+      return Self.l("plate_issue_message_validation_generic")
     case .api:
-      return "We ran into a server problem. Please try again."
+      return Self.l("plate_issue_message_api_generic")
     case .transport:
-      return "We couldn't reach the server. Check your internet connection and try again."
+      return Self.l("plate_issue_message_transport_generic")
     case .decoding:
-      return "We received an unexpected response from the server. Please try again."
+      return Self.l("plate_issue_message_decoding_generic")
     case .unknown:
-      return "An unexpected error occurred. Please try again."
+      return Self.l("plate_issue_message_unknown_generic")
     }
   }
 

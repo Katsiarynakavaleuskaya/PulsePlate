@@ -41,25 +41,48 @@
 "profile_privacy_policy" = "Política de Privacidad";
 "profile_terms_of_use" = "Términos de Uso";
 "profile_screen_accessibility_label" = "Pantalla de perfil";
-"pro_profile_section_title" = "Perfil nutricional PRO";
-"pro_profile_sex" = "Sexo";
-"pro_profile_not_set" = "No establecido";
-"pro_profile_sex_female" = "Femenino";
-"pro_profile_sex_male" = "Masculino";
-"pro_profile_age" = "Edad";
-"pro_profile_height_cm" = "Altura (cm)";
-"pro_profile_weight_kg" = "Peso (kg)";
-"pro_profile_activity" = "Actividad";
-"pro_profile_activity_sedentary" = "Sedentaria";
-"pro_profile_activity_light" = "Ligera";
-"pro_profile_activity_moderate" = "Moderada";
-"pro_profile_activity_active" = "Activa";
-"pro_profile_activity_very_active" = "Muy activa";
-"pro_profile_goal" = "Objetivo";
-"pro_profile_goal_loss" = "Pérdida";
-"pro_profile_goal_maintain" = "Mantener";
-"pro_profile_goal_gain" = "Aumento";
-"pro_profile_helper_text" = "Usado por Plate (PRO) para solicitar /api/v1/pro/nutrition/daily.";
+
+"pro.profile.header" = "Perfil nutricional PRO";
+"pro.profile.sex" = "Sexo";
+"pro.profile.age_years" = "Edad (años)";
+"pro.profile.height_cm" = "Altura (cm)";
+"pro.profile.weight_kg" = "Peso (kg)";
+"pro.profile.activity" = "Actividad";
+"pro.profile.goal" = "Objetivo";
+"pro.profile.footer" = "Usado por Plate (PRO) para solicitar /api/v1/pro/nutrition/daily.";
+
+"common.not_set" = "No establecido";
+"sex.female" = "Femenino";
+"sex.male" = "Masculino";
+"activity.sedentary" = "Sedentaria";
+"activity.light" = "Ligera";
+"activity.moderate" = "Moderada";
+"activity.active" = "Activa";
+"activity.very_active" = "Muy activa";
+"goal.loss" = "Pérdida";
+"goal.maintain" = "Mantener";
+"goal.gain" = "Aumento";
+
+"plate_issue_title_missing_pro_key" = "Se requiere acceso PRO";
+"plate_issue_title_missing_profile" = "Se requiere perfil";
+"plate_issue_title_unauthorized" = "No autorizado";
+"plate_issue_title_forbidden" = "Prohibido";
+"plate_issue_title_validation" = "Revisa tus datos";
+"plate_issue_title_api_format" = "Error del servidor (HTTP %d)";
+"plate_issue_title_transport" = "Error de red";
+"plate_issue_title_decoding" = "Respuesta inesperada";
+"plate_issue_title_unknown" = "Algo salió mal";
+
+"plate_issue_message_missing_pro_key_debug" = "Configura la clave de API PRO (PRO_API_KEY) en el esquema de Xcode.";
+"plate_issue_message_missing_pro_key" = "PRO no está disponible en este dispositivo.";
+"plate_issue_message_missing_profile" = "Abre Perfil e introduce sexo, edad, altura y peso.";
+"plate_issue_message_unauthorized" = "Tu clave PRO falta o no es válida.";
+"plate_issue_message_forbidden" = "Tu cuenta no tiene acceso PRO.";
+"plate_issue_message_validation_generic" = "Algunos datos parecen no válidos. Revisa Perfil e inténtalo de nuevo.";
+"plate_issue_message_api_generic" = "Ocurrió un problema con el servidor. Inténtalo de nuevo.";
+"plate_issue_message_transport_generic" = "No pudimos conectar con el servidor. Revisa tu internet e inténtalo de nuevo.";
+"plate_issue_message_decoding_generic" = "Recibimos una respuesta inesperada del servidor. Inténtalo de nuevo.";
+"plate_issue_message_unknown_generic" = "Ocurrió un error inesperado. Inténtalo de nuevo.";
 
 /* Shopping List */
 "shopping_list_title" = "Lista de Compras";

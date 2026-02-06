@@ -41,25 +41,48 @@
 "profile_privacy_policy" = "Политика конфиденциальности";
 "profile_terms_of_use" = "Условия использования";
 "profile_screen_accessibility_label" = "Экран профиля";
-"pro_profile_section_title" = "Профиль питания PRO";
-"pro_profile_sex" = "Пол";
-"pro_profile_not_set" = "Не задано";
-"pro_profile_sex_female" = "Женский";
-"pro_profile_sex_male" = "Мужской";
-"pro_profile_age" = "Возраст";
-"pro_profile_height_cm" = "Рост (см)";
-"pro_profile_weight_kg" = "Вес (кг)";
-"pro_profile_activity" = "Активность";
-"pro_profile_activity_sedentary" = "Сидячая";
-"pro_profile_activity_light" = "Лёгкая";
-"pro_profile_activity_moderate" = "Умеренная";
-"pro_profile_activity_active" = "Активная";
-"pro_profile_activity_very_active" = "Очень активная";
-"pro_profile_goal" = "Цель";
-"pro_profile_goal_loss" = "Снижение";
-"pro_profile_goal_maintain" = "Поддержание";
-"pro_profile_goal_gain" = "Набор";
-"pro_profile_helper_text" = "Используется для Plate (PRO): /api/v1/pro/nutrition/daily.";
+
+"pro.profile.header" = "Профиль питания PRO";
+"pro.profile.sex" = "Пол";
+"pro.profile.age_years" = "Возраст (лет)";
+"pro.profile.height_cm" = "Рост (см)";
+"pro.profile.weight_kg" = "Вес (кг)";
+"pro.profile.activity" = "Активность";
+"pro.profile.goal" = "Цель";
+"pro.profile.footer" = "Используется для Plate (PRO): /api/v1/pro/nutrition/daily.";
+
+"common.not_set" = "Не задано";
+"sex.female" = "Женский";
+"sex.male" = "Мужской";
+"activity.sedentary" = "Сидячая";
+"activity.light" = "Лёгкая";
+"activity.moderate" = "Умеренная";
+"activity.active" = "Активная";
+"activity.very_active" = "Очень активная";
+"goal.loss" = "Снижение";
+"goal.maintain" = "Поддержание";
+"goal.gain" = "Набор";
+
+"plate_issue_title_missing_pro_key" = "Нужен доступ PRO";
+"plate_issue_title_missing_profile" = "Нужен профиль";
+"plate_issue_title_unauthorized" = "Нет доступа";
+"plate_issue_title_forbidden" = "Доступ запрещён";
+"plate_issue_title_validation" = "Проверьте данные";
+"plate_issue_title_api_format" = "Ошибка сервера (HTTP %d)";
+"plate_issue_title_transport" = "Ошибка сети";
+"plate_issue_title_decoding" = "Неожиданный ответ";
+"plate_issue_title_unknown" = "Что-то пошло не так";
+
+"plate_issue_message_missing_pro_key_debug" = "Настройте PRO API key (PRO_API_KEY) в Xcode Scheme → Environment Variables.";
+"plate_issue_message_missing_pro_key" = "PRO недоступен на этом устройстве.";
+"plate_issue_message_missing_profile" = "Откройте профиль и укажите пол, возраст, рост и вес.";
+"plate_issue_message_unauthorized" = "Ваш PRO ключ отсутствует или неверный.";
+"plate_issue_message_forbidden" = "У вашего аккаунта нет доступа PRO.";
+"plate_issue_message_validation_generic" = "Некоторые данные выглядят некорректно. Проверьте профиль и попробуйте ещё раз.";
+"plate_issue_message_api_generic" = "Проблема на сервере. Попробуйте ещё раз.";
+"plate_issue_message_transport_generic" = "Не удалось подключиться к серверу. Проверьте интернет и попробуйте ещё раз.";
+"plate_issue_message_decoding_generic" = "Сервер вернул неожиданный ответ. Попробуйте ещё раз.";
+"plate_issue_message_unknown_generic" = "Произошла непредвиденная ошибка. Попробуйте ещё раз.";
 
 /* Shopping List */
 "shopping_list_title" = "Список покупок";
