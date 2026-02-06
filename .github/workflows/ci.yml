@@ -909,9 +909,9 @@ jobs:
             xcrun simctl boot "$UDID" || true
 
             # Enforce bootstatus verification (hard rule: simulator must be ready)
-            # Timeout: 180 seconds (GitHub runners may need 70-120s+ for data migrations)
+            # Timeout: 300 seconds (GitHub runners may need 70-120s+ for data migrations)
             # NOTE: Never interpolate shell vars into python code strings; pass via env + os.environ.get()
-            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
+            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-300}"
             echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
             python3 - << 'PY'
           import os
@@ -919,7 +919,7 @@ jobs:
           import sys
 
           udid = os.environ.get("UDID", "")
-          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "300"))
 
           if not udid:
               print("::error::UDID is empty", file=sys.stderr)
@@ -1198,7 +1198,7 @@ jobs:
             echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
+            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-300}"
             echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
             python3 - << 'PY'
           import os
@@ -1206,7 +1206,7 @@ jobs:
           import sys
 
           udid = os.environ.get("UDID", "")
-          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "300"))
 
           if not udid:
               print("::error::UDID is empty", file=sys.stderr)
