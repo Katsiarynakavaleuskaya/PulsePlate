@@ -66,11 +66,11 @@ If it is not recorded here — it does not exist.
     - Test excludes fixtures/mocks as needed (no false positives)
     - Documented allowlist policy (if any) in `ios/AGENTS.md`
 
-- [ ] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
+- [x] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security)
-  - Target PR: PR-654
-  - Status: 🟡 In progress (PR-654)
+  - Target PR: PR-664
+  - Status: ✅ Merged (PR-664, 2026-02-07)
   - Reason: `legacy_app.py` implements `/api/nutrition/{date_str}` as a legacy alias and uses `Depends(api_key_header)` (header extraction only), then calls `app/routers/pro.py:get_daily_nutrition()` directly. This bypasses the `require_pro_tier` dependency (tier validation) and does not pass the API key into any guard, risking unauthorized access if the alias is reachable.
   - Decision:
     - Preferred outcome: remove deprecated alias entirely (keep only canonical `GET /api/v1/pro/nutrition/daily`).
