@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import Combine
+import os
 
 // MARK: - Nutrition Models
 struct NutritionData: Codable {
@@ -27,6 +28,18 @@ struct DailyGoals: Codable {
 }
 
 // MARK: - API Service
+private let plateLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "com.pulseplate.ios",
+  category: "plate"
+)
+
+enum PlateIssuePrimaryAction: Equatable, Sendable {
+  case none
+  case retry
+  case openProfile
+  case openProSetup
+}
+
 enum PlateLoadIssue: Equatable, Sendable {
   case missingProKey
   case missingProfile
@@ -75,16 +88,51 @@ enum PlateLoadIssue: Equatable, Sendable {
       return "Your PRO key is missing or invalid."
     case .forbidden:
       return "Your account does not have PRO access."
-    case .validation(let message):
-      return message
-    case .api(_, let message):
-      return message
-    case .transport(let message):
-      return message
-    case .decoding(let message):
-      return message
-    case .unknown(let message):
-      return message
+    case .validation:
+      return "Some of the data you entered looks invalid. Please check Profile and try again."
+    case .api:
+      return "We ran into a server problem. Please try again."
+    case .transport:
+      return "We couldn't reach the server. Check your internet connection and try again."
+    case .decoding:
+      return "We received an unexpected response from the server. Please try again."
+    case .unknown:
+      return "An unexpected error occurred. Please try again."
+    }
+  }
+
+  var primaryAction: PlateIssuePrimaryAction {
+    switch self {
+    case .missingProfile:
+      return .openProfile
+    case .missingProKey, .unauthorized, .forbidden:
+      // Retry can't fix this until the key/access changes.
+      return .openProSetup
+    case .validation:
+      return .openProfile
+    case .api, .transport, .decoding, .unknown:
+      return .retry
+    }
+  }
+
+  func logRawIfNeeded() {
+    // Important: log raw only once at mapping time (not in computed properties used by UI).
+    // We also avoid logging keys/URLs; any raw payload is private+hashed.
+    switch self {
+    case .api(let statusCode, let raw):
+      plateLogger.error(
+        "Plate issue api status=\(statusCode) raw=\(raw, privacy: .private(mask: .hash))"
+      )
+    case .validation(let raw):
+      plateLogger.error("Plate issue validation raw=\(raw, privacy: .private(mask: .hash))")
+    case .transport(let raw):
+      plateLogger.error("Plate issue transport raw=\(raw, privacy: .private(mask: .hash))")
+    case .decoding(let raw):
+      plateLogger.error("Plate issue decoding raw=\(raw, privacy: .private(mask: .hash))")
+    case .unknown(let raw):
+      plateLogger.error("Plate issue unknown raw=\(raw, privacy: .private(mask: .hash))")
+    case .missingProKey, .missingProfile, .unauthorized, .forbidden:
+      break
     }
   }
 }
@@ -149,32 +197,37 @@ class NutritionService: ObservableObject {
       }
     } catch let apiError as APIError {
       await MainActor.run {
+        let mapped: PlateLoadIssue
         switch apiError {
         case .api(let statusCode, let message):
           if statusCode == 401 {
-            self.issue = .unauthorized
+            mapped = .unauthorized
           } else if statusCode == 403 {
-            self.issue = .forbidden
+            mapped = .forbidden
           } else {
-            self.issue = .api(statusCode: statusCode, message: message)
+            mapped = .api(statusCode: statusCode, message: message)
           }
         case .validation(let validation):
           let firstMessage = validation.detail.first?.msg ?? "Validation error"
-          self.issue = .validation(message: firstMessage)
+          mapped = .validation(message: firstMessage)
         case .transport(let message):
-          self.issue = .transport(message: message)
+          mapped = .transport(message: message)
         case .decodingFailed(let message):
-          self.issue = .decoding(message: message)
+          mapped = .decoding(message: message)
         case .emptyResponse(let statusCode):
-          self.issue = .api(statusCode: statusCode, message: "Empty response")
+          mapped = .api(statusCode: statusCode, message: "Empty response")
         default:
-          self.issue = .unknown(message: apiError.localizedDescription)
+          mapped = .unknown(message: apiError.localizedDescription)
         }
+        mapped.logRawIfNeeded()
+        self.issue = mapped
         self.isLoading = false
       }
     } catch {
       await MainActor.run {
-        self.issue = .unknown(message: error.localizedDescription)
+        let mapped: PlateLoadIssue = .unknown(message: error.localizedDescription)
+        mapped.logRawIfNeeded()
+        self.issue = mapped
         self.isLoading = false
       }
     }
@@ -252,7 +305,9 @@ extension NutritionService {
       }
     } catch {
       await MainActor.run {
-        self.issue = .unknown(message: error.localizedDescription)
+        let mapped: PlateLoadIssue = .unknown(message: error.localizedDescription)
+        mapped.logRawIfNeeded()
+        self.issue = mapped
         self.isLoading = false
       }
     }

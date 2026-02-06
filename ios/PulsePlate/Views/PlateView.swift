@@ -35,6 +35,8 @@ struct PlateViewPP: View {
   @State private var selectedSegment: Int? = nil
   @State private var showMealEntry = false
   @State private var showNutritionDetails = false
+  @State private var showProfile = false
+  @State private var showProSetup = false
 
   private var segments: [NutritionSegment] {
     guard let nutritionData = nutritionService.nutritionData else {
@@ -88,9 +90,18 @@ struct PlateViewPP: View {
               .foregroundStyle(.white)
               .padding()
           } else if let issue = nutritionService.issue {
-            PlateIssueView(issue: issue) {
-              Task {
-                await nutritionService.fetchNutritionData()
+            PlateIssueView(issue: issue) { action in
+              switch action {
+              case .none:
+                break
+              case .retry:
+                Task {
+                  await nutritionService.fetchNutritionData()
+                }
+              case .openProfile:
+                showProfile = true
+              case .openProSetup:
+                showProSetup = true
               }
             }
           } else {
@@ -127,6 +138,16 @@ struct PlateViewPP: View {
       }
       .navigationDestination(isPresented: $showNutritionDetails) {
         NutritionDetailsView()
+      }
+      .navigationDestination(isPresented: $showProfile) {
+        ProfileView()
+      }
+      .navigationDestination(isPresented: $showProSetup) {
+        #if DEBUG
+        DebugToolsScreen()
+        #else
+        ProfileView()
+        #endif
       }
       .safeAreaInset(edge: .bottom) {
         VStack(spacing: 12) {
@@ -185,9 +206,10 @@ struct PlateViewPP: View {
 
 private struct PlateIssueView: View {
   let issue: PlateLoadIssue
-  let onRetry: () -> Void
+  let onAction: (PlateIssuePrimaryAction) -> Void
 
   var body: some View {
+    let action = issue.primaryAction
     VStack(spacing: 12) {
       Text(issue.title)
         .foregroundStyle(.white)
@@ -198,16 +220,31 @@ private struct PlateIssueView: View {
         .foregroundStyle(.white.opacity(0.85))
         .multilineTextAlignment(.center)
 
-      Button("Retry") {
-        onRetry()
+      if action != .none {
+        Button(buttonTitle(for: action)) {
+          onAction(action)
+        }
+        .buttonStyle(.bordered)
+        .foregroundStyle(.white)
       }
-      .buttonStyle(.bordered)
-      .foregroundStyle(.white)
     }
     .padding()
     .background(Color.white.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     .padding(.horizontal)
+  }
+
+  private func buttonTitle(for action: PlateIssuePrimaryAction) -> String {
+    switch action {
+    case .none:
+      return ""
+    case .retry:
+      return "Retry"
+    case .openProfile:
+      return "Open Profile"
+    case .openProSetup:
+      return "PRO Settings"
+    }
   }
 }
 
