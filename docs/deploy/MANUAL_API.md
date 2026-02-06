@@ -9,6 +9,16 @@
 5. **Copy** the key: `sk-proj-...` (starts with sk-proj-)
 6. **Save** it securely
 
+## Protocol note (MCP)
+
+MCP uses **JSON-RPC 2.0**. Requests must include `jsonrpc: "2.0"` and a string `method`.
+
+Example request (list tools):
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+```
+
 ## Step 2: Update Configuration Files
 
 ### Update MCP Configuration
@@ -24,7 +34,7 @@ Replace `"your_openai_api_key_here"` with your actual API key:
     "pulseplate-chatgpt": {
       "command": "python",
       "args": [
-        "/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/mcp_pulseplate_server.py"
+        "/ABSOLUTE/PATH/TO/BMI-App_2025_clean/mcp_pulseplate_server.py"
       ],
       "env": {
         "OPENAI_API_KEY": "sk-proj-YOUR_ACTUAL_KEY_HERE"  # pragma: allowlist secret

@@ -9,12 +9,34 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import openai
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+JSONRPC_VERSION = "2.0"
+DEFAULT_PROTOCOL_VERSION = "2024-11-05"
+
+JsonRpcId = int | str | None
+
+
+@dataclass(frozen=True)
+class RpcOk:
+    """RU: Успешный результат вызова. EN: Successful call result."""
+
+    result: Any
+
+
+@dataclass(frozen=True)
+class RpcError:
+    """RU: Структурированная JSON-RPC ошибка. EN: Structured JSON-RPC error."""
+
+    code: int
+    message: str
+    data: Optional[dict[str, Any]] = None
 
 
 class PulsePlateMCPServer:
@@ -225,21 +247,42 @@ class PulsePlateMCPServer:
             },
         }
 
-    async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle MCP requests with ChatGPT integration"""
+    async def handle_request(self, request: Dict[str, Any]) -> RpcOk | RpcError:
+        """Handle MCP requests with ChatGPT integration.
+
+        RU: Возвращает только структурированный результат (ok/error),
+        чтобы слой JSON-RPC envelope в `main()` не использовал эвристику по dict-ключам.
+        EN: Returns only structured ok/error results so `main()` can wrap envelopes deterministically.
+        """
         try:
             method = request.get("method")
             params = request.get("params", {})
 
+            if method == "initialize":
+                # RU: MCP использует JSON-RPC 2.0 и требует handshake initialize.
+                # EN: MCP uses JSON-RPC 2.0 and requires an initialize handshake.
+                protocol_version = params.get("protocolVersion", DEFAULT_PROTOCOL_VERSION)
+                return RpcOk(
+                    result={
+                        "protocolVersion": protocol_version,
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "pulseplate-chatgpt", "version": "0.1.0"},
+                    }
+                )
+            if method in {"notifications/initialized", "ping"}:
+                return RpcOk(result={})
+            if method == "resources/list":
+                return RpcOk(result={"resources": []})
+            if method == "prompts/list":
+                return RpcOk(result={"prompts": []})
             if method == "tools/list":
-                return await self._list_tools()
-            elif method == "tools/call":
+                return RpcOk(result=await self._list_tools())
+            if method == "tools/call":
                 return await self._call_tool(params)
-            else:
-                return {"error": f"Unknown method: {method}"}
+            return RpcError(code=-32601, message="Method not found", data={"method": method})
 
         except Exception as e:
-            return {"error": str(e)}
+            return RpcError(code=-32603, message="Internal error", data={"error": str(e)})
 
     async def _list_tools(self) -> Dict[str, Any]:
         """List available tools"""
@@ -293,19 +336,40 @@ class PulsePlateMCPServer:
             ]
         }
 
-    async def _call_tool(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a specific tool"""
+    async def _call_tool(self, params: Dict[str, Any]) -> RpcOk | RpcError:
+        """Call a specific tool.
+
+        RU: Возвращает RpcOk/RpcError, чтобы ошибки не "прятались" внутри result dict.
+        EN: Returns RpcOk/RpcError so failures are expressed as JSON-RPC errors.
+        """
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
 
         if tool_name == "chatgpt_query":
-            return await self._chatgpt_query(arguments)
+            tool_response = await self._chatgpt_query(arguments)
+            if isinstance(tool_response, dict) and "error" in tool_response:
+                return RpcError(
+                    code=-32000, message="Tool error", data={"error": tool_response["error"]}
+                )
+            return RpcOk(result=tool_response)
         elif tool_name == "code_review":
-            return await self._code_review(arguments)
+            tool_response = await self._code_review(arguments)
+            if isinstance(tool_response, dict) and "error" in tool_response:
+                return RpcError(
+                    code=-32000, message="Tool error", data={"error": tool_response["error"]}
+                )
+            return RpcOk(result=tool_response)
         elif tool_name == "generate_code":
-            return await self._generate_code(arguments)
+            tool_response = await self._generate_code(arguments)
+            if isinstance(tool_response, dict) and "error" in tool_response:
+                return RpcError(
+                    code=-32000, message="Tool error", data={"error": tool_response["error"]}
+                )
+            return RpcOk(result=tool_response)
         else:
-            return {"error": f"Unknown tool: {tool_name}"}
+            return RpcError(
+                code=-32602, message="Invalid params", data={"error": f"Unknown tool: {tool_name}"}
+            )
 
     async def _chatgpt_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Query ChatGPT with project context"""
@@ -434,19 +498,113 @@ async def main() -> None:
 
     # Read from stdin and write to stdout
     while True:
-        try:
-            line = sys.stdin.readline()
-            if not line:
-                break
+        line = sys.stdin.readline()
+        if not line:
+            break
 
-            request = json.loads(line.strip())
-            response = await server.handle_request(request)
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError as e:
+            print(
+                json.dumps(
+                    {
+                        "jsonrpc": JSONRPC_VERSION,
+                        "id": None,
+                        "error": {
+                            "code": -32700,
+                            "message": "Parse error",
+                            "data": {"error": str(e)},
+                        },
+                    }
+                )
+            )
+            sys.stdout.flush()
+            continue
+
+        request_id: JsonRpcId = None
+
+        try:
+            # RU: MCP ожидает JSON-RPC 2.0 envelope в ответах.
+            # EN: MCP expects JSON-RPC 2.0 envelopes in responses.
+            #
+            # Protocol rule:
+            # - Requests with no `id` are notifications → MUST NOT produce a response.
+            # - Invalid requests with an `id` MUST return an error envelope (Invalid Request).
+            # - Never emit a non-enveloped response.
+
+            if not isinstance(request, dict):
+                # No `id` to reply to, treat as notification.
+                continue
+
+            has_id = "id" in request
+            request_id = request.get("id")
+            method = request.get("method")
+            is_jsonrpc = request.get("jsonrpc") == JSONRPC_VERSION
+
+            # Notifications: execute (best effort) but never reply.
+            if not has_id:
+                try:
+                    await server.handle_request(request)
+                except Exception:
+                    logger.exception("Unhandled exception in JSON-RPC notification")
+                continue
+
+            # Invalid request with an id: reply with -32600.
+            if not (is_jsonrpc and isinstance(method, str)):
+                safe_id: JsonRpcId = (
+                    request_id if isinstance(request_id, (int, str)) or request_id is None else None
+                )
+                print(
+                    json.dumps(
+                        {
+                            "jsonrpc": JSONRPC_VERSION,
+                            "id": safe_id,
+                            "error": {"code": -32600, "message": "Invalid Request"},
+                        }
+                    )
+                )
+                sys.stdout.flush()
+                continue
+
+            rpc_result = await server.handle_request(request)
+            if isinstance(rpc_result, RpcOk):
+                response = {
+                    "jsonrpc": JSONRPC_VERSION,
+                    "id": request_id,
+                    "result": rpc_result.result,
+                }
+            else:
+                response = {
+                    "jsonrpc": JSONRPC_VERSION,
+                    "id": request_id,
+                    "error": {
+                        "code": rpc_result.code,
+                        "message": rpc_result.message,
+                        "data": rpc_result.data,
+                    },
+                }
+
             print(json.dumps(response))
             sys.stdout.flush()
 
         except Exception as e:
-            error_response = {"error": str(e)}
-            print(json.dumps(error_response))
+            logger.exception("Internal JSON-RPC error")
+            safe_id = (
+                request_id if isinstance(request_id, (int, str)) or request_id is None else None
+            )
+            print(
+                json.dumps(
+                    {
+                        "jsonrpc": JSONRPC_VERSION,
+                        "id": safe_id,
+                        "error": {
+                            "code": -32603,
+                            "message": "Internal error",
+                            "data": {"error": str(e)},
+                        },
+                    }
+                )
+            )
             sys.stdout.flush()
 
 
