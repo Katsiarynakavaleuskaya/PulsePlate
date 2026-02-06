@@ -414,6 +414,7 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
     ), "Next line after false-positive toggle would be incorrectly skipped (known limitation)"
 
 
+@pytest.mark.serial
 def test_skip_context_does_not_filter_whr_thresholds() -> None:
     """Test that SKIP_CONTEXT filter does not skip WHR thresholds in type-hinted constants."""
     # Create test file outside tests/ to avoid whitelist (use app/ as it's scanned)
