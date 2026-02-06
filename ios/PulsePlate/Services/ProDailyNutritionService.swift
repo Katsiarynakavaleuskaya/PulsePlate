@@ -52,6 +52,13 @@ struct ProDailyNutritionRequest: Sendable, Equatable {
 
 final class DefaultProDailyNutritionService: ProDailyNutritionServicing, @unchecked Sendable {
     private let apiClient: APIClientProtocol
+    private static let dateOnlyFormatterLock = NSLock()
+    private static let dateOnlyFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter
+    }()
 
     init(apiClient: APIClientProtocol) {
         self.apiClient = apiClient
@@ -71,9 +78,10 @@ final class DefaultProDailyNutritionService: ProDailyNutritionServicing, @unchec
     }
 
     private static func dateOnlyString(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        return formatter.string(from: date)
+        // Date formatters are expensive to create and may not be thread-safe.
+        // Cache the formatter and guard access with a lock.
+        dateOnlyFormatterLock.lock()
+        defer { dateOnlyFormatterLock.unlock() }
+        return dateOnlyFormatter.string(from: date)
     }
 }

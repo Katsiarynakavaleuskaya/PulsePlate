@@ -41,6 +41,25 @@
 "profile_privacy_policy" = "Política de Privacidad";
 "profile_terms_of_use" = "Términos de Uso";
 "profile_screen_accessibility_label" = "Pantalla de perfil";
+"pro_profile_section_title" = "Perfil nutricional PRO";
+"pro_profile_sex" = "Sexo";
+"pro_profile_not_set" = "No establecido";
+"pro_profile_sex_female" = "Femenino";
+"pro_profile_sex_male" = "Masculino";
+"pro_profile_age" = "Edad";
+"pro_profile_height_cm" = "Altura (cm)";
+"pro_profile_weight_kg" = "Peso (kg)";
+"pro_profile_activity" = "Actividad";
+"pro_profile_activity_sedentary" = "Sedentaria";
+"pro_profile_activity_light" = "Ligera";
+"pro_profile_activity_moderate" = "Moderada";
+"pro_profile_activity_active" = "Activa";
+"pro_profile_activity_very_active" = "Muy activa";
+"pro_profile_goal" = "Objetivo";
+"pro_profile_goal_loss" = "Pérdida";
+"pro_profile_goal_maintain" = "Mantener";
+"pro_profile_goal_gain" = "Aumento";
+"pro_profile_helper_text" = "Usado por Plate (PRO) para solicitar /api/v1/pro/nutrition/daily.";
 
 /* Shopping List */
 "shopping_list_title" = "Lista de Compras";

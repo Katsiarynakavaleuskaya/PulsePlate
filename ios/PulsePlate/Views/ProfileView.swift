@@ -17,37 +17,47 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("PRO Nutrition Profile")) {
-                    Picker("Sex", selection: $proSex) {
-                        Text("Not set").tag("")
-                        Text("Female").tag(ProProfileSex.female.rawValue)
-                        Text("Male").tag(ProProfileSex.male.rawValue)
+                Section(header: Text(localization.localized("pro_profile_section_title"))) {
+                    Picker(localization.localized("pro_profile_sex"), selection: $proSex) {
+                        Text(localization.localized("pro_profile_not_set")).tag("")
+                        Text(localization.localized("pro_profile_sex_female"))
+                            .tag(ProProfileSex.female.rawValue)
+                        Text(localization.localized("pro_profile_sex_male"))
+                            .tag(ProProfileSex.male.rawValue)
                     }
 
-                    TextField("Age (years)", text: $proAge)
+                    TextField(localization.localized("pro_profile_age"), text: $proAge)
                         .keyboardType(.numberPad)
 
-                    TextField("Height (cm)", text: $proHeightCm)
+                    TextField(localization.localized("pro_profile_height_cm"), text: $proHeightCm)
                         .keyboardType(.numberPad)
 
-                    TextField("Weight (kg)", text: $proWeightKg)
+                    TextField(localization.localized("pro_profile_weight_kg"), text: $proWeightKg)
                         .keyboardType(.numberPad)
 
-                    Picker("Activity", selection: $proActivity) {
-                        Text("Sedentary").tag(ProProfileActivity.sedentary.rawValue)
-                        Text("Light").tag(ProProfileActivity.light.rawValue)
-                        Text("Moderate").tag(ProProfileActivity.moderate.rawValue)
-                        Text("Active").tag(ProProfileActivity.active.rawValue)
-                        Text("Very active").tag(ProProfileActivity.veryActive.rawValue)
+                    Picker(localization.localized("pro_profile_activity"), selection: $proActivity) {
+                        Text(localization.localized("pro_profile_activity_sedentary"))
+                            .tag(ProProfileActivity.sedentary.rawValue)
+                        Text(localization.localized("pro_profile_activity_light"))
+                            .tag(ProProfileActivity.light.rawValue)
+                        Text(localization.localized("pro_profile_activity_moderate"))
+                            .tag(ProProfileActivity.moderate.rawValue)
+                        Text(localization.localized("pro_profile_activity_active"))
+                            .tag(ProProfileActivity.active.rawValue)
+                        Text(localization.localized("pro_profile_activity_very_active"))
+                            .tag(ProProfileActivity.veryActive.rawValue)
                     }
 
-                    Picker("Goal", selection: $proGoal) {
-                        Text("Loss").tag(ProProfileGoal.loss.rawValue)
-                        Text("Maintain").tag(ProProfileGoal.maintain.rawValue)
-                        Text("Gain").tag(ProProfileGoal.gain.rawValue)
+                    Picker(localization.localized("pro_profile_goal"), selection: $proGoal) {
+                        Text(localization.localized("pro_profile_goal_loss"))
+                            .tag(ProProfileGoal.loss.rawValue)
+                        Text(localization.localized("pro_profile_goal_maintain"))
+                            .tag(ProProfileGoal.maintain.rawValue)
+                        Text(localization.localized("pro_profile_goal_gain"))
+                            .tag(ProProfileGoal.gain.rawValue)
                     }
 
-                    Text("Used by Plate (PRO) to request /api/v1/pro/nutrition/daily.")
+                    Text(localization.localized("pro_profile_helper_text"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

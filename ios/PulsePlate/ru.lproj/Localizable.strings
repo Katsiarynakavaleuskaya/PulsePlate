@@ -41,6 +41,25 @@
 "profile_privacy_policy" = "Политика конфиденциальности";
 "profile_terms_of_use" = "Условия использования";
 "profile_screen_accessibility_label" = "Экран профиля";
+"pro_profile_section_title" = "Профиль питания PRO";
+"pro_profile_sex" = "Пол";
+"pro_profile_not_set" = "Не задано";
+"pro_profile_sex_female" = "Женский";
+"pro_profile_sex_male" = "Мужской";
+"pro_profile_age" = "Возраст";
+"pro_profile_height_cm" = "Рост (см)";
+"pro_profile_weight_kg" = "Вес (кг)";
+"pro_profile_activity" = "Активность";
+"pro_profile_activity_sedentary" = "Сидячая";
+"pro_profile_activity_light" = "Лёгкая";
+"pro_profile_activity_moderate" = "Умеренная";
+"pro_profile_activity_active" = "Активная";
+"pro_profile_activity_very_active" = "Очень активная";
+"pro_profile_goal" = "Цель";
+"pro_profile_goal_loss" = "Снижение";
+"pro_profile_goal_maintain" = "Поддержание";
+"pro_profile_goal_gain" = "Набор";
+"pro_profile_helper_text" = "Используется для Plate (PRO): /api/v1/pro/nutrition/daily.";
 
 /* Shopping List */
 "shopping_list_title" = "Список покупок";
