@@ -87,22 +87,12 @@ struct PlateViewPP: View {
             ProgressView("Loading nutrition data...")
               .foregroundStyle(.white)
               .padding()
-          } else if let error = nutritionService.error {
-            VStack(spacing: 12) {
-              Text("Error loading data")
-                .foregroundStyle(.red)
-              Text(error)
-                .font(.caption)
-                .foregroundStyle(.red.opacity(0.8))
-              Button("Retry") {
-                Task {
-                  await nutritionService.fetchNutritionData()
-                }
+          } else if let issue = nutritionService.issue {
+            PlateIssueView(issue: issue) {
+              Task {
+                await nutritionService.fetchNutritionData()
               }
-              .buttonStyle(.bordered)
-              .foregroundStyle(.white)
             }
-            .padding()
           } else {
           // Interactive Plate Segments with animations
           VStack(spacing: 16) {
@@ -190,6 +180,34 @@ struct PlateViewPP: View {
     default:
       return .gray
     }
+  }
+}
+
+private struct PlateIssueView: View {
+  let issue: PlateLoadIssue
+  let onRetry: () -> Void
+
+  var body: some View {
+    VStack(spacing: 12) {
+      Text(issue.title)
+        .foregroundStyle(.white)
+        .font(.headline)
+
+      Text(issue.message)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.85))
+        .multilineTextAlignment(.center)
+
+      Button("Retry") {
+        onRetry()
+      }
+      .buttonStyle(.bordered)
+      .foregroundStyle(.white)
+    }
+    .padding()
+    .background(Color.white.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .padding(.horizontal)
   }
 }
 

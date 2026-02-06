@@ -27,83 +27,156 @@ struct DailyGoals: Codable {
 }
 
 // MARK: - API Service
+enum PlateLoadIssue: Equatable, Sendable {
+  case missingProKey
+  case missingProfile
+  case unauthorized
+  case forbidden
+  case validation(message: String)
+  case api(statusCode: Int, message: String)
+  case transport(message: String)
+  case decoding(message: String)
+  case unknown(message: String)
+
+  var title: String {
+    switch self {
+    case .missingProKey:
+      return "PRO access required"
+    case .missingProfile:
+      return "Profile required"
+    case .unauthorized:
+      return "Unauthorized"
+    case .forbidden:
+      return "Forbidden"
+    case .validation:
+      return "Check your details"
+    case .api(let statusCode, _):
+      return "Server error (HTTP \(statusCode))"
+    case .transport:
+      return "Network error"
+    case .decoding:
+      return "Unexpected response"
+    case .unknown:
+      return "Something went wrong"
+    }
+  }
+
+  var message: String {
+    switch self {
+    case .missingProKey:
+      #if DEBUG
+      return "Configure PRO API key (PRO_API_KEY) in the Xcode scheme environment."
+      #else
+      return "PRO is not available on this device."
+      #endif
+    case .missingProfile:
+      return "Open Profile and enter sex, age, height, and weight."
+    case .unauthorized:
+      return "Your PRO key is missing or invalid."
+    case .forbidden:
+      return "Your account does not have PRO access."
+    case .validation(let message):
+      return message
+    case .api(_, let message):
+      return message
+    case .transport(let message):
+      return message
+    case .decoding(let message):
+      return message
+    case .unknown(let message):
+      return message
+    }
+  }
+}
+
 class NutritionService: ObservableObject {
   @Published var nutritionData: NutritionData?
   @Published var isLoading = false
-  @Published var error: String?
+  @Published var issue: PlateLoadIssue?
 
   private let healthKitManager = HealthKitManager()
   private let apiClient: APIClientProtocol
+  private let profileProvider: ProfileProviding
+  private let apiKeyProvider: @Sendable () -> String?
+  private let dailyService: ProDailyNutritionServicing
 
-  // TODO: Backend endpoint /api/nutrition/{date} not yet implemented (GitHub issue)
-  // This method is ready for integration when the endpoint is available
-  // In DEBUG builds we fallback to mock data on network/decoding errors (dev convenience).
-  init(apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL())) {
+  init(
+    apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL()),
+    profileProvider: ProfileProviding = DefaultProfileProvider(),
+    apiKeyProvider: @escaping @Sendable () -> String? = { ProKeyProvider.value() },
+    dailyService: ProDailyNutritionServicing? = nil
+  ) {
     self.apiClient = apiClient
+    self.profileProvider = profileProvider
+    self.apiKeyProvider = apiKeyProvider
+    self.dailyService = dailyService ?? DefaultProDailyNutritionService(apiClient: apiClient)
   }
 
   func fetchNutritionData(for date: Date = Date()) async {
     await MainActor.run {
       isLoading = true
-      error = nil
+      issue = nil
     }
 
     do {
-      let dateFormatter = ISO8601DateFormatter()
-      dateFormatter.formatOptions = [.withFullDate]
-      dateFormatter.timeZone = TimeZone(identifier: "UTC")
-      let dateString = dateFormatter.string(from: date)
+      guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
+        await MainActor.run {
+          self.issue = .missingProKey
+          self.isLoading = false
+        }
+        return
+      }
 
-      let path = "api/nutrition/\(dateString)"
-      let nutritionData: NutritionData = try await apiClient.get(path: path)
+      guard let profile = profileProvider.proNutritionProfile() else {
+        await MainActor.run {
+          self.issue = .missingProfile
+          self.isLoading = false
+        }
+        return
+      }
+
+      let lang = profileProvider.languageCode()
+      let nutritionData = try await dailyService.fetchDailyNutrition(
+        date: date,
+        profile: profile,
+        lang: lang,
+        apiKey: apiKey
+      )
 
       await MainActor.run {
         self.nutritionData = nutritionData
         self.isLoading = false
       }
     } catch let apiError as APIError {
-      switch apiError {
-      case .decodingFailed(let message):
-        // In DEBUG, fallback to mock data on decoding errors
-        #if DEBUG
-        await MainActor.run {
-          self.loadMockData()
-          self.isLoading = false
+      await MainActor.run {
+        switch apiError {
+        case .api(let statusCode, let message):
+          if statusCode == 401 {
+            self.issue = .unauthorized
+          } else if statusCode == 403 {
+            self.issue = .forbidden
+          } else {
+            self.issue = .api(statusCode: statusCode, message: message)
+          }
+        case .validation(let validation):
+          let firstMessage = validation.detail.first?.msg ?? "Validation error"
+          self.issue = .validation(message: firstMessage)
+        case .transport(let message):
+          self.issue = .transport(message: message)
+        case .decodingFailed(let message):
+          self.issue = .decoding(message: message)
+        case .emptyResponse(let statusCode):
+          self.issue = .api(statusCode: statusCode, message: "Empty response")
+        default:
+          self.issue = .unknown(message: apiError.localizedDescription)
         }
-        #else
-        await MainActor.run {
-          self.error = "Decoding failed: \(message)"
-          self.isLoading = false
-        }
-        #endif
-
-      default:
-        // In DEBUG, fallback to mock data on network/server errors
-        #if DEBUG
-        await MainActor.run {
-          self.loadMockData()
-          self.isLoading = false
-        }
-        #else
-        await MainActor.run {
-          self.error = apiError.localizedDescription
-          self.isLoading = false
-        }
-        #endif
+        self.isLoading = false
       }
     } catch {
-      // Unexpected non-APIError (should be rare).
-      #if DEBUG
       await MainActor.run {
-        self.loadMockData()
+        self.issue = .unknown(message: error.localizedDescription)
         self.isLoading = false
       }
-      #else
-      await MainActor.run {
-        self.error = error.localizedDescription
-        self.isLoading = false
-      }
-      #endif
     }
   }
 
@@ -165,7 +238,7 @@ extension NutritionService {
   func loadFromHealthKit(for date: Date = Date()) async {
     await MainActor.run {
       isLoading = true
-      error = nil
+      issue = nil
     }
 
     do {
@@ -179,7 +252,7 @@ extension NutritionService {
       }
     } catch {
       await MainActor.run {
-        self.error = error.localizedDescription
+        self.issue = .unknown(message: error.localizedDescription)
         self.isLoading = false
       }
     }
