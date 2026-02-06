@@ -25,19 +25,12 @@ Example keys:
 - **Variant B:** uses “start small / stay consistent” framing (momentum-first)
 
 **Primary metric (manual for now):**
-- % of testers who complete welcome and reach the main app screen
+- % of testers who complete welcome and reach `RootTabs()`
 
 **Secondary metric:**
 - Time from launch → first core action (BMI calculate / first meaningful tap)
 
 ---
-
-## Variant Mapping (Single Reference)
-
-| Variant key                | Copy block | UI behavior |
-|---------------------------|------------|-------------|
-| welcome_copy_variant_v1_A | Copy A     | Standard welcome flow, CTA = Continue |
-| welcome_copy_variant_v1_B | Copy B     | Same flow, CTA emphasizes speed/value |
 
 ## 3) Experiment E2 — Upgrade prompt timing (after value)
 
@@ -71,7 +64,6 @@ Example keys:
 For the first iteration:
 - Use **TestFlight tester feedback** + a simple checklist (“did you see X? did you tap Y?”).
 - Prefer **small cohorts** (20–50 users) and fast iteration over fake precision.
-  - See canonical visibility loop: `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md#visibility-loop-single-source-of-truth`
 
 When backend analytics is ready (separate scope):
 - Add server-side event ingestion + dashboards.

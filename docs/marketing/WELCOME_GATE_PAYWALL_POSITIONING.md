@@ -11,7 +11,7 @@
 - No forced subscription during onboarding.
 - No fake urgency (“limited time”), no fake scarcity.
 - No hiding pricing, restore, or cancellation info.
-- No framing the free tier as broken (e.g., “basic only”, “you can’t use the app”).
+- No framing-free tier as broken (“basic only”, “you can’t use the app”).
 
 ---
 
