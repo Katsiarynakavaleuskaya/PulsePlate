@@ -66,6 +66,27 @@ If it is not recorded here — it does not exist.
     - Test excludes fixtures/mocks as needed (no false positives)
     - Documented allowlist policy (if any) in `ios/AGENTS.md`
 
+- [ ] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security)
+  - Target PR: TBD (backend-only)
+  - Status: 📋 Ready to start
+  - Reason: `legacy_app.py` implements `/api/nutrition/{date_str}` as a legacy alias and uses `Depends(api_key_header)` (header extraction only), then calls `app/routers/pro.py:get_daily_nutrition()` directly. This bypasses the `require_pro_tier` dependency (tier validation) and does not pass the API key into any guard, risking unauthorized access if the alias is reachable.
+  - Decision:
+    - Preferred outcome: remove deprecated alias entirely (keep only canonical `GET /api/v1/pro/nutrition/daily`).
+    - Fallback (if removal is not possible now): keep alias but explicitly enforce `require_pro_tier` in the alias handler + deterministic 401/403/200 tests.
+  - Links:
+    - `legacy_app.py` (`/api/nutrition/{date_str}` legacy alias)
+    - `app/routers/api_key.py` (`api_key_header`)
+    - `app/middleware/api_tiers.py` (`require_pro_tier`)
+    - `app/routers/pro.py` (`GET /api/v1/pro/nutrition/daily`)
+    - `ios/PulsePlate/Models/NutritionData.swift` (client currently uses legacy path)
+  - DoD:
+    - Alias either removed or explicitly enforces PRO tier guard (no auth bypass)
+    - Deterministic tests prove 401/403/200 behavior for alias path
+    - Docs explicitly mark alias as deprecated and forbidden as client SoT (iOS uses canonical `/api/v1/pro/nutrition/daily`)
+    - OpenAPI visibility matches deprecation policy (deprecated/hidden as appropriate)
+
 - [ ] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (docs correctness)

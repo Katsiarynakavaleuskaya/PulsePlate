@@ -35,18 +35,20 @@
 
 ## 2) Next P0 (Release-safety) — must land before scaling feature surface
 
-### P0-A) Remove placeholder PRO key fallback (release-safe)
+### ✅ P0-A) Remove placeholder PRO key fallback (release-safe) — done
 
 - **Backlog item:** `docs/roadmap/BACKLOG_LEDGER.md` (“iOS: Remove placeholder PRO key fallback…”)
-- **Goal:** no implicit `test_pro_key` (or similar) returned in any build configuration.
+- **Status:** shipped (PR-656)
+- **Goal:** no implicit placeholder key (or similar) returned in any build configuration.
 - **App-visible outcome:** missing-key state becomes explicit (clear UX, deterministic).
 - **DoD (high level):**
   - No placeholder key string is returned by any provider.
   - Missing-key path is explicit, testable, and user-visible.
 
-### P0-B) Guard: forbid placeholder API keys in iOS sources
+### ✅ P0-B) Guard: forbid placeholder API keys in iOS sources — done
 
 - **Backlog item:** `docs/roadmap/BACKLOG_LEDGER.md` (“iOS: Guard test forbids placeholder API keys…”)
+- **Status:** shipped (PR-657)
 - **Goal:** CI fails if placeholder keys appear in `ios/PulsePlate/**`.
 - **Implementation constraint:** avoid false positives (fixtures/mocks allowlist as needed).
 
@@ -79,12 +81,19 @@ This is the canonical mapping format for turning backend capability into a **shi
 
 #### Slice P1) Key entry & tier UX (safe + explicit)
 
-- **Goal:** replacing placeholder key logic with a clear “enter key / upgrade” flow.
+- **Goal:** clear “enter key / upgrade” flow (no placeholder logic).
 - **Constraints:** no new networking paths; use existing `APIClient`.
+- **App Store rule:** “Enter PRO key” is internal/TestFlight-only UX (debug tools / feature flag). Public release must use a copy-first paywall and StoreKit purchase flow (separate scope).
 - **Visibility:** TestFlight build where user can:
   - open key entry
   - paste key
   - see success/failure states deterministically
+
+#### Slice P2) Plate (PRO) — canonical daily nutrition endpoint alignment
+
+- **Goal:** iOS Plate uses canonical `GET /api/v1/pro/nutrition/daily` (contract-first) with `X-API-Key` + required profile query params.
+- **Forbidden:** treat `GET /api/nutrition/{date}` legacy alias as iOS source-of-truth (deprecated; guard/contract drift risk).
+- **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md` (P1: “iOS: Plate (PRO) align…”), plus P0 security item for alias guard enforcement.
 
 #### Slice V1) Plan / Weekly plan reader (if backend supports)
 

@@ -27,6 +27,13 @@ Use the existing networking implementation. Do **not** create a parallel transpo
 - **Contracts first**: request/response DTOs must mirror backend contracts (snake_case on wire; `convertToSnakeCase` is configured in `APIClient` encoder).
 - **Errors**: use `APIError` from `ios/PulsePlate/Networking/APIError.swift` (transport vs validation vs api errors are distinct).
 
+### Deprecated / legacy endpoints (do not treat as SoT)
+
+- **Forbidden as iOS source-of-truth:** `GET /api/nutrition/{date}` (legacy alias; deprecated).
+- **Canonical (PRO):** `GET /api/v1/pro/nutrition/daily` (requires `X-API-Key` + profile query params).
+
+Rationale: legacy aliases may have contract/guard drift; iOS must integrate against canonical endpoints only.
+
 Policy anchors:
 
 - `ios/AGENTS.md` (iOS Thin Client Policy + CI enforcement)
@@ -67,11 +74,14 @@ Hard rule: avoid tests that call real endpoints; they are flaky and violate dete
 
 ## Key handling (CURRENT)
 
-Document the current reality explicitly (even if it is not release-safe yet).
+Document the current repo truth explicitly.
 
 - **PRO key**: `ios/PulsePlate/Services/ProKeyProvider.swift`
-  - **WARNING**: contains a placeholder fallback (`"test_pro_key"`) in DEBUG.
-  - **Release requirement**: placeholder keys must be removed before any public release.
+  - **DEBUG (local dev / TestFlight internal workflows)**: may read `PRO_API_KEY` from Xcode Scheme → Run → Environment Variables (never commit it).
+  - **Release-safe storage**: Keychain (`ios/PulsePlate/Services/KeychainStore.swift`).
+  - **Hard rule**: no hardcoded keys / placeholder fallbacks in sources.
+  - **Missing-key behavior**: must return `nil` (explicit + testable), not a silent fallback.
+  - **Tests**: `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
 
 If you need new key types (e.g., VIP), add providers deliberately and track secure storage work in the ledger.
 
