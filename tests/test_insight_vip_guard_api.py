@@ -13,22 +13,28 @@ from fastapi.testclient import TestClient
 
 import legacy_app
 
-from tests.helpers.fake_llm_provider import FakeLLMProvider
 
+def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make VIP insight guard tests CI-deterministic.
 
-def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch insight provider loader to return a deterministic fake provider.
-
-    RU: Подменяем loader так, чтобы handler всегда получал fake provider.
-    EN: Patch loader so the handler always gets fake provider.
+    RU: Для этого теста важно только VIP-gate (403/200). Мокаем квоту/хендлер,
+    чтобы тест не зависел от БД-квоты/провайдера.
+    EN: This test only validates VIP gating (403/200). Mock quota/handler to avoid
+    coupling to DB quota/provider internals.
     """
 
-    def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
-        return lambda: FakeLLMProvider()
+    def _noop_quota(_: str) -> None:
+        return None
 
-    monkeypatch.setattr(
-        legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
-    )
+    async def _ok_v1(_: legacy_app.InsightRequest) -> legacy_app.InsightResponse:
+        return legacy_app.InsightResponse(provider="fake-llm", insight="ok")
+
+    async def _ok_legacy(_: legacy_app.InsightRequest) -> legacy_app.InsightResponse:
+        return legacy_app.InsightResponse(provider="fake-llm", insight="ok")
+
+    monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
+    monkeypatch.setattr(legacy_app, "insight_v1", _ok_v1, raising=True)
+    monkeypatch.setattr(legacy_app, "insight", _ok_legacy, raising=True)
 
 
 def test_insight_v1_requires_vip_tier(
@@ -42,7 +48,7 @@ def test_insight_v1_requires_vip_tier(
     Note: VIP guard returns 403 for missing key by policy (VIP is a feature-gate).
     """
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    _patch_llm_provider(monkeypatch)
+    _patch_insight_success(monkeypatch)
 
     payload = {"text": "hello"}
 
@@ -71,7 +77,7 @@ def test_insight_legacy_requires_vip_tier(
     Note: Legacy /insight is hidden from OpenAPI but still VIP-guarded.
     """
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    _patch_llm_provider(monkeypatch)
+    _patch_insight_success(monkeypatch)
 
     payload = {"text": "hello"}
 
