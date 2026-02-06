@@ -36,6 +36,63 @@ If it is not recorded here — it does not exist.
     - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
     - RU/EN/ES strings ship for `onboarding.welcome.*`
     - `make ios-test` passes
+- [ ] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (release safety)
+  - Target PR: TBD (code PR, iOS-only)
+  - Status: 📋 Ready to start
+  - Reason: `ProKeyProvider` currently contains a placeholder fallback (`test_pro_key`) in DEBUG. This is not release-safe and can mask missing-key flows in development and tests.
+  - Links:
+    - `ios/PulsePlate/Services/ProKeyProvider.swift`
+    - `docs/IOS_API_INTEGRATION.md`
+  - DoD:
+    - No placeholder key strings are returned by any provider (dev or prod)
+    - Key retrieval uses a secure source (Keychain-backed or explicit developer-only injection that cannot ship)
+    - Missing-key path is explicit and testable (UI/service fails with clear error, not silent fallback)
+    - iOS tests updated / added for missing-key behavior (deterministic)
+
+- [ ] iOS: Guard test forbids placeholder API keys in app sources
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (release safety)
+  - Target PR: TBD (code PR, iOS-only)
+  - Status: 📋 Ready to start
+  - Reason: Prevent accidental shipping of placeholder keys like `test_pro_key` in iOS sources; enforce via CI.
+  - Links:
+    - `ios/PulsePlate/Services/ProKeyProvider.swift`
+    - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (existing guard pattern)
+  - DoD:
+    - A deterministic guard/unit test fails CI if placeholder key strings appear in `ios/PulsePlate/**`
+    - Test excludes fixtures/mocks as needed (no false positives)
+    - Documented allowlist policy (if any) in `ios/AGENTS.md`
+
+- [ ] Docs: Canonicalize iOS API integration guide to current Networking SoT
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (docs correctness)
+  - Target PR: This docs drift PR
+  - Status: 🟡 In progress
+  - Reason: Existing `docs/IOS_API_INTEGRATION.md` was outdated and instructed creating a parallel URLSession-based transport layer; this conflicts with thin-client policies and current `ios/PulsePlate/Networking/*` SoT.
+  - Links:
+    - `docs/IOS_API_INTEGRATION.md`
+    - `ios/PulsePlate/Networking/APIClient.swift`
+    - `ios/PulsePlate/Networking/HTTPClient.swift`
+  - DoD:
+    - Doc lists repo SoT paths and rules (no new transport)
+    - Includes “how to add endpoint” recipe aligned with existing protocols/tests
+    - Future items (IAP/receipt/keychain) point to ledger items (no mixed scopes)
+
+- [ ] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (docs correctness)
+  - Target PR: This docs drift PR
+  - Status: 🟡 In progress
+  - Reason: `docs/roadmap/IOS_ROADMAP.md` still described “when iOS development resumes”; iOS is active (RootTabs, Networking SoT, guard tests).
+  - Links:
+    - `docs/roadmap/IOS_ROADMAP.md`
+    - `ios/PulsePlate/Views/RootTabs.swift`
+    - `ios/PulsePlate/Networking/*`
+  - DoD:
+    - AS-IS section reflects current entrypoint, navigation, networking, guards, localization
+    - NEXT ACTIONS list only real follow-ups (P0/P1) and points to ledger items
 
 - [x] PR-560 CI iOS stability (merged 2026-01-21)
   - Owner: @katsiaryna_kavaleuskaya
