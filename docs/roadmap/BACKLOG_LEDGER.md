@@ -440,6 +440,18 @@ If it is not recorded here — it does not exist.
     - Count requests to `/api/nutrition/{date_str}` with low-cardinality labels (e.g., platform/client + status)
     - Dashboard/query recipe documented (where to check usage)
     - Removal decision recorded (remove alias date / keep longer with rationale)
+- [x] Backend: Make VIP insight guard tests CI-deterministic
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability)
+  - Target PR: PR-658
+  - Status: ✅ Merged (PR-658, 2026-02-06)
+  - Reason: VIP insight guard tests should validate tier gating (403/200) without coupling to provider/quota internals, avoiding CI flakiness.
+  - Links:
+    - `tests/test_insight_vip_guard_api.py`
+    - PR-658
+  - DoD:
+    - Tests patch quota/provider paths deterministically
+    - `diff-coverage` passes on PRs touching these guard tests
 
 - [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
   - Owner: @katsiaryna_kavaleuskaya
