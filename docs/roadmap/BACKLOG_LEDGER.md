@@ -457,16 +457,17 @@ If it is not recorded here — it does not exist.
     - Tests patch quota/provider paths deterministically
     - `diff-coverage` passes on PRs touching these guard tests
 
-- [ ] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
+- [x] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Free MVP polish)
-  - Target PR: TBD (iOS-only)
-  - Status: 📋 Ready to start
+  - Target PR: PR-671
+  - Status: ✅ Merged (PR-671, 2026-02-07)
   - Reason: BMI calculator exists but is not clearly reachable from the main navigation (Free MVP must make value moment obvious).
   - Links:
     - `ios/PulsePlate/Views/RootTabs.swift`
     - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
     - `ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift`
+    - `docs/audit/PR_671_IOS_EXPOSE_BMI_ROOTTABS_AUDIT.md`
   - DoD:
     - User can reach BMI from the default tab flow (Home card or dedicated tab)
     - Loading/error/validation states remain user-friendly (no debug-y messages)
@@ -503,14 +504,15 @@ If it is not recorded here — it does not exist.
 - [ ] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Demo / TestFlight)
-  - Target PR: TBD (iOS-only)
-  - Status: 📋 Ready to start
+  - Target PR: PR-673
+  - Status: 🚧 In progress (branch: `feat/ios-weekly-plan-reader-flag`)
   - Reason: WeeklyPlanReaderView + VM exist but are not mounted in the app; feature flag is defined but only shown as a usage example.
   - Links:
     - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
     - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
     - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
     - `ios/PulsePlate/Services/WeeklyPlanService.swift`
+    - `docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md`
   - DoD:
     - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
     - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
