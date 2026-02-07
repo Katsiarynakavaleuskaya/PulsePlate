@@ -32,4 +32,20 @@ enum PaywallSource: String, Equatable {
 enum PaywallTarget: String, Equatable {
     case pro
     case vip
+
+    /// Map backend soft-paywall `hook.target` strings to typed enum.
+    ///
+    /// Backend currently emits `pro_paywall` (see app.schemas.bmi.SoftPaywallHook).
+    /// This mapping keeps iOS routing forward-compatible if backend adds new targets.
+    static func fromSoftPaywallHookTarget(_ target: String) -> PaywallTarget? {
+        let normalized = target.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "pro_paywall", "pro":
+            return .pro
+        case "vip_paywall", "vip":
+            return .vip
+        default:
+            return nil
+        }
+    }
 }

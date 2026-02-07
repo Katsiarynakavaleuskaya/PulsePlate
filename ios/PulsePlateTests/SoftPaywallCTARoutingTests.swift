@@ -24,4 +24,14 @@ final class SoftPaywallCTARoutingTests: XCTestCase {
         XCTAssertNil(router.lastSource)
         XCTAssertNil(router.lastTarget)
     }
+
+    func test_softPaywallTargetMapping_mapsVipPaywall() {
+        XCTAssertEqual(PaywallTarget.fromSoftPaywallHookTarget("vip_paywall"), .vip)
+        XCTAssertEqual(PaywallTarget.fromSoftPaywallHookTarget("vip"), .vip)
+    }
+
+    func test_softPaywallTargetMapping_fallsBackToNilForUnknown() {
+        XCTAssertNil(PaywallTarget.fromSoftPaywallHookTarget("unknown"))
+        XCTAssertNil(PaywallTarget.fromSoftPaywallHookTarget(""))
+    }
 }

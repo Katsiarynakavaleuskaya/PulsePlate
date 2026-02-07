@@ -77,7 +77,7 @@ struct BMICalculatorScreen: View {
                                 SoftPaywallHookView(hook: hook) {
                                     paywallRouter.presentPaywall(
                                         source: .bmiSoftPaywallCTA,
-                                        target: .pro
+                                        target: PaywallTarget.fromSoftPaywallHookTarget(hook.target) ?? .pro
                                     )
                                 }
                             }
