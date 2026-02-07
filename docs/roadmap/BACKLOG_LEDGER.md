@@ -38,17 +38,18 @@ If it is not recorded here — it does not exist.
     - RU/EN/ES strings ship for `onboarding.welcome.*`
     - `make ios-test` passes
 
-- [ ] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
+- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens) — ✅ Merged (PR-678, 2026-02-07)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-B (release readiness)
   - Target PR: PR-678
-  - Status: 🚧 In progress (PR-678)
+  - Status: ✅ Merged (PR-678, 2026-02-07)
   - Reason: P0-B requires a minimal onboarding (≥2 screens). Keep the existing first-launch gate and tighten the flow to the two essential screens (Value + Usage) without adding networking/paywall/analytics.
   - Links:
     - `ios/PulsePlate/PulsePlateApp.swift`
     - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
     - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
     - docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/678>
   - DoD:
     - On first launch, onboarding shows before `RootTabs()` (gate remains at app entry)
     - On completion, onboarding is not shown again (`has_seen_welcome_v1` persists)
