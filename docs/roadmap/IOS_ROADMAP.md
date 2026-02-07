@@ -15,8 +15,10 @@
 
 ### Networking SoT (thin client)
 
-- Transport: `ios/PulsePlate/Networking/{APIClient,HTTPClient,APIError}.swift`
+- Transport: `ios/PulsePlate/Networking/{APIClient,HTTPClient,APIError}.swift` (protocol: `APIClient.swift:4`)
 - Base URL: `ios/PulsePlate/Services/AppConfig.swift` (`BASE_URL` Info.plist → env → fallback)
+- PRO key: `ios/PulsePlate/Services/ProKeyProvider.swift:3` (Keychain + DEBUG env)
+- Profile query params: `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (`ProfileProviding` protocol)
 - Guards:
   - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (no BMI logic/thresholds in app sources)
 
@@ -36,13 +38,17 @@
 
 ---
 
-## P0 Next Actions (real follow-ups only)
+## Completed P0 actions
 
-- ✅ Remove placeholder PRO key fallback and make key handling release-safe (PR-656; tracked in `BACKLOG_LEDGER.md`).
-- ✅ Add a guard/test that fails CI if placeholder keys like `test_pro_key` appear in app sources (PR-657; tracked in `BACKLOG_LEDGER.md`).
-- Next (P1, see `BACKLOG_LEDGER.md`):
-  - Expose BMI screen from Home / RootTabs (Free MVP UX)
-  - Mount WeeklyPlanReader behind feature flag (PRO demo slice)
+- ✅ Remove placeholder PRO key fallback and make key handling release-safe (PR-656).
+- ✅ Add a guard/test that fails CI if placeholder keys like `test_pro_key` appear in app sources (PR-657).
+
+All P0 items are shipped. Remaining work is P1 (see below and `BACKLOG_LEDGER.md`).
+
+## P1 Next Actions
+
+- [ ] Expose BMI screen from Home / RootTabs (Free MVP UX). Evidence: `ios/PulsePlate/Screens/BMICalculatorScreen.swift:3`, `ios/PulsePlate/Views/RootTabs.swift:3-5` (not yet wired).
+- [ ] Mount WeeklyPlanReader behind feature flag (PRO demo slice).
 
 ---
 

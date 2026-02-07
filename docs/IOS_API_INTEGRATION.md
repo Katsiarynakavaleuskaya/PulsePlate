@@ -1,6 +1,6 @@
 # iOS API Integration (Canonical)
 
-**Last Updated**: 6 February 2026
+**Last Updated**: 7 February 2026
 **Status**: Canonical (repo source of truth)
 **Scope**: iOS thin-client networking only (transport + contracts + tests)
 **Non-goals**: IAP/receipt, analytics, domain logic, “roll your own URLSession client”, new singleton transport layers
@@ -12,11 +12,17 @@
 Use the existing networking implementation. Do **not** create a parallel transport layer.
 
 - **Transport**
-  - `ios/PulsePlate/Networking/APIClient.swift`
+  - `ios/PulsePlate/Networking/APIClient.swift` (protocol: `APIClientProtocol:57`)
   - `ios/PulsePlate/Networking/HTTPClient.swift`
   - `ios/PulsePlate/Networking/APIError.swift`
 - **Base URL**
   - `ios/PulsePlate/Services/AppConfig.swift` → `AppConfig.baseURL()` (Info.plist → env → fallback)
+- **PRO key provider**
+  - `ios/PulsePlate/Services/ProKeyProvider.swift:3` (enum; Keychain + DEBUG env)
+  - `ios/PulsePlate/Services/KeychainStore.swift` (Keychain wrapper)
+- **Profile query params (PRO endpoints)**
+  - `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (protocol `ProfileProviding`)
+  - `ios/PulsePlate/Services/ProfileProvider.swift:52-115` (default impl reads AppStorage/UserDefaults)
 
 ---
 
@@ -58,7 +64,8 @@ Prefer a small, explicit service that:
 
 Example patterns in repo:
 
-- BMI: `ios/PulsePlate/Services/BMIService.swift` (calls `/api/v1/bmi/calculate`)
+- BMI (FREE): `ios/PulsePlate/Services/BMIService.swift:19-39` (calls `POST /api/v1/bmi/calculate`)
+- PRO daily nutrition (Plate): `ios/PulsePlate/Services/ProDailyNutritionService.swift:80-113` (calls `GET /api/v1/pro/nutrition/daily` with profile query params + `X-API-Key`)
 - Weekly plan: `ios/PulsePlate/Services/WeeklyPlanService.swift` (calls `postRaw` with optional API key)
 
 ### Step 3) Tests (deterministic, no real network)
@@ -67,6 +74,7 @@ Example patterns in repo:
 - Repo examples:
   - `ios/PulsePlateTests/Networking/HTTPClientTests.swift`
   - `ios/PulsePlateTests/Networking/APIClientTests.swift`
+  - `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-65` (deterministic URL + header assertion)
 
 Hard rule: avoid tests that call real endpoints; they are flaky and violate determinism.
 
