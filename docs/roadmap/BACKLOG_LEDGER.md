@@ -38,7 +38,7 @@ If it is not recorded here — it does not exist.
     - RU/EN/ES strings ship for `onboarding.welcome.*`
     - `make ios-test` passes
 
-- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens) — ✅ Merged (PR-678, 2026-02-07)
+- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-B (release readiness)
   - Target PR: PR-678
@@ -875,7 +875,7 @@ If it is not recorded here — it does not exist.
     - Tests restored to PulsePlateTests target (if kept)
     - CI green with AnimationTests included (if restored)
 
-- [x] Fix ShoppingPlan public API (make nested types public or narrow API surface) — ✅ Merged (PR-677, 2026-02-07)
+- [x] Fix ShoppingPlan public API (make nested types public or narrow API surface)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-677
