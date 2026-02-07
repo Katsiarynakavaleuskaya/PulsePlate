@@ -1,7 +1,7 @@
-# iOS Docs Drift Audit — PR-670
+# iOS Docs Drift Audit — PR-669
 
 **Date**: 7 February 2026
-**PR**: 670
+**PR**: 669
 **Branch**: `docs/ios-api-integration-sot-pr-670`
 **Type**: docs-only (no runtime/iOS/backend code changes)
 **Owner**: @katsiaryna_kavaleuskaya
