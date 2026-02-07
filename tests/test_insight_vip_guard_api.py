@@ -25,7 +25,7 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     coupling to DB quota/provider internals.
     """
 
-    def _noop_quota(_: str) -> None:
+    def _noop_quota(*_args: object, **_kwargs: object) -> None:
         return None
 
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
