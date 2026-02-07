@@ -11,7 +11,7 @@ Successfully improved the frontend CI workflow with comprehensive test fixes, co
 - ✅ **Test robustness improved** - Replaced weak getAllBy*[0] patterns with getBy* assertions
 - ✅ **Coverage configuration enhanced** - Added comprehensive exclusions and thresholds
 - ✅ **Bot feedback addressed** - Resolved all Cursor Bot and CodeRabbit recommendations
-- ✅ **Documentation updated** - Added frontend prerequisites to copilot instructions
+- ✅ **Documentation updated** - Added frontend prerequisites to project instructions (`AGENTS.md` / `.cursorrules`)
 
 ## 🔧 Issues Fixed
 
@@ -96,7 +96,7 @@ Successfully improved the frontend CI workflow with comprehensive test fixes, co
 
 **Files Fixed**:
 
-- `.github/copilot-instructions.md`
+- `AGENTS.md` / `.cursorrules`
 
 **Changes**:
 

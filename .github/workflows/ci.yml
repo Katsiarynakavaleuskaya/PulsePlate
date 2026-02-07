@@ -264,7 +264,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for PR branches before merge
-          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
+          # See .cursorrules and AGENTS.md for coverage requirements
           #
           # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Run sequentially on 3.13; keep parallelism for older versions.
@@ -370,7 +370,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for feature branches before merge
-          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
+          # See .cursorrules and AGENTS.md for coverage requirements
           #
           # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Run sequentially on 3.13; keep parallelism for older versions.
@@ -482,7 +482,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # IMPORTANT: main branch must maintain 97% coverage per project standards
-          # See .github/copilot-instructions.md and .cursorrules
+          # See .cursorrules and AGENTS.md
           #
           # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Run sequentially on 3.13; keep parallelism for older versions.

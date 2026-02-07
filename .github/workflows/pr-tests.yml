@@ -252,7 +252,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
         run: |
           # Project standard: maintain 97% diff coverage on changed lines
-          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
+          # See .cursorrules and AGENTS.md for coverage requirements
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)
