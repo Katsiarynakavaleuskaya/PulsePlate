@@ -3,7 +3,7 @@
 **Date:** 7 February 2026
 **Owner:** @katsiaryna_kavaleuskaya
 **Scope:** Docs-only (repo-truth alignment after PR-667)
-**Branch:** `docs/ios-docs-ledger-alignment-2026-02-07`
+**Branch:** `docs/plate-pro-shipped-hygiene-pr-668`
 
 ## Problem statement
 
@@ -119,9 +119,9 @@ rg -n "Plate \(PRO\): align iOS" docs/roadmap/IOS_ROADMAP.md
 
 ### Non-goals
 
-- No iOS/backend code changes.
-- No contract changes / no OpenAPI generation.
-- No policy changes (AGENTS/ios/AGENTS unchanged).
+- iOS/backend code unchanged.
+- No contract changes or OpenAPI regeneration.
+- Policies remain unchanged (AGENTS/ios/AGENTS).
 
 ## Docs-only enforcement (required before push)
 

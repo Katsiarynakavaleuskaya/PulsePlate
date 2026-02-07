@@ -9,7 +9,13 @@
 PR-667 merged on 7 February 2026 and changed repo truth for Plate (PRO): iOS now uses canonical
 `GET /api/v1/pro/nutrition/daily`. The “before” evidence captured below is therefore partially stale.
 
-See: `docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md`
+Evidence (file:line):
+- iOS request path + deterministic query: `ios/PulsePlate/Services/ProDailyNutritionService.swift:36-57`
+- iOS sends `X-API-Key`: `ios/PulsePlate/Services/ProDailyNutritionService.swift:94-105`
+- iOS tests assert path + header: `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-21`, `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:23-65`
+- Backend canonical route is PRO-guarded: `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
+
+See also: `docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md`
 
 ## Problem statement
 

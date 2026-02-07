@@ -482,6 +482,12 @@ If it is not recorded here — it does not exist.
     - `ios/PulsePlate/Services/ProDailyNutritionService.swift`
     - `ios/PulsePlate/Views/ProfileView.swift`
     - `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift`
+  - Evidence (file:line):
+    - iOS request path + deterministic query order: `ios/PulsePlate/Services/ProDailyNutritionService.swift:36-57`
+    - iOS sends `X-API-Key` header via APIClient: `ios/PulsePlate/Services/ProDailyNutritionService.swift:94-105`
+    - iOS profile inputs (AppStorage keys + form fields): `ios/PulsePlate/Views/ProfileView.swift:8-56`
+    - iOS tests assert deterministic URL + header: `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-21`, `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:23-65`
+    - Backend canonical route (guarded by PRO tier): `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
   - DoD:
     - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
     - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env
