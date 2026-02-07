@@ -1,7 +1,8 @@
 # PR-671 Audit — iOS: Expose BMI screen in RootTabs
 
 **Date**: 7 February 2026
-**Branch**: `feat/ios-expose-bmi-root-tabs-pr-672`
+**PR**: #671
+**Branch**: `feat/ios-expose-bmi-root-tabs-pr-672` (legacy name; GitHub PR number is source of truth)
 **Type**: iOS runtime + audit doc
 
 ---
@@ -30,7 +31,10 @@ Raw excerpt:
 ```text
 TabView {
   HomeView().tabItem { Label("Home", systemImage: "house") }
-  BMICalculatorScreen().tabItem { Label("BMI", systemImage: bmiTabSymbol) }
+  NavigationStack {
+    BMICalculatorScreen()
+  }
+  .tabItem { Label("BMI", systemImage: bmiTabSymbol) }
   PlateViewPP().tabItem { Label("Plate", systemImage: "fork.knife") }
   ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
   WeeklyProgressView().tabItem { Label("Неделя", systemImage: "calendar") }
