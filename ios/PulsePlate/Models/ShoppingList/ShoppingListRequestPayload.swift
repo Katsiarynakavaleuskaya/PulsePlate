@@ -2,11 +2,11 @@ import Foundation
 
 /// Encodable request payload for Shopping List API
 /// Represents the typed structure sent to POST /api/v1/pro/meal/shopping-list
-public struct ShoppingListRequestPayload: Encodable {
-    public let planData: ShoppingPlan
-    public let preferences: [String: Any]?
+struct ShoppingListRequestPayload: Encodable {
+    let planData: ShoppingPlan
+    let preferences: [String: Any]?
 
-    public init(planData: ShoppingPlan, preferences: [String: Any]? = nil) {
+    init(planData: ShoppingPlan, preferences: [String: Any]? = nil) {
         self.planData = planData
         self.preferences = preferences
     }
@@ -17,7 +17,7 @@ public struct ShoppingListRequestPayload: Encodable {
     }
 
     // Manual encoding to support [String: Any] for preferences
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(planData, forKey: .planData)
 

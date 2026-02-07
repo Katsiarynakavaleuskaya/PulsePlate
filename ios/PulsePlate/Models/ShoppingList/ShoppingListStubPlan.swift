@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Typed Stub Plan Models
 
 /// Represents a weekly shopping plan with typed structure
-public struct ShoppingPlan: Codable {
+struct ShoppingPlan: Codable {
     let dailyMenus: [DailyMenu]
 
     enum CodingKeys: String, CodingKey {
