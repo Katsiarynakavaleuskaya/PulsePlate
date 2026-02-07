@@ -332,7 +332,7 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		if [ -n "$$ONLY_ITEMS" ]; then \
 			IFS=','; for t in $$ONLY_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && ONLY_FLAGS="$$ONLY_FLAGS -only-testing:$$t"; done; unset IFS; \
 		else \
-			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests"; \
+			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests -only-testing:PulsePlateTests/SoftPaywallCTARoutingTests"; \
 		fi; \
 		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_PROVIDED" ]; then \
 			SKIP_FLAGS="-skip-testing:PulsePlateUITests"; \

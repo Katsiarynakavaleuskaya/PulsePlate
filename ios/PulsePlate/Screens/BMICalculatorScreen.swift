@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BMICalculatorScreen: View {
     @StateObject private var vm = BMICalculatorViewModel()
+    @StateObject private var paywallRouter = PaywallRouter()
 
     @State private var weightKg = "70"
     @State private var heightCm = "175"
@@ -72,11 +73,12 @@ struct BMICalculatorScreen: View {
                                 Text("Ranges: \(vis.ranges.count)")
                             }
 
-                            // Soft paywall hook: only render if navigation handler is available
-                            // Deferred: wire to real paywall router (see BACKLOG_LEDGER.md)
                             if let hook = res.softPaywall {
                                 SoftPaywallHookView(hook: hook) {
-                                    // Navigation deferred until paywall router is available
+                                    paywallRouter.presentPaywall(
+                                        source: .bmiSoftPaywallCTA,
+                                        target: PaywallTarget.fromSoftPaywallHookTarget(hook.target) ?? .pro
+                                    )
                                 }
                             }
                         }
@@ -86,6 +88,14 @@ struct BMICalculatorScreen: View {
             .padding()
         }
         .navigationTitle("BMI")
+        .sheet(
+            isPresented: $paywallRouter.isPaywallPresented,
+            onDismiss: { paywallRouter.dismissPaywall() }
+        ) {
+            NavigationStack {
+                PaywallScreen()
+            }
+        }
     }
 
     private func onCalculate() async {
