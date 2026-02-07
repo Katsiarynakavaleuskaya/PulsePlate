@@ -6,25 +6,22 @@ final class SoftPaywallCTARoutingTests: XCTestCase {
     func test_presentPaywall_setsPresented_andStoresContext() async {
         let router = PaywallRouter()
 
-        router.presentPaywall(source: "bmi_soft_paywall", target: "pro_paywall")
+        router.presentPaywall(source: .bmiSoftPaywallCTA, target: .pro)
 
-        let isPaywallPresented = router.isPaywallPresented
-        let lastSource = router.lastSource
-        let lastTarget = router.lastTarget
-
-        XCTAssertTrue(isPaywallPresented)
-        XCTAssertEqual(lastSource, "bmi_soft_paywall")
-        XCTAssertEqual(lastTarget, "pro_paywall")
+        XCTAssertTrue(router.isPaywallPresented)
+        XCTAssertEqual(router.lastSource, .bmiSoftPaywallCTA)
+        XCTAssertEqual(router.lastTarget, .pro)
     }
 
     @MainActor
     func test_dismissPaywall_clearsPresentedFlag() async {
         let router = PaywallRouter()
-        router.presentPaywall(source: "bmi_soft_paywall", target: "pro_paywall")
+        router.presentPaywall(source: .bmiSoftPaywallCTA, target: .pro)
 
         router.dismissPaywall()
 
-        let isPaywallPresented = router.isPaywallPresented
-        XCTAssertFalse(isPaywallPresented)
+        XCTAssertFalse(router.isPaywallPresented)
+        XCTAssertNil(router.lastSource)
+        XCTAssertNil(router.lastTarget)
     }
 }

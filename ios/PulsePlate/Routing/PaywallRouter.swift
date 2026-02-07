@@ -1,5 +1,5 @@
+import Combine
 import Foundation
-import Observation
 
 /// Paywall router (navigation handler) for soft-paywall CTAs.
 ///
@@ -7,13 +7,12 @@ import Observation
 /// - This router only manages presentation state.
 /// - It must not contain subscription business logic (pricing/eligibility/tiers).
 @MainActor
-@Observable
-final class PaywallRouter {
-    private(set) var isPaywallPresented: Bool = false
-    private(set) var lastSource: String? = nil
-    private(set) var lastTarget: String? = nil
+final class PaywallRouter: ObservableObject {
+    @Published var isPaywallPresented: Bool = false
+    @Published var lastSource: PaywallSource? = nil
+    @Published var lastTarget: PaywallTarget? = nil
 
-    func presentPaywall(source: String, target: String) {
+    func presentPaywall(source: PaywallSource, target: PaywallTarget) {
         lastSource = source
         lastTarget = target
         isPaywallPresented = true
@@ -21,5 +20,16 @@ final class PaywallRouter {
 
     func dismissPaywall() {
         isPaywallPresented = false
+        lastSource = nil
+        lastTarget = nil
     }
+}
+
+enum PaywallSource: String, Equatable {
+    case bmiSoftPaywallCTA
+}
+
+enum PaywallTarget: String, Equatable {
+    case pro
+    case vip
 }
