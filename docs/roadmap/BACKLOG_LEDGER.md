@@ -869,10 +869,12 @@ If it is not recorded here — it does not exist.
 - [ ] Wire soft paywall CTA to real paywall router (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR-674
+  - Status: 🚧 In progress (PR-674)
   - Reason: paywall navigation infrastructure not yet available; hook is rendered but CTA is no-op
   - Links:
     - ios/PulsePlate/Screens/BMICalculatorScreen.swift (line ~73)
+    - docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md
   - DoD:
     - Paywall router/navigation handler implemented
     - SoftPaywallHookView CTA wired to navigation
