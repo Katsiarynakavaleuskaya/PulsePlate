@@ -1,4 +1,4 @@
-# PR-672 Audit — iOS: Expose BMI screen in RootTabs
+# PR-671 Audit — iOS: Expose BMI screen in RootTabs
 
 **Date**: 7 February 2026
 **Branch**: `feat/ios-expose-bmi-root-tabs-pr-672`
