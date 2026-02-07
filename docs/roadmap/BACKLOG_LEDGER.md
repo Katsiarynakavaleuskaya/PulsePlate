@@ -468,18 +468,26 @@ If it is not recorded here — it does not exist.
     - Loading/error/validation states remain user-friendly (no debug-y messages)
     - `make ios-test` passes
 
-- [ ] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
+- [x] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Feature integration)
-  - Target PR: TBD (iOS-only; backend follow-ups tracked separately)
-  - Status: 📋 Ready to start
-  - Reason: iOS currently uses legacy `/api/nutrition/{date}` path and assumes it is unimplemented; canonical PRO endpoint exists and requires query profile + X-API-Key.
+  - Target PR: PR-667
+  - Status: ✅ Merged (PR-667, 2026-02-07)
+  - Reason: iOS Plate now uses canonical `GET /api/v1/pro/nutrition/daily` with deterministic query building + `X-API-Key` (no legacy alias as source-of-truth).
   - Links:
     - `app/routers/pro.py` (canonical: `/api/v1/pro/nutrition/daily`)
     - `legacy_app.py` (deprecated shim: `/api/nutrition/{date_str}`)
-    - `ios/PulsePlate/Models/NutritionData.swift` (current iOS client path + TODO)
     - `ios/PulsePlate/Views/PlateView.swift` / `ios/PulsePlate/Views/PlateViewPP.swift`
     - `ios/PulsePlate/Services/ProKeyProvider.swift`
+    - `ios/PulsePlate/Services/ProDailyNutritionService.swift`
+    - `ios/PulsePlate/Views/ProfileView.swift`
+    - `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift`
+  - Evidence (file:line):
+    - iOS request path + deterministic query order: `ios/PulsePlate/Services/ProDailyNutritionService.swift:36-57`
+    - iOS sends `X-API-Key` header via APIClient: `ios/PulsePlate/Services/ProDailyNutritionService.swift:94-105`
+    - iOS profile inputs (AppStorage keys + form fields): `ios/PulsePlate/Views/ProfileView.swift:8-56`
+    - iOS tests assert deterministic URL + header: `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-21`, `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:23-65`
+    - Backend canonical route (guarded by PRO tier): `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
   - DoD:
     - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
     - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env

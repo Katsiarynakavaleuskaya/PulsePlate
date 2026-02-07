@@ -1,6 +1,6 @@
 # iOS Backend Realization Roadmap (App-Visible Delivery Map)
 
-**Last updated:** 6 February 2026
+**Last updated:** 7 February 2026
 **Owner:** @katsiaryna_kavaleuskaya
 **Purpose:** Make backend progress **visibly real in the iOS app** via a deterministic, thin-client delivery plan.
 
@@ -91,9 +91,15 @@ This is the canonical mapping format for turning backend capability into a **shi
 
 #### Slice P2) Plate (PRO) — canonical daily nutrition endpoint alignment
 
+- **Status:** shipped (PR-667, merged 2026-02-07)
 - **Goal:** iOS Plate uses canonical `GET /api/v1/pro/nutrition/daily` (contract-first) with `X-API-Key` + required profile query params.
+- **iOS SoT:** `ios/PulsePlate/Services/ProDailyNutritionService.swift` + `ios/PulsePlate/Views/ProfileView.swift` (+ tests: `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift`)
+  - Evidence: `ios/PulsePlate/Services/ProDailyNutritionService.swift:36-57`, `ios/PulsePlate/Services/ProDailyNutritionService.swift:94-105`,
+    `ios/PulsePlate/Views/ProfileView.swift:8-56`,
+    `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-21`, `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:23-65`,
+    `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`.
 - **Forbidden:** treat `GET /api/nutrition/{date}` legacy alias as iOS source-of-truth (deprecated; guard/contract drift risk).
-- **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md` (P1: “iOS: Plate (PRO) align…”), plus P0 security item for alias guard enforcement.
+- **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md` (entry marked ✅ merged; follow-ups remain separate), plus P0 security item for alias guard enforcement.
 
 #### Slice V1) Plan / Weekly plan reader (if backend supports)
 
