@@ -14,18 +14,18 @@ This PR wires the existing **soft paywall** CTA (rendered after BMI calculation)
 
 ## Repo-truth (before)
 
-### 1) Soft paywall hook is rendered, but CTA is a no-op
+### 1) Soft paywall hook is rendered and requires CTA wiring
 
 - DTO contract field exists: `soft_paywall` and `SoftPaywallHookDTO` (client renders it only when present).
   - Evidence: `ios/PulsePlate/Models/BMI/BMICalculateResponseDTO.swift:12-43`
   - Evidence: `ios/PulsePlate/Models/BMI/SoftPaywallHookDTO.swift:6-58`
 
-- UI renders the hook inside `BMICalculatorScreen`, but the CTA closure was empty (no navigation).
-  - Evidence: `ios/PulsePlate/Screens/BMICalculatorScreen.swift:60-90`
+- Backlog explicitly tracks that the hook is rendered but CTA navigation was missing.
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md:869-881`
 
 ### 2) Backlog item exists (P1) explicitly for wiring CTA → router
 
-- Evidence: `docs/roadmap/BACKLOG_LEDGER.md:869-879`
+- Evidence: `docs/roadmap/BACKLOG_LEDGER.md:869-881`
 
 ## Canonical contract (backend-owned)
 
@@ -39,25 +39,25 @@ This PR wires the existing **soft paywall** CTA (rendered after BMI calculation)
 
 - `PaywallRouter` manages paywall presentation state and keeps last routing context (source/target).
 - It contains **no subscription logic**; it is purely a navigation handler.
-- Evidence: `ios/PulsePlate/Routing/PaywallRouter.swift:1-28`
+- Evidence: `ios/PulsePlate/Routing/PaywallRouter.swift:1-26`
 
 ### 2) Add a minimal paywall screen backed by StoreKit
 
 - `PaywallScreen` uses existing `StoreKitManager` to list products, purchase, and restore.
-- Evidence: `ios/PulsePlate/Screens/PaywallScreen.swift:1-66`
+- Evidence: `ios/PulsePlate/Screens/PaywallScreen.swift:1-81`
 - Evidence: `ios/PulsePlate/Models/StoreKitManager.swift:6-73`
 
 ### 3) Wire soft paywall CTA → router and present paywall
 
 - `BMICalculatorScreen` now calls `paywallRouter.presentPaywall(source:target:)` from the CTA handler and presents `PaywallScreen` via `.sheet`.
-- Evidence: `ios/PulsePlate/Screens/BMICalculatorScreen.swift:60-110`
+- Evidence: `ios/PulsePlate/Screens/BMICalculatorScreen.swift:61-103`
 
 ## Tests
 
 ### CTA routing unit test
 
 - Added a small unit test to ensure `PaywallRouter` toggles presentation state and stores context (source/target).
-- Evidence: `ios/PulsePlateTests/SoftPaywallCTARoutingTests.swift:1-24`
+- Evidence: `ios/PulsePlateTests/SoftPaywallCTARoutingTests.swift:1-31`
 
 ### Test execution (CI-relevant)
 
