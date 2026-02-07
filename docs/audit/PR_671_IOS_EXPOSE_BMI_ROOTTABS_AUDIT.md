@@ -23,13 +23,14 @@
 
 ### RootTabs exists and defines TabView items
 
-- `ios/PulsePlate/Views/RootTabs.swift:3-20`
+- `ios/PulsePlate/Views/RootTabs.swift:4-26`
 
 Raw excerpt:
 
 ```text
 TabView {
   HomeView().tabItem { Label("Home", systemImage: "house") }
+  BMICalculatorScreen().tabItem { Label("BMI", systemImage: bmiTabSymbol) }
   PlateViewPP().tabItem { Label("Plate", systemImage: "fork.knife") }
   ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
   WeeklyProgressView().tabItem { Label("Неделя", systemImage: "calendar") }
@@ -37,10 +38,10 @@ TabView {
 }
 ```
 
-### BMICalculatorScreen exists but is not wired from RootTabs (currently “dangling”)
+### BMICalculatorScreen exists and is now wired from RootTabs (added in this PR)
 
-- `ios/PulsePlate/Screens/BMICalculatorScreen.swift:3-133`
-- No references from RootTabs before this PR: `ios/PulsePlate/Views/RootTabs.swift:3-20`
+- `ios/PulsePlate/Screens/BMICalculatorScreen.swift:3-132`
+- `ios/PulsePlate/Views/RootTabs.swift:11-16`
 
 ### iOS BMI adapter exists and is thin (transport-only)
 
@@ -74,12 +75,69 @@ Exit code: 1
 
 `RootTabs` currently uses hardcoded `Label("...")` strings (not Localizable keys):
 
-- `ios/PulsePlate/Views/RootTabs.swift:6-10`
+- `ios/PulsePlate/Views/RootTabs.swift:11-16`
 
-Localization exists broadly via `NSLocalizedString(...)` and `LocalizedStringKey(...)`, but no tab-label keys
-were found in this pass:
+Localization exists broadly via `NSLocalizedString(...)` and `LocalizedStringKey(...)`:
+
+```bash
+rg -n "NSLocalizedString\\(" ios/PulsePlate -S --max-count 50
+```
+
+Raw stdout (truncated):
+
+```text
+ios/PulsePlate/Models/ShoppingList/ShoppingListAdapter.swift:39:            format: NSLocalizedString("shopping_list_total_items_fmt", comment: "Total items format"),
+ios/PulsePlate/Models/ShoppingList/ShoppingListAdapter.swift:60:        let header = NSLocalizedString("shopping_list_title", comment: "Shopping List title")
+ios/PulsePlate/Models/ShoppingList/ShoppingListAdapter.swift:62:            String(format: NSLocalizedString("shopping_list_source_fmt", comment: "Source format"), dto.meta.source)
+ios/PulsePlate/Models/NutritionData.swift:55:    NSLocalizedString(key, comment: "")
+ios/PulsePlate/Welcome/WelcomeFlowView.swift:95:        let template = NSLocalizedString("onboarding.welcome.stepA11y", comment: "")
+ios/PulsePlate/Models/LocalizationManager.swift:25:        return NSLocalizedString(key, bundle: bundle, comment: "")
+ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:21:            .navigationTitle(NSLocalizedString("shopping_list_title", comment: ""))
+ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:35:                NSLocalizedString("shopping_list_empty_title", comment: ""),
+ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:37:                description: Text(NSLocalizedString("shopping_list_empty_description", comment: ""))
+ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:42:                Text(NSLocalizedString("shopping_list_error_title", comment: ""))
+ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:78:                    Section(header: Text(NSLocalizedString("shopping_list_warnings_title", comment: ""))) {
+```
+
+Exit code: 0
+
+```bash
+rg -n "LocalizedStringKey" ios/PulsePlate -S --max-count 50
+```
+
+Raw stdout (truncated):
+
+```text
+ios/PulsePlate/Views/Components/PlateRing.swift:39:        Text(LocalizedStringKey("progress.complete"))
+ios/PulsePlate/Views/Components/PlateRing.swift:52:    .accessibilityLabel(LocalizedStringKey("progress.label"))
+ios/PulsePlate/Views/Components/ValidationErrorsView.swift:19:            Text(LocalizedStringKey("Error"))
+ios/PulsePlate/Welcome/WelcomeFlowView.swift:68:    private var screenTitleKey: LocalizedStringKey {
+ios/PulsePlate/Welcome/WelcomeFlowView.swift:77:    private var screenBodyKey: LocalizedStringKey {
+ios/PulsePlate/Welcome/WelcomeFlowView.swift:86:    private var primaryCtaKey: LocalizedStringKey {
+ios/PulsePlate/Welcome/WelcomeFlowView.swift:90:    private var backKey: LocalizedStringKey {
+ios/PulsePlate/Views/Components/LottieAnimationView.swift:102:    var textKey: LocalizedStringKey
+ios/PulsePlate/Views/Components/AnimatedFitChef.swift:50:    var textKey: LocalizedStringKey
+ios/PulsePlate/Views/Components/VideoPlayerView.swift:132:    var textKey: LocalizedStringKey
+ios/PulsePlate/Views/Components/MascotBubble.swift:6:  var textKey: LocalizedStringKey
+```
+
+Exit code: 0
+
+No dedicated tab-label keys were observed in `en.lproj/Localizable.strings`:
 
 - `ios/PulsePlate/en.lproj/Localizable.strings` exists (and `ru/es` equivalents)
+
+```bash
+rg -n "tab\\.|home_tab|plate_tab|progress_tab|week_tab|profile_tab|bmi_tab" ios/PulsePlate/en.lproj/Localizable.strings -S
+```
+
+Raw stdout:
+
+```text
+# (no output)
+```
+
+Exit code: 1
 
 ---
 
