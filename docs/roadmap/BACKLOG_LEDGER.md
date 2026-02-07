@@ -858,14 +858,17 @@ If it is not recorded here — it does not exist.
     - Add a short, canonical checklist line for audit PRs: include 1–3 raw stdout lines + exit code for each key verification command
     - No scope creep into runbook-level detail
 
-- [ ] Stabilize AnimationTests.swift (iOS)
+- [x] Stabilize AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate from PR-559)
-  - Reason: pre-existing compilation failures (missing types: PulsingView, ShimmerEffect, SlideInTransition, FadeTransition, AnimatedProgressRing, NutritionSegment; internal access issues). Excluded from PulsePlateTests target via `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` to unblock PR-559 CI.
+  - Priority: P1
+  - Target PR: PR-681
+  - Status: ✅ Merged (PR-681, 2026-02-07)
+  - Reason: Root cause: `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` excluded `AnimationTests.swift` from `PulsePlateTests`. Fix: removed `AnimationTests.swift` from `membershipExceptions` so the tests are included in `PulsePlateTests` again.
   - Links:
     - ios/PulsePlateTests/AnimationTests.swift
-    - ios/PulsePlate.xcodeproj/project.pbxproj (line 51: `AnimationTests.swift` in membershipExceptions)
+    - ios/PulsePlate.xcodeproj/project.pbxproj
     - ios/AGENTS.md (Animated/UI helper tests policy)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/681>
   - DoD:
     - Either rewrite using available public components
     - Or extract to separate test target
