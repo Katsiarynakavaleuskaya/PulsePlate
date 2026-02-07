@@ -504,7 +504,7 @@ If it is not recorded here — it does not exist.
 - [ ] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Demo / TestFlight)
-  - Target PR: TBD (this PR)
+  - Target PR: PR-673
   - Status: 🚧 In progress (branch: `feat/ios-weekly-plan-reader-flag`)
   - Reason: WeeklyPlanReaderView + VM exist but are not mounted in the app; feature flag is defined but only shown as a usage example.
   - Links:
@@ -512,6 +512,7 @@ If it is not recorded here — it does not exist.
     - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
     - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
     - `ios/PulsePlate/Services/WeeklyPlanService.swift`
+    - `docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md`
   - DoD:
     - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
     - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)

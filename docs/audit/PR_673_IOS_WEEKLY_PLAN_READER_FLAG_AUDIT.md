@@ -1,7 +1,7 @@
-# PR-TBD Audit — iOS: Mount WeeklyPlanReader behind feature flag
+# PR-673 Audit — iOS: Mount WeeklyPlanReader behind feature flag
 
 **Date**: 7 February 2026
-**PR**: TBD
+**PR**: #673
 **Branch**: `feat/ios-weekly-plan-reader-flag`
 **Type**: iOS runtime + audit doc
 
