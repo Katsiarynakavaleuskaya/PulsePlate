@@ -11,7 +11,9 @@ from collections.abc import Callable
 import pytest
 from fastapi.testclient import TestClient
 
+import llm
 import legacy_app
+from tests.helpers.fake_llm_provider import FakeLLMProvider
 
 
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -23,18 +25,11 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     coupling to DB quota/provider internals.
     """
 
-    def _noop_quota(_: str) -> None:
+    def _noop_quota(*_args: object, **_kwargs: object) -> None:
         return None
 
-    async def _ok_v1(_: legacy_app.InsightRequest) -> legacy_app.InsightResponse:
-        return legacy_app.InsightResponse(provider="fake-llm", insight="ok")
-
-    async def _ok_legacy(_: legacy_app.InsightRequest) -> legacy_app.InsightResponse:
-        return legacy_app.InsightResponse(provider="fake-llm", insight="ok")
-
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
-    monkeypatch.setattr(legacy_app, "insight_v1", _ok_v1, raising=True)
-    monkeypatch.setattr(legacy_app, "insight", _ok_legacy, raising=True)
+    monkeypatch.setattr(llm, "get_provider", lambda: FakeLLMProvider(), raising=True)
 
 
 def test_insight_v1_requires_vip_tier(
@@ -59,7 +54,9 @@ def test_insight_v1_requires_vip_tier(
     assert r_pro.status_code == 403
 
     r_vip = client.post("/api/v1/insight", json=payload, headers=vip_headers)
-    assert r_vip.status_code == 200
+    assert (
+        r_vip.status_code == 200
+    ), f"status={r_vip.status_code} content-type={r_vip.headers.get('content-type')} body={r_vip.text}"
     assert r_vip.headers.get("content-type", "").startswith("application/json")
     data = r_vip.json()
     assert data["provider"] == "fake-llm"
@@ -91,7 +88,9 @@ def test_insight_legacy_requires_vip_tier(
 
     # VIP → 200
     r_vip = client.post("/insight", json=payload, headers=vip_headers)
-    assert r_vip.status_code == 200
+    assert (
+        r_vip.status_code == 200
+    ), f"status={r_vip.status_code} content-type={r_vip.headers.get('content-type')} body={r_vip.text}"
     assert r_vip.headers.get("content-type", "").startswith("application/json")
     data = r_vip.json()
     assert data["provider"] == "fake-llm"
