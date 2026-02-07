@@ -29,6 +29,16 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
+    # Provider mocking must be robust across CI import paths.
+    # RU: В CI реальный путь резолва провайдера идёт через legacy_app._load_llm_get_provider().
+    # EN: In CI the effective provider resolution path goes through legacy_app._load_llm_get_provider().
+    monkeypatch.setattr(
+        legacy_app,
+        "_load_llm_get_provider",
+        lambda: (lambda: FakeLLMProvider()),
+        raising=True,
+    )
+    # Keep llm.get_provider patched as a secondary safety net.
     monkeypatch.setattr(llm, "get_provider", lambda: FakeLLMProvider(), raising=True)
 
 
