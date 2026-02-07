@@ -3,8 +3,6 @@ import SwiftUI
 private enum WelcomeStep: Int, CaseIterable {
     case first = 0
     case second = 1
-    case third = 2
-    case fourth = 3
 }
 
 struct WelcomeFlowView: View {
@@ -69,8 +67,6 @@ struct WelcomeFlowView: View {
         switch currentStep {
         case .first: return "onboarding.welcome.screen1.title"
         case .second: return "onboarding.welcome.screen2.title"
-        case .third: return "onboarding.welcome.screen3.title"
-        case .fourth: return "onboarding.welcome.screen4.title"
         }
     }
 
@@ -78,8 +74,6 @@ struct WelcomeFlowView: View {
         switch currentStep {
         case .first: return "onboarding.welcome.screen1.body"
         case .second: return "onboarding.welcome.screen2.body"
-        case .third: return "onboarding.welcome.screen3.body"
-        case .fourth: return "onboarding.welcome.screen4.body"
         }
     }
 

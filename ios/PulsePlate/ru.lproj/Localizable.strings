@@ -98,10 +98,10 @@
 "Error" = "Ошибка";
 
 /* Онбординг: Welcome (P0) */
-"onboarding.welcome.screen1.title" = "PulsePlate — питание под контролем";
-"onboarding.welcome.screen1.body" = "Настрой цели один раз. План, тарелка и прогресс будут согласованы.";
-"onboarding.welcome.screen2.title" = "Приватность по умолчанию";
-"onboarding.welcome.screen2.body" = "Данные остаются на устройстве, пока вы сами не экспортируете или не поделитесь.";
+"onboarding.welcome.screen1.title" = "PulsePlate — питание без лишнего шума";
+"onboarding.welcome.screen1.body" = "Отслеживайте показатели, понимайте результат и держите план, который реально выполнять — спокойно и по шагам.";
+"onboarding.welcome.screen2.title" = "Как пользоваться";
+"onboarding.welcome.screen2.body" = "Начните с BMI, затем уточните через Plate и профиль PRO. Маленькие вводы → понятные следующие шаги.";
 "onboarding.welcome.screen3.title" = "Выберите настройки";
 "onboarding.welcome.screen3.body" = "Язык, единицы и цель можно изменить в любой момент.";
 "onboarding.welcome.screen4.title" = "Можно начинать";
