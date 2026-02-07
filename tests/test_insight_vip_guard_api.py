@@ -11,7 +11,9 @@ from collections.abc import Callable
 import pytest
 from fastapi.testclient import TestClient
 
+import llm
 import legacy_app
+from tests.helpers.fake_llm_provider import FakeLLMProvider
 
 
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -26,18 +28,8 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     def _noop_quota(_: str) -> None:
         return None
 
-    # Use the real endpoint implementation, but provide a deterministic fake provider.
-    # This avoids intermittent 503s when CI has no real provider configured.
-    import llm
-
-    class FakeProvider:
-        name = "fake-llm"
-
-        async def generate(self, text: str) -> str:
-            return "ok"
-
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
-    monkeypatch.setattr(llm, "get_provider", lambda: FakeProvider(), raising=True)
+    monkeypatch.setattr(llm, "get_provider", lambda: FakeLLMProvider(), raising=True)
 
 
 def test_insight_v1_requires_vip_tier(
