@@ -1,7 +1,7 @@
 # PR-TBD Audit — iOS ShoppingPlan public API fix
 
 **Date**: 7 February 2026
-**PR**: TBD (GitHub PR number is source of truth)
+**PR**: 677 (GitHub PR number is source of truth)
 **Type**: iOS runtime + tests
 
 ## Summary
@@ -14,6 +14,10 @@ This PR **narrows the API surface** by making the “stub plan” types internal
 - `ShoppingListRequestPayload`
 
 These are implementation details of the Shopping List reader flow and are consumed only inside `PulsePlate` (tests use `@testable import PulsePlate`).
+Evidence:
+- `ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift:26-35`
+- `ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:6-17`
+- `ios/PulsePlateTests/Fixtures/ShoppingListFixtures.swift:2,45-47`
 
 ## Evidence (why this is safe)
 
