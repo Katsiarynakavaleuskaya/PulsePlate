@@ -501,18 +501,19 @@ If it is not recorded here — it does not exist.
       - unit test for building daily nutrition request query (deterministic)
       - `make ios-test` passes
 
-- [ ] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice)
+- [x] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice) — ✅ Merged (PR-673, 2026-02-07)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (Demo / TestFlight)
   - Target PR: PR-673
-  - Status: 🚧 In progress (branch: `feat/ios-weekly-plan-reader-flag`)
-  - Reason: WeeklyPlanReaderView + VM exist but are not mounted in the app; feature flag is defined but only shown as a usage example.
+  - Status: ✅ Merged (PR-673, 2026-02-07)
+  - Reason: WeeklyPlanReader is mounted behind `FeatureFlags.weeklyPlanReaderEnabled` (Debug Tools entrypoint).
   - Links:
     - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
     - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
     - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
     - `ios/PulsePlate/Services/WeeklyPlanService.swift`
     - `docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md`
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/673>
   - DoD:
     - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
     - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
@@ -866,15 +867,16 @@ If it is not recorded here — it does not exist.
     - Or narrow API: make ShoppingPlan/ShoppingListRequestPayload internal if it's "stub" only
     - No breaking changes to existing usage
 
-- [ ] Wire soft paywall CTA to real paywall router (iOS)
+- [x] Wire soft paywall CTA to real paywall router (iOS) — ✅ Merged (PR-674, 2026-02-07)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-674
-  - Status: 🚧 In progress (PR-674)
-  - Reason: paywall navigation infrastructure not yet available; hook is rendered but CTA is no-op
+  - Status: ✅ Merged (PR-674, 2026-02-07)
+  - Reason: Soft paywall CTA is wired to a real paywall navigation handler and presents a minimal paywall screen.
   - Links:
     - ios/PulsePlate/Screens/BMICalculatorScreen.swift (line ~73)
     - docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/674>
   - DoD:
     - Paywall router/navigation handler implemented
     - SoftPaywallHookView CTA wired to navigation
