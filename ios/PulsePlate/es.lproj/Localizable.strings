@@ -98,14 +98,10 @@
 "Error" = "Error";
 
 /* Onboarding: Welcome (P0) */
-"onboarding.welcome.screen1.title" = "PulsePlate — tu nutrición bajo control";
-"onboarding.welcome.screen1.body" = "Configura tus objetivos una vez. Mantendremos plan, plato y progreso sincronizados.";
-"onboarding.welcome.screen2.title" = "Privado por defecto";
-"onboarding.welcome.screen2.body" = "Tus datos quedan en tu dispositivo hasta que decidas exportar o compartir.";
-"onboarding.welcome.screen3.title" = "Elige tu configuración";
-"onboarding.welcome.screen3.body" = "Idioma, unidades y objetivo: puedes cambiarlo cuando quieras.";
-"onboarding.welcome.screen4.title" = "Listo para empezar";
-"onboarding.welcome.screen4.body" = "Hagamos un plan simple que puedas seguir hoy.";
+"onboarding.welcome.screen1.title" = "PulsePlate — nutrición sin complicaciones";
+"onboarding.welcome.screen1.body" = "Sigue tus métricas, entiende tus resultados y mantén un plan que puedas sostener — paso a paso y sin ruido.";
+"onboarding.welcome.screen2.title" = "Cómo usarlo";
+"onboarding.welcome.screen2.body" = "Empieza con BMI, luego ajusta con Plate y tu perfil PRO. Pocos datos → próximos pasos claros.";
 "onboarding.welcome.cta.continue" = "Continuar";
 "onboarding.welcome.cta.back" = "Atrás";
 "onboarding.welcome.cta.start" = "Empezar";
