@@ -141,6 +141,7 @@ enum PlateLoadIssue: Equatable, Sendable {
   }
 }
 
+@MainActor
 class NutritionService: ObservableObject {
   @Published var nutritionData: NutritionData?
   @Published var isLoading = false

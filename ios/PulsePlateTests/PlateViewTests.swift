@@ -12,7 +12,8 @@ class PlateViewTests: XCTestCase {
     XCTAssertNotNil(view)
   }
 
-  func testNutritionServiceMockData() {
+  @MainActor
+  func testNutritionServiceMockData() async {
     // Given
     let service = NutritionService()
 
@@ -25,7 +26,8 @@ class PlateViewTests: XCTestCase {
     XCTAssertEqual(service.nutritionData?.totalProgress, 0.68)
   }
 
-  func testNutritionSegmentDataMapping() {
+  @MainActor
+  func testNutritionSegmentDataMapping() async {
     // Given
     let service = NutritionService()
     service.loadMockData()
