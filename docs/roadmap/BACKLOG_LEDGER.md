@@ -38,17 +38,18 @@ If it is not recorded here — it does not exist.
     - RU/EN/ES strings ship for `onboarding.welcome.*`
     - `make ios-test` passes
 
-- [ ] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
+- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-B (release readiness)
   - Target PR: PR-678
-  - Status: 🚧 In progress (PR-678)
+  - Status: ✅ Merged (PR-678, 2026-02-07)
   - Reason: P0-B requires a minimal onboarding (≥2 screens). Keep the existing first-launch gate and tighten the flow to the two essential screens (Value + Usage) without adding networking/paywall/analytics.
   - Links:
     - `ios/PulsePlate/PulsePlateApp.swift`
     - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
     - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
     - docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/678>
   - DoD:
     - On first launch, onboarding shows before `RootTabs()` (gate remains at app entry)
     - On completion, onboarding is not shown again (`has_seen_welcome_v1` persists)
@@ -874,13 +875,16 @@ If it is not recorded here — it does not exist.
     - Tests restored to PulsePlateTests target (if kept)
     - CI green with AnimationTests included (if restored)
 
-- [ ] Fix ShoppingPlan public API (make nested types public or narrow API surface)
+- [x] Fix ShoppingPlan public API (make nested types public or narrow API surface)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate from PR-559)
+  - Priority: P1
+  - Target PR: PR-677
+  - Status: ✅ Merged (PR-677, 2026-02-07)
   - Reason: CodeRabbit flagged "ShoppingPlan isn't constructible" - public type with internal nested types (DailyMenu, Meal). Outside PR-559 scope but architectural smell.
   - Links:
     - ios/PulsePlate/Models/ShoppingList/ShoppingListStubPlan.swift
     - CodeRabbit comment (outside diff, actionable=0)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/677>
   - DoD:
     - Either make DailyMenu/Meal public with explicit init
     - Or narrow API: make ShoppingPlan/ShoppingListRequestPayload internal if it's "stub" only
