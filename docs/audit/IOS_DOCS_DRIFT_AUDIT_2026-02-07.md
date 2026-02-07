@@ -35,7 +35,7 @@ Both items block iOS P1 features per project process:
 | PRO key | `ios/PulsePlate/Services/ProKeyProvider.swift` | `3` | `enum ProKeyProvider` (Keychain + DEBUG env) |
 | Profile params protocol | `ios/PulsePlate/Services/ProfileProvider.swift` | `42-49` | `ProfileProviding` (language + nutrition profile) |
 | Profile params impl | `ios/PulsePlate/Services/ProfileProvider.swift` | `52-115` | `DefaultProfileProvider` (reads UserDefaults) |
-| PRO daily nutrition service | `ios/PulsePlate/Services/ProDailyNutritionService.swift` | `80-113` | Builds `GET /api/v1/pro/nutrition/daily` + query + header |
+| PRO daily nutrition service | `ios/PulsePlate/Services/ProDailyNutritionService.swift` | `80-115` | Builds `GET /api/v1/pro/nutrition/daily` + query + header |
 | BMI service (FREE) | `ios/PulsePlate/Services/BMIService.swift` | `19-39` | Calls `POST /api/v1/bmi/calculate` |
 | Tests (PRO daily) | `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift` | `6-65` | Deterministic URL + header assertion |
 | Thin-client guards | `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` | — | No BMI thresholds in app sources |
@@ -89,5 +89,8 @@ Evidence-driven record of what was stale and what was fixed.
 
 ```bash
 git diff --name-only origin/main...HEAD | rg -v "\.md$"
-# must be empty
+# Output: (empty)
+# Exit code: 1
 ```
+
+**Verification result**: Only `.md` files modified in this PR.

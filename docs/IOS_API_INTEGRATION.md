@@ -12,7 +12,7 @@
 Use the existing networking implementation. Do **not** create a parallel transport layer.
 
 - **Transport**
-  - `ios/PulsePlate/Networking/APIClient.swift` (protocol: `APIClientProtocol:57`)
+  - `ios/PulsePlate/Networking/APIClient.swift` (protocol: `APIClientProtocol:4`)
   - `ios/PulsePlate/Networking/HTTPClient.swift`
   - `ios/PulsePlate/Networking/APIError.swift`
 - **Base URL**
@@ -65,7 +65,7 @@ Prefer a small, explicit service that:
 Example patterns in repo:
 
 - BMI (FREE): `ios/PulsePlate/Services/BMIService.swift:19-39` (calls `POST /api/v1/bmi/calculate`)
-- PRO daily nutrition (Plate): `ios/PulsePlate/Services/ProDailyNutritionService.swift:80-113` (calls `GET /api/v1/pro/nutrition/daily` with profile query params + `X-API-Key`)
+- PRO daily nutrition (Plate): `ios/PulsePlate/Services/ProDailyNutritionService.swift:80-115` (calls `GET /api/v1/pro/nutrition/daily` with profile query params + `X-API-Key`)
 - Weekly plan: `ios/PulsePlate/Services/WeeklyPlanService.swift` (calls `postRaw` with optional API key)
 
 ### Step 3) Tests (deterministic, no real network)
