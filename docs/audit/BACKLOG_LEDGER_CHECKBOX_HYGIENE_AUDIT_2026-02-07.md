@@ -15,11 +15,11 @@ Additionally, an older P1 item showed `Status: ✅ Merged (PR #644)` but the che
 which is a ledger drift signal.
 
 This PR is a **docs-only** hygiene update to bring `docs/roadmap/BACKLOG_LEDGER.md` back in sync with
-repo truth (PR links + checkbox state).
+repo-truth (PR links + checkbox state).
 
 ---
 
-## Evidence (repo truth)
+## Evidence (repo-truth)
 
 ### PR-669 exists (merged)
 
@@ -29,7 +29,7 @@ gh pr view 669 --json number,state,mergedAt,url --jq '{number:.number,state:.sta
 
 Raw stdout (truncated):
 
-```
+```json
 {"mergedAt":"2026-02-07T10:27:40Z","number":669,"state":"MERGED","url":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/669"}
 ```
 
@@ -43,7 +43,7 @@ rg -n "Docs: Canonicalize iOS API integration guide|Docs: Refresh iOS roadmap" d
 
 Raw stdout (truncated):
 
-```
+```text
 91:- [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
 106:- [x] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
 ```
@@ -58,7 +58,7 @@ rg -n "Extract hardcoded constants \\(BMR, export formats\\)" docs/roadmap/BACKL
 
 Raw stdout:
 
-```
+```text
 408:- [x] P1: Extract hardcoded constants (BMR, export formats)
 ```
 
