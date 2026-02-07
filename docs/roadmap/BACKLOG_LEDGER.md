@@ -88,13 +88,15 @@ If it is not recorded here — it does not exist.
     - Docs explicitly mark alias as deprecated and forbidden as client SoT (iOS uses canonical `/api/v1/pro/nutrition/daily`)
     - OpenAPI visibility matches deprecation policy (deprecated/hidden as appropriate)
 
-- [ ] Docs: Canonicalize iOS API integration guide to current Networking SoT
+- [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (docs correctness)
-  - Target PR: This docs drift PR
-  - Status: 🟡 In progress
+  - Target PR: PR-669
+  - Status: ✅ Merged (PR-669, 2026-02-07)
   - Reason: Existing `docs/IOS_API_INTEGRATION.md` was outdated and instructed creating a parallel URLSession-based transport layer; this conflicts with thin-client policies and current `ios/PulsePlate/Networking/*` SoT.
   - Links:
+    - PR-669
+    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
     - `docs/IOS_API_INTEGRATION.md`
     - `ios/PulsePlate/Networking/APIClient.swift`
     - `ios/PulsePlate/Networking/HTTPClient.swift`
@@ -103,13 +105,15 @@ If it is not recorded here — it does not exist.
     - Includes “how to add endpoint” recipe aligned with existing protocols/tests
     - Future items (IAP/receipt/keychain) point to ledger items (no mixed scopes)
 
-- [ ] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
+- [x] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (docs correctness)
-  - Target PR: This docs drift PR
-  - Status: 🟡 In progress
+  - Target PR: PR-669
+  - Status: ✅ Merged (PR-669, 2026-02-07)
   - Reason: `docs/roadmap/IOS_ROADMAP.md` still described “when iOS development resumes”; iOS is active (RootTabs, Networking SoT, guard tests).
   - Links:
+    - PR-669
+    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
     - `docs/roadmap/IOS_ROADMAP.md`
     - `ios/PulsePlate/Views/RootTabs.swift`
     - `ios/PulsePlate/Networking/*`
@@ -405,7 +409,7 @@ If it is not recorded here — it does not exist.
     - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
     - Documentation: WebSocket API contract, authentication flow, rate limits
 
-- [ ] P1: Extract hardcoded constants (BMR, export formats)
+- [x] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintainability)
   - Target PR: PR #644
