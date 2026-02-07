@@ -1,6 +1,6 @@
 # iOS Roadmap (Repo-Truth)
 
-**Last Updated**: 6 February 2026
+**Last Updated**: 7 February 2026
 **Owner**: @katsiaryna_kavaleuskaya
 **Cadence**: Update only when reality changes (PRs that change entrypoints, networking, guards, or localization).
 
@@ -29,6 +29,7 @@
 ## What changed recently
 
 - PR-653 (merged): iOS P0 Welcome gate (versioned key `has_seen_welcome_v1`) + RU/EN/ES welcome copy.
+- PR-667 (merged): Plate (PRO) uses canonical `GET /api/v1/pro/nutrition/daily` (deterministic query + `X-API-Key`).
 
 ---
 
@@ -38,7 +39,6 @@
 - ✅ Add a guard/test that fails CI if placeholder keys like `test_pro_key` appear in app sources (PR-657; tracked in `BACKLOG_LEDGER.md`).
 - Next (P1, see `BACKLOG_LEDGER.md`):
   - Expose BMI screen from Home / RootTabs (Free MVP UX)
-  - Plate (PRO): align iOS to canonical `GET /api/v1/pro/nutrition/daily` + profile input
   - Mount WeeklyPlanReader behind feature flag (PRO demo slice)
 
 ---

@@ -4,6 +4,13 @@
 **Owner:** @katsiaryna_kavaleuskaya
 **Scope:** Docs-only (repo-truth alignment)
 
+## Update (2026-02-07)
+
+PR-667 merged on 7 February 2026 and changed repo truth for Plate (PRO): iOS now uses canonical
+`GET /api/v1/pro/nutrition/daily`. The “before” evidence captured below is therefore partially stale.
+
+See: `docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md`
+
 ## Problem statement
 
 iOS-facing canonical docs and `BACKLOG_LEDGER.md` drifted from repo truth (entrypoint, key handling, and nutrition endpoint story). This creates false assumptions that slow down Slice 1–3 delivery and can hide security risks (deprecated aliases).
