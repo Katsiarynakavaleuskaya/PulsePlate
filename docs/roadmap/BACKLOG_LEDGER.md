@@ -31,10 +31,29 @@ If it is not recorded here — it does not exist.
   - Reason: Store readiness — ensure deterministic first-run value framing with a single entry gate (`has_seen_welcome_v1`) before `RootTabs()`.
   - Links:
     - docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
+    - Follow-up: PR-678 (tighten to 2 screens: Value + Usage)
   - DoD:
     - iOS entrypoint gates `RootTabs()` via `WelcomeGateView`
     - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
     - RU/EN/ES strings ship for `onboarding.welcome.*`
+    - `make ios-test` passes
+
+- [ ] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0-B (release readiness)
+  - Target PR: PR-678
+  - Status: 🚧 In progress (PR-678)
+  - Reason: P0-B requires a minimal onboarding (≥2 screens). Keep the existing first-launch gate and tighten the flow to the two essential screens (Value + Usage) without adding networking/paywall/analytics.
+  - Links:
+    - `ios/PulsePlate/PulsePlateApp.swift`
+    - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md
+  - DoD:
+    - On first launch, onboarding shows before `RootTabs()` (gate remains at app entry)
+    - On completion, onboarding is not shown again (`has_seen_welcome_v1` persists)
+    - Onboarding is exactly 2 screens (Value + Usage)
+    - RU/EN/ES strings updated for the 2 screens
     - `make ios-test` passes
 - [x] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
   - Owner: @katsiaryna_kavaleuskaya
