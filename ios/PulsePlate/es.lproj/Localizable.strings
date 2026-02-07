@@ -83,6 +83,9 @@
 "plate_issue_message_transport_generic" = "No pudimos conectar con el servidor. Revisa tu internet e inténtalo de nuevo.";
 "plate_issue_message_decoding_generic" = "Recibimos una respuesta inesperada del servidor. Inténtalo de nuevo.";
 "plate_issue_message_unknown_generic" = "Ocurrió un error inesperado. Inténtalo de nuevo.";
+"plate.action.retry" = "Reintentar";
+"plate.action.open_profile" = "Abrir perfil";
+"plate.action.pro_settings" = "Ajustes PRO";
 
 /* Shopping List */
 "shopping_list_title" = "Lista de Compras";

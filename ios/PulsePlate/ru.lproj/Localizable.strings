@@ -83,6 +83,9 @@
 "plate_issue_message_transport_generic" = "Не удалось подключиться к серверу. Проверьте интернет и попробуйте ещё раз.";
 "plate_issue_message_decoding_generic" = "Сервер вернул неожиданный ответ. Попробуйте ещё раз.";
 "plate_issue_message_unknown_generic" = "Произошла непредвиденная ошибка. Попробуйте ещё раз.";
+"plate.action.retry" = "Повторить";
+"plate.action.open_profile" = "Открыть профиль";
+"plate.action.pro_settings" = "Настройки PRO";
 
 /* Shopping List */
 "shopping_list_title" = "Список покупок";

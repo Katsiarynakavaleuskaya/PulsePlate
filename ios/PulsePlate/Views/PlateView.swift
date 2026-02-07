@@ -207,6 +207,7 @@ struct PlateViewPP: View {
 private struct PlateIssueView: View {
   let issue: PlateLoadIssue
   let onAction: (PlateIssuePrimaryAction) -> Void
+  private let localization = LocalizationManager.shared
 
   var body: some View {
     let action = issue.primaryAction
@@ -239,11 +240,11 @@ private struct PlateIssueView: View {
     case .none:
       return ""
     case .retry:
-      return "Retry"
+      return localization.localized("plate.action.retry")
     case .openProfile:
-      return "Open Profile"
+      return localization.localized("plate.action.open_profile")
     case .openProSetup:
-      return "PRO Settings"
+      return localization.localized("plate.action.pro_settings")
     }
   }
 }
