@@ -860,6 +860,7 @@ If it is not recorded here — it does not exist.
 
 - [x] Stabilize AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: PR-681
   - Status: ✅ Merged (PR-681, 2026-02-07)
   - Reason: Root cause: `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` excluded `AnimationTests.swift` from `PulsePlateTests`. Fix: removed `AnimationTests.swift` from `membershipExceptions` so the tests are included in `PulsePlateTests` again.
