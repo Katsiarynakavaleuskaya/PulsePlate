@@ -48,14 +48,13 @@ Evidence:
 Runtime effect:
 - When VIP module is enabled, `vip_registration.register_vip_routes()` includes `app/routers/vip.py` with `api_key_header` dependency.
 
-### PRO routes (centralized; schema-only OpenAPI can short-circuit)
+### PRO routes (centralized)
 
-Anchor (stable): `legacy_app.py -> register_pro_routes(app)` and schema-only short-circuit in `pro_registration`
+Anchor (stable): `legacy_app.py -> _register_pro_routes(app)` delegates to centralized `pro_registration.register_pro_routes()`
 
 Evidence:
-- `legacy_app.py:826-828` — `pro_router, premium_week_router = _register_pro_routes(app)`
-- `app/routers/pro_registration.py:26-36` — schema-only guard conditions
-- `app/routers/pro_registration.py:76-105` — avoids importing PRO/premium routers in schema-only mode
+- `legacy_app.py:848-849` — `pro_router, premium_week_router = _register_pro_routes(app)`
+- `app/routers/pro_registration.py:26-86` — centralized registration + feature-flag gated `premium_week`
 
 Runtime effect:
 - In normal runtime: includes `app/routers/pro.py`.
@@ -120,15 +119,14 @@ Evidence: `legacy_app.py:890-902`
 
 ## OpenAPI generation behavior (important)
 
-**Schema-only OpenAPI contract (single source of truth):**
-See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract`
+OpenAPI generation runs in **full-schema mode** (schema-only mode removed in PR-631).
 
 **Evidence (implementation):**
 
-- Generator sets schema-only mode and pins env/feature flags:
-  - `scripts/generate_openapi.py:94-135`
-- PRO router registration honors schema-only mode to prevent ORM import hazards:
-  - `app/routers/pro_registration.py:26-36` and `76-105`
+- Generator pins env and enables feature-flagged routers, then imports canonical entrypoint:
+  - `scripts/generate_openapi.py:94-120`
+- Determinism gate asserts key routes exist in schema:
+  - `tests/test_openapi_determinism.py:17-55`
 
 ## Maintenance rule
 

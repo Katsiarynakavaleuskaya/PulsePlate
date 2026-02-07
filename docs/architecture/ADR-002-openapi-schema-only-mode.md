@@ -1,6 +1,6 @@
 # ADR-002: OpenAPI Schema-only Mode (Temporary) + Exit Criteria
 
-**Status:** Proposed (PR-630 evidence pack)
+**Status:** Superseded (removed by PR-631; full-schema is canonical)
 **Date:** 2026-02-02
 **Context:** OpenAPI determinism and thin-client contract velocity.
 
@@ -9,7 +9,16 @@
 - [Schema-only OpenAPI contract](#schema-only-openapi-contract)
 - [Exit criteria](#exit-criteria)
 
-## Decision
+## Resolution (current state)
+
+Schema-only mode has been removed. OpenAPI generation runs in **full-schema mode** and remains deterministic.
+
+**Evidence (file:line):**
+
+- `scripts/generate_openapi.py:94-120` — generator pins env to test context and enables feature-flagged routers, then imports `app.main:app` and calls `app.openapi()`
+- `tests/test_openapi_determinism.py:17-55` — asserts the full schema includes key PRO/business paths
+
+## Decision (historical; pre PR-631)
 
 Keep a **temporary schema-only mode** for OpenAPI generation to avoid import-time ORM/model double-loading, while explicitly documenting:
 - what is disabled,
@@ -20,52 +29,18 @@ Keep a **temporary schema-only mode** for OpenAPI generation to avoid import-tim
 
 OpenAPI generation must be deterministic (CI enforces this). Importing the full FastAPI app during schema generation can trigger SQLAlchemy model imports and double-load side effects (“Table already defined”), especially when routers import ORM models at module level.
 
-## Evidence (current implementation)
+## Evidence (historical implementation; no longer current)
 
-- Generator sets schema-only mode + disables some routers:
-  - `scripts/generate_openapi.py:94-113`
-- Schema-only is honored only in generation/test context (must not accidentally activate in prod):
-  - `app/routers/pro_registration.py:26-36`
-- PRO route registration avoids importing routers in schema-only mode:
-  - `app/routers/pro_registration.py:76-105`
-- CI determinism gate:
-  - `tests/test_openapi_determinism.py:16-64`
+- Prior art / original seam: see PR-630 evidence pack (kept for archaeology).
+- CI determinism gate (still current):
+  - `tests/test_openapi_determinism.py:17-77`
 
 <a id="schema-only-openapi-contract"></a>
-## Schema-only OpenAPI contract (single source of truth)
+## Schema-only OpenAPI contract (historical; removed)
 
-This section is the **canonical documentation** for schema-only OpenAPI generation behavior.
-Other docs should **link here** instead of duplicating env/flag lists.
+This section is kept for historical context only.
 
-**Activation (must all be true):**
-
-- `PULSEPLATE_OPENAPI=1`
-- `APP_ENV=test`
-- `ENVIRONMENT=test`
-
-**Generator invariants (must happen before importing `app.main:app`):**
-
-- `PULSEPLATE_OPENAPI` **must be set before** importing `app.main:app` to prevent import-time ORM
-  double-loading ("Table already defined").
-- The generator pins env to a safe non-prod context:
-  - `APP_ENV=test`
-  - `ENVIRONMENT=test`
-  - `ENABLE_TEST_ROUTES=1` (set by generator; not part of schema-only activation check)
-
-**Forced feature flags (temporary, schema-only only):**
-
-The generator forces these to disable routers that import SQLAlchemy models at module import time:
-
-- `FEATURE_PREMIUM_WEEK_ENABLED=false`
-- `FEATURE_BMI_PRO_ENABLED=false`
-- `BUSINESS_MODULE_ENABLED=false`
-
-**Implementation notes:**
-
-- Activation/guard is enforced in `app/routers/pro_registration.py:_is_openapi_schema_only_mode()`; it will
-  **not** activate in production unless all activation env vars are simultaneously mis-set.
-- Source of truth for env/flag values is `scripts/generate_openapi.py` (sets env + flags, then imports
-  `app.main:app`).
+Former activation relied on `PULSEPLATE_OPENAPI=1` + test env pinning. This is no longer used.
 
 ## Consequences
 
@@ -88,5 +63,4 @@ Schema-only mode can be removed when all are true:
 
 ## Follow-ups (Backlog)
 
-- Restore full OpenAPI schema (remove schema-only mode): `docs/roadmap/BACKLOG_LEDGER.md`
-- Eliminate import-time ORM/model imports in routers included in OpenAPI generation: `docs/roadmap/BACKLOG_LEDGER.md`
+- ✅ Closed in PR-631; see `docs/roadmap/BACKLOG_LEDGER.md` entries for closure notes.
