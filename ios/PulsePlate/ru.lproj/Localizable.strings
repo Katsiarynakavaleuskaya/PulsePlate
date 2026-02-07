@@ -102,10 +102,6 @@
 "onboarding.welcome.screen1.body" = "Отслеживайте показатели, понимайте результат и держите план, который реально выполнять — спокойно и по шагам.";
 "onboarding.welcome.screen2.title" = "Как пользоваться";
 "onboarding.welcome.screen2.body" = "Начните с BMI, затем уточните через Plate и профиль PRO. Маленькие вводы → понятные следующие шаги.";
-"onboarding.welcome.screen3.title" = "Выберите настройки";
-"onboarding.welcome.screen3.body" = "Язык, единицы и цель можно изменить в любой момент.";
-"onboarding.welcome.screen4.title" = "Можно начинать";
-"onboarding.welcome.screen4.body" = "Соберём простой план, который реально выполнить уже сегодня.";
 "onboarding.welcome.cta.continue" = "Дальше";
 "onboarding.welcome.cta.back" = "Назад";
 "onboarding.welcome.cta.start" = "Начать";

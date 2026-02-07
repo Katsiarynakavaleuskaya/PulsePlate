@@ -1,27 +1,36 @@
 import SwiftUI
 
-private enum WelcomeStep: Int, CaseIterable {
-    case first = 0
-    case second = 1
+private enum WelcomeStep: Equatable {
+    case value
+    case usage
+
+    var index: Int {
+        switch self {
+        case .value: return 0
+        case .usage: return 1
+        }
+    }
+
+    func next() -> WelcomeStep? {
+        switch self {
+        case .value: return .usage
+        case .usage: return nil
+        }
+    }
+
+    func back() -> WelcomeStep? {
+        switch self {
+        case .value: return nil
+        case .usage: return .value
+        }
+    }
 }
 
 struct WelcomeFlowView: View {
     let onCompleted: () -> Void
 
-    @State private var stepIndex: Int = 0
-    private var totalSteps: Int { WelcomeStep.allCases.count }
-
-    private var clampedStepIndex: Int {
-        min(max(stepIndex, 0), max(0, totalSteps - 1))
-    }
-
-    private var currentStep: WelcomeStep {
-        WelcomeStep(rawValue: clampedStepIndex) ?? .first
-    }
-
-    private var isLastStep: Bool {
-        clampedStepIndex == totalSteps - 1
-    }
+    @State private var step: WelcomeStep = .value
+    private let totalSteps: Int = 2
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -40,19 +49,16 @@ struct WelcomeFlowView: View {
             Spacer()
 
             HStack {
-                if stepIndex > 0 {
-                    Button(backKey) { stepIndex -= 1 }
+                if step.back() != nil {
+                    Button(backKey) { step = step.back() ?? step }
                         .accessibilityLabel(Text(backKey))
                 }
 
                 Spacer()
 
                 Button(primaryCtaKey) {
-                    if !isLastStep {
-                        stepIndex += 1
-                    } else {
-                        onCompleted()
-                    }
+                    guard let next = step.next() else { return onCompleted() }
+                    step = next
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel(Text(primaryCtaKey))
@@ -64,21 +70,21 @@ struct WelcomeFlowView: View {
     // MARK: - Localization keys (match audit namespace onboarding.welcome.*)
 
     private var screenTitleKey: LocalizedStringKey {
-        switch currentStep {
-        case .first: return "onboarding.welcome.screen1.title"
-        case .second: return "onboarding.welcome.screen2.title"
+        switch step {
+        case .value: return "onboarding.welcome.screen1.title"
+        case .usage: return "onboarding.welcome.screen2.title"
         }
     }
 
     private var screenBodyKey: LocalizedStringKey {
-        switch currentStep {
-        case .first: return "onboarding.welcome.screen1.body"
-        case .second: return "onboarding.welcome.screen2.body"
+        switch step {
+        case .value: return "onboarding.welcome.screen1.body"
+        case .usage: return "onboarding.welcome.screen2.body"
         }
     }
 
     private var primaryCtaKey: LocalizedStringKey {
-        isLastStep ? "onboarding.welcome.cta.start" : "onboarding.welcome.cta.continue"
+        step.next() == nil ? "onboarding.welcome.cta.start" : "onboarding.welcome.cta.continue"
     }
 
     private var backKey: LocalizedStringKey {
@@ -87,6 +93,6 @@ struct WelcomeFlowView: View {
 
     private var stepA11yText: String {
         let template = NSLocalizedString("onboarding.welcome.stepA11y", comment: "")
-        return String(format: template, clampedStepIndex + 1, totalSteps)
+        return String(format: template, step.index + 1, totalSteps)
     }
 }
