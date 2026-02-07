@@ -1293,6 +1293,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 4. Every PR description MUST include a "Deferred / Follow-ups" section with links to ledger items (and GitHub issues if present).
 5. Closing a ledger item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
+6. If a merged PR completes a ledger item, you MUST open a follow-up **docs-only** PR immediately after merge to mark the item as closed in `docs/roadmap/BACKLOG_LEDGER.md` (set checkbox + `Target PR` + `Status`).
 
 **Agent enforcement:**
 
