@@ -19,7 +19,7 @@ Use the existing networking implementation. Do **not** create a parallel transpo
   - `ios/PulsePlate/Services/AppConfig.swift` → `AppConfig.baseURL()` (Info.plist → env → fallback)
 - **PRO key provider**
   - `ios/PulsePlate/Services/ProKeyProvider.swift:3` (enum; Keychain + DEBUG env)
-  - `ios/PulsePlate/Services/KeychainStore.swift` (Keychain wrapper)
+  - `ios/PulsePlate/Services/KeychainStore.swift:8` (Keychain wrapper)
 - **Profile query params (PRO endpoints)**
   - `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (protocol `ProfileProviding`)
   - `ios/PulsePlate/Services/ProfileProvider.swift:52-115` (default impl reads AppStorage/UserDefaults)

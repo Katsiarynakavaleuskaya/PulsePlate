@@ -89,7 +89,7 @@ Evidence-driven record of what was stale and what was fixed.
 
 ```bash
 git diff --name-only origin/main...HEAD | rg -v "\.md$"
-# Output: (empty)
+
 # Exit code: 1
 ```
 
