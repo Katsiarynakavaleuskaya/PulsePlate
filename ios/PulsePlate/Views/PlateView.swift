@@ -35,6 +35,8 @@ struct PlateViewPP: View {
   @State private var selectedSegment: Int? = nil
   @State private var showMealEntry = false
   @State private var showNutritionDetails = false
+  @State private var showProfile = false
+  @State private var showProSetup = false
 
   private var segments: [NutritionSegment] {
     guard let nutritionData = nutritionService.nutritionData else {
@@ -87,22 +89,21 @@ struct PlateViewPP: View {
             ProgressView("Loading nutrition data...")
               .foregroundStyle(.white)
               .padding()
-          } else if let error = nutritionService.error {
-            VStack(spacing: 12) {
-              Text("Error loading data")
-                .foregroundStyle(.red)
-              Text(error)
-                .font(.caption)
-                .foregroundStyle(.red.opacity(0.8))
-              Button("Retry") {
+          } else if let issue = nutritionService.issue {
+            PlateIssueView(issue: issue) { action in
+              switch action {
+              case .none:
+                break
+              case .retry:
                 Task {
                   await nutritionService.fetchNutritionData()
                 }
+              case .openProfile:
+                showProfile = true
+              case .openProSetup:
+                showProSetup = true
               }
-              .buttonStyle(.bordered)
-              .foregroundStyle(.white)
             }
-            .padding()
           } else {
           // Interactive Plate Segments with animations
           VStack(spacing: 16) {
@@ -137,6 +138,16 @@ struct PlateViewPP: View {
       }
       .navigationDestination(isPresented: $showNutritionDetails) {
         NutritionDetailsView()
+      }
+      .navigationDestination(isPresented: $showProfile) {
+        ProfileView()
+      }
+      .navigationDestination(isPresented: $showProSetup) {
+        #if DEBUG
+        DebugToolsScreen()
+        #else
+        ProfileView()
+        #endif
       }
       .safeAreaInset(edge: .bottom) {
         VStack(spacing: 12) {
@@ -189,6 +200,51 @@ struct PlateViewPP: View {
       return .purple
     default:
       return .gray
+    }
+  }
+}
+
+private struct PlateIssueView: View {
+  let issue: PlateLoadIssue
+  let onAction: (PlateIssuePrimaryAction) -> Void
+  private let localization = LocalizationManager.shared
+
+  var body: some View {
+    let action = issue.primaryAction
+    VStack(spacing: 12) {
+      Text(issue.title)
+        .foregroundStyle(.white)
+        .font(.headline)
+
+      Text(issue.message)
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.85))
+        .multilineTextAlignment(.center)
+
+      if action != .none {
+        Button(buttonTitle(for: action)) {
+          onAction(action)
+        }
+        .buttonStyle(.bordered)
+        .foregroundStyle(.white)
+      }
+    }
+    .padding()
+    .background(Color.white.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .padding(.horizontal)
+  }
+
+  private func buttonTitle(for action: PlateIssuePrimaryAction) -> String {
+    switch action {
+    case .none:
+      return ""
+    case .retry:
+      return localization.localized("plate.action.retry")
+    case .openProfile:
+      return localization.localized("plate.action.open_profile")
+    case .openProSetup:
+      return localization.localized("plate.action.pro_settings")
     }
   }
 }
