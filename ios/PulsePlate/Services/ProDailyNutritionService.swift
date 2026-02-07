@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - PRO Daily Nutrition (canonical Plate endpoint)
 //
@@ -6,6 +7,11 @@ import Foundation
 //     GET /api/v1/pro/nutrition/daily
 // EN: Client for canonical endpoint:
 //     GET /api/v1/pro/nutrition/daily
+
+private let proDailyLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.pulseplate.ios",
+    category: "pro_daily"
+)
 
 protocol ProDailyNutritionServicing: Sendable {
     func fetchDailyNutrition(
@@ -46,7 +52,28 @@ struct ProDailyNutritionRequest: Sendable, Equatable {
         // URLComponents with only path+query produces a relative string like:
         // "/api/v1/pro/nutrition/daily?..."
         // APIClient will normalize leading "/" correctly.
-        return components.string ?? "/api/v1/pro/nutrition/daily"
+        if let s = components.string {
+            return s
+        }
+
+        // Very unlikely, but avoid silently dropping query params (hard to debug 4xx errors).
+        #if DEBUG
+        assertionFailure("URLComponents.string returned nil for pro daily path build.")
+        #endif
+
+        proDailyLogger.error("URLComponents.string returned nil for pro daily path build.")
+
+        // Manual fallback: preserve query parameters deterministically.
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=?+#")
+
+        let query = (components.queryItems ?? []).compactMap { item in
+            guard let value = item.value else { return nil }
+            let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+            return "\(item.name)=\(encoded)"
+        }.joined(separator: "&")
+
+        return query.isEmpty ? components.path : "\(components.path)?\(query)"
     }
 }
 
