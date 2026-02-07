@@ -56,7 +56,6 @@
 		B6169A8A2E893CF200B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AnimationTests.swift,
 				__CIAnchorTests.swift,
 			);
 			target = B6169A412E893CF200B218D8 /* PulsePlateTests */;
