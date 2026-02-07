@@ -13,23 +13,21 @@ struct WeeklyPlanReaderView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Weekly Plan")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            // TODO: Share (future)
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                        .disabled(!canShare)
-                        .accessibilityLabel("Share weekly plan")
+        content
+            .navigationTitle("Weekly Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        // TODO: Share (future)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
                     }
+                    .disabled(!canShare)
+                    .accessibilityLabel("Share weekly plan")
                 }
-        }
-        .task { await ensureLoadedOnce() }
+            }
+            .task { await ensureLoadedOnce() }
     }
 
     private var canShare: Bool {
@@ -181,11 +179,14 @@ private struct VipCTASection: View {
 }
 
 #Preview {
-    WeeklyPlanReaderView(
-        vm: WeeklyPlanReaderViewModel(
-            service: MockWeeklyPlanService()
+    NavigationStack {
+        WeeklyPlanReaderView(
+            vm: WeeklyPlanReaderViewModel(
+                service: MockWeeklyPlanService(),
+                apiKey: "preview" // pragma: allowlist secret
+            )
         )
-    )
+    }
 }
 
 // MARK: - Mock Service (for preview)

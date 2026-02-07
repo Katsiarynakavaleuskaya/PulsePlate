@@ -22,6 +22,12 @@ struct DebugToolsScreen: View {
                 NavigationLink("Shopping List Generator") {
                     makeShoppingListScreen()
                 }
+
+                if FeatureFlags.weeklyPlanReaderEnabled {
+                    NavigationLink("Weekly Plan Reader") {
+                        makeWeeklyPlanReaderScreen()
+                    }
+                }
             }
 
             Section("Network Test") {
@@ -93,6 +99,15 @@ struct DebugToolsScreen: View {
             vm: vm,
             planData: ShoppingListStubPlan.minimal()
         )
+    }
+
+    private func makeWeeklyPlanReaderScreen() -> some View {
+        let service = DefaultWeeklyPlanService(apiClient: apiClient)
+        let vm = WeeklyPlanReaderViewModel(
+            service: service,
+            apiKey: ProKeyProvider.value()
+        )
+        return WeeklyPlanReaderView(vm: vm)
     }
 
     private func testBackendConnection() async {

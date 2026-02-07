@@ -57,6 +57,11 @@ public final class WeeklyPlanReaderViewModel {
         // Store targets for retry
         lastTargets = targets
 
+        guard let apiKey else {
+            state = .failed("PRO API key not configured. Add it in Debug Tools / Keychain.")
+            return
+        }
+
         state = .loading
 
         do {
@@ -98,9 +103,26 @@ public final class WeeklyPlanReaderViewModel {
                 state = .empty
                 return
             }
+            if case .api(let statusCode, _) = error {
+                state = .failed(Self.userFacingHTTPError(statusCode: statusCode))
+                return
+            }
             state = .failed(error.localizedDescription)
         } catch {
             state = .failed(error.localizedDescription)
+        }
+    }
+
+    private static func userFacingHTTPError(statusCode: Int) -> String {
+        switch statusCode {
+        case 400:
+            return "Bad request (HTTP 400). Please review inputs and try again."
+        case 401:
+            return "Unauthorized (HTTP 401). Check your PRO API key."
+        case 403:
+            return "Forbidden (HTTP 403). Your PRO key may be missing access."
+        default:
+            return "Server error (HTTP \(statusCode)). Please try again later."
         }
     }
 
