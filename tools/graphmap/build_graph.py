@@ -128,7 +128,12 @@ def _normalize_rel_path(repo: Path, src_file: Path, raw: str) -> Optional[str]:
     if not cleaned:
         return None
 
-    resolved = (src_file.parent / cleaned).resolve()
+    if cleaned.startswith("/"):
+        # RU: Ссылки вида "/docs/..." считаем путями от корня репозитория, не FS-absolute.
+        # EN: Treat "/docs/..." as repo-root-relative, not filesystem-absolute.
+        resolved = (repo.resolve() / cleaned.lstrip("/")).resolve()
+    else:
+        resolved = (src_file.parent / cleaned).resolve()
     try:
         rel = resolved.relative_to(repo.resolve())
     except Exception:
@@ -318,7 +323,7 @@ def build_graph(repo: Path, *, debug: bool) -> tuple[list[Node], list[Edge]]:
             id=node_id,
             type=node_type,
             label=rel_path,
-            path=rel_path if not rel_path.endswith("/") else rel_path,
+            path=rel_path,
             tags=tags or None,
         )
         return node_id
