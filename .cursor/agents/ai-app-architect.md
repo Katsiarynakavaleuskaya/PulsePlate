@@ -32,6 +32,11 @@ Keep AI work consistent with repo invariants:
 3. Auditing OpenAPI determinism implications of AI modules
 4. Defining testable contracts for future runtime PRs
 
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **Architecture diagram (text)**: modules + seams + data flow

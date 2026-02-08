@@ -32,6 +32,11 @@ Make AI features shippable:
 3. Creating deterministic performance regression checks (future PRs)
 4. Translating eval results into rollout constraints and feature flags
 
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **Budget spec**: numbers + rationale + enforcement points

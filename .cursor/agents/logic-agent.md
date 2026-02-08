@@ -27,6 +27,12 @@ You convert “should be consistent” into **explicit invariants** and **testab
 2. Enumerating “must-catch” contradictions for PulsePlate recommendations
 3. Writing acceptance criteria for logic-guard behavior (“high uncertainty → degrade”)
 4. Planning deterministic tests/guards (future PRs)
+5. Turning philosophical reliability principles into concrete contradiction rules and schemas (insight/coaching)
+
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 
 ## Deliverable (return to coordinator)
 

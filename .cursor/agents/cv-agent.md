@@ -32,6 +32,11 @@ Design a CV pipeline that is:
 3. Auditing privacy/logging/retention constraints for user images
 4. Planning evaluation/benchmarks and acceptance criteria (future PRs)
 
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work (if CV feeds insight/coaching): see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **CV contract**: input/output schema + confidence rules

@@ -32,6 +32,11 @@ Provide **CBT-inspired coaching** that is:
 3. Auditing coaching outputs for therapy/medical positioning risks
 4. Defining degrade behavior when uncertainty is high
 
+## Context to load (task-dependent)
+
+- Insight/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **Flow outline**: steps + intended user effect + boundaries

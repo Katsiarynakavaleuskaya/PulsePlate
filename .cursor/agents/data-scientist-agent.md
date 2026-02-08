@@ -32,6 +32,11 @@ Turn “we think it’s better” into measurable outcomes:
 3. Planning calibration evaluation for uncertainty outputs
 4. Proposing experiment sequencing and MVP measurement
 
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **Metrics table**: definitions + how measured + expected ranges

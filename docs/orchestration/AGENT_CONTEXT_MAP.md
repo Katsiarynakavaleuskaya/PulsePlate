@@ -250,6 +250,24 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+## Insight / AI Assistant Research Corpus (Conditional)
+
+**Условно (только если задача про `/insight`, RAG, коучинг, философско-логические валидаторы, UQ, или научный roadmap):**
+
+- `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md` — baseline по текущей AI/LLM/RAG инфраструктуре (analysis)
+- `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md` — научный обзор + план развития (canonical analysis)
+- `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md` — философско-логические принципы надежности (design)
+- `docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md` — speed optimization через философские принципы (design)
+- `docs/insights/RECURSIVE_METHODS_LLM_RAG.md` — recursive methods (design)
+- `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md` — latency/cost trade-offs и оптимизации (analysis)
+- `docs/roadmap/BACKLOG_LEDGER.md` — планы и уже-реализованные P0/P1 guardrails вокруг insight (VIP gating, rate limit, monthly quota)
+
+(EN: Conditional corpus for insight/RAG/coaching research. These docs are inputs for planning and audits, not runtime behavior.)
+
+**Important:** These docs include illustrative code. Treat them as design intent; runtime behavior must be implemented and verified via tests.
+
+---
+
 ## Verification Protocol
 
 Канонический checklist не дублируем.

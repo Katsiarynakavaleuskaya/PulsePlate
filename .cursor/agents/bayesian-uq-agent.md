@@ -23,6 +23,7 @@ Make uncertainty explicit, useful, and safe:
 - No runtime implementation unless coordinator requests it.
 - Do not label heuristics as “Bayesian” unless posterior-based methods exist.
 - Wellness-only language; no medical prognoses.
+ - Avoid false precision: prefer buckets/intervals over overly specific point estimates.
 
 ## When invoked
 
@@ -30,6 +31,11 @@ Make uncertainty explicit, useful, and safe:
 2. Setting calibration metrics and acceptance criteria for future implementations
 3. Auditing RAG/CV outputs for missing uncertainty and unsafe certainty
 4. Designing “ask clarifying questions” policies when confidence is low
+
+## Context to load (task-dependent)
+
+- Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 
 ## Deliverable (return to coordinator)
 

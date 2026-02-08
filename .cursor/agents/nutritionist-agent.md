@@ -32,6 +32,11 @@ Ensure nutrition guidance is:
 3. Building domain taxonomy for retrieval (RAG) and structured rules
 4. Auditing “coach” language for safety and scope
 
+## Context to load (task-dependent)
+
+- Insight/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in
+  `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+
 ## Deliverable (return to coordinator)
 
 - **Constraint list**: rules + priority + examples

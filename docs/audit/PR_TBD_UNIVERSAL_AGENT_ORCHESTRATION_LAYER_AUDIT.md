@@ -58,6 +58,17 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 - `RUNBOOK_AGENT.md` (operational checks)
 - `docs/agents/index.md` (Cursor agents registry; must stay in sync with `.cursor/agents/*.md`)
 
+### Insight / scientific R&D corpus (non-canonical inputs)
+
+These documents are **inputs** for planning and audits. They must **not** be treated as runtime truth unless backed by code/tests.
+
+- `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md` (baseline analysis of current LLM/RAG infra)
+- `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md` (scientific review; roadmap framing)
+- `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md` (philosophy+logic reliability frameworks)
+- `docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md` (adaptive depth / early stopping)
+- `docs/insights/RECURSIVE_METHODS_LLM_RAG.md` (multi-hop retrieval, refinement, verification)
+- `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md` (latency/cost trade-offs + mitigation strategies)
+
 ---
 
 ## Evidence log (observed)
@@ -84,6 +95,84 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 ## Agent Coordination (Coordinator-First Rule)
 **Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
 ...
+```
+
+### Insight is a high-risk surface with explicit hard guardrails (VIP gating + rate limit + quota)
+
+```204:218:docs/roadmap/BACKLOG_LEDGER.md
+- [x] PR-611 AI Insight Safety & Error Hygiene (merged 2026-01-28)
+...
+  - DoD: ✅ Completed
+    - ✅ Import-failure returns 503 with safe detail (no "boom" leak)
+    - ✅ Provider.generate exceptions return 503 with safe detail (no raw exception leak)
+    - ✅ All insight endpoints use `response_model=InsightResponse`
+...
+```
+
+```307:370:docs/roadmap/BACKLOG_LEDGER.md
+- [x] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
+...
+    - ✅ `@limit_if_available(RATE_LIMIT_INSIGHT)` on `/api/v1/insight` + `/insight`
+...
+### P0 Move LLM insight to VIP tier
+...
+- [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+...
+    - ✅ `/api/v1/insight` uses `require_vip_tier()` (VIP-only)
+...
+- [x] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
+...
+    - Tests:
+      - VIP under quota → 200
+      - VIP over quota → 429
+      - FREE/PRO remain → 403
+```
+
+### Insight baseline explicitly calls out missing reliability features (analysis)
+
+```19:24:docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
+**Критические пробелы:**
+- ❌ Нет техник повышения достоверности (fact-checking, validation, confidence scoring)
+- ❌ Нет AI ассистента (только простой insight endpoint)
+```
+
+### Current RAG baseline is a simple keyword/Jaccard retriever (analysis)
+
+```182:216:docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
+## 🔍 Детальный анализ RAG системы
+...
+### Текущая реализация: Simple RAG
+...
+**Файл:** `core/rag/simple_rag.py`
+...
+**Алгоритм:**
+def _score(query: str, text: str) -> float:
+    # Simple Jaccard on word sets
+    q = set(_tokenize(query))
+    t = set(_tokenize(text))
+    union = q | t
+    base = len(q & t) / len(union) if union else 0.0
+    if query.lower() in text.lower():
+        base += 0.1  # Bonus for exact substring
+    return base
+...
+```
+
+### Insight research corpus is explicitly “illustrative code only” (not runtime)
+
+```14:15:docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md
+> **Note:** Code examples in this document are illustrative and represent proposed design patterns, not current implementation.
+```
+
+### Scientific review explicitly frames “philosophy + logic + bayes + CBT” as the innovation foundation
+
+```11:19:docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
+Представленные документы раскрывают **высокоинтеллектуальную экосистему** с уникальным сочетанием:
+- **Философско-математического фундамента**
+- **Рекурсивных методов оптимизации**
+- **Передовых AI/LLM практик**
+...
+**Ключевой инсайт:** ... **научно-инженерный гибрид** ...
 ```
 
 ---
@@ -275,6 +364,19 @@ This section is **policy/contracts**, not implementation.
 
 - CV outputs must include confidence per item, and must gracefully degrade when confidence is low.
 
+### Insight track alignment (design inputs → contracts)
+
+This audit explicitly aligns with the repo’s “insight” research corpus:
+
+- **Philosophical reliability**: Aristotelian/analytical/linguistic frameworks → map to **claim semantics**, **verifiability**, **non-contradiction** checks.
+  - Inputs: `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+- **Recursive methods**: multi-hop retrieval + refinement + verification → map to **bounded budgets** and **explicit citations**.
+  - Inputs: `docs/insights/RECURSIVE_METHODS_LLM_RAG.md`
+- **Performance reality**: recursive pipelines amplify latency/cost → contracts must include budgets + caching + early stopping (VIP only).
+  - Inputs: `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`, `docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md`
+- **Baseline gap**: current analysis calls out missing reliability primitives → contracts close these gaps in future runtime PRs.
+  - Inputs: `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md`
+
 > Detailed paste-ready contract text lives in **Appendix A** (drafted for future implementation PRs).
 
 ---
@@ -395,6 +497,29 @@ This PR is docs-only. The notes below are **requirements for future runtime PRs*
   - Requirement: OpenAPI generation must remain side-effect free; avoid module-level ORM imports on OpenAPI import path.
 - **Thin-client policy**:
   - Requirement: iOS/Web clients remain thin adapters; no domain logic duplication on clients.
+
+---
+
+## External references (web, non-canonical)
+
+These are **external** sources used only for alignment and terminology. They are **not** Source of Truth for runtime behavior.
+
+### RAG / prompt injection / untrusted retrieval
+
+- AWS Prescriptive Guidance: “Best practices to avoid prompt injection attacks” — `https://docs.aws.amazon.com/prescriptive-guidance/latest/llm-prompt-engineering-best-practices/best-practices.html`
+
+### Self-verification / solver-verifier patterns (LLM reliability)
+
+- OpenReview: “Beyond Solving: A Closer Look at LLMs as Solution Verifiers” — `https://openreview.net/forum?id=I0yfD1zLZI`
+
+### Uncertainty quantification / calibration (LLMs)
+
+- OpenReview: “Textual Bayes: Quantifying Uncertainty in LLM-Based Systems” — `https://openreview.net/forum?id=VPmsAr1OTl`
+- OpenReview: “Cross-Model Disagreement for Uncertainty Quantification” — `https://openreview.net/forum?id=lOoRJo8xWy`
+
+### Digital coaching / safety boundaries (non-therapy)
+
+- ICF: “Artificial Intelligence Coaching Framework” (v0.16) — `https://coachingfederation.org/app/uploads/2024/06/The-ICF-Artificial-Intelligence-Coaching-Framework-and-Standard-v0.16.pdf`
 
 ---
 
