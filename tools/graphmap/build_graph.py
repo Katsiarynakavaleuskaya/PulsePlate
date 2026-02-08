@@ -142,7 +142,7 @@ def _node_id_for_path(node_type: str, rel_path: str) -> str:
     if rel_path.startswith("./"):
         rel_path = rel_path[2:]
     if node_type == "agent":
-        # Prefer frontmatter `name:` when possible; fallback to file stem.
+        # Use file stem for agent IDs (frontmatter name parsing not implemented here).
         name = Path(rel_path).stem
         return f"agent:{name}"
     if node_type == "module":
@@ -155,10 +155,8 @@ def _guess_node_type(rel_path: str) -> str:
         rel_path = rel_path[2:]
     if rel_path.startswith(".cursor/agents/") and rel_path.endswith(".md"):
         return "agent"
-    if (
-        rel_path.startswith("tests/")
-        or rel_path.startswith("ios/")
-        and rel_path.endswith("Tests.swift")
+    if rel_path.startswith("tests/") or (
+        rel_path.startswith("ios/") and rel_path.endswith("Tests.swift")
     ):
         return "test"
     if rel_path.startswith("docs/"):
