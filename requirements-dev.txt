@@ -76,7 +76,7 @@ dparse==0.6.4
     #   safety-schemas
 execnet==2.1.2
     # via pytest-xdist
-faker==40.1.2
+faker==40.4.0
     # via -r requirements-dev.in
 filelock==3.20.3
     # via
@@ -95,7 +95,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   safety
-hypothesis==6.151.4
+hypothesis==6.151.5
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -224,7 +224,7 @@ pytest-cov==7.0.0
     # via -r requirements-dev.in
 pytest-picked==0.5.1
     # via -r requirements-dev.in
-pytest-split==0.10.0
+pytest-split==0.11.0
     # via -r requirements-dev.in
 pytest-xdist==3.8.0
     # via -r requirements-dev.in
