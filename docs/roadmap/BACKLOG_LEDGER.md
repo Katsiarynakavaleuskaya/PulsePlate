@@ -450,11 +450,11 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
+- [x] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (developer experience)
-  - Target PR: TBD (tooling)
-  - Status: 📋 Planned
+  - Target PR: PR-695 + PR-696
+  - Status: ✅ Merged (PR-695 @ 2e3d1a5b, PR-696 @ 8e527c13; 2026-02-08)
   - Reason: Make SoT relationships (docs/agents/policies/tests) navigable as an interactive graph with strict determinism.
     This reduces repeated rediscovery work and improves reviewability without introducing a new SoT.
   - Links:
@@ -464,12 +464,12 @@ If it is not recorded here — it does not exist.
     - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
     - `docs/agents/index.md`
   - DoD:
-    - PR A (docs-only) adds/updates `docs/graph/GRAPHMAP_SPEC.md` and records this ledger item
-    - PR B (tooling, dev-only) provides a deterministic builder that generates stable `graph.json` from explicit sources only
-    - Viewer supports filtering by `Level` and `NodeType`, plus search and legend
-    - Click opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
-    - Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
-    - No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
+    - ✅ `docs/graph/GRAPHMAP_SPEC.md` defines GraphMap inputs and edge rules
+    - ✅ Deterministic builder generates stable `docs/graph/graph.json` from explicit sources only
+    - ✅ Viewer supports filtering by `Level` and `NodeType`, plus search, legend, and zoom controls
+    - ✅ Click opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
+    - ✅ Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
+    - ✅ No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
 
 - [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
   - Owner: @katsiaryna_kavaleuskaya
