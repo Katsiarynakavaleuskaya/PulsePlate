@@ -114,7 +114,7 @@ ignore if {
 }
 
 # CVE-2026-2100 (libp11-kit0) - upstream unfixed in Debian bookworm
-# Review-by: see docs/security/CVE-2026-2100-libp11-kit0.md
+# Review-by: 2026-05-09 (manual removal)
 # Rationale: Unfixed distro CVE; no actionable repo-level remediation besides base image bump (no fixed version available)
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-2100
 # Documented in: docs/security/CVE-2026-2100-libp11-kit0.md
