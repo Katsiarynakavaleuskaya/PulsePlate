@@ -8,6 +8,19 @@ const GRAPH_URL = "../graph.json";
 
 const LEVELS = ["theme", "project", "architecture", "module", "safety", "execution"];
 
+const ZOOM = {
+  factor: 1.2,
+  fitPadding: 30,
+  initialMax: 1.25,
+  min: 0.15,
+  max: 2.5,
+  wheelSensitivity: 0.2,
+};
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function unique(arr) {
   return Array.from(new Set(arr)).sort();
 }
@@ -134,20 +147,22 @@ function wireUI(cy) {
     typeFilter.selectedIndex = -1;
     levelFilter.selectedIndex = -1;
     applyFilters(cy);
-    cy.fit(undefined, 30);
+    cy.fit(undefined, ZOOM.fitPadding);
     setDetails(null);
   });
 
   zoomIn.addEventListener("click", () => {
-    cy.zoom({ level: cy.zoom() * 1.2, renderedPosition: renderedCenter() });
+    const next = clamp(cy.zoom() * ZOOM.factor, ZOOM.min, ZOOM.max);
+    cy.zoom({ level: next, renderedPosition: renderedCenter() });
   });
 
   zoomOut.addEventListener("click", () => {
-    cy.zoom({ level: cy.zoom() / 1.2, renderedPosition: renderedCenter() });
+    const next = clamp(cy.zoom() / ZOOM.factor, ZOOM.min, ZOOM.max);
+    cy.zoom({ level: next, renderedPosition: renderedCenter() });
   });
 
   fit.addEventListener("click", () => {
-    cy.fit(undefined, 30);
+    cy.fit(undefined, ZOOM.fitPadding);
   });
 }
 
@@ -156,7 +171,9 @@ function initCy(elements) {
     container: document.getElementById("cy"),
     elements,
     layout: { name: "cose", animate: false, padding: 30 },
-    wheelSensitivity: 0.2,
+    minZoom: ZOOM.min,
+    maxZoom: ZOOM.max,
+    wheelSensitivity: ZOOM.wheelSensitivity,
     style: [
       {
         selector: "node",
@@ -206,8 +223,8 @@ function initCy(elements) {
     const cy = initCy(makeElements(graph));
     wireUI(cy);
     applyFilters(cy);
-    cy.fit(undefined, 30);
-    cy.zoom(Math.min(1.25, cy.zoom()));
+    cy.fit(undefined, ZOOM.fitPadding);
+    cy.zoom(clamp(Math.min(ZOOM.initialMax, cy.zoom()), ZOOM.min, ZOOM.max));
 
     cy.on("tap", "node", (evt) => {
       const n = evt.target;
