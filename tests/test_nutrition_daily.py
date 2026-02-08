@@ -16,6 +16,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE as LEGACY_ALIAS_ROUTE
+
 
 def test_daily_nutrition_success_with_profile(client: TestClient) -> None:
     """Test daily nutrition endpoint with valid user profile.
@@ -375,10 +377,12 @@ def test_legacy_nutrition_endpoint_hidden_from_openapi(client: TestClient) -> No
     resp = client.get("/openapi.json")
     assert resp.status_code == 200
     schema = resp.json()
-    assert "/api/nutrition/{date_str}" not in schema.get("paths", {})
+    assert LEGACY_ALIAS_ROUTE not in schema.get("paths", {})
 
 
-def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
+def test_legacy_nutrition_endpoint_defaults(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
     """Test legacy endpoint uses defaults for missing optional params.
 
     RU: Тест использования дефолтов в устаревшем endpoint.
@@ -386,7 +390,7 @@ def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
     """
     response = client.get(
         "/api/nutrition/2025-12-15",
-        headers={"X-API-Key": "test_pro_key"},
+        headers=pro_headers,
     )
 
     assert response.status_code == 200
@@ -397,16 +401,16 @@ def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
 
 def _get_legacy_alias_metric_value() -> float:
     # prom-client API: stable, no scraping needed
-    from prometheus_client import REGISTRY
+    try:
+        from prometheus_client import REGISTRY
+    except ImportError:
+        pytest.skip("prometheus_client not installed; metrics tests skipped")
 
     value = REGISTRY.get_sample_value(
         "legacy_alias_requests_total",
-        {"alias_route": "/api/nutrition/{date_str}"},
+        {"alias_route": LEGACY_ALIAS_ROUTE},
     )
     return float(value or 0.0)
-
-
-LEGACY_ALIAS_ROUTE = "/api/nutrition/{date_str}"
 
 
 def _reset_legacy_alias_counter_for_tests() -> None:
@@ -430,13 +434,13 @@ def _reset_legacy_alias_counter_for_tests() -> None:
     child._value.set(0)  # type: ignore[attr-defined]
 
 
-def test_legacy_alias_increments_counter(client: TestClient) -> None:
+def test_legacy_alias_increments_counter(client: TestClient, pro_headers: dict[str, str]) -> None:
     _reset_legacy_alias_counter_for_tests()
     before = _get_legacy_alias_metric_value()
 
     resp = client.get(
         "/api/nutrition/2025-12-15",
-        headers={"X-API-Key": "test_pro_key"},
+        headers=pro_headers,
     )
     assert resp.status_code == 200
 
@@ -444,7 +448,9 @@ def test_legacy_alias_increments_counter(client: TestClient) -> None:
     assert after == before + 1.0
 
 
-def test_canonical_does_not_increment_legacy_counter(client: TestClient) -> None:
+def test_canonical_does_not_increment_legacy_counter(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
     _reset_legacy_alias_counter_for_tests()
     before = _get_legacy_alias_metric_value()
 
@@ -457,7 +463,7 @@ def test_canonical_does_not_increment_legacy_counter(client: TestClient) -> None
             "height_cm": 165,
             "weight_kg": 65,
         },
-        headers={"X-API-Key": "test_pro_key"},
+        headers=pro_headers,
     )
     assert resp.status_code == 200
 
@@ -511,7 +517,7 @@ def test_record_legacy_alias_hit_noop_when_counter_disabled(
     import app.metrics as app_metrics
 
     monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", None)
-    app_metrics.record_legacy_alias_hit("/api/nutrition/{date_str}")
+    app_metrics.record_legacy_alias_hit(LEGACY_ALIAS_ROUTE)
 
 
 def test_record_legacy_alias_hit_swallows_counter_errors(
@@ -526,11 +532,11 @@ def test_record_legacy_alias_hit_swallows_counter_errors(
 
     class _BadCounter:
         def labels(self, *, alias_route: str) -> _BadChild:
-            assert alias_route == "/api/nutrition/{date_str}"
+            assert alias_route == LEGACY_ALIAS_ROUTE
             return _BadChild()
 
     monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", _BadCounter())
-    app_metrics.record_legacy_alias_hit("/api/nutrition/{date_str}")
+    app_metrics.record_legacy_alias_hit(LEGACY_ALIAS_ROUTE)
 
 
 def test_nutrition_targets_integration(client: TestClient) -> None:
