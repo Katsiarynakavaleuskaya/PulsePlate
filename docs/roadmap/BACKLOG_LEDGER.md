@@ -450,6 +450,27 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (developer experience)
+  - Target PR: TBD (tooling)
+  - Status: 📋 Planned
+  - Reason: Make SoT relationships (docs/agents/policies/tests) navigable as an interactive graph with strict determinism.
+    This reduces repeated rediscovery work and improves reviewability without introducing a new SoT.
+  - Links:
+    - `docs/graph/GRAPHMAP_SPEC.md` (SoT for GraphMap; docs-only)
+    - `docs/memory/index.md` (PML capsules as graph inputs)
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/agents/index.md`
+  - DoD:
+    - PR A (docs-only) adds/updates `docs/graph/GRAPHMAP_SPEC.md` and records this ledger item
+    - PR B (tooling, dev-only) provides a deterministic builder that generates stable `graph.json` from explicit sources only
+    - Viewer supports filtering by `Level` and `NodeType`, plus search and legend
+    - Click opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
+    - Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
+    - No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
+
 - [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / safety / reliability)
