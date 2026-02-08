@@ -197,8 +197,8 @@ This map reduces “missing context” failures by making required inputs explic
 - `app/AGENTS.md` and `core/AGENTS.md` (if proposing integration seams)
 
 **Must know:**
-- Layer boundaries: thin routers/adapters; domain logic in `core/`
-- Feature-flag gating order (feature checks before quota consumption, for future PRs)
+- Layer boundaries: thin routers/adapters; domain logic in `core/` (AGENTS.md:968; AGENTS.md:969)
+- Feature-flag gating order (feature checks before quota consumption, for future PRs) (AGENTS.md:86)
 
 ---
 
