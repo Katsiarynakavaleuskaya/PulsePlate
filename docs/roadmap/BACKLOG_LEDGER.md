@@ -581,46 +581,31 @@ If it is not recorded here — it does not exist.
   - Reason: PR #617 scope reduced to docs-only (audit + handoff); markdownlint config moved out to avoid diff-coverage/CI scope. Add repo-wide markdownlint config in dedicated PR.
   - DoD: New PR with `.markdownlint.json` only; CI green; no mixing with code/audit PRs.
 
-- [ ] Restore full OpenAPI schema (remove temporary schema-only mode)
+- [x] Restore full OpenAPI schema (remove temporary schema-only mode)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (contract velocity)
-  - Target PR: TBD (post PR-628/629 to avoid scope collision)
-  - Status: 📋 Ready to start (technical work), but intentionally deferred while PR-628/629 are in flight
-  - Reason: OpenAPI generation currently runs in **schema-only mode** and forcibly disables multiple feature routers. This reduces thin-client contract velocity and increases silent drift risk.
+  - Target PR: PR-631
+  - Status: ✅ Merged (PR-631, 2026-02-03)
+  - Reason: Schema-only OpenAPI mode reduced thin-client contract velocity. PR-631 removed the schema-only seam and enabled full-schema generation with deterministic output.
   - Evidence:
-    - `scripts/generate_openapi.py:94-113` (schema-only mode + forced feature disables)
-    - `app/routers/pro_registration.py:26-36` (schema-only guard conditions)
-    - `docs/architecture/ADR-002-openapi-schema-only-mode.md` (exit criteria)
-  - Risk:
-    - Thin clients cannot “type reality” for excluded routes; integration slows and drift risk increases.
-  - Blocked-by:
-    - Process-only: PR-628/629 (avoid mixed-scope / CI churn); re-evaluate after they merge
-  - Exit criteria:
-    - `make openapi` succeeds without forcing `FEATURE_*_ENABLED=false` in the generator
-    - No SQLAlchemy “Table already defined” errors during OpenAPI generation
-    - `tests/test_openapi_determinism.py` remains green
-  - DoD:
+    - `scripts/generate_openapi.py:94-109` (FULL schema mode; enables feature-flagged routers in generator context)
+    - `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist)
+  - DoD: ✅ Completed (PR-631)
     - OpenAPI generator runs in full-schema mode (no schema-only marker)
-    - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` regenerated + committed (if changed)
-    - Add/adjust any focused regression tests needed to prevent return of import-time ORM hazards
+    - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` in sync (`make openapi` produces no diff)
+    - Determinism test remains green
 
-- [ ] Eliminate import-time ORM/model imports in routers included in OpenAPI generation
+- [x] Eliminate import-time ORM/model imports in routers included in OpenAPI generation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (determinism / import hygiene)
-  - Target PR: TBD (post PR-628/629)
-  - Status: 📋 Ready to start
-  - Reason: Schema-only exists because some routers import SQLAlchemy models at module level, causing import-time side effects during OpenAPI generation.
+  - Target PR: PR-631
+  - Status: ✅ Merged (PR-631, 2026-02-03)
+  - Reason: OpenAPI generation must be side-effect free: routers reachable from `app.main:app` must not import ORM models at module import time.
   - Evidence:
-    - `app/routers/pro_registration.py:76-80` (documents import-time ORM hazard)
-    - `scripts/generate_openapi.py:100-113` (disables routers because of ORM import-time issues)
-  - Risk:
-    - Import-order nondeterminism, “double-load” failures, OpenAPI gaps.
-  - Blocked-by:
-    - Process-only: PR-628/629 (avoid scope collision)
-  - Exit criteria:
-    - Routers used in OpenAPI generation do not import ORM models at module import time
-  - DoD:
-    - Move ORM model imports to runtime (inside handlers/dependencies/services), one router at a time
+    - `app/routers/nutrition_log.py:26-73` (TYPE_CHECKING-only model import + runtime lazy import pattern)
+    - `scripts/generate_openapi.py:114-120` (imports canonical entrypoint and calls `app.openapi()` successfully)
+  - DoD: ✅ Completed (PR-631)
+    - ORM model imports moved to runtime (inside handlers/dependencies), preserving OpenAPI determinism
     - OpenAPI generation works with routers enabled
     - Determinism test stays green
 

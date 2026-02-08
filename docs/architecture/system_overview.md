@@ -67,13 +67,13 @@ flowchart LR
 
 ## OpenAPI generation mode (current)
 
-OpenAPI generator runs in **schema-only mode** to avoid import-time ORM double-loading.
+OpenAPI generator runs in **full-schema mode** (schema-only mode removed in PR-631).
 
-**Schema-only contract (single source of truth):**
-See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#schema-only-openapi-contract`
+**Evidence (file:line):**
+- `scripts/generate_openapi.py:94-120` (generator pins env + enables feature-flagged routers, then imports `app.main:app`)
+- `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist in schema)
 
-**Exit criteria:**
-See: `docs/architecture/ADR-002-openapi-schema-only-mode.md#exit-criteria`
+Historical ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (superseded).
 
 ## Enforced invariants (selected, evidence-driven)
 
