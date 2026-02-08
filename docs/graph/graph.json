@@ -1,0 +1,1732 @@
+{
+  "edges": [
+    {
+      "evidence": [
+        "docs/agents/index.md:17"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/agent-coordinator.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:29"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/ai-app-architect.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:18"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/ai-innovation-specialist.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:19"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/architecture-specialist.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:26"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/bayesian-uq-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:20"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/bug-hunter.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:33"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/cbt-psychologist-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:21"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/creative-designer.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:28"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/cv-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:30"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/data-scientist-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:34"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/epistemology-discovery-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:25"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/logic-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:22"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/marketing-strategist.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:31"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/ml-engineer-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:32"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/nutritionist-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:24"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/philosophy-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:35"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/physics-sensor-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:27"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/rag-systems-agent.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:23"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "doc:cursor/agents/security-auditor.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:294",
+        "docs/audit/BACKEND_AUDIT_SUMMARY.md:61"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_AUDIT_SUMMARY.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:122",
+        "docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md:296"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:381",
+        "docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md:296"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:293",
+        "docs/audit/BACKEND_STUB_MODULES_AUDIT.md:51"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_STUB_MODULES_AUDIT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:292",
+        "docs/audit/BACKEND_TODO_FIXME_AUDIT.md:27"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_TODO_FIXME_AUDIT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/AUDIT_GAPS_ANALYSIS.md:236",
+        "docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md:100"
+      ],
+      "source": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "target": "doc:docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/audit/PR_510_PR_DESCRIPTION.md:11"
+      ],
+      "source": "doc:docs/audit/PR_510_PR_DESCRIPTION.md",
+      "target": "doc:docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/task_analysis.template.md:17"
+      ],
+      "source": "doc:docs/orchestration/task_analysis.template.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    }
+  ],
+  "generated_from": {
+    "inputs": [
+      "AGENTS.md",
+      "docs/graph/GRAPHMAP_SPEC.md",
+      "docs/agents/index.md",
+      "docs/orchestration/**/*.md",
+      "docs/audit/**/*.md",
+      ".cursor/agents/*.md"
+    ],
+    "repo_ref": "origin/main"
+  },
+  "nodes": [
+    {
+      "id": "doc:AGENTS.md",
+      "label": "AGENTS.md",
+      "path": "AGENTS.md",
+      "tags": [
+        "project",
+        "safety"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/AGENTS.md",
+      "label": ".cursor/agents/AGENTS.md",
+      "path": ".cursor/agents/AGENTS.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/agent-coordinator.md",
+      "label": ".cursor/agents/agent-coordinator.md",
+      "path": ".cursor/agents/agent-coordinator.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/ai-app-architect.md",
+      "label": ".cursor/agents/ai-app-architect.md",
+      "path": ".cursor/agents/ai-app-architect.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/ai-innovation-specialist.md",
+      "label": ".cursor/agents/ai-innovation-specialist.md",
+      "path": ".cursor/agents/ai-innovation-specialist.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/architecture-specialist.md",
+      "label": ".cursor/agents/architecture-specialist.md",
+      "path": ".cursor/agents/architecture-specialist.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/bayesian-uq-agent.md",
+      "label": ".cursor/agents/bayesian-uq-agent.md",
+      "path": ".cursor/agents/bayesian-uq-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/bug-hunter.md",
+      "label": ".cursor/agents/bug-hunter.md",
+      "path": ".cursor/agents/bug-hunter.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/cbt-psychologist-agent.md",
+      "label": ".cursor/agents/cbt-psychologist-agent.md",
+      "path": ".cursor/agents/cbt-psychologist-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/creative-designer.md",
+      "label": ".cursor/agents/creative-designer.md",
+      "path": ".cursor/agents/creative-designer.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/cv-agent.md",
+      "label": ".cursor/agents/cv-agent.md",
+      "path": ".cursor/agents/cv-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/data-scientist-agent.md",
+      "label": ".cursor/agents/data-scientist-agent.md",
+      "path": ".cursor/agents/data-scientist-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/epistemology-discovery-agent.md",
+      "label": ".cursor/agents/epistemology-discovery-agent.md",
+      "path": ".cursor/agents/epistemology-discovery-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/logic-agent.md",
+      "label": ".cursor/agents/logic-agent.md",
+      "path": ".cursor/agents/logic-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/marketing-strategist.md",
+      "label": ".cursor/agents/marketing-strategist.md",
+      "path": ".cursor/agents/marketing-strategist.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/ml-engineer-agent.md",
+      "label": ".cursor/agents/ml-engineer-agent.md",
+      "path": ".cursor/agents/ml-engineer-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/nutritionist-agent.md",
+      "label": ".cursor/agents/nutritionist-agent.md",
+      "path": ".cursor/agents/nutritionist-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/philosophy-agent.md",
+      "label": ".cursor/agents/philosophy-agent.md",
+      "path": ".cursor/agents/philosophy-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/physics-sensor-agent.md",
+      "label": ".cursor/agents/physics-sensor-agent.md",
+      "path": ".cursor/agents/physics-sensor-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/rag-systems-agent.md",
+      "label": ".cursor/agents/rag-systems-agent.md",
+      "path": ".cursor/agents/rag-systems-agent.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:cursor/agents/security-auditor.md",
+      "label": ".cursor/agents/security-auditor.md",
+      "path": ".cursor/agents/security-auditor.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/agents/index.md",
+      "label": "docs/agents/index.md",
+      "path": "docs/agents/index.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/API_ALIGNMENT_CHECKLIST.md",
+      "label": "docs/audit/API_ALIGNMENT_CHECKLIST.md",
+      "path": "docs/audit/API_ALIGNMENT_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/API_ALIGNMENT_PR_TEMPLATE.md",
+      "label": "docs/audit/API_ALIGNMENT_PR_TEMPLATE.md",
+      "path": "docs/audit/API_ALIGNMENT_PR_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "label": "docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "path": "docs/audit/AUDIT_GAPS_ANALYSIS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_AUDIT_SUMMARY.md",
+      "label": "docs/audit/BACKEND_AUDIT_SUMMARY.md",
+      "path": "docs/audit/BACKEND_AUDIT_SUMMARY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_BUSINESS_LOGIC_AUDIT.md",
+      "label": "docs/audit/BACKEND_BUSINESS_LOGIC_AUDIT.md",
+      "path": "docs/audit/BACKEND_BUSINESS_LOGIC_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_COMPLETE_AUDIT_INDEX.md",
+      "label": "docs/audit/BACKEND_COMPLETE_AUDIT_INDEX.md",
+      "path": "docs/audit/BACKEND_COMPLETE_AUDIT_INDEX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_DUPLICATION_AUDIT.md",
+      "label": "docs/audit/BACKEND_DUPLICATION_AUDIT.md",
+      "path": "docs/audit/BACKEND_DUPLICATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md",
+      "label": "docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md",
+      "path": "docs/audit/BACKEND_EXTERNAL_APIS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_HIP_WHR_AUDIT.md",
+      "label": "docs/audit/BACKEND_HIP_WHR_AUDIT.md",
+      "path": "docs/audit/BACKEND_HIP_WHR_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md",
+      "label": "docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md",
+      "path": "docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_P0_REMEDIATION_PLAN.md",
+      "label": "docs/audit/BACKEND_P0_REMEDIATION_PLAN.md",
+      "path": "docs/audit/BACKEND_P0_REMEDIATION_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_STUB_MODULES_AUDIT.md",
+      "label": "docs/audit/BACKEND_STUB_MODULES_AUDIT.md",
+      "path": "docs/audit/BACKEND_STUB_MODULES_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_TODO_FIXME_AUDIT.md",
+      "label": "docs/audit/BACKEND_TODO_FIXME_AUDIT.md",
+      "path": "docs/audit/BACKEND_TODO_FIXME_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md",
+      "label": "docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md",
+      "path": "docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/BACKLOG_LEDGER_CHECKBOX_HYGIENE_AUDIT_2026-02-07.md",
+      "label": "docs/audit/BACKLOG_LEDGER_CHECKBOX_HYGIENE_AUDIT_2026-02-07.md",
+      "path": "docs/audit/BACKLOG_LEDGER_CHECKBOX_HYGIENE_AUDIT_2026-02-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
+      "label": "docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
+      "path": "docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DESIGN_AUDIT_PRIORITIES_CORRECTED.md",
+      "label": "docs/audit/DESIGN_AUDIT_PRIORITIES_CORRECTED.md",
+      "path": "docs/audit/DESIGN_AUDIT_PRIORITIES_CORRECTED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DESIGN_AUDIT_SUMMARY.md",
+      "label": "docs/audit/DESIGN_AUDIT_SUMMARY.md",
+      "path": "docs/audit/DESIGN_AUDIT_SUMMARY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
+      "label": "docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
+      "path": "docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/FRONTEND_BACKEND_ALIGNMENT_AUDIT.md",
+      "label": "docs/audit/FRONTEND_BACKEND_ALIGNMENT_AUDIT.md",
+      "path": "docs/audit/FRONTEND_BACKEND_ALIGNMENT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/FRONTEND_COMPONENTS_QUICK_START.md",
+      "label": "docs/audit/FRONTEND_COMPONENTS_QUICK_START.md",
+      "path": "docs/audit/FRONTEND_COMPONENTS_QUICK_START.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md",
+      "label": "docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md",
+      "path": "docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/GHCR_TOKEN_SETUP.md",
+      "label": "docs/audit/GHCR_TOKEN_SETUP.md",
+      "path": "docs/audit/GHCR_TOKEN_SETUP.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/GREENLET_PR_DESCRIPTION.md",
+      "label": "docs/audit/GREENLET_PR_DESCRIPTION.md",
+      "path": "docs/audit/GREENLET_PR_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md",
+      "label": "docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md",
+      "path": "docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-06.md",
+      "label": "docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-06.md",
+      "path": "docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md",
+      "label": "docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md",
+      "path": "docs/audit/IOS_DOCS_LEDGER_ALIGNMENT_AUDIT_2026-02-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/IOS_WEB_THIN_CLIENT_AUDIT.md",
+      "label": "docs/audit/IOS_WEB_THIN_CLIENT_AUDIT.md",
+      "path": "docs/audit/IOS_WEB_THIN_CLIENT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/LEGACY_APP_MIGRATION_STATUS.md",
+      "label": "docs/audit/LEGACY_APP_MIGRATION_STATUS.md",
+      "path": "docs/audit/LEGACY_APP_MIGRATION_STATUS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md",
+      "label": "docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md",
+      "path": "docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md",
+      "label": "docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md",
+      "path": "docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
+      "label": "docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
+      "path": "docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md",
+      "label": "docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md",
+      "path": "docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_510_PR_DESCRIPTION.md",
+      "label": "docs/audit/PR_510_PR_DESCRIPTION.md",
+      "path": "docs/audit/PR_510_PR_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_510_legacy_app_audit.md",
+      "label": "docs/audit/PR_510_legacy_app_audit.md",
+      "path": "docs/audit/PR_510_legacy_app_audit.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_518_VIP_GUARD_MATRIX_HYGIENE_AUDIT.md",
+      "label": "docs/audit/PR_518_VIP_GUARD_MATRIX_HYGIENE_AUDIT.md",
+      "path": "docs/audit/PR_518_VIP_GUARD_MATRIX_HYGIENE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_519_AUDIT.md",
+      "label": "docs/audit/PR_519_AUDIT.md",
+      "path": "docs/audit/PR_519_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_519_AUDIT_STATUS.md",
+      "label": "docs/audit/PR_519_AUDIT_STATUS.md",
+      "path": "docs/audit/PR_519_AUDIT_STATUS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_520_INSIGHTS.md",
+      "label": "docs/audit/PR_520_INSIGHTS.md",
+      "path": "docs/audit/PR_520_INSIGHTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_520_SCOPE_CREEP_RESPONSE_TEMPLATE.md",
+      "label": "docs/audit/PR_520_SCOPE_CREEP_RESPONSE_TEMPLATE.md",
+      "path": "docs/audit/PR_520_SCOPE_CREEP_RESPONSE_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521A_CODERABBIT_RESPONSES.md",
+      "label": "docs/audit/PR_521A_CODERABBIT_RESPONSES.md",
+      "path": "docs/audit/PR_521A_CODERABBIT_RESPONSES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521A_FINAL_STATUS.md",
+      "label": "docs/audit/PR_521A_FINAL_STATUS.md",
+      "path": "docs/audit/PR_521A_FINAL_STATUS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521A_MERGE_CHECKLIST.md",
+      "label": "docs/audit/PR_521A_MERGE_CHECKLIST.md",
+      "path": "docs/audit/PR_521A_MERGE_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521A_REVIEWER_GUIDE.md",
+      "label": "docs/audit/PR_521A_REVIEWER_GUIDE.md",
+      "path": "docs/audit/PR_521A_REVIEWER_GUIDE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521A_SOURCERY_RESPONSES.md",
+      "label": "docs/audit/PR_521A_SOURCERY_RESPONSES.md",
+      "path": "docs/audit/PR_521A_SOURCERY_RESPONSES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521B_FINAL_PLAN.md",
+      "label": "docs/audit/PR_521B_FINAL_PLAN.md",
+      "path": "docs/audit/PR_521B_FINAL_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521B_PR_DESCRIPTION.md",
+      "label": "docs/audit/PR_521B_PR_DESCRIPTION.md",
+      "path": "docs/audit/PR_521B_PR_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_521B_REVIEWER_CHECKLIST.md",
+      "label": "docs/audit/PR_521B_REVIEWER_CHECKLIST.md",
+      "path": "docs/audit/PR_521B_REVIEWER_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_524_EXACT_PATCHES.md",
+      "label": "docs/audit/PR_524_EXACT_PATCHES.md",
+      "path": "docs/audit/PR_524_EXACT_PATCHES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_524_GITHUB_DESCRIPTION.md",
+      "label": "docs/audit/PR_524_GITHUB_DESCRIPTION.md",
+      "path": "docs/audit/PR_524_GITHUB_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_524_SUMMARY.md",
+      "label": "docs/audit/PR_524_SUMMARY.md",
+      "path": "docs/audit/PR_524_SUMMARY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_524_WEEKLY_PLAN_MIGRATION_AUDIT.md",
+      "label": "docs/audit/PR_524_WEEKLY_PLAN_MIGRATION_AUDIT.md",
+      "path": "docs/audit/PR_524_WEEKLY_PLAN_MIGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_525_BMI_FIX_PATCH.md",
+      "label": "docs/audit/PR_525_BMI_FIX_PATCH.md",
+      "path": "docs/audit/PR_525_BMI_FIX_PATCH.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_525_GITHUB_DESCRIPTION.md",
+      "label": "docs/audit/PR_525_GITHUB_DESCRIPTION.md",
+      "path": "docs/audit/PR_525_GITHUB_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_525_READY_CHECKLIST.md",
+      "label": "docs/audit/PR_525_READY_CHECKLIST.md",
+      "path": "docs/audit/PR_525_READY_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_526_DESCRIPTION.md",
+      "label": "docs/audit/PR_526_DESCRIPTION.md",
+      "path": "docs/audit/PR_526_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_526_SHADCN_COMPONENTS_PATCH.md",
+      "label": "docs/audit/PR_526_SHADCN_COMPONENTS_PATCH.md",
+      "path": "docs/audit/PR_526_SHADCN_COMPONENTS_PATCH.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_527_DESCRIPTION.md",
+      "label": "docs/audit/PR_527_DESCRIPTION.md",
+      "path": "docs/audit/PR_527_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_528_PLAN.md",
+      "label": "docs/audit/PR_528_PLAN.md",
+      "path": "docs/audit/PR_528_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_529_PLAN.md",
+      "label": "docs/audit/PR_529_PLAN.md",
+      "path": "docs/audit/PR_529_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_529_WORKING_MAP.md",
+      "label": "docs/audit/PR_529_WORKING_MAP.md",
+      "path": "docs/audit/PR_529_WORKING_MAP.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_560_CI_IOS_STABILITY_AUDIT.md",
+      "label": "docs/audit/PR_560_CI_IOS_STABILITY_AUDIT.md",
+      "path": "docs/audit/PR_560_CI_IOS_STABILITY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_563_REVIEW.md",
+      "label": "docs/audit/PR_563_REVIEW.md",
+      "path": "docs/audit/PR_563_REVIEW.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_573_PRIORITY_MAPPING_AUDIT.md",
+      "label": "docs/audit/PR_573_PRIORITY_MAPPING_AUDIT.md",
+      "path": "docs/audit/PR_573_PRIORITY_MAPPING_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_574_CI_IOS_PATH_FILTER_AUDIT.md",
+      "label": "docs/audit/PR_574_CI_IOS_PATH_FILTER_AUDIT.md",
+      "path": "docs/audit/PR_574_CI_IOS_PATH_FILTER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md",
+      "label": "docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md",
+      "path": "docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md",
+      "label": "docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md",
+      "path": "docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md",
+      "label": "docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md",
+      "path": "docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md",
+      "label": "docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md",
+      "path": "docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_598_IOS_BMI_THIN_CLIENT_DEDUP_AUDIT.md",
+      "label": "docs/audit/PR_598_IOS_BMI_THIN_CLIENT_DEDUP_AUDIT.md",
+      "path": "docs/audit/PR_598_IOS_BMI_THIN_CLIENT_DEDUP_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_599_WEB_THIN_CLIENT_ALIGNMENT_AUDIT.md",
+      "label": "docs/audit/PR_599_WEB_THIN_CLIENT_ALIGNMENT_AUDIT.md",
+      "path": "docs/audit/PR_599_WEB_THIN_CLIENT_ALIGNMENT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_600_QUALITY_TESTS_AUDIT.md",
+      "label": "docs/audit/PR_600_QUALITY_TESTS_AUDIT.md",
+      "path": "docs/audit/PR_600_QUALITY_TESTS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md",
+      "label": "docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md",
+      "path": "docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md",
+      "label": "docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md",
+      "path": "docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md",
+      "label": "docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md",
+      "path": "docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md",
+      "label": "docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md",
+      "path": "docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_633_TARGETSIN_UNIFY_AUDIT.md",
+      "label": "docs/audit/PR_633_TARGETSIN_UNIFY_AUDIT.md",
+      "path": "docs/audit/PR_633_TARGETSIN_UNIFY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_634_AGENT_ORCHESTRATION_V2_AUDIT.md",
+      "label": "docs/audit/PR_634_AGENT_ORCHESTRATION_V2_AUDIT.md",
+      "path": "docs/audit/PR_634_AGENT_ORCHESTRATION_V2_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md",
+      "label": "docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md",
+      "path": "docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md",
+      "label": "docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md",
+      "path": "docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md",
+      "label": "docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md",
+      "path": "docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md",
+      "label": "docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md",
+      "path": "docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_654_BACKEND_LEGACY_NUTRITION_ALIAS_PRO_GUARD_AUDIT.md",
+      "label": "docs/audit/PR_654_BACKEND_LEGACY_NUTRITION_ALIAS_PRO_GUARD_AUDIT.md",
+      "path": "docs/audit/PR_654_BACKEND_LEGACY_NUTRITION_ALIAS_PRO_GUARD_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_667_IOS_PLATE_PRO_DAILY_MIGRATION_AUDIT.md",
+      "label": "docs/audit/PR_667_IOS_PLATE_PRO_DAILY_MIGRATION_AUDIT.md",
+      "path": "docs/audit/PR_667_IOS_PLATE_PRO_DAILY_MIGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_671_IOS_EXPOSE_BMI_ROOTTABS_AUDIT.md",
+      "label": "docs/audit/PR_671_IOS_EXPOSE_BMI_ROOTTABS_AUDIT.md",
+      "path": "docs/audit/PR_671_IOS_EXPOSE_BMI_ROOTTABS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md",
+      "label": "docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md",
+      "path": "docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md",
+      "label": "docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md",
+      "path": "docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md",
+      "label": "docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md",
+      "path": "docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_A_DESCRIPTION.md",
+      "label": "docs/audit/PR_A_DESCRIPTION.md",
+      "path": "docs/audit/PR_A_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_A_POST_MERGE_NOTES.md",
+      "label": "docs/audit/PR_A_POST_MERGE_NOTES.md",
+      "path": "docs/audit/PR_A_POST_MERGE_NOTES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_B_ANALYSIS.md",
+      "label": "docs/audit/PR_B_ANALYSIS.md",
+      "path": "docs/audit/PR_B_ANALYSIS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_B_MERGE_MESSAGE.md",
+      "label": "docs/audit/PR_B_MERGE_MESSAGE.md",
+      "path": "docs/audit/PR_B_MERGE_MESSAGE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_B_VIP_GUARD_CONSISTENCY_AUDIT.md",
+      "label": "docs/audit/PR_B_VIP_GUARD_CONSISTENCY_AUDIT.md",
+      "path": "docs/audit/PR_B_VIP_GUARD_CONSISTENCY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_GUARD_COMMANDS.md",
+      "label": "docs/audit/PR_GUARD_COMMANDS.md",
+      "path": "docs/audit/PR_GUARD_COMMANDS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_GUARD_POLICY_GITHUB_DESCRIPTION.md",
+      "label": "docs/audit/PR_GUARD_POLICY_GITHUB_DESCRIPTION.md",
+      "path": "docs/audit/PR_GUARD_POLICY_GITHUB_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_GUARD_POLICY_LOCAL_TEST_RESULTS.md",
+      "label": "docs/audit/PR_GUARD_POLICY_LOCAL_TEST_RESULTS.md",
+      "path": "docs/audit/PR_GUARD_POLICY_LOCAL_TEST_RESULTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_GUARD_POLICY_SKELETON.md",
+      "label": "docs/audit/PR_GUARD_POLICY_SKELETON.md",
+      "path": "docs/audit/PR_GUARD_POLICY_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
+      "label": "docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
+      "path": "docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_PLAN_FRONTEND_FIXES.md",
+      "label": "docs/audit/PR_PLAN_FRONTEND_FIXES.md",
+      "path": "docs/audit/PR_PLAN_FRONTEND_FIXES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_POST_CLEANUP_AUDIT.md",
+      "label": "docs/audit/PR_POST_CLEANUP_AUDIT.md",
+      "path": "docs/audit/PR_POST_CLEANUP_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_POST_REMEDIATION_FOLLOWUP.md",
+      "label": "docs/audit/PR_POST_REMEDIATION_FOLLOWUP.md",
+      "path": "docs/audit/PR_POST_REMEDIATION_FOLLOWUP.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_PRODUCT_SOFT_PAYWALL_SKELETON.md",
+      "label": "docs/audit/PR_PRODUCT_SOFT_PAYWALL_SKELETON.md",
+      "path": "docs/audit/PR_PRODUCT_SOFT_PAYWALL_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md",
+      "label": "docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md",
+      "path": "docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_Q2_IOS_UI_TESTS_RESTORE_AUDIT.md",
+      "label": "docs/audit/PR_Q2_IOS_UI_TESTS_RESTORE_AUDIT.md",
+      "path": "docs/audit/PR_Q2_IOS_UI_TESTS_RESTORE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md",
+      "label": "docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md",
+      "path": "docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_CHERRY_PICK_GUIDE.md",
+      "label": "docs/audit/PR_REMEDIATION_CHERRY_PICK_GUIDE.md",
+      "path": "docs/audit/PR_REMEDIATION_CHERRY_PICK_GUIDE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_EXACT_PATCHES.md",
+      "label": "docs/audit/PR_REMEDIATION_EXACT_PATCHES.md",
+      "path": "docs/audit/PR_REMEDIATION_EXACT_PATCHES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_EXACT_PATCHES_CONSOLIDATED.md",
+      "label": "docs/audit/PR_REMEDIATION_EXACT_PATCHES_CONSOLIDATED.md",
+      "path": "docs/audit/PR_REMEDIATION_EXACT_PATCHES_CONSOLIDATED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_PRE_FLIGHT_CHECKLIST.md",
+      "label": "docs/audit/PR_REMEDIATION_PRE_FLIGHT_CHECKLIST.md",
+      "path": "docs/audit/PR_REMEDIATION_PRE_FLIGHT_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_SELF_AUDIT.md",
+      "label": "docs/audit/PR_REMEDIATION_SELF_AUDIT.md",
+      "path": "docs/audit/PR_REMEDIATION_SELF_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_REMEDIATION_SKELETON.md",
+      "label": "docs/audit/PR_REMEDIATION_SKELETON.md",
+      "path": "docs/audit/PR_REMEDIATION_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
+      "label": "docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
+      "path": "docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TBD_BACKLOG_LEDGER_POST_MERGE_SYNC_2026-02-07.md",
+      "label": "docs/audit/PR_TBD_BACKLOG_LEDGER_POST_MERGE_SYNC_2026-02-07.md",
+      "path": "docs/audit/PR_TBD_BACKLOG_LEDGER_POST_MERGE_SYNC_2026-02-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TBD_IOS_SHOPPINGPLAN_PUBLIC_API_AUDIT.md",
+      "label": "docs/audit/PR_TBD_IOS_SHOPPINGPLAN_PUBLIC_API_AUDIT.md",
+      "path": "docs/audit/PR_TBD_IOS_SHOPPINGPLAN_PUBLIC_API_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "label": "docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "path": "docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "label": "docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "path": "docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
+      "label": "docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
+      "path": "docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_XXX_DOMAIN_HINTS_AUDIT.md",
+      "label": "docs/audit/PR_XXX_DOMAIN_HINTS_AUDIT.md",
+      "path": "docs/audit/PR_XXX_DOMAIN_HINTS_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md",
+      "label": "docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md",
+      "path": "docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
+      "label": "docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
+      "path": "docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/SHIM_AUDIT_BMI_PRO.md",
+      "label": "docs/audit/SHIM_AUDIT_BMI_PRO.md",
+      "path": "docs/audit/SHIM_AUDIT_BMI_PRO.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/WEBSOCKET_ANALYSIS.md",
+      "label": "docs/audit/WEBSOCKET_ANALYSIS.md",
+      "path": "docs/audit/WEBSOCKET_ANALYSIS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
+      "label": "docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
+      "path": "docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
+      "label": "docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
+      "path": "docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_FINAL_PLAN.md",
+      "label": "docs/audit/_local/PR_521A_FINAL_PLAN.md",
+      "path": "docs/audit/_local/PR_521A_FINAL_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
+      "label": "docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
+      "path": "docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_GATES.md",
+      "label": "docs/audit/_local/PR_521A_GATES.md",
+      "path": "docs/audit/_local/PR_521A_GATES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_PRE_PUSH.md",
+      "label": "docs/audit/_local/PR_521A_PRE_PUSH.md",
+      "path": "docs/audit/_local/PR_521A_PRE_PUSH.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
+      "label": "docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
+      "path": "docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521B_FINAL_PLAN.md",
+      "label": "docs/audit/_local/PR_521B_FINAL_PLAN.md",
+      "path": "docs/audit/_local/PR_521B_FINAL_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
+      "label": "docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
+      "path": "docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
+      "label": "docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
+      "path": "docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521_FINAL_SUMMARY.md",
+      "label": "docs/audit/_local/PR_521_FINAL_SUMMARY.md",
+      "path": "docs/audit/_local/PR_521_FINAL_SUMMARY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521_PLAN_REVISED.md",
+      "label": "docs/audit/_local/PR_521_PLAN_REVISED.md",
+      "path": "docs/audit/_local/PR_521_PLAN_REVISED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
+      "label": "docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
+      "path": "docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/_local/PR_522_FINAL_PLAN.md",
+      "label": "docs/audit/_local/PR_522_FINAL_PLAN.md",
+      "path": "docs/audit/_local/PR_522_FINAL_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/graph/GRAPHMAP_SPEC.md",
+      "label": "docs/graph/GRAPHMAP_SPEC.md",
+      "path": "docs/graph/GRAPHMAP_SPEC.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+      "label": "docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+      "path": "docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "label": "docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "path": "docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md",
+      "label": "docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md",
+      "path": "docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
+      "label": "docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
+      "path": "docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md",
+      "label": "docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md",
+      "path": "docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
+      "label": "docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
+      "path": "docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/AGENT_ROLE_CONTRACTS.md",
+      "label": "docs/orchestration/contracts/AGENT_ROLE_CONTRACTS.md",
+      "path": "docs/orchestration/contracts/AGENT_ROLE_CONTRACTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md",
+      "label": "docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md",
+      "path": "docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
+      "label": "docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
+      "path": "docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/dod.template.md",
+      "label": "docs/orchestration/dod.template.md",
+      "path": "docs/orchestration/dod.template.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/synthesis.template.md",
+      "label": "docs/orchestration/synthesis.template.md",
+      "path": "docs/orchestration/synthesis.template.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/task_analysis.template.md",
+      "label": "docs/orchestration/task_analysis.template.md",
+      "path": "docs/orchestration/task_analysis.template.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/work_review.template.md",
+      "label": "docs/orchestration/work_review.template.md",
+      "path": "docs/orchestration/work_review.template.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/workflow.md",
+      "label": "docs/orchestration/workflow.md",
+      "path": "docs/orchestration/workflow.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    }
+  ],
+  "schema_version": "1.0"
+}
