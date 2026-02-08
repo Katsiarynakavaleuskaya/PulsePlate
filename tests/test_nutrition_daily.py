@@ -395,6 +395,50 @@ def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
     assert len(data["segments"]) == 4
 
 
+def _get_legacy_alias_metric_value() -> float:
+    # prom-client API: stable, no scraping needed
+    from prometheus_client import REGISTRY
+
+    value = REGISTRY.get_sample_value(
+        "legacy_alias_requests_total",
+        {"alias_route": "/api/nutrition/{date_str}"},
+    )
+    return float(value or 0.0)
+
+
+def test_legacy_alias_increments_counter(client: TestClient) -> None:
+    before = _get_legacy_alias_metric_value()
+
+    resp = client.get(
+        "/api/nutrition/2025-12-15",
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert resp.status_code == 200
+
+    after = _get_legacy_alias_metric_value()
+    assert after == before + 1.0
+
+
+def test_canonical_does_not_increment_legacy_counter(client: TestClient) -> None:
+    before = _get_legacy_alias_metric_value()
+
+    resp = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-12-15",
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert resp.status_code == 200
+
+    after = _get_legacy_alias_metric_value()
+    assert after == before
+
+
 def test_nutrition_targets_integration(client: TestClient) -> None:
     """Test WHO targets are correctly integrated and calculated.
 
