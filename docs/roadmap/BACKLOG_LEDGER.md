@@ -467,7 +467,7 @@ If it is not recorded here — it does not exist.
     - ✅ `docs/graph/GRAPHMAP_SPEC.md` defines GraphMap inputs and edge rules
     - ✅ Deterministic builder generates stable `docs/graph/graph.json` from explicit sources only
     - ✅ Viewer supports filtering by `Level` and `NodeType`, plus search, legend, and zoom controls
-    - ✅ Click opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
+    - ✅ Clicking opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
     - ✅ Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
     - ✅ No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
 
