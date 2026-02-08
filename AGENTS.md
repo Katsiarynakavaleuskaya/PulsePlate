@@ -148,6 +148,27 @@ A **task** is any unit of work that:
 
 **Rationale:** Ensures consistent task start, proper agent routing, quality gates, and systematic tracking of postponed work.
 
+## Project Memory Layer (PML) / Knowledge Promotion Pipeline (KPP)
+
+**Hard rule:** Agents do not “learn” by silently storing canonical knowledge. **Repo artifacts remain the only Source of Truth.**
+
+### What counts as “project memory”
+
+- **L0 (non-SoT):** chat history / model memory / prompts (never cited as truth)
+- **L1 (working notes):** task analysis / review / synthesis docs (short-lived)
+- **L2 (canonical):** rules, contracts, ADRs, and guard tests in the repo
+
+### Promotion rule (KPP)
+
+If an agent discovers a reusable insight, it must be promoted via **exactly one** durable repo artifact:
+
+- a canonical doc/policy/ADR update, or
+- a guard test (preferred for invariants), or
+- a ledger item in `docs/roadmap/BACKLOG_LEDGER.md`, or
+- a short “memory capsule” under `docs/memory/` (index: `docs/memory/index.md`)
+
+**Evidence requirement:** every promoted claim must include `file:line` pointers and/or reproducible commands + raw output + exit code.
+
 ## If you feel lost
 
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".
