@@ -57,15 +57,9 @@ async function loadGraph() {
 
 function makeElements(graph) {
   const nodes = graph.nodes.map((n) => ({ data: n }));
-  const edges = graph.edges.map((e, idx) => ({
-    data: {
-      ...e,
-      // Sourcery: avoid ID collisions for parallel edges.
-      // Cytoscape element IDs are viewer-internal; graph.json schema does not include edge ids.
-      id: `edge:${idx}`,
-      evidence: e.evidence || null,
-    },
-  }));
+  // Note: graph.json schema does not include edge IDs. Let Cytoscape generate unique IDs
+  // so parallel edges (same source/target/type but different evidence) never collide.
+  const edges = graph.edges.map((e) => ({ data: { ...e, evidence: e.evidence || null } }));
   return nodes.concat(edges);
 }
 
