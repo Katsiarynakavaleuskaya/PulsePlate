@@ -16,10 +16,17 @@ from typing import Any, Callable, Protocol, cast
 
 logger = logging.getLogger(__name__)
 
+# Canonical legacy nutrition alias route template (SoT for allowlist/tests).
+# RU: Канонический route template для legacy nutrition alias (SoT для allowlist/тестов).
+# EN: Canonical route template for legacy nutrition alias (SoT for allowlist/tests).
+LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE = "/api/nutrition/{date_str}"
+
 # Explicit allowlist for legacy alias routes (low cardinality).
 # RU: Явный allowlist legacy-алиасов (низкая кардинальность).
 # EN: Explicit allowlist for legacy aliases (low cardinality).
-LEGACY_ALIAS_ROUTE_ALLOWLIST: frozenset[str] = frozenset({"/api/nutrition/{date_str}"})
+LEGACY_ALIAS_ROUTE_ALLOWLIST: set[str] = {
+    LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE,
+}
 
 
 class _CounterChild(Protocol):
