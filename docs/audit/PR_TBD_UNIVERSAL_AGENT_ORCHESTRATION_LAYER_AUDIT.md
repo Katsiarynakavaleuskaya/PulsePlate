@@ -438,9 +438,9 @@ This audit explicitly aligns with the repo’s “insight” research corpus:
 
 ### Medical/nutrition boundaries
 
-**Required disclaimer (canonical wording draft):**
+**Required disclaimer (SoT):**
 
-> For informational wellness purposes only. Not medical or therapeutic advice. Consult qualified professionals for medical concerns.
+Use the canonical disclaimer: `docs/safety/WELLNESS_DISCLAIMER_CANONICAL.md`.
 
 ---
 
@@ -599,7 +599,7 @@ The system must apply structured logical operations and rule constraints to gene
 
 #### Required disclaimer (wellness-only)
 
-For informational wellness purposes only. Not medical or therapeutic advice.
+Use the canonical disclaimer: `docs/safety/WELLNESS_DISCLAIMER_CANONICAL.md`.
 
 #### Acceptance criteria (future tests)
 
