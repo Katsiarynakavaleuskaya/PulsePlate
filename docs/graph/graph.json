@@ -5,7 +5,7 @@
         "docs/agents/index.md:17"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/agent-coordinator.md",
+      "target": "agent:agent-coordinator",
       "type": "references"
     },
     {
@@ -13,7 +13,7 @@
         "docs/agents/index.md:29"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/ai-app-architect.md",
+      "target": "agent:ai-app-architect",
       "type": "references"
     },
     {
@@ -21,7 +21,7 @@
         "docs/agents/index.md:18"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/ai-innovation-specialist.md",
+      "target": "agent:ai-innovation-specialist",
       "type": "references"
     },
     {
@@ -29,7 +29,7 @@
         "docs/agents/index.md:19"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/architecture-specialist.md",
+      "target": "agent:architecture-specialist",
       "type": "references"
     },
     {
@@ -37,7 +37,7 @@
         "docs/agents/index.md:26"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/bayesian-uq-agent.md",
+      "target": "agent:bayesian-uq-agent",
       "type": "references"
     },
     {
@@ -45,7 +45,7 @@
         "docs/agents/index.md:20"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/bug-hunter.md",
+      "target": "agent:bug-hunter",
       "type": "references"
     },
     {
@@ -53,7 +53,7 @@
         "docs/agents/index.md:33"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/cbt-psychologist-agent.md",
+      "target": "agent:cbt-psychologist-agent",
       "type": "references"
     },
     {
@@ -61,7 +61,7 @@
         "docs/agents/index.md:21"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/creative-designer.md",
+      "target": "agent:creative-designer",
       "type": "references"
     },
     {
@@ -69,7 +69,7 @@
         "docs/agents/index.md:28"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/cv-agent.md",
+      "target": "agent:cv-agent",
       "type": "references"
     },
     {
@@ -77,7 +77,7 @@
         "docs/agents/index.md:30"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/data-scientist-agent.md",
+      "target": "agent:data-scientist-agent",
       "type": "references"
     },
     {
@@ -85,7 +85,7 @@
         "docs/agents/index.md:34"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/epistemology-discovery-agent.md",
+      "target": "agent:epistemology-discovery-agent",
       "type": "references"
     },
     {
@@ -93,7 +93,7 @@
         "docs/agents/index.md:25"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/logic-agent.md",
+      "target": "agent:logic-agent",
       "type": "references"
     },
     {
@@ -101,7 +101,7 @@
         "docs/agents/index.md:22"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/marketing-strategist.md",
+      "target": "agent:marketing-strategist",
       "type": "references"
     },
     {
@@ -109,7 +109,7 @@
         "docs/agents/index.md:31"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/ml-engineer-agent.md",
+      "target": "agent:ml-engineer-agent",
       "type": "references"
     },
     {
@@ -117,7 +117,7 @@
         "docs/agents/index.md:32"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/nutritionist-agent.md",
+      "target": "agent:nutritionist-agent",
       "type": "references"
     },
     {
@@ -125,7 +125,7 @@
         "docs/agents/index.md:24"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/philosophy-agent.md",
+      "target": "agent:philosophy-agent",
       "type": "references"
     },
     {
@@ -133,7 +133,7 @@
         "docs/agents/index.md:35"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/physics-sensor-agent.md",
+      "target": "agent:physics-sensor-agent",
       "type": "references"
     },
     {
@@ -141,7 +141,7 @@
         "docs/agents/index.md:27"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/rag-systems-agent.md",
+      "target": "agent:rag-systems-agent",
       "type": "references"
     },
     {
@@ -149,7 +149,7 @@
         "docs/agents/index.md:23"
       ],
       "source": "doc:docs/agents/index.md",
-      "target": "doc:cursor/agents/security-auditor.md",
+      "target": "agent:security-auditor",
       "type": "references"
     },
     {
@@ -236,6 +236,186 @@
   },
   "nodes": [
     {
+      "id": "agent:AGENTS",
+      "label": ".cursor/agents/AGENTS.md",
+      "path": ".cursor/agents/AGENTS.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:agent-coordinator",
+      "label": ".cursor/agents/agent-coordinator.md",
+      "path": ".cursor/agents/agent-coordinator.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:ai-app-architect",
+      "label": ".cursor/agents/ai-app-architect.md",
+      "path": ".cursor/agents/ai-app-architect.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:ai-innovation-specialist",
+      "label": ".cursor/agents/ai-innovation-specialist.md",
+      "path": ".cursor/agents/ai-innovation-specialist.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:architecture-specialist",
+      "label": ".cursor/agents/architecture-specialist.md",
+      "path": ".cursor/agents/architecture-specialist.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:bayesian-uq-agent",
+      "label": ".cursor/agents/bayesian-uq-agent.md",
+      "path": ".cursor/agents/bayesian-uq-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:bug-hunter",
+      "label": ".cursor/agents/bug-hunter.md",
+      "path": ".cursor/agents/bug-hunter.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:cbt-psychologist-agent",
+      "label": ".cursor/agents/cbt-psychologist-agent.md",
+      "path": ".cursor/agents/cbt-psychologist-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:creative-designer",
+      "label": ".cursor/agents/creative-designer.md",
+      "path": ".cursor/agents/creative-designer.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:cv-agent",
+      "label": ".cursor/agents/cv-agent.md",
+      "path": ".cursor/agents/cv-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:data-scientist-agent",
+      "label": ".cursor/agents/data-scientist-agent.md",
+      "path": ".cursor/agents/data-scientist-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:epistemology-discovery-agent",
+      "label": ".cursor/agents/epistemology-discovery-agent.md",
+      "path": ".cursor/agents/epistemology-discovery-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:logic-agent",
+      "label": ".cursor/agents/logic-agent.md",
+      "path": ".cursor/agents/logic-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:marketing-strategist",
+      "label": ".cursor/agents/marketing-strategist.md",
+      "path": ".cursor/agents/marketing-strategist.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:ml-engineer-agent",
+      "label": ".cursor/agents/ml-engineer-agent.md",
+      "path": ".cursor/agents/ml-engineer-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:nutritionist-agent",
+      "label": ".cursor/agents/nutritionist-agent.md",
+      "path": ".cursor/agents/nutritionist-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:philosophy-agent",
+      "label": ".cursor/agents/philosophy-agent.md",
+      "path": ".cursor/agents/philosophy-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:physics-sensor-agent",
+      "label": ".cursor/agents/physics-sensor-agent.md",
+      "path": ".cursor/agents/physics-sensor-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:rag-systems-agent",
+      "label": ".cursor/agents/rag-systems-agent.md",
+      "path": ".cursor/agents/rag-systems-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:security-auditor",
+      "label": ".cursor/agents/security-auditor.md",
+      "path": ".cursor/agents/security-auditor.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
       "id": "doc:AGENTS.md",
       "label": "AGENTS.md",
       "path": "AGENTS.md",
@@ -243,126 +423,6 @@
         "project",
         "safety"
       ],
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/AGENTS.md",
-      "label": ".cursor/agents/AGENTS.md",
-      "path": ".cursor/agents/AGENTS.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/agent-coordinator.md",
-      "label": ".cursor/agents/agent-coordinator.md",
-      "path": ".cursor/agents/agent-coordinator.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/ai-app-architect.md",
-      "label": ".cursor/agents/ai-app-architect.md",
-      "path": ".cursor/agents/ai-app-architect.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/ai-innovation-specialist.md",
-      "label": ".cursor/agents/ai-innovation-specialist.md",
-      "path": ".cursor/agents/ai-innovation-specialist.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/architecture-specialist.md",
-      "label": ".cursor/agents/architecture-specialist.md",
-      "path": ".cursor/agents/architecture-specialist.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/bayesian-uq-agent.md",
-      "label": ".cursor/agents/bayesian-uq-agent.md",
-      "path": ".cursor/agents/bayesian-uq-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/bug-hunter.md",
-      "label": ".cursor/agents/bug-hunter.md",
-      "path": ".cursor/agents/bug-hunter.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/cbt-psychologist-agent.md",
-      "label": ".cursor/agents/cbt-psychologist-agent.md",
-      "path": ".cursor/agents/cbt-psychologist-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/creative-designer.md",
-      "label": ".cursor/agents/creative-designer.md",
-      "path": ".cursor/agents/creative-designer.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/cv-agent.md",
-      "label": ".cursor/agents/cv-agent.md",
-      "path": ".cursor/agents/cv-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/data-scientist-agent.md",
-      "label": ".cursor/agents/data-scientist-agent.md",
-      "path": ".cursor/agents/data-scientist-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/epistemology-discovery-agent.md",
-      "label": ".cursor/agents/epistemology-discovery-agent.md",
-      "path": ".cursor/agents/epistemology-discovery-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/logic-agent.md",
-      "label": ".cursor/agents/logic-agent.md",
-      "path": ".cursor/agents/logic-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/marketing-strategist.md",
-      "label": ".cursor/agents/marketing-strategist.md",
-      "path": ".cursor/agents/marketing-strategist.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/ml-engineer-agent.md",
-      "label": ".cursor/agents/ml-engineer-agent.md",
-      "path": ".cursor/agents/ml-engineer-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/nutritionist-agent.md",
-      "label": ".cursor/agents/nutritionist-agent.md",
-      "path": ".cursor/agents/nutritionist-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/philosophy-agent.md",
-      "label": ".cursor/agents/philosophy-agent.md",
-      "path": ".cursor/agents/philosophy-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/physics-sensor-agent.md",
-      "label": ".cursor/agents/physics-sensor-agent.md",
-      "path": ".cursor/agents/physics-sensor-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/rag-systems-agent.md",
-      "label": ".cursor/agents/rag-systems-agent.md",
-      "path": ".cursor/agents/rag-systems-agent.md",
-      "type": "document"
-    },
-    {
-      "id": "doc:cursor/agents/security-auditor.md",
-      "label": ".cursor/agents/security-auditor.md",
-      "path": ".cursor/agents/security-auditor.md",
       "type": "document"
     },
     {

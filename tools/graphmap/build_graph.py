@@ -138,7 +138,9 @@ def _normalize_rel_path(repo: Path, src_file: Path, raw: str) -> Optional[str]:
 
 
 def _node_id_for_path(node_type: str, rel_path: str) -> str:
-    rel_path = rel_path.lstrip("./")
+    # Only strip a literal leading "./" (do NOT strip leading ".cursor/").
+    if rel_path.startswith("./"):
+        rel_path = rel_path[2:]
     if node_type == "agent":
         # Prefer frontmatter `name:` when possible; fallback to file stem.
         name = Path(rel_path).stem
@@ -149,7 +151,8 @@ def _node_id_for_path(node_type: str, rel_path: str) -> str:
 
 
 def _guess_node_type(rel_path: str) -> str:
-    rel_path = rel_path.lstrip("./")
+    if rel_path.startswith("./"):
+        rel_path = rel_path[2:]
     if rel_path.startswith(".cursor/agents/") and rel_path.endswith(".md"):
         return "agent"
     if (
@@ -170,7 +173,8 @@ def _guess_node_type(rel_path: str) -> str:
 
 
 def _default_tags_for_path(rel_path: str, node_type: str) -> tuple[str, ...]:
-    rel_path = rel_path.lstrip("./")
+    if rel_path.startswith("./"):
+        rel_path = rel_path[2:]
     tags: list[str] = []
 
     if node_type == "module":
