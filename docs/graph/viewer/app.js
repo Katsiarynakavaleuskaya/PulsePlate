@@ -117,6 +117,9 @@ function wireUI(cy) {
   const typeFilter = document.getElementById("typeFilter");
   const levelFilter = document.getElementById("levelFilter");
   const reset = document.getElementById("reset");
+  const zoomIn = document.getElementById("zoomIn");
+  const zoomOut = document.getElementById("zoomOut");
+  const fit = document.getElementById("fit");
 
   const onChange = () => applyFilters(cy);
 
@@ -124,13 +127,27 @@ function wireUI(cy) {
   typeFilter.addEventListener("change", onChange);
   levelFilter.addEventListener("change", onChange);
 
+  const renderedCenter = () => ({ x: cy.width() / 2, y: cy.height() / 2 });
+
   reset.addEventListener("click", () => {
     search.value = "";
     typeFilter.selectedIndex = -1;
     levelFilter.selectedIndex = -1;
     applyFilters(cy);
-    cy.fit();
+    cy.fit(undefined, 30);
     setDetails(null);
+  });
+
+  zoomIn.addEventListener("click", () => {
+    cy.zoom({ level: cy.zoom() * 1.2, renderedPosition: renderedCenter() });
+  });
+
+  zoomOut.addEventListener("click", () => {
+    cy.zoom({ level: cy.zoom() / 1.2, renderedPosition: renderedCenter() });
+  });
+
+  fit.addEventListener("click", () => {
+    cy.fit(undefined, 30);
   });
 }
 
@@ -138,19 +155,24 @@ function initCy(elements) {
   const cy = cytoscape({
     container: document.getElementById("cy"),
     elements,
-    layout: { name: "cose", animate: false },
+    layout: { name: "cose", animate: false, padding: 30 },
+    wheelSensitivity: 0.2,
     style: [
       {
         selector: "node",
         style: {
           label: "data(label)",
-          "font-size": 10,
+          "font-size": 12,
           "text-wrap": "wrap",
-          "text-max-width": 160,
+          "text-max-width": 220,
+          "text-valign": "center",
+          "text-halign": "center",
           "background-color": "#2d6cdf",
           color: "#e6edf3",
           "border-width": 1,
           "border-color": "#243244",
+          width: 28,
+          height: 28,
         },
       },
       { selector: 'node[type = "module"]', style: { "background-color": "#6c2ddf" } },
@@ -159,14 +181,15 @@ function initCy(elements) {
       {
         selector: "edge",
         style: {
-          width: 1,
+          width: 1.4,
           "line-color": "#243244",
           "target-arrow-color": "#243244",
           "target-arrow-shape": "triangle",
           "curve-style": "bezier",
-          label: "data(type)",
-          "font-size": 8,
+          label: "",
+          "font-size": 9,
           color: "#9aa4b2",
+          opacity: 0.8,
         },
       },
     ],
@@ -183,7 +206,8 @@ function initCy(elements) {
     const cy = initCy(makeElements(graph));
     wireUI(cy);
     applyFilters(cy);
-    cy.fit();
+    cy.fit(undefined, 30);
+    cy.zoom(Math.min(1.25, cy.zoom()));
 
     cy.on("tap", "node", (evt) => {
       const n = evt.target;
