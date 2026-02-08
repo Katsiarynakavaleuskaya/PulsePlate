@@ -27,7 +27,7 @@ from typing import (
 )
 
 import dotenv
-from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import (
     BaseModel,
@@ -44,7 +44,6 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from app.dependencies import validate_template_dir
-from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
@@ -871,47 +870,13 @@ app.include_router(shopping_list_pro_router)
 app.include_router(shoplist_day_router)
 
 
-# Legacy alias for iOS nutrition endpoint compatibility
-# Maps /api/nutrition/{date} to /api/v1/pro/nutrition/daily with default profile
-@app.get(
-    "/api/nutrition/{date_str}",
-    tags=["pro", "legacy"],
-    deprecated=True,
-    include_in_schema=False,
-)
-async def get_daily_nutrition_legacy(
-    date_str: str,
-    sex: str = Query("female", description="Biological sex (female/male)"),
-    age: int = Query(30, gt=10, lt=100, description="Age in years"),
-    height_cm: float = Query(165, gt=100, lt=250, description="Height in cm"),
-    weight_kg: float = Query(65, gt=30, lt=300, description="Weight in kg"),
-    activity: str = Query("moderate", description="Activity level"),
-    goal: str = Query("maintain", description="Nutrition goal"),
-    _: str = Depends(require_pro_tier),
-) -> Dict[str, Any]:
-    """Legacy alias for iOS nutrition endpoint - redirects to PRO endpoint.
+# Legacy nutrition alias router (thin include only; no instrumentation here).
+try:
+    from app.routers.legacy_nutrition_alias import router as legacy_nutrition_alias_router
 
-    RU: Устаревший алиас для iOS совместимости - перенаправляет на PRO endpoint.
-    EN: Legacy alias for iOS compatibility - redirects to PRO endpoint.
-
-    NOTE: This route is deprecated. Use /api/v1/pro/nutrition/daily instead.
-    """
-    from app.metrics import record_legacy_alias_hit
-    from app.routers.pro import get_daily_nutrition
-
-    record_legacy_alias_hit("/api/nutrition/{date_str}")
-
-    # Call the canonical PRO endpoint with profile parameters
-    response = await get_daily_nutrition(
-        date_str=date_str,
-        sex=sex,  # type: ignore
-        age=age,
-        height_cm=height_cm,
-        weight_kg=weight_kg,
-        activity=activity,  # type: ignore
-        goal=goal,  # type: ignore
-    )
-    return response.model_dump()
+    app.include_router(legacy_nutrition_alias_router)
+except ImportError as e:  # pragma: no cover
+    logger.warning("Legacy nutrition alias router not loaded: %s", e)  # pragma: no cover
 
 
 # Premium week router registration is now handled in
