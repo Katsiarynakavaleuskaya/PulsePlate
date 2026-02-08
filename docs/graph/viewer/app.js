@@ -1,3 +1,8 @@
+/**
+ * Read query string parameter.
+ * @param {string} name
+ * @returns {string|null}
+ */
 function qs(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
@@ -8,6 +13,10 @@ const GRAPH_URL = "../graph.json";
 
 const LEVELS = ["theme", "project", "architecture", "module", "safety", "execution"];
 
+/**
+ * Viewer zoom configuration (single source of truth).
+ * @type {{factor:number, fitPadding:number, initialMax:number, min:number, max:number, wheelSensitivity:number}}
+ */
 const ZOOM = {
   factor: 1.2,
   fitPadding: 30,
@@ -17,18 +26,42 @@ const ZOOM = {
   wheelSensitivity: 0.2,
 };
 
+/**
+ * Clamp number into [min, max].
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ * @returns {number}
+ */
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Get unique sorted values.
+ * @template T
+ * @param {Array<T>} arr
+ * @returns {Array<T>}
+ */
 function unique(arr) {
   return Array.from(new Set(arr)).sort();
 }
 
+/**
+ * Read selected values from a multi-select.
+ * @param {HTMLSelectElement} selectEl
+ * @returns {Array<string>}
+ */
 function selectedValues(selectEl) {
   return Array.from(selectEl.selectedOptions).map((o) => o.value);
 }
 
+/**
+ * Build GitHub URL for a node. If any evidence matches node.path, prefer #L<line>.
+ * @param {any} node
+ * @param {{edges:Array<{source:string,target:string,type:string,evidence?:Array<string>} >}} graph
+ * @returns {string|null}
+ */
 function buildGitHubUrlForNode(node, graph) {
   const path = node.data("path");
   if (!path) return null;
@@ -57,17 +90,32 @@ function buildGitHubUrlForNode(node, graph) {
   return bestLine ? `${base}#L${bestLine}` : base;
 }
 
+/**
+ * Render current selection into the details panel.
+ * @param {any|null} node
+ * @returns {void}
+ */
 function setDetails(node) {
   const payload = node ? node.data() : { hint: "(click a node)" };
   document.getElementById("details").textContent = JSON.stringify(payload, null, 2);
 }
 
+/**
+ * Load graph.json for the viewer.
+ * @async
+ * @returns {Promise<{nodes:Array<object>,edges:Array<object>}>}
+ */
 async function loadGraph() {
   const res = await fetch(GRAPH_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load ${GRAPH_URL}: ${res.status}`);
   return res.json();
 }
 
+/**
+ * Convert graph.json to Cytoscape elements.
+ * @param {{nodes:Array<object>,edges:Array<object>}} graph
+ * @returns {Array<object>}
+ */
 function makeElements(graph) {
   const nodes = graph.nodes.map((n) => ({ data: n }));
   // Note: graph.json schema does not include edge IDs. Let Cytoscape generate unique IDs
@@ -76,6 +124,11 @@ function makeElements(graph) {
   return nodes.concat(edges);
 }
 
+/**
+ * Apply UI filters (search/type/level) to the graph.
+ * @param {any} cy
+ * @returns {void}
+ */
 function applyFilters(cy) {
   const q = document.getElementById("search").value.trim().toLowerCase();
   const types = selectedValues(document.getElementById("typeFilter"));
@@ -102,6 +155,11 @@ function applyFilters(cy) {
   });
 }
 
+/**
+ * Populate filter controls from the loaded graph.
+ * @param {{nodes:Array<{type:string}>,edges:Array<object>}} graph
+ * @returns {void}
+ */
 function fillFilters(graph) {
   const typeFilter = document.getElementById("typeFilter");
   const levelFilter = document.getElementById("levelFilter");
@@ -125,6 +183,11 @@ function fillFilters(graph) {
   }
 }
 
+/**
+ * Wire up UI controls (filters + zoom controls).
+ * @param {any} cy
+ * @returns {void}
+ */
 function wireUI(cy) {
   const search = document.getElementById("search");
   const typeFilter = document.getElementById("typeFilter");
@@ -140,32 +203,70 @@ function wireUI(cy) {
   typeFilter.addEventListener("change", onChange);
   levelFilter.addEventListener("change", onChange);
 
+  /**
+   * Get rendered center of the graph container.
+   * @returns {{x:number,y:number}}
+   */
   const renderedCenter = () => ({ x: cy.width() / 2, y: cy.height() / 2 });
 
-  reset.addEventListener("click", () => {
+  /**
+   * Reset filters and fit view.
+   * @param {MouseEvent} e
+   * @returns {void}
+   */
+  function onResetClick(e) {
+    void e;
     search.value = "";
     typeFilter.selectedIndex = -1;
     levelFilter.selectedIndex = -1;
     applyFilters(cy);
     cy.fit(undefined, ZOOM.fitPadding);
     setDetails(null);
-  });
+  }
 
-  zoomIn.addEventListener("click", () => {
+  /**
+   * Zoom in.
+   * @param {MouseEvent} e
+   * @returns {void}
+   */
+  function onZoomInClick(e) {
+    void e;
     const next = clamp(cy.zoom() * ZOOM.factor, ZOOM.min, ZOOM.max);
     cy.zoom({ level: next, renderedPosition: renderedCenter() });
-  });
+  }
 
-  zoomOut.addEventListener("click", () => {
+  /**
+   * Zoom out.
+   * @param {MouseEvent} e
+   * @returns {void}
+   */
+  function onZoomOutClick(e) {
+    void e;
     const next = clamp(cy.zoom() / ZOOM.factor, ZOOM.min, ZOOM.max);
     cy.zoom({ level: next, renderedPosition: renderedCenter() });
-  });
+  }
 
-  fit.addEventListener("click", () => {
+  /**
+   * Fit graph to viewport.
+   * @param {MouseEvent} e
+   * @returns {void}
+   */
+  function onFitClick(e) {
+    void e;
     cy.fit(undefined, ZOOM.fitPadding);
-  });
+  }
+
+  reset.addEventListener("click", onResetClick);
+  zoomIn.addEventListener("click", onZoomInClick);
+  zoomOut.addEventListener("click", onZoomOutClick);
+  fit.addEventListener("click", onFitClick);
 }
 
+/**
+ * Initialize Cytoscape instance.
+ * @param {Array<object>} elements
+ * @returns {any}
+ */
 function initCy(elements) {
   const cy = cytoscape({
     container: document.getElementById("cy"),
