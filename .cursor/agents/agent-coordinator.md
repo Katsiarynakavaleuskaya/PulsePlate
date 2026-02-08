@@ -151,6 +151,90 @@ Security reviews, vulnerabilities, threat modeling, and compliance checks.
 
 **Canonical doc:** `.cursor/agents/security-auditor.md`
 
+---
+
+### philosophy-agent
+Claim semantics, falsifiability checks, and wellness language boundaries.
+
+**Canonical doc:** `.cursor/agents/philosophy-agent.md`
+
+---
+
+### logic-agent
+Contradiction detection, invariants for recommendations, and guardable logic contracts.
+
+**Canonical doc:** `.cursor/agents/logic-agent.md`
+
+---
+
+### bayesian-uq-agent
+Uncertainty quantification, calibration, and confidence contracts for AI outputs.
+
+**Canonical doc:** `.cursor/agents/bayesian-uq-agent.md`
+
+---
+
+### rag-systems-agent
+RAG architecture, recursive verification, and budgets/stop conditions for grounded outputs.
+
+**Canonical doc:** `.cursor/agents/rag-systems-agent.md`
+
+---
+
+### cv-agent
+Computer vision pipeline contracts (photo → items → confidence → mapping) and privacy boundaries.
+
+**Canonical doc:** `.cursor/agents/cv-agent.md`
+
+---
+
+### ai-app-architect
+AI subsystem architecture: integration seams, feature flags, determinism constraints.
+
+**Canonical doc:** `.cursor/agents/ai-app-architect.md`
+
+---
+
+### data-scientist-agent
+Evaluation design, metrics, offline experiments planning, and measurement plans.
+
+**Canonical doc:** `.cursor/agents/data-scientist-agent.md`
+
+---
+
+### ml-engineer-agent
+Productionization policies: latency/cost budgets, caching, reliability constraints (policy-level).
+
+**Canonical doc:** `.cursor/agents/ml-engineer-agent.md`
+
+---
+
+### nutritionist-agent
+Nutrition domain constraints, safe wording, wellness-only disclaimers.
+
+**Canonical doc:** `.cursor/agents/nutritionist-agent.md`
+
+---
+
+### cbt-psychologist-agent
+CBT-inspired coaching language and psychological safety boundaries (non-therapy).
+
+**Canonical doc:** `.cursor/agents/cbt-psychologist-agent.md`
+
+---
+
+### epistemology-discovery-agent
+Scientific discovery: falsifiable hypotheses, protocols, negative controls, and promotion rules (dev-only).
+
+**Canonical doc:** `.cursor/agents/epistemology-discovery-agent.md`
+
+---
+
+### physics-sensor-agent
+Sensor/physics priors for multimodal robustness and calibration (camera/mic; no “quantum magic”).
+
+**Canonical doc:** `.cursor/agents/physics-sensor-agent.md`
+
 ## Quality Gates
 
 Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOOK_AGENT.md` (how-to).

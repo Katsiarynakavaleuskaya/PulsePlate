@@ -130,6 +130,170 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Philosophy Agent (`philosophy-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — safety boundaries + orchestration rules
+- `docs/orchestration/*` — when running formal multi-agent workflow
+
+**Must know:**
+- Wellness-only positioning (no medical / no therapy claims)
+- Evidence contract (claims must be evidence-backed in docs/tests)
+
+---
+
+### Logic Agent (`logic-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — invariants + safety boundaries
+- `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md` — structured returns to coordinator
+
+**Must know:**
+- Which layers are SoT for domain logic (`core/`) vs adapters (`app/`, clients)
+- Guard/determinism expectations for future runtime PRs (do not implement here)
+
+---
+
+### Bayesian / UQ Agent (`bayesian-uq-agent`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `core/AGENTS.md` (if proposing domain-facing uncertainty contracts)
+
+**Must know:**
+- Determinism and testability requirements (future PRs must have deterministic tests)
+- “High uncertainty → degrade” policy (safety-first)
+
+---
+
+### RAG Systems Agent (`rag-systems-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — rate limit + quota policies for LLM endpoints (future runtime PRs)
+- `providers/AGENTS.md` (provider integration rules, if applicable)
+
+**Must know:**
+- Cost-abuse risk: recursive amplification must be bounded (budgets/stop conditions)
+- External/retrieved content is untrusted (prompt injection posture)
+
+---
+
+### CV Agent (`cv-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — privacy and safety boundaries
+- `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
+
+**Must know:**
+- Uncertainty/confidence must be explicit for recognition outputs
+- Privacy/logging constraints for user images (policy-only here)
+
+---
+
+### AI Application Architect (`ai-app-architect`)
+
+**Primary:**
+- `AGENTS.md` (root) — invariants + OpenAPI determinism constraints
+- `app/AGENTS.md` and `core/AGENTS.md` (if proposing integration seams)
+
+**Must know:**
+- Layer boundaries: thin routers/adapters; domain logic in `core/` (AGENTS.md:968; AGENTS.md:969)
+- Feature-flag gating order (feature checks before quota consumption, for future PRs) (AGENTS.md:86)
+
+---
+
+### Data Scientist (`data-scientist-agent`)
+
+**Primary (task-dependent):**
+- `AGENTS.md` (root)
+- `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
+
+**Must know:**
+- Metrics definitions must be testable/auditable (avoid vague claims)
+- Privacy: anonymization/retention policy must be explicit before telemetry work
+
+---
+
+### ML Engineer (`ml-engineer-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — determinism + performance expectations
+- `providers/AGENTS.md` (if packaging model/provider calls)
+
+**Must know:**
+- Latency/cost budgets must be explicit for recursive methods (future runtime PRs)
+- CI/test determinism (no flaky retrieval/ordering)
+
+---
+
+### Nutritionist Agent (`nutritionist-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — wellness-only boundaries
+- `core/AGENTS.md` (domain constraints live in `core/`)
+
+**Must know:**
+- Forbidden medical claims; required disclaimers
+- Domain constraints must be expressed as rules/constraints, not vibes
+
+---
+
+### CBT Psychologist Agent (`cbt-psychologist-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — wellness-only boundaries; no therapy positioning
+- `docs/contracts/*` (if touching user-facing coaching contract text)
+
+**Must know:**
+- Psychological safety language constraints and escalation boundaries
+- High-uncertainty behavior: clarify, soften, avoid prescriptive claims
+
+---
+
+### Epistemology & Discovery Agent (`epistemology-discovery-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — SoT/evidence rules + safety boundaries
+- `docs/orchestration/workflow.md` — Pre-flight / post-flight / DoD
+- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+
+**Must know:**
+- Promotion requires protocol + success criteria + negative controls (≥2)
+- No runtime work in docs-only tasks (separate PRs)
+
+---
+
+### Physics & Sensor Modeling Agent (`physics-sensor-agent`)
+
+**Primary (task-dependent):**
+- `AGENTS.md` (root) — safety + privacy boundaries
+- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/insights/*` — only if task is multimodal (CV/voice) and needs robustness planning
+
+**Must know:**
+- Classical sensor priors only (noise/lighting/blur/SNR); “quantum magic” is rejected
+- Uncertainty must be explicit and grounded (no silent defaults)
+
+---
+
+## Insight / AI Assistant Research Corpus (Conditional)
+
+**Условно (только если задача про `/insight`, RAG, коучинг, философско-логические валидаторы, UQ, или научный roadmap):**
+
+- `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md` — baseline по текущей AI/LLM/RAG инфраструктуре (analysis)
+- `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md` — научный обзор + план развития (canonical analysis)
+- `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md` — философско-логические принципы надежности (design)
+- `docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md` — speed optimization через философские принципы (design)
+- `docs/insights/RECURSIVE_METHODS_LLM_RAG.md` — recursive methods (design)
+- `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md` — latency/cost trade-offs и оптимизации (analysis)
+- `docs/roadmap/BACKLOG_LEDGER.md` — планы и уже-реализованные P0/P1 guardrails вокруг insight (VIP gating, rate limit, monthly quota)
+
+(EN: Conditional corpus for insight/RAG/coaching research. These docs are inputs for planning and audits, not runtime behavior.)
+
+**Important:** These docs include illustrative code. Treat them as design intent; runtime behavior must be implemented and verified via tests.
+
+---
+
 ## Verification Protocol
 
 Канонический checklist не дублируем.

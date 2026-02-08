@@ -32,6 +32,18 @@ Coordinator may assign agents outside their primary domain if justified.
 | **Security** | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
 | **Marketing** | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
 | **Creative Designer** | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
+| **Философский агент (`Philosophy Agent`)** | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
+| **Логический агент (`Logic Agent`)** | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
+| **Байесовский агент / UQ (`Bayesian / UQ Agent`)** | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
+| **RAG-агент (`RAG Systems Agent`)** | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
+| **CV-агент (`CV Agent`)** | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
+| **Архитектор AI-приложений (`AI App Architect`)** | `app/`, `core/`, `providers/` | Integration seams, feature flags, determinism constraints | Architecture, Security | Coordinator |
+| **Дата-саентист (`Data Scientist`)** | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
+| **ML-инженер (`ML Engineer`)** | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
+| **Нутрициолог-агент (`Nutritionist Agent`)** | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
+| **CBT-психолог-агент (`CBT Psychologist Agent`)** | `docs/` | CBT-inspired coaching boundaries, safety language | — | Coordinator |
+| **Эпистемолог-агент / Discovery (`Epistemology / Discovery Agent`)** | `docs/` (cross-cutting) | Hypotheses → protocols, negative controls, research-to-PR promotion rules | — | Coordinator, Data Scientist |
+| **Физик-агент / Сенсоры (`Physics / Sensor Agent`)** | `docs/` (cross-cutting) | Sensor priors, multimodal robustness, calibration protocols | — | Coordinator, CV Agent |
 
 ---
 
@@ -141,5 +153,5 @@ It exists to help the coordinator route work efficiently.
 
 ---
 
-**Last updated:** 2026-02-03 (PR-634)
+**Last updated:** 2026-02-08 (PR #691)
 **Status:** Advisory

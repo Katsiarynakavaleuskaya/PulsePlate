@@ -450,6 +450,24 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / safety / reliability)
+  - Target PR: TBD (runtime)
+  - Status: 📋 Planned
+  - Area: backend / AI orchestration
+  - Finding Type: product + safety
+  - Reason: We have a docs-level orchestration baseline and role contracts, but runtime implementation must enforce
+    bounded recursion (cost control), grounding/citations, uncertainty reporting, and wellness-safe language.
+  - Links:
+    - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/orchestration/workflow.md` (canonical workflow; dev-only)
+  - DoD:
+    - RAG endpoints (if any) are tier-gated, rate-limited, and enforce monthly quota before provider calls
+    - Deterministic tests prove 200 → 429 transitions and quota enforcement
+    - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
+    - No OpenAPI determinism regressions; `make verify` passes
+
 - [ ] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (observability / migration)
