@@ -130,6 +130,126 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Philosophy Agent (`philosophy-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — safety boundaries + orchestration rules
+- `docs/orchestration/*` — when running formal multi-agent workflow
+
+**Must know:**
+- Wellness-only positioning (no medical / no therapy claims)
+- Evidence contract (claims must be evidence-backed in docs/tests)
+
+---
+
+### Logic Agent (`logic-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — invariants + safety boundaries
+- `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md` — structured returns to coordinator
+
+**Must know:**
+- Which layers are SoT for domain logic (`core/`) vs adapters (`app/`, clients)
+- Guard/determinism expectations for future runtime PRs (do not implement here)
+
+---
+
+### Bayesian / UQ Agent (`bayesian-uq-agent`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `core/AGENTS.md` (if proposing domain-facing uncertainty contracts)
+
+**Must know:**
+- Determinism and testability requirements (future PRs must have deterministic tests)
+- “High uncertainty → degrade” policy (safety-first)
+
+---
+
+### RAG Systems Agent (`rag-systems-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — rate limit + quota policies for LLM endpoints (future runtime PRs)
+- `providers/AGENTS.md` (provider integration rules, if applicable)
+
+**Must know:**
+- Cost-abuse risk: recursive amplification must be bounded (budgets/stop conditions)
+- External/retrieved content is untrusted (prompt injection posture)
+
+---
+
+### CV Agent (`cv-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — privacy and safety boundaries
+- `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
+
+**Must know:**
+- Uncertainty/confidence must be explicit for recognition outputs
+- Privacy/logging constraints for user images (policy-only here)
+
+---
+
+### AI Application Architect (`ai-app-architect`)
+
+**Primary:**
+- `AGENTS.md` (root) — invariants + OpenAPI determinism constraints
+- `app/AGENTS.md` and `core/AGENTS.md` (if proposing integration seams)
+
+**Must know:**
+- Layer boundaries: thin routers/adapters; domain logic in `core/`
+- Feature-flag gating order (feature checks before quota consumption, for future PRs)
+
+---
+
+### Data Scientist (`data-scientist-agent`)
+
+**Primary (task-dependent):**
+- `AGENTS.md` (root)
+- `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
+
+**Must know:**
+- Metrics definitions must be testable/auditable (avoid vague claims)
+- Privacy: anonymization/retention policy must be explicit before telemetry work
+
+---
+
+### ML Engineer (`ml-engineer-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — determinism + performance expectations
+- `providers/AGENTS.md` (if packaging model/provider calls)
+
+**Must know:**
+- Latency/cost budgets must be explicit for recursive methods (future runtime PRs)
+- CI/test determinism (no flaky retrieval/ordering)
+
+---
+
+### Nutritionist Agent (`nutritionist-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — wellness-only boundaries
+- `core/AGENTS.md` (domain constraints live in `core/`)
+
+**Must know:**
+- Forbidden medical claims; required disclaimers
+- Domain constraints must be expressed as rules/constraints, not vibes
+
+---
+
+### CBT Psychologist Agent (`cbt-psychologist-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — wellness-only boundaries; no therapy positioning
+- `docs/contracts/*` (if touching user-facing coaching contract text)
+
+**Must know:**
+- Psychological safety language constraints and escalation boundaries
+- High-uncertainty behavior: clarify, soften, avoid prescriptive claims
+
+---
+
 ## Verification Protocol
 
 Канонический checklist не дублируем.

@@ -32,6 +32,16 @@ Coordinator may assign agents outside their primary domain if justified.
 | **Security** | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
 | **Marketing** | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
 | **Creative Designer** | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
+| **Philosophy Agent** | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
+| **Logic Agent** | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
+| **Bayesian / UQ Agent** | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
+| **RAG Systems Agent** | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
+| **CV Agent** | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
+| **AI App Architect** | `app/`, `core/`, `providers/` | Integration seams, feature flags, determinism constraints | Architecture, Security | Coordinator |
+| **Data Scientist** | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
+| **ML Engineer** | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
+| **Nutritionist Agent** | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
+| **CBT Psychologist Agent** | `docs/` | CBT-inspired coaching boundaries, safety language | — | Coordinator |
 
 ---
 
