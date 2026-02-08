@@ -406,7 +406,32 @@ def _get_legacy_alias_metric_value() -> float:
     return float(value or 0.0)
 
 
+LEGACY_ALIAS_ROUTE = "/api/nutrition/{date_str}"
+
+
+def _reset_legacy_alias_counter_for_tests() -> None:
+    """Reset legacy alias counter to ensure deterministic tests.
+
+    RU: Сбрасывает счётчик legacy alias для детерминизма тестов.
+    EN: Resets legacy alias counter for deterministic tests.
+    """
+    # IMPORTANT: import by module path (avoid `from app import metrics` due to app/__init__.py shim).
+    import importlib
+
+    app_metrics = importlib.import_module("app.metrics")
+    counter = getattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", None)
+    if counter is None:
+        pytest.skip("prometheus_client not available (legacy alias counter disabled)")
+
+    child = counter.labels(alias_route=LEGACY_ALIAS_ROUTE)
+    # prom-client internals: Counter child uses a ValueClass with .set()
+    # RU: тестовая изоляция; прод-код не трогаем.
+    # EN: test isolation; do not touch prod behavior.
+    child._value.set(0)  # type: ignore[attr-defined]
+
+
 def test_legacy_alias_increments_counter(client: TestClient) -> None:
+    _reset_legacy_alias_counter_for_tests()
     before = _get_legacy_alias_metric_value()
 
     resp = client.get(
@@ -420,6 +445,7 @@ def test_legacy_alias_increments_counter(client: TestClient) -> None:
 
 
 def test_canonical_does_not_increment_legacy_counter(client: TestClient) -> None:
+    _reset_legacy_alias_counter_for_tests()
     before = _get_legacy_alias_metric_value()
 
     resp = client.get(
