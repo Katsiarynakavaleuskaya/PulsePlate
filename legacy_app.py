@@ -896,7 +896,10 @@ async def get_daily_nutrition_legacy(
 
     NOTE: This route is deprecated. Use /api/v1/pro/nutrition/daily instead.
     """
+    from app.metrics import record_legacy_alias_hit
     from app.routers.pro import get_daily_nutrition
+
+    record_legacy_alias_hit("/api/nutrition/{date_str}")
 
     # Call the canonical PRO endpoint with profile parameters
     response = await get_daily_nutrition(
