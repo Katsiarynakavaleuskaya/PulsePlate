@@ -346,27 +346,10 @@ Each agent doc (in `.cursor/agents/*.md`) must declare:
 
 ## IV. Reasoning, Uncertainty, RAG, CV — contracts (MVP policy)
 
-This section is **policy/contracts**, not implementation.
+This audit stays ADR-style. The contract text is centralized here:
 
-### Reasoning & Logic (MVP)
-
-- **Rule enforcement** must exist (at least post-generation validation).
-- **Deterministic math** must be computed in deterministic domain code (future PR), never “trusted” from LLM text.
-- **Forbidden**: medical diagnosis / treatment claims.
-
-### Uncertainty (Bayesian/UQ) (MVP)
-
-- Outputs must include explicit **confidence** (score + bucket).
-- Low confidence triggers **degrade behavior**: ask clarifying questions, show disclaimers, avoid prescriptive advice.
-
-### RAG & recursive verification (MVP)
-
-- Every factual claim includes `sources[]` (chunk IDs / excerpts).
-- Recursive loops are bounded by explicit budgets (max hops / max calls).
-
-### Computer vision (MVP)
-
-- CV outputs must include confidence per item, and must gracefully degrade when confidence is low.
+- `docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md`
+- `docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md`
 
 ### Insight track alignment (design inputs → contracts)
 
@@ -381,7 +364,10 @@ This audit explicitly aligns with the repo’s “insight” research corpus:
 - **Baseline gap**: current analysis calls out missing reliability primitives → contracts close these gaps in future runtime PRs.
   - Inputs: `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md`
 
-> Detailed paste-ready contract text lives in **Appendix A** (drafted for future implementation PRs).
+> Detailed paste-ready contract text lives in:
+>
+> - `docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md`
+> - `docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md`
 
 ---
 
@@ -527,33 +513,11 @@ These are **external** sources used only for alignment and terminology. They are
 
 ---
 
-## Marketing & GTM (wellness-only, no-license)
+## Marketing & GTM (moved)
 
-This section is copy-ready for product positioning docs and PR descriptions.
+This audit is kept ADR-style. Dev-only positioning notes live here:
 
-### Product positioning
-
-- **Value prop:** “AI wellness coach trio” — nutrition specialist, fitness planner, CBT-inspired wellness guide (no therapy).
-- **Pricing:** “Three coaches, one app — less than a single session” (subscription framing).
-- **Accessibility:** 24/7, no scheduling, integrated context across coaches.
-- **Language:** “Lifestyle wellness support” (avoid “therapy”, “diagnosis”, “treatment”).
-
-### ASO/SEO hooks
-
-- **Primary:** “AI wellness coach”, “nutrition fitness app”, “habit coaching”, “wellness planner”
-- **Long-tail:** “nutrition coach app with habit tracking”, “AI fitness nutrition CBT”, “all-in-one wellness coaching”
-- **Screenshot headline:** “3 Coaches in 1 App”
-
-### Product Hunt narrative
-
-- **Headline:** “PulsePlate: AI Wellness Coach Trio — Nutrition, Fitness & Habit Coaching”
-- **Why now:** orchestration (specialist agents collaborate) vs single chat
-- **Demo:** one goal → three roles coordinate (e.g., muscle gain + stress eating)
-
-### Ethics & regulatory risk notes
-
-- **Forbidden:** therapy replacement, diagnosis, treatment/cure/prevent claims.
-- **Required:** wellness-only disclaimers + opt-in for sensitive coaching prompts + data minimization.
+- `docs/marketing/GTM_NOTES_DEV_ONLY.md`
 
 ---
 
@@ -578,130 +542,9 @@ Suggested PR sequence (non-binding):
 
 ---
 
-## Appendix A — Draft contracts (paste-ready, for implementation PRs)
+## Appendix A — Draft contracts (moved)
 
-> NOTE: This appendix is intentionally **policy-level**; it does not introduce runtime behavior in this PR.
-> It is a staging area for future PRs that implement these contracts with tests.
+To keep this audit ADR-style, the draft contract text was moved to:
 
-### A1) Reasoning & Logic (contract draft)
-
-#### Definition
-
-Reasoning & Logic defines contractual behavior of AI systems when producing nutrition and wellness advice.
-The system must apply structured logical operations and rule constraints to generate consistent, traceable recommendations.
-
-#### Contract (MVP)
-
-- **Rule-based constraints** (deterministic): allergies/preferences/goals must be satisfied.
-- **Symbolic-neural hybrid**: LLM may propose, but deterministic domain logic must validate critical computations.
-- **Forbidden**: medical diagnosis/treatment claims.
-- **MVP decision:** post-generation validation (generate → validate → correct/degrade).
-
-#### Required disclaimer (wellness-only)
-
-Use the canonical disclaimer: `docs/safety/WELLNESS_DISCLAIMER_CANONICAL.md`.
-
-#### Acceptance criteria (future tests)
-
-1. Allergy constraint enforced (e.g., peanuts never appear if forbidden).
-2. Target ranges enforced (e.g., caloric totals within allowed tolerance).
-3. Forbidden phrases (“cures”, “treats”, “diagnoses”) are blocked or downgraded with disclaimer.
-
-### A2) Uncertainty / Bayesian-UQ (contract draft)
-
-#### Definition
-
-Uncertainty Quantification (UQ) requires AI outputs to expose confidence scores / uncertainty ranges and to degrade safely under low confidence.
-
-#### Contract (MVP)
-
-- Every predictive/inferential output includes **confidence** (score + bucket).
-- Low confidence triggers: clarifying questions, softer language, explicit disclaimers.
-- Do not mislabel heuristics as “Bayesian” unless posterior-based methods exist.
-
-#### Suggested schema (illustrative)
-
-```json
-{
-  "confidence": 0.72,
-  "confidence_bucket": "medium",
-  "uncertainty": {
-    "lower": 0.61,
-    "upper": 0.82,
-    "confidence_level": "p95"
-  },
-  "warning": null
-}
-```
-
-#### Acceptance criteria (future tests)
-
-1. Confidence exists and is bounded (0.0–1.0) where applicable.
-2. Low-confidence responses include `warning` + degrade behavior.
-3. Interval validity checks (`lower < estimate < upper`) for interval outputs.
-
-### A3) RAG + Recursive Verification (contract draft)
-
-#### Definition
-
-RAG requires grounding in retrieved sources; recursive verification requires bounded multi-step retrieval and consistency checks.
-
-#### Contract (MVP)
-
-- Responses include `sources[]` (IDs + excerpts + scores).
-- Claims not supported by sources are flagged as “inference beyond sources”.
-- Recursion is bounded by explicit budgets (max hops/calls/time).
-
-#### Suggested schema (illustrative)
-
-```json
-{
-  "answer": "…",
-  "sources": [
-    {"id": "kb:doc123#chunk7", "similarity": 0.81, "excerpt": "…"}
-  ],
-  "unverified_inference": false,
-  "retrieval": {"top_k": 5, "max_similarity": 0.81}
-}
-```
-
-#### Acceptance criteria (future tests)
-
-1. Retrieval precedes generation (ordering evidence in logs / instrumentation).
-2. No factual response without `sources[]` (unless explicit “no sources found”).
-3. Budget enforcement: recursion stops deterministically at limits.
-
-### A4) CV pipeline (contract draft)
-
-#### Definition
-
-CV pipeline turns photos into candidate food items with confidence, optionally portion estimates, and nutrition mapping via deterministic lookup.
-
-#### Contract (MVP)
-
-- Per-item confidence required; low confidence degrades (no silent defaults).
-- Nutrition values must come from deterministic lookup (no “LLM guessed calories”).
-- Privacy/logging boundaries must be explicit (consent, retention).
-
-#### Suggested schema (illustrative)
-
-```json
-{
-  "items": [
-    {
-      "name": "pasta",
-      "confidence": 0.77,
-      "portion_estimate": null,
-      "nutrition_db_match_id": "fooddb:987"
-    }
-  ],
-  "overall_confidence": 0.77,
-  "warning": null
-}
-```
-
-#### Acceptance criteria (future tests)
-
-1. Invalid images return 422 with clear errors.
-2. Empty recognition returns `items: []` with warning.
-3. Confidence propagation exists; low overall confidence triggers user-facing warning.
+- `docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md`
+- `docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md`
