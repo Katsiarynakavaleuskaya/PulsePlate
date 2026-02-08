@@ -70,7 +70,7 @@ Uncertainty Quantification (UQ) requires AI outputs to expose confidence scores 
 
 ### Definition
 
-RAG requires grounding in retrieved sources; recursive verification requires to be bounded for multi-step retrieval and consistency checks.
+RAG requires grounding in retrieved sources; recursive verification must be bounded for multi-step retrieval and consistency checks.
 
 ### Contract (MVP)
 
