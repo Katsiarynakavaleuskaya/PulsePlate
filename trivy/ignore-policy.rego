@@ -114,7 +114,7 @@ ignore if {
 }
 
 # CVE-2026-2100 (libp11-kit0) - upstream unfixed in Debian bookworm
-# Review-by: 2026-05-09 (manual removal)
+# Review-by: see docs/security/CVE-2026-2100-libp11-kit0.md
 # Rationale: Unfixed distro CVE; no actionable repo-level remediation besides base image bump (no fixed version available)
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-2100
 # Documented in: docs/security/CVE-2026-2100-libp11-kit0.md
@@ -125,9 +125,14 @@ cve_2026_2100_version_match if {
 	input.InstalledVersion == "0.24.1-2"
 }
 
-# Helper rule: check if PkgID matches observed libp11-kit0 package
+# Helper rule: check if PkgID matches observed libp11-kit0 package.
+#
+# Trivy's PkgID format is not a stable API. In practice it has contained the
+# substring "<PkgName>@<InstalledVersion>" for OS packages; we match via
+# contains() (not startswith) to avoid silent mismatches if Trivy prepends
+# distro/arch qualifiers.
 cve_2026_2100_pkgid_match if {
-	startswith(input.PkgID, "libp11-kit0@0.24.1-2")
+	contains(input.PkgID, "libp11-kit0@0.24.1-2")
 }
 
 ignore if {
