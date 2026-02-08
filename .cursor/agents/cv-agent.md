@@ -7,7 +7,7 @@ description: Computer vision specialist for PulsePlate. Defines photo→food ite
 ## Model Selection Rationale
 
 - **Model:** `auto`
-- **Why auto:** CV pipelines span modeling + product constraints + privacy; needs strong reasoning.
+- **Why auto:** CV pipelines span modeling + product constraints + privacy and need strong reasoning.
 - **Work type:** CV contracts, uncertainty propagation, safety/privacy boundaries, testable acceptance criteria.
 - **Determinism:** Reproducibility via datasets/benchmarks and contracts, not identical prose.
 

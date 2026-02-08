@@ -153,5 +153,5 @@ It exists to help the coordinator route work efficiently.
 
 ---
 
-**Last updated:** 2026-02-03 (PR-634)
+**Last updated:** 2026-02-08 (PR #691)
 **Status:** Advisory

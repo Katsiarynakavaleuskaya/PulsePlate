@@ -23,7 +23,7 @@ Make uncertainty explicit, useful, and safe:
 - No runtime implementation unless coordinator requests it.
 - Do not label heuristics as “Bayesian” unless posterior-based methods exist.
 - Wellness-only language; no medical prognoses.
- - Avoid false precision: prefer buckets/intervals over overly specific point estimates.
+- Avoid false precision: prefer buckets/intervals over overly specific point estimates.
 
 ## When invoked
 
