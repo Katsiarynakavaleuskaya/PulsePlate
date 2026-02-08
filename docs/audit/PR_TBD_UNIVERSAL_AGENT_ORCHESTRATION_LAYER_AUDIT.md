@@ -58,6 +58,10 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 - `RUNBOOK_AGENT.md` (operational checks)
 - `docs/agents/index.md` (Cursor agents registry; must stay in sync with `.cursor/agents/*.md`)
 
+### Discovery / research-to-PR (dev-only)
+
+- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` (Scientific Discovery Layer; dev-only discovery loop + new agents)
+
 ### Insight / scientific R&D corpus (non-canonical inputs)
 
 These documents are **inputs** for planning and audits. They must **not** be treated as runtime truth unless backed by code/tests.

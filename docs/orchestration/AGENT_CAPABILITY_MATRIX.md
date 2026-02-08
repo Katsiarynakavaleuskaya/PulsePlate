@@ -42,6 +42,8 @@ Coordinator may assign agents outside their primary domain if justified.
 | **ML Engineer** | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
 | **Nutritionist Agent** | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
 | **CBT Psychologist Agent** | `docs/` | CBT-inspired coaching boundaries, safety language | — | Coordinator |
+| **Epistemology / Discovery Agent** | `docs/` (cross-cutting) | Hypotheses → protocols, negative controls, research-to-PR promotion rules | — | Coordinator, Data Scientist |
+| **Physics / Sensor Agent** | `docs/` (cross-cutting) | Sensor priors, multimodal robustness, calibration protocols | — | Coordinator, CV Agent |
 
 ---
 

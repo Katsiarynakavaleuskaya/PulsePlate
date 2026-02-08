@@ -250,6 +250,32 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Epistemology & Discovery Agent (`epistemology-discovery-agent`)
+
+**Primary:**
+- `AGENTS.md` (root) — SoT/evidence rules + safety boundaries
+- `docs/orchestration/workflow.md` — Pre-flight / post-flight / DoD
+- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+
+**Must know:**
+- Promotion requires protocol + success criteria + negative controls (≥2)
+- No runtime work in docs-only tasks (separate PRs)
+
+---
+
+### Physics & Sensor Modeling Agent (`physics-sensor-agent`)
+
+**Primary (task-dependent):**
+- `AGENTS.md` (root) — safety + privacy boundaries
+- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/insights/*` — only if task is multimodal (CV/voice) and needs robustness planning
+
+**Must know:**
+- Classical sensor priors only (noise/lighting/blur/SNR); “quantum magic” is rejected
+- Uncertainty must be explicit and grounded (no silent defaults)
+
+---
+
 ## Insight / AI Assistant Research Corpus (Conditional)
 
 **Условно (только если задача про `/insight`, RAG, коучинг, философско-логические валидаторы, UQ, или научный roadmap):**

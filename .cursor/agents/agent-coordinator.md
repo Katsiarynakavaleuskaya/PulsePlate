@@ -221,6 +221,20 @@ CBT-inspired coaching language and psychological safety boundaries (non-therapy)
 
 **Canonical doc:** `.cursor/agents/cbt-psychologist-agent.md`
 
+---
+
+### epistemology-discovery-agent
+Scientific discovery: falsifiable hypotheses, protocols, negative controls, and promotion rules (dev-only).
+
+**Canonical doc:** `.cursor/agents/epistemology-discovery-agent.md`
+
+---
+
+### physics-sensor-agent
+Sensor/physics priors for multimodal robustness and calibration (camera/mic; no “quantum magic”).
+
+**Canonical doc:** `.cursor/agents/physics-sensor-agent.md`
+
 ## Quality Gates
 
 Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOOK_AGENT.md` (how-to).

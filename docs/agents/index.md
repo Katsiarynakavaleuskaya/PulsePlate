@@ -31,6 +31,8 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | ml-engineer-agent | auto | Productionization: latency/cost budgets, caching, infra seams (policy-level) | `.cursor/agents/ml-engineer-agent.md` | Bringing AI to prod, performance budgets, reliability |
 | nutritionist-agent | auto | Nutrition domain constraints, safe wording, non-medical boundaries | `.cursor/agents/nutritionist-agent.md` | Nutrition constraints, safe guidance, disclaimers |
 | cbt-psychologist-agent | auto | CBT-inspired coaching language, safety boundaries (non-therapy) | `.cursor/agents/cbt-psychologist-agent.md` | Habit coaching, psychological safety, disclaimer enforcement |
+| epistemology-discovery-agent | auto | Scientific discovery: falsifiable hypotheses, protocols, negative controls, promotion rules | `.cursor/agents/epistemology-discovery-agent.md` | Research-to-PR conversion, hypothesis/protocol design |
+| physics-sensor-agent | auto | Sensor/physics priors for multimodal robustness and calibration (no “quantum magic”) | `.cursor/agents/physics-sensor-agent.md` | CV/voice robustness, calibration, sensor-grounded UQ |
 
 ---
 
