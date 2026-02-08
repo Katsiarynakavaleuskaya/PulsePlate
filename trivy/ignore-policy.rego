@@ -112,3 +112,28 @@ ignore if {
 	cve_2026_24882_version_match
 	cve_2026_24882_pkgid_match
 }
+
+# CVE-2026-2100 (libp11-kit0) - upstream unfixed in Debian bookworm
+# Suppression expires: 2026-05-09
+# Review-by: 2026-05-09 (manual removal)
+# Rationale: Unfixed distro CVE; no actionable repo-level remediation besides base image bump (no fixed version available)
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-2100
+# Documented in: docs/security/CVE-2026-2100-libp11-kit0.md
+# Removal condition: Remove when Debian bookworm publishes a fixed libp11-kit0 package or Trivy metadata includes Fixed Version
+
+# Helper rule: check if InstalledVersion matches observed version
+cve_2026_2100_version_match if {
+	input.InstalledVersion == "0.24.1-2"
+}
+
+# Helper rule: check if PkgID matches observed libp11-kit0 package
+cve_2026_2100_pkgid_match if {
+	startswith(input.PkgID, "libp11-kit0@0.24.1-2")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-2100"
+	input.PkgName == "libp11-kit0"
+	cve_2026_2100_version_match
+	cve_2026_2100_pkgid_match
+}
