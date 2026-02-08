@@ -124,9 +124,11 @@ OpenAPI generation runs in **full-schema mode** (schema-only mode removed in PR-
 **Evidence (implementation):**
 
 - Generator pins env and enables feature-flagged routers, then imports canonical entrypoint:
-  - `scripts/generate_openapi.py:94-120`
+  - Anchor (stable): `scripts/generate_openapi.py -> main()`
+  - Evidence: `scripts/generate_openapi.py:94`
 - Determinism gate asserts key routes exist in schema:
-  - `tests/test_openapi_determinism.py:17-55`
+  - Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+  - Evidence: `tests/test_openapi_determinism.py:17`
 
 ## Maintenance rule
 

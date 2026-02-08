@@ -13,12 +13,18 @@
 
 Schema-only mode has been removed. OpenAPI generation runs in **full-schema mode** and remains deterministic.
 
+Canonical docs for current behavior (recommended first read):
+- `docs/architecture/system_overview.md#openapi-generation-mode-current`
+- `docs/architecture/backend_routing_map.md#openapi-generation-behavior-important`
+
 **Evidence (file:line):**
 
-- `scripts/generate_openapi.py:94-120` — generator pins env to test context and enables feature-flagged routers, then imports `app.main:app` and calls `app.openapi()`
-- `tests/test_openapi_determinism.py:17-55` — asserts the full schema includes key PRO/business paths
+- Anchor (stable): `scripts/generate_openapi.py -> main()` (FULL schema mode + env pinning)
+  - Evidence: `scripts/generate_openapi.py:94`
+- Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+  - Evidence: `tests/test_openapi_determinism.py:17`
 
-## Decision (historical; pre PR-631)
+## Decision (historical; pre-PR-631)
 
 Keep a **temporary schema-only mode** for OpenAPI generation to avoid import-time ORM/model double-loading, while explicitly documenting:
 - what is disabled,
@@ -33,7 +39,8 @@ OpenAPI generation must be deterministic (CI enforces this). Importing the full 
 
 - Prior art / original seam: see PR-630 evidence pack (kept for archaeology).
 - CI determinism gate (still current):
-  - `tests/test_openapi_determinism.py:17-77`
+  - Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+  - Evidence: `tests/test_openapi_determinism.py:17`
 
 <a id="schema-only-openapi-contract"></a>
 ## Schema-only OpenAPI contract (historical; removed)

@@ -70,8 +70,10 @@ flowchart LR
 OpenAPI generator runs in **full-schema mode** (schema-only mode removed in PR-631).
 
 **Evidence (file:line):**
-- `scripts/generate_openapi.py:94-120` (generator pins env + enables feature-flagged routers, then imports `app.main:app`)
-- `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist in schema)
+- Anchor (stable): `scripts/generate_openapi.py -> main()` (FULL schema mode + env pinning)
+  - Evidence: `scripts/generate_openapi.py:94`
+- Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+  - Evidence: `tests/test_openapi_determinism.py:17`
 
 Historical ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (superseded).
 
@@ -86,7 +88,8 @@ Historical ADR: `docs/architecture/ADR-002-openapi-schema-only-mode.md` (superse
     - `tests/test_import_hygiene_guard.py:12-41`
 - **OpenAPI determinism**
   - `make openapi` must be deterministic; guard:
-    - `tests/test_openapi_determinism.py:16-64` (hash comparison)
+    - Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+      - Evidence: `tests/test_openapi_determinism.py:17` (hash comparison)
 - **Rate limiting for expensive endpoints**
   - LLM/exports endpoints must be rate-limited and have deterministic 429 tests; rate limiting is proxy-aware and privacy-friendly.
 

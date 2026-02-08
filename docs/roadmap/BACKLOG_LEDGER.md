@@ -588,8 +588,10 @@ If it is not recorded here — it does not exist.
   - Status: ✅ Merged (PR-631, 2026-02-03)
   - Reason: Schema-only OpenAPI mode reduced thin-client contract velocity. PR-631 removed the schema-only seam and enabled full-schema generation with deterministic output.
   - Evidence:
-    - `scripts/generate_openapi.py:94-109` (FULL schema mode; enables feature-flagged routers in generator context)
-    - `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist)
+    - Anchor (stable): `scripts/generate_openapi.py -> main()` (FULL schema mode; enables feature-flagged routers)
+      - Evidence: `scripts/generate_openapi.py:94`
+    - Anchor (stable): `tests/test_openapi_determinism.py -> test_openapi_and_schema_ts_are_deterministic()`
+      - Evidence: `tests/test_openapi_determinism.py:17`
   - DoD: ✅ Completed (PR-631)
     - OpenAPI generator runs in full-schema mode (no schema-only marker)
     - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` in sync (`make openapi` produces no diff)
@@ -603,7 +605,8 @@ If it is not recorded here — it does not exist.
   - Reason: OpenAPI generation must be side-effect free: routers reachable from `app.main:app` must not import ORM models at module import time.
   - Evidence:
     - `app/routers/nutrition_log.py:26-73` (TYPE_CHECKING-only model import + runtime lazy import pattern)
-    - `scripts/generate_openapi.py:114-120` (imports canonical entrypoint and calls `app.openapi()` successfully)
+    - Anchor (stable): `scripts/generate_openapi.py -> main()` (imports canonical entrypoint and calls `app.openapi()`)
+      - Evidence: `scripts/generate_openapi.py:114`
   - DoD: ✅ Completed (PR-631)
     - ORM model imports moved to runtime (inside handlers/dependencies), preserving OpenAPI determinism
     - OpenAPI generation works with routers enabled
