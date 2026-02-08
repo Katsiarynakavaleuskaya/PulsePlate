@@ -57,12 +57,12 @@ async function loadGraph() {
 
 function makeElements(graph) {
   const nodes = graph.nodes.map((n) => ({ data: n }));
-  const edges = graph.edges.map((e) => ({
+  const edges = graph.edges.map((e, idx) => ({
     data: {
-      id: `edge:${e.type}:${e.source}->${e.target}`,
-      source: e.source,
-      target: e.target,
-      type: e.type,
+      ...e,
+      // Sourcery: avoid ID collisions for parallel edges.
+      // Cytoscape element IDs are viewer-internal; graph.json schema does not include edge ids.
+      id: `edge:${idx}`,
       evidence: e.evidence || null,
     },
   }));

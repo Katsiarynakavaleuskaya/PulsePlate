@@ -16,6 +16,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
@@ -64,6 +66,30 @@ class Edge:
 
 
 def _repo_root() -> Path:
+    """
+    RU: Определяем корень репозитория детерминированно и независимо от cwd.
+    EN: Resolve repository root deterministically and independent of cwd.
+
+    Priority:
+    1) `git rev-parse --show-toplevel`
+    2) Walk up from this script to find `.git` or `AGENTS.md`
+    """
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        if out:
+            return Path(out)
+    except Exception:
+        pass
+
+    here = Path(__file__).resolve()
+    for parent in [here.parent] + list(here.parents):
+        if (parent / ".git").exists() or (parent / "AGENTS.md").exists():
+            return parent
+
     return Path.cwd()
 
 
@@ -191,6 +217,11 @@ def _stable_sorted_unique(items: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(set(items)))
 
 
+def _dbg(enabled: bool, msg: str) -> None:
+    if enabled:
+        print(f"[graphmap] {msg}", file=sys.stderr)
+
+
 def _validate_schema(graph: dict) -> None:
     allowed_root = {"schema_version", "generated_from", "nodes", "edges"}
     extra_root = set(graph.keys()) - allowed_root
@@ -262,18 +293,19 @@ def _validate_schema(graph: dict) -> None:
                     raise ValueError(f"edge[{i}] evidence must be repo-relative: {ev!r}")
 
 
-def build_graph(repo: Path) -> tuple[list[Node], list[Edge]]:
+def build_graph(repo: Path, *, debug: bool) -> tuple[list[Node], list[Edge]]:
     # Error handling rule: if an input file cannot be parsed, we skip it.
     input_files = _iter_input_files(repo)
 
     nodes: dict[str, Node] = {}
     edges: list[Edge] = []
 
-    def ensure_node_for_file(rel_path: str) -> str:
+    def ensure_node_for_file(rel_path: str) -> Optional[str]:
         node_type = _guess_node_type(rel_path)
         if node_type not in NODE_TYPES:
             # Spec: drop node if cannot type.
-            raise ValueError(f"untypable node_type: {node_type}")
+            _dbg(debug, f"skip node (untypable): {rel_path} -> {node_type}")
+            return None
 
         node_id = _node_id_for_path(node_type, rel_path)
         if node_id in nodes:
@@ -325,24 +357,20 @@ def build_graph(repo: Path) -> tuple[list[Node], list[Edge]]:
     # Seed: create nodes for all input files.
     for src_abs in input_files:
         rel_src = _posix(src_abs.relative_to(repo))
-        try:
-            ensure_node_for_file(rel_src)
-        except Exception:
-            # Skip untypable nodes per error handling.
-            continue
+        ensure_node_for_file(rel_src)
 
     # Parse each input file for explicit sources.
     for src_abs in input_files:
         rel_src = _posix(src_abs.relative_to(repo))
-        try:
-            src_id = ensure_node_for_file(rel_src)
-        except Exception:
+        src_id = ensure_node_for_file(rel_src)
+        if not src_id:
             continue
 
         try:
             text = _read_text(src_abs)
         except Exception:
             # Skip unreadable input per spec.
+            _dbg(debug, f"skip source (unreadable): {rel_src}")
             continue
 
         for line_no, raw_target in _extract_markdown_links_by_line(text):
@@ -352,11 +380,11 @@ def build_graph(repo: Path) -> tuple[list[Node], list[Edge]]:
             target_abs = (repo / rel_target).resolve()
             if not target_abs.is_file():
                 # Spec: skip unresolved link edges.
+                _dbg(debug, f"skip edge (missing file): {rel_src}:{line_no} -> {rel_target}")
                 continue
 
-            try:
-                tgt_id = ensure_node_for_file(rel_target)
-            except Exception:
+            tgt_id = ensure_node_for_file(rel_target)
+            if not tgt_id:
                 continue
 
             evidence = (f"{rel_src}:{line_no}",)
@@ -374,11 +402,14 @@ def build_graph(repo: Path) -> tuple[list[Node], list[Edge]]:
                 continue
             target_abs = (repo / rel_target).resolve()
             if not target_abs.is_file():
+                _dbg(
+                    debug,
+                    f"skip token edge (missing file): {rel_src}:{line_no} -> {rel_target}:{token_line}",
+                )
                 continue
 
-            try:
-                tgt_id = ensure_node_for_file(rel_target)
-            except Exception:
+            tgt_id = ensure_node_for_file(rel_target)
+            if not tgt_id:
                 continue
 
             evidence = (f"{rel_src}:{line_no}", f"{rel_target}:{token_line}")
@@ -408,11 +439,11 @@ def build_graph(repo: Path) -> tuple[list[Node], list[Edge]]:
                 rel_target = m.group("path")
                 target_abs = (repo / rel_target).resolve()
                 if not target_abs.is_file():
+                    _dbg(debug, f"skip agent index edge (missing file): {rel_target}")
                     continue
 
-                try:
-                    agent_id = ensure_node_for_file(rel_target)
-                except Exception:
+                agent_id = ensure_node_for_file(rel_target)
+                if not agent_id:
                     continue
 
                 evidence = (f"docs/agents/index.md:{line_no}",)
@@ -463,12 +494,17 @@ def _graph_to_dict(nodes: list[Node], edges: list[Edge]) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build GraphMap graph.json deterministically.")
     parser.add_argument("--out", required=True, help="Output path (e.g., docs/graph/graph.json)")
+    parser.add_argument("--debug", action="store_true", help="Verbose stderr logs (dev-only)")
     args = parser.parse_args()
 
     repo = _repo_root()
-    out_path = Path(args.out)
+    debug = bool(args.debug)
 
-    nodes, edges = build_graph(repo)
+    out_path = Path(args.out)
+    if not out_path.is_absolute():
+        out_path = repo / out_path
+
+    nodes, edges = build_graph(repo, debug=debug)
     graph = _graph_to_dict(nodes, edges)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
