@@ -148,6 +148,14 @@ A **task** is any unit of work that:
 
 **Rationale:** Ensures consistent task start, proper agent routing, quality gates, and systematic tracking of postponed work.
 
+## Project Memory Layer (PML) / Knowledge Promotion Pipeline (KPP)
+
+**Hard rule:** Agents do not “learn” by silently storing canonical knowledge. **Repo artifacts remain the only Source of Truth.**
+
+### Canonical KPP (SoT)
+
+See `docs/memory/kpp_knowledge_promotion_pipeline.md`.
+
 ## If you feel lost
 
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".

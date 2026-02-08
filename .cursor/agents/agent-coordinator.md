@@ -97,7 +97,9 @@ After agents complete work:
 1. **Review agent outputs**: Requirements met, conventions followed, conflicts resolved
 2. **Synthesize multi-agent work**: Combine outputs into coherent solution
 3. **Final quality check**: Verify quality gates pass (see Quality Gates section)
-4. **Generate final conclusion**: Summary, effectiveness, corrective actions, follow-ups
+4. **Promote reusable knowledge (KPP)**:
+   - Follow the canonical KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`.
+5. **Generate final conclusion**: Summary, effectiveness, corrective actions, follow-ups
 
 ## Available Agents
 
