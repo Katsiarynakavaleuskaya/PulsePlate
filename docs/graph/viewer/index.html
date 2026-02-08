@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GraphMap Viewer</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title">GraphMap (dev-only)</div>
+
+      <div class="controls">
+        <label>
+          Search:
+          <input id="search" type="text" placeholder="label contains…" />
+        </label>
+
+        <label>
+          NodeType:
+          <select id="typeFilter" multiple size="7"></select>
+        </label>
+
+        <label>
+          Level:
+          <select id="levelFilter" multiple size="6"></select>
+        </label>
+
+        <button id="reset">Reset</button>
+      </div>
+
+      <div class="hint">
+        Click node → open GitHub link (repo/ref from query string). Example:
+        <code>?repo=Katsiarynakavaleuskaya/PulsePlate&ref=main</code>
+      </div>
+    </header>
+
+    <main>
+      <div id="cy"></div>
+      <aside class="sidebar">
+        <div class="panel">
+          <div class="panel-title">Selection</div>
+          <pre id="details">(click a node)</pre>
+        </div>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

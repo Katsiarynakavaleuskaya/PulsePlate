@@ -56,3 +56,23 @@ Each `.cursor/agents/<agent>.md` must include:
 
 - Docs-only agent registration **does not** grant runtime permissions or change application behavior.
 - Any runtime behavior change must land in a separate runtime PR with tests/guards and required quality gates.
+
+---
+
+## 5) Dev tooling: GraphMap (deterministic builder + viewer)
+
+This repo includes **dev-only** GraphMap tooling to visualize relationships between canonical artifacts.
+
+- **SoT spec**: `docs/graph/GRAPHMAP_SPEC.md`
+- **Builder**: `tools/graphmap/build_graph.py`
+  - Inputs: `AGENTS.md`, `docs/orchestration/**`, `docs/agents/index.md`, `docs/audit/**`, `.cursor/agents/*.md`
+  - Output: `docs/graph/graph.json` (deterministic; no timestamps/UUIDs/absolute paths)
+- **Viewer**: `docs/graph/viewer/` (static Cytoscape page; reads `../graph.json`)
+
+Run (from repo root):
+
+```bash
+python tools/graphmap/build_graph.py --out docs/graph/graph.json
+python -m http.server 8000
+# http://localhost:8000/docs/graph/viewer/?repo=Katsiarynakavaleuskaya/PulsePlate&ref=main
+```
