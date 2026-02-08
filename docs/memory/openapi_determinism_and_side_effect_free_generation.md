@@ -8,7 +8,7 @@
 
 ## What
 
-OpenAPI generation is **determinism-gated** and must be **side-effect free** on the import path.
+OpenAPI generation is **determinism-gated** and must be **side-effect-free** on the import path.
 This protects CI and prevents accidental ORM/model side effects when generating schema.
 
 ---

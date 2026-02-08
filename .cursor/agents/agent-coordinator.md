@@ -98,12 +98,7 @@ After agents complete work:
 2. **Synthesize multi-agent work**: Combine outputs into coherent solution
 3. **Final quality check**: Verify quality gates pass (see Quality Gates section)
 4. **Promote reusable knowledge (KPP)**:
-   - If a reusable insight was discovered, promote it to exactly one durable repo artifact:
-     - Canonical doc/policy/ADR, or
-     - Guard test (preferred), or
-     - Ledger item (`docs/roadmap/BACKLOG_LEDGER.md`), or
-     - Memory capsule (`docs/memory/index.md`)
-   - Evidence must be attached (`file:line` and/or reproducible commands + output + exit code).
+   - Follow the canonical KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`.
 5. **Generate final conclusion**: Summary, effectiveness, corrective actions, follow-ups
 
 ## Available Agents
