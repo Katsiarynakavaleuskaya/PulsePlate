@@ -25,11 +25,11 @@ If OpenAPI generation drifts or triggers side effects:
 
 ## Invariants (SoT)
 
-- Canonical section: `AGENTS.md:668`–`AGENTS.md:717`
+- Canonical section header: `AGENTS.md:668`
 - Must use `make openapi` (not direct script): `AGENTS.md:675`
 - Side-effect free requirement wording: `AGENTS.md:682`
 - Determinism test gate: `AGENTS.md:688`
-- Update flow + artifacts to commit: `AGENTS.md:701`–`AGENTS.md:710`
+- Update flow (artifacts to commit): `AGENTS.md:703`, `AGENTS.md:706`, `AGENTS.md:707`, `AGENTS.md:709`
 
 ---
 

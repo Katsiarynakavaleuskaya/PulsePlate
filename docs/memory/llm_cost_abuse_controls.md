@@ -26,8 +26,9 @@ Without hard controls, a single endpoint can become a predictable cost sink / Do
 
 ## Invariants (SoT)
 
-- Rate limiting hard rule + enforcement list: `AGENTS.md:65`–`AGENTS.md:79`
-- Monthly quota hard rule + gating order: `AGENTS.md:81`–`AGENTS.md:87`
+- Rate limiting hard rule section: `AGENTS.md:65`, `AGENTS.md:67`
+- Enforcement pointers: `AGENTS.md:73`, `AGENTS.md:74`, `AGENTS.md:76`
+- Monthly quota hard rule section: `AGENTS.md:81`, `AGENTS.md:83`
 - Feature flags checked before quota consumption: `AGENTS.md:86`
 
 ---

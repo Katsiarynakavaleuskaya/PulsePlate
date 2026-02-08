@@ -27,8 +27,9 @@ Multiple BMI computation paths cause:
 
 ## Invariants (SoT)
 
-- BMI engine invariant (canonical): `AGENTS.md:813`–`AGENTS.md:829`
-- Enforcement tests: see “Enforcement” bullets in `AGENTS.md:817`–`AGENTS.md:822`
+- BMI engine invariant (canonical): `AGENTS.md:813`, `AGENTS.md:815`
+- Enforcement pointers: `AGENTS.md:819`, `AGENTS.md:821`
+- Shim constraints (legacy compatibility): `AGENTS.md:826`, `AGENTS.md:828`, `AGENTS.md:829`
 
 ---
 
