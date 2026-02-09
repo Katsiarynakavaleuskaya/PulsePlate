@@ -19,6 +19,19 @@
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 
+### Module purge / reload invariant (xdist stability)
+
+Some tests intentionally purge/reload modules (e.g., via `module_purge.purge_modules(...)` or
+`importlib.reload(...)`) to validate import-time wiring. Under xdist, this can create **stale**
+module references and CI-only flakes if a test patches a module object captured before the purge.
+
+**Hard rules:**
+
+- If a test (directly or indirectly) purges/reloads modules, it **MUST** resolve modules at runtime
+  before patching/using them (preferred: `importlib.import_module("legacy_app")`).
+- Avoid `from pkg.mod import name` in purge/reload-sensitive code paths: imported symbols can become
+  stale after module re-import, breaking `monkeypatch.setattr()` and causing order-dependent flakes.
+
 ### SQLite test bootstrap rule (xdist / nightly)
 
 Any test touching DB must ensure full schema initialization (`import models` + `Base.metadata.create_all`) before execution. Teardown must be idempotent and tolerate missing tables (e.g. catch `OperationalError` and rollback instead of failing). This prevents "no such table" and thread-safety issues under `pytest -n auto`.

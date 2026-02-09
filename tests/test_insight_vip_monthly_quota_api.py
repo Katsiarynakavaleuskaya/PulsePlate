@@ -7,6 +7,7 @@ EN: P0 tests: deterministic monthly hard quota for VIP LLM (requests/month).
 from __future__ import annotations
 
 import concurrent.futures
+import importlib
 import threading
 from collections.abc import Callable
 from datetime import date
@@ -14,8 +15,6 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-
-import legacy_app
 
 from app.middleware.api_tiers import TEST_KEY_VIP
 from app.security.llm_monthly_quota import (
@@ -37,6 +36,7 @@ def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
         return lambda: FakeLLMProvider()
 
+    legacy_app = importlib.import_module("legacy_app")
     monkeypatch.setattr(
         legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
     )
