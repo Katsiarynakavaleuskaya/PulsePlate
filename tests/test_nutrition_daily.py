@@ -16,6 +16,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE as LEGACY_ALIAS_ROUTE
+
 
 def test_daily_nutrition_success_with_profile(client: TestClient) -> None:
     """Test daily nutrition endpoint with valid user profile.
@@ -374,25 +376,158 @@ def test_legacy_nutrition_endpoint_auth_guard_contract(
 def test_legacy_nutrition_endpoint_hidden_from_openapi(client: TestClient) -> None:
     resp = client.get("/openapi.json")
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
     schema = resp.json()
-    assert "/api/nutrition/{date_str}" not in schema.get("paths", {})
+    assert LEGACY_ALIAS_ROUTE not in schema.get("paths", {})
 
 
-def test_legacy_nutrition_endpoint_defaults(client: TestClient) -> None:
+def test_legacy_nutrition_endpoint_defaults(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
     """Test legacy endpoint uses defaults for missing optional params.
 
     RU: Тест использования дефолтов в устаревшем endpoint.
     EN: Test using defaults in legacy endpoint for optional params.
     """
-    response = client.get(
-        "/api/nutrition/2025-12-15",
-        headers={"X-API-Key": "test_pro_key"},
-    )
+    _reset_legacy_alias_counter_for_tests()
+    before = _get_legacy_alias_metric_value()
+
+    response = client.get("/api/nutrition/2025-12-15", headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     # Should work with all defaults
     assert len(data["segments"]) == 4
+
+    after = _get_legacy_alias_metric_value()
+    assert after == before + 1.0
+
+
+def _get_legacy_alias_metric_value() -> float:
+    # prom-client API: stable, no scraping needed
+    try:
+        from prometheus_client import REGISTRY
+    except ImportError:
+        pytest.skip("prometheus_client not installed; metrics tests skipped")
+
+    value = REGISTRY.get_sample_value(
+        "legacy_alias_requests_total",
+        {"alias_route": LEGACY_ALIAS_ROUTE},
+    )
+    return float(value or 0.0)
+
+
+def _reset_legacy_alias_counter_for_tests() -> None:
+    """Reset legacy alias counter to ensure deterministic tests.
+
+    RU: Сбрасывает счётчик legacy alias для детерминизма тестов.
+    EN: Resets legacy alias counter for deterministic tests.
+    """
+    # IMPORTANT: import by module path (avoid `from app import metrics` due to app/__init__.py shim).
+    import importlib
+
+    app_metrics = importlib.import_module("app.metrics")
+    counter = getattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", None)
+    if counter is None:
+        pytest.skip("prometheus_client not available (legacy alias counter disabled)")
+
+    child = counter.labels(alias_route=LEGACY_ALIAS_ROUTE)
+    # prom-client internals: Counter child uses a ValueClass with .set()
+    # RU: тестовая изоляция; прод-код не трогаем.
+    # EN: test isolation; do not touch prod behavior.
+    child._value.set(0)  # type: ignore[attr-defined]
+
+
+def test_canonical_does_not_increment_legacy_counter(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    _reset_legacy_alias_counter_for_tests()
+    before = _get_legacy_alias_metric_value()
+
+    resp = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-12-15",
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+        },
+        headers=pro_headers,
+    )
+    assert resp.status_code == 200
+
+    after = _get_legacy_alias_metric_value()
+    assert after == before
+
+
+def test_app_metrics_build_legacy_alias_requests_total_returns_none_on_importerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: app.metrics must handle missing prometheus_client deterministically."""
+    import app.metrics as app_metrics
+
+    monkeypatch.setattr(
+        app_metrics, "_import_prometheus", lambda: (_ for _ in ()).throw(ImportError("boom"))
+    )
+    assert app_metrics._build_legacy_alias_requests_total() is None
+
+
+def test_app_metrics_build_legacy_alias_requests_total_returns_none_on_duplicate_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: duplicate metric registration must disable legacy counter (no crash)."""
+    import app.metrics as app_metrics
+
+    def _bad_counter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicate metric name")
+
+    monkeypatch.setattr(app_metrics, "_import_prometheus", lambda: _bad_counter)
+    assert app_metrics._build_legacy_alias_requests_total() is None
+
+
+def test_record_legacy_alias_hit_noop_when_not_in_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """record_legacy_alias_hit must be low-cardinality (allowlist-only)."""
+    import app.metrics as app_metrics
+
+    class _ExplodeCounter:
+        def labels(self, *, alias_route: str) -> object:  # pragma: no cover
+            raise RuntimeError(f"labels called unexpectedly for {alias_route}")
+
+    monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", _ExplodeCounter())
+    app_metrics.record_legacy_alias_hit("/not-allowed")
+
+
+def test_record_legacy_alias_hit_noop_when_counter_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """record_legacy_alias_hit must be best-effort when counter is disabled."""
+    import app.metrics as app_metrics
+
+    monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", None)
+    app_metrics.record_legacy_alias_hit(LEGACY_ALIAS_ROUTE)
+
+
+def test_record_legacy_alias_hit_swallows_counter_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """record_legacy_alias_hit must never raise (observability best-effort)."""
+    import app.metrics as app_metrics
+
+    class _BadChild:
+        def inc(self, amount: float = 1.0) -> None:
+            raise RuntimeError("boom")
+
+    class _BadCounter:
+        def labels(self, *, alias_route: str) -> _BadChild:
+            assert alias_route == LEGACY_ALIAS_ROUTE
+            return _BadChild()
+
+    monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", _BadCounter())
+    app_metrics.record_legacy_alias_hit(LEGACY_ALIAS_ROUTE)
 
 
 def test_nutrition_targets_integration(client: TestClient) -> None:

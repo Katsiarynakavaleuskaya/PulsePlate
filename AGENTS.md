@@ -202,6 +202,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Forbidden: registering middleware, observability/instrumentation, infra routes (/metrics), or any runtime behavior changes.
 - All middleware/observability registration must live in bootstrap modules (e.g., `app/bootstrap/metrics.py`) and be called from the primary app entrypoint (e.g., `app/main.py`).
 - `legacy_app.py` must only contain: thin proxies, response formatting, legacy endpoint shims.
+- Legacy alias observability (e.g., counters for deprecated routes) must live in **shim routers under `app/routers/`**, not inside `legacy_app.py`.
 - This prevents drift and keeps legacy as a pure compatibility layer.
 
 **DB fallback policy (hard, TP2):**
