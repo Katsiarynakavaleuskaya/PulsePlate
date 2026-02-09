@@ -489,15 +489,15 @@ If it is not recorded here — it does not exist.
     - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
     - No OpenAPI determinism regressions; `make verify` passes
 
-- [ ] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
+- [x] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (observability / migration)
-  - Target PR: TBD (backend-only)
-  - Status: 📋 Planned
+  - Target PR: PR-698
+  - Status: ✅ Merged (PR-698, 2026-02-09)
   - Reason: `GET /api/nutrition/{date_str}` is a deprecated compatibility alias. Before removing it safely, we need
     basic usage telemetry (by client/platform) to confirm iOS migration completion and avoid breaking unknown consumers.
   - Links:
-    - `legacy_app.py` (`/api/nutrition/{date_str}` legacy alias)
+    - `app/routers/legacy_nutrition_alias.py` (`/api/nutrition/{date_str}` legacy alias)
     - `docs/roadmap/BACKLOG_LEDGER.md` (P0 security fix item for alias guard)
   - DoD:
     - Count requests to `/api/nutrition/{date_str}` with low-cardinality labels (e.g., platform/client + status)
