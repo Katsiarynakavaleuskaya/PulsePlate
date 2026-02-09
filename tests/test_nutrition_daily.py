@@ -376,6 +376,7 @@ def test_legacy_nutrition_endpoint_auth_guard_contract(
 def test_legacy_nutrition_endpoint_hidden_from_openapi(client: TestClient) -> None:
     resp = client.get("/openapi.json")
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
     schema = resp.json()
     assert LEGACY_ALIAS_ROUTE not in schema.get("paths", {})
 
@@ -388,15 +389,19 @@ def test_legacy_nutrition_endpoint_defaults(
     RU: Тест использования дефолтов в устаревшем endpoint.
     EN: Test using defaults in legacy endpoint for optional params.
     """
-    response = client.get(
-        "/api/nutrition/2025-12-15",
-        headers=pro_headers,
-    )
+    _reset_legacy_alias_counter_for_tests()
+    before = _get_legacy_alias_metric_value()
+
+    response = client.get("/api/nutrition/2025-12-15", headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     # Should work with all defaults
     assert len(data["segments"]) == 4
+
+    after = _get_legacy_alias_metric_value()
+    assert after == before + 1.0
 
 
 def _get_legacy_alias_metric_value() -> float:
@@ -432,20 +437,6 @@ def _reset_legacy_alias_counter_for_tests() -> None:
     # RU: тестовая изоляция; прод-код не трогаем.
     # EN: test isolation; do not touch prod behavior.
     child._value.set(0)  # type: ignore[attr-defined]
-
-
-def test_legacy_alias_increments_counter(client: TestClient, pro_headers: dict[str, str]) -> None:
-    _reset_legacy_alias_counter_for_tests()
-    before = _get_legacy_alias_metric_value()
-
-    resp = client.get(
-        "/api/nutrition/2025-12-15",
-        headers=pro_headers,
-    )
-    assert resp.status_code == 200
-
-    after = _get_legacy_alias_metric_value()
-    assert after == before + 1.0
 
 
 def test_canonical_does_not_increment_legacy_counter(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
@@ -24,7 +24,7 @@ async def legacy_nutrition_date_alias(
     activity: str = Query("moderate", description="Activity level"),
     goal: str = Query("maintain", description="Nutrition goal"),
     _: str = Depends(require_pro_tier),
-) -> Dict[str, Any]:
+) -> Any:
     """Legacy alias for iOS nutrition endpoint compatibility.
 
     RU: Устаревший алиас для iOS совместимости — делегирует на PRO endpoint.
@@ -43,4 +43,5 @@ async def legacy_nutrition_date_alias(
         activity=activity,  # type: ignore
         goal=goal,  # type: ignore
     )
-    return response.model_dump()
+    # Return canonical response as-is (avoid serialization drift in shim).
+    return response
