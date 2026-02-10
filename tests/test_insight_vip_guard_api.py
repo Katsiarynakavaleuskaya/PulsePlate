@@ -11,6 +11,7 @@ from collections.abc import Callable
 import pytest
 from fastapi.testclient import TestClient
 
+from core.insight.llm_provider_loader import load_llm_get_provider
 from tests.helpers.fake_llm_provider import FakeLLMProvider
 from tests.helpers.module_resolve import resolve_legacy_app, resolve_llm
 
@@ -130,8 +131,6 @@ def test_core_llm_provider_loader_resolves_llm_get_provider(
         return object()
 
     monkeypatch.setattr(llm, "get_provider", _sentinel_get_provider, raising=True)
-
-    from core.insight.llm_provider_loader import load_llm_get_provider
 
     assert load_llm_get_provider() is _sentinel_get_provider
 
