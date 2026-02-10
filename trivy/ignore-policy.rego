@@ -11,8 +11,6 @@ default ignore := false
 #
 # Suppression expires: 2026-05-10 (manual removal)
 # Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2025-14831-gnutls.md
-# Suppression expires: 2026-05-10 (manual removal)
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2025-14831-gnutls.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
