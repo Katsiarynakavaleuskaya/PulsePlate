@@ -44,6 +44,33 @@ When envelopes are enabled for a task, an agent MUST return the required JSON **
 
 ---
 
+## Validation rules (required)
+
+### Envelope count
+
+- **Exactly one** `<AGENT_RESULT_V1>` envelope is valid per agent response.
+- If multiple `<AGENT_RESULT_V1>` envelopes are present, coordinator MUST treat the response as **unparseable** and issue a `REPAIR_REQUEST_V1`.
+
+### Allowed enums (minimum)
+
+- `TASK_PACKET_V1.mode`: `docs-only` | `analysis` | `runtime`
+- `AGENT_RESULT_V1.status`: `ok` | `blocked` | `error`
+- `AGENT_RESULT_V1.deliverables[].type`: `doc` | `policy` | `analysis` | `plan` | `risk` | `test` | `other`
+
+### Type expectations (minimum)
+
+- `protocol_version`: string `"1.0"`
+- `task_id`: string (opaque identifier; do not parse semantics)
+- `constraints`: array of strings
+- `context_loaded_paths`: array of strings (paths only; no prose)
+- `deliverables`: array of objects
+  - each deliverable has:
+    - `type`: string enum (see above)
+    - `summary`: string (1–3 sentences)
+- `next_steps`: array of strings (max 5 recommended)
+
+---
+
 ## Envelope types + required keys
 
 ### 1) `<TASK_PACKET_V1>` (Coordinator → agent)
@@ -79,6 +106,14 @@ Agent MUST respond with:
 
 - ONLY a corrected `<AGENT_RESULT_V1>` envelope
 - strict JSON (ASCII quotes), no Markdown fences, no preamble
+
+`REPAIR_REQUEST_V1` must be machine-parseable. Minimum required keys:
+
+- `protocol_version` (string; `"1.0"`)
+- `task_id` (string; must match original task)
+- `target_envelope` (string; must be `"AGENT_RESULT_V1"`)
+- `errors` (array of strings; short identifiers like `"invalid_json"`, `"missing_keys"`)
+- `required_keys` (array of strings; the keys the agent MUST include in the repaired result)
 
 ---
 
@@ -150,8 +185,20 @@ Repair request:
 
 ```text
 <REPAIR_REQUEST_V1>
-Return ONLY a corrected <AGENT_RESULT_V1> as strict JSON (ASCII quotes), with required keys:
-protocol_version, task_id, status, context_loaded_paths, deliverables, next_steps.
+{
+  "protocol_version": "1.0",
+  "task_id": "TP-2026-02-10-001",
+  "target_envelope": "AGENT_RESULT_V1",
+  "errors": ["missing_keys"],
+  "required_keys": [
+    "protocol_version",
+    "task_id",
+    "status",
+    "context_loaded_paths",
+    "deliverables",
+    "next_steps"
+  ]
+}
 </REPAIR_REQUEST_V1>
 ```
 

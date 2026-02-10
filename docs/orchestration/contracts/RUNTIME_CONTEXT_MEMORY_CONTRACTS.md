@@ -10,6 +10,9 @@
 
 ## Definition
 
+**Preferred entrypoint:** This file is the runtime memory **contract**. The capsule
+`docs/memory/runtime_context_memory_contracts.md` is a **pointer-only index note** and must not be treated as a duplicate contract.
+
 Runtime context memory is **explicit, user-scoped storage** used to personalize AI/coaching/RAG outputs.
 
 Hard boundary:
@@ -35,7 +38,7 @@ Canonical security note: `docs/orchestration/workflow.md` → “Security: Exter
 
 Future runtime memory MUST distinguish at least:
 
-- **Episodic memory** (recent interaction/events; TTL-bounded)
+- **Episodic memory** (recent interactions/events; TTL-bounded)
 - **Semantic memory** (durable preferences/constraints; user-controlled)
 
 Required per-item fields (minimum):

@@ -28,7 +28,7 @@ Each agent must explicitly provide:
 
 Optional (recommended when multi-model parsing is required):
 
-5. **Structured envelope**: return results in the canonical message envelope format.
+1. **Structured envelope**: return results in the canonical message envelope format.
    - See: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 
 ---

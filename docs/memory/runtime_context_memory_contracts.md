@@ -10,6 +10,10 @@
 
 ## What
 
+**Preferred entrypoint:** `docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md`.
+
+This capsule is **not** a contract; it is a pointer-only index note for dev-time navigation.
+
 Runtime “context memory” is **explicit user-scoped storage** used by AI/RAG pipelines.
 It must be:
 
