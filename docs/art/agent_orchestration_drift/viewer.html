@@ -464,7 +464,14 @@
             colorPalette: ['#6a9bcc', '#d97757', '#788c5d']
         };
 
-        let defaultParams = {...params}; // Store defaults for reset
+        function cloneParams(p) {
+            return {
+                ...p,
+                colorPalette: [...p.colorPalette]
+            };
+        }
+
+        let defaultParams = cloneParams(params); // Store defaults for reset (deep copy)
 
         // ═══════════════════════════════════════════════════════════════════════
         // P5.JS GENERATIVE ART ALGORITHM - REPLACE WITH YOUR VISION
@@ -474,8 +481,17 @@
         let anchors = [];
         let zOff = 0;
 
+        function getCanvasSize() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return 1200;
+
+            const widthPx = container.clientWidth || 1200;
+            // Keep it square, bounded, and usable on small screens.
+            return Math.max(480, Math.min(1200, Math.floor(widthPx)));
+        }
+
         function setup() {
-            let canvas = createCanvas(1200, 1200);
+            let canvas = createCanvas(getCanvasSize(), getCanvasSize());
             canvas.parent('canvas-container');
 
             pixelDensity(2);
@@ -485,7 +501,16 @@
             initializeSystem();
 
             // Remove loading message
-            document.querySelector('.loading').style.display = 'none';
+            const loading = document.querySelector('.loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }
+
+        function windowResized() {
+            const size = getCanvasSize();
+            resizeCanvas(size, size);
+            initializeSystem();
         }
 
         function initializeSystem() {
@@ -721,7 +746,7 @@
         }
 
         function resetParameters() {
-            params = {...defaultParams};
+            params = cloneParams(defaultParams);
 
             // Update UI elements
             document.getElementById('particleCount').value = params.particleCount;
