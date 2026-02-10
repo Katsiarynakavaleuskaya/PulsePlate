@@ -25,6 +25,7 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | logic-agent | auto | Contradiction detection, invariant checks for recommendations, guardable logic contracts | `.cursor/agents/logic-agent.md` | Consistency checks, rule contracts, contradiction audits |
 | bayesian-uq-agent | auto | Uncertainty quantification, calibration, confidence contracts for AI outputs | `.cursor/agents/bayesian-uq-agent.md` | Confidence/uncertainty policies, reliability metrics |
 | rag-systems-agent | auto | RAG architecture, recursive verification, budgets/stop conditions, grounding contracts | `.cursor/agents/rag-systems-agent.md` | RAG design, recursive retrieval policies, grounding audits |
+| web-research-agent | auto | Web/OSS intake: bounded research with evidence logs (ECR + scorecards) | `.cursor/agents/web-research-agent.md` | Library comparisons, security advisories, evidence-backed decisions |
 | cv-agent | auto | Computer vision pipeline contracts (photo→items→confidence→nutrition mapping) | `.cursor/agents/cv-agent.md` | CV feature design, confidence scoring, privacy boundaries |
 | ai-app-architect | auto | AI subsystem architecture: seams, feature flags, determinism, integration contracts | `.cursor/agents/ai-app-architect.md` | AI system design, integration planning, invariant alignment |
 | data-scientist-agent | auto | Evaluation design, metrics, offline experiments planning, telemetry questions | `.cursor/agents/data-scientist-agent.md` | Evals, KPIs, A/B ideas, measurement plans |
@@ -51,5 +52,5 @@ If an agent file is added/renamed in `.cursor/agents/`, update this index in the
 
 ---
 
-**Last updated:** 2026-02-08 (PR #691)
+**Last updated:** 2026-02-10 (PR TBD)
 **Related:** `AGENTS.md` (Agent Coordination section), `docs/agents/model_policy.md`

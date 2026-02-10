@@ -36,6 +36,7 @@ Coordinator may assign agents outside their primary domain if justified.
 | **Логический агент (`Logic Agent`)** | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
 | **Байесовский агент / UQ (`Bayesian / UQ Agent`)** | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
 | **RAG-агент (`RAG Systems Agent`)** | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
+| **Web Research Agent** | `docs/` (cross-cutting) | Web/OSS intake, evidence logs, ECR + scorecards | — | Coordinator |
 | **CV-агент (`CV Agent`)** | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
 | **Архитектор AI-приложений (`AI App Architect`)** | `app/`, `core/`, `providers/` | Integration seams, feature flags, determinism constraints | Architecture, Security | Coordinator |
 | **Дата-саентист (`Data Scientist`)** | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
@@ -153,5 +154,5 @@ It exists to help the coordinator route work efficiently.
 
 ---
 
-**Last updated:** 2026-02-08 (PR #691)
+**Last updated:** 2026-02-10 (PR TBD)
 **Status:** Advisory
