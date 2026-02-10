@@ -14,14 +14,13 @@ def test_runtime_resolve_after_purge_returns_new_module_object() -> None:
     что runtime-resolve действительно возвращает новый объект модуля после purge.
     """
     legacy_before = resolve_legacy_app()
-    before_id = id(legacy_before)
 
     purge_modules(prefixes=("legacy_app",))
 
     legacy_after = resolve_legacy_app()
-    after_id = id(legacy_after)
 
-    assert after_id != before_id, (
+    assert legacy_after.__name__ == "legacy_app"
+    assert legacy_after is not legacy_before, (
         "Expected legacy_app module object identity to change after purge_modules(); "
         "otherwise stale module references may persist and monkeypatch.setattr() can patch "
         "a module that is no longer used by the running FastAPI app."
