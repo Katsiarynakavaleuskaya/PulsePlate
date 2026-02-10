@@ -143,6 +143,7 @@ A **task** is any unit of work that:
 **Canonical workflow protocols (SoT):**
 - Message envelopes (multi-model parseability): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Research brainstorming (brainstorm → optional web/OSS intake → decision → promotion): `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 
 **Full workflow:** See `docs/orchestration/workflow.md`
