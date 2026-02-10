@@ -2057,18 +2057,9 @@ from core.insight.safety import (  # noqa: E402
     redact_rag_context_for_insight as _redact_rag_context_for_insight,
 )
 
-
-def _load_llm_get_provider() -> Callable[[], Any]:
-    """Load llm.get_provider lazily.
-
-    RU: Вынесено в helper для детерминированного тестирования ветки import-failure
-    без мутаций sys.modules и без патча builtins.__import__.
-    EN: Extracted for deterministic import-failure testing without sys.modules mutation.
-    """
-
-    from llm import get_provider
-
-    return get_provider
+from core.insight.llm_provider_loader import (  # noqa: E402
+    load_llm_get_provider as _load_llm_get_provider,
+)
 
 
 async def insight_v1(req: InsightRequest) -> InsightResponse:
