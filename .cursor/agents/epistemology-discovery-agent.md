@@ -27,6 +27,18 @@ Convert “interesting ideas” into **scientific artifacts**:
 - No “canon promotion” without evidence (repo `file:line` and/or reproducible commands).
 - Wellness-only boundaries: no medical/therapy positioning.
 
+## Required pre-flight (SoT)
+
+Before doing any work:
+- Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
+- Load required context for this role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
+
+When applicable:
+- Envelope mode: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Web/OSS intake: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Recurring failures: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+
 ## Context to load (task-dependent)
 
 - Orchestration SoT: `docs/orchestration/workflow.md`, `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
