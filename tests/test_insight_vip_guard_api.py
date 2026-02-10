@@ -112,4 +112,28 @@ def test_insight_legacy_requires_vip_tier(
     assert data["insight"] == "ok"
 
 
+# --- Guards for loader extraction (PR-A) ---
+
+
+def test_core_llm_provider_loader_resolves_llm_get_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: canonical loader must stay lazy and patchable.
+
+    We patch `llm.get_provider` first, then assert the loader returns the patched symbol.
+    This ensures `core.insight.llm_provider_loader.load_llm_get_provider()` is executed (diff-cover)
+    without relying on endpoint behavior.
+    """
+    llm = resolve_llm()
+
+    def _sentinel_get_provider() -> object:
+        return object()
+
+    monkeypatch.setattr(llm, "get_provider", _sentinel_get_provider, raising=True)
+
+    from core.insight.llm_provider_loader import load_llm_get_provider
+
+    assert load_llm_get_provider() is _sentinel_get_provider
+
+
 # End of file
