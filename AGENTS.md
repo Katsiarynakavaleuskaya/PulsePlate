@@ -1438,10 +1438,13 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 4. `git ls-files -u` MUST return empty (no unmerged paths)
 
 **Violation handling:**
-- If a merge conflict is detected, the agent MUST STOP.
-- The agent MUST report the conflict and request manual resolution.
-- No auto-resolution, no guessing, no push.
-- The agent MUST assume that unresolved merge conflicts are a **STOP condition**, not a warning. No recovery attempts are allowed.
+- If a merge conflict is detected, the agent MUST **IMMEDIATELY STOP** all push/PR creation operations and any unrelated work that could mutate repo state.
+- The agent MUST proceed **only** with conflict resolution: report the conflict, identify conflicted files, and guide manual resolution
+  (or resolve automatically only if the user explicitly requests auto-resolution).
+- **Forbidden:** guessing resolution choices or pushing with conflict markers.
+- After the conflict is resolved, the agent MUST re-run all mandatory checks (`git status`, `git diff` scan for markers, `git ls-files -u`)
+  and only then continue with push/PR creation.
+- Unresolved merge conflicts are a **STOP condition for push/PR operations**, not a warning. Assume the repo is blocked until all checks pass.
 
 **Enforcement:**
 - Pre-push hook blocks pushes with conflicts (technical guard)
