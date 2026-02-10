@@ -124,13 +124,19 @@ finalization even when the byte upload succeeded.
 gh api repos/<OWNER>/<REPO>/actions/permissions/workflow
 ```
 
-Expected (for this repo’s CI which uploads/downloads artifacts):
+Expected (for this repo’s CI, which uploads/downloads artifacts):
 
 ```json
 {"default_workflow_permissions":"write", ...}
 ```
 
 **Fix (requires repo admin):**
+
+**Scope note:** changing repository-level `default_workflow_permissions` affects **all workflows** in this repository.
+Coordinate with repo owners / security if needed before changing the default.
+
+**Reference docs:** GitHub Actions `GITHUB_TOKEN` permissions:
+`https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication`
 
 ```bash
 gh api -X PUT repos/<OWNER>/<REPO>/actions/permissions/workflow -f default_workflow_permissions=write
