@@ -108,6 +108,45 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
+
+**Symptom (GitHub Actions logs):**
+
+- `Error: Failed to FinalizeArtifact: ... (403) Forbidden`
+- often in steps like “Upload JUnit test report” / “Upload coverage artifact”
+
+**Likely cause:** repository-level **default** workflow token permissions were set to `read`, which can break artifact
+finalization even when the byte upload succeeded.
+
+**Check (repo setting):**
+
+```bash
+gh api repos/<OWNER>/<REPO>/actions/permissions/workflow
+```
+
+Expected (for this repo’s CI, which uploads/downloads artifacts):
+
+```json
+{"default_workflow_permissions":"write", ...}
+```
+
+**Fix (requires repo admin):**
+
+**Scope note:** changing repository-level `default_workflow_permissions` affects **all workflows** in this repository.
+Coordinate with repo owners / security if needed before changing the default.
+
+**Reference docs:** GitHub Actions `GITHUB_TOKEN` permissions:
+`https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication`
+
+```bash
+gh api -X PUT repos/<OWNER>/<REPO>/actions/permissions/workflow -f default_workflow_permissions=write
+```
+
+**Also verify workflow/job permissions:** the job that uploads artifacts should request `actions: write`.
+(Example: in CI workflows, see job-level `permissions:` blocks for test jobs.)
+
+**Post-fix:** re-run the failed workflow run (`gh run rerun <RUN_ID> --failed`) and confirm artifact steps pass.
+
 ## 0) Golden Rule
 
 Before editing imports / `__init__` / sys.path / sys.modules:
