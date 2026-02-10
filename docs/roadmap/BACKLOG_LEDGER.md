@@ -450,6 +450,71 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design consistency / velocity)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: Web has initial brand colors in `frontend/src/styles/tokens.ts`, but iOS lacks a centralized token mirror
+    (colors/spacing/typography/motion). Without a minimal design system, UI work drifts, is slower to delegate, and is
+    harder to review consistently across platforms.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (design canon + agent roster + checklists)
+    - `frontend/src/styles/tokens.ts` (current Web token starting point)
+    - `frontend/AGENTS.md`, `ios/AGENTS.md` (thin-client + CI invariants)
+  - DoD:
+    - Token canon defined (colors + spacing + typography + motion + elevation) with explicit names
+    - iOS has a single source for tokens (SwiftUI-friendly) and uses it in new components
+    - Web components consume tokens (no hardcoded brand colors/spacing in new primitives)
+    - Minimal primitives exist on both platforms: Button, Card, Input, Typography
+
+- [ ] Accessibility: ship-blocking UI checklist + enforcement for Web+iOS
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release quality)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: Accessibility must be enforced as a process, not a best-effort review comment. We need deterministic checks
+    (or at least guardrails) for labels, focus, contrast, and touch targets so new UI ships safely.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (a11y checklist section)
+    - `ios/AGENTS.md` (HIG + CI constraints)
+    - `frontend/AGENTS.md` (web testing and thin-client guards)
+  - DoD:
+    - PR template/checklist requires explicit a11y verification (iOS + Web)
+    - Web: jsx-a11y (or equivalent) rules applied to new/changed UI components
+    - iOS: documented checklist + at least one deterministic guard approach for common failures
+    - No new UI components added without a11y confirmation in PR evidence
+
+- [ ] FitChef assets: establish a reusable SVG/Lottie pipeline + usage guide
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (brand consistency)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: FitChef is the brand anchor, but without an asset pipeline + constraints (states, placement, tone), assets
+    will be re-created ad-hoc and drift. We need a repeatable way to request, review, and ship assets.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (fitchef-asset-manager role)
+    - Root `AGENTS.md` (wellness-safe language boundaries)
+  - DoD:
+    - FitChef state list defined (welcome/success/error/empty/loading) with “do/don’t” usage notes
+    - Asset packaging rules documented (no text baked into images; localization-safe)
+    - A minimal starter pack exists (at least 3 states) and is used in one Web screen and one iOS screen
+
+- [ ] Conversion Safety: paywall/onboarding/result-screen checklists + minimal analytics event taxonomy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (growth / App Store safety)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: Conversion optimizations must remain wellness-safe and App Store compliant. We need a consistent checklist
+    to avoid “pretty UI that doesn’t convert” and to ensure analytics captures the funnel deterministically.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (conversion checklist section)
+    - `docs/contracts/PRODUCT_TIER_MAP.md` (FREE/PRO/VIP differentiation; canonical)
+  - DoD:
+    - Paywall + onboarding + results-screen checklist documented and used in PR descriptions
+    - Minimal event taxonomy defined (activation + paywall funnel + conversion) with properties
+    - Copy guidance explicitly avoids medical claims and dark patterns
+
 - [x] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (developer experience)
@@ -1134,6 +1199,56 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P2 — Future (Low priority / research)
+
+### Multimodal / CV / measurement (future, contract-first)
+
+- [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: product / AI / contracts
+  - Finding Type: future feature
+  - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
+    (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (cv-contract-agent role; degrade-state expectations)
+    - `app/schemas/` (canonical schema patterns)
+    - `frontend/src/api/schema.ts` (OpenAPI consumer)
+  - DoD:
+    - Proposed response schema includes: items[], per-item confidence, portion estimate + uncertainty range, warnings[], metadata
+    - Deterministic UX state mapping defined for confidence bands (show/confirm/suggest/manual entry)
+    - Privacy packet drafted (consent copy, retention, opt-out) and reviewed for wellness-safe wording
+    - Deterministic test plan exists (fixtures + expected ranges; no flake)
+
+- [ ] Sensor invariants: physically-plausible bounds + calibration UX contract (no “magic sizing”)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: product / measurement / UX safety
+  - Finding Type: future feature
+  - Reason: Portion/measurement features must enforce physical constraints (units, bounds, drift) and communicate
+    uncertainty explicitly; calibration UX must be deterministic and non-misleading.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (sensor-invariant-guard role)
+  - DoD:
+    - Measurement invariants documented (bounds, units, reject conditions)
+    - Calibration UX steps defined (scale + camera reference object) with explicit failure modes
+    - Guard policy defined: unphysical outputs rejected; uncertainty increases with degraded signals
+
+- [ ] Algorithmic brand textures (seeded): generate onboarding/ASO backgrounds with reproducible seeds
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: design / marketing assets
+  - Finding Type: tooling
+  - Reason: Branded generative textures can speed up “polished but minimal” visuals for onboarding, empty states,
+    and ASO packs, while staying reproducible via seeded parameters.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (how to add new specialist agents)
+  - DoD:
+    - A single seeded generator exists (deterministic for the same seed) with exportable PNG outputs
+    - Output palette matches brand tokens and supports light/dark variants
+    - Usage notes: never encode text in images; keep wellness-safe tone
 
 ### Orchestration Enhancements (follow-ups to PR-634)
 

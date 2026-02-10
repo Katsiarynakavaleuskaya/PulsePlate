@@ -18,6 +18,26 @@ This playbook is intentionally practical: it describes **what artifacts must exi
 
 ---
 
+## 0.1 Design canon (cross‑platform) — what is SoT vs what is UI-only
+
+This section defines the **design canon** for Web+iOS work. It is intentionally simple: it exists to prevent
+“every screen invents its own styles” drift and to make delegation to specialists predictable.
+
+### Source of truth (SoT)
+
+- **Contracts**: OpenAPI + backend schemas are the only SoT for data/fields (`AGENTS.md:L418-L424`, `AGENTS.md:L682-L706`).
+  - Web consumes `frontend/src/api/schema.ts` (generated; do not edit by hand) (`frontend/src/api/schema.ts:L1-L6`, `frontend/AGENTS.md:L17-L18`).
+  - iOS consumes aligned DTOs (example: `ios/PulsePlate/Models/NutritionData.swift:L7-L28`; SoT pipeline note: `ios/AGENTS.md:L91-L94`).
+- **Thin-client policy**: no business logic duplication on clients (`AGENTS.md:L426-L457`, `ios/AGENTS.md:L34-L55`, `frontend/AGENTS.md:L23-L33`).
+- **Design tokens (Web)**: `frontend/src/styles/tokens.ts` (`frontend/src/styles/tokens.ts:L1-L120`).
+
+### UI-only (allowed) mapping
+
+- **View models**: small mapping layers for *display* are allowed (formatting, grouping, i18n lookup), but must not
+  re-compute domain values (BMI thresholds, tier inference, risk logic).
+
+---
+
 ## 1) Team roles (who owns what)
 
 - **Coordinator (agent-coordinator / PM-brain):**
@@ -42,6 +62,33 @@ This playbook is intentionally practical: it describes **what artifacts must exi
 
 ---
 
+## 1.1 Specialist agent roster (recommended for fast, consistent UI shipping)
+
+These “agents” can be humans, AI subagents, or checklists. What matters is the **explicit I/O contract**.
+
+- **Design Token Sync (design-token-sync)**
+  - Input: token canon (starting point: `frontend/src/styles/tokens.ts`)
+  - Output: a single “token delta” note (what changed + why) + updated token mirrors (platform-specific), or a backlog entry if deferred
+- **Component Library Audit (component-library-audit)**
+  - Input: changed UI files
+  - Output: violations list (`file:line`) for hardcoded colors/spacing/typography outside tokens + suggested replacements
+- **Accessibility Enforcer (accessibility-enforcer)**
+  - Input: changed UI components/screens
+  - Output: a11y checklist result (must include: labels, focus, contrast, touch targets, Dynamic Type)
+- **FitChef Asset Manager (fitchef-asset-manager)**
+  - Input: UI state + message intent (“success”, “error”, “empty”, “onboarding”)
+  - Output: asset checklist + requested assets (SVG/Lottie) + usage constraints (no text baked into images)
+- **Conversion Safety (conversion-safety)**
+  - Input: paywall/onboarding/result screen spec
+  - Output: conversion checklist + App Store safe copy guidance (no medical claims, no dark patterns)
+
+Optional (future features):
+
+- **CV Contract Agent (cv-contract-agent)**: schemas for photo → items → confidence → uncertainty, plus deterministic degrade states
+- **Sensor Invariant Guard (sensor-invariant-guard)**: physically plausible bounds + calibration UX rules (no “magic sizing”)
+
+---
+
 ## 2) “One task” lifecycle (mandatory)
 
 Follow `docs/orchestration/workflow.md`, but for iOS/frontend tasks add these **hard deliverables**.
@@ -63,11 +110,24 @@ Follow `docs/orchestration/workflow.md`, but for iOS/frontend tasks add these **
   - “What the user sees” (screens, states, and the exact happy-path)
   - Error/empty/loading states included
 
+### 2.1.1 Design system packet (required for any new UI component)
+
+This is how we keep Web+iOS visually consistent without blocking velocity.
+
+- **Token usage**
+  - No hardcoded colors/spacing/typography in new components unless explicitly justified
+  - Any new “style decision” must be either:
+    - mapped to an existing token, or
+    - proposed as a new token (and recorded in the ledger if deferred)
+- **Accessibility defaults**
+  - iOS: VoiceOver labels + Dynamic Type sizing + 44×44pt tap targets
+  - Web: semantic elements + keyboard focus states + 48×48px touch targets
+
 ### 2.2 Implementation track (thin slice)
 
 - **iOS:** SwiftUI UI + storage + navigation wired at the single gate point
-- **Web:** use `frontend/src/api/client.ts` only; types from `frontend/src/api/schema.ts`
-- **Both:** no business logic duplication, no tier inference on clients
+- **Web:** use `frontend/src/api/client.ts` only; types from `frontend/src/api/schema.ts` (`frontend/AGENTS.md:L29-L32`, `frontend/AGENTS.md:L59-L63`)
+- **Both:** no business logic duplication, no tier inference on clients (`AGENTS.md:L426-L457`)
 
 ### 2.3 Verification track (before calling it “done”)
 
@@ -80,6 +140,28 @@ Follow `docs/orchestration/workflow.md`, but for iOS/frontend tasks add these **
 ---
 
 ## 3) “Visibility loop” (so progress is undeniable)
+
+### 3.1 Accessibility checklist (ship-blocking for new UI)
+
+Minimum bar (must be explicitly checked in PR description):
+
+- **iOS**
+  - VoiceOver: all interactive elements have meaningful labels; decorative images hidden
+  - Dynamic Type: no fixed font sizes; layout remains usable at larger sizes
+  - Touch targets: ≥44×44pt
+  - Contrast: text/background meets WCAG AA intent (verify for Navy/Blue/Green/Red usage)
+- **Web**
+  - Semantic HTML (no clickable divs for primary actions)
+  - Keyboard: focus visible; modals trap focus; Escape closes where applicable
+  - Touch targets: ≥48×48px
+  - Contrast: WCAG AA (4.5:1 for body text)
+
+### 3.2 Conversion / App Store checklist (for onboarding & paywalls)
+
+- Value-first (no medical claims): “wellness tracking”, not diagnosis/treatment
+- Clear CTA above the fold; safe dismissal path exists
+- Tier differentiation is explicit (FREE vs PRO vs VIP) without trickery
+- Copy is localized (RU/EN/ES keys), no text baked into images/screenshots
 
 ### Daily artifacts (required while a task is in progress)
 
@@ -145,3 +227,15 @@ Stop execution immediately if any of these is true:
 - iOS/web client introduces domain logic (BMI math/thresholds, tier inference).
 - New networking path appears (direct `URLSession` or direct `fetch()`).
 - CI/guard tests fail and are not addressed.
+
+---
+
+## 7) Adding a new specialist agent (how to scale the team safely)
+
+When a new agent is proposed (e.g., algorithmic-art for brand textures, CV agent, security auditor), record:
+
+- **Role name** + **scope boundary** (what it MUST NOT do)
+- **Inputs** it consumes (files, contracts, metrics)
+- **Outputs** it produces (docs, checklists, asset lists, guard tests)
+- **Quality gates** it must not violate (thin-client, OpenAPI determinism, docs-only PR rules)
+- **Backlog entry** if implementation work is deferred
