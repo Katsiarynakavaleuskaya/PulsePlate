@@ -15,6 +15,7 @@
 - **Design rationale (multi-model + research tracks):** `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md`
 - **Message envelopes (multi-model robustness):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- **Research brainstorming (brainstorm → research → decision → promotion):** `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 
 ---
