@@ -281,6 +281,7 @@ If any item is unclear, resequence or simplify.
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Dialogue Template: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 
 ---

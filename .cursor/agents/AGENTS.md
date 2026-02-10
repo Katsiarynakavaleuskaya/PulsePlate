@@ -20,6 +20,8 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 
 **Canonical workflow:** `docs/orchestration/workflow.md`
 
+**Message protocol compliance (SoT):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`
