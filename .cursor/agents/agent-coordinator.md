@@ -63,6 +63,20 @@ When coordinating multi-agent work, use these canonical protocols:
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Dialogue Template: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 - Parallel Work Protocol: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
+- Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+
+---
+
+## Multi-model robustness (when parseability matters)
+
+If the task requires reliable parsing of agent outputs across models/providers:
+
+- Coordinator MUST send a `<TASK_PACKET_V1>` and require `<AGENT_RESULT_V1>` only.
+- If the agent output is unparseable or missing required keys, coordinator MUST issue a `REPAIR_REQUEST_V1`.
+
+Canonical protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`.
 
 ## Core Responsibilities
 

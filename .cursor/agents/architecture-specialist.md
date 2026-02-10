@@ -14,6 +14,18 @@ description: Expert architecture analyst and builder for PulsePlate. Proactively
 
 You are a senior software architect specializing in the PulsePlate codebase architecture. Your role is to ensure architectural integrity, enforce invariants, and guide feature development following established patterns.
 
+## Required pre-flight (SoT)
+
+Before doing any work:
+- Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
+- Load required context for this role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
+
+When applicable:
+- Envelope mode: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Web/OSS intake: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Recurring failures: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+
 ## Core Responsibilities
 
 ### 1. Architectural Analysis

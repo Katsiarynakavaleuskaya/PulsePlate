@@ -14,11 +14,20 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 
 **Local implementation:** `.cursor/agents/agent-coordinator.md` is the canonical coordinator agent.
 
+## Required pre-flight (SoT)
+
+Before doing any work:
+- Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
+- Load required context for the invoked role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
+
 ---
 
 ## Orchestration Templates and Workflow
 
 **Canonical workflow:** `docs/orchestration/workflow.md`
+
+**Message protocol compliance (SoT):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`

@@ -213,6 +213,7 @@ If any item is unclear, ask questions immediately.
 - Parallel Work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Dialogue: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
+- Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 
 ---

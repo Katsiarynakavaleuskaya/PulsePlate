@@ -78,6 +78,10 @@ RAG requires grounding in retrieved sources; recursive verification must be boun
 - Claims not supported by sources are flagged as “inference beyond sources”.
 - Recursion is bounded by explicit budgets (max hops/calls/time).
 
+See also:
+
+- Runtime memory trust boundaries + budgets (draft): `docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md`
+
 ### Suggested schema (illustrative)
 
 ```json
