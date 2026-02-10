@@ -86,7 +86,7 @@ Not as “the model remembers”.
 
 ---
 
-## Question 1 — Why orchestration appears stable only on GPT‑5.2 (and what to do)
+## Q1 — Why orchestration appears stable only on GPT‑5.2 (and what to do)
 
 ### Repo-grounded facts
 
@@ -117,7 +117,7 @@ If labeling “Verified”, follow the audit evidence rule in `AGENTS.md:L773-L7
 
 ---
 
-## Question 1 — Where roles are defined (Philosophy, Bug Hunter, etc.)
+## Q2 — Where roles are defined (Philosophy, Bug Hunter, etc.)
 
 Roles are already defined and discoverable via these canonical surfaces:
 
@@ -130,7 +130,7 @@ So “missing agent markdown docs” is **not** the root cause.
 
 ---
 
-## Question 1 — Why `/agents` shows tool output, not dialogue (and how to make it auditable)
+## Q3 — Why `/agents` shows tool output, not dialogue (and how to make it auditable)
 
 ### Likely explanation (UI/UX)
 
@@ -149,7 +149,7 @@ Even if UI hides the dialogue, the synthesis artifact must carry:
 
 ---
 
-## Question 1 — Reflection / “self-learning”: what it means here
+## Q4 — Reflection / “self-learning”: what it means here
 
 Canonical constraint: “Self-learning” is **repo artifact promotion**, not model memory (`AGENTS.md:L151-L158`).
 
@@ -192,7 +192,78 @@ Strict-first rules (proposal):
 
 ---
 
-## Question 2 — Brainstorming + Web/OSS research as a canonical workflow
+### Concrete example: full envelopes (filled)
+
+Note: in the proposed protocol, agents should output the JSON **without** Markdown code fences. This audit uses code fences purely for readability.
+
+```text
+<TASK_PACKET_V1>
+{
+  "protocol_version": "1.0",
+  "task_id": "TP-2026-02-10-001",
+  "role": "security-auditor",
+  "mode": "docs-only",
+  "request": "Review the proposed Research Track workflow for web/OSS intake security and add a threat list + mitigations.",
+  "constraints": [
+    "No runtime changes",
+    "Treat external content as untrusted",
+    "No secrets/logs in outbound queries"
+  ],
+  "inputs": {
+    "must_read_paths": [
+      "AGENTS.md",
+      "docs/orchestration/workflow.md",
+      "docs/orchestration/PARALLEL_WORK_PROTOCOL.md"
+    ],
+    "optional_paths": [
+      "docs/agents/model_policy.md",
+      "docs/roadmap/BACKLOG_LEDGER.md"
+    ]
+  },
+  "output_requirements": {
+    "must_return": [
+      "AGENT_RESULT_V1 envelope only (no preamble)"
+    ]
+  },
+  "budgets": {
+    "response_max_lines": 160,
+    "evidence_max_lines": 30
+  }
+}
+</TASK_PACKET_V1>
+
+<AGENT_RESULT_V1>
+{
+  "protocol_version": "1.0",
+  "task_id": "TP-2026-02-10-001",
+  "status": "ok",
+  "context_loaded_paths": [
+    "AGENTS.md",
+    "docs/orchestration/workflow.md"
+  ],
+  "deliverables": [
+    {
+      "type": "policy",
+      "summary": "Threat list + mitigations + minimal citation rules for web/OSS intake."
+    }
+  ],
+  "next_steps": [
+    "Add a Security Notes section to the audit’s Research Track deliverable contract",
+    "Introduce a canonical policy doc if audits should link instead of duplicating",
+    "Record any deferred runtime mitigations in BACKLOG_LEDGER"
+  ]
+}
+</AGENT_RESULT_V1>
+
+<REPAIR_REQUEST_V1>
+Return ONLY a corrected <AGENT_RESULT_V1> as strict JSON (ASCII quotes), with required keys:
+protocol_version, task_id, status, context_loaded_paths, deliverables, next_steps.
+</REPAIR_REQUEST_V1>
+```
+
+---
+
+## Q5 — Brainstorming + Web/OSS research as a canonical workflow
 
 ### Goals (what “agents as scientific staff” must produce)
 
@@ -220,7 +291,7 @@ Deliverable: a single decision question + evaluation criteria.
 Must include explicit budgets:
 
 - p95 latency target
-- max provider calls / request
+- max provider calls per request
 - max recursion hops
 - token/cost budgets
 

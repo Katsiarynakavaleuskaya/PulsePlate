@@ -12,6 +12,7 @@
 - **Quality gates / thresholds / required commands:** see `AGENTS.md` (Quality Gates section)
 - **Operational runbook:** see `RUNBOOK_AGENT.md` (Quality Gates section)
 - **Orchestration protocols:** see `docs/orchestration/AGENT_*.md` (context, capability, handoff, dialogue, parallel)
+- **Design rationale (multi-model + research tracks):** `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md`
 
 ---
 
