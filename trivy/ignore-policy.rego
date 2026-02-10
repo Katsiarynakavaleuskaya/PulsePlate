@@ -5,8 +5,9 @@ import rego.v1
 default ignore := false
 
 # Narrow suppressions for Trivy code-scanning alerts:
-# - Limit to the specific OS packages observed (libc6 + libc-bin)
+# - Limit to the specific OS packages observed at time of suppression
 # - Limit to the installed versions reported at time of suppression
+# - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-05-10 (manual removal)
 # Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2025-14831-gnutls.md
@@ -145,6 +146,7 @@ ignore if {
 # CVE-2025-14831 (libgnutls30) - upstream unfixed in Debian bookworm
 # Review-by: 2026-05-10 (manual removal)
 # Rationale: Unfixed distro CVE; no fixed version reported in Trivy for bookworm at time of triage
+# Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-14831
 # Documented in: docs/security/CVE-2025-14831-gnutls.md
 # Removal condition: Remove when Debian bookworm publishes a fixed libgnutls30 package or Trivy metadata includes Fixed Version
