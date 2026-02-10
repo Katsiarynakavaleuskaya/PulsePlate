@@ -8,8 +8,8 @@ default ignore := false
 # - Limit to the specific OS packages observed (libc6 + libc-bin)
 # - Limit to the installed versions reported at time of suppression
 #
-# Suppression expires: 2026-03-01 (manual removal)
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md
+# Suppression expires: 2026-05-10 (manual removal)
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2025-14831-gnutls.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -140,4 +140,28 @@ ignore if {
 	input.PkgName == "libp11-kit0"
 	cve_2026_2100_version_match
 	cve_2026_2100_pkgid_match
+}
+
+# CVE-2025-14831 (libgnutls30) - upstream unfixed in Debian bookworm
+# Review-by: 2026-05-10 (manual removal)
+# Rationale: Unfixed distro CVE; no fixed version reported in Trivy for bookworm at time of triage
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-14831
+# Documented in: docs/security/CVE-2025-14831-gnutls.md
+# Removal condition: Remove when Debian bookworm publishes a fixed libgnutls30 package or Trivy metadata includes Fixed Version
+
+# Helper rule: check if InstalledVersion matches observed version
+cve_2025_14831_version_match if {
+	input.InstalledVersion == "3.7.9-2+deb12u5"
+}
+
+# Helper rule: check if PkgID matches observed libgnutls30 package.
+cve_2025_14831_pkgid_match if {
+	contains(input.PkgID, "libgnutls30@3.7.9-2+deb12u5")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2025-14831"
+	input.PkgName == "libgnutls30"
+	cve_2025_14831_version_match
+	cve_2025_14831_pkgid_match
 }

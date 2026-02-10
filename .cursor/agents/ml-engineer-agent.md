@@ -32,6 +32,18 @@ Make AI features shippable:
 3. Creating deterministic performance regression checks (future PRs)
 4. Translating eval results into rollout constraints and feature flags
 
+## Required pre-flight (SoT)
+
+Before doing any work:
+- Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
+- Load required context for this role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
+
+When applicable:
+- Envelope mode: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Web/OSS intake: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Recurring failures: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+
 ## Context to load (task-dependent)
 
 - Insight/RAG/coach work: see “Insight / AI Assistant Research Corpus (Conditional)” in

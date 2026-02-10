@@ -2,7 +2,7 @@
 
 **Status:** Advisory (contracts for future runtime PRs)
 **Scope:** Universal (applies to orchestration-layer work)
-**Last updated:** 8 February 2026 (PR #691)
+**Last updated:** 10 February 2026 (PR #706)
 
 ---
 
@@ -25,6 +25,11 @@ Each agent must explicitly provide:
 4. **Evidence contract**: how claims are supported:
    - `file:line` pointers for repo policy assertions, and/or
    - reproducible commands + raw output + exit codes (when applicable).
+
+Optional (recommended when multi-model parsing is required):
+
+1. **Structured envelope**: return results in the canonical message envelope format.
+   - See: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 
 ---
 

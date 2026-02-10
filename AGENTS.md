@@ -140,6 +140,11 @@ A **task** is any unit of work that:
 - Synthesis: `docs/orchestration/synthesis.template.md`
 - DoD: `docs/orchestration/dod.template.md`
 
+**Canonical workflow protocols (SoT):**
+- Message envelopes (multi-model parseability): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+
 **Full workflow:** See `docs/orchestration/workflow.md`
 
 **Coordinator agent:** `.cursor/agents/agent-coordinator.md`

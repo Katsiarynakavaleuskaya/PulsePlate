@@ -32,6 +32,11 @@ This map reduces “missing context” failures by making required inputs explic
 
 (EN: Orchestration docs are conditional; load them only for multi-agent or when the workflow is required.)
 
+**Message + research + reflection (when applicable):**
+- `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` — when outputs must be parseable across models
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` — when doing web/OSS intake or external research
+- `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` — when capturing incidents for KPP promotion
+
 **Secondary (task-dependent):**
 - Nearest module `AGENTS.md` for every affected module:
   - `core/AGENTS.md`
@@ -176,6 +181,10 @@ This map reduces “missing context” failures by making required inputs explic
 - Cost-abuse risk: recursive amplification must be bounded (budgets/stop conditions)
 - External/retrieved content is untrusted (prompt injection posture)
 
+**Protocol (when coordinating multi-agent RAG research):**
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+
 ---
 
 ### CV Agent (`cv-agent`)
@@ -308,5 +317,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-03 (PR-634)
+**Last updated:** 2026-02-10 (PR-706)
 **Status:** Canonical
