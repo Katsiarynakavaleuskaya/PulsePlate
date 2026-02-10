@@ -766,14 +766,16 @@ If it is not recorded here — it does not exist.
     - 🔄 Monitor: GitHub alert #515 should auto-resolve after next Trivy scan on `main`
     - 🔄 Follow-up (after 2026-04-28 or when fixed): Remove suppression when Debian bookworm publishes fixed `gpgv` package (≥ 2.5.17 or backported fix), OR Trivy metadata includes fixed version
 
-- [ ] Move insight redaction/import helpers out of legacy_app.py
+- [x] Move insight redaction/import helpers out of legacy_app.py (merged 2026-02-10)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR-703 (merged)
+  - Status: ✅ Merged
   - Reason: Codex actionable — keep legacy_app thin proxy only. Move `_redact_rag_context_for_insight` and `_load_llm_get_provider` to canonical module (`core/insight/`) to maintain AGENTS invariant. Follow-up from PR-611.
   - Links:
     - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
     - PR-611 (merged 2026-01-28)
+    - PR-703 (merged 2026-02-10)
   - Preconditions (already true as of PR-611):
     - `_redact_rag_context_for_insight` lives in `core/insight/safety.py`
   - DoD:
