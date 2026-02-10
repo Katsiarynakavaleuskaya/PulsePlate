@@ -27,10 +27,12 @@ module references and CI-only flakes if a test patches a module object captured 
 
 **Hard rules:**
 
-- If a test (directly or indirectly) purges/reloads modules, it **MUST** resolve modules at runtime
-  before patching/using them (preferred: `importlib.import_module("legacy_app")`).
+- If a test (directly or indirectly) purges/reloads modules (including `module_purge.purge_modules(...)`
+  or `importlib.reload(...)`), it **MUST** resolve modules at runtime before patching/using them
+  (preferred: `importlib.import_module("legacy_app")`).
 - Avoid `from pkg.mod import name` in purge/reload-sensitive code paths: imported symbols can become
   stale after module re-import, breaking `monkeypatch.setattr()` and causing order-dependent flakes.
+  This usually manifests as “patch applied but request path still uses real code”.
 
 ### SQLite test bootstrap rule (xdist / nightly)
 
