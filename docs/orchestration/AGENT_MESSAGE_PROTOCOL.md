@@ -49,6 +49,7 @@ When envelopes are enabled for a task, an agent MUST return the required JSON **
 ### Envelope activation (how it is enabled)
 
 Envelope mode is considered enabled when the coordinator:
+
 - sends a `<TASK_PACKET_V1>`, and
 - sets `output_requirements.must_return` to require an `<AGENT_RESULT_V1>` envelope only (no preamble).
 
@@ -102,7 +103,7 @@ Minimum required keys:
 - `status` (string; `ok` | `blocked` | `error`)
 - `context_loaded_paths` (array of strings; paths only)
 - `deliverables` (array of objects; each has `type` + `summary`)
-- `next_steps` (array of strings; max 5 recommended)
+- `next_steps` (array of strings; MUST NOT exceed 5 in envelope mode)
 
 ### 3) `<REPAIR_REQUEST_V1>` (Coordinator → agent)
 
