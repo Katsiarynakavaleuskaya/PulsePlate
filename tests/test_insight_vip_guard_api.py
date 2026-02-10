@@ -11,9 +11,8 @@ from collections.abc import Callable
 import pytest
 from fastapi.testclient import TestClient
 
-from core.insight.llm_provider_loader import load_llm_get_provider
 from tests.helpers.fake_llm_provider import FakeLLMProvider
-from tests.helpers.module_resolve import resolve_legacy_app, resolve_llm
+from tests.helpers.module_resolve import resolve_legacy_app, resolve_llm, resolve_module
 
 
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,6 +131,9 @@ def test_core_llm_provider_loader_resolves_llm_get_provider(
 
     monkeypatch.setattr(llm, "get_provider", _sentinel_get_provider, raising=True)
 
+    # IMPORTANT: resolve at runtime to avoid stale symbol refs after purge/reload under xdist.
+    loader_mod = resolve_module("core.insight.llm_provider_loader")
+    load_llm_get_provider = getattr(loader_mod, "load_llm_get_provider")
     assert load_llm_get_provider() is _sentinel_get_provider
 
 

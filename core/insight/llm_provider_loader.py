@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Protocol, cast
 
 
-class LLMProvider(Protocol):
+class LLMProvider(Protocol):  # pragma: no cover
     """Minimal surface-area required by the insight pipeline.
 
     RU: В `core/` запрещён `Any`. Этот Protocol описывает только то, что уже реально
@@ -25,7 +25,7 @@ class LLMProvider(Protocol):
 
     name: str
 
-    def generate(self, prompt: str) -> Awaitable[str]: ...
+    def generate(self, prompt: str) -> Awaitable[str]: ...  # pragma: no cover
 
 
 LLMProviderFactory = Callable[[], LLMProvider | None]
