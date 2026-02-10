@@ -26,6 +26,11 @@ Each agent must explicitly provide:
    - `file:line` pointers for repo policy assertions, and/or
    - reproducible commands + raw output + exit codes (when applicable).
 
+Optional (recommended when multi-model parsing is required):
+
+5. **Structured envelope**: return results in the canonical message envelope format.
+   - See: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+
 ---
 
 ## Authority model (non-negotiable)

@@ -12,6 +12,9 @@
 - **Quality gates / thresholds / required commands:** see `AGENTS.md` (Quality Gates section)
 - **Operational runbook:** see `RUNBOOK_AGENT.md` (Quality Gates section)
 - **Orchestration protocols:** see `docs/orchestration/AGENT_*.md` (context, capability, handoff, dialogue, parallel)
+- **Message envelopes (multi-model robustness):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 
 ---
 
