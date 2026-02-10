@@ -15,8 +15,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-import legacy_app
-
 from app.middleware.api_tiers import TEST_KEY_VIP
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
@@ -25,6 +23,7 @@ from app.security.llm_monthly_quota import (
 )
 
 from tests.helpers.fake_llm_provider import FakeLLMProvider
+from tests.helpers.module_resolve import resolve_legacy_app
 
 
 def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,6 +36,7 @@ def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
         return lambda: FakeLLMProvider()
 
+    legacy_app = resolve_legacy_app()
     monkeypatch.setattr(
         legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
     )
