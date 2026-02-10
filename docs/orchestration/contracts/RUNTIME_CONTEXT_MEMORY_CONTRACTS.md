@@ -46,7 +46,7 @@ Required per-item fields (minimum):
 - `user_id` (or equivalent auth-scoped key)
 - `type` (`episodic` | `semantic`)
 - `source` (`user_stated` | `stored_fact` | `inferred`)
-- `created_at` / `updated_at`
+- `created_at` / `updated_at` (ISO 8601 UTC, e.g., `2026-02-10T10:11:22Z`)
 - retention metadata (TTL or deletion policy)
 
 ---
@@ -58,7 +58,7 @@ Any runtime pipeline that reads memory and calls an LLM MUST have explicit budge
 - max retrieved items (e.g. `K_doc`, `K_user`)
 - max context size (`C_max`)
 - max hops / recursion (default: 0)
-- timeouts
+- timeouts (per-call and end-to-end; units explicitly defined, e.g. seconds)
 
 Must align with repo abuse controls:
 

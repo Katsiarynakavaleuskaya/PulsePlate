@@ -39,12 +39,18 @@ When envelopes are enabled for a task, an agent MUST return the required JSON **
 - no trailing commas
 - no comments
 - tags must appear on their own lines
-- in real agent output, do **not** wrap envelope JSON in Markdown fences
-  - (docs may use fences for readability)
+- actual agent output MUST NOT wrap envelope JSON in Markdown code fences (```)
+- documentation examples in this file use fences for readability only
 
 ---
 
 ## Validation rules (required)
+
+### Envelope activation (how it is enabled)
+
+Envelope mode is considered enabled when the coordinator:
+- sends a `<TASK_PACKET_V1>`, and
+- sets `output_requirements.must_return` to require an `<AGENT_RESULT_V1>` envelope only (no preamble).
 
 ### Envelope count
 
@@ -67,7 +73,7 @@ When envelopes are enabled for a task, an agent MUST return the required JSON **
   - each deliverable has:
     - `type`: string enum (see above)
     - `summary`: string (1–3 sentences)
-- `next_steps`: array of strings (max 5 recommended)
+- `next_steps`: array of strings (MUST NOT exceed 5 in envelope mode)
 
 ---
 
@@ -114,6 +120,9 @@ Agent MUST respond with:
 - `target_envelope` (string; must be `"AGENT_RESULT_V1"`)
 - `errors` (array of strings; short identifiers like `"invalid_json"`, `"missing_keys"`)
 - `required_keys` (array of strings; the keys the agent MUST include in the repaired result)
+
+Optional (required when truncation is detected):
+- `budgets_override` (object; coordinator-provided reduced budgets)
 
 ---
 
@@ -210,7 +219,12 @@ Repair request:
 - **Missing required keys:** issue `REPAIR_REQUEST_V1`.
 - **Invalid JSON:** issue `REPAIR_REQUEST_V1`.
 - **Wrong envelope tag:** issue `REPAIR_REQUEST_V1`.
+- **Too many `next_steps`:** issue `REPAIR_REQUEST_V1` requiring `next_steps` ≤ 5.
 - **Truncation:** issue `REPAIR_REQUEST_V1` with smaller budgets.
+  - If the original `<TASK_PACKET_V1>` omitted `budgets`, coordinator MUST apply defaults and include them in `REPAIR_REQUEST_V1.budgets_override`.
+  - Default truncation budgets (fallback):
+    - `response_max_lines`: 120
+    - `evidence_max_lines`: 20
 
 ---
 
@@ -220,6 +234,10 @@ If envelopes are enabled:
 
 - Coordinator MUST reject non-envelope outputs as “unparseable” and request repair.
 - Coordinator MUST record the final `<AGENT_RESULT_V1>` payload in synthesis artifacts (auditable dialogue even if UI is opaque).
+
+Repair loop bounds (to prevent infinite retries):
+- coordinator SHOULD attempt at most 2 repairs per task_id
+- on repeated invalid output, set status to `blocked` or `error` and record the failure in synthesis + (if recurring) trigger reflection (`AGENT_REFLECTION_PROTOCOL.md`)
 
 ---
 
