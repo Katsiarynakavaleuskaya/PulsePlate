@@ -25,10 +25,11 @@ This section defines the **design canon** for Web+iOS work. It is intentionally 
 
 ### Source of truth (SoT)
 
-- **Contracts**: OpenAPI + backend schemas are the only SoT for data/fields.
-  - Web consumes `frontend/src/api/schema.ts` (generated); iOS consumes aligned DTOs.
-- **Thin-client policy**: no business logic duplication on clients (see `AGENTS.md`, `ios/AGENTS.md`, `frontend/AGENTS.md`).
-- **Design tokens (Web)**: `frontend/src/styles/tokens.ts` (colors exist today; more tokens may be added later).
+- **Contracts**: OpenAPI + backend schemas are the only SoT for data/fields (`AGENTS.md:L418-L424`, `AGENTS.md:L682-L706`).
+  - Web consumes `frontend/src/api/schema.ts` (generated; do not edit by hand) (`frontend/src/api/schema.ts:L1-L6`, `frontend/AGENTS.md:L17-L18`).
+  - iOS consumes aligned DTOs (example: `ios/PulsePlate/Models/NutritionData.swift:L7-L28`; SoT pipeline note: `ios/AGENTS.md:L91-L94`).
+- **Thin-client policy**: no business logic duplication on clients (`AGENTS.md:L426-L457`, `ios/AGENTS.md:L34-L55`, `frontend/AGENTS.md:L23-L33`).
+- **Design tokens (Web)**: `frontend/src/styles/tokens.ts` (`frontend/src/styles/tokens.ts:L1-L120`).
 
 ### UI-only (allowed) mapping
 
@@ -125,8 +126,8 @@ This is how we keep Web+iOS visually consistent without blocking velocity.
 ### 2.2 Implementation track (thin slice)
 
 - **iOS:** SwiftUI UI + storage + navigation wired at the single gate point
-- **Web:** use `frontend/src/api/client.ts` only; types from `frontend/src/api/schema.ts`
-- **Both:** no business logic duplication, no tier inference on clients
+- **Web:** use `frontend/src/api/client.ts` only; types from `frontend/src/api/schema.ts` (`frontend/AGENTS.md:L29-L32`, `frontend/AGENTS.md:L59-L63`)
+- **Both:** no business logic duplication, no tier inference on clients (`AGENTS.md:L426-L457`)
 
 ### 2.3 Verification track (before calling it “done”)
 

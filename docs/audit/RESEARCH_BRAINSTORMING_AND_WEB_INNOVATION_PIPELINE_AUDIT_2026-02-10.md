@@ -8,12 +8,14 @@
 
 ## Summary
 
-We *do* have a solid orchestration foundation (coordinator-first workflow, message envelopes, bounded research track). The “research pipeline gives failures” is best explained by **missing / non-canonical artifacts** and **lack of deterministic completion gates** around research cycles:
+We *do* have a solid orchestration foundation (coordinator-first workflow, message envelopes, bounded research track). The “research pipeline gives failures” is best explained by **missing / non-canonical artifacts** and **lack of deterministic completion gates** around research cycles (`AGENTS.md:L111-L155`, `docs/orchestration/workflow.md:L1-L18`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L1-L12`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L1-L6`):
 
-- **Canonical workflow exists**: `docs/orchestration/workflow.md`
-- **Machine-parseable envelopes exist**: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
-- **Bounded web/OSS research track exists**: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- **Canonical workflow exists**: `docs/orchestration/workflow.md` (`docs/orchestration/workflow.md:L1-L20`)
+- **Machine-parseable envelopes exist**: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` (`docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L27-L33`, `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L81-L116`)
+- **Bounded web/OSS research track exists**: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L17-L26`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L76-L86`)
 - **But** the “Research Brainstorming package” described in the provided draft expects additional SoT docs / agent spec files (innovation framework, personalization, scientific workflow, web-research agent) that are currently **missing in this repo**.
+
+**Anti-drift note:** This audit does **not** redefine the canonical envelope protocol or research track rules; those docs remain the single source of truth (`docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L9-L12`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L1-L6`).
 
 This audit defines:
 
@@ -26,11 +28,11 @@ This audit defines:
 
 ## Canonical inputs (repo SoT)
 
-- Orchestrator workflow: `docs/orchestration/workflow.md`
-- Envelope protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
-- Research track: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
-- Existing orchestration audit: `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md`
-- Project process + evidence rules: `AGENTS.md`
+- Orchestrator workflow: `docs/orchestration/workflow.md` (`docs/orchestration/workflow.md:L1-L20`)
+- Envelope protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` (`docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L27-L33`)
+- Research track: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L76-L86`)
+- Existing orchestration audit: `docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md` (`docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md:L66-L76`)
+- Project process + evidence rules: `AGENTS.md` (`AGENTS.md:L3-L23`, `AGENTS.md:L778-L789`, `AGENTS.md:L1514-L1518`)
 
 ---
 
@@ -57,7 +59,7 @@ for p in paths:
 PY
 ```
 
-Observed stdout (exit code 0):
+Example stdout (exit code 0; captured 2026-02-10; may drift as files are added/moved). Rerun the command above to reproduce current truth:
 
 ```text
 docs/orchestration/RESEARCH_TRACK_PROTOCOL.md: EXISTS
@@ -80,31 +82,33 @@ docs/research/RESEARCH_EXAMPLES.md: MISSING
 
 ### 1) Coordinator-first task start
 
-- A “task” must start with coordinator analysis (root `AGENTS.md` policy).
-- Coordinator enforces **pre-flight** (load root `AGENTS.md`, `RUNBOOK_AGENT.md`, and nearest scoped `AGENTS.md` for touched modules).
+- A “task” must start with coordinator analysis (root `AGENTS.md` policy) (`AGENTS.md:L111-L155`, `docs/orchestration/workflow.md:L36-L51`).
+- Coordinator enforces **pre-flight** (load root `AGENTS.md`, `RUNBOOK_AGENT.md`, and nearest scoped `AGENTS.md` for touched modules) (`docs/orchestration/workflow.md:L55-L83`).
 
 ### 2) Research work is a bounded track
 
 Per `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`:
 
-- Coordinator sets **budgets** (sources, evidence lines, timebox, recursion hops, provider calls).
+- Coordinator sets **budgets** (sources, evidence lines, timebox, recursion hops, provider calls) (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L17-L26`).
 - Research output MUST include (per track):
   - **External Claims Register (ECR)**
   - **Eval scorecard**
   - **Evidence log** (quoted lines + links + access date)
+  (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L76-L86`)
 
 ### 3) Multi-model robustness is enforced via envelopes
 
 Per `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`:
 
-- Coordinator can require a strict `<AGENT_RESULT_V1>` only response.
+- Coordinator can require a strict `<AGENT_RESULT_V1>` only response (`docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L49-L60`).
 - Repair requests are bounded (avoid infinite retries).
+  (`docs/orchestration/AGENT_MESSAGE_PROTOCOL.md:L108-L116`)
 
 ### 4) Promotion (learning) must be artifact-based
 
 Per root `AGENTS.md`:
 
-- No “silent learning” in model memory; only repo artifacts count (docs, tests, ledger, ADRs).
+- No “silent learning” in model memory; only repo artifacts count (docs, tests, ledger, ADRs) (`AGENTS.md:L156-L163`, `AGENTS.md:L1514-L1518`).
 
 ---
 
@@ -297,12 +301,12 @@ This is docs-only guidance (no runtime changes). Where “evidence” is needed,
 
 ### Deterministic “release-safe” gates (what must be true before calling it safe)
 
-This repo already defines the hard gate: **do not claim ready unless `make verify` passes locally** (see root `AGENTS.md`).
+This repo already defines the hard gate: **do not claim ready unless `make verify` passes locally** (`AGENTS.md:L3-L23`).
 
 Add the following *conceptual* gates (still enforced via tests/docs, not by vibes):
 
 1. **Prod-parity config gate**
-   - Any required runtime env var must be reflected in `.env.example` + root `docker-compose.yaml` (policy in `AGENTS.md`).
+   - Any required runtime env var must be reflected in `.env.example` + root `docker-compose.yaml` (`AGENTS.md:L61-L64`).
    - Fail-fast at startup for missing critical env vars (with clear error).
 
 2. **Determinism gate**
@@ -310,8 +314,8 @@ Add the following *conceptual* gates (still enforced via tests/docs, not by vibe
    - For concurrency-sensitive code, add at least one targeted test that would have caught the observed race class (no broad flaky stress tests).
 
 3. **Contract gate**
-   - Any API change must preserve OpenAPI determinism (run `make openapi` + `make openapi-check` when relevant) and keep response models typed.
-   - Thin-client rule: clients must remain transport-only; no business logic duplication.
+   - Any API change must preserve OpenAPI determinism (run `make openapi` + `make openapi-check` when relevant) and keep response models typed (`AGENTS.md:L682-L706`, `AGENTS.md:L717-L726`).
+   - Thin-client rule: clients must remain transport-only; no business logic duplication (`AGENTS.md:L426-L457`).
 
 4. **“Failure-path” smoke gate**
    - For any expensive/critical endpoint: tests must prove safe failure behavior (sanitized errors, deterministic 429/quota) before release.
@@ -352,9 +356,9 @@ Each track returns: ECR + scorecard + evidence log (same pattern as research tra
 
 To avoid “great idea, forgotten”:
 
-- If a failure mode is recurring → create a **ledger item** (if deferred) or a **guard/test** (if we can enforce now).
-- If a workflow change is adopted → update exactly one canonical doc (`AGENTS.md` for global, or nearest scoped `*/AGENTS.md`, or `docs/orchestration/*` for dev workflow).
-- If a class of bugs recurs → add a deterministic test that reproduces the old failure and prevents regressions.
+- When a failure mode is recurring → create a **ledger item** (if deferred) or a **guard/test** (if we can enforce now).
+- For adopted workflow changes → update exactly one canonical doc (`AGENTS.md` for global, or nearest scoped `*/AGENTS.md`, or `docs/orchestration/*` for dev workflow).
+- For recurring bug classes → add a deterministic test that reproduces the old failure and prevents regressions.
 
 ---
 

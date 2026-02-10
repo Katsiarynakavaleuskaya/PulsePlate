@@ -1218,7 +1218,7 @@ If it is not recorded here — it does not exist.
     - Proposed response schema includes: items[], per-item confidence, portion estimate + uncertainty range, warnings[], metadata
     - Deterministic UX state mapping defined for confidence bands (show/confirm/suggest/manual entry)
     - Privacy packet drafted (consent copy, retention, opt-out) and reviewed for wellness-safe wording
-    - Deterministic tests plan exists (fixtures + expected ranges; no flake)
+    - Deterministic test plan exists (fixtures + expected ranges; no flake)
 
 - [ ] Sensor invariants: physically-plausible bounds + calibration UX contract (no “magic sizing”)
   - Owner: @katsiaryna_kavaleuskaya
