@@ -44,7 +44,7 @@ Any personalization feature MUST define:
 
 - canonical input schema (what fields exist)
 - canonical output schema (what fields are affected)
-- fallback defaults (when inputs missing)
+- fallback defaults (when inputs are missing)
 - deterministic tests for: default path + personalized path + cleared state
 
 If personalization touches AI outputs, require:
