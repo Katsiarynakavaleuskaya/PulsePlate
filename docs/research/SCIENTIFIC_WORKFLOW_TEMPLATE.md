@@ -5,8 +5,8 @@ repo artifacts (PRs, tests, ledger entries).
 
 **Status:** Canonical (dev-only). Complements:
 
-- Orchestrator workflow: `docs/orchestration/workflow.md`
-- Research track (web/OSS): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Orchestrator workflow: `docs/orchestration/workflow.md` (`docs/orchestration/workflow.md:L56-L84`)
+- Research track (web/OSS): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L17-L26`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L76-L86`)
 
 ---
 

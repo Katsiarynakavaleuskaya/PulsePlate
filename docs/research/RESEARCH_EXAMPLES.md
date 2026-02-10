@@ -3,8 +3,8 @@
 **Purpose:** Provide concrete examples of how to apply:
 
 - `docs/research/SCIENTIFIC_WORKFLOW_TEMPLATE.md`
-- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
-- `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L52-L112`)
+- `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md` (`docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md:L37-L93`)
 
 **Status:** Examples (dev-only). Copy/paste safe.
 

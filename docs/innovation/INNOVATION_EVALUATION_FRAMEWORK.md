@@ -6,9 +6,8 @@ CV flows, orchestration improvements) and decide **do now vs defer** without han
 **Status:** Canonical (dev-only). This document adds *innovation-specific* evaluation dimensions; it does not replace
 the canonical research track scorecard.
 
-**Anti-drift rule:** The canonical web/OSS research deliverables and baseline scorecard live in:
-
-- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+**Anti-drift rule:** The canonical web/OSS research deliverables and baseline scorecard live in
+`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` (`docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L1-L6`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:L76-L86`).
 
 Use this framework **in addition** when proposals are novel, cross-cutting, or high-risk.
 
