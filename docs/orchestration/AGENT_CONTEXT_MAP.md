@@ -317,5 +317,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-03 (PR-634)
+**Last updated:** 2026-02-10 (PR-706)
 **Status:** Canonical

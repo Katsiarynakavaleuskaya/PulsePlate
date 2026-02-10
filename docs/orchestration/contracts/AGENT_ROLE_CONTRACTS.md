@@ -2,7 +2,7 @@
 
 **Status:** Advisory (contracts for future runtime PRs)
 **Scope:** Universal (applies to orchestration-layer work)
-**Last updated:** 8 February 2026 (PR #691)
+**Last updated:** 10 February 2026 (PR #706)
 
 ---
 
