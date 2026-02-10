@@ -8,12 +8,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import importlib
-
 import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers.fake_llm_provider import FakeLLMProvider
+from tests.helpers.module_resolve import resolve_legacy_app, resolve_llm
 
 
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,8 +30,8 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # IMPORTANT: resolve modules at runtime to avoid stale module references.
     # Some tests intentionally purge/reload modules (see module_purge), and under xdist this can
     # create multiple module instances. Patching a stale module object is a common CI-only flake.
-    legacy_app = importlib.import_module("legacy_app")
-    llm = importlib.import_module("llm")
+    legacy_app = resolve_legacy_app()
+    llm = resolve_llm()
 
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
     # Provider mocking must be robust across CI import paths.
