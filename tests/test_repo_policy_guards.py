@@ -67,7 +67,12 @@ def _rel(p: Path) -> str:
 
 
 def _read(p: Path) -> str:
-    return p.read_text(encoding="utf-8", errors="replace")
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        # xdist can race with transient helper files created/removed by tests.
+        # Missing-at-read-time files are non-canonical for repo policy scans.
+        return ""
 
 
 def test_no_dynamic_imports_in_app_core() -> None:
