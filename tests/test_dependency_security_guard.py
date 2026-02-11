@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import re
 
+from packaging.requirements import Requirement
+from packaging.version import InvalidVersion
 from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -15,13 +17,51 @@ def _read(relpath: str) -> str:
     return (REPO_ROOT / relpath).read_text(encoding="utf-8", errors="replace")
 
 
-def _extract_version_from_line(content: str, pattern: str, relpath: str) -> Version:
-    match = re.search(pattern, content, flags=re.MULTILINE)
-    assert match, (
-        f"Could not find cryptography version declaration in {relpath}.\n"
-        "Fix: keep an explicit cryptography constraint/version in this file."
+def _iter_cryptography_requirements(content: str, relpath: str) -> list[tuple[int, Requirement]]:
+    """Return all parsable cryptography requirements found in file content."""
+    requirements: list[tuple[int, Requirement]] = []
+    for line_no, raw_line in enumerate(content.splitlines(), start=1):
+        # Support inline comments and requirement markers while ignoring blank/comment lines.
+        line = re.sub(r"\s+#.*$", "", raw_line).strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("-r ", "--", "-c ")):
+            continue
+        try:
+            requirement = Requirement(line)
+        except Exception:
+            continue
+        if requirement.name.lower() == "cryptography":
+            requirements.append((line_no, requirement))
+
+    assert requirements, (
+        f"Could not find cryptography requirement declaration(s) in {relpath}.\n"
+        "Fix: keep explicit cryptography constraint/version entries in this file."
     )
-    return Version(match.group("version"))
+    return requirements
+
+
+def _specifier_versions(
+    requirement: Requirement,
+    operator: str,
+    relpath: str,
+    line_no: int,
+) -> list[Version]:
+    """Extract typed versions for specifiers with a given operator."""
+    versions: list[Version] = []
+    for specifier in requirement.specifier:
+        if specifier.operator != operator:
+            continue
+        try:
+            versions.append(Version(specifier.version))
+        except InvalidVersion:
+            continue
+    assert versions, (
+        f"{relpath}:{line_no} has cryptography without '{operator}' specifier.\n"
+        f"Found: {requirement}\n"
+        "Fix: declare explicit, parseable version bounds for cryptography."
+    )
+    return versions
 
 
 def test_cryptography_pinned_files_are_not_vulnerable() -> None:
@@ -31,13 +71,14 @@ def test_cryptography_pinned_files_are_not_vulnerable() -> None:
         "requirements-dev.txt",
         "requirements-lock.txt",
     ]
-    pattern = r"^cryptography==(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\s*$"
-
     violations: list[str] = []
     for relpath in pinned_files:
-        current = _extract_version_from_line(_read(relpath), pattern, relpath)
-        if current < CRYPTOGRAPHY_MIN_SAFE:
-            violations.append(f"{relpath}: cryptography=={current} < {CRYPTOGRAPHY_MIN_SAFE}")
+        for line_no, requirement in _iter_cryptography_requirements(_read(relpath), relpath):
+            for current in _specifier_versions(requirement, "==", relpath, line_no):
+                if current < CRYPTOGRAPHY_MIN_SAFE:
+                    violations.append(
+                        f"{relpath}:{line_no}: cryptography=={current} < {CRYPTOGRAPHY_MIN_SAFE}"
+                    )
 
     assert not violations, (
         "Vulnerable cryptography pin detected (CVE-2026-26007 floor).\n"
@@ -49,15 +90,18 @@ def test_cryptography_pinned_files_are_not_vulnerable() -> None:
 def test_cryptography_min_constraints_are_not_vulnerable() -> None:
     """Constraint/input files must enforce non-vulnerable minimum versions."""
     min_constraint_files = [
-        ("requirements.in", r"^cryptography>=(?P<version>[0-9]+\.[0-9]+\.[0-9]+),<47\.0\.0\s*$"),
-        ("constraints.txt", r"^cryptography>=(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\s*$"),
+        "requirements.in",
+        "constraints.txt",
     ]
 
     violations: list[str] = []
-    for relpath, pattern in min_constraint_files:
-        current = _extract_version_from_line(_read(relpath), pattern, relpath)
-        if current < CRYPTOGRAPHY_MIN_SAFE:
-            violations.append(f"{relpath}: cryptography>={current} < {CRYPTOGRAPHY_MIN_SAFE}")
+    for relpath in min_constraint_files:
+        for line_no, requirement in _iter_cryptography_requirements(_read(relpath), relpath):
+            for current in _specifier_versions(requirement, ">=", relpath, line_no):
+                if current < CRYPTOGRAPHY_MIN_SAFE:
+                    violations.append(
+                        f"{relpath}:{line_no}: cryptography>={current} < {CRYPTOGRAPHY_MIN_SAFE}"
+                    )
 
     assert not violations, (
         "Vulnerable cryptography lower-bound detected.\n"
