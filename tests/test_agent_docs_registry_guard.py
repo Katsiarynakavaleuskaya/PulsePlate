@@ -39,10 +39,20 @@ def _parse_frontmatter_name(content: str) -> str | None:
     for line in lines[1:]:
         if line.strip() == "---":
             return None
-        m = re.match(r"^name:\s*(.+?)\s*$", line)
+        m = re.match(r"^\s*name:\s*(.+?)\s*$", line)
         if m:
             return m.group(1).strip().strip('"').strip("'")
     return None
+
+
+def _is_markdown_table_separator_row(line: str) -> bool:
+    """Return True for markdown separator rows like: |---|, |:---|, |---:|, |:---:|."""
+    core = line.replace("|", "").strip()
+    if not core:
+        return False
+    core_no_ws = core.replace(" ", "")
+    # Must contain at least one dash, and only use '-' / ':' for alignment.
+    return "-" in core_no_ws and set(core_no_ws) <= {"-", ":"}
 
 
 def _load_agent_specs() -> tuple[list[AgentSpec], list[str]]:
@@ -63,23 +73,47 @@ def _load_agent_specs() -> tuple[list[AgentSpec], list[str]]:
 
 
 def _parse_agent_index_names(index_md: str) -> list[str]:
-    """Parse agent `name` values from `docs/agents/index.md` markdown table."""
+    """Parse agent `name` values from the '## Available Agents' table in `docs/agents/index.md`."""
     names: list[str] = []
+
+    in_available_agents_section = False
+    in_agent_table = False
+
     for raw in index_md.splitlines():
         line = raw.strip()
+
+        if line.startswith("## "):
+            if line == "## Available Agents":
+                in_available_agents_section = True
+                in_agent_table = False
+                continue
+            if in_available_agents_section:
+                break
+
+        if not in_available_agents_section:
+            continue
+
         if not line.startswith("|"):
+            # Stop once we've left the agent table (prevents misparsing other content).
+            if in_agent_table:
+                break
             continue
+
         if line.startswith("| Agent |"):
+            in_agent_table = True
             continue
-        # Skip separator row.
-        if set(line.replace("|", "").strip()) <= {"-"}:
+        if _is_markdown_table_separator_row(line):
+            in_agent_table = True
             continue
+
+        in_agent_table = True
         cells = [c.strip() for c in line.strip("|").split("|")]
         if not cells:
             continue
         first = cells[0]
         if first:
             names.append(first)
+
     return names
 
 
