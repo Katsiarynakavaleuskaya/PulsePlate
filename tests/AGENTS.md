@@ -377,10 +377,9 @@ pytest -q tests/test_agent_docs_registry_guard.py
     - All `cryptography` declarations in each file are checked (not only the first match).
     - Requirement parsing must tolerate environment markers and inline comments where possible.
   - **How to run**:
-
-```bash
-pytest -q tests/test_dependency_security_guard.py
-```
+    ```bash
+    pytest -q tests/test_dependency_security_guard.py
+    ```
 
   - **How to fix failures**:
     - Bump `cryptography` floor/version in the affected requirements files.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-11
 **Scope:** security remediation (dependency manifests) + deterministic prevention guard + documentation/backlog updates
-**PR:** TBD (`security/cve-2026-26007-cryptography-46-0-5`)
+**PR:** #716 (`security/cve-2026-26007-cryptography-46-0-5`)
 
 ---
 
@@ -102,6 +102,26 @@ Coordinator and specialist brainstorming converged on these practical controls:
 4. PR dependency-diff summary with security impact notes
 
 This PR implements (1) immediately and records (2)-(4) as follow-up hardening in backlog.
+
+---
+
+## Insights (root causes of bot comments)
+
+1. **Traceability drift in docs**
+   - Placeholder metadata (`PR: TBD`) survived into review stage.
+   - Prevention: treat audit headers as release checklist items before PR ready-for-review.
+
+2. **Evidence claims without file:line anchors**
+   - Remediation/prevention statements were correct but not instantly verifiable.
+   - Prevention: for every "implemented" claim, attach direct `file:line` pointers in the same paragraph.
+
+3. **Markdown list/code-fence structure fragility**
+   - Mixed list nesting + fenced code block placement triggered markdownlint style violations.
+   - Prevention: keep fenced blocks indented under their parent list item and run `pre-commit` before push.
+
+4. **Parser strictness feedback loop**
+   - Guard logic initially matched one declaration shape; reviewers pushed for multi-declaration robustness.
+   - Prevention: prefer requirement-aware parsing and "check all matches" policy in dependency guards.
 
 ---
 
