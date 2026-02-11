@@ -14,21 +14,52 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+ANALYTICS_DOCS_REQUIRED_MARKERS: dict[str, list[str]] = {
+    "docs/analytics/README.md": [
+        "## Files (canonical surfaces)",
+        "## Ownership (recommended)",
+    ],
+    "docs/analytics/ANALYTICS_INDEX.md": [
+        "## Tracked Metrics",
+        "## Data Sources",
+    ],
+    "docs/analytics/METRICS_CATALOG.md": [
+        "#### Definition",
+        "#### Formula",
+        "#### Owner",
+        "#### Update frequency",
+        "#### Change history",
+    ],
+    "docs/analytics/DATA_CATALOG.md": [
+        # Enforce semantic skeleton to prevent hollow placeholders.
+        "## Data sources (high-level)",
+        "## Tables / entities (example templates)",
+        "### users",
+        "## Events (vendor-agnostic)",
+        "### event: <event_name>",
+    ],
+    "docs/analytics/EXPERIMENT_REGISTRY.md": [
+        "## Active Experiments",
+        "## Completed Experiments",
+    ],
+}
+
 
 def _read(relpath: str) -> str:
     return (REPO_ROOT / relpath).read_text(encoding="utf-8", errors="replace")
 
 
-def test_analytics_docs_exist() -> None:
-    required = [
-        "docs/analytics/README.md",
-        "docs/analytics/ANALYTICS_INDEX.md",
-        "docs/analytics/METRICS_CATALOG.md",
-        "docs/analytics/DATA_CATALOG.md",
-        "docs/analytics/EXPERIMENT_REGISTRY.md",
-    ]
+def _assert_required_markers(path: str, content: str, markers: list[str]) -> None:
+    missing = [marker for marker in markers if marker not in content]
+    assert not missing, (
+        f"{path} missing required structure markers.\n"
+        f"- missing_markers: {missing}\n"
+        "Fix: restore canonical headings/sections required by analytics docs guards."
+    )
 
-    missing = [p for p in required if not (REPO_ROOT / p).exists()]
+
+def test_analytics_docs_exist() -> None:
+    missing = [p for p in ANALYTICS_DOCS_REQUIRED_MARKERS if not (REPO_ROOT / p).exists()]
     assert not missing, (
         "Missing analytics canonical docs.\n"
         f"- missing: {missing}\n"
@@ -36,41 +67,6 @@ def test_analytics_docs_exist() -> None:
     )
 
 
-def test_metrics_catalog_contains_required_sections() -> None:
-    content = _read("docs/analytics/METRICS_CATALOG.md")
-
-    required_markers = [
-        "#### Definition",
-        "#### Formula",
-        "#### Owner",
-        "#### Update frequency",
-        "#### Change history",
-    ]
-    missing = [m for m in required_markers if m not in content]
-    assert not missing, (
-        "docs/analytics/METRICS_CATALOG.md missing required template sections.\n"
-        f"- missing_markers: {missing}\n"
-        "Fix: restore the metric template sections so definitions stay reviewable."
-    )
-
-
-def test_experiment_registry_contains_active_and_completed_sections() -> None:
-    content = _read("docs/analytics/EXPERIMENT_REGISTRY.md")
-    required_markers = ["## Active Experiments", "## Completed Experiments"]
-    missing = [m for m in required_markers if m not in content]
-    assert not missing, (
-        "docs/analytics/EXPERIMENT_REGISTRY.md missing required sections.\n"
-        f"- missing_markers: {missing}\n"
-        "Fix: keep both Active and Completed sections for end-to-end tracking."
-    )
-
-
-def test_analytics_index_contains_metrics_and_sources_sections() -> None:
-    content = _read("docs/analytics/ANALYTICS_INDEX.md")
-    required_markers = ["## Tracked Metrics", "## Data Sources"]
-    missing = [m for m in required_markers if m not in content]
-    assert not missing, (
-        "docs/analytics/ANALYTICS_INDEX.md missing required sections.\n"
-        f"- missing_markers: {missing}\n"
-        "Fix: keep metrics and data sources catalog sections."
-    )
+def test_analytics_docs_keep_required_structure_markers() -> None:
+    for path, markers in ANALYTICS_DOCS_REQUIRED_MARKERS.items():
+        _assert_required_markers(path=path, content=_read(path), markers=markers)
