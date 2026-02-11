@@ -344,6 +344,28 @@ Use: `make verify`, `make cov-check`, and `git push` as described there (force p
 
 This file (`tests/AGENTS.md`) contains ONLY test-specific rules (diff coverage, mocking constraints, forbidden patterns).
 
+## Guard tests (docs registry)
+
+The repo uses deterministic, repo-local “guard tests” to prevent instruction drift.
+
+- **Agent registry guard**: `tests/test_agent_docs_registry_guard.py`
+  - **What it enforces**:
+    - `.cursor/agents/*.md` entries with YAML frontmatter `name:` must be registered in:
+      - `docs/agents/index.md` (the **"## Available Agents"** table only)
+      - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - Canonical protocol references must not be accidentally removed from:
+      - `AGENTS.md`
+      - `docs/orchestration/workflow.md`
+  - **How to run**:
+
+```bash
+pytest -q tests/test_agent_docs_registry_guard.py
+```
+
+  - **How to fix failures**:
+    - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
+    - Keep the agent table under the `## Available Agents` heading in `docs/agents/index.md`.
+
 ## Type hints policy (tests)
 
 ### Hard rules
