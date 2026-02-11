@@ -374,6 +374,8 @@ pytest -q tests/test_agent_docs_registry_guard.py
       - `requirements-lock.txt`
       - `requirements.in`
       - `constraints.txt`
+    - All `cryptography` declarations in each file are checked (not only the first match).
+    - Requirement parsing must tolerate environment markers and inline comments where possible.
   - **How to run**:
 
 ```bash
