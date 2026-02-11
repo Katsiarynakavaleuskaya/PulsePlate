@@ -123,6 +123,14 @@ This PR implements (1) immediately and records (2)-(4) as follow-up hardening in
    - Guard logic initially matched one declaration shape; reviewers pushed for multi-declaration robustness.
    - Prevention: prefer requirement-aware parsing and "check all matches" policy in dependency guards.
 
+### Operational mini-checklist (before push)
+
+- Validate metadata: `PR-ID` is final (no `TBD` placeholders).
+- Ensure each key claim has local evidence anchor: `file:line`.
+- Verify markdown structure (list nesting + fenced code blocks).
+- Run `pre-commit run --all-files` as final gate.
+- Pass through PR discussion thread and post `fixed in commit ...` mapping for each actionable bot item.
+
 ---
 
 ## DoD mapping
