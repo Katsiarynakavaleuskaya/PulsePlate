@@ -110,6 +110,9 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
+**Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a
+repo-admin setting change (`default_workflow_permissions=write`; no repo commit).
+
 **Symptom (GitHub Actions logs):**
 
 - `Error: Failed to FinalizeArtifact: ... (403) Forbidden`
