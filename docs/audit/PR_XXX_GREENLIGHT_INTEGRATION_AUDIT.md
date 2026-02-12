@@ -8,10 +8,10 @@
 
 ## Non-goals
 
-- No backend runtime changes.
-- No blocking policy on findings (P0 is report-only).
-- No App Store Connect authenticated scan (offline preflight only).
-- No local Makefile target in this phase (planned for P1).
+- Backend runtime remains unchanged.
+- Findings do not block merges in P0 (report-only).
+- App Store Connect authenticated scans excluded (offline preflight only).
+- Local Makefile target deferred to P1.
 
 ## Files changed
 
@@ -35,7 +35,8 @@
 
 ## Repo-truth evidence commands
 
-- `rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh`
+- `rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" \
+  .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh`
 - `rg -n "report-only|critical|artifact|blocking" docs/runbook/IOS_GREENLIGHT.md`
 
 ## Failure modes and expected behavior
@@ -46,7 +47,7 @@
 | docs-only PR | Greenlight workflow does not run |
 | greenlight install failure | Job fails (explicit error) |
 | greenlight execution error | Job fails (no error masking) |
-| report-only with findings | Job succeeds, findings visible in summary + artifact |
+| report-only with findings | Job succeeds; findings in summary + artifact |
 | future blocking mode + critical findings | Job fails deterministically |
 
 ## Security guardrails

@@ -9,6 +9,12 @@ GREENLIGHT_BLOCKING="${GREENLIGHT_BLOCKING:-false}"
 echo "Running Greenlight preflight for: ${PROJECT_PATH}"
 echo "Pinned Greenlight version: ${GREENLIGHT_VERSION}"
 
+# Add GOPATH/bin to PATH before checking so we can reuse an already-installed binary.
+# Only call go env when go is available (avoids failure when greenlight is in PATH but go is not).
+if command -v go >/dev/null 2>&1; then
+  export PATH="$(go env GOPATH)/bin:${PATH}"
+fi
+
 if ! command -v greenlight >/dev/null 2>&1; then
   if ! command -v go >/dev/null 2>&1; then
     echo "go is required to install greenlight but was not found in PATH" >&2
@@ -18,8 +24,6 @@ if ! command -v greenlight >/dev/null 2>&1; then
   echo "Installing greenlight ${GREENLIGHT_VERSION} via go install..."
   go install "github.com/RevylAI/greenlight/cmd/greenlight@${GREENLIGHT_VERSION}"
 fi
-
-export PATH="$(go env GOPATH)/bin:${PATH}"
 
 if ! command -v greenlight >/dev/null 2>&1; then
   echo "greenlight was not found after installation" >&2
