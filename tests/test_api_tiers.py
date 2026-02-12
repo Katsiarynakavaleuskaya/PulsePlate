@@ -12,6 +12,8 @@ from fastapi import HTTPException
 
 import app.middleware.api_tiers as api_tiers_mod
 from app.middleware.api_tiers import (
+    DBLookupResult,
+    DBLookupStatus,
     CurrentUser,
     SubscriptionTier,
     TEST_KEY_PRO,
@@ -90,7 +92,7 @@ class TestValidateAPIKeyTier:
         monkeypatch.setattr(
             api_tiers_mod,
             "_lookup_tier_from_db",
-            lambda _: SubscriptionTier.PRO,
+            lambda _: DBLookupResult(status=DBLookupStatus.HIT, tier=SubscriptionTier.PRO),
         )
         assert _validate_api_key_tier("prodtoken", SubscriptionTier.PRO) is True
         assert _validate_api_key_tier("prodtoken", SubscriptionTier.VIP) is False
@@ -105,12 +107,16 @@ class TestValidateAPIKeyTier:
         },
         clear=False,
     )
-    def test_production_db_error_falls_back_to_env_tier(
+    def test_production_db_error_does_not_fallback_to_env_tier(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test DB lookup error path falls back to env-based tier detection."""
-        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: None)
-        assert _validate_api_key_tier("env_fallback_key", SubscriptionTier.VIP) is True
+        """Test DB lookup error path denies access instead of env fallback."""
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _: DBLookupResult(status=DBLookupStatus.ERROR),
+        )
+        assert _validate_api_key_tier("env_fallback_key", SubscriptionTier.VIP) is False
         assert _validate_api_key_tier("unknown_key", SubscriptionTier.PRO) is False
 
 
@@ -163,7 +169,9 @@ class TestDBLookupHelpers:
             raise RuntimeError("db down")
 
         monkeypatch.setattr(core_db, "get_session_factory", _boom)
-        assert api_tiers_mod._lookup_tier_from_db("key") is None
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.ERROR
+        assert result.tier is None
 
     def test_lookup_tier_from_db_handles_missing_record(
         self, monkeypatch: pytest.MonkeyPatch
@@ -173,7 +181,9 @@ class TestDBLookupHelpers:
 
         session = _FakeSession(None)
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
-        assert api_tiers_mod._lookup_tier_from_db("key") is None
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.MISS
+        assert result.tier is None
         assert session.closed is True
 
     def test_lookup_tier_from_db_handles_unknown_tier_value(
@@ -184,7 +194,9 @@ class TestDBLookupHelpers:
 
         session = _FakeSession("not_a_tier")
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
-        assert api_tiers_mod._lookup_tier_from_db("key") is None
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.INVALID_TIER
+        assert result.tier is None
         assert session.closed is True
 
     def test_lookup_tier_from_db_returns_parsed_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -193,7 +205,9 @@ class TestDBLookupHelpers:
 
         session = _FakeSession("VIP")
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
-        assert api_tiers_mod._lookup_tier_from_db("key") == SubscriptionTier.VIP
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.HIT
+        assert result.tier == SubscriptionTier.VIP
         assert session.closed is True
 
 
@@ -303,7 +317,11 @@ class TestGetSubscriptionTier:
     )
     def test_production_db_enabled_uses_db_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_subscription_tier returns DB tier when available."""
-        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: SubscriptionTier.VIP)
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _: DBLookupResult(status=DBLookupStatus.HIT, tier=SubscriptionTier.VIP),
+        )
         assert get_subscription_tier("db_key") == SubscriptionTier.VIP
 
     @patch.dict(
@@ -316,11 +334,38 @@ class TestGetSubscriptionTier:
         },
         clear=False,
     )
-    def test_production_db_enabled_falls_back_to_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test get_subscription_tier falls back to env when DB lookup misses/errors."""
-        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: None)
+    def test_production_db_enabled_falls_back_to_env_on_db_miss(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test get_subscription_tier falls back to env only when DB lookup misses."""
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _: DBLookupResult(status=DBLookupStatus.MISS),
+        )
         assert get_subscription_tier("env_key") == SubscriptionTier.VIP
         assert get_subscription_tier("unknown_key") == SubscriptionTier.FREE
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "true",
+            "VIP_API_KEYS": "env_key",  # pragma: allowlist secret
+        },
+        clear=False,
+    )
+    def test_production_db_error_returns_free_without_env_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test DB errors are fail-closed for tier inference when DB mode is enabled."""
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _: DBLookupResult(status=DBLookupStatus.ERROR),
+        )
+        assert get_subscription_tier("env_key") == SubscriptionTier.FREE
 
 
 class TestGetProSubjectId:

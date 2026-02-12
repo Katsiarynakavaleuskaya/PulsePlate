@@ -52,6 +52,23 @@ class SubscriptionTier(str, Enum):
     VIP = "VIP"
 
 
+class DBLookupStatus(str, Enum):
+    """Outcome of DB-backed API key tier lookup."""
+
+    HIT = "HIT"
+    MISS = "MISS"
+    ERROR = "ERROR"
+    INVALID_TIER = "INVALID_TIER"
+
+
+@dataclass(frozen=True)
+class DBLookupResult:
+    """Structured DB lookup result to avoid ambiguous None semantics."""
+
+    status: DBLookupStatus
+    tier: SubscriptionTier | None = None
+
+
 # Test API keys for development/testing (nosec B105)
 TEST_KEY_PRO = "test_pro_key"  # nosec B105
 TEST_KEY_VIP = "test_vip_key"  # nosec B105
@@ -89,11 +106,11 @@ def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     return None
 
 
-def _lookup_tier_from_db(api_key: str) -> SubscriptionTier | None:
-    """Try to resolve API key tier from DB; return None on misses/errors.
+def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
+    """Try to resolve API key tier from DB with explicit outcome.
 
-    RU: Пытается определить tier из БД; возвращает None при промахе/ошибке.
-    EN: Attempts to resolve tier from DB; returns None on miss/error.
+    RU: Пытается определить tier из БД и возвращает статус lookup.
+    EN: Attempts to resolve tier from DB and returns structured status.
     """
     query = text("SELECT tier FROM api_keys WHERE api_key = :api_key LIMIT 1")
 
@@ -107,16 +124,17 @@ def _lookup_tier_from_db(api_key: str) -> SubscriptionTier | None:
         finally:
             session.close()
     except Exception:
-        logger.warning("Subscription DB lookup failed; falling back to env-based tier detection")
-        return None
+        logger.warning("Subscription DB lookup failed; denying env fallback for safety")
+        return DBLookupResult(status=DBLookupStatus.ERROR)
 
     if raw_tier is None:
-        return None
+        return DBLookupResult(status=DBLookupStatus.MISS)
 
     parsed_tier = _parse_tier_value(str(raw_tier))
     if parsed_tier is None:
-        logger.warning("Subscription DB lookup returned unknown tier value; using env fallback")
-    return parsed_tier
+        logger.warning("Subscription DB lookup returned unknown tier value; denying env fallback")
+        return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
+    return DBLookupResult(status=DBLookupStatus.HIT, tier=parsed_tier)
 
 
 def _resolve_tier_from_env(api_key: str) -> SubscriptionTier | None:
@@ -170,14 +188,11 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
     is_production, app_env = _is_production_environment()
 
     if _is_subscription_db_enabled():
-        db_tier = _lookup_tier_from_db(api_key)
-        if db_tier is not None:
-            return _tier_allows_access(db_tier, required_tier)
-
-        logger.warning(
-            "Subscription DB lookup unavailable. Falling back to env-based tier detection for tier %s.",
-            required_tier.value,
-        )
+        db_lookup = _lookup_tier_from_db(api_key)
+        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
+            return _tier_allows_access(db_lookup.tier, required_tier)
+        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
+            return False
 
     resolved_env_tier = _resolve_tier_from_env(api_key)
     if resolved_env_tier is not None:
@@ -297,12 +312,11 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         In development mode, test keys return their respective tiers.
     """
     if _is_subscription_db_enabled():
-        db_tier = _lookup_tier_from_db(api_key)
-        if db_tier is not None:
-            return db_tier
-        logger.warning(
-            "Subscription DB lookup unavailable for get_subscription_tier; using env fallback"
-        )
+        db_lookup = _lookup_tier_from_db(api_key)
+        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
+            return db_lookup.tier
+        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
+            return SubscriptionTier.FREE
 
     env_tier = _resolve_tier_from_env(api_key)
     return env_tier if env_tier is not None else SubscriptionTier.FREE
