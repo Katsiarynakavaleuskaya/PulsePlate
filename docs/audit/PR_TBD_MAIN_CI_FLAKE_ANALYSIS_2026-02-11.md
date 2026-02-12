@@ -25,8 +25,8 @@ Changed file:
 
 Change:
 
-- Hardened `_read()` helper to catch `FileNotFoundError` and return empty content for missing-at-read-time files.
-- This keeps policy scans deterministic under xdist while preserving all existing detection logic.
+- Hardened `_read()` helper to catch `FileNotFoundError` and return `None` to signal a transient skip for known helper paths.
+- Call sites explicitly use `if content is None: continue`, so transient misses are skipped (not treated as empty files) while canonical missing files still raise.
 
 Why this is safe:
 
@@ -161,7 +161,7 @@ Recommended anti-flake scanner patterns:
 2. Freeze file list once per test run.
 3. Handle `FileNotFoundError` gracefully for transient files.
 4. Keep retries bounded (or avoid retries when skip semantics are sufficient).
-5. Keep scanner checks deterministic and side-effect free.
+5. Keep scanner checks deterministic and side-effect-free.
 
 ### Epistemology-discovery agent
 
