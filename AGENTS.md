@@ -1246,6 +1246,13 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
 - See: `docs/security/CVE-2026-0861-glibc.md`
 
+**Security: Dependency CVE bumps (application deps):**
+
+- Security CVE dependency bumps must update **all requirement surfaces** (e.g. `requirements.in`,
+  `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, `constraints.txt`) plus a
+  **dependency security guard test** and **evidence** (`docs/security/CVE-*.md` or equivalent).
+- Reduces drift risk from updating only one manifest.
+
 ---
 
 ## CI: GitHub Container Registry (GHCR) Policy

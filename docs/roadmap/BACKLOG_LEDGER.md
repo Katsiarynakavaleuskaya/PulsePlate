@@ -814,11 +814,11 @@ If it is not recorded here — it does not exist.
     - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
     - 🔄 Awaiting next scan for alerts #533/#534 to close (merged ≠ scanner rerun)
 
-- [ ] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
+- [x] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (security/cve-2026-26007-cryptography-46-0-5)
-  - Status: 🟡 In progress (alerts triaged, remediation patch prepared)
+  - Target PR: security/cve-2026-26007-cryptography-46-0-5 (policy + ledger closure)
+  - Status: ✅ Closed (remediation on main; guard test in place; this PR adds AGENTS policy + ledger)
   - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
     `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
   - Links:
@@ -827,8 +827,8 @@ If it is not recorded here — it does not exist.
     - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
   - DoD:
     - `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`, `requirements.txt`,
-      `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
-    - New dependency security guard test added and passing
+      `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt` ✅
+    - New dependency security guard test added and passing ✅ (`tests/test_dependency_security_guard.py`)
     - Security/code scanning alerts close on next scan
 
 - [ ] Generalize dependency vulnerability guards beyond single-CVE floors
