@@ -3,7 +3,8 @@
 ## Purpose
 
 `greenlight` provides an App Store pre-submission readiness scan for iOS projects.
-Current phase is **P0 report-only** to measure signal quality before enabling blocking gates.
+Current phase is **P0 report-only** to measure signal quality before enabling
+blocking gates.
 
 ## CI workflow
 
