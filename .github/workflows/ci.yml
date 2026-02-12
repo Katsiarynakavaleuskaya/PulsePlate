@@ -138,6 +138,12 @@ jobs:
           git fetch origin "$BASE" --depth=1
           BASE_REF="origin/$BASE"
           CHANGED_MD="$(git diff --name-only --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')"
+          DOCS_MD="$(printf '%s\n' "$CHANGED_MD" | rg '^docs/.*\.md$' || true)"
+          if [ -z "$DOCS_MD" ]; then
+            echo "No changed docs markdown files under docs/; skipping docs Phase1 gates."
+            exit 0
+          fi
+          CHANGED_MD="$DOCS_MD"
           if [ -z "$CHANGED_MD" ]; then
             echo "No changed markdown files; skipping docs Phase1 gates."
             exit 0
