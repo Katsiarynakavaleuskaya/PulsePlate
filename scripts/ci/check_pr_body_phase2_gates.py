@@ -5,20 +5,37 @@ import json
 import re
 from pathlib import Path
 
-DISCUSSION_SECTION_RE = re.compile(r"(?im)^\s*##\s*Discussion Thread Pass\s*$")
-MAPPING_SECTION_RE = re.compile(r"(?im)^\s*###\s*Fixed in Commit Mapping\s*$")
+# Phase2 contract: headings and checkbox labels (single source for parser and docs).
+# Changing template wording requires updating these constants and re-running tests.
+PHASE2_CONFIG = {
+    "discussion_heading": "Discussion Thread Pass",
+    "mapping_heading": "Fixed in Commit Mapping",
+    "discussion_checkbox_label": "Discussion-thread pass completed",
+    "mapping_checkbox_label": "Fixed in commit mapping completed",
+    "mapping_na_alternatives": ("N/A", "No actionable review comments"),
+}
 
-DISCUSSION_CHECKBOX_RE = re.compile(
-    r"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*Discussion-thread pass completed\s*$"
-)
-MAPPING_CHECKBOX_RE = re.compile(
-    r"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*Fixed in commit mapping completed\s*$"
-)
+
+def _section_heading_re(level: str, title: str) -> re.Pattern[str]:
+    escaped = re.escape(title).replace(r"\ ", r"\s+")
+    return re.compile(rf"(?im)^\s*{level}\s+{escaped}\s*$")
+
+
+def _checkbox_re(label: str) -> re.Pattern[str]:
+    escaped = re.escape(label)
+    return re.compile(rf"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*{escaped}\s*$")
+
+
+DISCUSSION_SECTION_RE = _section_heading_re("##", PHASE2_CONFIG["discussion_heading"])
+MAPPING_SECTION_RE = _section_heading_re("###", PHASE2_CONFIG["mapping_heading"])
+DISCUSSION_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["discussion_checkbox_label"])
+MAPPING_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["mapping_checkbox_label"])
 
 MAPPING_ENTRY_RE = re.compile(
     r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?([0-9a-f]{7,40})`?\s*$"
 )
-MAPPING_NA_RE = re.compile(r"(?im)^\s*-\s*(?:N/A|No actionable review comments)\s*$")
+_na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alternatives"])
+MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
@@ -40,25 +57,43 @@ def _extract_pr_body(event_path: Path) -> str:
     return str(payload.get("pull_request", {}).get("body", ""))
 
 
+def _extract_mapping_section(text: str) -> str:
+    """Return only the content of the ### Fixed in Commit Mapping section (until next ## or end)."""
+    match = MAPPING_SECTION_RE.search(text)
+    if not match:
+        return ""
+    start = match.end()
+    next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
+    end = start + next_h2.start() if next_h2 else len(text)
+    return text[start:end]
+
+
 def check_pr_body_phase2_gates(body: str) -> list[str]:
     errors: list[str] = []
     cleaned = _strip_fenced_code_blocks(body)
 
+    d_heading = f"## {PHASE2_CONFIG['discussion_heading']}"
+    m_heading = f"### {PHASE2_CONFIG['mapping_heading']}"
     if not DISCUSSION_SECTION_RE.search(cleaned):
-        errors.append("Missing required section: `## Discussion Thread Pass`.")
+        errors.append(f"Missing required section: `{d_heading}`.")
     if not MAPPING_SECTION_RE.search(cleaned):
-        errors.append("Missing required section: `### Fixed in Commit Mapping`.")
+        errors.append(f"Missing required section: `{m_heading}`.")
 
     discussion_check = DISCUSSION_CHECKBOX_RE.search(cleaned)
     if not _extract_checked(discussion_check):
-        errors.append("Checklist item must be checked: `Discussion-thread pass completed`.")
+        errors.append(
+            f"Checklist item must be checked: `{PHASE2_CONFIG['discussion_checkbox_label']}`."
+        )
 
     mapping_check = MAPPING_CHECKBOX_RE.search(cleaned)
     if not _extract_checked(mapping_check):
-        errors.append("Checklist item must be checked: `Fixed in commit mapping completed`.")
+        errors.append(
+            f"Checklist item must be checked: `{PHASE2_CONFIG['mapping_checkbox_label']}`."
+        )
 
-    has_mapping_entries = bool(MAPPING_ENTRY_RE.search(cleaned))
-    has_na_mapping = bool(MAPPING_NA_RE.search(cleaned))
+    mapping_section = _extract_mapping_section(cleaned)
+    has_mapping_entries = bool(MAPPING_ENTRY_RE.search(mapping_section))
+    has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
     if not has_mapping_entries and not has_na_mapping:
         errors.append(
             "Add at least one mapping entry "

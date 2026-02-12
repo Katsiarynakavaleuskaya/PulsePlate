@@ -46,6 +46,11 @@
 - `<review-comment-url>` -> `<commit-sha>`
 - No actionable review comments
 
+## Deferred / Follow-ups
+
+- [ ] Ledger item(s): <link to docs/roadmap/BACKLOG_LEDGER.md entry or "None">
+- [ ] GitHub issue(s): <link> (if any)
+
 ## Notes
 
 ### For Simple Changes

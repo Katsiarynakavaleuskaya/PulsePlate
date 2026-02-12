@@ -38,4 +38,8 @@ open ios/PulsePlate.xcodeproj
 - `<review-comment-url>` -> `<commit-sha>`
 - No actionable review comments
 
+## Deferred / Follow-ups
+- [ ] Ledger item(s): <link or None>
+- [ ] GitHub issue(s): <link> (if any)
+
 👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)

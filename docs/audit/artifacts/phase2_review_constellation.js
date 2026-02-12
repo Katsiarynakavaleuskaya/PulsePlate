@@ -2,6 +2,34 @@
  * Deterministic seeded particle field for review-quality visualization.
  */
 
+/**
+ * @typedef {Object} ReviewParams
+ * @property {number} seed
+ * @property {number} threadCount
+ * @property {number} closureRatio
+ * @property {number} confidence
+ * @property {number} drift
+ * @property {string[]} palette
+ */
+
+/**
+ * @typedef {Object} ReviewCenter
+ * @property {number} x
+ * @property {number} y
+ * @property {number} weight
+ */
+
+/**
+ * @typedef {Object} ReviewNode
+ * @property {number} x
+ * @property {number} y
+ * @property {number} vx
+ * @property {number} vy
+ * @property {number} mass
+ * @property {number} hueIndex
+ * @property {number} phase
+ */
+
 const reviewDefaults = {
   seed: 71942,
   threadCount: 220,
@@ -11,11 +39,20 @@ const reviewDefaults = {
   palette: ["#d97757", "#6a9bcc", "#788c5d"],
 };
 
-let reviewParams = { ...reviewDefaults };
+/** @type {ReviewParams} */
+let reviewParams = { ...reviewDefaults, palette: [...reviewDefaults.palette] };
+/** @type {ReviewNode[]} */
 let reviewNodes = [];
+/** @type {ReviewCenter[]} */
 let reviewCenters = [];
+/** @type {number} */
 let reviewTick = 0;
 
+/**
+ * Reset simulation with a new seed; rebuilds centers and nodes.
+ * @param {number|string} seedValue - Seed for randomSeed/noiseSeed (positive integer).
+ * @returns {void}
+ */
 function reviewReset(seedValue) {
   const parsed = Number(seedValue);
   reviewParams.seed = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : reviewParams.seed;
@@ -29,6 +66,11 @@ function reviewReset(seedValue) {
   }
 }
 
+/**
+ * Build attraction centers used for particle dynamics (p5 width/height required).
+ * @param {number} count - Number of centers to create.
+ * @returns {ReviewCenter[]}
+ */
 function buildCenters(count) {
   const centers = [];
   for (let i = 0; i < count; i += 1) {
@@ -41,6 +83,11 @@ function buildCenters(count) {
   return centers;
 }
 
+/**
+ * Create a single particle node around a center (uses reviewParams.closureRatio).
+ * @param {number} index - Node index (used to pick anchor and hueIndex).
+ * @returns {ReviewNode}
+ */
 function buildNode(index) {
   const anchor = reviewCenters[index % reviewCenters.length];
   const angle = random(TWO_PI);
@@ -56,6 +103,10 @@ function buildNode(index) {
   };
 }
 
+/**
+ * Advance simulation one tick: apply attraction, noise swirl, damping.
+ * @returns {void}
+ */
 function reviewStep() {
   reviewTick += 1;
   const closurePull = map(reviewParams.closureRatio, 0, 1, 0.0009, 0.0034);
@@ -86,6 +137,11 @@ function reviewStep() {
   }
 }
 
+/**
+ * Find the closest center to a node by squared distance.
+ * @param {ReviewNode} node
+ * @returns {ReviewCenter}
+ */
 function nearestCenter(node) {
   let best = reviewCenters[0];
   let bestDist = Number.POSITIVE_INFINITY;
@@ -101,6 +157,10 @@ function nearestCenter(node) {
   return best;
 }
 
+/**
+ * Draw one frame: trail background and colored circles for each node (p5 API).
+ * @returns {void}
+ */
 function reviewRender() {
   const trailAlpha = map(reviewParams.confidence, 0, 1, 12, 34);
   background(250, 249, 245, trailAlpha);
@@ -116,6 +176,12 @@ function reviewRender() {
   }
 }
 
+/**
+ * Update a numeric parameter; if name is "threadCount", rebuilds nodes via reviewReset.
+ * @param {string} name - Parameter key (e.g. "threadCount", "closureRatio").
+ * @param {number|string} value - New value.
+ * @returns {void}
+ */
 function reviewUpdateParam(name, value) {
   if (name === "threadCount") {
     reviewParams.threadCount = Number(value);
@@ -125,11 +191,21 @@ function reviewUpdateParam(name, value) {
   reviewParams[name] = Number(value);
 }
 
+/**
+ * Set a palette color by index.
+ * @param {number} index - Palette index (0..palette.length-1).
+ * @param {string} value - Hex color (e.g. "#rrggbb").
+ * @returns {void}
+ */
 function reviewUpdateColor(index, value) {
   reviewParams.palette[index] = value;
 }
 
+/**
+ * Reset all parameters to defaults and re-run reviewReset with current seed.
+ * @returns {void}
+ */
 function reviewResetParams() {
-  reviewParams = { ...reviewDefaults };
+  reviewParams = { ...reviewDefaults, palette: [...reviewDefaults.palette] };
   reviewReset(reviewParams.seed);
 }

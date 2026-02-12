@@ -6,6 +6,8 @@ name: CI
 
 env:
   COVERAGE_PY: "3.13.6"
+  # Single source for pr_body_phase2_gates job timeout (see AGENTS.md timeout policy).
+  PR_BODY_PHASE2_TIMEOUT_MINUTES: "5"
 
 permissions:
   contents: read
@@ -14,6 +16,7 @@ on:
   push:
     branches: [ main, feat/**, fix/** ]
   pull_request:
+    types: [ opened, synchronize, reopened, edited ]
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
@@ -179,7 +182,7 @@ jobs:
     name: PR Body Phase2 gates
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: ${{ env.PR_BODY_PHASE2_TIMEOUT_MINUTES }}
     permissions:
       contents: read
       pull-requests: read
