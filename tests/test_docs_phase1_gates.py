@@ -45,3 +45,15 @@ def test_phase1_guard_accepts_docs_with_evidence_anchor(
 
     errors = gates.check_docs_phase1_guards(markdown_files=["docs/audit/sample.md"])
     assert errors == []
+
+
+def test_phase1_guard_accepts_dot_prefixed_file_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audit_doc = tmp_path / "docs" / "audit" / "sample.md"
+    audit_doc.parent.mkdir(parents=True)
+    audit_doc.write_text("Evidence: .github/workflows/ci.yml:140\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=["docs/audit/sample.md"])
+    assert errors == []
