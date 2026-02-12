@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Iterable, Optional
 
 import pytest
-from packaging.version import InvalidVersion
+from packaging.requirements import InvalidRequirement
+from packaging.requirements import Requirement
+from packaging.specifiers import InvalidSpecifier
 from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,22 +23,29 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "constraints.txt",
 )
 
-# Surfaces that use >= (constraint style); others must use == (pinned).
-CONSTRAINT_STYLE_SURFACES = (REPO_ROOT / "requirements.in", REPO_ROOT / "constraints.txt")
+# Constraint-style (>=) surfaces; derived from REQUIREMENT_SURFACES (no duplicate list).
+CONSTRAINT_STYLE_NAMES = frozenset({"requirements.in", "constraints.txt"})
+CONSTRAINT_STYLE_SURFACES = frozenset(
+    s for s in REQUIREMENT_SURFACES if s.name in CONSTRAINT_STYLE_NAMES
+)
 
 
 def _load_schema(path: Path) -> dict:
-    assert path.exists(), f"Missing dependency security schema: {path}"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(data, dict), "Schema must be a JSON object"
-    assert "min_versions" in data and isinstance(
-        data["min_versions"], dict
-    ), "Schema must contain `min_versions` object"
+    if not path.exists():
+        pytest.fail(f"Missing dependency security schema file: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        pytest.fail(f"Invalid JSON in dependency security schema {path}: {e}")
+    min_versions = data.get("min_versions")
+    if not isinstance(min_versions, dict) or not min_versions:
+        pytest.fail("Schema must contain non-empty object: { 'min_versions': { ... } }")
     return data
 
 
 def _iter_requirement_lines(path: Path) -> Iterable[str]:
-    assert path.exists(), f"Missing requirement surface: {path}"
+    if not path.exists():
+        pytest.fail(f"Missing requirement surface file: {path}")
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line:
@@ -51,58 +59,34 @@ def _iter_requirement_lines(path: Path) -> Iterable[str]:
         yield line
 
 
-_PKG_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)")
-
-
-def _extract_pinned_version(line: str, package: str) -> Optional[Version]:
+def _parse_requirement(line: str) -> Optional[Requirement]:
     """
-    Return Version if this line pins `package` via `==`.
-    Non-goals: ranges (>=, ~=) and VCS/URL installs are ignored here.
+    Return parsed Requirement, or None for non-requirement lines.
+    Intentionally ignore editable/URL/VCS installs for this guard.
     """
-    m = _PKG_RE.match(line)
-    if not m:
+    s = line.strip()
+    if not s or s.startswith("#"):
         return None
-    name = m.group(1)
-    if name.lower() != package.lower():
+    if s.startswith(("-r ", "--requirement", "-c ", "--constraint")):
         return None
-    if "://" in line or line.startswith(("git+", "hg+", "svn+", "bzr+")):
+    if "://" in s or s.startswith(("-e ", "--editable", "git+", "hg+", "svn+", "bzr+")):
         return None
-    if "==" not in line:
-        return None
-    left = line.split(";", 1)[0].strip()
-    parts = left.split("==", 1)
-    if len(parts) != 2:
-        return None
-    rhs = parts[1].strip().split("#", 1)[0].strip()
-    if not rhs:
-        return None
-    token = rhs.split()[0].strip().rstrip("\\")
     try:
-        return Version(token)
-    except (InvalidVersion, Exception):
+        return Requirement(s)
+    except (InvalidRequirement, InvalidSpecifier):
         return None
 
 
-def _extract_min_constraint_version(line: str, package: str) -> Optional[Version]:
-    """Return Version from >= specifier if this line constrains `package` with >=."""
-    m = _PKG_RE.match(line)
-    if not m:
+def _min_version_for_pkg(req: Requirement, pkg: str, *, pinned: bool) -> Optional[str]:
+    if req.name.lower() != pkg.lower():
         return None
-    name = m.group(1)
-    if name.lower() != package.lower():
+    if pinned:
+        equals = [sp.version for sp in req.specifier if sp.operator == "=="]
+        return equals[0] if equals else None
+    floors = [sp.version for sp in req.specifier if sp.operator in (">=", "==")]
+    if not floors:
         return None
-    if ">=" not in line:
-        return None
-    left = line.split(";", 1)[0].strip()
-    # Match >= X (possibly followed by ,< or other)
-    match = re.search(r">=\s*([A-Za-z0-9_.]+)", left)
-    if not match:
-        return None
-    token = match.group(1).strip().rstrip(",")
-    try:
-        return Version(token)
-    except (InvalidVersion, Exception):
-        return None
+    return min(floors, key=lambda v: Version(v))
 
 
 def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version]:
@@ -111,24 +95,16 @@ def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version
     - Pinned surfaces: min of all == pins.
     - Constraint surfaces: min of all >= (or == if present).
     """
-    pinned: list[Version] = []
-    constraint: list[Version] = []
+    pinned = path not in CONSTRAINT_STYLE_SURFACES
+    versions: list[Version] = []
     for line in _iter_requirement_lines(path):
-        v = _extract_pinned_version(line, package)
-        if v is not None:
-            pinned.append(v)
-        v = _extract_min_constraint_version(line, package)
-        if v is not None:
-            constraint.append(v)
-    if path in CONSTRAINT_STYLE_SURFACES:
-        # Constraint file: >= is sufficient; == also counts.
-        use = constraint if constraint else pinned
-    else:
-        # Pinned file: must have ==.
-        use = pinned
-    if not use:
-        return None
-    return min(use)
+        req = _parse_requirement(line)
+        if req is None:
+            continue
+        v_str = _min_version_for_pkg(req, package, pinned=pinned)
+        if v_str is not None:
+            versions.append(Version(v_str))
+    return min(versions) if versions else None
 
 
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
@@ -143,23 +119,28 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
     for pkg, min_v_str in min_versions.items():
         required_min = Version(str(min_v_str))
         effective = _effective_min_version_in_file(surface, pkg)
-        assert effective is not None, (
-            f"{surface.name}: expected {pkg} to be pinned (==) or constrained (>=) "
-            f"(required min {required_min}), but no version was found."
-        )
-        assert effective >= required_min, (
-            f"{surface.name}: {pkg} has {effective}, but minimum safe version is {required_min}. "
-            f"Update this surface to at least {required_min}."
-        )
+        if effective is None:
+            pytest.fail(
+                f"{surface.name}: expected {pkg} to be pinned (==) or constrained (>=) "
+                f"(required min {required_min}), but no version was found."
+            )
+        if effective < required_min:
+            pytest.fail(
+                f"{surface.name}: {pkg} has {effective}, but minimum safe version is {required_min}. "
+                f"Update this surface to at least {required_min}."
+            )
 
 
 def test_dependency_security_schema_is_stable_and_sorted() -> None:
     """Schema must be stable (string keys/values) and keys sorted (diff hygiene)."""
     schema = _load_schema(SCHEMA_PATH)
     min_versions = schema["min_versions"]
-    assert all(isinstance(k, str) and k.strip() for k in min_versions.keys())
-    assert all(isinstance(v, str) and v.strip() for v in min_versions.values())
+    if not all(isinstance(k, str) and k.strip() for k in min_versions.keys()):
+        pytest.fail("Schema min_versions keys must be non-empty strings.")
+    if not all(isinstance(v, str) and v.strip() for v in min_versions.values()):
+        pytest.fail("Schema min_versions values must be non-empty strings.")
     keys = list(min_versions.keys())
-    assert keys == sorted(
-        keys, key=lambda s: s.lower()
-    ), "Schema min_versions keys must be sorted (case-insensitive) to keep diffs clean."
+    if keys != sorted(keys, key=lambda s: s.lower()):
+        pytest.fail(
+            "Schema min_versions keys must be sorted (case-insensitive) to keep diffs clean."
+        )
