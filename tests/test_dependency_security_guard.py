@@ -23,11 +23,8 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "constraints.txt",
 )
 
-# Constraint-style (>=) surfaces; derived from REQUIREMENT_SURFACES (no duplicate list).
+# Constraint-style (>=) surfaces identified by filename; keeps tmp_path tests valid.
 CONSTRAINT_STYLE_NAMES = frozenset({"requirements.in", "constraints.txt"})
-CONSTRAINT_STYLE_SURFACES = frozenset(
-    s for s in REQUIREMENT_SURFACES if s.name in CONSTRAINT_STYLE_NAMES
-)
 
 
 def _load_schema(path: Path) -> dict:
@@ -95,7 +92,7 @@ def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version
     - Pinned surfaces: min of all == pins.
     - Constraint surfaces: min of all >= (or == if present).
     """
-    pinned = path not in CONSTRAINT_STYLE_SURFACES
+    pinned = path.name not in CONSTRAINT_STYLE_NAMES
     versions: list[Version] = []
     for line in _iter_requirement_lines(path):
         req = _parse_requirement(line)
