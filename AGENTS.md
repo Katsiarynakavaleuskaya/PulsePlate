@@ -705,6 +705,9 @@ Source of truth:
 - **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 - **New metrics/features policy**: Any new metrics (e.g., WHR) must be added via tier-specific schemas + endpoints; FREE contract must not be extended without explicit tier policy decision.
+- **DB lookup policy** (when `SUBSCRIPTION_DB_ENABLED=true`): `ERROR` and `INVALID_TIER` are
+  **fail-closed** (no env fallback). `MISS` may fallback **only during migration**; plan a
+  follow-up to make DB authoritative.
 
 **See:**
 
