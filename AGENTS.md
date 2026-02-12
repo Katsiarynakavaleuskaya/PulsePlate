@@ -1385,7 +1385,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **GitHub Actions shell script policy:**
 
 - **ShellCheck compliance required:** All shell scripts in `.github/workflows/*.yml` must pass `actionlint` (which enforces ShellCheck rules).
-- **Job timeout:** Do not use `env` context in `job.timeout-minutes`; use `vars` (e.g. `fromJSON(vars.VAR || '10')`) — `env` is not available there (actionlint).
+- **Job timeout:** `job.timeout-minutes` cannot use `env` context (GitHub Actions limitation: `env` is not available at job level). Use `vars` with `fromJSON` and a default. Step-level scripts inside the job can read timeout from `env` (timeout SSOT rule).
 - **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
 - **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.
 

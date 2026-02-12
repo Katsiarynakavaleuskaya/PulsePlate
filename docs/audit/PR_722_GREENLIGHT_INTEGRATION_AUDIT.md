@@ -1,4 +1,4 @@
-# PR Audit: Greenlight iOS Preflight Integration (P0)
+# PR Audit: Greenlight iOS Preflight Integration (P0) — PR #722
 
 ## Scope
 
@@ -17,7 +17,7 @@
 
 - `.github/workflows/greenlight-ios.yml`
 - `scripts/ci/greenlight_ios_preflight.sh`
-- `docs/audit/PR_XXX_GREENLIGHT_INTEGRATION_AUDIT.md`
+- `docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md`
 - `docs/runbook/IOS_GREENLIGHT.md`
 
 ## Repo-truth Evidence (file:line)

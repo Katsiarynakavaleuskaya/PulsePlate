@@ -22,6 +22,18 @@
   `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
 - This is a workflow reference only (no runtime behavior).
 
+## CI: Greenlight iOS preflight (P0 report-only)
+
+- Workflow: `.github/workflows/greenlight-ios.yml`
+- Purpose: iOS-only preflight checks via Greenlight to measure signal quality before enabling blocking gates.
+- Triggers: path-scoped (iOS/CI-related changes only).
+- Preflight script: `scripts/ci/greenlight_ios_preflight.sh`
+  - Runs: `greenlight preflight --format json` (report artifact)
+  - Deterministic version pin: `GREENLIGHT_VERSION=v0.1.0`
+  - Report-only by default: `GREENLIGHT_BLOCKING=false`
+- Timeouts: Job-level `timeout-minutes` must use `vars` (GitHub Actions: `env` not available at job level; actionlint). Step-level scripts can read timeout from `env` (see root AGENTS.md timeout SSOT rule).
+- Runner/approvals: Uses default runner; does not modify backend runtime.
+
 ## Backend coordination (important)
 
 - Some backend endpoints (e.g. export / premium features) may be gated by
