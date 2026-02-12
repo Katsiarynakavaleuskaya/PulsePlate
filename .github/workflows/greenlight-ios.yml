@@ -23,9 +23,9 @@ jobs:
   greenlight-ios:
     name: Greenlight preflight (report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.GREENLIGHT_TIMEOUT_MINUTES || '10') }}
     env:
-      GREENLIGHT_TIMEOUT_MINUTES: "10"
-    timeout-minutes: ${{ fromJSON(env.GREENLIGHT_TIMEOUT_MINUTES) }}
+      GREENLIGHT_TIMEOUT_MINUTES: ${{ vars.GREENLIGHT_TIMEOUT_MINUTES || '10' }}
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
