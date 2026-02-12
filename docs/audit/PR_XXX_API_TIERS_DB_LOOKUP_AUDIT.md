@@ -19,7 +19,7 @@
 | Scenario | Expected behavior |
 | --- | --- |
 | DB enabled + valid key in DB | Use DB tier |
-| DB enabled + unknown key | 403 (guard rejects) |
+| DB enabled + key unknown in both DB and env | 403 (guard rejects after env fallback) |
 | DB enabled + DB error/unavailable | Fallback to env-based tier detection |
 | DB disabled | Env-only tier detection |
 | Neither DB nor env resolves | 403 (guard rejects) |
