@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Backlog Ledger (Canonical)
 
 **Purpose:** single source of truth for postponed / follow-up work.
@@ -1211,6 +1212,21 @@ If it is not recorded here — it does not exist.
     - Fallback to env-based detection only on DB MISS (not on ERROR/INVALID_TIER) ✅
     - Tests cover both paths ✅
 
+- [x] Greenlight iOS P0 report-only workflow
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-722
+  - Status: ✅ Merged (PR-722, 2026-02-12)
+  - Priority: P0
+  - Area: CI / iOS
+  - Reason: Add report-only App Store readiness scan for iOS in CI.
+  - Links:
+    - docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md
+    - docs/runbook/IOS_GREENLIGHT.md
+  - DoD:
+    - Workflow `.github/workflows/greenlight-ios.yml` path-scoped ✅
+    - Report artifact + step summary ✅
+    - P0 report-only documented ✅
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
@@ -1726,3 +1742,4 @@ If it is not recorded here — it does not exist.
 
 **Last updated:** 2026-01-28 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
 **Maintainer:** @katsiaryna_kavaleuskaya
+<!-- markdownlint-enable MD013 -->
