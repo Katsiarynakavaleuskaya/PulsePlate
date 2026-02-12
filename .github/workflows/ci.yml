@@ -124,7 +124,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
-          python-version: "3.13.6"
+          python-version: ${{ env.COVERAGE_PY }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -137,22 +137,22 @@ jobs:
           BASE="${GITHUB_BASE_REF:-main}"
           git fetch origin "$BASE" --depth=1
           BASE_REF="origin/$BASE"
-          CHANGED_MD="$(git diff --name-only --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')"
-          DOCS_MD="$(printf '%s\n' "$CHANGED_MD" | rg '^docs/.*\.md$' || true)"
-          if [ -z "$DOCS_MD" ]; then
+          CHANGED_DOCS=()
+          while IFS= read -r -d '' path; do
+            if [[ "$path" == docs/*.md ]]; then
+              CHANGED_DOCS+=("$path")
+            fi
+          done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')
+
+          if [ "${#CHANGED_DOCS[@]}" -eq 0 ]; then
             echo "No changed docs markdown files under docs/; skipping docs Phase1 gates."
             exit 0
           fi
-          CHANGED_MD="$DOCS_MD"
-          if [ -z "$CHANGED_MD" ]; then
-            echo "No changed markdown files; skipping docs Phase1 gates."
-            exit 0
-          fi
-          printf "Changed markdown files:\n%s\n" "$CHANGED_MD"
-          # shellcheck disable=SC2086
-          python scripts/ci/check_docs_phase1_gates.py --files $CHANGED_MD
-          # shellcheck disable=SC2086
-          npx --yes markdownlint-cli2 $CHANGED_MD
+
+          printf "Changed markdown files:\n"
+          printf '%s\n' "${CHANGED_DOCS[@]}"
+          python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"
+          npx --yes markdownlint-cli2 "${CHANGED_DOCS[@]}"
 
   lint:
     runs-on: ubuntu-latest

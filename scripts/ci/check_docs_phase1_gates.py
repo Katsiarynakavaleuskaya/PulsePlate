@@ -4,10 +4,14 @@ import argparse
 import re
 from pathlib import Path
 
-PR_TBD_RE = re.compile(r"(?im)^\s*(?:\*\*PR:\*\*|PR:)\s*TBD\b")
+PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
-    r"(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+:\d+\b"
-    r"|(?:AGENTS\.md|RUNBOOK_AGENT\.md|README\.md):\d+\b"
+    r"(?:^|(?<=\s)|(?<=`)|(?<=\())"
+    r"(?:"
+    r"(?:\.github|docs|tests|app|core|scripts|frontend|ios|providers|deploy|alembic)"
+    r"/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+"
+    r"|(?:AGENTS\.md|RUNBOOK_AGENT\.md|README\.md)"
+    r"):\d+\b"
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
