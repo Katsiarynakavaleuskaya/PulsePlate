@@ -828,8 +828,8 @@ If it is not recorded here — it does not exist.
   - DoD:
     - [x] `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`,
       `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
-    - [x] New dependency security guard test added and passing
-      (`tests/test_dependency_security_guard.py`)
+    - [x] New dependency security guard test added to enforce cryptography floor version
+      (CVE-2026-26007) — `tests/test_dependency_security_guard.py`
     - [ ] Security/code scanning alerts close on next scan
 
 - [ ] Generalize dependency vulnerability guards beyond single-CVE floors
