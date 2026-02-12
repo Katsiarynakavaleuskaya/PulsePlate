@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Review Constellation
 
 Review Constellation is a generative movement where code-review quality is treated as a living field, not a static scorecard. Each review thread is a particle with momentum, each resolved comment is a force vector, and each commit link is a stabilizing orbit. The composition is designed as a meticulously crafted algorithm that transforms procedural collaboration into emergent structure, showing how order appears when disciplined engineering rituals are repeated with precision.
@@ -11,3 +13,5 @@ Parametric variation provides expressive control without breaking discipline: th
 The conceptual seed is subtle: this movement quietly references reviewer “galaxy maps” where discussions converge toward a merge decision. Experts can recognize the metaphor in the force topology; others simply experience a high-fidelity computational artwork. In both cases, the same principle holds: rigor made visible through a painstakingly optimized, deterministic, and deeply intentional generative system.
 
 Evidence anchors: `scripts/ci/check_pr_body_phase2_gates.py:60`, `tests/test_pr_body_phase2_gates.py:127`.
+
+<!-- markdownlint-enable MD013 -->

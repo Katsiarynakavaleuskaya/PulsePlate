@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Phase2 PR Body Gates Audit
 
 **Date:** 2026-02-12
@@ -63,3 +65,5 @@ pre-commit run --files \
 - Chosen strict-but-minimal machine-parseable contract over free-form text.
 - Kept parser dependency-free (stdlib only) for deterministic CI execution.
 - Added algorithmic-art outputs under `docs/audit/artifacts/` only (no runtime impact).
+
+<!-- markdownlint-enable MD013 -->
