@@ -256,6 +256,20 @@ python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pas
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
 
+### 5a) Docs Phase1 gates (audit/security markdown contract)
+
+Run this locally for changed docs under `docs/audit/` or `docs/security/`:
+
+```bash
+python scripts/ci/check_docs_phase1_gates.py --files docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md
+```
+
+**Rules:**
+
+- Files in `docs/audit/*.md` must not contain unresolved placeholder `PR: TBD`.
+- Files in `docs/audit/*.md` and `docs/security/*.md` must include at least one `file:line` evidence anchor (example: `app/middleware/api_tiers.py:109`).
+- If CI shows `missing \`file:line\` evidence anchor`, add explicit repo path anchors (not prose-only claims).
+
 ## Canonical navigation
 
 Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
