@@ -35,9 +35,11 @@
 
 ## Repo-truth evidence commands
 
-- `rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" \
-  .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh`
-- `rg -n "report-only|critical|artifact|blocking" docs/runbook/IOS_GREENLIGHT.md`
+```shell
+rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" \
+  .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh
+rg -n "report-only|critical|artifact|blocking" docs/runbook/IOS_GREENLIGHT.md
+```
 
 ## Failure modes and expected behavior
 
