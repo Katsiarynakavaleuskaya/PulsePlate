@@ -142,7 +142,7 @@ jobs:
           LINT_MD=()
           while IFS= read -r -d '' path; do
             CHANGED_MD+=("$path")
-            if [[ "$path" == docs/*.md ]]; then
+            if [[ "$path" == docs/* ]]; then
               CHANGED_DOCS+=("$path")
             fi
             if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" ]]; then
