@@ -814,11 +814,11 @@ If it is not recorded here — it does not exist.
     - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
     - 🔄 Awaiting next scan for alerts #533/#534 to close (merged ≠ scanner rerun)
 
-- [ ] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
+- [x] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (security/cve-2026-26007-cryptography-46-0-5)
-  - Status: 🟡 In progress (alerts triaged, remediation patch prepared)
+  - Target PR: PR-716 (remediation: bump + guard); PR-724 = docs-only closure/policy
+  - Status: ✅ Closed (remediation on main via PR-716; guard test in place; PR-724 adds AGENTS policy + ledger)
   - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
     `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
   - Links:
@@ -826,10 +826,11 @@ If it is not recorded here — it does not exist.
     - GitHub alerts: `security/dependabot/27`, `security/dependabot/28`, `security/dependabot/29`
     - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
   - DoD:
-    - `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`, `requirements.txt`,
-      `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
-    - New dependency security guard test added and passing
-    - Security/code scanning alerts close on next scan
+    - [x] `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`,
+      `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
+    - [x] New dependency security guard test added to enforce cryptography floor version
+      (CVE-2026-26007) — `tests/test_dependency_security_guard.py`
+    - [ ] Security/code scanning alerts close on next scan
 
 - [ ] Generalize dependency vulnerability guards beyond single-CVE floors
   - Owner: @katsiaryna_kavaleuskaya

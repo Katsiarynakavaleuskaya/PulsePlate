@@ -1246,6 +1246,20 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
 - See: `docs/security/CVE-2026-0861-glibc.md`
 
+**Security: Dependency CVE bumps (application deps):**
+
+- **Scope:** Python application dependencies in this repo (e.g. `requirements*.in`/`requirements*.txt`,
+  `constraints.txt`). Other ecosystems (e.g. iOS SwiftPM, frontend npm) may have separate policies;
+  when in doubt, follow the same principle: all surfaces + guard + evidence.
+- Security CVE dependency bumps must update **all relevant requirement surfaces** for that ecosystem,
+  plus a **dependency security guard test** (deterministic CI check) and **evidence**.
+- **Evidence (canonical):** a doc in `docs/security/` that describes the CVE, fixed version, and
+  remediation (e.g. `docs/security/CVE-<id>-<package>.md`). Alternative locations (e.g. advisory link
+  in ledger only) are acceptable only when documented in the same PR.
+- **Scoping:** One PR per CVE (traceability); exception: one dependency bump may fix multiple CVEs if
+  they share the same minimum fixed version.
+- Reduces drift risk from updating only one manifest.
+
 ---
 
 ## CI: GitHub Container Registry (GHCR) Policy
