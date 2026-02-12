@@ -107,6 +107,74 @@ jobs:
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
+  docs_phase1_gates:
+    name: Docs Phase1 gates
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: ${{ env.COVERAGE_PY }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20.11.1"
+
+      - name: Run Phase1 docs gates
+        run: |
+          set -euo pipefail
+          BASE="${GITHUB_BASE_REF:-main}"
+          git fetch origin "$BASE" --depth=1
+          BASE_REF="origin/$BASE"
+          CHANGED_MD=()
+          CHANGED_DOCS=()
+          LINT_MD=()
+          while IFS= read -r -d '' path; do
+            CHANGED_MD+=("$path")
+            if [[ "$path" == docs/* ]]; then
+              CHANGED_DOCS+=("$path")
+            fi
+            if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" ]]; then
+              LINT_MD+=("$path")
+            fi
+          done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')
+
+          if [ "${#CHANGED_MD[@]}" -eq 0 ]; then
+            echo "No changed markdown files; skipping docs Phase1 gates."
+            exit 0
+          fi
+
+          printf "Changed markdown files (all):\n"
+          printf '%s\n' "${CHANGED_MD[@]}"
+
+          if [ "${#CHANGED_DOCS[@]}" -eq 0 ]; then
+            echo "No changed docs markdown files under docs/; skipping docs Phase1 gates."
+          else
+            printf "Changed markdown files under docs/ (Phase1 scope):\n"
+            printf '%s\n' "${CHANGED_DOCS[@]}"
+            python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"
+          fi
+
+          if [ "${#LINT_MD[@]}" -eq 0 ]; then
+            echo "No markdown files eligible for markdownlint after AGENTS.md exclusion."
+            exit 0
+          fi
+
+          printf "Markdownlint targets:\n"
+          printf '%s\n' "${LINT_MD[@]}"
+          npx --yes markdownlint-cli2 "${LINT_MD[@]}"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
