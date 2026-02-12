@@ -238,73 +238,65 @@ class TestDBLookupHelpers:
 
 
 class TestRequireProTier:
-    """Test require_pro_tier dependency function."""
+    """Test require_pro_tier dependency function (sync, runs in threadpool in FastAPI)."""
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_pro_key_accepted(self) -> None:
+    def test_pro_key_accepted(self) -> None:
         """Test PRO key is accepted for PRO tier."""
-        result = await require_pro_tier(x_api_key=TEST_KEY_PRO)
+        result = require_pro_tier(x_api_key=TEST_KEY_PRO)
         assert result == TEST_KEY_PRO
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_vip_key_accepted_for_pro(self) -> None:
+    def test_vip_key_accepted_for_pro(self) -> None:
         """Test VIP key is accepted for PRO tier (VIP includes PRO)."""
-        result = await require_pro_tier(x_api_key=TEST_KEY_VIP)
+        result = require_pro_tier(x_api_key=TEST_KEY_VIP)
         assert result == TEST_KEY_VIP
 
-    @pytest.mark.asyncio
-    async def test_missing_key_raises_401(self) -> None:
+    def test_missing_key_raises_401(self) -> None:
         """Test missing API key raises 401 Unauthorized."""
         with pytest.raises(HTTPException) as exc_info:
-            await require_pro_tier(x_api_key=None)
+            require_pro_tier(x_api_key=None)
         assert exc_info.value.status_code == 401
         assert "API key required" in exc_info.value.detail
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_invalid_key_raises_403(self) -> None:
+    def test_invalid_key_raises_403(self) -> None:
         """Test invalid API key raises 403 Forbidden."""
         with pytest.raises(HTTPException) as exc_info:
-            await require_pro_tier(x_api_key="invalid_key")
+            require_pro_tier(x_api_key="invalid_key")
         assert exc_info.value.status_code == 403
         assert "does not have PRO tier access" in exc_info.value.detail
 
 
 class TestRequireVIPTier:
-    """Test require_vip_tier dependency function."""
+    """Test require_vip_tier dependency function (sync, runs in threadpool in FastAPI)."""
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_vip_key_accepted(self) -> None:
+    def test_vip_key_accepted(self) -> None:
         """Test VIP key is accepted for VIP tier."""
-        result = await require_vip_tier(x_api_key=TEST_KEY_VIP)
+        result = require_vip_tier(x_api_key=TEST_KEY_VIP)
         assert result == TEST_KEY_VIP
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_pro_key_rejected_for_vip(self) -> None:
+    def test_pro_key_rejected_for_vip(self) -> None:
         """Test PRO key is rejected for VIP tier."""
         with pytest.raises(HTTPException) as exc_info:
-            await require_vip_tier(x_api_key=TEST_KEY_PRO)
+            require_vip_tier(x_api_key=TEST_KEY_PRO)
         assert exc_info.value.status_code == 403
         assert "does not have VIP tier access" in exc_info.value.detail
 
-    @pytest.mark.asyncio
-    async def test_missing_key_raises_403(self) -> None:
+    def test_missing_key_raises_403(self) -> None:
         """Test missing API key raises 403 Forbidden (VIP = feature-gate)."""
         with pytest.raises(HTTPException) as exc_info:
-            await require_vip_tier(x_api_key=None)
+            require_vip_tier(x_api_key=None)
         assert exc_info.value.status_code == 403
         assert "VIP access" in exc_info.value.detail or "API key required" in exc_info.value.detail
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
-    @pytest.mark.asyncio
-    async def test_invalid_key_raises_403(self) -> None:
+    def test_invalid_key_raises_403(self) -> None:
         """Test invalid API key raises 403 Forbidden."""
         with pytest.raises(HTTPException) as exc_info:
-            await require_vip_tier(x_api_key="invalid_key")
+            require_vip_tier(x_api_key="invalid_key")
         assert exc_info.value.status_code == 403
         assert "Upgrade to VIP" in exc_info.value.detail
 
