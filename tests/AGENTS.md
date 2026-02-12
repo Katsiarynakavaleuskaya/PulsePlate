@@ -400,6 +400,20 @@ pytest -q tests/test_repo_policy_guards.py
     - Bump `cryptography` floor/version in the affected requirements files.
     - Regenerate lock files if needed, then re-run pre-commit + guard tests.
 
+- **Docs Phase1 gates guard**: `tests/test_docs_phase1_gates.py`
+  - **What it enforces**:
+    - `docs/audit/*.md` changed in PRs must not contain unresolved `PR: TBD`.
+    - Changed docs under `docs/audit/` and `docs/security/` must include at least one `file:line` evidence anchor.
+  - **How to run**:
+    ```bash
+    pytest -q tests/test_docs_phase1_gates.py
+    python scripts/ci/check_docs_phase1_gates.py --files docs/audit/your_audit.md docs/security/your_security_doc.md
+    ```
+  - **How to fix failures**:
+    - Replace `PR: TBD` with final PR number or commit SHA in audit docs.
+    - Add explicit evidence anchors like `path/to/file.py:123`.
+    - Fix markdown style issues reported by `markdownlint-cli2` on changed `.md` files.
+
 ## Type hints policy (tests)
 
 ### Hard rules
