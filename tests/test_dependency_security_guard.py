@@ -60,8 +60,6 @@ def _iter_requirement_lines(path: Path) -> Iterable[str]:
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        if line.startswith("#"):
-            continue
         if line.startswith(("-r ", "--requirement ", "-c ", "--constraint ")):
             continue
         if line.startswith(("--find-links", "--index-url", "--extra-index-url")):
