@@ -31,6 +31,7 @@ from enum import Enum
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Security, status
+from sqlalchemy import text
 
 from app.routers.api_key import api_key_header
 
@@ -66,6 +67,76 @@ ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower(
 # Note: SUBSCRIPTION_DB_ENABLED is checked dynamically in code to support testing
 
 
+def _is_subscription_db_enabled() -> bool:
+    """Return True when DB-backed subscription lookup is enabled."""
+    return os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in ("true", "1", "yes", "on")
+
+
+def _tier_allows_access(tier: SubscriptionTier, required_tier: SubscriptionTier) -> bool:
+    """Return whether a resolved tier satisfies the required tier."""
+    if required_tier == SubscriptionTier.PRO:
+        return tier in (SubscriptionTier.PRO, SubscriptionTier.VIP)
+    if required_tier == SubscriptionTier.VIP:
+        return tier == SubscriptionTier.VIP
+    return True
+
+
+def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
+    """Convert DB/env tier string to SubscriptionTier enum safely."""
+    normalized = raw_tier.strip().upper()
+    if normalized in SubscriptionTier.__members__:
+        return SubscriptionTier[normalized]
+    return None
+
+
+def _lookup_tier_from_db(api_key: str) -> SubscriptionTier | None:
+    """Try to resolve API key tier from DB; return None on misses/errors.
+
+    RU: Пытается определить tier из БД; возвращает None при промахе/ошибке.
+    EN: Attempts to resolve tier from DB; returns None on miss/error.
+    """
+    query = text("SELECT tier FROM api_keys WHERE api_key = :api_key LIMIT 1")
+
+    try:
+        from core.db import get_session_factory
+
+        session_factory = get_session_factory()
+        session = session_factory()
+        try:
+            raw_tier = session.execute(query, {"api_key": api_key}).scalar_one_or_none()
+        finally:
+            session.close()
+    except Exception:
+        logger.warning("Subscription DB lookup failed; falling back to env-based tier detection")
+        return None
+
+    if raw_tier is None:
+        return None
+
+    parsed_tier = _parse_tier_value(str(raw_tier))
+    if parsed_tier is None:
+        logger.warning("Subscription DB lookup returned unknown tier value; using env fallback")
+    return parsed_tier
+
+
+def _resolve_tier_from_env(api_key: str) -> SubscriptionTier | None:
+    """Resolve tier via environment/test-key fallback."""
+    if api_key == TEST_KEY_VIP:
+        return SubscriptionTier.VIP
+    if api_key == TEST_KEY_PRO:
+        return SubscriptionTier.PRO
+
+    vip_keys = os.getenv("VIP_API_KEYS", "")
+    if api_key and api_key in {value.strip() for value in vip_keys.split(",") if value.strip()}:
+        return SubscriptionTier.VIP
+
+    pro_keys = os.getenv("PRO_API_KEYS", "")
+    if api_key and api_key in {value.strip() for value in pro_keys.split(",") if value.strip()}:
+        return SubscriptionTier.PRO
+
+    return None
+
+
 def _is_production_environment() -> tuple[bool, str]:
     """Determine if we're in production mode.
 
@@ -98,17 +169,23 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
     """
     is_production, app_env = _is_production_environment()
 
-    # Development mode: Accept test keys
-    if not is_production:
-        if api_key == TEST_KEY_VIP:
-            # VIP key grants access to both PRO and VIP
-            return True
-        if api_key == TEST_KEY_PRO and required_tier == SubscriptionTier.PRO:
-            # PRO key grants access only to PRO
-            return True
+    if _is_subscription_db_enabled():
+        db_tier = _lookup_tier_from_db(api_key)
+        if db_tier is not None:
+            return _tier_allows_access(db_tier, required_tier)
 
-        # In dev mode with anonymous access enabled, allow any key
-        # Check env var dynamically to support testing with mock.patch.dict
+        logger.warning(
+            "Subscription DB lookup unavailable. Falling back to env-based tier detection for tier %s.",
+            required_tier.value,
+        )
+
+    resolved_env_tier = _resolve_tier_from_env(api_key)
+    if resolved_env_tier is not None:
+        return _tier_allows_access(resolved_env_tier, required_tier)
+
+    # In non-production mode with anonymous access enabled, allow any key.
+    # Check env var dynamically to support testing with mock.patch.dict.
+    if not is_production:
         allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
             "true",
             "1",
@@ -121,45 +198,7 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
             )
             return True
 
-        # Invalid key in dev mode: reject
-        return False
-
-    # Production mode: Query database
-    # Fail-fast if database not configured
-    # Check env var dynamically to support testing with mock.patch.dict
-    subscription_db_enabled = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-        "on",
-    )
-    if not subscription_db_enabled:
-        logger.critical(
-            "Production mode requires SUBSCRIPTION_DB_ENABLED=true. "
-            "Set environment variable and implement subscription database lookup."
-        )
-        raise NotImplementedError(
-            "API key validation not implemented for production. "
-            "Set SUBSCRIPTION_DB_ENABLED=true and implement get_subscription_by_api_key() function."
-        )
-
-    # TODO: Implement database lookup for production when SUBSCRIPTION_DB_ENABLED=true
-    # from app.services.subscriptions import get_subscription_by_api_key
-    # subscription = get_subscription_by_api_key(api_key)
-    # if not subscription or subscription.is_expired():
-    #     return False
-    # if required_tier == SubscriptionTier.VIP:
-    #     return subscription.tier == SubscriptionTier.VIP
-    # elif required_tier == SubscriptionTier.PRO:
-    #     return subscription.tier in [SubscriptionTier.PRO, SubscriptionTier.VIP]
-    # return True
-
-    # This code path should never be reached after DB implementation
-    logger.error(f"Subscription database lookup not implemented. Tier: {required_tier.value}")
-    raise NotImplementedError(
-        "Subscription database lookup not implemented. "
-        "Implement get_subscription_by_api_key() in app/services/subscriptions.py"
-    )
+    return False
 
 
 async def require_pro_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
@@ -257,36 +296,16 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         Returns FREE if API key is invalid or not found.
         In development mode, test keys return their respective tiers.
     """
-    is_production, _ = _is_production_environment()
-
-    # Development mode: Check test keys
-    if not is_production:
-        if api_key == TEST_KEY_VIP:
-            return SubscriptionTier.VIP
-        if api_key == TEST_KEY_PRO:
-            return SubscriptionTier.PRO
-
-    # Production mode: Query database
-    # Fail-fast if database not configured
-    # Check env var dynamically to support testing with mock.patch.dict
-    subscription_db_enabled = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-        "on",
-    )
-    if is_production and not subscription_db_enabled:
-        raise NotImplementedError(
-            "Subscription database not implemented. "
-            "Set SUBSCRIPTION_DB_ENABLED=true and implement get_subscription_by_api_key()."
+    if _is_subscription_db_enabled():
+        db_tier = _lookup_tier_from_db(api_key)
+        if db_tier is not None:
+            return db_tier
+        logger.warning(
+            "Subscription DB lookup unavailable for get_subscription_tier; using env fallback"
         )
 
-    # TODO: Implement database lookup
-    # from app.services.subscriptions import get_subscription_by_api_key
-    # subscription = get_subscription_by_api_key(api_key)
-    # return subscription.tier if subscription else SubscriptionTier.FREE
-
-    return SubscriptionTier.FREE
+    env_tier = _resolve_tier_from_env(api_key)
+    return env_tier if env_tier is not None else SubscriptionTier.FREE
 
 
 def derive_subject_id_from_api_key(api_key: str) -> int:
