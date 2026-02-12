@@ -1256,6 +1256,8 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - **Evidence (canonical):** a doc in `docs/security/` that describes the CVE, fixed version, and
   remediation (e.g. `docs/security/CVE-<id>-<package>.md`). Alternative locations (e.g. advisory link
   in ledger only) are acceptable only when documented in the same PR.
+- **Scoping:** One PR per CVE (traceability); exception: one dependency bump may fix multiple CVEs if
+  they share the same minimum fixed version.
 - Reduces drift risk from updating only one manifest.
 
 ---
