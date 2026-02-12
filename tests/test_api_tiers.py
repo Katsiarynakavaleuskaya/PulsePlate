@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
+import app.middleware.api_tiers as api_tiers_mod
 from app.middleware.api_tiers import (
     CurrentUser,
     SubscriptionTier,
@@ -66,29 +67,134 @@ class TestValidateAPIKeyTier:
         assert _validate_api_key_tier("any_random_key", SubscriptionTier.VIP) is True
 
     @patch.dict(
-        os.environ, {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"}
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "false",
+            "VIP_API_KEYS": "prod_key",  # pragma: allowlist secret
+        },
+        clear=False,
     )
-    def test_production_mode_raises_not_implemented(self) -> None:
-        """Test production mode raises NotImplementedError when DB not enabled."""
-        with pytest.raises(NotImplementedError, match="API key validation not implemented"):
-            _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP)
-        with pytest.raises(NotImplementedError, match="API key validation not implemented"):
-            _validate_api_key_tier(TEST_KEY_PRO, SubscriptionTier.PRO)
+    def test_production_mode_without_db_uses_env_fallback(self) -> None:
+        """Test production mode falls back to env-based detection when DB is disabled."""
+        assert _validate_api_key_tier("prod_key", SubscriptionTier.PRO) is True
+        assert _validate_api_key_tier("prod_key", SubscriptionTier.VIP) is True
 
     @patch.dict(
         os.environ,
         {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "true"},
     )
-    def test_production_db_enabled_raises_lookup_not_implemented(
-        self, caplog: pytest.LogCaptureFixture
+    def test_production_db_enabled_uses_db_lookup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test production mode with DB enabled validates access via DB tier."""
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _: SubscriptionTier.PRO,
+        )
+        assert _validate_api_key_tier("prodtoken", SubscriptionTier.PRO) is True
+        assert _validate_api_key_tier("prodtoken", SubscriptionTier.VIP) is False
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "true",
+            "VIP_API_KEYS": "env_fallback_key",  # pragma: allowlist secret
+        },
+        clear=False,
+    )
+    def test_production_db_error_falls_back_to_env_tier(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test production mode with DB enabled reaches the lookup placeholder path."""
-        caplog.set_level("ERROR")
-        with pytest.raises(
-            NotImplementedError, match="Subscription database lookup not implemented"
-        ):
-            _validate_api_key_tier("prod_key", SubscriptionTier.PRO)
-        assert "Subscription database lookup not implemented" in caplog.text
+        """Test DB lookup error path falls back to env-based tier detection."""
+        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: None)
+        assert _validate_api_key_tier("env_fallback_key", SubscriptionTier.VIP) is True
+        assert _validate_api_key_tier("unknown_key", SubscriptionTier.PRO) is False
+
+
+class _FakeResult:
+    def __init__(self, value: object) -> None:
+        self._value = value
+
+    def scalar_one_or_none(self) -> object:
+        return self._value
+
+
+class _FakeSession:
+    def __init__(self, value: object) -> None:
+        self._value = value
+        self.closed = False
+
+    def execute(self, _query: object, _params: dict[str, str]) -> _FakeResult:
+        return _FakeResult(self._value)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class TestDBLookupHelpers:
+    """Test low-level DB tier lookup helpers."""
+
+    def test_tier_allows_access_helper(self) -> None:
+        """Test tier inclusion matrix helper."""
+        assert api_tiers_mod._tier_allows_access(SubscriptionTier.VIP, SubscriptionTier.PRO) is True
+        assert (
+            api_tiers_mod._tier_allows_access(SubscriptionTier.PRO, SubscriptionTier.VIP) is False
+        )
+        assert (
+            api_tiers_mod._tier_allows_access(SubscriptionTier.FREE, SubscriptionTier.FREE) is True
+        )
+
+    def test_parse_tier_value(self) -> None:
+        """Test tier parsing from raw values."""
+        assert api_tiers_mod._parse_tier_value(" vip ") == SubscriptionTier.VIP
+        assert api_tiers_mod._parse_tier_value("PRO") == SubscriptionTier.PRO
+        assert api_tiers_mod._parse_tier_value("unknown") is None
+
+    def test_lookup_tier_from_db_handles_db_exception(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test DB lookup returns None on DB/session exceptions."""
+        import core.db as core_db
+
+        def _boom() -> object:
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(core_db, "get_session_factory", _boom)
+        assert api_tiers_mod._lookup_tier_from_db("key") is None
+
+    def test_lookup_tier_from_db_handles_missing_record(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test DB lookup returns None when no record is found."""
+        import core.db as core_db
+
+        session = _FakeSession(None)
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        assert api_tiers_mod._lookup_tier_from_db("key") is None
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_handles_unknown_tier_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test DB lookup returns None for unknown tier string values."""
+        import core.db as core_db
+
+        session = _FakeSession("not_a_tier")
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        assert api_tiers_mod._lookup_tier_from_db("key") is None
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_returns_parsed_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test DB lookup returns parsed tier for valid DB value."""
+        import core.db as core_db
+
+        session = _FakeSession("VIP")
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        assert api_tiers_mod._lookup_tier_from_db("key") == SubscriptionTier.VIP
+        assert session.closed is True
 
 
 class TestRequireProTier:
@@ -182,15 +288,39 @@ class TestGetSubscriptionTier:
         assert get_subscription_tier("invalid_key") == SubscriptionTier.FREE
 
     @patch.dict(
-        os.environ, {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"}
+        os.environ,
+        {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"},
+        clear=False,
     )
-    def test_production_raises_not_implemented(self) -> None:
-        """Test production mode raises NotImplementedError when DB not enabled."""
-        # Database not implemented yet, should raise NotImplementedError
-        with pytest.raises(NotImplementedError):
-            get_subscription_tier(TEST_KEY_VIP)
-        with pytest.raises(NotImplementedError):
-            get_subscription_tier(TEST_KEY_PRO)
+    def test_production_db_disabled_uses_env_detection(self) -> None:
+        """Test production mode with DB disabled uses env/test-key detection."""
+        assert get_subscription_tier(TEST_KEY_VIP) == SubscriptionTier.VIP
+        assert get_subscription_tier(TEST_KEY_PRO) == SubscriptionTier.PRO
+
+    @patch.dict(
+        os.environ,
+        {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "true"},
+    )
+    def test_production_db_enabled_uses_db_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test get_subscription_tier returns DB tier when available."""
+        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: SubscriptionTier.VIP)
+        assert get_subscription_tier("db_key") == SubscriptionTier.VIP
+
+    @patch.dict(
+        os.environ,
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "true",
+            "VIP_API_KEYS": "env_key",  # pragma: allowlist secret
+        },
+        clear=False,
+    )
+    def test_production_db_enabled_falls_back_to_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test get_subscription_tier falls back to env when DB lookup misses/errors."""
+        monkeypatch.setattr(api_tiers_mod, "_lookup_tier_from_db", lambda _: None)
+        assert get_subscription_tier("env_key") == SubscriptionTier.VIP
+        assert get_subscription_tier("unknown_key") == SubscriptionTier.FREE
 
 
 class TestGetProSubjectId:

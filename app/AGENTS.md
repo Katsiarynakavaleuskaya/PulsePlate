@@ -171,6 +171,9 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Use `fastapi.status` for status codes and `HTTPException` for errors.
 - Keep API schema changes in sync with `app/schemas/` and tests.
 - Apply tier guards (`require_pro_tier`, VIP) consistently on gated endpoints.
+- Tier resolution policy: DB-first when `SUBSCRIPTION_DB_ENABLED=true`.
+- On DB lookup error/unavailable, fall back to env-based detection.
+- Never fail-open on tier checks.
 
 ### Typing rule: Pydantic v2 `model_validate()` + mypy
 
