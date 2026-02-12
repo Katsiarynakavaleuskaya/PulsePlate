@@ -125,6 +125,30 @@ def test_phase2_guard_requires_mapping_in_section_not_elsewhere() -> None:
     assert any("Add at least one mapping entry" in error for error in errors)
 
 
+def test_phase2_guard_uses_last_mapping_section_when_multiple_exist() -> None:
+    body = """## Summary
+Example.
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- malformed mapping row
+
+## Deferred / Follow-ups
+- None.
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+### Fixed in Commit Mapping
+- No actionable review comments
+"""
+    errors = gates.check_pr_body_phase2_gates(body=body)
+    assert errors == []
+
+
 def test_phase2_guard_ignores_fake_content_in_code_block() -> None:
     body = """## Summary
 Example.

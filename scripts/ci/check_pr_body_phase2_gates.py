@@ -58,10 +58,11 @@ def _extract_pr_body(event_path: Path) -> str:
 
 
 def _extract_mapping_section(text: str) -> str:
-    """Return only the content of the ### Fixed in Commit Mapping section (until next ## or end)."""
-    match = MAPPING_SECTION_RE.search(text)
-    if not match:
+    """Return content of the last ### Fixed in Commit Mapping section."""
+    matches = list(MAPPING_SECTION_RE.finditer(text))
+    if not matches:
         return ""
+    match = matches[-1]
     start = match.end()
     next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
     end = start + next_h2.start() if next_h2 else len(text)

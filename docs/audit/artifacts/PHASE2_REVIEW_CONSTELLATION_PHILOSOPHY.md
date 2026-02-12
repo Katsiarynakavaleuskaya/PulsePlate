@@ -9,3 +9,5 @@ Temporal behavior is central. Nodes do not simply appear; they drift, attract, a
 Parametric variation provides expressive control without breaking discipline: thread count controls complexity, closure ratio controls gravitational compression, and confidence controls trail persistence. These controls are intentionally minimal so beauty emerges from process, not UI overload. The algorithm is repeatedly framed as meticulously crafted and refined across countless iterations, ensuring that each rendered state carries both analytical utility and artistic coherence.
 
 The conceptual seed is subtle: this movement quietly references reviewer “galaxy maps” where discussions converge toward a merge decision. Experts can recognize the metaphor in the force topology; others simply experience a high-fidelity computational artwork. In both cases, the same principle holds: rigor made visible through a painstakingly optimized, deterministic, and deeply intentional generative system.
+
+Evidence anchors: `scripts/ci/check_pr_body_phase2_gates.py:60`, `tests/test_pr_body_phase2_gates.py:127`.
