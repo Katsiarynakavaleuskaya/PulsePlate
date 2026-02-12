@@ -1248,9 +1248,14 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **Security: Dependency CVE bumps (application deps):**
 
-- Security CVE dependency bumps must update **all requirement surfaces** (e.g. `requirements.in`,
-  `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, `constraints.txt`) plus a
-  **dependency security guard test** and **evidence** (`docs/security/CVE-*.md` or equivalent).
+- **Scope:** Python application dependencies in this repo (e.g. `requirements*.in`/`requirements*.txt`,
+  `constraints.txt`). Other ecosystems (e.g. iOS SwiftPM, frontend npm) may have separate policies;
+  when in doubt, follow the same principle: all surfaces + guard + evidence.
+- Security CVE dependency bumps must update **all relevant requirement surfaces** for that ecosystem,
+  plus a **dependency security guard test** (deterministic CI check) and **evidence**.
+- **Evidence (canonical):** a doc in `docs/security/` that describes the CVE, fixed version, and
+  remediation (e.g. `docs/security/CVE-<id>-<package>.md`). Alternative locations (e.g. advisory link
+  in ledger only) are acceptable only when documented in the same PR.
 - Reduces drift risk from updating only one manifest.
 
 ---

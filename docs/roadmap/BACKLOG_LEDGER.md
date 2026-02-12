@@ -826,10 +826,11 @@ If it is not recorded here — it does not exist.
     - GitHub alerts: `security/dependabot/27`, `security/dependabot/28`, `security/dependabot/29`
     - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
   - DoD:
-    - `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`, `requirements.txt`,
-      `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt` ✅
-    - New dependency security guard test added and passing ✅ (`tests/test_dependency_security_guard.py`)
-    - Security/code scanning alerts close on next scan
+    - [x] `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`,
+      `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
+    - [x] New dependency security guard test added and passing
+      (`tests/test_dependency_security_guard.py`)
+    - [ ] Security/code scanning alerts close on next scan
 
 - [ ] Generalize dependency vulnerability guards beyond single-CVE floors
   - Owner: @katsiaryna_kavaleuskaya
