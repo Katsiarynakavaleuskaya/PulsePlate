@@ -139,10 +139,14 @@ jobs:
           BASE_REF="origin/$BASE"
           CHANGED_MD=()
           CHANGED_DOCS=()
+          LINT_MD=()
           while IFS= read -r -d '' path; do
             CHANGED_MD+=("$path")
             if [[ "$path" == docs/*.md ]]; then
               CHANGED_DOCS+=("$path")
+            fi
+            if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" ]]; then
+              LINT_MD+=("$path")
             fi
           done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')
 
@@ -162,7 +166,14 @@ jobs:
             python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"
           fi
 
-          npx --yes markdownlint-cli2 "${CHANGED_MD[@]}"
+          if [ "${#LINT_MD[@]}" -eq 0 ]; then
+            echo "No markdown files eligible for markdownlint after AGENTS.md exclusion."
+            exit 0
+          fi
+
+          printf "Markdownlint targets:\n"
+          printf '%s\n' "${LINT_MD[@]}"
+          npx --yes markdownlint-cli2 "${LINT_MD[@]}"
 
   lint:
     runs-on: ubuntu-latest
