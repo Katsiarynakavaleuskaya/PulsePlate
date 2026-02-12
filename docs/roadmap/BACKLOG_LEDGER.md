@@ -817,8 +817,8 @@ If it is not recorded here — it does not exist.
 - [x] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-724 (security/cve-2026-26007-cryptography-46-0-5)
-  - Status: ✅ Closed (remediation on main; guard test in place; this PR adds AGENTS policy + ledger)
+  - Target PR: PR-716 (remediation: bump + guard); PR-724 = docs-only closure/policy
+  - Status: ✅ Closed (remediation on main via PR-716; guard test in place; PR-724 adds AGENTS policy + ledger)
   - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
     `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
   - Links:
