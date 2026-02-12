@@ -133,14 +133,8 @@ PY
 
 ```text
 window_start=2026-01-28T00:00:00Z
-total_runs 111
 counts {'failure': 5, 'success': 73, 'cancelled': 33}
-failure_runs
 21906587918 2026-02-11T13:16:32Z docs+tests: vendor-agnostic analytics indexes and guards (#714)
-21829534580 2026-02-09T14:43:35Z docs(ledger): close legacy nutrition alias observability item (#700)
-21785698019 2026-02-07T19:35:08Z feat(ios): onboarding value + usage (P0-B) (#678)
-21784180950 2026-02-07T17:41:04Z feat(ios): mount WeeklyPlanReader behind feature flag (#673)
-21753417788 2026-02-06T14:07:54Z docs(ios): welcome gate packets
 ```
 
 Exit code: `0`

@@ -66,13 +66,18 @@ def _rel(p: Path) -> str:
     return p.relative_to(REPO_ROOT).as_posix()
 
 
-def _read(p: Path) -> str:
+_TRANSIENT_POLICY_SCAN_PATHS = (re.compile(r"^app/test_guard_.*_temp\.py$"),)
+
+
+def _read(p: Path) -> Optional[str]:
     try:
         return p.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
-        # xdist can race with transient helper files created/removed by tests.
-        # Missing-at-read-time files are non-canonical for repo policy scans.
-        return ""
+        rel = _rel(p)
+        if any(pattern.match(rel) for pattern in _TRANSIENT_POLICY_SCAN_PATHS):
+            # xdist TOCTOU: transient helper files can disappear between glob and read.
+            return None
+        raise
 
 
 def test_no_dynamic_imports_in_app_core() -> None:
@@ -82,6 +87,8 @@ def test_no_dynamic_imports_in_app_core() -> None:
     for path in list(_iter_py_files("app/**/*.py")) + list(_iter_py_files("core/**/*.py")):
         rel = _rel(path)
         content = _read(path)
+        if content is None:
+            continue
         if any(tok in content for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS):
             offenders.append(rel)
 
@@ -115,6 +122,8 @@ def test_no_sys_modules_mutation_in_repo() -> None:
     ):
         rel = _rel(path)
         content = _read(path)
+        if content is None:
+            continue
 
         # Allow specific guard/verification files
         if rel in ALLOWED_SYS_MODULES_CHECK_FILES:
@@ -133,6 +142,8 @@ def test_tests_have_no_dynamic_imports_except_whitelist() -> None:
     for path in _iter_py_files("tests/**/*.py"):
         rel = _rel(path)
         content = _read(path)
+        if content is None:
+            continue
 
         if any(tok in content for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS):
             if rel not in ALLOWED_TEST_FILES_FOR_DYNAMIC_IMPORT:
@@ -150,6 +161,8 @@ def test_tests_have_no_sys_path_insert_except_whitelist() -> None:
     for path in _iter_py_files("tests/**/*.py"):
         rel = _rel(path)
         content = _read(path)
+        if content is None:
+            continue
 
         if FORBIDDEN_SYS_PATH_INSERT in content:
             if rel not in ALLOWED_TEST_FILES_FOR_SYS_PATH_INSERT:
@@ -166,6 +179,7 @@ def test_app_init_is_import_shim_not_dynamic_loader() -> None:
     assert init_path.exists(), "app/__init__.py missing"
 
     content = _read(init_path)
+    assert content is not None, "app/__init__.py unexpectedly missing during read"
     banned = [tok for tok in FORBIDDEN_DYNAMIC_IMPORT_TOKENS if tok in content]
     assert not banned, f"app/__init__.py contains forbidden tokens: {banned}"
 
@@ -195,6 +209,8 @@ def test_providers_no_dynamic_imports(path_glob: str, forbidden_tokens: tuple[st
 
     for path in _iter_py_files(path_glob):
         content = _read(path)
+        if content is None:
+            continue
         if any(tok in content for tok in forbidden_tokens):
             offenders.append(_rel(path))
 
@@ -216,6 +232,8 @@ def test_no_sys_modules_get_recipe_store_in_tests() -> None:
             continue
 
         content = _read(path)
+        if content is None:
+            continue
         if (
             'sys.modules.get("recipe_store")' in content
             or "sys.modules.get('recipe_store')" in content
@@ -264,6 +282,8 @@ def test_no_sys_modules_none_poisoning() -> None:
             continue
 
         content = _read(path)
+        if content is None:
+            continue
 
         for pattern in patterns:
             if re.search(pattern, content):
@@ -284,6 +304,7 @@ def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
     agents_path = REPO_ROOT / "AGENTS.md"
     assert agents_path.exists(), "AGENTS.md missing"
     agents_content = _read(agents_path)
+    assert agents_content is not None, "AGENTS.md unexpectedly missing during read"
     assert (
         "docs/ENGINEERING_LESSONS.md" in agents_content
     ), "AGENTS.md must reference docs/ENGINEERING_LESSONS.md so agents have a stable entrypoint."
@@ -291,6 +312,7 @@ def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
     pr_template_path = REPO_ROOT / ".github" / "pull_request_template.md"
     assert pr_template_path.exists(), ".github/pull_request_template.md missing"
     pr_template_content = _read(pr_template_path)
+    assert pr_template_content is not None, "PR template unexpectedly missing during read"
     assert (
         "docs/ENGINEERING_LESSONS.md" in pr_template_content
     ), "PR template must reference docs/ENGINEERING_LESSONS.md to keep humans/agents aligned."
@@ -325,6 +347,8 @@ def test_no_direct_model_submodule_imports() -> None:
             continue
 
         content = _read(path)
+        if content is None:
+            continue
         if pattern.search(content):
             offenders.append(rel)
 
