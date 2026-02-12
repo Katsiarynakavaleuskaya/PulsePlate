@@ -20,6 +20,19 @@
 - `docs/audit/PR_XXX_GREENLIGHT_INTEGRATION_AUDIT.md`
 - `docs/runbook/IOS_GREENLIGHT.md`
 
+## Repo-truth Evidence (file:line)
+
+- Workflow entrypoint: `.github/workflows/greenlight-ios.yml:2`
+- Pinned tool/version env: `.github/workflows/greenlight-ios.yml:38`
+- Report-only mode env: `.github/workflows/greenlight-ios.yml:39`
+- Artifact upload step: `.github/workflows/greenlight-ios.yml:45`
+- Script version pin default: `scripts/ci/greenlight_ios_preflight.sh:6`
+- Script blocking flag default: `scripts/ci/greenlight_ios_preflight.sh:7`
+- Preflight command invocation: `scripts/ci/greenlight_ios_preflight.sh:29`
+- Blocking-on-critical condition: `scripts/ci/greenlight_ios_preflight.sh:83`
+- Runbook workflow reference: `docs/runbook/IOS_GREENLIGHT.md:10`
+- Runbook report-only policy: `docs/runbook/IOS_GREENLIGHT.md:19`
+
 ## Repo-truth evidence commands
 
 - `rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh`
