@@ -366,6 +366,21 @@ pytest -q tests/test_agent_docs_registry_guard.py
     - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
     - Keep the agent table under the `## Available Agents` heading in `docs/agents/index.md`.
 
+## Guard tests (repo policy scanner stability)
+
+- **Repo policy guard**: `tests/test_repo_policy_guards.py`
+  - **What it enforces**:
+    - Import hygiene and architecture guardrails across `app/`, `core/`, and `tests/`.
+    - Forbidden patterns (`sys.modules` poisoning, dynamic imports in protected scopes, etc.).
+  - **Stability contract**:
+    - Scanner reads must tolerate transient helper files under xdist (FileNotFound between glob and read).
+    - Missing-at-read-time transient files are skipped, not treated as policy violations.
+  - **How to run**:
+
+```bash
+pytest -q tests/test_repo_policy_guards.py
+```
+
 - **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
   - **What it enforces**:
     - `cryptography` must stay at or above the non-vulnerable floor (`46.0.5`) in:
