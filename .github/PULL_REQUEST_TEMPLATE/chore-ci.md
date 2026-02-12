@@ -24,4 +24,12 @@ labels: [chore, ci]
 - Кэш npm / Node version / matrix.
 - Правила защиты ветки, требуемые статусы.
 
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
 👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)

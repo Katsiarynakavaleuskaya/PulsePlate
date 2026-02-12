@@ -36,6 +36,16 @@
 - [ ] PR tests green (lint, type, unit)
 - [ ] Diff coverage ≥ 97% on changed lines
 
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
 ## Notes
 
 ### For Simple Changes

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Constellation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --anthropic-dark: #141413;
+            --anthropic-light: #faf9f5;
+            --anthropic-mid-gray: #b0aea5;
+            --anthropic-light-gray: #e8e6dc;
+            --anthropic-orange: #d97757;
+            --anthropic-blue: #6a9bcc;
+            --anthropic-green: #788c5d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, var(--anthropic-light) 0%, #f5f3ee 100%);
+            min-height: 100vh;
+            color: var(--anthropic-dark);
+        }
+        .container { display: flex; min-height: 100vh; padding: 20px; gap: 20px; }
+        .sidebar {
+            width: 320px; flex-shrink: 0; background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px); padding: 24px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(20, 20, 19, 0.1); overflow-y: auto; overflow-x: hidden;
+        }
+        .sidebar h1 { font-family: 'Lora', serif; font-size: 24px; font-weight: 500; margin-bottom: 8px; }
+        .sidebar .subtitle { color: var(--anthropic-mid-gray); font-size: 14px; margin-bottom: 32px; line-height: 1.4; }
+        .control-section { margin-bottom: 32px; }
+        .control-section h3 {
+            font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+        .control-section h3::before { content: '•'; color: var(--anthropic-orange); font-weight: bold; }
+        .seed-input {
+            width: 100%; background: var(--anthropic-light); padding: 12px; border-radius: 8px;
+            font-family: 'Courier New', monospace; font-size: 14px; margin-bottom: 12px;
+            border: 1px solid var(--anthropic-light-gray); text-align: center;
+        }
+        .seed-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .control-group { margin-bottom: 20px; }
+        .control-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+        .slider-container { display: flex; align-items: center; gap: 12px; }
+        .slider-container input[type="range"] {
+            flex: 1; height: 4px; background: var(--anthropic-light-gray); border-radius: 2px;
+            outline: none; -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; background: var(--anthropic-orange);
+            border-radius: 50%; cursor: pointer;
+        }
+        .value-display { font-family: 'Courier New', monospace; font-size: 12px; color: var(--anthropic-mid-gray); min-width: 64px; text-align: right; }
+        .color-group { margin-bottom: 16px; }
+        .color-group label { display: block; font-size: 12px; color: var(--anthropic-mid-gray); margin-bottom: 4px; }
+        .color-picker-container { display: flex; align-items: center; gap: 8px; }
+        .color-picker-container input[type="color"] { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; background: none; padding: 0; }
+        .color-value { font-family: 'Courier New', monospace; font-size: 12px; color: var(--anthropic-mid-gray); }
+        .button {
+            background: var(--anthropic-orange); color: white; border: none; padding: 10px 16px;
+            border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;
+        }
+        .button.secondary { background: var(--anthropic-blue); }
+        .button.tertiary { background: var(--anthropic-green); }
+        .button-row { display: flex; gap: 8px; }
+        .button-row .button { flex: 1; }
+        .canvas-area { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; }
+        #canvas-container {
+            width: 100%; max-width: 1000px; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 20px 40px rgba(20, 20, 19, 0.1); background: white;
+        }
+        #canvas-container canvas { display: block; width: 100% !important; height: auto !important; }
+        .loading { display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--anthropic-mid-gray); }
+        @media (max-width: 600px) { .container { flex-direction: column; } .sidebar { width: 100%; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>Review Constellation</h1>
+            <div class="subtitle">Seeded map of review threads, closure force, and commit-linked convergence.</div>
+
+            <div class="control-section">
+                <h3>Seed</h3>
+                <input type="number" id="seed-input" class="seed-input" value="71942" onchange="updateSeed()">
+                <div class="seed-controls">
+                    <button class="button secondary" onclick="previousSeed()">← Prev</button>
+                    <button class="button secondary" onclick="nextSeed()">Next →</button>
+                </div>
+                <button class="button tertiary" onclick="randomSeedAndUpdate()">↻ Random</button>
+            </div>
+
+            <div class="control-section">
+                <h3>Parameters</h3>
+                <div class="control-group">
+                    <label>Thread Count</label>
+                    <div class="slider-container">
+                        <input type="range" id="threadCount" min="60" max="500" step="10" value="220" oninput="updateParam('threadCount', this.value)">
+                        <span class="value-display" id="threadCount-value">220</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Closure Ratio</label>
+                    <div class="slider-container">
+                        <input type="range" id="closureRatio" min="0.10" max="0.98" step="0.01" value="0.72" oninput="updateParam('closureRatio', this.value)">
+                        <span class="value-display" id="closureRatio-value">0.72</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Confidence</label>
+                    <div class="slider-container">
+                        <input type="range" id="confidence" min="0.10" max="0.99" step="0.01" value="0.64" oninput="updateParam('confidence', this.value)">
+                        <span class="value-display" id="confidence-value">0.64</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Drift</label>
+                    <div class="slider-container">
+                        <input type="range" id="drift" min="0.00" max="1.00" step="0.01" value="0.38" oninput="updateParam('drift', this.value)">
+                        <span class="value-display" id="drift-value">0.38</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Colors</h3>
+                <div class="color-group">
+                    <label>Primary</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color1" value="#d97757" onchange="updateColor(0, this.value)">
+                        <span class="color-value" id="color1-value">#d97757</span>
+                    </div>
+                </div>
+                <div class="color-group">
+                    <label>Secondary</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color2" value="#6a9bcc" onchange="updateColor(1, this.value)">
+                        <span class="color-value" id="color2-value">#6a9bcc</span>
+                    </div>
+                </div>
+                <div class="color-group">
+                    <label>Accent</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color3" value="#788c5d" onchange="updateColor(2, this.value)">
+                        <span class="color-value" id="color3-value">#788c5d</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Actions</h3>
+                <div class="button-row">
+                    <button class="button" onclick="resetParameters()">Reset</button>
+                    <button class="button secondary" onclick="downloadPng()">Download PNG</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-area">
+            <div id="canvas-container">
+                <div class="loading">Initializing review constellation...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const reviewDefaults = {
+            seed: 71942,
+            threadCount: 220,
+            closureRatio: 0.72,
+            confidence: 0.64,
+            drift: 0.38,
+            palette: ["#d97757", "#6a9bcc", "#788c5d"]
+        };
+        let reviewParams = { ...reviewDefaults };
+        let reviewNodes = [];
+        let reviewCenters = [];
+        let reviewTick = 0;
+
+        function setup() {
+            const canvas = createCanvas(1200, 1200);
+            canvas.parent("canvas-container");
+            reviewReset(reviewParams.seed);
+            const loading = document.querySelector(".loading");
+            if (loading) loading.style.display = "none";
+        }
+
+        function draw() {
+            reviewStep();
+            reviewRender();
+        }
+
+        function reviewReset(seedValue) {
+            const parsed = Number(seedValue);
+            reviewParams.seed = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : reviewParams.seed;
+            randomSeed(reviewParams.seed);
+            noiseSeed(reviewParams.seed);
+            reviewNodes = [];
+            reviewCenters = buildCenters(6);
+            reviewTick = 0;
+            for (let i = 0; i < reviewParams.threadCount; i += 1) {
+                reviewNodes.push(buildNode(i));
+            }
+        }
+
+        function buildCenters(count) {
+            const centers = [];
+            for (let i = 0; i < count; i += 1) {
+                centers.push({
+                    x: width * random(0.16, 0.84),
+                    y: height * random(0.16, 0.84),
+                    weight: random(0.6, 1.4),
+                });
+            }
+            return centers;
+        }
+
+        function buildNode(index) {
+            const anchor = reviewCenters[index % reviewCenters.length];
+            const angle = random(TWO_PI);
+            const radius = random(10, 220) * (1.0 + (1.0 - reviewParams.closureRatio));
+            return {
+                x: anchor.x + cos(angle) * radius,
+                y: anchor.y + sin(angle) * radius,
+                vx: random(-0.4, 0.4),
+                vy: random(-0.4, 0.4),
+                mass: random(0.6, 1.3),
+                hueIndex: index % reviewParams.palette.length,
+                phase: random(TWO_PI),
+            };
+        }
+
+        function nearestCenter(node) {
+            let best = reviewCenters[0];
+            let bestDist = Number.POSITIVE_INFINITY;
+            for (const center of reviewCenters) {
+                const dx = center.x - node.x;
+                const dy = center.y - node.y;
+                const d = dx * dx + dy * dy;
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = center;
+                }
+            }
+            return best;
+        }
+
+        function reviewStep() {
+            reviewTick += 1;
+            const closurePull = map(reviewParams.closureRatio, 0, 1, 0.0009, 0.0034);
+            const driftFactor = map(reviewParams.drift, 0, 1, 0.15, 0.95);
+            const damping = map(reviewParams.confidence, 0, 1, 0.962, 0.992);
+
+            for (const node of reviewNodes) {
+                const nearest = nearestCenter(node);
+                const dx = nearest.x - node.x;
+                const dy = nearest.y - node.y;
+                const distanceSq = Math.max(25, dx * dx + dy * dy);
+                const g = (closurePull * nearest.weight * node.mass) / distanceSq;
+
+                node.vx += dx * g;
+                node.vy += dy * g;
+
+                const n = noise(node.x * 0.0021, node.y * 0.0021, reviewTick * 0.002);
+                const swirl = (n - 0.5) * driftFactor * 0.38;
+                node.vx += cos(node.phase) * swirl;
+                node.vy += sin(node.phase) * swirl;
+
+                node.vx *= damping;
+                node.vy *= damping;
+                node.x += node.vx;
+                node.y += node.vy;
+                node.phase += 0.004 + 0.005 * n;
+            }
+        }
+
+        function reviewRender() {
+            const trailAlpha = map(reviewParams.confidence, 0, 1, 12, 34);
+            background(250, 249, 245, trailAlpha);
+
+            noStroke();
+            for (const node of reviewNodes) {
+                const base = color(reviewParams.palette[node.hueIndex]);
+                const speed = Math.min(1.0, mag(node.vx, node.vy) * 8.5);
+                const shade = lerpColor(base, color("#141413"), speed * 0.24);
+                fill(red(shade), green(shade), blue(shade), 118);
+                circle(node.x, node.y, 1.8 + node.mass * 1.7);
+            }
+        }
+
+        function updateParam(name, value) {
+            const parsed = Number(value);
+            reviewParams[name] = parsed;
+            document.getElementById(`${name}-value`).textContent = parsed.toFixed(name === "threadCount" ? 0 : 2);
+            if (name === "threadCount") {
+                reviewReset(reviewParams.seed);
+            }
+        }
+
+        function updateColor(index, value) {
+            reviewParams.palette[index] = value;
+            document.getElementById(`color${index + 1}-value`).textContent = value;
+        }
+
+        function updateSeedDisplay() {
+            document.getElementById("seed-input").value = reviewParams.seed;
+        }
+
+        function updateSeed() {
+            const input = document.getElementById("seed-input");
+            const parsed = Number(input.value);
+            if (Number.isFinite(parsed) && parsed > 0) {
+                reviewParams.seed = Math.floor(parsed);
+                reviewReset(reviewParams.seed);
+            }
+            updateSeedDisplay();
+        }
+
+        function previousSeed() {
+            reviewParams.seed = Math.max(1, reviewParams.seed - 1);
+            updateSeedDisplay();
+            reviewReset(reviewParams.seed);
+        }
+
+        function nextSeed() {
+            reviewParams.seed += 1;
+            updateSeedDisplay();
+            reviewReset(reviewParams.seed);
+        }
+
+        function randomSeedAndUpdate() {
+            reviewParams.seed = Math.floor(Math.random() * 999999) + 1;
+            updateSeedDisplay();
+            reviewReset(reviewParams.seed);
+        }
+
+        function resetParameters() {
+            reviewParams = { ...reviewDefaults };
+            document.getElementById("threadCount").value = reviewParams.threadCount;
+            document.getElementById("threadCount-value").textContent = String(reviewParams.threadCount);
+            document.getElementById("closureRatio").value = reviewParams.closureRatio;
+            document.getElementById("closureRatio-value").textContent = reviewParams.closureRatio.toFixed(2);
+            document.getElementById("confidence").value = reviewParams.confidence;
+            document.getElementById("confidence-value").textContent = reviewParams.confidence.toFixed(2);
+            document.getElementById("drift").value = reviewParams.drift;
+            document.getElementById("drift-value").textContent = reviewParams.drift.toFixed(2);
+            document.getElementById("color1").value = reviewParams.palette[0];
+            document.getElementById("color1-value").textContent = reviewParams.palette[0];
+            document.getElementById("color2").value = reviewParams.palette[1];
+            document.getElementById("color2-value").textContent = reviewParams.palette[1];
+            document.getElementById("color3").value = reviewParams.palette[2];
+            document.getElementById("color3-value").textContent = reviewParams.palette[2];
+            updateSeedDisplay();
+            reviewReset(reviewParams.seed);
+        }
+
+        function downloadPng() {
+            saveCanvas("phase2_review_constellation_seed_" + reviewParams.seed, "png");
+        }
+
+        window.addEventListener("load", () => {
+            updateSeedDisplay();
+            document.getElementById("threadCount-value").textContent = String(reviewParams.threadCount);
+            document.getElementById("closureRatio-value").textContent = reviewParams.closureRatio.toFixed(2);
+            document.getElementById("confidence-value").textContent = reviewParams.confidence.toFixed(2);
+            document.getElementById("drift-value").textContent = reviewParams.drift.toFixed(2);
+        });
+    </script>
+</body>
+</html>

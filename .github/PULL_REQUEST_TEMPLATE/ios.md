@@ -30,4 +30,12 @@ open ios/PulsePlate.xcodeproj
 # выбери схему и устройство, запусти
 ```
 
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
 👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)

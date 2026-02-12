@@ -41,4 +41,12 @@ npm run dev
 - Скриншоты / видео (если UI).
 - Проверка ручных сценариев.
 
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
 👉 Доп. чек-листы: [docs/pr-checks.md](../../docs/pr-checks.md)

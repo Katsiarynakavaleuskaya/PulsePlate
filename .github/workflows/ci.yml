@@ -175,6 +175,28 @@ jobs:
           printf '%s\n' "${LINT_MD[@]}"
           npx --yes markdownlint-cli2 "${LINT_MD[@]}"
 
+  pr_body_phase2_gates:
+    name: PR Body Phase2 gates
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Setup Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: ${{ env.COVERAGE_PY }}
+
+      - name: Run Phase2 PR body gates
+        run: |
+          set -euo pipefail
+          python scripts/ci/check_pr_body_phase2_gates.py --event-path "$GITHUB_EVENT_PATH"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
