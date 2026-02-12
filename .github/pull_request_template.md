@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 MD033 -->
+
 # Pull Request
 
 ## Summary
@@ -108,3 +110,5 @@ Please fill out the following sections if applicable:
 - [ ] Dependencies updated (requirements.txt, package versions)
 - [ ] Configuration changes (env vars, secrets, feature toggles)
 - [ ] Documentation updates needed (README, API docs, runbooks)
+
+<!-- markdownlint-enable MD013 MD033 -->

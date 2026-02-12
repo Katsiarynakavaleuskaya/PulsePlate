@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD003 MD022 MD032 MD033 MD041 -->
+
 ---
 name: iOS Feature
 about: SwiftUI / StoreKit / HealthKit
@@ -43,3 +45,5 @@ open ios/PulsePlate.xcodeproj
 - [ ] GitHub issue(s): <link> (if any)
 
 👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)
+
+<!-- markdownlint-enable MD003 MD022 MD032 MD033 MD041 -->

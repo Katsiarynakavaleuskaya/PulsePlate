@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD003 MD022 MD032 MD033 MD041 -->
+
 ---
 name: Frontend Feature
 about: SPA / web UI changes
@@ -54,3 +56,5 @@ npm run dev
 - [ ] GitHub issue(s): <link> (if any)
 
 👉 Доп. чек-листы: [docs/pr-checks.md](../../docs/pr-checks.md)
+
+<!-- markdownlint-enable MD003 MD022 MD032 MD033 MD041 -->

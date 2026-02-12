@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD003 MD022 MD032 MD033 MD041 -->
+
 ---
 name: Tooling / CI
 about: Linting, formatting, workflows, build scripts
@@ -37,3 +39,5 @@ labels: [chore, ci]
 - [ ] GitHub issue(s): <link> (if any)
 
 👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)
+
+<!-- markdownlint-enable MD003 MD022 MD032 MD033 MD041 -->
