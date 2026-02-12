@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-12
 **Scope:** PR-body contract enforcement, deterministic parser/CI gate, template alignment, and optional algorithmic-art artifact.
-**PR:** TBD (`fix/phase2-pr-body-gates`)
+**PR:** [#720](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/720)
 
 ## Summary
 
