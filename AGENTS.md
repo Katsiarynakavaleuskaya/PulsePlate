@@ -256,6 +256,20 @@ python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pas
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
 
+### 5a) Docs Phase1 gates (audit/security markdown contract)
+
+Run this locally for changed docs under `docs/audit/` or `docs/security/`:
+
+```bash
+python scripts/ci/check_docs_phase1_gates.py --files docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md
+```
+
+**Rules:**
+
+- Files in `docs/audit/*.md` must not contain unresolved placeholder `PR: TBD`.
+- Files in `docs/audit/*.md` and `docs/security/*.md` must include at least one `file:line` evidence anchor (example: `app/middleware/api_tiers.py:109`).
+- If CI shows `missing \`file:line\` evidence anchor`, add explicit repo path anchors (not prose-only claims).
+
 ## Canonical navigation
 
 Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
@@ -691,6 +705,9 @@ Source of truth:
 - **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 - **New metrics/features policy**: Any new metrics (e.g., WHR) must be added via tier-specific schemas + endpoints; FREE contract must not be extended without explicit tier policy decision.
+- **DB lookup policy** (when `SUBSCRIPTION_DB_ENABLED=true`): `ERROR` and `INVALID_TIER` are
+  **fail-closed** (no env fallback). `MISS` may fallback **only during migration**; plan a
+  follow-up to make DB authoritative.
 
 **See:**
 
