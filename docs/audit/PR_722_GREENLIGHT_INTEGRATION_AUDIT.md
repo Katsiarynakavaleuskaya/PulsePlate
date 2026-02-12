@@ -1,0 +1,68 @@
+# PR Audit: Greenlight iOS Preflight Integration (P0) — PR #722
+
+## Scope
+
+- Add report-only App Store readiness scan for iOS in CI.
+- Integrate `greenlight preflight` as a standalone workflow and CI script.
+- Publish JSON report as workflow artifact and short step summary.
+
+## Non-goals
+
+- Backend runtime remains unchanged.
+- Findings do not block merges in P0 (report-only).
+- App Store Connect authenticated scans excluded (offline preflight only).
+- Local Makefile target deferred to P1.
+
+## Files changed
+
+- `.github/workflows/greenlight-ios.yml`
+- `scripts/ci/greenlight_ios_preflight.sh`
+- `docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md`
+- `docs/runbook/IOS_GREENLIGHT.md`
+
+## Repo-truth Evidence (file:line)
+
+- Workflow entrypoint: `.github/workflows/greenlight-ios.yml:2`
+- Pinned tool/version env: `.github/workflows/greenlight-ios.yml:38`
+- Report-only mode env: `.github/workflows/greenlight-ios.yml:39`
+- Artifact upload step: `.github/workflows/greenlight-ios.yml:45`
+- Script version pin default: `scripts/ci/greenlight_ios_preflight.sh:6`
+- Script blocking flag default: `scripts/ci/greenlight_ios_preflight.sh:7`
+- Preflight command invocation: `scripts/ci/greenlight_ios_preflight.sh:29`
+- Blocking-on-critical condition: `scripts/ci/greenlight_ios_preflight.sh:83`
+- Runbook workflow reference: `docs/runbook/IOS_GREENLIGHT.md:10`
+- Runbook report-only policy: `docs/runbook/IOS_GREENLIGHT.md:19`
+
+## Repo-truth evidence commands
+
+```shell
+rg -n "greenlight preflight|GREENLIGHT_BLOCKING|GREENLIGHT_VERSION" \
+  .github/workflows/greenlight-ios.yml scripts/ci/greenlight_ios_preflight.sh
+rg -n "report-only|critical|artifact|blocking" docs/runbook/IOS_GREENLIGHT.md
+```
+
+## Failure modes and expected behavior
+
+| Scenario | Expected behavior |
+| --- | --- |
+| iOS changes in PR | Greenlight workflow runs, report uploaded |
+| docs-only PR | Greenlight workflow does not run |
+| greenlight install failure | Job fails (explicit error) |
+| greenlight execution error | Job fails (no error masking) |
+| report-only with findings | Job succeeds; findings in summary + artifact |
+| future blocking mode + critical findings | Job fails deterministically |
+
+## Security guardrails
+
+- Pinned tool version via `GREENLIGHT_VERSION=v0.1.0`.
+- No `|| true` in execution path.
+- JSON report kept as artifact; no raw key material printed by script.
+- Scope isolated to iOS workflow; backend quality gates remain unchanged.
+
+## Definition of Done (P0)
+
+- [x] Separate iOS workflow added with path scoping.
+- [x] `greenlight preflight` runs in CI and outputs JSON.
+- [x] Report uploaded as artifact.
+- [x] Report-only mode documented in runbook.
+- [x] No backend/runtime contracts changed.
