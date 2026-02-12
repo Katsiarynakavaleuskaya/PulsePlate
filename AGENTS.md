@@ -239,6 +239,23 @@ make lint
 make fmt-check
 ```
 
+### 5) PR body Phase2 gates (PR metadata contract)
+
+```bash
+python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+### Fixed in Commit Mapping
+- No actionable review comments"
+```
+
+**Rules:**
+
+- Scope: PR body must include required headings + checked checklist + mapping details.
+- Mapping validation is scoped to content under `### Fixed in Commit Mapping` only.
+- CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
+- Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
+
 ## Canonical navigation
 
 Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.

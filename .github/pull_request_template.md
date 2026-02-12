@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 MD033 -->
+
 # Pull Request
 
 ## Summary
@@ -35,6 +37,21 @@
 
 - [ ] PR tests green (lint, type, unit)
 - [ ] Diff coverage ≥ 97% on changed lines
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
+## Deferred / Follow-ups
+
+- [ ] Ledger item(s): <link to docs/roadmap/BACKLOG_LEDGER.md entry or "None">
+- [ ] GitHub issue(s): <link> (if any)
 
 ## Notes
 
@@ -93,3 +110,5 @@ Please fill out the following sections if applicable:
 - [ ] Dependencies updated (requirements.txt, package versions)
 - [ ] Configuration changes (env vars, secrets, feature toggles)
 - [ ] Documentation updates needed (README, API docs, runbooks)
+
+<!-- markdownlint-enable MD013 MD033 -->

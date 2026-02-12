@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD003 MD022 MD032 MD033 MD041 -->
+
 ---
 name: Frontend Feature
 about: SPA / web UI changes
@@ -41,4 +43,18 @@ npm run dev
 - Скриншоты / видео (если UI).
 - Проверка ручных сценариев.
 
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- `<review-comment-url>` -> `<commit-sha>`
+- No actionable review comments
+
+## Deferred / Follow-ups
+- [ ] Ledger item(s): <link or None>
+- [ ] GitHub issue(s): <link> (if any)
+
 👉 Доп. чек-листы: [docs/pr-checks.md](../../docs/pr-checks.md)
+
+<!-- markdownlint-enable MD003 MD022 MD032 MD033 MD041 -->
