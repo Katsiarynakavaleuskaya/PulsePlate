@@ -38,6 +38,7 @@
 
 ## Implementation Notes
 
+- **Policy:** MISS falls back to env for migration; ERROR/INVALID are fail-closed.
 - DB-first resolver in `app/middleware/api_tiers.py` gated by `SUBSCRIPTION_DB_ENABLED`.
 - DB lookup returns explicit statuses (`HIT`, `MISS`, `ERROR`, `INVALID_TIER`)
   to avoid ambiguous `None` semantics.
@@ -56,5 +57,5 @@
 ## DoD (Ledger 1:1)
 
 - [x] Database lookup implemented when `SUBSCRIPTION_DB_ENABLED=true`
-- [x] Fallback to env-based detection when DB unavailable
+- [x] Fallback to env-based detection only on DB MISS (not on ERROR/INVALID_TIER)
 - [x] Tests cover both paths
