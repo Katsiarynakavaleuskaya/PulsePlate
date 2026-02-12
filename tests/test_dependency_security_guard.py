@@ -131,6 +131,26 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
             )
 
 
+def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
+    """
+    Regression: constraint-style surface effective min must include both >= and ==.
+    A file with both cryptography>=46.0.5 and cryptography==3.4.8 must yield
+    effective min 3.4.8 so the guard fails (low pin cannot bypass).
+    """
+    fake_constraints = tmp_path / "constraints.txt"
+    fake_constraints.write_text(
+        "cryptography>=46.0.5\ncryptography==3.4.8\n",
+        encoding="utf-8",
+    )
+    effective = _effective_min_version_in_file(fake_constraints, "cryptography")
+    assert effective is not None
+    assert effective == Version(
+        "3.4.8"
+    ), "Constraint surface must take min over all lines; lower == must not be ignored."
+    required_min = Version("46.0.5")
+    assert effective < required_min, "Guard should fail when a lower pin exists."
+
+
 def test_dependency_security_schema_is_stable_and_sorted() -> None:
     """Schema must be stable (string keys/values) and keys sorted (diff hygiene)."""
     schema = _load_schema(SCHEMA_PATH)
