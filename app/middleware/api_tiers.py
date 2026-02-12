@@ -124,7 +124,11 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         finally:
             session.close()
     except Exception:
-        logger.warning("Subscription DB lookup failed; denying env fallback for safety")
+        logger.warning(
+            "Subscription DB lookup failed; denying env fallback for safety",
+            exc_info=True,
+            extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.ERROR.value},
+        )
         return DBLookupResult(status=DBLookupStatus.ERROR)
 
     if raw_tier is None:
@@ -132,16 +136,24 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
 
     parsed_tier = _parse_tier_value(str(raw_tier))
     if parsed_tier is None:
-        logger.warning("Subscription DB lookup returned unknown tier value; denying env fallback")
+        logger.warning(
+            "Subscription DB lookup returned unknown tier value; denying env fallback",
+            extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
+        )
         return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
     return DBLookupResult(status=DBLookupStatus.HIT, tier=parsed_tier)
 
 
-def _resolve_tier_from_env(api_key: str) -> SubscriptionTier | None:
-    """Resolve tier via environment/test-key fallback."""
-    if api_key == TEST_KEY_VIP:
+def _resolve_tier_from_env(
+    api_key: str, *, allow_test_keys: bool = True
+) -> SubscriptionTier | None:
+    """Resolve tier via environment fallback.
+
+    Test keys are accepted only when allow_test_keys=True.
+    """
+    if allow_test_keys and api_key == TEST_KEY_VIP:
         return SubscriptionTier.VIP
-    if api_key == TEST_KEY_PRO:
+    if allow_test_keys and api_key == TEST_KEY_PRO:
         return SubscriptionTier.PRO
 
     vip_keys = os.getenv("VIP_API_KEYS", "")
@@ -194,7 +206,7 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
         if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
             return False
 
-    resolved_env_tier = _resolve_tier_from_env(api_key)
+    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
     if resolved_env_tier is not None:
         return _tier_allows_access(resolved_env_tier, required_tier)
 
@@ -311,6 +323,8 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         Returns FREE if API key is invalid or not found.
         In development mode, test keys return their respective tiers.
     """
+    is_production, _ = _is_production_environment()
+
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
         if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
@@ -318,7 +332,7 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
             return SubscriptionTier.FREE
 
-    env_tier = _resolve_tier_from_env(api_key)
+    env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
     return env_tier if env_tier is not None else SubscriptionTier.FREE
 
 

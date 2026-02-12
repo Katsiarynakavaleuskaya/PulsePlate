@@ -85,6 +85,32 @@ class TestValidateAPIKeyTier:
 
     @patch.dict(
         os.environ,
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "false",
+            "PRO_API_KEYS": "  pro_key_a , pro_key_b  ",  # pragma: allowlist secret
+        },
+        clear=False,
+    )
+    def test_production_mode_without_db_resolves_pro_api_keys_csv(self) -> None:
+        """Test production env fallback resolves PRO_API_KEYS CSV with whitespace."""
+        assert _validate_api_key_tier("pro_key_a", SubscriptionTier.PRO) is True
+        assert _validate_api_key_tier("pro_key_b", SubscriptionTier.PRO) is True
+        assert _validate_api_key_tier("pro_key_b", SubscriptionTier.VIP) is False
+
+    @patch.dict(
+        os.environ,
+        {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"},
+        clear=False,
+    )
+    def test_production_mode_blocks_test_keys_in_env_fallback(self) -> None:
+        """Test production env fallback does not accept hardcoded test keys."""
+        assert _validate_api_key_tier(TEST_KEY_PRO, SubscriptionTier.PRO) is False
+        assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
+
+    @patch.dict(
+        os.environ,
         {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "true"},
     )
     def test_production_db_enabled_uses_db_lookup(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -303,13 +329,22 @@ class TestGetSubscriptionTier:
 
     @patch.dict(
         os.environ,
-        {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"},
+        {
+            "APP_ENV": "production",
+            "DEBUG": "false",
+            "SUBSCRIPTION_DB_ENABLED": "false",
+            "VIP_API_KEYS": "vip_prod",  # pragma: allowlist secret
+            "PRO_API_KEYS": "  pro_prod_a , pro_prod_b  ",  # pragma: allowlist secret
+        },
         clear=False,
     )
     def test_production_db_disabled_uses_env_detection(self) -> None:
-        """Test production mode with DB disabled uses env/test-key detection."""
-        assert get_subscription_tier(TEST_KEY_VIP) == SubscriptionTier.VIP
-        assert get_subscription_tier(TEST_KEY_PRO) == SubscriptionTier.PRO
+        """Test production mode with DB disabled uses env keys (not test keys)."""
+        assert get_subscription_tier("vip_prod") == SubscriptionTier.VIP
+        assert get_subscription_tier("pro_prod_a") == SubscriptionTier.PRO
+        assert get_subscription_tier("pro_prod_b") == SubscriptionTier.PRO
+        assert get_subscription_tier(TEST_KEY_VIP) == SubscriptionTier.FREE
+        assert get_subscription_tier(TEST_KEY_PRO) == SubscriptionTier.FREE
 
     @patch.dict(
         os.environ,
