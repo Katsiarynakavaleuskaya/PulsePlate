@@ -30,18 +30,19 @@
 | Scenario | Expected behavior |
 | --- | --- |
 | DB enabled + valid key in DB | Use DB tier |
-| DB enabled + key missing in DB | Env fallback allowed (migration path) |
-| DB enabled + DB error/unavailable | Fail-closed for access checks; no env fallback |
-| DB enabled + invalid/unparseable DB tier | Fail-closed for access checks; no env fallback |
+| DB enabled + key missing | Env fallback allowed (migration path) |
+| DB enabled + DB error | Fail-closed; no env fallback |
+| DB enabled + invalid tier | Fail-closed; no env fallback |
 | DB disabled | Env-only tier detection |
 | Neither DB nor env resolves | 403 (guard rejects) |
 
 ## Implementation Notes
 
-- Added DB-first resolver in `app/middleware/api_tiers.py` gated by `SUBSCRIPTION_DB_ENABLED`.
-- DB lookup now returns explicit statuses (`HIT`, `MISS`, `ERROR`, `INVALID_TIER`) to avoid ambiguous `None` semantics.
-- Policy: env fallback is allowed only for `MISS`; `ERROR` and `INVALID_TIER` are fail-closed in guards.
-- Legacy behavior for `API_KEY`-based VIP bypass was intentionally not added to env fallback to preserve PRO guard divergence tests.
+- DB-first resolver in `app/middleware/api_tiers.py` gated by `SUBSCRIPTION_DB_ENABLED`.
+- DB lookup returns explicit statuses (`HIT`, `MISS`, `ERROR`, `INVALID_TIER`)
+  to avoid ambiguous `None` semantics.
+- Env fallback only for `MISS`; `ERROR`/`INVALID_TIER` are fail-closed in guards.
+- Legacy `API_KEY` VIP bypass not added to env fallback; preserves PRO guard tests.
 
 ## Test Coverage Added/Updated
 
