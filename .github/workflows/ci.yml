@@ -182,7 +182,7 @@ jobs:
     name: PR Body Phase2 gates
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ env.PR_BODY_PHASE2_TIMEOUT_MINUTES }}
+    timeout-minutes: ${{ fromJSON(env.PR_BODY_PHASE2_TIMEOUT_MINUTES) }}
     permissions:
       contents: read
       pull-requests: read
