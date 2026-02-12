@@ -1193,22 +1193,23 @@ If it is not recorded here — it does not exist.
     - Stricter inline comment parsing
     - Test cases for edge cases
 
-- [ ] API Tiers database lookup implementation
+- [x] API Tiers database lookup implementation
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR-721
+  - Status: ✅ Merged (PR-721, 2026-02-12)
   - Priority: P1
   - Area: backend
   - Finding Type: TODO/FIXME
   - Locations:
-    - `app/middleware/api_tiers.py:146` — TODO: Implement database lookup for production
-    - `app/middleware/api_tiers.py:284` — TODO: Implement database lookup
-  - Reason: Currently uses env-based tier detection; needs DB lookup for production
+    - `app/middleware/api_tiers.py` — DB lookup + env fallback (MISS only); ERROR/INVALID_TIER fail-closed
+  - Reason: Previously env-only; now DB-first when SUBSCRIPTION_DB_ENABLED=true with explicit fail-closed policy.
   - Links:
     - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md (audit in PR-721)
   - DoD:
-    - Database lookup implemented when SUBSCRIPTION_DB_ENABLED=true
-    - Fallback to env-based detection when DB unavailable
-    - Tests cover both paths
+    - Database lookup implemented when SUBSCRIPTION_DB_ENABLED=true ✅
+    - Fallback to env-based detection only on DB MISS (not on ERROR/INVALID_TIER) ✅
+    - Tests cover both paths ✅
 
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
