@@ -107,6 +107,47 @@ jobs:
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
+  docs_phase1_gates:
+    name: Docs Phase1 gates
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: "3.13.6"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20.11.1"
+
+      - name: Run Phase1 docs gates
+        run: |
+          set -euo pipefail
+          BASE="${GITHUB_BASE_REF:-main}"
+          git fetch origin "$BASE" --depth=1
+          BASE_REF="origin/$BASE"
+          CHANGED_MD="$(git diff --name-only --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')"
+          if [ -z "$CHANGED_MD" ]; then
+            echo "No changed markdown files; skipping docs Phase1 gates."
+            exit 0
+          fi
+          printf "Changed markdown files:\n%s\n" "$CHANGED_MD"
+          # shellcheck disable=SC2086
+          python scripts/ci/check_docs_phase1_gates.py --files $CHANGED_MD
+          # shellcheck disable=SC2086
+          npx --yes markdownlint-cli2 $CHANGED_MD
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
