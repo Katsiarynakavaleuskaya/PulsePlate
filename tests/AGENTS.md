@@ -414,6 +414,25 @@ pytest -q tests/test_repo_policy_guards.py
     - Add explicit evidence anchors like `path/to/file.py:123`.
     - Fix markdown style issues reported by `markdownlint-cli2` on changed `.md` files.
 
+- **PR Body Phase2 gates guard**: `tests/test_pr_body_phase2_gates.py`
+  - **What it enforces**:
+    - PR body contains `## Discussion Thread Pass` and `### Fixed in Commit Mapping`.
+    - Checkboxes `Discussion-thread pass completed` and `Fixed in commit mapping completed` are checked.
+    - Mapping contains either comment-to-commit lines (`url -> sha`) or `No actionable review comments`.
+  - **How to run**:
+    ```bash
+    pytest -q tests/test_pr_body_phase2_gates.py
+    python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+### Fixed in Commit Mapping
+- No actionable review comments"
+    ```
+  - **How to fix failures**:
+    - Update PR body using template sections exactly (headings + checkbox labels).
+    - Mark both checkboxes as completed after discussion-thread pass.
+    - Add explicit mapping entries for each addressed bot review comment.
+
 ## Type hints policy (tests)
 
 ### Hard rules
