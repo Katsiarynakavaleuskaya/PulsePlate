@@ -22,7 +22,7 @@ alembic>=1.17.2,<2.0.0
 # Pin to tested 3.x series; allow minor upgrades for compatibility
 psycopg[binary]>=3.2.3,<4.0.0
 email-validator>=2.3.0,<3.0.0
-cryptography>=46.0.3,<47.0.0
+cryptography>=46.0.5,<47.0.0
 # HTML sanitizer for XSS protection (Rust-based, 20x faster than deprecated bleach)
 # Optional: Required for premium endpoints (plate visualization with HTML sanitization).
 # Runtime-guarded via _require_nh3(); raises clear error if missing.

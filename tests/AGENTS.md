@@ -366,6 +366,25 @@ pytest -q tests/test_agent_docs_registry_guard.py
     - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
     - Keep the agent table under the `## Available Agents` heading in `docs/agents/index.md`.
 
+- **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
+  - **What it enforces**:
+    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.5`) in:
+      - `requirements.txt`
+      - `requirements-dev.txt`
+      - `requirements-lock.txt`
+      - `requirements.in`
+      - `constraints.txt`
+    - All `cryptography` declarations in each file are checked (not only the first match).
+    - Requirement parsing must tolerate environment markers and inline comments where possible.
+  - **How to run**:
+    ```bash
+    pytest -q tests/test_dependency_security_guard.py
+    ```
+
+  - **How to fix failures**:
+    - Bump `cryptography` floor/version in the affected requirements files.
+    - Regenerate lock files if needed, then re-run pre-commit + guard tests.
+
 ## Type hints policy (tests)
 
 ### Hard rules

@@ -813,6 +813,38 @@ If it is not recorded here — it does not exist.
     - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
     - 🔄 Awaiting next scan for alerts #533/#534 to close (merged ≠ scanner rerun)
 
+- [ ] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (security/cve-2026-26007-cryptography-46-0-5)
+  - Status: 🟡 In progress (alerts triaged, remediation patch prepared)
+  - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
+    `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
+  - Links:
+    - `docs/security/CVE-2026-26007-cryptography.md`
+    - GitHub alerts: `security/dependabot/27`, `security/dependabot/28`, `security/dependabot/29`
+    - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
+  - DoD:
+    - `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`, `requirements.txt`,
+      `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
+    - New dependency security guard test added and passing
+    - Security/code scanning alerts close on next scan
+
+- [ ] Generalize dependency vulnerability guards beyond single-CVE floors
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD follow-up (security guard generalization)
+  - Status: 📌 Backlog
+  - Reason: Current guard test enforces a floor for one high-risk dependency (`cryptography`). Preventing future
+    regressions at scale needs a deterministic allow/deny schema for multiple packages/CVEs.
+  - Links:
+    - `tests/test_dependency_security_guard.py`
+    - `docs/security/CVE-2026-26007-cryptography.md`
+  - DoD:
+    - Introduce a centralized guard schema (`package -> min_safe_version` or denylist) for key dependencies
+    - Deterministic CI/pytest check validates all relevant requirement surfaces
+    - Developer docs explain how to update schema when new CVEs are triaged
+
 - [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
