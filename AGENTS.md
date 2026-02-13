@@ -1260,6 +1260,18 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
   they share the same minimum fixed version.
 - Reduces drift risk from updating only one manifest.
 
+**Dependency Security Guard (Schema SSOT):**
+
+- **Single Source of Truth:** `tests/fixtures/dependency_security_schema.json` (format:
+  `{"min_versions": {"<package>": "<min_safe_version>"}}`).
+- `tests/test_dependency_security_guard.py` MUST read this schema and verify all requirement
+  surfaces: `requirements.in`, `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`,
+  `constraints.txt` (exact pin `==` or min constraint `>=` must be >= schema minimum).
+- **Update procedure (new CVE):** (1) Update version in all requirement surfaces; (2) Update schema
+  `min_versions`; (3) Guard test passes; (4) Add evidence in `docs/security/CVE-<id>-<package>.md`;
+  (5) One PR per CVE (exception: same floor version for multiple CVEs).
+- **Rationale:** Prevents manifest drift; removes hardcoded security floors from tests.
+
 ---
 
 ## CI: GitHub Container Registry (GHCR) Policy

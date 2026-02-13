@@ -1,0 +1,5 @@
+{
+  "min_versions": {
+    "cryptography": "46.0.5"
+  }
+}
