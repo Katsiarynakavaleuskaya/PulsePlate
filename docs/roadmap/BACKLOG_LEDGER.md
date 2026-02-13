@@ -24,6 +24,26 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
+- [ ] P0: Import determinism for app-level tests (remove skip fallback)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-729
+  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Area: backend / tests
+  - Finding Type: quality / determinism
+  - Locations:
+    - `tests/test_api.py:35` — `pytest.skip("App import failed unexpectedly")`
+  - Reason: Import determinism is a foundation invariant. Skipping app import failures masks CI and runtime risks.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `AGENTS.md:58`
+    - `AGENTS.md:64`
+  - DoD:
+    - No skip fallback for app import in `tests/test_api.py`
+    - Import path uses deterministic seams (no `builtins.__import__` patching)
+    - The 4 previously skipped import tests execute (pass/fail, not skip)
+    - `make verify` passes in PR-729
+
 - [x] PR-653 P0 Welcome onboarding gate (iOS-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -450,6 +470,72 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [ ] P1: Re-enable repository `sys.modules` mutation guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-730
+  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Area: backend / tests / policy guards
+  - Finding Type: quality / guard enforcement
+  - Locations:
+    - `tests/test_repo_policy_guards.py:101` — skipped guard
+  - Reason: Disabled guard weakens a known import-hygiene invariant and can hide dual-module regressions.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `tests/test_repo_policy_guards.py:101`
+  - DoD:
+    - Guard is enabled in CI (not skipped)
+    - Offenders are cleaned up or explicitly phased with a documented allowlist plan
+    - Guard remains deterministic under xdist and normal pytest runs
+    - `make verify` passes in PR-730
+
+- [ ] P1: Async SQLAlchemy wiring for day shoplist tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-731
+  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Area: backend / tests / infra
+  - Finding Type: quality / infrastructure determinism
+  - Locations:
+    - `tests/test_shoplist_day_db_wiring.py:39`
+    - `tests/test_shoplist_day_db_wiring.py:112`
+    - `tests/test_shoplist_day_db_wiring.py:180`
+    - `tests/test_shoplist_day_db_wiring.py:222`
+  - Reason: Async DB tests should be deterministically configured (or removed as obsolete), not skipped by default.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `core/db.py:613`
+  - DoD:
+    - Async DB test matrix is explicit and deterministic in test config
+    - No `Async SQLAlchemy not configured` skips remain for this suite
+    - Fail-fast diagnostics are clear when environment is invalid
+    - `make verify` passes in PR-731
+
+- [ ] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-732
+  - Status: 📋 Planned (after PR-729 and PR-730)
+  - Area: backend / tests / contracts
+  - Finding Type: drift / contract mismatch
+  - Locations:
+    - `tests/test_database_apis_coverage.py`
+    - `tests/test_direct_core_functions.py`
+    - `tests/test_final_core_coverage.py`
+    - `tests/test_final_coverage_97_boost.py`
+    - `tests/test_quick_coverage_boost.py`
+    - `tests/test_remaining_modules.py`
+    - `tests/test_zero_coverage_modules.py`
+  - Reason: Large skip bucket (`module/symbol not available`) is mostly contract drift between legacy test expectations and current canonical APIs.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `core/food_apis/unified_db.py:265`
+  - DoD:
+    - Drift-based skips are reduced via canonical test alignment (not API inflation for coverage)
+    - Signature mismatches are resolved with explicit contract assertions
+    - Remaining intentional skips are documented as product decisions
+    - `make verify` passes in PR-732
 
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
@@ -1357,24 +1443,38 @@ If it is not recorded here — it does not exist.
     - A script/tool verifies required context files are present and referenced correctly
     - Failure mode is explicit and does not block unrelated tasks (scoped to orchestration workflow)
 
-- [ ] Test skips cleanup (low priority batch)
+- [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR-728
   - Priority: P2
+  - Status: ✅ Superseded (2026-02-13)
   - Area: backend / tests
   - Finding Type: skip/xfail
-  - Locations:
-    - `tests/test_level_es.py:13` — pytestmark skip (investigate)
-    - `tests/test_app_coverage_unit_combined.py:81,86` — skip (interpret_group/estimate_level removed)
-    - `tests/test_app_plate_helpers.py:145` — xfail (investigate)
-    - `tests/test_update_manager_fixed.py:129` — skip (path attribute issues)
-    - `tests/test_food_apis_coverage_errors.py:303,331,351,396,416,437` — 6x skip (mock issues)
-  - Reason: Lower priority; tests for removed/legacy functionality
+  - Reason: Replaced by prioritized split into P0/P1 stabilization tracks and explicit product-decision backlog.
   - Links:
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md`
   - DoD:
-    - Each test either fixed, updated, or removed if obsolete
-    - No unexplained skips remain
+    - Superseded by targeted items: PR-729, PR-730, PR-731, PR-732
+    - Intentional product-scope skips tracked separately (no mixed bucket)
+
+- [ ] P2: Product decision for removed/non-canonical optional fields in skip tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-733
+  - Priority: P2
+  - Area: backend / product contract
+  - Finding Type: intentional-scope decision
+  - Locations:
+    - `tests/test_app_coverage_unit_combined.py:83`
+    - `tests/test_app_coverage_unit_combined.py:88`
+    - `tests/test_premium_targets_es_snapshots.py:453`
+  - Reason: `interpret_group` / `estimate_level` and optional `ui_labels` require product-contract decisions before code/test remediation.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `app/schemas/premium_contracts.py:109`
+  - DoD:
+    - Product decision recorded for each field/function (restore canonical equivalent vs remove obsolete tests)
+    - No ambiguous intentional skips remain without decision record
 
 - [ ] Backend TODO cleanup (i18n, telemetry)
   - Owner: @katsiaryna_kavaleuskaya
