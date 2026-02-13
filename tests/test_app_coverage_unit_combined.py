@@ -85,12 +85,12 @@ class TestAppUnitTests:
     def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        pass
+        pytest.fail("Test disabled until BMI category assertions are implemented.")
 
     def test_estimate_level_categories(self) -> None:
         """Test estimate_level with different fitness experience levels."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        pass
+        pytest.fail("Test disabled until estimate level assertions are implemented.")
 
     def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """API key matching should be strict by default."""
