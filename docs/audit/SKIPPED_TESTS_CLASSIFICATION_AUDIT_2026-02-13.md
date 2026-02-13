@@ -4,6 +4,11 @@ Date: 13 February 2026 (America/New_York)
 Scope: Backend test files from the confirmed skip run (84 skipped tests)
 Type: docs-only audit (no runtime changes)
 
+Update: 13 February 2026 (America/New_York)
+This document preserves the original PR-728 snapshot. The previous
+"app import determinism skip fallback (4 skips)" is now resolved
+(PR-729 merged on 13 February 2026), and ledger status is updated.
+
 ## 1) Objective
 
 Classify current `SKIPPED` reasons into three architectural classes.
@@ -48,7 +53,7 @@ Observed summary (grouped counts from `SKIPPED` lines):
 
 - `57` -> module/symbol not available
 - `5` -> test data precondition not met
-- `4` -> app import determinism skip fallback
+- `4` -> app import determinism skip fallback (historical, now resolved)
 - `4` -> async DB not configured
 - `4` -> legacy negative tests marked skip
 - `3` -> signature mismatch
@@ -60,7 +65,8 @@ Observed summary (grouped counts from `SKIPPED` lines):
 
 Selected raw evidence anchors from current repo state:
 
-- Import determinism skip fallback: `tests/test_api.py:35`
+- Import determinism guard (no skip fallback allowed): `tests/test_api.py:343`
+- Import skip marker assertion: `tests/test_api.py:346`
 - Disabled guard: `tests/test_repo_policy_guards.py:101`
 - Async DB skip: `tests/test_shoplist_day_db_wiring.py:39`
 - Canonical mismatch marker: `tests/test_app_coverage_unit_combined.py:83`
@@ -73,14 +79,15 @@ Selected raw evidence anchors from current repo state:
 
 ## 3) Classification Matrix
 
-### 3.1 App import fallback skip
+### 3.1 App import fallback skip (historical, resolved)
 
 - Count: 4
 - Class: Quality/Determinism
-- Risk: Critical
-- Evidence: `tests/test_api.py:35`
-- Action: Remove skip wrapper, use deterministic import seams,
-  fail instead of skip.
+- Risk: Resolved
+- Evidence: `tests/test_api.py:343`
+- Action: Completed in PR-729.
+  `tests/test_api.py` now enforces fail-not-skip policy and has a guard
+  against reintroducing `pytest.skip("App import failed unexpectedly")`.
 
 ### 3.2 `sys.modules` guard disabled
 
@@ -170,10 +177,10 @@ Selected raw evidence anchors from current repo state:
 
 Execution order approved for next PRs:
 
-1. P0: Import Determinism
+1. P0: Import Determinism (closed in PR-729, merged 13 February 2026)
 2. P1: Guard Re-enable (`sys.modules`)
 3. P1: Async DB Wiring
-4. P1+: Drift cleanup waves (after 1-3)
+4. P1+: Drift cleanup waves (after 2-3)
 5. P2: Product decisions (intentional / out-of-scope features)
 
 ## 5) Ledger Promotion (PR-728 Output)
@@ -183,7 +190,7 @@ Intentional product-contract decisions stay separated.
 
 Promoted now:
 
-- P0: `App import failed unexpectedly` removal track
+- P0: `App import failed unexpectedly` removal track (closed in PR-729)
 - P1: `sys.modules` guard re-enable track
 - P1: Async SQLAlchemy test wiring track
 - P1: Drift cleanup wave after P0/P1 stabilization
