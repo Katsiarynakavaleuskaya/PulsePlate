@@ -476,24 +476,28 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] P1: Re-enable repository `sys.modules` mutation guard
+- [x] P1: Re-enable repository `sys.modules` mutation guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-730
-  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Target PR: PR-732
+  - Status: ✅ Merged (PR-732, 2026-02-13, `b36e88ed`)
   - Area: backend / tests / policy guards
   - Finding Type: quality / guard enforcement
   - Locations:
-    - `tests/test_repo_policy_guards.py:101` — skipped guard
+    - `tests/test_repo_policy_guards.py:98` — active runtime guard
+      (`test_no_sys_modules_mutation_in_repo`)
   - Reason: Disabled guard weakens a known import-hygiene invariant and can hide dual-module regressions.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `tests/test_repo_policy_guards.py:101`
+    - `tests/test_repo_policy_guards.py:98`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/732`
+  - Evidence (2026-02-13):
+    - `pytest -q tests/test_repo_policy_guards.py -rs` -> pass (guard enabled, not skipped)
   - DoD:
     - Guard is enabled in CI (not skipped)
     - Offenders are cleaned up or explicitly phased with a documented allowlist plan
     - Guard remains deterministic under xdist and normal pytest runs
-    - `make verify` passes in PR-730
+    - `make verify` passes in PR-732
 
 - [ ] P1: Async SQLAlchemy wiring for day shoplist tests
   - Owner: @katsiaryna_kavaleuskaya
