@@ -19,6 +19,7 @@ from typing import FrozenSet
 import pytest
 
 ENV_FEATURES = "PULSEPLATE_FEATURES"
+FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
 
 
 @dataclass(frozen=True)
@@ -86,3 +87,21 @@ def require_feature(key: str, reason: str, *, manifest: FeatureManifest | None =
 
     standardized = f"feature_disabled:{key} (enable via {ENV_FEATURES}=all or CSV). " f"{reason}"
     pytest.skip(standardized)
+
+
+def require_feature_or_raise(
+    exc: ImportError,
+    key: str,
+    reason: str,
+    *,
+    manifest: FeatureManifest | None = None,
+) -> None:
+    """Skip only when feature is disabled, otherwise re-raise ImportError.
+
+    RU: Esli feature vkliuchena v manifest, ImportError ne dolzhen byt skryt.
+    EN: If feature is enabled, preserve failure signal by re-raising ImportError.
+    """
+    active_manifest = manifest or FeatureManifest.from_env()
+    if active_manifest.is_enabled(key):
+        raise exc
+    require_feature(key, reason, manifest=active_manifest)

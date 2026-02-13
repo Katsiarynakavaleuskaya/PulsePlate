@@ -10,9 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.feature_manifest import require_feature
-
-FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestFinalCoreCoverage:
@@ -38,8 +36,8 @@ class TestFinalCoreCoverage:
                     result = usda.get_food_data("123")
                     assert isinstance(result, (dict, type(None)))
 
-        except ImportError:
-            require_feature("food_apis", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -69,8 +67,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_category("fruit")
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            require_feature("food_apis", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -100,8 +98,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_nutrition_data({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -130,8 +128,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_config({})
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -232,8 +230,8 @@ class TestFinalCoreCoverage:
             improvements = suggest_meal_improvements({})
             assert isinstance(improvements, (list, dict, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -262,8 +260,8 @@ class TestFinalCoreCoverage:
             priority = calculate_repair_priority({}, {})
             assert isinstance(priority, (int, float, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -294,8 +292,8 @@ class TestFinalCoreCoverage:
             recommendations = get_plate_recommendations({})
             assert isinstance(recommendations, (list, dict, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -322,7 +320,7 @@ class TestFinalCoreCoverage:
             adjusted = adjust_for_activity_level({}, "high")
             assert isinstance(adjusted, (dict, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass

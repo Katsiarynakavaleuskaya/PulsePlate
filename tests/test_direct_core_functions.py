@@ -8,9 +8,7 @@ EN: Direct core function tests to improve coverage
 
 import pytest
 
-from tests.feature_manifest import require_feature
-
-FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestDirectCoreFunctions:
@@ -45,8 +43,8 @@ class TestDirectCoreFunctions:
             is_valid = validate_user_data({"age": 30, "weight": 70})
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -97,8 +95,8 @@ class TestDirectCoreFunctions:
             priority = calculate_repair_priority({"protein": -20}, {"protein": 80})
             assert isinstance(priority, (int, float, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -141,8 +139,8 @@ class TestDirectCoreFunctions:
             shopping_list = generate_shopping_list(meal_plan)
             assert isinstance(shopping_list, (list, dict, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -185,8 +183,8 @@ class TestDirectCoreFunctions:
             viz_data = visualize_plate_data(foods)
             assert isinstance(viz_data, (dict, list, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -234,8 +232,8 @@ class TestDirectCoreFunctions:
             locale_info = get_locale_info("en")
             assert isinstance(locale_info, (dict, type(None)))
 
-        except ImportError:
-            require_feature("i18n_advanced", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -276,8 +274,8 @@ class TestDirectCoreFunctions:
             merged = merge_food_entries(food_data, food_data2)
             assert isinstance(merged, (dict, type(None)))
 
-        except ImportError:
-            require_feature("food_apis", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -320,8 +318,8 @@ class TestDirectCoreFunctions:
             # Test adding knowledge
             add_knowledge("Protein is essential for muscle building and repair.")
 
-        except ImportError:
-            require_feature("rag", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -353,8 +351,8 @@ class TestDirectCoreFunctions:
             db = get_unified_food_db()
             assert db is not None or db is None
 
-        except ImportError:
-            require_feature("core_db", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -396,8 +394,8 @@ class TestDirectCoreFunctions:
             foods = get_region_foods("US")
             assert isinstance(foods, (list, dict, type(None)))
 
-        except ImportError:
-            require_feature("region_catalog", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "region_catalog", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -441,7 +439,7 @@ class TestDirectCoreFunctions:
             sanitized = sanitize_html("<script>alert('xss')</script>")
             assert isinstance(sanitized, (str, type(None)))
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass

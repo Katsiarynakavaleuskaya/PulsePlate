@@ -9,7 +9,7 @@ EN: Combined tests for app coverage and unit tests: main.py coverage, groups, in
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.feature_manifest import require_feature
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 try:
     # Validate app module can be imported
@@ -18,8 +18,6 @@ except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 # client fixture is provided by conftest.py
-
-FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
 
 
 @pytest.mark.usefixtures("test_environment")

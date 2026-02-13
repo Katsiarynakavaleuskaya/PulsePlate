@@ -8,11 +8,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.feature_manifest import require_feature
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 logger = logging.getLogger(__name__)
-
-FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
 
 
 class TestQuickCoverageBoost:
@@ -58,8 +56,8 @@ class TestQuickCoverageBoost:
             carb = calculate_who_carb_target(70, "male", 30, False, "very_active")
             assert carb > 0
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_i18n_fallback_coverage(self):
         """Покрытие core/i18n.py fallback scenarios (83% -> 95%+)"""
@@ -88,8 +86,8 @@ class TestQuickCoverageBoost:
             result = t("ru", None)
             assert isinstance(result, str)
 
-        except ImportError:
-            require_feature("i18n_advanced", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
 
     def test_food_merge_edge_cases(self):
         """Покрытие core/food_merge.py edge cases (89% -> 95%+)"""
@@ -115,8 +113,8 @@ class TestQuickCoverageBoost:
             result = merge_food_sources(None, None)
             assert isinstance(result, list)
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_auto_repair_edge_cases(self):
         """Покрытие core/auto_repair.py missing branches (94% -> 97%+)"""
@@ -144,8 +142,8 @@ class TestQuickCoverageBoost:
             gaps = repair_nutrition_gaps([], extreme_targets)
             assert isinstance(gaps, list)
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_menu_engine_missing_branches(self):
         """Покрытие core/menu_engine.py missing branches (95% -> 97%+)"""
@@ -176,8 +174,8 @@ class TestQuickCoverageBoost:
             result = optimize_meal_plan([], extreme_constraints)
             assert isinstance(result, list)
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_recommendations_edge_cases(self):
         """Покрытие core/recommendations.py scenarios (92% -> 97%+)"""
@@ -209,8 +207,8 @@ class TestQuickCoverageBoost:
             result = recommender.recommend_for_user(extreme_prefs, [])
             assert isinstance(result, list)
 
-        except ImportError:
-            require_feature("planner_engines", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_region_catalog_edge_cases(self):
         """Покрытие core/region_catalog.py missing lines (89% -> 95%+)"""
@@ -236,8 +234,8 @@ class TestQuickCoverageBoost:
             result = catalog.get_products_by_category("test_category", "XX")
             assert isinstance(result, list)
 
-        except ImportError:
-            require_feature("region_catalog", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "region_catalog", reason=FEATURE_REASON)
 
     def test_rag_simple_missing_paths(self):
         """Покрытие core/rag/simple_rag.py missing paths (77% -> 90%+)"""
@@ -269,8 +267,8 @@ class TestQuickCoverageBoost:
             result = rag.query(special_query)
             assert isinstance(result, str) or result is None
 
-        except ImportError:
-            require_feature("rag", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
 
     def test_unified_db_error_paths(self):
         """Покрытие core/food_apis/unified_db.py error paths (94% -> 97%+)"""
@@ -299,8 +297,8 @@ class TestQuickCoverageBoost:
             result = unified_db.search_foods(long_query)
             assert isinstance(result, list)
 
-        except ImportError:
-            require_feature("unified_db", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_update_manager_async_paths(self):
@@ -324,5 +322,5 @@ class TestQuickCoverageBoost:
                 except Exception as exc:  # pragma: no cover - depends on async extras
                     logger.warning("update_database raised during quick coverage test: %s", exc)
 
-        except ImportError:
-            require_feature("update_manager", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "update_manager", reason=FEATURE_REASON)
