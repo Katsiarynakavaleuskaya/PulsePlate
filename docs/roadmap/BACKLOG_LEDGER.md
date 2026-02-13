@@ -24,20 +24,25 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] P0: Import determinism for app-level tests (remove skip fallback)
+- [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-729
-  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Status: ✅ Merged (PR-729, 2026-02-13)
   - Area: backend / tests
   - Finding Type: quality / determinism
   - Locations:
-    - `tests/test_api.py:35` — `pytest.skip("App import failed unexpectedly")`
+    - `tests/test_api.py:343` — guard test enforces "fail, not skip" policy
+    - `tests/test_api.py:346` — marker check prevents reintroducing
+      `pytest.skip("App import failed unexpectedly")`
   - Reason: Import determinism is a foundation invariant. Skipping app import failures masks CI and runtime risks.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `AGENTS.md:58`
     - `AGENTS.md:64`
+  - Evidence (2026-02-13):
+    - `pytest -q tests/test_api.py -rs` -> `22 passed`, `0 skipped`
+    - `rg -n "SKIPPED \\[4\\]|App import failed unexpectedly" -S tests` -> no matches
   - DoD:
     - No skip fallback for app import in `tests/test_api.py`
     - Import path uses deterministic seams (no `builtins.__import__` patching)
