@@ -550,7 +550,9 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-737
-  - Reason for deferral: Runtime test suites currently surface optional-module skips with ad-hoc strings; defer execution until PR-737 introduces `tests/feature_manifest.py` and `require_feature(...)` to standardize skip reasons and keep ledger↔tests keys one-to-one.
+  - Reason for deferral: Runtime test suites currently surface optional-module skips with
+    ad-hoc strings; defer execution until PR-737 introduces `tests/feature_manifest.py` and
+    `require_feature(...)` to standardize skip reasons and keep ledger↔tests keys one-to-one.
   - Status: 📋 Planned (created in PR-736 docs-only; promoted from runtime snapshot on
     13 February 2026)
   - Area: backend / tests / feature debt management
