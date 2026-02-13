@@ -55,6 +55,15 @@ Or individually:
 - Pushing PRs without running `pre-commit run --all-files` first
 - Using `SKIP=...` or disabling hooks without explicit justification (default: "fix it, don't skip it"; if skip is needed, document why in PR description/comment)
 
+**SKIPPED policy (Bad skip vs Intentional skip):**
+
+- **Intentional skip:** Documented, scoped (e.g. known missing module, expected-red guard),
+  and either temporary or tracked. Allowed when justified in test/PR.
+- **Bad skip:** Skipping a check or test to get green without fixing the root cause,
+  or without documenting why and where it is tracked.
+- **Hard rule:** Any **bad skip** MUST be promoted to the ledger as **P0 or P1** immediately
+  (with Owner, DoD, Target PR). Do not leave skipped checks untracked; "fix it or ledger it."
+
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
 
@@ -1260,18 +1269,6 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
   they share the same minimum fixed version.
 - Reduces drift risk from updating only one manifest.
 
-**Dependency Security Guard (Schema SSOT):**
-
-- **Single Source of Truth:** `tests/fixtures/dependency_security_schema.json` (format:
-  `{"min_versions": {"<package>": "<min_safe_version>"}}`).
-- `tests/test_dependency_security_guard.py` MUST read this schema and verify all requirement
-  surfaces: `requirements.in`, `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`,
-  `constraints.txt` (exact pin `==` or min constraint `>=` must be >= schema minimum).
-- **Update procedure (new CVE):** (1) Update version in all requirement surfaces; (2) Update schema
-  `min_versions`; (3) Guard test passes; (4) Add evidence in `docs/security/CVE-<id>-<package>.md`;
-  (5) One PR per CVE (exception: same floor version for multiple CVEs).
-- **Rationale:** Prevents manifest drift; removes hardcoded security floors from tests.
-
 ---
 
 ## CI: GitHub Container Registry (GHCR) Policy
@@ -1376,6 +1373,21 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - If it is not in the ledger — it does not exist.
 
 **Rationale:** Prevents "deferred → forgotten → resurfaces later" anti-pattern. Single source of truth for follow-up work.
+
+**Docs lint policy (markdownlint and ledger):**
+
+`docs/roadmap/BACKLOG_LEDGER.md` is intentionally excluded from markdownlint
+(see `.markdownlint.json` → `ignores`).
+
+Reason: the ledger is a long-lived, frequently edited checklist (URLs, DoD, fields).
+Running MD013 on it would cause constant reformatting and noisy diffs
+without improving readability.
+
+The exclusion keeps Docs Phase1 gates green when PRs touch the ledger.
+All other `*.md` files remain subject to markdownlint.
+
+Do not remove this exclusion without a product decision and a separate PR
+(e.g. shorter ledger line format or an explicit decision to accept lint noise).
 
 ---
 
