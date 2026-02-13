@@ -254,6 +254,11 @@ def test_no_bmi_formula_outside_core() -> None:
     )
 
 
+# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
+# main guard to avoid xdist race (other worker may still have the file on disk).
+_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
+
+
 def test_no_bmi_thresholds_outside_core() -> None:
     """
     RU: Проверяет, что пороги BMI (18.5, 25.0, 30.0, etc.) не встречаются вне whitelist.
@@ -263,6 +268,7 @@ def test_no_bmi_thresholds_outside_core() -> None:
     to prevent hardcoded thresholds outside core/bmi/risk.py.
     """
     hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
+    hits = [h for h in hits if _GUARD_WHR_SKIP_TEMP_BASENAME not in h]
     assert not hits, (
         "BMI thresholds found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)
@@ -418,7 +424,7 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
 def test_skip_context_does_not_filter_whr_thresholds() -> None:
     """Test that SKIP_CONTEXT filter does not skip WHR thresholds in type-hinted constants."""
     # Create test file outside tests/ to avoid whitelist (use app/ as it's scanned)
-    test_file = REPO_ROOT / "app" / "test_guard_whr_skip_temp.py"
+    test_file = REPO_ROOT / "app" / _GUARD_WHR_SKIP_TEMP_BASENAME
     try:
         test_file.write_text(
             '"""Module docstring"""\n'
@@ -430,12 +436,12 @@ def test_skip_context_does_not_filter_whr_thresholds() -> None:
         hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", skip_threshold_check=False)
 
         # Filter hits to only our test file
-        test_hits = [h for h in hits if "test_guard_whr_skip_temp.py" in h]
+        test_hits = [h for h in hits if _GUARD_WHR_SKIP_TEMP_BASENAME in h]
 
         assert len(test_hits) > 0, "Should detect WHR threshold even with type hint"
         # Verify the violation is on line 2 (after docstring)
         assert any(
-            "test_guard_whr_skip_temp.py:2:" in h for h in test_hits
+            f"{_GUARD_WHR_SKIP_TEMP_BASENAME}:2:" in h for h in test_hits
         ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
     finally:
         # Clean up: remove test file
