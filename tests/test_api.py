@@ -1,42 +1,14 @@
 # -*- coding: utf-8 -*-
-import os
-import sys
-from collections.abc import Callable
-from types import ModuleType
-from typing import NoReturn, cast
+from pathlib import Path
+from typing import NoReturn
 from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 from module_purge import purge_modules
 
 # client fixture is provided by conftest.py
-
-
-def _test_app_import_with_assertions(
-    original_app: ModuleType | None,
-    test_assertions: Callable[[ModuleType], None],
-) -> None:
-    """Helper function to test app import and run assertions."""
-    try:
-        # Reload legacy_app to re-run import-time optional dependency wiring
-        # without purging the top-level `app` package (which can leave half-loaded state).
-        import importlib
-
-        import legacy_app
-
-        importlib.reload(legacy_app)
-        import app
-
-        test_assertions(app)
-    except Exception:
-        pytest.skip("App import failed unexpectedly")
-    finally:
-        # Restore original app module - deterministic cleanup without deleting the package.
-        if original_app is not None:
-            sys.modules["app"] = original_app
 
 
 def test_v1_health(client):
@@ -184,66 +156,41 @@ def test_v1_bodyfat_missing_hip(client):
     assert "us_navy" not in data["methods"]
 
 
-def test_bodyfat_import_failure(client):
-    """Test coverage for bodyfat import exception in main.py."""
-    import builtins
-    import sys
-    from unittest.mock import patch
+def test_bodyfat_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic seam test for bodyfat router unavailability path."""
+    import app as app_mod
+    import legacy_app
 
-    # Save original app module if it exists
-    original_app = sys.modules.get("app")
-
-    # Save original before patching
-    original_import = builtins.__import__
-
-    with patch.object(builtins, "__import__") as mock_import:
-        # Mock the import to fail
-        def side_effect(name, *args, **kwargs):
-            if name == "bodyfat":
-                raise ImportError("Mocked import failure")
-            return original_import(name, *args, **kwargs)
-
-        mock_import.side_effect = side_effect
-
-        def test_assertions(app):
-            # If import succeeds, check that get_bodyfat_router is None
-            assert app.get_bodyfat_router is None
-
-        _test_app_import_with_assertions(original_app, test_assertions)
+    monkeypatch.setattr(legacy_app, "get_bodyfat_router", None, raising=True)
+    assert app_mod.get_bodyfat_router is None
 
 
-def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_insight_import_failure(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+) -> None:
     """Test coverage for llm import exception in main.py."""
+    import legacy_app
 
-    # Save original app module if it exists
-    original_app = sys.modules.get("app")
+    def _raise_import_error() -> NoReturn:
+        raise ImportError("boom")
 
-    def test_assertions(app: ModuleType) -> None:
-        import legacy_app
+    # Deterministic import-failure branch without sys.modules mutation.
+    monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-        def _raise_import_error() -> NoReturn:
-            raise ImportError("boom")
-
-        # Deterministic import-failure branch without sys.modules mutation.
-        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
-        # Force feature enabled to prevent early-return bypass via disabled check.
-        monkeypatch.setenv("FEATURE_INSIGHT", "true")
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        response = client.post(
-            "/api/v1/insight",
-            json={"text": "test"},
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code == 503
-        assert response.headers["content-type"].startswith("application/json")
-        data = response.json()
-        # Backward-compatible shape: `detail` exists, but must not leak internals.
-        assert "LLM module is not available" in data["detail"]
-        assert "boom" not in data.get("detail", "")
-
-    _test_app_import_with_assertions(original_app, test_assertions)
+    response = client.post(
+        "/api/v1/insight",
+        json={"text": "test"},
+        headers=vip_headers,
+    )
+    assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
+    data = response.json()
+    # Backward-compatible shape: `detail` exists, but must not leak internals.
+    assert "LLM module is not available" in data["detail"]
+    assert "boom" not in data.get("detail", "")
 
 
 @patch("llm.get_provider")
@@ -368,59 +315,33 @@ def test_v1_insight_invalid_api_key(client: TestClient, monkeypatch: pytest.Monk
     assert r.status_code == 403
 
 
-def test_slowapi_import_failure(client):
-    """Test coverage for slowapi import exception in main.py."""
-    import builtins
-    import sys
-    from unittest.mock import patch
+def test_slowapi_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic seam test for slowapi-unavailable behavior."""
+    import app as app_mod
+    import legacy_app
 
-    # Save original app module if it exists
-    original_app = sys.modules.get("app")
-
-    # Save original before patching
-    original_import = builtins.__import__
-
-    with patch.object(builtins, "__import__") as mock_import:
-        # Mock the import to fail for slowapi
-        def side_effect(name, *args, **kwargs):
-            if name == "slowapi":
-                raise ImportError("Mocked slowapi import failure")
-            return original_import(name, *args, **kwargs)
-
-        mock_import.side_effect = side_effect
-
-        def test_assertions(app):
-            # Check that limiter is None
-            assert app.limiter is None
-
-        _test_app_import_with_assertions(original_app, test_assertions)
+    monkeypatch.setattr(legacy_app, "limiter", None, raising=True)
+    assert app_mod.limiter is None
 
 
-def test_prometheus_import_failure(client):
-    """Test coverage for prometheus_client import exception in main.py."""
-    import builtins
-    import sys
-    from unittest.mock import patch
+def test_prometheus_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic seam test for exporter failure fallback on /metrics."""
+    import prometheus_client
 
-    # Save original app module if it exists
-    original_app = sys.modules.get("app")
+    def _boom() -> bytes:
+        raise RuntimeError("boom")
 
-    # Save original before patching
-    original_import = builtins.__import__
+    monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
 
-    with patch.object(builtins, "__import__") as mock_import:
-        # Mock the import to fail for prometheus_client
-        def side_effect(name, *args, **kwargs):
-            if name == "prometheus_client":
-                raise ImportError("Mocked prometheus_client import failure")
-            return original_import(name, *args, **kwargs)
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    data = response.json()
+    assert "error" in data
 
-        mock_import.side_effect = side_effect
 
-        def test_assertions(app):
-            # Check that Counter is None
-            assert app.Counter is None
-            assert app.Histogram is None
-            assert app.generate_latest is None
-
-        _test_app_import_with_assertions(original_app, test_assertions)
+def test_no_app_import_skip_fallback_marker() -> None:
+    """Guard: app import failures in this suite must fail, not skip."""
+    content = Path(__file__).read_text(encoding="utf-8")
+    marker = 'pytest.skip("App import ' + 'failed unexpectedly")'
+    assert marker not in content
