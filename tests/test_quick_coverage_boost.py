@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from tests.feature_manifest import require_feature
+
 logger = logging.getLogger(__name__)
+
+FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
 
 
 class TestQuickCoverageBoost:
@@ -55,7 +59,7 @@ class TestQuickCoverageBoost:
             assert carb > 0
 
         except ImportError:
-            pytest.skip("targets module not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_i18n_fallback_coverage(self):
         """Покрытие core/i18n.py fallback scenarios (83% -> 95%+)"""
@@ -85,7 +89,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, str)
 
         except ImportError:
-            pytest.skip("i18n module not available")
+            require_feature("i18n_advanced", reason=FEATURE_REASON)
 
     def test_food_merge_edge_cases(self):
         """Покрытие core/food_merge.py edge cases (89% -> 95%+)"""
@@ -112,7 +116,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError:
-            pytest.skip("food_merge module not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_auto_repair_edge_cases(self):
         """Покрытие core/auto_repair.py missing branches (94% -> 97%+)"""
@@ -141,7 +145,7 @@ class TestQuickCoverageBoost:
             assert isinstance(gaps, list)
 
         except ImportError:
-            pytest.skip("auto_repair module not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_menu_engine_missing_branches(self):
         """Покрытие core/menu_engine.py missing branches (95% -> 97%+)"""
@@ -173,7 +177,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError:
-            pytest.skip("menu_engine module not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_recommendations_edge_cases(self):
         """Покрытие core/recommendations.py scenarios (92% -> 97%+)"""
@@ -206,7 +210,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError:
-            pytest.skip("recommendations module not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_region_catalog_edge_cases(self):
         """Покрытие core/region_catalog.py missing lines (89% -> 95%+)"""
@@ -233,7 +237,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError:
-            pytest.skip("region_catalog module not available")
+            require_feature("region_catalog", reason=FEATURE_REASON)
 
     def test_rag_simple_missing_paths(self):
         """Покрытие core/rag/simple_rag.py missing paths (77% -> 90%+)"""
@@ -266,7 +270,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, str) or result is None
 
         except ImportError:
-            pytest.skip("rag.simple_rag module not available")
+            require_feature("rag", reason=FEATURE_REASON)
 
     def test_unified_db_error_paths(self):
         """Покрытие core/food_apis/unified_db.py error paths (94% -> 97%+)"""
@@ -296,7 +300,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError:
-            pytest.skip("unified_db module not available")
+            require_feature("unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_update_manager_async_paths(self):
@@ -321,4 +325,4 @@ class TestQuickCoverageBoost:
                     logger.warning("update_database raised during quick coverage test: %s", exc)
 
         except ImportError:
-            pytest.skip("update_manager module not available")
+            require_feature("update_manager", reason=FEATURE_REASON)

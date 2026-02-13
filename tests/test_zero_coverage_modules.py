@@ -9,6 +9,10 @@ EN: Tests for modules with zero coverage
 import logging
 import pytest
 
+from tests.feature_manifest import require_feature
+
+FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
+
 
 class TestZeroCoverageModules:
     """Test modules that currently have 0% coverage."""
@@ -42,7 +46,7 @@ class TestZeroCoverageModules:
             assert isinstance(hydration, (float, int, type(None)))
 
         except ImportError:
-            pytest.skip("sports_nutrition module not available")
+            require_feature("sports_disclaimers_lifestage", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -87,7 +91,7 @@ class TestZeroCoverageModules:
             assert isinstance(shopping, (str, list, dict, type(None)))
 
         except ImportError:
-            pytest.skip("exports module not available")
+            require_feature("exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -141,7 +145,7 @@ class TestZeroCoverageModules:
             assert isinstance(substitutions, (list, type(None)))
 
         except ImportError:
-            pytest.skip("recipe_synth module not available")
+            require_feature("exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -187,7 +191,7 @@ class TestZeroCoverageModules:
             assert isinstance(comparison, (dict, list, type(None)))
 
         except ImportError:
-            pytest.skip("product_finder module not available")
+            require_feature("exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -236,7 +240,7 @@ class TestZeroCoverageModules:
             assert isinstance(nutrition_analysis, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("product_varieties module not available")
+            require_feature("exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -272,7 +276,7 @@ class TestZeroCoverageModules:
             assert isinstance(meal_export, (str, type(None)))
 
         except ImportError:
-            pytest.skip("exports_simple module not available")
+            require_feature("exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -310,7 +314,7 @@ class TestZeroCoverageModules:
             assert isinstance(child, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("lifestage_nutrition module not available")
+            require_feature("sports_disclaimers_lifestage", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -342,7 +346,7 @@ class TestZeroCoverageModules:
             assert isinstance(liability, (str, type(None)))
 
         except ImportError:
-            pytest.skip("disclaimers module not available")
+            require_feature("sports_disclaimers_lifestage", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass

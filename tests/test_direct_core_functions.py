@@ -8,6 +8,10 @@ EN: Direct core function tests to improve coverage
 
 import pytest
 
+from tests.feature_manifest import require_feature
+
+FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
+
 
 class TestDirectCoreFunctions:
     """Direct tests of core functions to maximize coverage."""
@@ -42,7 +46,7 @@ class TestDirectCoreFunctions:
             assert isinstance(is_valid, (bool, type(None)))
 
         except ImportError:
-            pytest.skip("targets functions not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -94,7 +98,7 @@ class TestDirectCoreFunctions:
             assert isinstance(priority, (int, float, type(None)))
 
         except ImportError:
-            pytest.skip("auto_repair functions not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -138,7 +142,7 @@ class TestDirectCoreFunctions:
             assert isinstance(shopping_list, (list, dict, type(None)))
 
         except ImportError:
-            pytest.skip("menu_engine functions not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -182,7 +186,7 @@ class TestDirectCoreFunctions:
             assert isinstance(viz_data, (dict, list, type(None)))
 
         except ImportError:
-            pytest.skip("plate functions not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -231,7 +235,7 @@ class TestDirectCoreFunctions:
             assert isinstance(locale_info, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("i18n functions not available")
+            require_feature("i18n_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -273,7 +277,7 @@ class TestDirectCoreFunctions:
             assert isinstance(merged, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("food_sources functions not available")
+            require_feature("food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -317,7 +321,7 @@ class TestDirectCoreFunctions:
             add_knowledge("Protein is essential for muscle building and repair.")
 
         except ImportError:
-            pytest.skip("RAG functions not available")
+            require_feature("rag", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -350,7 +354,7 @@ class TestDirectCoreFunctions:
             assert db is not None or db is None
 
         except ImportError:
-            pytest.skip("db functions not available")
+            require_feature("core_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -393,7 +397,7 @@ class TestDirectCoreFunctions:
             assert isinstance(foods, (list, dict, type(None)))
 
         except ImportError:
-            pytest.skip("region_catalog functions not available")
+            require_feature("region_catalog", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -438,6 +442,6 @@ class TestDirectCoreFunctions:
             assert isinstance(sanitized, (str, type(None)))
 
         except ImportError:
-            pytest.skip("utils functions not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass

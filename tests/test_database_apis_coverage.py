@@ -14,8 +14,12 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.feature_manifest import require_feature
+
 # Run these tests serially (not in parallel) to avoid xdist hang issues
 pytestmark = pytest.mark.serial
+
+FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
 
 
 class TestCoreDatabaseCoverage:
@@ -40,7 +44,7 @@ class TestCoreDatabaseCoverage:
             assert db is not None or db is None
 
         except ImportError:
-            pytest.skip("core.db module not available")
+            require_feature("core_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass  # Function may have requirements we can't meet
 
@@ -59,7 +63,7 @@ class TestCoreDatabaseCoverage:
                 assert result is not None or result is None
 
         except ImportError:
-            pytest.skip("food_apis.base module not available")
+            require_feature("food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -79,7 +83,7 @@ class TestCoreDatabaseCoverage:
                     assert isinstance(result, (dict, list, type(None)))
 
         except ImportError:
-            pytest.skip("usda module not available")
+            require_feature("food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -99,7 +103,7 @@ class TestCoreDatabaseCoverage:
                     assert isinstance(result, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("openfoodfacts module not available")
+            require_feature("food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -121,7 +125,7 @@ class TestCoreDatabaseCoverage:
             assert isinstance(result, (list, dict, type(None)))
 
         except ImportError:
-            pytest.skip("unified_db module not available")
+            require_feature("unified_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -148,7 +152,7 @@ class TestCoreDatabaseCoverage:
             assert isinstance(updates, (bool, dict, list, type(None)))
 
         except ImportError:
-            pytest.skip("update_manager module not available")
+            require_feature("update_manager", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -183,7 +187,7 @@ class TestCoreModulesAdvanced:
             assert isinstance(score, (int, float, type(None)))
 
         except ImportError:
-            pytest.skip("auto_repair advanced features not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -214,7 +218,7 @@ class TestCoreModulesAdvanced:
             assert isinstance(is_valid, (bool, dict, type(None)))
 
         except ImportError:
-            pytest.skip("menu_engine advanced features not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -241,7 +245,7 @@ class TestCoreModulesAdvanced:
             assert isinstance(improvements, (list, dict, type(None)))
 
         except ImportError:
-            pytest.skip("plate advanced features not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -272,7 +276,7 @@ class TestCoreModulesAdvanced:
             assert isinstance(is_valid, (bool, dict, type(None)))
 
         except ImportError:
-            pytest.skip("targets advanced features not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -303,7 +307,7 @@ class TestCoreModulesAdvanced:
             assert isinstance(formatted, (str, type(None)))
 
         except ImportError:
-            pytest.skip("i18n advanced features not available")
+            require_feature("i18n_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -330,6 +334,6 @@ class TestCoreModulesAdvanced:
             assert isinstance(results, (list, type(None)))
 
         except ImportError:
-            pytest.skip("RAG advanced features not available")
+            require_feature("rag", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
