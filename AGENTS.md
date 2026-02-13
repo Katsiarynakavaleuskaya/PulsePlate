@@ -65,6 +65,13 @@ Or individually:
   as **P0/P1** (technical debt priority; see Backlog Ledger Policy — not release
   P0-A/P0-B), with Owner, DoD, Target PR. Do not leave skipped checks untracked;
   "fix it or ledger it."
+- **sys.modules policy guard must never be skipped:** `tests/test_repo_policy_guards.py`
+  must run on-by-default; do not add `skip`/`xfail` wrappers to silence violations.
+- **If a temporary disable is unavoidable:** create a `docs/roadmap/BACKLOG_LEDGER.md`
+  entry (P0/P1) in the same PR with rationale, owner, and target PR to re-enable.
+- **Two-layer policy:** keep runtime guard enforcement in
+  `tests/test_repo_policy_guards.py`; keep incremental tests-cleanup tracking in
+  `tests/test_repo_policy_sys_modules.py`.
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
