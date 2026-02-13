@@ -9,6 +9,8 @@ EN: Combined tests for app coverage and unit tests: main.py coverage, groups, in
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.feature_manifest import FEATURE_REASON, require_feature
+
 try:
     # Validate app module can be imported
     import app  # noqa: F401
@@ -80,14 +82,14 @@ class TestAppUnitTests:
         assert isinstance(bmi_max, float)
         assert bmi_min < bmi_max
 
-    @pytest.mark.skip("interpret_group removed with bmi_core.py - no canonical equivalent yet")
     def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
+        require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
         pass
 
-    @pytest.mark.skip("estimate_level removed with bmi_core.py - no canonical equivalent yet")
     def test_estimate_level_categories(self) -> None:
         """Test estimate_level with different fitness experience levels."""
+        require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
         pass
 
     def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:

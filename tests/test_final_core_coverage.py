@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
+
 
 class TestFinalCoreCoverage:
     """Final tests to maximize core modules coverage."""
@@ -34,8 +36,8 @@ class TestFinalCoreCoverage:
                     result = usda.get_food_data("123")
                     assert isinstance(result, (dict, type(None)))
 
-        except ImportError:
-            pytest.skip("food sources not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -65,8 +67,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_category("fruit")
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            pytest.skip("food_categories not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -96,8 +98,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_nutrition_data({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except ImportError:
-            pytest.skip("nutrition_analysis not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -126,8 +128,8 @@ class TestFinalCoreCoverage:
             is_valid = validate_config({})
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            pytest.skip("config management not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -228,8 +230,8 @@ class TestFinalCoreCoverage:
             improvements = suggest_meal_improvements({})
             assert isinstance(improvements, (list, dict, type(None)))
 
-        except ImportError:
-            pytest.skip("menu_engine not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -258,8 +260,8 @@ class TestFinalCoreCoverage:
             priority = calculate_repair_priority({}, {})
             assert isinstance(priority, (int, float, type(None)))
 
-        except ImportError:
-            pytest.skip("auto_repair not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -290,8 +292,8 @@ class TestFinalCoreCoverage:
             recommendations = get_plate_recommendations({})
             assert isinstance(recommendations, (list, dict, type(None)))
 
-        except ImportError:
-            pytest.skip("plate not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -318,7 +320,7 @@ class TestFinalCoreCoverage:
             adjusted = adjust_for_activity_level({}, "high")
             assert isinstance(adjusted, (dict, type(None)))
 
-        except ImportError:
-            pytest.skip("targets not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
