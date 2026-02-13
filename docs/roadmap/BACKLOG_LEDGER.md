@@ -546,6 +546,72 @@ If it is not recorded here — it does not exist.
     - Remaining intentional skips are documented as product decisions
     - `make verify` passes in PR-732
 
+- [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-737
+  - Status: 📋 Planned (created in PR-736 docs-only; promoted from runtime snapshot on
+    13 February 2026)
+  - Area: backend / tests / feature debt management
+  - Finding Type: technical debt / optional-feature protocol
+  - Source of truth command:
+    - `pytest -q -rs | rg -n "SKIPPED \\[" || true`
+  - Feature TODO keys (aggregated from runtime SKIPPED):
+    - `core_db`: `tests/test_database_apis_coverage.py:43`,
+      `tests/test_direct_core_functions.py:353`
+    - `food_apis`: `tests/test_database_apis_coverage.py:62`,
+      `tests/test_database_apis_coverage.py:82`,
+      `tests/test_database_apis_coverage.py:102`
+    - `unified_db`: `tests/test_database_apis_coverage.py:124`,
+      `tests/test_final_coverage_97_boost.py:139`
+    - `update_manager`: `tests/test_database_apis_coverage.py:151`,
+      `tests/test_final_coverage_97_boost.py:167`,
+      `tests/test_final_coverage_97_boost.py:179`,
+      `tests/test_update_manager_fixed.py:129`
+    - `planner_engines`: `tests/test_direct_core_functions.py:45`,
+      `tests/test_direct_core_functions.py:97`,
+      `tests/test_direct_core_functions.py:141`,
+      `tests/test_direct_core_functions.py:185`,
+      `tests/test_final_core_coverage.py:232`,
+      `tests/test_final_core_coverage.py:262`,
+      `tests/test_final_core_coverage.py:294`,
+      `tests/test_final_core_coverage.py:322`
+    - `i18n_advanced`: `tests/test_database_apis_coverage.py:306`,
+      `tests/test_direct_core_functions.py:234`
+    - `rag`: `tests/test_database_apis_coverage.py:333`,
+      `tests/test_direct_core_functions.py:320`,
+      `tests/test_quick_coverage_boost.py:269`
+    - `region_catalog`: `tests/test_direct_core_functions.py:396`
+    - `exports_recipes_products`: `tests/test_zero_coverage_modules.py:90`,
+      `tests/test_zero_coverage_modules.py:144`,
+      `tests/test_zero_coverage_modules.py:190`,
+      `tests/test_zero_coverage_modules.py:239`,
+      `tests/test_zero_coverage_modules.py:275`
+    - `sports_disclaimers_lifestage`: `tests/test_zero_coverage_modules.py:45`,
+      `tests/test_zero_coverage_modules.py:313`,
+      `tests/test_zero_coverage_modules.py:345`
+    - `legacy_bmi_removed`: `tests/test_app_coverage_unit_combined.py:83`,
+      `tests/test_app_coverage_unit_combined.py:88`
+  - Protocol:
+    - Any runtime skip reason matching `module not available` /
+      `advanced features not available` MUST map to one feature key above.
+    - No ad-hoc skip reasons for optional modules in high-noise suites.
+    - Follow-up execution PR introduces `tests/feature_manifest.py` and a shared
+      `require_feature(...)` helper for standardized skip reasons.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `tests/test_database_apis_coverage.py`
+    - `tests/test_direct_core_functions.py`
+    - `tests/test_final_core_coverage.py`
+    - `tests/test_quick_coverage_boost.py`
+    - `tests/test_zero_coverage_modules.py`
+  - DoD:
+    - `tests/feature_manifest.py` exists with SoT feature keys and env opt-in
+      (`PULSEPLATE_FEATURES=all` or CSV list).
+    - High-noise suites use shared helper instead of custom ad-hoc skip strings.
+    - Runtime `pytest -q -rs` output shows standardized skip reasons with feature keys.
+    - Feature keys in tests and ledger remain one-to-one mapped.
+
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)
