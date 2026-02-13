@@ -268,7 +268,13 @@ def test_no_bmi_thresholds_outside_core() -> None:
     to prevent hardcoded thresholds outside core/bmi/risk.py.
     """
     hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
-    hits = [h for h in hits if _GUARD_WHR_SKIP_TEMP_BASENAME not in h]
+    filtered_hits: list[str] = []
+    for hit in hits:
+        path_part = hit.split(":", 1)[0]
+        if os.path.basename(path_part) == _GUARD_WHR_SKIP_TEMP_BASENAME:
+            continue
+        filtered_hits.append(hit)
+    hits = filtered_hits
     assert not hits, (
         "BMI thresholds found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)
