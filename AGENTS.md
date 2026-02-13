@@ -62,8 +62,9 @@ Or individually:
 - **Bad skip:** Skipping a check or test to get green without fixing the root cause,
   or without documenting why and where it is tracked.
 - **Hard rule:** Any **bad skip** MUST be recorded in `docs/roadmap/BACKLOG_LEDGER.md`
-  as **P0** (release/invariant blocker) or **P1** (high-priority debt), with Owner,
-  DoD, Target PR. Do not leave skipped checks untracked; "fix it or ledger it."
+  as **P0/P1** (technical debt priority; see Backlog Ledger Policy — not release
+  P0-A/P0-B), with Owner, DoD, Target PR. Do not leave skipped checks untracked;
+  "fix it or ledger it."
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
@@ -266,7 +267,7 @@ python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pas
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
 
-### 5a) Docs Phase1 gates (audit/security markdown contract)
+### 5a) Docs Phase 1 gates (audit/security markdown contract)
 
 Run this locally for changed docs under `docs/audit/` or `docs/security/`:
 
@@ -1375,9 +1376,12 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 **Rationale:** Prevents "deferred → forgotten → resurfaces later" anti-pattern. Single source of truth for follow-up work.
 
-**Dependency floor / security guard:** Enforcement lives in the dependency
-security schema and guard test: `tests/test_dependency_security_guard.py` and
-`tests/fixtures/dependency_security_schema.json`.
+**Dependency floor / security guard:** The guard enforces minimum allowed
+package versions (version floors) and detection of explicitly blocked or
+vulnerable packages. Schema and enforcement live in
+`tests/test_dependency_security_guard.py` and
+`tests/fixtures/dependency_security_schema.json`. To raise a minimum version
+or allow a new dependency, update the schema and test expectations together.
 
 **Docs lint policy (markdownlint and ledger):**
 
@@ -1387,8 +1391,8 @@ dedicated markdownlint ignore configuration (e.g. `.markdownlint.json` →
 `ignores`); do not claim it is in effect until that config exists.
 
 Reason: the ledger is a long-lived, frequently edited checklist (URLs, DoD,
-fields). Running MD013 on it would cause constant reformatting and noisy diffs
-without improving readability. The exclusion keeps Docs Phase 1 gates green when
+fields). Running MD013 (markdownlint line-length rule) on it would cause
+constant reformatting and noisy diffs without improving readability. The exclusion keeps Docs Phase 1 gates green when
 PRs touch the ledger. All other `*.md` files remain subject to markdownlint.
 
 Do not remove this exclusion without a product decision and a separate PR
