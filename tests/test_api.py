@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import NoReturn
 from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 from module_purge import purge_modules
 
@@ -172,7 +171,6 @@ def test_insight_import_failure(
     vip_headers: dict[str, str],
 ) -> None:
     """Test coverage for llm import exception in main.py."""
-    import app as app_mod
     import legacy_app
 
     def _raise_import_error() -> NoReturn:
@@ -180,10 +178,7 @@ def test_insight_import_failure(
 
     # Deterministic import-failure branch without sys.modules mutation.
     monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
-    # Force feature enabled to prevent early-return bypass via disabled check.
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-
-    client = TestClient(cast(ASGIApp, app_mod.app))
 
     response = client.post(
         "/api/v1/insight",
