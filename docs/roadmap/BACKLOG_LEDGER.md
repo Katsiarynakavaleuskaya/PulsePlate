@@ -549,7 +549,10 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-737
+  - Target PR: PR-738
+  - Reason for deferral: Runtime test suites currently surface optional-module skips with
+    ad-hoc strings; defer execution until PR-738 introduces `tests/feature_manifest.py` and
+    `require_feature(...)` to standardize skip reasons and keep ledger↔tests keys one-to-one.
   - Status: 📋 Planned (created in PR-736 docs-only; promoted from runtime snapshot on
     13 February 2026)
   - Area: backend / tests / feature debt management
