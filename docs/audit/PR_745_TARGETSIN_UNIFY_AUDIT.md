@@ -2,6 +2,7 @@
 
 **Date:** 14 February 2026
 **PR:** 745 (planned)
+**Publication note:** This audit document is published as **PR #0** (documentation/audit phase), and **PR #745** is the subsequent implementation PR that will contain the actual code changes.
 **Type:** Backend contract remediation (P1, narrow scope)
 **Scope owner:** @katsiaryna_kavaleuskaya
 
