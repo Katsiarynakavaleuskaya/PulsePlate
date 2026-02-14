@@ -4,8 +4,6 @@ RU: Тесты для интеграции БД для дневного спис
 EN: Tests for day shopping list database integration.
 """
 
-import os
-from contextlib import contextmanager
 from datetime import date
 from types import ModuleType
 from typing import Any, AsyncGenerator, Generator
@@ -25,20 +23,6 @@ from tests._client import get_client
 TEST_USER_ID = 1
 
 
-@contextmanager
-def _temporary_database_use_async(value: str = "1") -> Generator[None, None, None]:
-    """Temporarily set DATABASE_USE_ASYNC and always restore previous value."""
-    previous_database_use_async = os.environ.get("DATABASE_USE_ASYNC")
-    os.environ["DATABASE_USE_ASYNC"] = value
-    try:
-        yield
-    finally:
-        if previous_database_use_async is None:
-            os.environ.pop("DATABASE_USE_ASYNC", None)
-        else:
-            os.environ["DATABASE_USE_ASYNC"] = previous_database_use_async
-
-
 def _reset_async_db_state() -> None:
     """Reset async DB globals to prevent leakage across tests."""
     async_engine = getattr(core_db, "_ASYNC_ENGINE", None)
@@ -55,18 +39,14 @@ def _reset_async_db_state() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _async_db_state_isolation() -> Generator[None, None, None]:
+def _async_db_state_isolation(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Isolate env + async DB globals per test to avoid xdist/order pollution."""
-    previous_database_use_async = os.environ.get("DATABASE_USE_ASYNC")
+    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
     _reset_async_db_state()
     try:
         yield
     finally:
         _reset_async_db_state()
-        if previous_database_use_async is None:
-            os.environ.pop("DATABASE_USE_ASYNC", None)
-        else:
-            os.environ["DATABASE_USE_ASYNC"] = previous_database_use_async
 
 
 def _get_async_session_local() -> Any:
@@ -75,18 +55,17 @@ def _get_async_session_local() -> Any:
     RU: core.db chitaet env dinamicheski, poetomu snachala vystavliaem env, potom initsializiruem engine.
     EN: core.db reads env dynamically, so set env first and then initialize async engine.
     """
-    with _temporary_database_use_async("1"):
-        # Force lazy async engine/sessionmaker initialization after env wiring.
-        core_db._get_async_engine()
-        session_local = getattr(core_db, "AsyncSessionLocal", None)
-        async_url = core_db._get_async_database_url()
-        assert session_local is not None, (
-            "AsyncSessionLocal is not configured. Expected core.db to expose AsyncSessionLocal "
-            "when DATABASE_USE_ASYNC=1. "
-            f"Resolved async_url={async_url!r}. "
-            "Fix core.db async wiring or ensure async deps are installed."
-        )
-        return session_local
+    # Force lazy async engine/sessionmaker initialization after env wiring.
+    core_db._get_async_engine()
+    session_local = getattr(core_db, "AsyncSessionLocal", None)
+    async_url = core_db._get_async_database_url()
+    assert session_local is not None, (
+        "AsyncSessionLocal is not configured. Expected core.db to expose AsyncSessionLocal "
+        "when DATABASE_USE_ASYNC=1. "
+        f"Resolved async_url={async_url!r}. "
+        "Fix core.db async wiring or ensure async deps are installed."
+    )
+    return session_local
 
 
 @pytest.fixture
@@ -191,11 +170,10 @@ async def test_fetch_day_plan_when_exists_in_db(
         session.add(day_plan)
         await session.commit()
 
-    with _temporary_database_use_async("1"):
-        response = client_with_pro_access.get(
-            f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
-            headers=pro_headers,
-        )
+    response = client_with_pro_access.get(
+        f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
+        headers=pro_headers,
+    )
 
     assert response.status_code == 200
     body = response.json()
