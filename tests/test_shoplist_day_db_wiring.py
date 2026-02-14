@@ -6,7 +6,7 @@ EN: Tests for day shopping list database integration.
 
 from datetime import date
 from types import ModuleType
-from typing import Any, AsyncGenerator, Generator
+from typing import TYPE_CHECKING, AsyncGenerator, Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +17,9 @@ from app.middleware.api_tiers import require_pro_tier
 from app.models import DayPlan, WeeklyPlan
 import core.db as core_db
 from core.models import User
-from tests._client import get_client
+
+if TYPE_CHECKING:  # pragma: no cover
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Test user ID used across all tests
 TEST_USER_ID = 1
@@ -49,7 +51,7 @@ def _async_db_state_isolation(monkeypatch: pytest.MonkeyPatch) -> Generator[None
         _reset_async_db_state()
 
 
-def _get_async_session_local() -> Any:
+def _get_async_session_local() -> "async_sessionmaker[AsyncSession]":
     """Resolve AsyncSessionLocal after forcing async DB env.
 
     RU: core.db chitaet env dinamicheski, poetomu snachala vystavliaem env, potom initsializiruem engine.
@@ -65,7 +67,7 @@ def _get_async_session_local() -> Any:
         f"Resolved async_url={async_url!r}. "
         "Fix core.db async wiring or ensure async deps are installed."
     )
-    return session_local
+    return cast("async_sessionmaker[AsyncSession]", session_local)
 
 
 @pytest.fixture
@@ -115,7 +117,7 @@ def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None
     # Override PRO tier to return dict with user_id (not just string)
     app_module.app.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
 
-    client = get_client()
+    client = TestClient(app_module.app)
     yield client
 
     # Cleanup: remove override after test
@@ -126,7 +128,6 @@ def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None
 async def test_fetch_day_plan_when_exists_in_db(
     client_with_pro_access: TestClient,
     test_user: User,
-    pro_headers: dict[str, str],
 ) -> None:
     """When day plan exists in DB, endpoint returns items without warnings."""
     # Seed DB with day plan
@@ -172,7 +173,6 @@ async def test_fetch_day_plan_when_exists_in_db(
 
     response = client_with_pro_access.get(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
-        headers=pro_headers,
     )
 
     assert response.status_code == 200
@@ -183,7 +183,7 @@ async def test_fetch_day_plan_when_exists_in_db(
 
 @pytest.mark.asyncio
 async def test_fetch_day_plan_when_not_in_db(
-    client_with_pro_access: TestClient, test_user: User, pro_headers: dict[str, str]
+    client_with_pro_access: TestClient, test_user: User
 ) -> None:
     """When no plan in DB, fetch_day_plan returns None → empty items + warning."""
     _ = test_user  # Ensure user exists for FK constraint
@@ -191,7 +191,6 @@ async def test_fetch_day_plan_when_not_in_db(
 
     r = client_with_pro_access.get(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
-        headers=pro_headers,
     )
     assert r.status_code == 200
     body = r.json()
