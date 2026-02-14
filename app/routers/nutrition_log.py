@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.middleware.api_tiers import CurrentUser, get_current_user, require_pro_tier
+from app.openapi.orm_imports import get_nutrition_event_model
 from app.routers.bayes_adherence import get_adherence_service
 from app.schemas.bayes_adherence import AdherenceResponse
 from app.schemas.nutrition_log import DayCloseRequest, MealLogRequest
@@ -24,8 +25,8 @@ from core.bayes.adherence_service import AdherenceService
 from core.db import get_session
 
 if TYPE_CHECKING:
-    # Import for type checking only (avoid import-time ORM side effects during OpenAPI generation).
-    from app.models import NutritionEvent
+    # Static-only import for precise typing; runtime keeps lazy ORM resolution.
+    from app.models import NutritionEvent as NutritionEventModel
 
 router = APIRouter(
     prefix="/api/v1/pro/nutrition",
@@ -67,9 +68,9 @@ def _is_idempotency_violation(err: IntegrityError) -> bool:
 
 def _fetch_existing_event(
     session: Session, subject_id: int, day: date, source: str, client_event_id: str
-) -> NutritionEvent | None:
+) -> "NutritionEventModel" | None:
     # Lazy import: avoid ORM model import at module import time (OpenAPI generation path).
-    from app.models import NutritionEvent as NutritionEventModel
+    NutritionEventModel = get_nutrition_event_model()
 
     stmt = (
         select(NutritionEventModel)
@@ -88,7 +89,7 @@ def _is_event_applied(payload: dict | None) -> bool:
     return bool(payload and payload.get("applied") is True)
 
 
-def _mark_event_applied(session: Session, event_record: NutritionEvent) -> None:
+def _mark_event_applied(session: Session, event_record: "NutritionEventModel") -> None:
     payload = dict(event_record.payload or {})
     if payload.get("applied") is True:
         return
@@ -170,9 +171,8 @@ async def log_meal(
     day = datetime.now(timezone.utc).date()
 
     # Write event to append-only log (idempotent if client_event_id provided)
-    event_record: NutritionEvent | None = None
-    # Lazy import: avoid ORM model import at module import time (OpenAPI generation path).
-    from app.models import NutritionEvent as NutritionEventModel
+    event_record: "NutritionEventModel" | None = None
+    NutritionEventModel = get_nutrition_event_model()
 
     event_payload = {
         "log_type": payload.log_type,
@@ -239,9 +239,8 @@ async def close_day(
     client_event_id = f"day-close:{day.isoformat()}"
 
     # Write day_closed event to append-only log (idempotent)
-    event_record: NutritionEvent | None = None
-    # Lazy import: avoid ORM model import at module import time (OpenAPI generation path).
-    from app.models import NutritionEvent as NutritionEventModel
+    event_record: "NutritionEventModel" | None = None
+    NutritionEventModel = get_nutrition_event_model()
 
     try:
         event_record = NutritionEventModel(
