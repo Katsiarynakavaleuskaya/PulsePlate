@@ -1568,7 +1568,8 @@ If it is not recorded here — it does not exist.
 
 - [ ] P2: Product decision for removed/non-canonical optional fields in skip tests
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-733
+  - Target PR: PR-749 (ui_labels contract), PR-733 (remaining fields)
+  - Status: 🟡 In progress (PR-749)
   - Priority: P2
   - Area: backend / product contract
   - Finding Type: intentional-scope decision
@@ -1576,7 +1577,7 @@ If it is not recorded here — it does not exist.
     - `tests/test_app_coverage_unit_combined.py:83`
     - `tests/test_app_coverage_unit_combined.py:88`
     - `tests/test_premium_targets_es_snapshots.py:453`
-  - Reason: `interpret_group` / `estimate_level` and optional `ui_labels` require product-contract decisions before code/test remediation.
+  - Reason: `ui_labels` contract is being promoted to required in PR-749; `interpret_group` / `estimate_level` still need explicit product-contract decisions.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `app/schemas/premium_contracts.py:109`

@@ -7,7 +7,6 @@ warnings, and UI labels for both male and female profiles.
 
 import pytest
 from fastapi.testclient import TestClient
-from tests.feature_manifest import FEATURE_REASON, fail_feature_gated_test, require_feature
 
 try:
     import app as app_mod  # type: ignore
@@ -400,7 +399,7 @@ class TestPremiumTargetsESSnapshots:
             assert all(micro in micros for micro in expected_micros)
 
     def test_ui_labels_spanish_consistency(self):
-        """Test that UI labels are consistently in Spanish (if present)"""
+        """Test that UI labels are consistently present and localized in Spanish."""
         payload = {
             "sex": "female",
             "age": 30,
@@ -418,41 +417,21 @@ class TestPremiumTargetsESSnapshots:
         assert resp.status_code == 200
 
         data = resp.json()
+        ui_labels = data.get("ui_labels")
+        assert isinstance(ui_labels, dict), "ui_labels must be a dict in response"
+        assert ui_labels, "ui_labels must be non-empty"
 
-        # Check if ui_labels is present in response
-        if "ui_labels" in data:
-            ui_labels = data["ui_labels"]
+        required_keys = {
+            "kcal_daily",
+            "macros_protein_g",
+            "macros_fat_g",
+            "macros_carbs_g",
+            "water_ml",
+            "priority_micros",
+            "activity_weekly",
+            "warnings",
+        }
+        missing = required_keys - set(ui_labels.keys())
+        assert not missing, f"ui_labels missing keys: {sorted(missing)}"
 
-            # Verify UI labels structure
-            assert isinstance(ui_labels, dict)
-            assert len(ui_labels) > 0
-
-            # Check that labels contain Spanish text
-            all_labels_text = " ".join(str(v) for v in ui_labels.values()).lower()
-
-            # Spanish indicators that should be present
-            spanish_indicators = [
-                "kcal",
-                "proteína",
-                "grasa",
-                "carbohidratos",
-                "fibra",
-                "agua",
-                "actividad",
-                "semanal",
-                "diario",
-                "mg",
-                "g",
-                "ml",
-            ]
-
-            # At least some Spanish indicators should be present
-            found_indicators = [ind for ind in spanish_indicators if ind in all_labels_text]
-            assert found_indicators, f"No Spanish indicators found in: {all_labels_text}"
-        else:
-            # Skip when feature is disabled; fail if enabled but still missing.
-            require_feature("ui_labels_contract", reason=FEATURE_REASON)
-            fail_feature_gated_test(
-                "ui_labels_contract",
-                reason="ui_labels missing from response while ui_labels_contract is enabled.",
-            )
+        assert ui_labels["kcal_daily"] == "Calorías diarias"

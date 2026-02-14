@@ -75,6 +75,8 @@ Or individually:
 - **Skip reason protocol:** Any skip caused by missing module/function/data MUST use
   `require_feature(...)` and emit `feature_disabled:<key>` (no ad-hoc skip strings).
   Applies to high-noise runtime coverage suites and similar optional-feature tests.
+- **UI labels contract policy:** UI response labels must live in schema-backed contracts (SoT)
+  and be asserted in snapshot tests; do not keep feature-gated skips after implementation.
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.

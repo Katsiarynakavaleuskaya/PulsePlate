@@ -67,7 +67,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "region_catalog",
         "shoplist_helpers",
         "targets_fixture_data",
-        "ui_labels_contract",
         "utils_pack",
         "weekly_plan_helpers",
         "exports_recipes_products",

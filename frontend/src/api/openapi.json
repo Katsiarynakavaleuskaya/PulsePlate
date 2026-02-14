@@ -5316,6 +5316,13 @@
             "title": "Priority Micros",
             "type": "object"
           },
+          "ui_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Ui Labels",
+            "type": "object"
+          },
           "warnings": {
             "items": {
               "additionalProperties": {
@@ -5337,7 +5344,8 @@
           "water_ml",
           "priority_micros",
           "activity_weekly",
-          "calculation_date"
+          "calculation_date",
+          "ui_labels"
         ],
         "title": "WHOTargetsResponse",
         "type": "object"

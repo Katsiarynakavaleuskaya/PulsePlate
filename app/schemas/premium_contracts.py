@@ -116,3 +116,4 @@ class WHOTargetsResponse(BaseModel):
     activity_weekly: Dict[str, int]
     calculation_date: str
     warnings: List[Dict[str, str]] = Field(default_factory=list)
+    ui_labels: Dict[str, str]

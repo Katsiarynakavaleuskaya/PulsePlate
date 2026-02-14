@@ -4953,6 +4953,10 @@ export interface components {
             priority_micros: {
                 [key: string]: number;
             };
+            /** Ui Labels */
+            ui_labels: {
+                [key: string]: string;
+            };
             /** Warnings */
             warnings?: {
                 [key: string]: string;

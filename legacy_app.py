@@ -4027,6 +4027,8 @@ def _fallback_targets_response(
         if not has_life_stage_warning:
             warnings.append({"code": "life_stage", "message": reason})
 
+    ui_labels = _build_targets_ui_labels(req.lang)
+
     return WHOTargetsResponse(
         kcal_daily=int(kcal_daily),
         macros={
@@ -4040,7 +4042,46 @@ def _fallback_targets_response(
         activity_weekly=activity_weekly,
         calculation_date=time.strftime("%Y-%m-%d"),
         warnings=warnings,
+        ui_labels=ui_labels,
     )
+
+
+def _build_targets_ui_labels(lang: str | None) -> dict[str, str]:
+    """Return deterministic UI labels for WHO targets response."""
+
+    language = str(lang or "en").lower()
+    if language == "es":
+        return {
+            "kcal_daily": "Calorías diarias",
+            "macros_protein_g": "Proteínas (g)",
+            "macros_fat_g": "Grasas (g)",
+            "macros_carbs_g": "Carbohidratos (g)",
+            "water_ml": "Agua (ml)",
+            "priority_micros": "Micronutrientes prioritarios",
+            "activity_weekly": "Actividad semanal",
+            "warnings": "Advertencias",
+        }
+    if language == "ru":
+        return {
+            "kcal_daily": "Ккал в день",
+            "macros_protein_g": "Белки (г)",
+            "macros_fat_g": "Жиры (г)",
+            "macros_carbs_g": "Углеводы (г)",
+            "water_ml": "Вода (мл)",
+            "priority_micros": "Приоритетные микроэлементы",
+            "activity_weekly": "Активность за неделю",
+            "warnings": "Предупреждения",
+        }
+    return {
+        "kcal_daily": "Daily calories",
+        "macros_protein_g": "Protein (g)",
+        "macros_fat_g": "Fat (g)",
+        "macros_carbs_g": "Carbs (g)",
+        "water_ml": "Water (ml)",
+        "priority_micros": "Priority micros",
+        "activity_weekly": "Weekly activity",
+        "warnings": "Warnings",
+    }
 
 
 def _generate_who_targets_response(
@@ -4162,6 +4203,7 @@ def _generate_who_targets_response(
             },
             calculation_date=targets.calculation_date,
             warnings=life_stage_warnings,
+            ui_labels=_build_targets_ui_labels(req.lang),
         )
     except HTTPException:
         raise
