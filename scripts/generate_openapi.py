@@ -60,23 +60,59 @@ def _pin_validation_error_schema(schema: dict[str, Any]) -> None:
     RU: Прибиваем поля ValidationError, чтобы OpenAPI артефакты фронта не дрейфовали.
     EN: Pin ValidationError fields so generated client artifacts do not drift.
     """
+
+    def _dev_assert(cond: bool, msg: str) -> None:
+        if cond:
+            return
+        # RU: В CI хотим ловить дрейф структуры OpenAPI рано.
+        # EN: In CI, fail fast on OpenAPI shape drift.
+        if os.environ.get("CI") == "true":
+            raise AssertionError(msg)
+
     components = schema.get("components")
     if not isinstance(components, dict):
+        _dev_assert(False, "OpenAPI schema missing components dict; cannot pin ValidationError.")
         return
     schemas = components.get("schemas")
     if not isinstance(schemas, dict):
+        _dev_assert(
+            False, "OpenAPI schema missing components.schemas dict; cannot pin ValidationError."
+        )
         return
 
     validation_error = schemas.get("ValidationError")
     if not isinstance(validation_error, dict):
+        _dev_assert(
+            False, "OpenAPI schema missing ValidationError object; cannot pin ValidationError."
+        )
         return
     properties = validation_error.get("properties")
     if not isinstance(properties, dict):
+        _dev_assert(
+            False,
+            "OpenAPI schema missing ValidationError.properties dict; cannot pin ValidationError.",
+        )
         return
 
     # Keep optional fields stable across generator changes.
-    properties.setdefault("ctx", {"title": "Context", "type": "object"})
-    properties.setdefault("input", {"title": "Input"})
+    # RU: Пинним ctx как "пустой object" для TS Record<string, never>.
+    # EN: Pin ctx as an empty object for TS Record<string, never>.
+    ctx = properties.get("ctx")
+    if not isinstance(ctx, dict):
+        ctx = {}
+        properties["ctx"] = ctx
+    ctx.setdefault("title", "Context")
+    ctx["type"] = "object"
+    ctx["additionalProperties"] = False
+
+    # RU: input также пинним как object, чтобы убрать неоднозначную генерацию.
+    # EN: Pin input as object to avoid ambiguous schema generation.
+    inp = properties.get("input")
+    if not isinstance(inp, dict):
+        inp = {}
+        properties["input"] = inp
+    inp.setdefault("title", "Input")
+    inp["type"] = "object"
 
 
 def normalize_openapi_schema(schema: dict[str, Any]) -> dict[str, Any]:

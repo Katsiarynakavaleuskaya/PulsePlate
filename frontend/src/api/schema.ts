@@ -4774,7 +4774,7 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
             /** Input */
-            input?: unknown;
+            input?: Record<string, never>;
             /** Location */
             loc: (string | number)[];
             /** Message */

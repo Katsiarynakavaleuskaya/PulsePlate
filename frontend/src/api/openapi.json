@@ -5055,11 +5055,13 @@
       "ValidationError": {
         "properties": {
           "ctx": {
+            "additionalProperties": false,
             "title": "Context",
             "type": "object"
           },
           "input": {
-            "title": "Input"
+            "title": "Input",
+            "type": "object"
           },
           "loc": {
             "items": {
