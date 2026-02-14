@@ -7,6 +7,7 @@ warnings, and UI labels for both male and female profiles.
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 try:
     import app as app_mod  # type: ignore
@@ -450,4 +451,4 @@ class TestPremiumTargetsESSnapshots:
             assert found_indicators, f"No Spanish indicators found in: {all_labels_text}"
         else:
             # Skip test if ui_labels is not present in current API
-            pytest.skip("ui_labels not present in current API response")
+            require_feature("ui_labels_contract", reason=FEATURE_REASON)

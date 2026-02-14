@@ -8,6 +8,7 @@ from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")
@@ -70,7 +71,7 @@ class TestMenuEngineNewCoverage:
 
             assert menu_engine_new is not None
         except ImportError:
-            pytest.skip("menu_engine_new not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
     def test_menu_engine_new_with_functions(self):
         """Test menu_engine_new functions."""
@@ -84,7 +85,7 @@ class TestMenuEngineNewCoverage:
             if hasattr(menu_engine_new, "make_weekly_menu"):
                 assert callable(menu_engine_new.make_weekly_menu)
         except ImportError:
-            pytest.skip("menu_engine_new not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
 
 class TestRecommendationsCoverage:
@@ -102,7 +103,7 @@ class TestRecommendationsCoverage:
             assert recommendations is not None
             assert isinstance(recommendations, dict)
         except (ImportError, TypeError):
-            pytest.skip("get_nutrient_recommendations not available or signature mismatch")
+            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
 
     def test_recommendations_all_activity_levels(self):
         """Test recommendations for all activity levels."""
@@ -116,7 +117,7 @@ class TestRecommendationsCoverage:
                 )
                 assert recommendations is not None
         except (ImportError, TypeError):
-            pytest.skip("get_nutrient_recommendations not available")
+            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
 
 
 class TestUnifiedDbCoverage:
@@ -136,7 +137,7 @@ class TestUnifiedDbCoverage:
             result = await search_unified_food("тест !@#")
             assert result is not None
         except ImportError:
-            pytest.skip("unified_db not available")
+            require_feature("unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_unified_db_language_support(self):
@@ -149,7 +150,7 @@ class TestUnifiedDbCoverage:
                 result = await search_unified_food("apple", language=lang)
                 assert result is not None
         except (ImportError, TypeError):
-            pytest.skip("unified_db language support not available")
+            require_feature("unified_db_language", reason=FEATURE_REASON)
 
 
 class TestUpdateManagerCoverage:
@@ -164,7 +165,7 @@ class TestUpdateManagerCoverage:
             scheduler = DatabaseUpdateScheduler()
             assert scheduler is not None
         except ImportError:
-            pytest.skip("DatabaseUpdateScheduler not available")
+            require_feature("update_scheduler", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_update_manager_status_check(self):
@@ -176,7 +177,7 @@ class TestUpdateManagerCoverage:
             assert status is not None
             assert isinstance(status, dict)
         except (ImportError, TypeError):
-            pytest.skip("get_update_status not available")
+            require_feature("update_scheduler", reason=FEATURE_REASON)
 
 
 class TestAppEndpointsCoverage:

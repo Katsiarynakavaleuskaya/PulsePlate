@@ -51,17 +51,32 @@ class FeatureManifest:
 # Canonical feature TODO keys (must match BACKLOG_LEDGER item; one-to-one mapping).
 FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
     {
+        "coverage_boost_main_entrypoint",
         "core_db",
         "food_apis",
+        "food_apis_error_injection",
+        "main_entrypoint",
         "unified_db",
+        "unified_db_language",
+        "update_scheduler",
         "update_manager",
+        "update_manager_path_attrs",
         "planner_engines",
+        "premium_week_planner",
+        "premium_week_router_mocking",
         "i18n_advanced",
         "rag",
         "region_catalog",
+        "shoplist_helpers",
+        "shoplist_weekly_helpers",
+        "targets_fixture_data",
+        "ui_labels_contract",
+        "utils_pack",
+        "weekly_plan_helpers",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",
         "legacy_bmi_removed",
+        "nutrient_recommendations",
     }
 )
 

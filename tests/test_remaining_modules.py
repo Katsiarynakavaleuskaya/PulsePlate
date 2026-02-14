@@ -10,6 +10,7 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class TestShoplistModule:
             assert rule.rounding_strategy == "up"
 
         except ImportError:
-            pytest.skip("shoplist module not available")
+            require_feature("shoplist_helpers", reason=FEATURE_REASON)
 
     def test_shopping_item_class(self):
         """Test ShoppingItem dataclass."""
@@ -51,7 +52,7 @@ class TestShoplistModule:
             assert item.unit == "g"
 
         except ImportError:
-            pytest.skip("shoplist module not available")
+            require_feature("shoplist_helpers", reason=FEATURE_REASON)
 
     def test_shoplist_functions(self):
         """Test shoplist utility functions."""
@@ -89,7 +90,7 @@ class TestShoplistModule:
             assert isinstance(grouped, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("shoplist functions not available")
+            require_feature("shoplist_helpers", reason=FEATURE_REASON)
 
 
 class TestWeeklyPlanModule:
@@ -112,7 +113,7 @@ class TestWeeklyPlanModule:
                         assert isinstance(plan, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("weekly_plan module not available")
+            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("generate_weekly_plan raised during test: %s", exc)
 
@@ -135,7 +136,7 @@ class TestWeeklyPlanModule:
                         assert isinstance(plan, (dict, type(None)))
 
         except ImportError:
-            pytest.skip("weekly_plan module not available")
+            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("generate_weekly_plan with diet flags raised: %s", exc)
 
@@ -168,7 +169,7 @@ class TestWeeklyPlanModule:
             assert isinstance(is_valid, (bool, type(None)))
 
         except ImportError:
-            pytest.skip("weekly_plan helper functions not available")
+            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("weekly_plan helper functions raised: %s", exc)
 
@@ -215,7 +216,7 @@ class TestUtilsModule:
             assert isinstance(slug, (str, type(None)))
 
         except ImportError:
-            pytest.skip("utils module not available")
+            require_feature("utils_pack", reason=FEATURE_REASON)
 
     def test_additional_utils(self):
         """Test additional utility functions."""
@@ -254,7 +255,7 @@ class TestUtilsModule:
             assert isinstance(formatted, (str, type(None)))
 
         except ImportError:
-            pytest.skip("additional utils not available")
+            require_feature("utils_pack", reason=FEATURE_REASON)
 
 
 class TestTimeUtilsModule:
@@ -302,4 +303,4 @@ class TestTimeUtilsModule:
             assert isinstance(is_valid, (bool, type(None)))
 
         except ImportError:
-            pytest.skip("time_utils module not available")
+            require_feature("utils_pack", reason=FEATURE_REASON)

@@ -10,6 +10,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
+from tests.feature_manifest import FEATURE_REASON, require_feature
+
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 from core.food_apis.unified_db import UnifiedFoodDatabase
 
@@ -300,12 +302,10 @@ class TestFoodAPIsUpdatePipeline:
                     if result.success:
                         assert result.records_updated == 0
 
-    @pytest.mark.skip(
-        reason="Error injection doesn't trigger expected warning - robust error handling"
-    )
     @pytest.mark.asyncio
     async def test_update_usda_database_old_data_load_error(self, update_manager):
         """Test _update_usda_database with old data load error (lines 341-342)."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock current version
         current_version = type(
             "Version", (), {"checksum": "old_checksum", "timestamp": "2023-01-01T00:00:00Z"}
@@ -328,12 +328,10 @@ class TestFoodAPIsUpdatePipeline:
                             mock_logger.warning.call_args
                         )
 
-    @pytest.mark.skip(
-        reason="Error injection doesn't produce expected failure - robust error handling"
-    )
     @pytest.mark.asyncio
     async def test_update_usda_database_general_error(self, update_manager):
         """Test _update_usda_database with general error (lines 381-382)."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock USDAClient to raise exception
         with patch(
             "core.food_apis.update_manager.USDAClient",
@@ -348,12 +346,10 @@ class TestFoodAPIsUpdatePipeline:
                 mock_logger.error.assert_called()
                 assert "Error updating usda database" in str(mock_logger.error.call_args)
 
-    @pytest.mark.skip(
-        reason="Error injection doesn't produce expected failure - robust error handling"
-    )
     @pytest.mark.asyncio
     async def test_update_off_database_error_during_processing(self, update_manager):
         """Test _update_off_database with processing error (line 430)."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
             with patch("core.food_apis.update_manager.OFFClient") as mock_off:
                 # Mock OFFClient to return some data
@@ -393,10 +389,10 @@ class TestUnifiedFoodDatabase:
             # Should handle missing OFF gracefully
             assert unified_db.off_client is None
 
-    @pytest.mark.skip(reason="Mock doesn't properly prevent exception propagation")
     @pytest.mark.asyncio
     async def test_search_foods_usda_error_fallback(self, unified_db):
         """Test search_foods with USDA error falling back to cache (line 115-134)."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock USDA client to raise exception
         with patch.object(
             unified_db.usda_client, "search_foods", side_effect=Exception("USDA API error")
@@ -413,10 +409,10 @@ class TestUnifiedFoodDatabase:
             assert len(result) == 1
             assert result[0].name == "Cached Food"
 
-    @pytest.mark.skip(reason="get_food_by_id method signature issue")
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db):
         """Test get_food_by_id with cache load error (line 190-224)."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Create invalid cache file
         cache_file = unified_db.cache_dir / "food_cache.json"
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -434,10 +430,10 @@ class TestUnifiedFoodDatabase:
             assert result is not None
             assert result.name == "Test Food"
 
-    @pytest.mark.skip(reason="get_food_by_id method signature issue")
     @pytest.mark.asyncio
     async def test_get_food_by_id_all_sources_fail(self, unified_db):
         """Test get_food_by_id when all sources fail."""
+        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock all clients to return None/raise exceptions
         with patch.object(unified_db.usda_client, "get_food_details", return_value=None):
             with patch("core.food_apis.unified_db.OFF_AVAILABLE", True):

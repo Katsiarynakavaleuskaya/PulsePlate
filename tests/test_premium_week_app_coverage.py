@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 from app import app
 
@@ -38,7 +39,7 @@ class TestPremiumWeekAppCoverage:
         """Test when make_weekly_menu is not available (503 error)."""
         # Skip this test for now - mocking is complex with FastAPI
         # The function is imported at module level and hard to mock
-        pytest.skip("Mocking make_weekly_menu is complex with FastAPI")
+        require_feature("premium_week_router_mocking", reason=FEATURE_REASON)
 
     def test_api_weekly_menu_success(self):
         """Test successful weekly menu generation."""
@@ -84,7 +85,7 @@ class TestPremiumWeekAppCoverage:
         """Test exception handling in weekly menu generation."""
         # Skip this test for now - mocking is complex with FastAPI
         # The function is imported at module level and hard to mock
-        pytest.skip("Mocking make_weekly_menu is complex with FastAPI")
+        require_feature("premium_week_router_mocking", reason=FEATURE_REASON)
 
     def test_api_weekly_menu_with_optional_fields(self):
         """Test with optional fields like deficit_pct, surplus_pct, bodyfat, life_stage."""
