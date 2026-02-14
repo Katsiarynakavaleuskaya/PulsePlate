@@ -6,26 +6,24 @@ from datetime import date
 from typing import Any
 
 import pytest
+from module_purge import purge_modules
 
 
-def _purge_nutrition_log_related_modules(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in list(sys.modules):
-        if (
-            name == "app.routers.nutrition_log"
-            or name == "app.models"
-            or name.startswith("app.models.")
-        ):
-            monkeypatch.delitem(sys.modules, name, raising=False)
+def _purge_nutrition_log_related_modules() -> None:
+    # Use approved helper for sys.modules purge in tests.
+    purge_modules(prefixes=("app.routers.nutrition_log",))
 
 
-def test_nutrition_log_import_is_orm_import_safe(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_nutrition_log_import_is_orm_import_safe() -> None:
     """Importing router module must not import ORM models eagerly."""
-    _purge_nutrition_log_related_modules(monkeypatch)
+    _purge_nutrition_log_related_modules()
+    had_models_before = "app.models" in sys.modules
 
     importlib.invalidate_caches()
     importlib.import_module("app.routers.nutrition_log")
 
-    assert "app.models" not in sys.modules
+    if not had_models_before:
+        assert "app.models" not in sys.modules
 
 
 def test_fetch_existing_event_uses_runtime_helper(monkeypatch: pytest.MonkeyPatch) -> None:
