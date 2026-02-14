@@ -42,6 +42,7 @@ Target outcome:
 1. Find canonical import/use footprint
 
 - Command:
+  <!-- markdownlint-disable-next-line MD013 -->
   - `rg -n "from\\s+app\\.schemas\\.nutrition_targets\\s+import\\s+TargetsIn|nutrition_targets\\.TargetsIn|TargetsIn\\(" --glob "*.py"`
 - Raw output (excerpt):
   - `legacy_app.py:73:from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn`
