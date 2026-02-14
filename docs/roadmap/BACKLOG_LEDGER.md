@@ -499,11 +499,14 @@ If it is not recorded here — it does not exist.
     - Guard remains deterministic under xdist and normal pytest runs
     - `make verify` passes in PR-732
 
-- [ ] P1: Async SQLAlchemy wiring for day shoplist tests
+- [x] P1: Async SQLAlchemy wiring for day shoplist tests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-731
-  - Status: 📋 Planned (promoted by PR-728 audit)
+  - Target PR: PR-742
+  - Status: ✅ Merged (PR-742, 2026-02-14)
+  - Resolution note: Removed async-config SKIPs; isolated `DATABASE_USE_ASYNC` via
+    `monkeypatch`; reset async engine/session globals to prevent cross-test leakage;
+    xdist validated on the target suite.
   - Area: backend / tests / infra
   - Finding Type: quality / infrastructure determinism
   - Locations:
@@ -515,11 +518,16 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `core/db.py:613`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/742`
+  - Evidence (2026-02-14):
+    - `rg -n "Async SQLAlchemy not configured" tests` -> no matches
+    - `rg -n "reload\\(core\\.db\\)|importlib\\.reload\\(core\\.db\\)" tests`
+      -> no runtime matches
+    - `pytest -q -n auto tests/test_shoplist_day_db_wiring.py` -> PASS
   - DoD:
-    - Async DB test matrix is explicit and deterministic in test config
-    - No `Async SQLAlchemy not configured` skips remain for this suite
-    - Fail-fast diagnostics are clear when environment is invalid
-    - `make verify` passes in PR-731
+    - ✅ No async-config SKIPs
+    - ✅ xdist PASS on target suite
+    - ✅ No `core.db` reload
 
 - [ ] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
   - Owner: @katsiaryna_kavaleuskaya
