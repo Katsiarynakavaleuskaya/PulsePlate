@@ -7,7 +7,7 @@ EN: PRO nutrition logging endpoints that feed the adherence micro-model.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -23,6 +23,10 @@ from app.schemas.nutrition_log import DayCloseRequest, MealLogRequest
 from core.bayes.adherence_adapter import DomainEvent
 from core.bayes.adherence_service import AdherenceService
 from core.db import get_session
+
+if TYPE_CHECKING:
+    # Static-only import for precise typing; runtime keeps lazy ORM resolution.
+    from app.models import NutritionEvent as NutritionEventModel
 
 router = APIRouter(
     prefix="/api/v1/pro/nutrition",
@@ -64,7 +68,7 @@ def _is_idempotency_violation(err: IntegrityError) -> bool:
 
 def _fetch_existing_event(
     session: Session, subject_id: int, day: date, source: str, client_event_id: str
-) -> Any | None:
+) -> "NutritionEventModel" | None:
     # Lazy import: avoid ORM model import at module import time (OpenAPI generation path).
     NutritionEventModel = get_nutrition_event_model()
 
@@ -85,7 +89,7 @@ def _is_event_applied(payload: dict | None) -> bool:
     return bool(payload and payload.get("applied") is True)
 
 
-def _mark_event_applied(session: Session, event_record: Any) -> None:
+def _mark_event_applied(session: Session, event_record: "NutritionEventModel") -> None:
     payload = dict(event_record.payload or {})
     if payload.get("applied") is True:
         return
@@ -167,7 +171,7 @@ async def log_meal(
     day = datetime.now(timezone.utc).date()
 
     # Write event to append-only log (idempotent if client_event_id provided)
-    event_record: Any | None = None
+    event_record: "NutritionEventModel" | None = None
     NutritionEventModel = get_nutrition_event_model()
 
     event_payload = {
@@ -235,7 +239,7 @@ async def close_day(
     client_event_id = f"day-close:{day.isoformat()}"
 
     # Write day_closed event to append-only log (idempotent)
-    event_record: Any | None = None
+    event_record: "NutritionEventModel" | None = None
     NutritionEventModel = get_nutrition_event_model()
 
     try:
