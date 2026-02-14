@@ -412,6 +412,9 @@ def _iter_repo_py_files_for_ast_scan(root: Path) -> Iterable[Path]:
     for p in root.rglob("*.py"):
         if any(part in SKIP_DIRS_FOR_AST_SCAN for part in p.parts):
             continue
+        if not p.exists():
+            # CI TOCTOU safety: transient files can disappear between discovery and scan.
+            continue
         paths.append(p)
     yield from sorted(paths, key=lambda x: x.as_posix())
 
@@ -634,6 +637,11 @@ def _scan_file_ast(path: Path) -> list[_AstViolation]:
         return []
     try:
         src = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        rel = _rel(path)
+        if any(pattern.match(rel) for pattern in _TRANSIENT_POLICY_SCAN_PATHS):
+            return []
+        raise
     except UnicodeDecodeError:
         return []
     try:
