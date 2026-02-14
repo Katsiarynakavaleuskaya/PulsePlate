@@ -164,8 +164,8 @@ class TestUpdateManagerCoverage:
 
             scheduler = DatabaseUpdateScheduler()
             assert scheduler is not None
-        except ImportError:
-            require_feature("update_scheduler", reason=FEATURE_REASON)
+        except ImportError as exc:
+            pytest.fail(f"DatabaseUpdateScheduler import must be available: {exc}")
 
     @pytest.mark.asyncio
     async def test_update_manager_status_check(self) -> None:
@@ -176,8 +176,8 @@ class TestUpdateManagerCoverage:
             status = await get_update_status()
             assert status is not None
             assert isinstance(status, dict)
-        except (ImportError, TypeError):
-            require_feature("update_scheduler", reason=FEATURE_REASON)
+        except (ImportError, TypeError) as exc:
+            pytest.fail(f"get_update_status must be available and callable: {exc}")
 
 
 class TestAppEndpointsCoverage:

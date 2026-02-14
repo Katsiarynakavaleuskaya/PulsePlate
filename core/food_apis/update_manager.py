@@ -1037,6 +1037,29 @@ async def run_scheduled_update(
     return results
 
 
+async def get_update_status() -> dict[str, object]:
+    """
+    Async wrapper returning current scheduler status.
+
+    Deterministic and side-effect free:
+    - does not start background updates
+    - does not mutate scheduler state
+    """
+    from .scheduler import get_update_scheduler
+
+    scheduler = await get_update_scheduler()
+    return scheduler.get_status()
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy re-export of scheduler API to avoid import cycle at module import time."""
+    if name in {"DatabaseUpdateScheduler", "get_update_scheduler"}:
+        from . import scheduler as scheduler_mod
+
+        return getattr(scheduler_mod, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 if __name__ == "__main__":  # pragma: no cover
     # Test the update manager
     async def test_update_manager():

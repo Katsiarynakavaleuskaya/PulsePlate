@@ -57,7 +57,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "main_entrypoint",
         "unified_db",
         "unified_db_language",
-        "update_scheduler",
         "update_manager",
         "update_manager_path_attrs",
         "planner_engines",
