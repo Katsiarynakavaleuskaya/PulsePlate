@@ -18,6 +18,7 @@
 - Never mock `builtins.__import__` or `builtins.float`.
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
+- Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
 
 ### Module purge / reload invariant (xdist stability)
 
