@@ -46,7 +46,7 @@ class TestTargetsCoverage97:
         priority_nutrients = self.targets.get_priority_nutrients()
         assert isinstance(priority_nutrients, dict)
 
-    def test_get_target_valid_nutrient(self):
+    def test_get_target_valid_nutrient(self) -> None:
         """Test get_target with valid nutrient."""
         # Test with a nutrient that should exist
         try:
@@ -61,7 +61,7 @@ class TestTargetsCoverage97:
                 # If no nutrients exist, skip this test
                 require_feature("targets_fixture_data", reason=FEATURE_REASON)
 
-    def test_get_minimum_valid_nutrient(self):
+    def test_get_minimum_valid_nutrient(self) -> None:
         """Test get_minimum with valid nutrient."""
         try:
             result = self.targets.get_minimum("calcium")
@@ -73,7 +73,7 @@ class TestTargetsCoverage97:
             except ValueError:
                 require_feature("targets_fixture_data", reason=FEATURE_REASON)
 
-    def test_get_maximum_valid_nutrient(self):
+    def test_get_maximum_valid_nutrient(self) -> None:
         """Test get_maximum with valid nutrient."""
         try:
             result = self.targets.get_maximum("calcium")
@@ -85,7 +85,7 @@ class TestTargetsCoverage97:
             except ValueError:
                 require_feature("targets_fixture_data", reason=FEATURE_REASON)
 
-    def test_is_deficient_true(self):
+    def test_is_deficient_true(self) -> None:
         """Test is_deficient with deficient value."""
         try:
             # Test with a very low value that should be deficient
@@ -98,7 +98,7 @@ class TestTargetsCoverage97:
             except ValueError:
                 require_feature("targets_fixture_data", reason=FEATURE_REASON)
 
-    def test_is_deficient_false(self):
+    def test_is_deficient_false(self) -> None:
         """Test is_deficient with sufficient value."""
         try:
             # Test with a high value that should not be deficient

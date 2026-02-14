@@ -303,7 +303,9 @@ class TestFoodAPIsUpdatePipeline:
                         assert result.records_updated == 0
 
     @pytest.mark.asyncio
-    async def test_update_usda_database_old_data_load_error(self, update_manager):
+    async def test_update_usda_database_old_data_load_error(
+        self, update_manager: DatabaseUpdateManager
+    ) -> None:
         """Test _update_usda_database with old data load error (lines 341-342)."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock current version
@@ -329,7 +331,9 @@ class TestFoodAPIsUpdatePipeline:
                         )
 
     @pytest.mark.asyncio
-    async def test_update_usda_database_general_error(self, update_manager):
+    async def test_update_usda_database_general_error(
+        self, update_manager: DatabaseUpdateManager
+    ) -> None:
         """Test _update_usda_database with general error (lines 381-382)."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock USDAClient to raise exception
@@ -347,7 +351,9 @@ class TestFoodAPIsUpdatePipeline:
                 assert "Error updating usda database" in str(mock_logger.error.call_args)
 
     @pytest.mark.asyncio
-    async def test_update_off_database_error_during_processing(self, update_manager):
+    async def test_update_off_database_error_during_processing(
+        self, update_manager: DatabaseUpdateManager
+    ) -> None:
         """Test _update_off_database with processing error (line 430)."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
@@ -390,7 +396,7 @@ class TestUnifiedFoodDatabase:
             assert unified_db.off_client is None
 
     @pytest.mark.asyncio
-    async def test_search_foods_usda_error_fallback(self, unified_db):
+    async def test_search_foods_usda_error_fallback(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test search_foods with USDA error falling back to cache (line 115-134)."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock USDA client to raise exception
@@ -410,7 +416,7 @@ class TestUnifiedFoodDatabase:
             assert result[0].name == "Cached Food"
 
     @pytest.mark.asyncio
-    async def test_get_food_by_id_cache_load_error(self, unified_db):
+    async def test_get_food_by_id_cache_load_error(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id with cache load error (line 190-224)."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Create invalid cache file
@@ -431,7 +437,7 @@ class TestUnifiedFoodDatabase:
             assert result.name == "Test Food"
 
     @pytest.mark.asyncio
-    async def test_get_food_by_id_all_sources_fail(self, unified_db):
+    async def test_get_food_by_id_all_sources_fail(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id when all sources fail."""
         require_feature("food_apis_error_injection", reason=FEATURE_REASON)
         # Mock all clients to return None/raise exceptions

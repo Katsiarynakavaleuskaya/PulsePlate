@@ -10,7 +10,7 @@ import logging
 from unittest.mock import patch
 
 import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,8 @@ class TestShoplistModule:
             assert rule.typical_packages == [100, 250, 500, 1000]
             assert rule.rounding_strategy == "up"
 
-        except ImportError:
-            require_feature("shoplist_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
 
     def test_shopping_item_class(self):
         """Test ShoppingItem dataclass."""
@@ -51,8 +51,8 @@ class TestShoplistModule:
             assert item.quantity == 500.0
             assert item.unit == "g"
 
-        except ImportError:
-            require_feature("shoplist_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
 
     def test_shoplist_functions(self):
         """Test shoplist utility functions."""
@@ -89,8 +89,8 @@ class TestShoplistModule:
             grouped = group_by_category(items)
             assert isinstance(grouped, (dict, type(None)))
 
-        except ImportError:
-            require_feature("shoplist_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
 
 
 class TestWeeklyPlanModule:
@@ -112,8 +112,8 @@ class TestWeeklyPlanModule:
                         plan = generate_weekly_plan(targets, set())
                         assert isinstance(plan, (dict, type(None)))
 
-        except ImportError:
-            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("generate_weekly_plan raised during test: %s", exc)
 
@@ -135,8 +135,8 @@ class TestWeeklyPlanModule:
                         plan = generate_weekly_plan(targets, diet_flags)
                         assert isinstance(plan, (dict, type(None)))
 
-        except ImportError:
-            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("generate_weekly_plan with diet flags raised: %s", exc)
 
@@ -168,8 +168,8 @@ class TestWeeklyPlanModule:
             is_valid = validate_weekly_plan(weekly_plan)
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            require_feature("weekly_plan_helpers", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
         except Exception as exc:
             logger.warning("weekly_plan helper functions raised: %s", exc)
 
@@ -215,8 +215,8 @@ class TestUtilsModule:
             slug = slugify(None)
             assert isinstance(slug, (str, type(None)))
 
-        except ImportError:
-            require_feature("utils_pack", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
 
     def test_additional_utils(self):
         """Test additional utility functions."""
@@ -254,8 +254,8 @@ class TestUtilsModule:
             formatted = format_number(1234.567)
             assert isinstance(formatted, (str, type(None)))
 
-        except ImportError:
-            require_feature("utils_pack", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
 
 
 class TestTimeUtilsModule:
@@ -302,5 +302,5 @@ class TestTimeUtilsModule:
             is_valid = is_valid_date("invalid")
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError:
-            require_feature("utils_pack", reason=FEATURE_REASON)
+        except ImportError as exc:
+            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
