@@ -69,6 +69,7 @@ from app.schemas.premium_contracts import (
     VisualShape,
     WHOTargetsRequest,
     WHOTargetsResponse,
+    WHOTargetsUiLabels,
 )
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
@@ -4046,42 +4047,49 @@ def _fallback_targets_response(
     )
 
 
-def _build_targets_ui_labels(lang: str | None) -> dict[str, str]:
-    """Return deterministic UI labels for WHO targets response."""
-
-    language = str(lang or "en").lower()
-    if language == "es":
-        return {
-            "kcal_daily": "Calorías diarias",
-            "macros_protein_g": "Proteínas (g)",
-            "macros_fat_g": "Grasas (g)",
-            "macros_carbs_g": "Carbohidratos (g)",
-            "water_ml": "Agua (ml)",
-            "priority_micros": "Micronutrientes prioritarios",
-            "activity_weekly": "Actividad semanal",
-            "warnings": "Advertencias",
-        }
-    if language == "ru":
-        return {
-            "kcal_daily": "Ккал в день",
-            "macros_protein_g": "Белки (г)",
-            "macros_fat_g": "Жиры (г)",
-            "macros_carbs_g": "Углеводы (г)",
-            "water_ml": "Вода (мл)",
-            "priority_micros": "Приоритетные микроэлементы",
-            "activity_weekly": "Активность за неделю",
-            "warnings": "Предупреждения",
-        }
-    return {
+_WHO_TARGETS_UI_LABELS_BY_LANG: dict[str, dict[str, str]] = {
+    "en": {
         "kcal_daily": "Daily calories",
         "macros_protein_g": "Protein (g)",
         "macros_fat_g": "Fat (g)",
         "macros_carbs_g": "Carbs (g)",
+        "macros_fiber_g": "Fiber (g)",
         "water_ml": "Water (ml)",
         "priority_micros": "Priority micros",
         "activity_weekly": "Weekly activity",
         "warnings": "Warnings",
-    }
+    },
+    "es": {
+        "kcal_daily": "Calorías diarias",
+        "macros_protein_g": "Proteínas (g)",
+        "macros_fat_g": "Grasas (g)",
+        "macros_carbs_g": "Carbohidratos (g)",
+        "macros_fiber_g": "Fibra (g)",
+        "water_ml": "Agua (ml)",
+        "priority_micros": "Micronutrientes prioritarios",
+        "activity_weekly": "Actividad semanal",
+        "warnings": "Advertencias",
+    },
+    "ru": {
+        "kcal_daily": "Ккал в день",
+        "macros_protein_g": "Белки (г)",
+        "macros_fat_g": "Жиры (г)",
+        "macros_carbs_g": "Углеводы (г)",
+        "macros_fiber_g": "Клетчатка (г)",
+        "water_ml": "Вода (мл)",
+        "priority_micros": "Приоритетные микроэлементы",
+        "activity_weekly": "Активность за неделю",
+        "warnings": "Предупреждения",
+    },
+}
+
+
+def _build_targets_ui_labels(lang: str | None) -> WHOTargetsUiLabels:
+    """Return deterministic UI labels for WHO targets response."""
+
+    language = str(lang or "en").lower()
+    labels = _WHO_TARGETS_UI_LABELS_BY_LANG.get(language, _WHO_TARGETS_UI_LABELS_BY_LANG["en"])
+    return WHOTargetsUiLabels(**labels)
 
 
 def _generate_who_targets_response(

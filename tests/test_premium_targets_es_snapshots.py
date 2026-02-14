@@ -9,11 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    import app as app_mod  # type: ignore
+    import app as app_mod
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app_mod.app)  # type: ignore
+client = TestClient(app_mod.app)
 
 
 class TestPremiumTargetsESSnapshots:
@@ -398,8 +398,11 @@ class TestPremiumTargetsESSnapshots:
         for micros in micro_values.values():
             assert all(micro in micros for micro in expected_micros)
 
-    def test_ui_labels_spanish_consistency(self):
+    def test_ui_labels_spanish_consistency(self, pro_headers: dict[str, str]) -> None:
         """Test that UI labels are consistently present and localized in Spanish."""
+        from app.main import app as main_app
+
+        pro_client = TestClient(main_app)
         payload = {
             "sex": "female",
             "age": 30,
@@ -411,10 +414,9 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        resp = pro_client.post("/api/v1/pro/nutrition/targets", json=payload, headers=pro_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
 
         data = resp.json()
         ui_labels = data.get("ui_labels")
@@ -426,6 +428,7 @@ class TestPremiumTargetsESSnapshots:
             "macros_protein_g",
             "macros_fat_g",
             "macros_carbs_g",
+            "macros_fiber_g",
             "water_ml",
             "priority_micros",
             "activity_weekly",

@@ -106,6 +106,20 @@ class WHOTargetsRequest(BaseModel):
         return values
 
 
+class WHOTargetsUiLabels(BaseModel):
+    """RU: Локализованные UI-лейблы для thin clients. EN: Localized UI labels."""
+
+    kcal_daily: str
+    macros_protein_g: str
+    macros_fat_g: str
+    macros_carbs_g: str
+    macros_fiber_g: str
+    water_ml: str
+    priority_micros: str
+    activity_weekly: str
+    warnings: str
+
+
 class WHOTargetsResponse(BaseModel):
     """RU: Ответ с целевыми значениями по ВОЗ. EN: WHO targets response."""
 
@@ -116,4 +130,4 @@ class WHOTargetsResponse(BaseModel):
     activity_weekly: Dict[str, int]
     calculation_date: str
     warnings: List[Dict[str, str]] = Field(default_factory=list)
-    ui_labels: Dict[str, str]
+    ui_labels: WHOTargetsUiLabels
