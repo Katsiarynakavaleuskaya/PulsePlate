@@ -5,7 +5,6 @@ EN: Tests for day shopping list database integration.
 """
 
 from datetime import date
-from types import ModuleType
 from typing import TYPE_CHECKING, AsyncGenerator, Generator, cast
 
 import pytest
@@ -120,7 +119,7 @@ async def test_user() -> AsyncGenerator[User, None]:
 
 
 @pytest.fixture
-def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None, None]:
+def client_with_pro_access() -> Generator[TestClient, None, None]:
     """Create test client with PRO tier access bypassed.
 
     Returns pro_ctx with user_id for proper fetch_day_plan behavior.
