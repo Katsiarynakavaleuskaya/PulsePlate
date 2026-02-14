@@ -176,6 +176,8 @@ async def test_fetch_day_plan_when_exists_in_db(
     )
 
     assert response.status_code == 200
+    content_type = response.headers.get("content-type", "")
+    assert content_type.startswith("application/json")
     body = response.json()
     assert body["warnings"] == []
     assert isinstance(body["items"], list)
@@ -193,6 +195,8 @@ async def test_fetch_day_plan_when_not_in_db(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
     )
     assert r.status_code == 200
+    content_type = r.headers.get("content-type", "")
+    assert content_type.startswith("application/json")
     body = r.json()
 
     # Should return empty items with warning
