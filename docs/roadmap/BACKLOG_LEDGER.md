@@ -623,6 +623,28 @@ If it is not recorded here — it does not exist.
     - Runtime `pytest -q -rs` output shows standardized skip reasons with feature keys.
     - Feature keys in tests and ledger remain one-to-one mapped.
 
+- [ ] P1: Unimplemented feature keys backlog (SoT = tests/feature_manifest.py)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-748
+  - Status: 📋 Planned (seeded by PR-747 protocol cleanup)
+  - Area: backend / tests / feature debt management
+  - Finding Type: product feature debt / runtime skip protocol
+  - Reason for deferral: Runtime skip reasons are now standardized via
+    `feature_disabled:<key>`, but implementation work for gated features remains
+    deferred to focused execution PRs.
+  - Source of truth command:
+    - `pytest -q -rs | rg -n "feature_disabled:" || true`
+  - Links:
+    - `tests/feature_manifest.py`
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md` (this section)
+  - DoD:
+    - For each implemented feature key, remove/replace corresponding
+      `require_feature(...)` gate in tests.
+    - Runtime `feature_disabled:<key>` skip count decreases as features land.
+    - Ledger item is updated with merged PR references per implemented key.
+
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)

@@ -11,6 +11,7 @@ from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 
 class TestCoverageFinalBoost:
@@ -77,7 +78,7 @@ class TestCoverageFinalBoost:
 
         # Check if main function exists
         if not hasattr(setup_custom_mcp, "main"):
-            pytest.skip("main function not available")
+            require_feature("main_entrypoint", reason=FEATURE_REASON)
 
         # Test main function with mock
         with patch("setup_custom_mcp.main") as mock_main:

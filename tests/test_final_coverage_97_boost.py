@@ -8,6 +8,7 @@ from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.feature_manifest import FEATURE_REASON, require_feature
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")
@@ -63,16 +64,16 @@ class TestConfTestCoverage:
 class TestMenuEngineNewCoverage:
     """Tests for core/menu_engine_new.py uncovered lines."""
 
-    def test_menu_engine_new_basic_import(self):
+    def test_menu_engine_new_basic_import(self) -> None:
         """Test basic import of menu_engine_new."""
         try:
             from core import menu_engine_new
 
             assert menu_engine_new is not None
         except ImportError:
-            pytest.skip("menu_engine_new not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
-    def test_menu_engine_new_with_functions(self):
+    def test_menu_engine_new_with_functions(self) -> None:
         """Test menu_engine_new functions."""
         try:
             from core import menu_engine_new
@@ -84,13 +85,13 @@ class TestMenuEngineNewCoverage:
             if hasattr(menu_engine_new, "make_weekly_menu"):
                 assert callable(menu_engine_new.make_weekly_menu)
         except ImportError:
-            pytest.skip("menu_engine_new not available")
+            require_feature("planner_engines", reason=FEATURE_REASON)
 
 
 class TestRecommendationsCoverage:
     """Tests for core/recommendations.py uncovered lines."""
 
-    def test_recommendations_edge_cases(self):
+    def test_recommendations_edge_cases(self) -> None:
         """Test recommendations with edge case inputs."""
         try:
             from core.recommendations import get_nutrient_recommendations
@@ -102,9 +103,9 @@ class TestRecommendationsCoverage:
             assert recommendations is not None
             assert isinstance(recommendations, dict)
         except (ImportError, TypeError):
-            pytest.skip("get_nutrient_recommendations not available or signature mismatch")
+            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
 
-    def test_recommendations_all_activity_levels(self):
+    def test_recommendations_all_activity_levels(self) -> None:
         """Test recommendations for all activity levels."""
         try:
             from core.recommendations import get_nutrient_recommendations
@@ -116,14 +117,14 @@ class TestRecommendationsCoverage:
                 )
                 assert recommendations is not None
         except (ImportError, TypeError):
-            pytest.skip("get_nutrient_recommendations not available")
+            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
 
 
 class TestUnifiedDbCoverage:
     """Tests for core/food_apis/unified_db.py uncovered lines."""
 
     @pytest.mark.asyncio
-    async def test_unified_db_search_edge_cases(self):
+    async def test_unified_db_search_edge_cases(self) -> None:
         """Test unified_db search with edge cases."""
         try:
             from core.food_apis.unified_db import search_unified_food
@@ -136,10 +137,10 @@ class TestUnifiedDbCoverage:
             result = await search_unified_food("тест !@#")
             assert result is not None
         except ImportError:
-            pytest.skip("unified_db not available")
+            require_feature("unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
-    async def test_unified_db_language_support(self):
+    async def test_unified_db_language_support(self) -> None:
         """Test unified_db with different languages."""
         try:
             from core.food_apis.unified_db import search_unified_food
@@ -149,14 +150,14 @@ class TestUnifiedDbCoverage:
                 result = await search_unified_food("apple", language=lang)
                 assert result is not None
         except (ImportError, TypeError):
-            pytest.skip("unified_db language support not available")
+            require_feature("unified_db_language", reason=FEATURE_REASON)
 
 
 class TestUpdateManagerCoverage:
     """Tests for core/food_apis/update_manager.py uncovered lines."""
 
     @pytest.mark.asyncio
-    async def test_update_manager_init(self):
+    async def test_update_manager_init(self) -> None:
         """Test update_manager initialization."""
         try:
             from core.food_apis.update_manager import DatabaseUpdateScheduler
@@ -164,10 +165,10 @@ class TestUpdateManagerCoverage:
             scheduler = DatabaseUpdateScheduler()
             assert scheduler is not None
         except ImportError:
-            pytest.skip("DatabaseUpdateScheduler not available")
+            require_feature("update_scheduler", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
-    async def test_update_manager_status_check(self):
+    async def test_update_manager_status_check(self) -> None:
         """Test update_manager status check."""
         try:
             from core.food_apis.update_manager import get_update_status
@@ -176,7 +177,7 @@ class TestUpdateManagerCoverage:
             assert status is not None
             assert isinstance(status, dict)
         except (ImportError, TypeError):
-            pytest.skip("get_update_status not available")
+            require_feature("update_scheduler", reason=FEATURE_REASON)
 
 
 class TestAppEndpointsCoverage:
