@@ -69,6 +69,7 @@ from app.schemas.premium_contracts import (
     VisualShape,
     WHOTargetsRequest,
     WHOTargetsResponse,
+    build_who_targets_ui_labels,
 )
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 from app.services import recipe_store
@@ -4027,6 +4028,8 @@ def _fallback_targets_response(
         if not has_life_stage_warning:
             warnings.append({"code": "life_stage", "message": reason})
 
+    ui_labels = build_who_targets_ui_labels(req.lang)
+
     return WHOTargetsResponse(
         kcal_daily=int(kcal_daily),
         macros={
@@ -4040,6 +4043,7 @@ def _fallback_targets_response(
         activity_weekly=activity_weekly,
         calculation_date=time.strftime("%Y-%m-%d"),
         warnings=warnings,
+        ui_labels=ui_labels,
     )
 
 
@@ -4162,6 +4166,7 @@ def _generate_who_targets_response(
             },
             calculation_date=targets.calculation_date,
             warnings=life_stage_warnings,
+            ui_labels=build_who_targets_ui_labels(req.lang),
         )
     except HTTPException:
         raise

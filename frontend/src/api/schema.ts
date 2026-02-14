@@ -4953,12 +4953,37 @@ export interface components {
             priority_micros: {
                 [key: string]: number;
             };
+            ui_labels: components["schemas"]["WHOTargetsUiLabels"];
             /** Warnings */
             warnings?: {
                 [key: string]: string;
             }[];
             /** Water Ml */
             water_ml: number;
+        };
+        /**
+         * WHOTargetsUiLabels
+         * @description RU: Локализованные UI-лейблы для thin clients. EN: Localized UI labels.
+         */
+        WHOTargetsUiLabels: {
+            /** Activity Weekly */
+            activity_weekly: string;
+            /** Kcal Daily */
+            kcal_daily: string;
+            /** Macros Carbs G */
+            macros_carbs_g: string;
+            /** Macros Fat G */
+            macros_fat_g: string;
+            /** Macros Fiber G */
+            macros_fiber_g: string;
+            /** Macros Protein G */
+            macros_protein_g: string;
+            /** Priority Micros */
+            priority_micros: string;
+            /** Warnings */
+            warnings: string;
+            /** Water Ml */
+            water_ml: string;
         };
     };
     responses: never;

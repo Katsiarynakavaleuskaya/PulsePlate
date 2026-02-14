@@ -5316,6 +5316,9 @@
             "title": "Priority Micros",
             "type": "object"
           },
+          "ui_labels": {
+            "$ref": "#/components/schemas/WHOTargetsUiLabels"
+          },
           "warnings": {
             "items": {
               "additionalProperties": {
@@ -5337,9 +5340,64 @@
           "water_ml",
           "priority_micros",
           "activity_weekly",
-          "calculation_date"
+          "calculation_date",
+          "ui_labels"
         ],
         "title": "WHOTargetsResponse",
+        "type": "object"
+      },
+      "WHOTargetsUiLabels": {
+        "description": "RU: Локализованные UI-лейблы для thin clients. EN: Localized UI labels.",
+        "properties": {
+          "activity_weekly": {
+            "title": "Activity Weekly",
+            "type": "string"
+          },
+          "kcal_daily": {
+            "title": "Kcal Daily",
+            "type": "string"
+          },
+          "macros_carbs_g": {
+            "title": "Macros Carbs G",
+            "type": "string"
+          },
+          "macros_fat_g": {
+            "title": "Macros Fat G",
+            "type": "string"
+          },
+          "macros_fiber_g": {
+            "title": "Macros Fiber G",
+            "type": "string"
+          },
+          "macros_protein_g": {
+            "title": "Macros Protein G",
+            "type": "string"
+          },
+          "priority_micros": {
+            "title": "Priority Micros",
+            "type": "string"
+          },
+          "warnings": {
+            "title": "Warnings",
+            "type": "string"
+          },
+          "water_ml": {
+            "title": "Water Ml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kcal_daily",
+          "macros_protein_g",
+          "macros_fat_g",
+          "macros_carbs_g",
+          "macros_fiber_g",
+          "water_ml",
+          "priority_micros",
+          "activity_weekly",
+          "warnings"
+        ],
+        "title": "WHOTargetsUiLabels",
         "type": "object"
       },
       "WaistRiskResultSchema": {

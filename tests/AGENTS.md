@@ -19,6 +19,7 @@
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
+- `ui_labels` is a required part of `WHOTargetsResponse` contract (SoT: `app/schemas/premium_contracts.py`); assert ES anchor string (`"Calorías diarias"`) in snapshot tests and do not feature-gate this contract after implementation.
 
 ### Module purge / reload invariant (xdist stability)
 

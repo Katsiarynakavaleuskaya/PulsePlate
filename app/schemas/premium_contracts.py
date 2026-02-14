@@ -106,6 +106,72 @@ class WHOTargetsRequest(BaseModel):
         return values
 
 
+class WHOTargetsUiLabels(BaseModel):
+    """RU: Локализованные UI-лейблы для thin clients. EN: Localized UI labels."""
+
+    kcal_daily: str
+    macros_protein_g: str
+    macros_fat_g: str
+    macros_carbs_g: str
+    macros_fiber_g: str
+    water_ml: str
+    priority_micros: str
+    activity_weekly: str
+    warnings: str
+
+
+# RU: Единый источник переводов UI-лейблов; добавляйте новые языки только здесь и держите client i18n в sync.
+# EN: Single source of truth for UI label translations; add new languages here and keep client i18n in sync.
+_WHO_TARGETS_UI_LABELS_BY_LANG: dict[str, dict[str, str]] = {
+    "en": {
+        "kcal_daily": "Daily calories",
+        "macros_protein_g": "Protein (g)",
+        "macros_fat_g": "Fat (g)",
+        "macros_carbs_g": "Carbs (g)",
+        "macros_fiber_g": "Fiber (g)",
+        "water_ml": "Water (ml)",
+        "priority_micros": "Priority micros",
+        "activity_weekly": "Weekly activity",
+        "warnings": "Warnings",
+    },
+    "es": {
+        "kcal_daily": "Calorías diarias",
+        "macros_protein_g": "Proteínas (g)",
+        "macros_fat_g": "Grasas (g)",
+        "macros_carbs_g": "Carbohidratos (g)",
+        "macros_fiber_g": "Fibra (g)",
+        "water_ml": "Agua (ml)",
+        "priority_micros": "Micronutrientes prioritarios",
+        "activity_weekly": "Actividad semanal",
+        "warnings": "Advertencias",
+    },
+    "ru": {
+        "kcal_daily": "Ккал в день",
+        "macros_protein_g": "Белки (г)",
+        "macros_fat_g": "Жиры (г)",
+        "macros_carbs_g": "Углеводы (г)",
+        "macros_fiber_g": "Клетчатка (г)",
+        "water_ml": "Вода (мл)",
+        "priority_micros": "Приоритетные микроэлементы",
+        "activity_weekly": "Активность за неделю",
+        "warnings": "Предупреждения",
+    },
+}
+
+
+def build_who_targets_ui_labels(lang: str | None) -> WHOTargetsUiLabels:
+    """Build canonical localized UI labels for WHO targets contract."""
+
+    language = str(lang or "en").lower()
+    base_lang = language.split("-", 1)[0].split("_", 1)[0]
+    labels = (
+        _WHO_TARGETS_UI_LABELS_BY_LANG.get(language)
+        or _WHO_TARGETS_UI_LABELS_BY_LANG.get(base_lang)
+        or _WHO_TARGETS_UI_LABELS_BY_LANG["en"]
+    )
+    return WHOTargetsUiLabels(**labels)
+
+
 class WHOTargetsResponse(BaseModel):
     """RU: Ответ с целевыми значениями по ВОЗ. EN: WHO targets response."""
 
@@ -116,3 +182,4 @@ class WHOTargetsResponse(BaseModel):
     activity_weekly: Dict[str, int]
     calculation_date: str
     warnings: List[Dict[str, str]] = Field(default_factory=list)
+    ui_labels: WHOTargetsUiLabels

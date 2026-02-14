@@ -22,6 +22,15 @@ Or individually:
 3. Do NOT write "готово", "green", "mergeable"
 4. Fix the issue first, then re-run `make verify`
 
+**PR merge readiness (hard rule):**
+
+- Green CI alone is NOT sufficient for merge.
+- PR MUST NOT be merged while any review thread is unresolved.
+- PR MUST NOT be merged while any bot comment contains actionable items.
+- Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
+- Required checks must be PASS with no pending required jobs.
+- This gate applies to every non-draft PR before merge.
+
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
