@@ -18,6 +18,8 @@ sqlalchemy>=2.0.44,<3.0.0
 # greenlet is needed for SQLAlchemy async operations on all platforms
 # greenlet>=3.1.0 required for Python 3.13+ support
 greenlet>=3.1.0,<4.0.0
+# Async SQLite driver required for sqlite+aiosqlite URLs in async DB tests.
+aiosqlite>=0.22.1,<1.0.0
 alembic>=1.17.2,<2.0.0
 # Pin to tested 3.x series; allow minor upgrades for compatibility
 psycopg[binary]>=3.2.3,<4.0.0
