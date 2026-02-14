@@ -29,6 +29,7 @@ Or individually:
 - PR MUST NOT be merged while any bot comment contains actionable items.
 - Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
 - Required checks must be PASS with no pending required jobs.
+- This gate applies to every non-draft PR before merge.
 
 **Pre-commit hook policy (mandatory before push):**
 
