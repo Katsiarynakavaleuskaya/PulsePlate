@@ -5,6 +5,7 @@ EN: Tests for day shopping list database integration.
 """
 
 import os
+from contextlib import contextmanager
 from datetime import date
 from types import ModuleType
 from typing import Any, AsyncGenerator, Generator
@@ -24,24 +25,38 @@ from tests._client import get_client
 TEST_USER_ID = 1
 
 
+@contextmanager
+def _temporary_database_use_async(value: str = "1") -> Generator[None, None, None]:
+    """Temporarily set DATABASE_USE_ASYNC and always restore previous value."""
+    previous_database_use_async = os.environ.get("DATABASE_USE_ASYNC")
+    os.environ["DATABASE_USE_ASYNC"] = value
+    try:
+        yield
+    finally:
+        if previous_database_use_async is None:
+            os.environ.pop("DATABASE_USE_ASYNC", None)
+        else:
+            os.environ["DATABASE_USE_ASYNC"] = previous_database_use_async
+
+
 def _get_async_session_local() -> Any:
     """Resolve AsyncSessionLocal after forcing async DB env.
 
     RU: core.db chitaet env dinamicheski, poetomu snachala vystavliaem env, potom initsializiruem engine.
     EN: core.db reads env dynamically, so set env first and then initialize async engine.
     """
-    os.environ["DATABASE_USE_ASYNC"] = "1"
-    # Force lazy async engine/sessionmaker initialization after env wiring.
-    core_db._get_async_engine()
-    session_local = getattr(core_db, "AsyncSessionLocal", None)
-    async_url = core_db._get_async_database_url()
-    assert session_local is not None, (
-        "AsyncSessionLocal is not configured. Expected core.db to expose AsyncSessionLocal "
-        "when DATABASE_USE_ASYNC=1. "
-        f"Resolved async_url={async_url!r}. "
-        "Fix core.db async wiring or ensure async deps are installed."
-    )
-    return session_local
+    with _temporary_database_use_async("1"):
+        # Force lazy async engine/sessionmaker initialization after env wiring.
+        core_db._get_async_engine()
+        session_local = getattr(core_db, "AsyncSessionLocal", None)
+        async_url = core_db._get_async_database_url()
+        assert session_local is not None, (
+            "AsyncSessionLocal is not configured. Expected core.db to expose AsyncSessionLocal "
+            "when DATABASE_USE_ASYNC=1. "
+            f"Resolved async_url={async_url!r}. "
+            "Fix core.db async wiring or ensure async deps are installed."
+        )
+        return session_local
 
 
 @pytest.fixture
@@ -146,7 +161,8 @@ async def test_fetch_day_plan_when_exists_in_db(
 
     from app.core.shoplist_day.provider import fetch_day_plan
 
-    fetched_plan = await fetch_day_plan(day=test_date, pro_ctx={"user_id": test_user.id})
+    with _temporary_database_use_async("1"):
+        fetched_plan = await fetch_day_plan(day=test_date, pro_ctx={"user_id": test_user.id})
     assert fetched_plan == plan_data
 
 
