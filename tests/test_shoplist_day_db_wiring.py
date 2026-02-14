@@ -5,11 +5,11 @@ EN: Tests for day shopping list database integration.
 """
 
 from datetime import date
-from types import ModuleType
 from typing import TYPE_CHECKING, AsyncGenerator, Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
+from requests import Response
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
@@ -17,6 +17,7 @@ from app.middleware.api_tiers import require_pro_tier
 from app.models import DayPlan, WeeklyPlan
 import core.db as core_db
 from core.models import User
+from tests._client import get_client
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -70,6 +71,15 @@ def _get_async_session_local() -> "async_sessionmaker[AsyncSession]":
     return cast("async_sessionmaker[AsyncSession]", session_local)
 
 
+def _assert_json_response(response: Response) -> dict[str, object]:
+    """Assert JSON content-type before body parsing and return JSON object."""
+    content_type = response.headers.get("content-type", "")
+    assert content_type.startswith("application/json")
+    body = response.json()
+    assert isinstance(body, dict)
+    return cast(dict[str, object], body)
+
+
 @pytest.fixture
 async def test_user() -> AsyncGenerator[User, None]:
     """Create test user in DB for FK constraints.
@@ -109,19 +119,22 @@ async def test_user() -> AsyncGenerator[User, None]:
 
 
 @pytest.fixture
-def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None, None]:
+def client_with_pro_access() -> Generator[TestClient, None, None]:
     """Create test client with PRO tier access bypassed.
 
     Returns pro_ctx with user_id for proper fetch_day_plan behavior.
     """
-    # Override PRO tier to return dict with user_id (not just string)
-    app_module.app.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
+    import app.main
 
-    client = TestClient(app_module.app)
-    yield client
-
-    # Cleanup: remove override after test
-    app_module.app.dependency_overrides.pop(require_pro_tier, None)
+    # Ensure override is attached to canonical app.main:app used by get_client().
+    app_instance = app.main.app
+    app_instance.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
+    try:
+        with get_client() as client:
+            yield client
+    finally:
+        # Cleanup: remove override after test
+        app_instance.dependency_overrides.pop(require_pro_tier, None)
 
 
 @pytest.mark.asyncio
@@ -176,7 +189,7 @@ async def test_fetch_day_plan_when_exists_in_db(
     )
 
     assert response.status_code == 200
-    body = response.json()
+    body = _assert_json_response(response)
     assert body["warnings"] == []
     assert isinstance(body["items"], list)
 
@@ -193,7 +206,7 @@ async def test_fetch_day_plan_when_not_in_db(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
     )
     assert r.status_code == 200
-    body = r.json()
+    body = _assert_json_response(r)
 
     # Should return empty items with warning
     assert body["items"] == []
