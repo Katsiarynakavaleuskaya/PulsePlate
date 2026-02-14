@@ -74,6 +74,7 @@ Or individually:
   `tests/test_repo_policy_sys_modules.py`.
 - **Skip reason protocol:** Any skip caused by missing module/function/data MUST use
   `require_feature(...)` and emit `feature_disabled:<key>` (no ad-hoc skip strings).
+  Applies to high-noise runtime coverage suites and similar optional-feature tests.
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
