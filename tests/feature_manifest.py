@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import FrozenSet
+from typing import FrozenSet, NoReturn
 
 import pytest
 
@@ -87,6 +87,21 @@ def require_feature(key: str, reason: str, *, manifest: FeatureManifest | None =
 
     standardized = f"feature_disabled:{key} (enable via {ENV_FEATURES}=all or CSV). " f"{reason}"
     pytest.skip(standardized)
+
+
+def fail_feature_gated_test(key: str, reason: str) -> NoReturn:
+    """Fail fast when a feature gate is enabled but canonical assertions are not implemented.
+
+    RU: Edinyi fail-shablon dlia intentional fail pod feature gate.
+    EN: Canonical fail pattern for intentional feature-gated test failures.
+    """
+    if key not in FEATURE_TODO_KEYS:
+        raise AssertionError(
+            f"Unknown feature key: {key!r}. Must be one of: {sorted(FEATURE_TODO_KEYS)}"
+        )
+
+    exc = AssertionError(reason)
+    pytest.fail(f"[feature_gate:{key}] {exc!r}")
 
 
 def require_feature_or_raise(

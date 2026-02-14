@@ -9,7 +9,7 @@ EN: Combined tests for app coverage and unit tests: main.py coverage, groups, in
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.feature_manifest import FEATURE_REASON, require_feature
+from tests.feature_manifest import FEATURE_REASON, fail_feature_gated_test, require_feature
 
 try:
     # Validate app module can be imported
@@ -85,17 +85,19 @@ class TestAppUnitTests:
     def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): Replace with canonical assertions if legacy_bmi_removed is restored.
-        pytest.fail(
-            "legacy_bmi_removed enabled: test disabled until BMI category assertions are implemented."
+        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
+        fail_feature_gated_test(
+            "legacy_bmi_removed",
+            reason="legacy_bmi_removed enabled: test disabled until BMI category assertions are implemented.",
         )
 
     def test_estimate_level_categories(self) -> None:
         """Test estimate_level with different fitness experience levels."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): Replace with canonical assertions if legacy_bmi_removed is restored.
-        pytest.fail(
-            "legacy_bmi_removed enabled: test disabled until estimate level assertions are implemented."
+        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
+        fail_feature_gated_test(
+            "legacy_bmi_removed",
+            reason="legacy_bmi_removed enabled: test disabled until estimate level assertions are implemented.",
         )
 
     def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
