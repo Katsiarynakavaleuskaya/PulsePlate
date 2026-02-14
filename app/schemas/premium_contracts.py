@@ -120,6 +120,51 @@ class WHOTargetsUiLabels(BaseModel):
     warnings: str
 
 
+_WHO_TARGETS_UI_LABELS_BY_LANG: dict[str, dict[str, str]] = {
+    "en": {
+        "kcal_daily": "Daily calories",
+        "macros_protein_g": "Protein (g)",
+        "macros_fat_g": "Fat (g)",
+        "macros_carbs_g": "Carbs (g)",
+        "macros_fiber_g": "Fiber (g)",
+        "water_ml": "Water (ml)",
+        "priority_micros": "Priority micros",
+        "activity_weekly": "Weekly activity",
+        "warnings": "Warnings",
+    },
+    "es": {
+        "kcal_daily": "Calorías diarias",
+        "macros_protein_g": "Proteínas (g)",
+        "macros_fat_g": "Grasas (g)",
+        "macros_carbs_g": "Carbohidratos (g)",
+        "macros_fiber_g": "Fibra (g)",
+        "water_ml": "Agua (ml)",
+        "priority_micros": "Micronutrientes prioritarios",
+        "activity_weekly": "Actividad semanal",
+        "warnings": "Advertencias",
+    },
+    "ru": {
+        "kcal_daily": "Ккал в день",
+        "macros_protein_g": "Белки (г)",
+        "macros_fat_g": "Жиры (г)",
+        "macros_carbs_g": "Углеводы (г)",
+        "macros_fiber_g": "Клетчатка (г)",
+        "water_ml": "Вода (мл)",
+        "priority_micros": "Приоритетные микроэлементы",
+        "activity_weekly": "Активность за неделю",
+        "warnings": "Предупреждения",
+    },
+}
+
+
+def build_who_targets_ui_labels(lang: str | None) -> WHOTargetsUiLabels:
+    """Build canonical localized UI labels for WHO targets contract."""
+
+    language = str(lang or "en").lower()
+    labels = _WHO_TARGETS_UI_LABELS_BY_LANG.get(language, _WHO_TARGETS_UI_LABELS_BY_LANG["en"])
+    return WHOTargetsUiLabels(**labels)
+
+
 class WHOTargetsResponse(BaseModel):
     """RU: Ответ с целевыми значениями по ВОЗ. EN: WHO targets response."""
 
