@@ -85,18 +85,20 @@ class TestAppUnitTests:
     def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): Replace with canonical assertions if legacy_bmi_removed is restored.
-        pytest.fail(
+        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
+        exc = AssertionError(
             "legacy_bmi_removed enabled: test disabled until BMI category assertions are implemented."
         )
+        pytest.fail(f"[feature_gate:legacy_bmi_removed] {exc!r}")
 
     def test_estimate_level_categories(self) -> None:
         """Test estimate_level with different fitness experience levels."""
         require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): Replace with canonical assertions if legacy_bmi_removed is restored.
-        pytest.fail(
+        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
+        exc = AssertionError(
             "legacy_bmi_removed enabled: test disabled until estimate level assertions are implemented."
         )
+        pytest.fail(f"[feature_gate:legacy_bmi_removed] {exc!r}")
 
     def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """API key matching should be strict by default."""
