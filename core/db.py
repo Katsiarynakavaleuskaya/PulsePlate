@@ -655,7 +655,7 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
                         "future": True,
                     }
 
-                    # For sqlite+aiosqlite in tests, prefer NullPool/StaticPool semantics
+                    # For sqlite+aiosqlite, prefer NullPool/StaticPool semantics where configured
                     # to avoid cross-thread connection reuse and flaky locks.
                     if async_url.startswith("sqlite+aiosqlite"):
                         sqlite_poolclass = _get_sqlite_poolclass(async_url)

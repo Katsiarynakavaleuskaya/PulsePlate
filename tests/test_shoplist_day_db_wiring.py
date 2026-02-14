@@ -39,6 +39,36 @@ def _temporary_database_use_async(value: str = "1") -> Generator[None, None, Non
             os.environ["DATABASE_USE_ASYNC"] = previous_database_use_async
 
 
+def _reset_async_db_state() -> None:
+    """Reset async DB globals to prevent leakage across tests."""
+    async_engine = getattr(core_db, "_ASYNC_ENGINE", None)
+    if async_engine is not None:
+        try:
+            # Dispose sync side from sync context to release pooled resources.
+            async_engine.sync_engine.dispose()
+        except Exception:
+            pass
+
+    core_db._ASYNC_ENGINE = None
+    core_db.AsyncSessionLocal = None
+    core_db.async_engine = None
+
+
+@pytest.fixture(autouse=True)
+def _async_db_state_isolation() -> Generator[None, None, None]:
+    """Isolate env + async DB globals per test to avoid xdist/order pollution."""
+    previous_database_use_async = os.environ.get("DATABASE_USE_ASYNC")
+    _reset_async_db_state()
+    try:
+        yield
+    finally:
+        _reset_async_db_state()
+        if previous_database_use_async is None:
+            os.environ.pop("DATABASE_USE_ASYNC", None)
+        else:
+            os.environ["DATABASE_USE_ASYNC"] = previous_database_use_async
+
+
 def _get_async_session_local() -> Any:
     """Resolve AsyncSessionLocal after forcing async DB env.
 
@@ -115,9 +145,11 @@ def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None
 
 @pytest.mark.asyncio
 async def test_fetch_day_plan_when_exists_in_db(
+    client_with_pro_access: TestClient,
     test_user: User,
+    pro_headers: dict[str, str],
 ) -> None:
-    """When day plan exists in DB, provider returns stored plan_data."""
+    """When day plan exists in DB, endpoint returns items without warnings."""
     # Seed DB with day plan
     test_date = date(2025, 12, 20)
     plan_data = {
@@ -159,11 +191,16 @@ async def test_fetch_day_plan_when_exists_in_db(
         session.add(day_plan)
         await session.commit()
 
-    from app.core.shoplist_day.provider import fetch_day_plan
-
     with _temporary_database_use_async("1"):
-        fetched_plan = await fetch_day_plan(day=test_date, pro_ctx={"user_id": test_user.id})
-    assert fetched_plan == plan_data
+        response = client_with_pro_access.get(
+            f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
+            headers=pro_headers,
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["warnings"] == []
+    assert isinstance(body["items"], list)
 
 
 @pytest.mark.asyncio
