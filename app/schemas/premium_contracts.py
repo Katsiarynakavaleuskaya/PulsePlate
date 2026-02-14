@@ -120,6 +120,8 @@ class WHOTargetsUiLabels(BaseModel):
     warnings: str
 
 
+# RU: Единый источник переводов UI-лейблов; добавляйте новые языки только здесь и держите client i18n в sync.
+# EN: Single source of truth for UI label translations; add new languages here and keep client i18n in sync.
 _WHO_TARGETS_UI_LABELS_BY_LANG: dict[str, dict[str, str]] = {
     "en": {
         "kcal_daily": "Daily calories",
@@ -161,7 +163,12 @@ def build_who_targets_ui_labels(lang: str | None) -> WHOTargetsUiLabels:
     """Build canonical localized UI labels for WHO targets contract."""
 
     language = str(lang or "en").lower()
-    labels = _WHO_TARGETS_UI_LABELS_BY_LANG.get(language, _WHO_TARGETS_UI_LABELS_BY_LANG["en"])
+    base_lang = language.split("-", 1)[0].split("_", 1)[0]
+    labels = (
+        _WHO_TARGETS_UI_LABELS_BY_LANG.get(language)
+        or _WHO_TARGETS_UI_LABELS_BY_LANG.get(base_lang)
+        or _WHO_TARGETS_UI_LABELS_BY_LANG["en"]
+    )
     return WHOTargetsUiLabels(**labels)
 
 
