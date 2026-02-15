@@ -1037,21 +1037,36 @@ async def run_scheduled_update(
     return results
 
 
+def _empty_scheduler_status() -> dict[str, object]:
+    """Return deterministic status payload when scheduler is not initialized."""
+    return {
+        "scheduler": {
+            "is_running": False,
+            "last_update_check": None,
+            "update_interval_hours": None,
+            "retry_counts": {},
+        },
+        "databases": {},
+    }
+
+
 async def get_update_status() -> dict[str, object]:
     """
     Async wrapper returning current scheduler status.
 
     Deterministic and side-effect free:
-    - does not start background updates
+    - does not create or start scheduler instance
     - does not mutate scheduler state
     """
-    from .scheduler import get_update_scheduler
+    from . import scheduler as scheduler_mod
 
-    scheduler = await get_update_scheduler()
+    scheduler = scheduler_mod._scheduler_instance
+    if scheduler is None:
+        return _empty_scheduler_status()
     return scheduler.get_status()
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     """Lazy re-export of scheduler API to avoid import cycle at module import time."""
     if name in {"DatabaseUpdateScheduler", "get_update_scheduler"}:
         from . import scheduler as scheduler_mod
