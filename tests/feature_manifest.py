@@ -60,7 +60,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "premium_week_router_mocking",
         "i18n_advanced",
         "rag",
-        "region_catalog",
         "shoplist_helpers",
         "targets_fixture_data",
         "utils_pack",

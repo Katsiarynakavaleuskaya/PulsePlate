@@ -356,48 +356,23 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_region_catalog_functions_direct(self):
-        """Direct tests of region catalog functions."""
-        try:
-            from core.region_catalog import (
-                get_default_region,
-                get_region_foods,
-                get_region_info,
-                list_regions,
-                update_region_data,
-                validate_region,
-            )
+    def test_region_catalog_functions_direct(self) -> None:
+        """Direct smoke + behavior checks for current region catalog API."""
+        from core.region_catalog import RegionCatalog, get_available_regions, get_region_catalog
 
-            # Test listing regions
-            regions = list_regions()
-            assert isinstance(regions, (list, tuple, type(None)))
+        assert callable(get_region_catalog)
+        assert callable(get_available_regions)
 
-            # Test region validation
-            is_valid = validate_region("US")
-            assert isinstance(is_valid, (bool, type(None)))
+        # Global catalog accessor should behave like a singleton.
+        catalog = get_region_catalog()
+        assert isinstance(catalog, RegionCatalog)
+        assert get_region_catalog() is catalog
 
-            is_valid = validate_region("RU")
-            assert isinstance(is_valid, (bool, type(None)))
-
-            is_valid = validate_region("ES")
-            assert isinstance(is_valid, (bool, type(None)))
-
-            # Test default region
-            default = get_default_region()
-            assert isinstance(default, (str, type(None)))
-
-            # Test region info
-            info = get_region_info("US")
-            assert isinstance(info, (dict, type(None)))
-
-            # Test region foods
-            foods = get_region_foods("US")
-            assert isinstance(foods, (list, dict, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "region_catalog", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
+        # Public helper should match instance method output.
+        regions = get_available_regions()
+        assert isinstance(regions, list)
+        assert regions == catalog.get_available_regions()
+        assert all(isinstance(region, str) for region in regions)
 
     def test_utils_functions_direct(self):
         """Direct tests of utils functions."""
