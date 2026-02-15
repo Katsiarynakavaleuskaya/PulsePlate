@@ -212,30 +212,26 @@ class TestQuickCoverageBoost:
 
     def test_region_catalog_edge_cases(self):
         """Покрытие core/region_catalog.py missing lines (89% -> 95%+)"""
-        try:
-            from core.region_catalog import RegionCatalog, get_available_regions
+        from core.region_catalog import RegionCatalog, get_available_regions
 
-            # Тест функций с edge cases
-            regions = get_available_regions()
-            assert isinstance(regions, list)
+        # Тест функций с edge cases
+        regions = get_available_regions()
+        assert isinstance(regions, list)
 
-            # Тест RegionCatalog
-            catalog = RegionCatalog()
+        # Тест RegionCatalog
+        catalog = RegionCatalog()
 
-            # Тест доступных регионов через catalog
-            catalog_regions = catalog.get_available_regions()
-            assert isinstance(catalog_regions, list)
+        # Тест доступных регионов через catalog
+        catalog_regions = catalog.get_available_regions()
+        assert isinstance(catalog_regions, list)
 
-            # Тест поиска продукта по ID
-            result = catalog.get_product_by_id("test_id", "XX")
-            assert result is None or hasattr(result, "product_id")
+        # Тест поиска продукта по ID
+        result = catalog.get_product_by_id("test_id", "XX")
+        assert result is None or hasattr(result, "product_id")
 
-            # Тест поиска продуктов по категории
-            result = catalog.get_products_by_category("test_category", "XX")
-            assert isinstance(result, list)
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "region_catalog", reason=FEATURE_REASON)
+        # Тест поиска продуктов по категории
+        result = catalog.get_products_by_category("test_category", "XX")
+        assert isinstance(result, list)
 
     def test_rag_simple_missing_paths(self):
         """Покрытие core/rag/simple_rag.py missing paths (77% -> 90%+)"""
