@@ -11,7 +11,6 @@ from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature
 
 
 class TestCoverageFinalBoost:
@@ -69,21 +68,19 @@ class TestCoverageFinalBoost:
                     assert payload["id"] == 1
                     assert payload["result"] == {"result": "success"}
 
-    def test_setup_custom_mcp_coverage(self):
+    def test_setup_custom_mcp_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test setup_custom_mcp.py coverage"""
-        try:
-            import setup_custom_mcp
-        except ImportError:
-            pytest.skip("setup_custom_mcp module not available")
+        import setup_custom_mcp as mod
 
-        # Check if main function exists
-        if not hasattr(setup_custom_mcp, "main"):
-            require_feature("main_entrypoint", reason=FEATURE_REASON)
+        called = {"v": False}
 
-        # Test main function with mock
-        with patch("setup_custom_mcp.main") as mock_main:
-            setup_custom_mcp.main()
-            mock_main.assert_called_once()
+        def _stub(argv: list[str] | None = None) -> None:
+            _ = argv
+            called["v"] = True
+
+        monkeypatch.setattr(mod, "setup_custom_mcp", _stub)
+        mod.main()
+        assert called["v"] is True
 
     def test_test_pro_access_coverage(self):
         """Test test_pro_access.py coverage"""
