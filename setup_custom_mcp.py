@@ -151,9 +151,18 @@ def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_mess
     print(f"{success_message}{config_file}")
 
 
+def main() -> None:
+    """Module entrypoint.
+
+    Keep this wrapper side-effect free at import time; runtime behavior stays in
+    setup_custom_mcp().
+    """
+    setup_custom_mcp()
+
+
 if __name__ == "__main__":
     try:
-        setup_custom_mcp()
+        main()
     except KeyboardInterrupt:
         print("\n❌ Setup cancelled by user.")
         sys.exit(1)
