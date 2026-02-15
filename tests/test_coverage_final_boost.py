@@ -69,7 +69,7 @@ class TestCoverageFinalBoost:
                     assert payload["result"] == {"result": "success"}
 
     def test_setup_custom_mcp_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test setup_custom_mcp.py coverage"""
+        """Test setup_custom_mcp.py main entrypoint delegation."""
         import setup_custom_mcp as mod
 
         called = {"v": False}
