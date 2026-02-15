@@ -357,17 +357,22 @@ class TestDirectCoreFunctions:
             pass
 
     def test_region_catalog_functions_direct(self) -> None:
-        """Direct shape-level smoke for current region catalog API."""
+        """Direct smoke + behavior checks for current region catalog API."""
         from core.region_catalog import RegionCatalog, get_available_regions, get_region_catalog
 
         assert callable(get_region_catalog)
         assert callable(get_available_regions)
 
+        # Global catalog accessor should behave like a singleton.
         catalog = get_region_catalog()
         assert isinstance(catalog, RegionCatalog)
+        assert get_region_catalog() is catalog
 
+        # Public helper should match instance method output.
         regions = get_available_regions()
         assert isinstance(regions, list)
+        assert regions == catalog.get_available_regions()
+        assert all(isinstance(region, str) for region in regions)
 
     def test_utils_functions_direct(self):
         """Direct tests of utils functions."""
