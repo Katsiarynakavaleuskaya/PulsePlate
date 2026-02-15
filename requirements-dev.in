@@ -23,5 +23,5 @@ mypy~=1.19.1
 types-pyyaml~=6.0.12
 yamllint~=1.38.0
 black~=26.1.0
-ruff~=0.15.0
+ruff~=0.15.1
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)
