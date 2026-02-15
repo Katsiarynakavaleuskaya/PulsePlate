@@ -8,18 +8,39 @@ warnings, and UI labels for both male and female profiles.
 
 import pytest
 from fastapi.testclient import TestClient
+from typing import Any
 
 
 class TestPremiumTargetsESSnapshots:
     """ES snapshot tests for premium targets endpoint"""
 
     client: TestClient
+    _CANONICAL_ENDPOINT = "/api/v1/pro/nutrition/targets"
+    _LEGACY_ALIAS_ENDPOINT = "/api/v1/premium/targets"
 
     @pytest.fixture(autouse=True)
     def _bind_client(self, client: TestClient) -> None:
         self.client = client
 
-    def test_female_adult_es_snapshot(self):
+    def _post_targets(
+        self,
+        payload: dict[str, Any],
+        pro_headers: dict[str, str],
+    ) -> dict[str, Any]:
+        resp = self.client.post(self._CANONICAL_ENDPOINT, json=payload, headers=pro_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert isinstance(data, dict)
+        ui_labels = data.get("ui_labels")
+        assert isinstance(ui_labels, dict), "ui_labels must be a dict in response"
+        assert ui_labels, "ui_labels must be non-empty"
+        assert (
+            ui_labels.get("kcal_daily") == "Calorías diarias"
+        ), "Expected Spanish ui_labels anchor for kcal_daily."
+        return data
+
+    def test_female_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for female adult profile"""
         payload = {
             "sex": "female",
@@ -32,12 +53,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify all required keys are present
         required_keys = {
@@ -76,7 +92,26 @@ class TestPremiumTargetsESSnapshots:
         # Verify water intake is reasonable
         assert 1500 <= data["water_ml"] <= 3000
 
-    def test_male_adult_es_snapshot(self):
+    def test_legacy_alias_coverage_with_pro_headers(self, pro_headers: dict[str, str]) -> None:
+        """Legacy alias guard coverage with pro headers."""
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 168,
+            "weight_kg": 60,
+            "activity": "moderate",
+            "goal": "maintain",
+            "life_stage": "adult",
+            "lang": "es",
+        }
+        # Legacy alias coverage — canonical snapshots use /api/v1/pro/nutrition/targets
+        resp = self.client.post(self._LEGACY_ALIAS_ENDPOINT, json=payload, headers=pro_headers)
+        assert resp.status_code == 403
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert isinstance(data, dict)
+
+    def test_male_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for male adult profile"""
         payload = {
             "sex": "male",
@@ -89,12 +124,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify all required keys are present
         required_keys = {
@@ -133,7 +163,7 @@ class TestPremiumTargetsESSnapshots:
         # Verify water intake is reasonable
         assert 2000 <= data["water_ml"] <= 3500
 
-    def test_female_teen_es_snapshot_with_warnings(self):
+    def test_female_teen_es_snapshot_with_warnings(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for female teen with life stage warnings"""
         payload = {
             "sex": "female",
@@ -146,12 +176,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify warnings are present for teen
         assert len(data["warnings"]) > 0
@@ -177,7 +202,7 @@ class TestPremiumTargetsESSnapshots:
         }
         assert all(micro in data["priority_micros"] for micro in expected_micros)
 
-    def test_female_pregnant_es_snapshot_with_warnings(self):
+    def test_female_pregnant_es_snapshot_with_warnings(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for pregnant female with life stage warnings"""
         payload = {
             "sex": "female",
@@ -190,12 +215,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify warnings are present for pregnant
         assert len(data["warnings"]) > 0
@@ -221,7 +241,7 @@ class TestPremiumTargetsESSnapshots:
         }
         assert all(micro in data["priority_micros"] for micro in expected_micros)
 
-    def test_male_elderly_es_snapshot_with_warnings(self):
+    def test_male_elderly_es_snapshot_with_warnings(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for elderly male with life stage warnings"""
         payload = {
             "sex": "male",
@@ -234,12 +254,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify warnings are present for elderly
         assert len(data["warnings"]) > 0
@@ -265,7 +280,7 @@ class TestPremiumTargetsESSnapshots:
         }
         assert all(micro in data["priority_micros"] for micro in expected_micros)
 
-    def test_female_lactating_es_snapshot_with_warnings(self):
+    def test_female_lactating_es_snapshot_with_warnings(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for lactating female with life stage warnings"""
         payload = {
             "sex": "female",
@@ -278,12 +293,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify warnings are present for lactating
         assert len(data["warnings"]) > 0
@@ -309,7 +319,7 @@ class TestPremiumTargetsESSnapshots:
         }
         assert all(micro in data["priority_micros"] for micro in expected_micros)
 
-    def test_child_es_snapshot_with_warnings(self):
+    def test_child_es_snapshot_with_warnings(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for child with life stage warnings"""
         payload = {
             "sex": "male",
@@ -322,12 +332,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post(
-            "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert resp.status_code == 200
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
 
         # Verify warnings are present for child
         assert len(data["warnings"]) > 0
@@ -353,7 +358,7 @@ class TestPremiumTargetsESSnapshots:
         }
         assert all(micro in data["priority_micros"] for micro in expected_micros)
 
-    def test_micronutrient_values_consistency(self):
+    def test_micronutrient_values_consistency(self, pro_headers: dict[str, str]) -> None:
         """Test that micronutrient values are consistent across different profiles"""
         profiles = [
             {"sex": "female", "age": 30, "life_stage": "adult"},
@@ -373,14 +378,7 @@ class TestPremiumTargetsESSnapshots:
                 "lang": "es",
             }
 
-            resp = self.client.post(
-                "/api/v1/premium/targets",
-                json=payload,
-                headers={"X-API-Key": "test_key"},
-            )
-            assert resp.status_code == 200
-
-            data = resp.json()
+            data = self._post_targets(payload, pro_headers)
             micro_values[profile["sex"] + "_" + profile["life_stage"]] = data["priority_micros"]
 
         # Verify all profiles have the same micronutrient keys
@@ -398,9 +396,7 @@ class TestPremiumTargetsESSnapshots:
         for micros in micro_values.values():
             assert all(micro in micros for micro in expected_micros)
 
-    def test_ui_labels_spanish_consistency(
-        self, client: TestClient, pro_headers: dict[str, str]
-    ) -> None:
+    def test_ui_labels_spanish_consistency(self, pro_headers: dict[str, str]) -> None:
         """Test that UI labels are consistently present and localized in Spanish."""
         payload = {
             "sex": "female",
@@ -413,11 +409,7 @@ class TestPremiumTargetsESSnapshots:
             "lang": "es",
         }
 
-        resp = self.client.post("/api/v1/pro/nutrition/targets", json=payload, headers=pro_headers)
-        assert resp.status_code == 200
-        assert resp.headers.get("content-type", "").startswith("application/json")
-
-        data = resp.json()
+        data = self._post_targets(payload, pro_headers)
         ui_labels = data.get("ui_labels")
         assert isinstance(ui_labels, dict), "ui_labels must be a dict in response"
         assert ui_labels, "ui_labels must be non-empty"
