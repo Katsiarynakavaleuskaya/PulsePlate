@@ -164,20 +164,43 @@ class TestUpdateManagerCoverage:
 
             scheduler = DatabaseUpdateScheduler()
             assert scheduler is not None
-        except ImportError:
-            require_feature("update_scheduler", reason=FEATURE_REASON)
+        except ImportError as exc:
+            pytest.fail(f"DatabaseUpdateScheduler import must be available: {exc}")
 
     @pytest.mark.asyncio
-    async def test_update_manager_status_check(self) -> None:
+    async def test_update_manager_status_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test update_manager status check."""
         try:
+            from core.food_apis import scheduler as scheduler_mod
             from core.food_apis.update_manager import get_update_status
 
+            # Force uninitialized singleton path to validate side-effect-free status payload.
+            monkeypatch.setattr(scheduler_mod, "_scheduler_instance", None)
             status = await get_update_status()
             assert status is not None
             assert isinstance(status, dict)
-        except (ImportError, TypeError):
-            require_feature("update_scheduler", reason=FEATURE_REASON)
+            assert status["scheduler"]["is_running"] is False
+        except (ImportError, TypeError) as exc:
+            pytest.fail(f"get_update_status must be available and callable: {exc}")
+
+    @pytest.mark.asyncio
+    async def test_update_manager_status_check_with_existing_scheduler(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test update status path when scheduler singleton already exists."""
+        try:
+            from core.food_apis import scheduler as scheduler_mod
+            from core.food_apis.update_manager import get_update_status
+
+            class _FakeScheduler:
+                def get_status(self) -> dict[str, object]:
+                    return {"scheduler": {"is_running": True}, "databases": {"usda": {}}}
+
+            monkeypatch.setattr(scheduler_mod, "_scheduler_instance", _FakeScheduler())
+            status = await get_update_status()
+            assert status["scheduler"]["is_running"] is True
+        except (ImportError, TypeError) as exc:
+            pytest.fail(f"get_update_status must use existing scheduler status: {exc}")
 
 
 class TestAppEndpointsCoverage:
