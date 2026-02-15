@@ -357,7 +357,7 @@ class TestDirectCoreFunctions:
             pass
 
     def test_region_catalog_functions_direct(self) -> None:
-        """Direct shape-level tests of current region catalog API."""
+        """Direct shape-level smoke for current region catalog API."""
         from core.region_catalog import RegionCatalog, get_available_regions, get_region_catalog
 
         assert callable(get_region_catalog)
