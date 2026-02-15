@@ -58,7 +58,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "unified_db",
         "unified_db_language",
         "update_manager",
-        "update_manager_path_attrs",
         "planner_engines",
         "premium_week_router_mocking",
         "i18n_advanced",
