@@ -313,17 +313,19 @@ class TestQuickCoverageBoost:
             )
 
         manager = DatabaseUpdateManager(update_interval_hours=1)
+        try:
+            # Тест async методов с моками
+            with patch.object(manager, "check_for_updates", new_callable=AsyncMock) as mock_check:
+                mock_check.return_value = {}
+                result = await manager.check_for_updates()
+                assert isinstance(result, dict)
 
-        # Тест async методов с моками
-        with patch.object(manager, "check_for_updates", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = {}
-            result = await manager.check_for_updates()
-            assert isinstance(result, dict)
-
-        # Тест error handling в async методах
-        with patch.object(manager, "update_database", new_callable=AsyncMock) as mock_update:
-            mock_update.side_effect = Exception("Update failed")
-            try:
-                await manager.update_database("usda")
-            except Exception as exc:  # pragma: no cover - depends on async extras
-                logger.warning("update_database raised during quick coverage test: %s", exc)
+            # Тест error handling в async методах
+            with patch.object(manager, "update_database", new_callable=AsyncMock) as mock_update:
+                mock_update.side_effect = Exception("Update failed")
+                try:
+                    await manager.update_database("usda")
+                except Exception as exc:  # pragma: no cover - depends on async extras
+                    logger.warning("update_database raised during quick coverage test: %s", exc)
+        finally:
+            await manager.close()
