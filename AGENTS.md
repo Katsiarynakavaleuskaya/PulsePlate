@@ -579,6 +579,7 @@ Source of truth:
 - Pre-commit hooks run tests on changed files; keep changes minimal and focused.
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
+- Path wrappers: if using a patchable wrapper around `pathlib.Path`, expose an explicit `.path: Path` property; do not rely on `__getattr__` for contract-level attributes.
 
 **Ruff ANN* rules (type hints) policy:**
 
