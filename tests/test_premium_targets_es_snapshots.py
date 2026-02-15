@@ -26,25 +26,19 @@ class TestPremiumTargetsESSnapshots:
         self,
         payload: dict[str, Any],
         pro_headers: dict[str, str],
-        *,
-        legacy_alias: bool = False,
-        expected_status: int = 200,
-        expect_json: bool | None = None,
-    ) -> dict[str, Any] | None:
-        endpoint = self._LEGACY_ALIAS_ENDPOINT if legacy_alias else self._CANONICAL_ENDPOINT
-        resp = self.client.post(endpoint, json=payload, headers=pro_headers)
-        assert resp.status_code == expected_status
-
-        if expect_json is None:
-            expect_json = expected_status == 200
-
-        if expect_json:
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
-            assert isinstance(data, dict)
-            return data
-
-        return None
+    ) -> dict[str, Any]:
+        resp = self.client.post(self._CANONICAL_ENDPOINT, json=payload, headers=pro_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert isinstance(data, dict)
+        ui_labels = data.get("ui_labels")
+        assert isinstance(ui_labels, dict), "ui_labels must be a dict in response"
+        assert ui_labels, "ui_labels must be non-empty"
+        assert (
+            ui_labels.get("kcal_daily") == "Calorías diarias"
+        ), "Expected Spanish ui_labels anchor for kcal_daily."
+        return data
 
     def test_female_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for female adult profile"""
@@ -110,13 +104,11 @@ class TestPremiumTargetsESSnapshots:
             "life_stage": "adult",
             "lang": "es",
         }
-        data = self._post_targets(
-            payload,
-            pro_headers,
-            legacy_alias=True,
-            expected_status=403,
-            expect_json=True,
-        )
+        # Legacy alias coverage — canonical snapshots use /api/v1/pro/nutrition/targets
+        resp = self.client.post(self._LEGACY_ALIAS_ENDPOINT, json=payload, headers=pro_headers)
+        assert resp.status_code == 403
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
         assert isinstance(data, dict)
 
     def test_male_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
