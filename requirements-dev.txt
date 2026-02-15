@@ -255,7 +255,7 @@ ruamel-yaml==0.18.17
     #   safety-schemas
 ruamel-yaml-clib==0.2.15
     # via ruamel-yaml
-ruff==0.15.0
+ruff==0.15.1
     # via -r requirements-dev.in
 safety==3.7.0
     # via -r requirements-dev.in
