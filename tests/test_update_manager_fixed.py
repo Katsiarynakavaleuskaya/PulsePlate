@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from tests.feature_manifest import FEATURE_REASON, require_feature
 
 from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
@@ -129,7 +128,6 @@ class TestUpdateManagerFixed:
 
     def test_update_manager_initialization(self):
         """Test DatabaseUpdateManager initialization."""
-        require_feature("update_manager_path_attrs", reason=FEATURE_REASON)
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(
                 cache_dir=temp_dir, update_interval_hours=12, max_rollback_versions=3
