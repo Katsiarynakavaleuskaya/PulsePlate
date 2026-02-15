@@ -129,7 +129,7 @@ sqlalchemy==2.0.46
     # via
     #   -r requirements.in
     #   alembic
-starlette==0.50.0
+starlette==0.52.1
     # via
     #   -r requirements.in
     #   fastapi
