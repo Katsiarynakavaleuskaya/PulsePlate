@@ -62,9 +62,10 @@ class _PatchablePathWrapper:
 
     @property
     def path(self) -> Path:
-        """Canonical public accessor for the underlying Path.
+        """Explicit public accessor for the underlying pathlib.Path.
 
-        RU: Yavnyi publichnyi dostup k Path nuzhen dlia stabilnogo kontrakta i testov.
+        This property exists to provide a stable contract for tests and
+        integrations. Do not rely on __getattr__ for contract-level attributes.
         """
         return self._path
 
@@ -84,7 +85,7 @@ class _PatchablePathWrapper:
     def __repr__(self) -> str:
         return f"_PatchablePathWrapper({self._path!r})"
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         # Delegate any other attribute access to the underlying Path
         return getattr(self._path, name)
 
