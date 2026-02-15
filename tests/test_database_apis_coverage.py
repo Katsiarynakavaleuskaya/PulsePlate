@@ -129,7 +129,7 @@ class TestCoreDatabaseCoverage:
             pass
 
     def test_update_manager_coverage(self) -> None:
-        """Test update manager functionality."""
+        """Test current update manager API surface."""
         try:
             from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
