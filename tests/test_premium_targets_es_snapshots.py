@@ -28,14 +28,23 @@ class TestPremiumTargetsESSnapshots:
         pro_headers: dict[str, str],
         *,
         legacy_alias: bool = False,
-    ) -> dict[str, Any]:
+        expected_status: int = 200,
+        expect_json: bool | None = None,
+    ) -> dict[str, Any] | None:
         endpoint = self._LEGACY_ALIAS_ENDPOINT if legacy_alias else self._CANONICAL_ENDPOINT
         resp = self.client.post(endpoint, json=payload, headers=pro_headers)
-        assert resp.status_code == 200
-        assert resp.headers.get("content-type", "").startswith("application/json")
-        data = resp.json()
-        assert isinstance(data, dict)
-        return data
+        assert resp.status_code == expected_status
+
+        if expect_json is None:
+            expect_json = expected_status == 200
+
+        if expect_json:
+            assert resp.headers.get("content-type", "").startswith("application/json")
+            data = resp.json()
+            assert isinstance(data, dict)
+            return data
+
+        return None
 
     def test_female_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
         """ES snapshot for female adult profile"""
@@ -101,11 +110,13 @@ class TestPremiumTargetsESSnapshots:
             "life_stage": "adult",
             "lang": "es",
         }
-        # Legacy alias coverage — canonical tests use /api/v1/pro/nutrition/targets
-        resp = self.client.post(self._LEGACY_ALIAS_ENDPOINT, json=payload, headers=pro_headers)
-        assert resp.status_code == 403
-        assert resp.headers.get("content-type", "").startswith("application/json")
-        data = resp.json()
+        data = self._post_targets(
+            payload,
+            pro_headers,
+            legacy_alias=True,
+            expected_status=403,
+            expect_json=True,
+        )
         assert isinstance(data, dict)
 
     def test_male_adult_es_snapshot(self, pro_headers: dict[str, str]) -> None:
