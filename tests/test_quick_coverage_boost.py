@@ -301,13 +301,19 @@ class TestQuickCoverageBoost:
             require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
-    async def test_update_manager_async_paths(self):
+    async def test_update_manager_async_paths(self) -> None:
         """Покрытие core/food_apis/update_manager.py async paths"""
         try:
             from core.food_apis.update_manager import DatabaseUpdateManager
+        except ImportError as exc:
+            require_feature_or_raise(
+                exc,
+                "food_apis",
+                reason=f"{FEATURE_REASON} Missing optional module: core.food_apis.update_manager.",
+            )
 
-            manager = DatabaseUpdateManager(update_interval_hours=1)
-
+        manager = DatabaseUpdateManager(update_interval_hours=1)
+        try:
             # Тест async методов с моками
             with patch.object(manager, "check_for_updates", new_callable=AsyncMock) as mock_check:
                 mock_check.return_value = {}
@@ -321,6 +327,5 @@ class TestQuickCoverageBoost:
                     await manager.update_database("usda")
                 except Exception as exc:  # pragma: no cover - depends on async extras
                     logger.warning("update_database raised during quick coverage test: %s", exc)
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "update_manager", reason=FEATURE_REASON)
+        finally:
+            await manager.close()

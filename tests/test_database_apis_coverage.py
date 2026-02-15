@@ -10,6 +10,7 @@ Note: These tests are marked as 'serial' because they import heavy modules
 during teardown due to background threads/pools/HTTP clients.
 """
 
+import inspect
 from unittest.mock import patch
 
 import pytest
@@ -127,32 +128,26 @@ class TestCoreDatabaseCoverage:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_update_manager_coverage(self):
-        """Test update manager functionality."""
-        try:
-            from core.food_apis.update_manager import (
-                DatabaseVersion,
-                UpdateManager,
-                check_for_updates,
-            )
+    def test_update_manager_coverage(self) -> None:
+        """Test current update manager API surface."""
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
-            # Test database version
-            version = DatabaseVersion(version="1.0", checksum="abc123")
-            assert version.version == "1.0"
-            assert version.checksum == "abc123"
+        # Test database version
+        version = DatabaseVersion(
+            source="test",
+            version="1.0",
+            last_updated="2026-01-01T00:00:00Z",
+            record_count=0,
+            checksum="abc123",
+            metadata={},
+        )
+        assert version.source == "test"
+        assert version.version == "1.0"
+        assert version.checksum == "abc123"
 
-            # Test update manager
-            manager = UpdateManager()
-            assert manager is not None
-
-            # Test check function
-            updates = check_for_updates()
-            assert isinstance(updates, (bool, dict, list, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "update_manager", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
+        # Test update manager API surface without executing external update flows.
+        assert hasattr(DatabaseUpdateManager, "check_for_updates")
+        assert inspect.iscoroutinefunction(DatabaseUpdateManager.check_for_updates)
 
 
 class TestCoreModulesAdvanced:

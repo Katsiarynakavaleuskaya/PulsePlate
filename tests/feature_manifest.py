@@ -56,7 +56,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "food_apis_error_injection",
         "unified_db",
         "unified_db_language",
-        "update_manager",
         "planner_engines",
         "premium_week_router_mocking",
         "i18n_advanced",
