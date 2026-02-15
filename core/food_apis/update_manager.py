@@ -57,8 +57,16 @@ class _PatchablePathWrapper:
     the underlying Path instance while remaining patch-friendly.
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self._path = path
+
+    @property
+    def path(self) -> Path:
+        """Canonical public accessor for the underlying Path.
+
+        RU: Yavnyi publichnyi dostup k Path nuzhen dlia stabilnogo kontrakta i testov.
+        """
+        return self._path
 
     # Commonly used methods/ops
     def glob(self, pattern: str):
@@ -76,7 +84,7 @@ class _PatchablePathWrapper:
     def __repr__(self) -> str:
         return f"_PatchablePathWrapper({self._path!r})"
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         # Delegate any other attribute access to the underlying Path
         return getattr(self._path, name)
 
