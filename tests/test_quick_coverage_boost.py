@@ -305,22 +305,25 @@ class TestQuickCoverageBoost:
         """Покрытие core/food_apis/update_manager.py async paths"""
         try:
             from core.food_apis.update_manager import DatabaseUpdateManager
+        except ImportError as exc:
+            require_feature_or_raise(
+                exc,
+                "food_apis",
+                reason=f"{FEATURE_REASON} Missing optional module: core.food_apis.update_manager.",
+            )
 
-            manager = DatabaseUpdateManager(update_interval_hours=1)
+        manager = DatabaseUpdateManager(update_interval_hours=1)
 
-            # Тест async методов с моками
-            with patch.object(manager, "check_for_updates", new_callable=AsyncMock) as mock_check:
-                mock_check.return_value = {}
-                result = await manager.check_for_updates()
-                assert isinstance(result, dict)
+        # Тест async методов с моками
+        with patch.object(manager, "check_for_updates", new_callable=AsyncMock) as mock_check:
+            mock_check.return_value = {}
+            result = await manager.check_for_updates()
+            assert isinstance(result, dict)
 
-            # Тест error handling в async методах
-            with patch.object(manager, "update_database", new_callable=AsyncMock) as mock_update:
-                mock_update.side_effect = Exception("Update failed")
-                try:
-                    await manager.update_database("usda")
-                except Exception as exc:  # pragma: no cover - depends on async extras
-                    logger.warning("update_database raised during quick coverage test: %s", exc)
-
-        except ImportError:
-            raise
+        # Тест error handling в async методах
+        with patch.object(manager, "update_database", new_callable=AsyncMock) as mock_update:
+            mock_update.side_effect = Exception("Update failed")
+            try:
+                await manager.update_database("usda")
+            except Exception as exc:  # pragma: no cover - depends on async extras
+                logger.warning("update_database raised during quick coverage test: %s", exc)

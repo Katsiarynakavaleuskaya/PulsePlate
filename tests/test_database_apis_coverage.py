@@ -130,21 +130,24 @@ class TestCoreDatabaseCoverage:
 
     def test_update_manager_coverage(self) -> None:
         """Test current update manager API surface."""
-        try:
-            from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
-            # Test database version
-            version = DatabaseVersion(version="1.0", checksum="abc123")
-            assert version.version == "1.0"
-            assert version.checksum == "abc123"
+        # Test database version
+        version = DatabaseVersion(
+            source="test",
+            version="1.0",
+            last_updated="2026-01-01T00:00:00Z",
+            record_count=0,
+            checksum="abc123",
+            metadata={},
+        )
+        assert version.source == "test"
+        assert version.version == "1.0"
+        assert version.checksum == "abc123"
 
-            # Test update manager API surface without executing external update flows.
-            assert hasattr(DatabaseUpdateManager, "check_for_updates")
-            assert inspect.iscoroutinefunction(DatabaseUpdateManager.check_for_updates)
-        except ImportError:
-            raise
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
+        # Test update manager API surface without executing external update flows.
+        assert hasattr(DatabaseUpdateManager, "check_for_updates")
+        assert inspect.iscoroutinefunction(DatabaseUpdateManager.check_for_updates)
 
 
 class TestCoreModulesAdvanced:
