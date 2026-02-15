@@ -17,7 +17,7 @@ bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
 safety>=3.6.2  # Security tool - keep >= for vulnerability updates
 pre-commit~=4.5.1
-pip-tools~=7.5.2
+pip-tools~=7.5.3
 detect-secrets~=1.5.0
 mypy~=1.19.1
 types-pyyaml~=6.0.12
