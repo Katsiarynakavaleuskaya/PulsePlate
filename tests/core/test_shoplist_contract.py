@@ -48,6 +48,35 @@ def test_create_shopping_list_aggregates_and_sorts() -> None:
     assert out[1].unit == "g"
 
 
+def test_create_shopping_list_skips_invalid_entries() -> None:
+    meal_plan = {
+        "day0": "not-a-mapping",
+        "day1": {
+            "lunch": "not-a-list",
+            "breakfast": [
+                {"name": "oats", "amount": 50, "unit": "g"},
+                "not-a-mapping",
+                {"amount": 10, "unit": "g"},
+                {"name": "", "amount": 10, "unit": "g"},
+                {"name": "   ", "amount": 10, "unit": "g"},
+                {"name": "rice", "amount": 10},
+                {"name": "rice", "amount": 10, "unit": ""},
+                {"name": "rice", "amount": 10, "unit": "   "},
+                {"name": "lentils", "amount": {"bad": "type"}, "unit": "g"},
+                {"name": "lentils", "amount": None, "unit": "g"},
+                {"name": "beans", "amount": "abc", "unit": "g"},
+                {"name": "oats", "amount": "25", "unit": "g"},
+            ],
+        },
+    }
+
+    out = create_shopping_list(meal_plan)
+    assert len(out) == 1
+    assert out[0].name == "oats"
+    assert out[0].unit == "g"
+    assert out[0].quantity == 75.0
+
+
 def test_group_by_category_accepts_dataclasses_and_mappings() -> None:
     items: list[ShoppingItem | Mapping[str, object]] = [
         ShoppingItem(name="flour", quantity=350.0, unit="g", category=None),
