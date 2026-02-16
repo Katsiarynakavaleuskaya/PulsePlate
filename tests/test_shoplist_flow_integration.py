@@ -15,7 +15,7 @@ def _without_generated_at(payload: dict[str, object]) -> dict[str, object]:
 def test_plan_to_shoplist_flow_is_deterministic(
     client: TestClient, pro_headers: dict[str, str]
 ) -> None:
-    """Same plan input must produce stable shoplist output."""
+    """Same logical plan must produce stable shoplist output."""
     plan_data = {
         "daily_menus": [
             {
@@ -58,6 +58,25 @@ def test_plan_to_shoplist_flow_is_deterministic(
 
     # Volatile timestamp is excluded; all functional fields must be stable.
     assert _without_generated_at(first_body) == _without_generated_at(second_body)
+
+    reordered_plan_data = deepcopy(plan_data)
+    original_meals = reordered_plan_data["daily_menus"][0]["meals"]
+    reordered_plan_data["daily_menus"][0]["meals"] = list(reversed(original_meals))
+
+    for meal in reordered_plan_data["daily_menus"][0]["meals"]:
+        grams = meal.get("grams")
+        if isinstance(grams, dict):
+            meal["grams"] = {key: value for key, value in reversed(list(grams.items()))}
+
+    reordered_payload = deepcopy(payload)
+    reordered_payload["plan_data"] = reordered_plan_data
+    reordered = client.post(
+        "/api/v1/pro/meal/shopping-list", json=reordered_payload, headers=pro_headers
+    )
+    assert reordered.status_code == 200, reordered.text
+    assert reordered.headers["content-type"].startswith("application/json")
+    reordered_body = reordered.json()
+    assert _without_generated_at(first_body) == _without_generated_at(reordered_body)
 
     categories = first_body["categories"]
     category_titles = [category["title"] for category in categories]
