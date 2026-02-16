@@ -1,5 +1,7 @@
 # Shoplist Flow Stabilization — Runtime Work-Package Plan
 
+<!-- markdownlint-disable MD013 MD032 MD060 -->
+
 ## Goal
 
 Deliver one deterministic user outcome in a single PR package:
@@ -183,3 +185,5 @@ Evaluation window: 8-12 weeks (vs previous 8-12 week baseline).
 
 - [ ] Link merged PR in `docs/roadmap/BACKLOG_LEDGER.md` and close the corresponding item.
 - [ ] Confirm no deferred work is left untracked.
+
+<!-- markdownlint-enable MD013 MD032 MD060 -->

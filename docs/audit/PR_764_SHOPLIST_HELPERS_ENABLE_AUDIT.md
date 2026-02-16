@@ -1,5 +1,7 @@
 # PR-764 — shoplist_helpers minimal enable audit
 
+<!-- markdownlint-disable MD013 MD032 MD060 -->
+
 ## Scope (PR-764, historical)
 
 - Enable `shoplist_helpers` contract path (minimal, contract-only).
@@ -152,3 +154,5 @@ Use a single runtime work-package PR for flow stabilization with strict IN/OUT b
 
 - IN: flow wiring, contract tests, integration happy path, negative tests, deterministic behavior.
 - OUT: AI/RAG endpoints, unrelated frontend/iOS work, CVE/security suppression changes, broad refactors.
+
+<!-- markdownlint-enable MD013 MD032 MD060 -->
