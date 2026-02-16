@@ -608,7 +608,25 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
     RU: Без логики упаковок, только фильтрация/нормализация входа.
     EN: No packaging logic here, just stable normalized output.
     """
-    return [item for item in items if isinstance(item, Mapping)]
+    normalized: list[Mapping[str, object]] = []
+    for item in items:
+        if isinstance(item, Mapping):
+            normalized.append(item)
+            continue
+        if not isinstance(item, ShoppingItem):
+            continue
+        normalized.append(
+            {
+                "name": item.name,
+                "quantity": item.quantity,
+                "unit": item.unit,
+                "category": item.category,
+                "package_size": item.package_size,
+                "packages_needed": item.packages_needed,
+                "total_weight": item.total_weight,
+            }
+        )
+    return normalized
 
 
 # Функции для удобного использования

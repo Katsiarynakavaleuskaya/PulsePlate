@@ -90,15 +90,18 @@ def test_group_by_category_accepts_dataclasses_and_mappings() -> None:
     assert len(grouped["uncategorized"]) == 2
 
 
-def test_optimize_packaging_filters_non_mappings() -> None:
+def test_optimize_packaging_normalizes_dataclass_and_filters_invalid() -> None:
     items: list[object] = [
         {"name": "flour", "quantity": 350, "unit": "g"},
+        ShoppingItem(name="oats", quantity=50.0, unit="g", category="grains"),
         "not-a-mapping",
         123,
         {"name": "sugar", "quantity": 150, "unit": "g"},
     ]
-    out = optimize_packaging(cast(list[Mapping[str, object]], items))
+    out = optimize_packaging(cast(list[ShoppingItem | Mapping[str, object]], items))
     assert isinstance(out, list)
-    assert len(out) == 2
+    assert len(out) == 3
     assert out[0]["name"] == "flour"
-    assert out[1]["name"] == "sugar"
+    assert out[1]["name"] == "oats"
+    assert out[1]["category"] == "grains"
+    assert out[2]["name"] == "sugar"
