@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
+import app as app_mod
 from fastapi.testclient import TestClient
 from tests.feature_manifest import FEATURE_REASON, require_feature
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")
@@ -296,7 +298,9 @@ class TestAppAdminEndpoints:
         response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 404, 500, 503]
 
-    def test_admin_force_update(self, client):
+    def test_admin_force_update(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin force update."""
+        scheduler = make_scheduler_stub()
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
         response = client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 404, 500, 503]

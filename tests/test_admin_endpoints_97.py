@@ -12,12 +12,13 @@
 
 import os
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import app as app_mod
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 
 @pytest.fixture
@@ -34,6 +35,8 @@ class TestAdminEndpoints:
     ) -> None:
         """Тест /api/v1/admin/force-update (блок 1566-1595)"""
         monkeypatch.setenv("API_KEY", "test_key")
+        scheduler = make_scheduler_stub()
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
         response = client.post(
             "/api/v1/admin/force-update",
@@ -82,6 +85,8 @@ class TestAdminEndpoints:
     ) -> None:
         """Test admin endpoints with real behavior"""
         monkeypatch.setenv("API_KEY", "test_key")
+        scheduler = make_scheduler_stub()
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
         # Test force-update (real request, no invasive sys.modules patching)
         response = client.post(
