@@ -142,15 +142,12 @@ class TestUnifiedDbCoverage:
     @pytest.mark.asyncio
     async def test_unified_db_language_support(self) -> None:
         """Test unified_db with different languages."""
-        try:
-            from core.food_apis.unified_db import search_unified_food
+        from core.food_apis.unified_db import search_unified_food
 
-            languages = ["en", "ru", "es"]
-            for lang in languages:
-                result = await search_unified_food("apple", language=lang)
-                assert result is not None
-        except (ImportError, TypeError):
-            require_feature("unified_db_language", reason=FEATURE_REASON)
+        languages = ["en", "ru", "es", "es-ES", "ru_RU", ""]
+        for lang in languages:
+            result = await search_unified_food("apple", language=lang)
+            assert result is not None
 
 
 class TestUpdateManagerCoverage:

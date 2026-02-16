@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .usda_client import USDAClient, USDAFoodItem
+from .unified_language import normalize_unified_db_language
 
 # Type-only imports for Open Food Facts
 if TYPE_CHECKING:
@@ -410,6 +411,20 @@ async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[st
     results = await db.search_food(query)
 
     return [item.to_menu_engine_format() for item in results[:max_results]]
+
+
+async def search_unified_food(
+    query: str, language: str | None = None, max_results: int = 5
+) -> List[Dict[str, Any]]:
+    """Backward-compatible unified search with language contract.
+
+    RU: Поддерживает language-параметр без изменения runtime поведения поиска.
+    EN: Supports language parameter without changing search runtime behavior.
+    """
+    normalize_unified_db_language(language)
+    # Intentionally keep search behavior source-agnostic; language is a stable
+    # contract input for callers and future routing decisions.
+    return await search_foods_unified(query, max_results=max_results)
 
 
 if __name__ == "__main__":  # pragma: no cover
