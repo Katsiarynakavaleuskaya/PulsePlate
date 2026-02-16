@@ -1971,6 +1971,6 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
+**Last updated:** 2026-02-16 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
