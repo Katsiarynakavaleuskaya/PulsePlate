@@ -476,11 +476,12 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
+- [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD (runtime work-package PR)
-  - Status: 📋 Planned
+  - Target PR: PR #770
+  - Status: ✅ Merged (PR #770, 2026-02-16, `c54143ab`)
+  - Merge SHA: c54143abee6568f42443822f9a6cb47b17edbbc4
   - Area: backend / contracts / integration tests
   - Finding Type: delivery packaging / flow contract
   - Reason: Move from micro-PR fragmentation to one scoped runtime package delivering a full user-visible flow outcome with deterministic tests and rollback.
