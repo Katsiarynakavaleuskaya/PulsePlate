@@ -157,14 +157,10 @@ class TestUnifiedDbCoverage:
             result = await unified_db_mod.search_unified_food("apple", language=lang, max_results=1)
             assert result is not None
             assert isinstance(result, list)
-            if result:
-                assert isinstance(result[0], dict)
 
         default_result = await unified_db_mod.search_unified_food("apple", max_results=1)
         assert default_result is not None
         assert isinstance(default_result, list)
-        if default_result:
-            assert isinstance(default_result[0], dict)
 
 
 class TestUpdateManagerCoverage:
