@@ -22,9 +22,9 @@ _NUTRITION_EVENT_KEY: Final[str] = "nutrition_event_model"
 
 
 def clear_orm_import_cache() -> None:
-    """Clear cached ORM imports (test helper).
+    """Test-only helper. Do not use in runtime code.
 
-    RU: Сбрасывает кэш import-safe ORM-резолвера. Используется только в тестах,
+    RU: Только для тестов. Сбрасывает кэш import-safe ORM-резолвера,
     чтобы избежать зависимостей от порядка импортов.
     """
     _ORM_IMPORT_CACHE.clear()
@@ -47,6 +47,9 @@ def get_nutrition_event_model() -> object:
     ORM на этапе импорта роутеров.
     EN: Returns NutritionEvent ORM model lazily to avoid ORM registration at
     router module import time.
+
+    Note: cache writes are intentionally lock-free; concurrent cold starts may do
+    redundant imports/assignments, but importlib import is idempotent and this is harmless.
     """
     cached = _ORM_IMPORT_CACHE.get(_NUTRITION_EVENT_KEY)
     if cached is not None:
