@@ -662,6 +662,8 @@ If it is not recorded here — it does not exist.
       `require_feature(...)` gate in tests.
     - Runtime `feature_disabled:<key>` skip count decreases as features land.
     - Ledger item is updated with merged PR references per implemented key.
+  - Implemented keys (latest):
+    - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
 
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya

@@ -156,3 +156,11 @@ Use a single runtime work-package PR for flow stabilization with strict IN/OUT b
 - OUT: AI/RAG endpoints, unrelated frontend/iOS work, CVE/security suppression changes, broad refactors.
 
 <!-- markdownlint-enable MD013 MD032 MD060 -->
+
+- PR-764 scoped checks (`tests/test_remaining_modules.py` +
+  skip-marker absence + pre-commit + mypy/lint) are green.
+
+## Merge status
+
+- Merged SHA: `48c87f39`
+- CI: required checks passed at merge time for PR-764.
