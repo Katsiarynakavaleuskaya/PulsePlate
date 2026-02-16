@@ -48,12 +48,30 @@ def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
     Patch UnifiedFoodDatabase.get_common_foods_database to return a tiny DB fast.
     Keeps method async and avoids IO/cache work.
     """
-    from core.food_apis.unified_db import UnifiedFoodDatabase
+    from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 
-    async def _fast_common_foods(self: UnifiedFoodDatabase) -> dict[str, Any]:
+    async def _fast_common_foods(self: UnifiedFoodDatabase) -> dict[str, UnifiedFoodItem]:
         return {
-            "oats": {"name": "oats"},
-            "rice": {"name": "rice"},
+            "oats": UnifiedFoodItem(
+                name="oats",
+                nutrients_per_100g={"protein_g": 13.0, "fat_g": 7.0, "carbs_g": 66.0},
+                cost_per_100g=0.5,
+                tags=["grain"],
+                availability_regions=["US", "EU"],
+                source="stub",
+                source_id="oats_stub",
+                category="grains",
+            ),
+            "rice": UnifiedFoodItem(
+                name="rice",
+                nutrients_per_100g={"protein_g": 2.7, "fat_g": 0.3, "carbs_g": 28.0},
+                cost_per_100g=0.3,
+                tags=["grain"],
+                availability_regions=["US", "EU"],
+                source="stub",
+                source_id="rice_stub",
+                category="grains",
+            ),
         }
 
     monkeypatch.setattr(UnifiedFoodDatabase, "get_common_foods_database", _fast_common_foods)
