@@ -12,29 +12,48 @@
 
 Command:
 
-`rg -n 'require_feature_or_raise\(.*"shoplist_helpers"' -S tests`
+```bash
+rg -n 'require_feature_or_raise\(.*"shoplist_helpers"' -S tests
+```
 
 Output:
 
-- `tests/test_remaining_modules.py:40:            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)`
-- `tests/test_remaining_modules.py:55:            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)`
-- `tests/test_remaining_modules.py:93:            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)`
+```text
+tests/test_remaining_modules.py:40: require_feature_or_raise(
+    exc, "shoplist_helpers", reason=FEATURE_REASON
+)
+tests/test_remaining_modules.py:55: require_feature_or_raise(
+    exc, "shoplist_helpers", reason=FEATURE_REASON
+)
+tests/test_remaining_modules.py:93: require_feature_or_raise(
+    exc, "shoplist_helpers", reason=FEATURE_REASON
+)
+```
 
 ### 2) Skip reason in test summary
 
 Command:
 
-`pytest -q -rs tests/test_remaining_modules.py 2>&1 | rg -n "shoplist_helpers|ImportError|ModuleNotFoundError" -n -C 3`
+```bash
+pytest -q -rs tests/test_remaining_modules.py 2>&1 | rg -n \
+  "shoplist_helpers|ImportError|ModuleNotFoundError" -n -C 3
+```
 
 Output:
 
-- `SKIPPED [1] tests/feature_manifest.py:94: feature_disabled:shoplist_helpers (enable via PULSEPLATE_FEATURES=all or CSV). Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+).`
+```text
+SKIPPED [1] tests/feature_manifest.py:94:
+feature_disabled:shoplist_helpers (enable via PULSEPLATE_FEATURES=all or CSV).
+Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+).
+```
 
 ### 3) Import contract expected by tests
 
 Command:
 
-`nl -ba tests/test_remaining_modules.py | sed -n '1,140p'`
+```bash
+nl -ba tests/test_remaining_modules.py | sed -n '1,140p'
+```
 
 Relevant imports:
 
@@ -47,7 +66,8 @@ Relevant imports:
 ## Changes applied
 
 1. `tests/feature_manifest.py`
-   - Removed `shoplist_helpers` from `FEATURE_TODO_KEYS`.
+   - Kept `shoplist_helpers` in `FEATURE_TODO_KEYS` to preserve
+     `require_feature_or_raise(...)` behavior on future import regressions.
 
 2. `core/shoplist.py`
    - Added contract-only helper exports:
@@ -62,7 +82,9 @@ Relevant imports:
 
 Command:
 
-`pytest -q -rs tests/test_remaining_modules.py`
+```bash
+pytest -q -rs tests/test_remaining_modules.py
+```
 
 Output:
 
@@ -73,7 +95,10 @@ Output:
 
 Command:
 
-`pytest -q -rs tests/test_remaining_modules.py 2>&1 | rg -n "feature_disabled:shoplist_helpers" && exit 1 || true`
+```bash
+pytest -q -rs tests/test_remaining_modules.py 2>&1 | \
+  rg -n "feature_disabled:shoplist_helpers" && exit 1 || true
+```
 
 Output:
 
@@ -83,7 +108,9 @@ Output:
 
 Command:
 
-`pre-commit run --all-files`
+```bash
+pre-commit run --all-files
+```
 
 Output:
 
@@ -93,14 +120,18 @@ Output:
 
 Command:
 
-`make verify`
+```bash
+make verify
+```
 
 Observed:
 
 - `flake8` passed
 - `mypy` passed (`Success: no issues found in 202 source files`)
-- `pytest --lf --maxfail=3 -q` reached ~84% and stalled in this environment during this run
+- `pytest --lf --maxfail=3 -q` reached ~84% and stalled in this
+  environment during this run
 
 Note:
 
-- PR-764 scoped checks (`tests/test_remaining_modules.py` + skip-marker absence + pre-commit + mypy/lint) are green.
+- PR-764 scoped checks (`tests/test_remaining_modules.py` +
+  skip-marker absence + pre-commit + mypy/lint) are green.
