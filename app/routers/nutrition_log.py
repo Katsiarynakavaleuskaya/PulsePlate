@@ -38,6 +38,15 @@ router = APIRouter(
 IDEMP_CONSTRAINT = "uq_nutrition_events_idempotency"
 
 
+def _nutrition_event_model() -> object:
+    """Resolve NutritionEvent ORM model lazily (OpenAPI import-safe).
+
+    RU: Ленивое получение ORM-модели, чтобы не тянуть ORM при импорте роутера
+    (важно для OpenAPI/schema-only путей).
+    """
+    return get_nutrition_event_model()
+
+
 def _is_idempotency_violation(err: IntegrityError) -> bool:
     """Check if IntegrityError is specifically an idempotency constraint violation.
 
@@ -69,8 +78,7 @@ def _is_idempotency_violation(err: IntegrityError) -> bool:
 def _fetch_existing_event(
     session: Session, subject_id: int, day: date, source: str, client_event_id: str
 ) -> "NutritionEventModel" | None:
-    # Lazy import: avoid ORM model import at module import time (OpenAPI generation path).
-    NutritionEventModel = get_nutrition_event_model()
+    NutritionEventModel = _nutrition_event_model()
 
     stmt = (
         select(NutritionEventModel)
@@ -172,7 +180,7 @@ async def log_meal(
 
     # Write event to append-only log (idempotent if client_event_id provided)
     event_record: "NutritionEventModel" | None = None
-    NutritionEventModel = get_nutrition_event_model()
+    NutritionEventModel = _nutrition_event_model()
 
     event_payload = {
         "log_type": payload.log_type,
@@ -240,7 +248,7 @@ async def close_day(
 
     # Write day_closed event to append-only log (idempotent)
     event_record: "NutritionEventModel" | None = None
-    NutritionEventModel = get_nutrition_event_model()
+    NutritionEventModel = _nutrition_event_model()
 
     try:
         event_record = NutritionEventModel(
