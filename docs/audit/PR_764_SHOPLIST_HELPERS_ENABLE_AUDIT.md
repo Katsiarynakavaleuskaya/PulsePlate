@@ -96,13 +96,15 @@ Output:
 Command:
 
 ```bash
-pytest -q -rs tests/test_remaining_modules.py 2>&1 | \
-  rg -n "feature_disabled:shoplist_helpers" && exit 1 || true
+bash -lc 'set -o pipefail; pytest -q -rs tests/test_remaining_modules.py 2>&1 | rg -n "feature_disabled:shoplist_helpers"; echo "exit_code=$?"'
 ```
 
 Output:
 
-- no matches
+```text
+# (no matches)
+exit_code=1
+```
 
 ### 3) Pre-commit status
 
