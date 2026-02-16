@@ -21,9 +21,9 @@ This plan intentionally avoids ultra-atomic "3-file PR" fragmentation while pres
 
 ## Evidence anchors
 
-- `core/shoplist.py:1`
-- `tests/core/test_shoplist_contract.py:1`
-- `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md:1`
+- `core/shoplist.py:538` (`create_shopping_list` contract helper)
+- `tests/core/test_shoplist_contract.py:35` (contract test for deterministic aggregation)
+- `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md:131` (canonical readiness wording)
 
 ## Scope (IN)
 
@@ -169,11 +169,8 @@ Next (separate package):
 
 Evaluation window: 8-12 weeks (vs previous 8-12 week baseline).
 
-- Lead time to merge (median)
-- Review cycles per PR
-- First-run CI pass rate
-- Revert/hotfix rate within 14 days
-- Package completion rate (planned scope delivered in one package)
+See the canonical metric definitions in **Metrics block (work-package vs atomic PR)** above.
+KPI checkpoint usage here is operational only: track the same metrics at phase gates without redefining them.
 
 ## Checklists
 
