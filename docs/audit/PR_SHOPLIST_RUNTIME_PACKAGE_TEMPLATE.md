@@ -26,6 +26,12 @@ Deliver one deterministic backend flow outcome:
 
 This PR is a complete, testable, and reversible runtime package (not scaffolding-only).
 
+## Flow Definition
+
+- **plan:** canonical backend plan payload used as the source input for list generation.
+- **shoplist:** canonical shopping-list payload derived from the plan input.
+- **plan -> shoplist:** given the same valid input fixtures, the flow must produce identical outputs (deterministic contract).
+
 ## Scope Freeze
 
 ### IN
@@ -66,7 +72,8 @@ Any OUT item discovered during execution is deferred to `docs/roadmap/BACKLOG_LE
 
 - Invalid inputs -> 422.
 - Auth/tier mismatch -> 401/403.
-- Rate limit (if applicable) -> 429.
+- Rate limit -> 429 for flow endpoints that use `@limit_if_available`.
+- If no endpoint in this flow is rate-limited, state that explicitly in the PR test plan.
 
 ### Anti-flake rules
 
@@ -110,6 +117,8 @@ Any OUT item discovered during execution is deferred to `docs/roadmap/BACKLOG_LE
 - [ ] 0 actionable bot comments
 - [ ] required checks PASS
 - [ ] IN/OUT scope validation confirmed
+
+**Note:** Green CI is necessary but not sufficient; merge is blocked until all gates above pass.
 
 ## Deferred / Follow-ups
 
