@@ -3,7 +3,7 @@
 ## Scope
 
 - Remove `shoplist_helpers` from feature TODO manifest.
-- Ensure `core.shoplist` exports required compatibility symbols used by `tests/test_remaining_modules.py`.
+- Ensure `core.shoplist` exports the required compatibility symbols used by `tests/test_remaining_modules.py`.
 - Keep change contract-only, with no added IO/DB/network behavior.
 
 ## Evidence (before)
