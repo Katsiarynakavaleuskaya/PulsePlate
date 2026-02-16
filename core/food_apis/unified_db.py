@@ -16,7 +16,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
 from .usda_client import USDAClient, USDAFoodItem
 from .unified_language import normalize_unified_db_language
@@ -47,6 +47,19 @@ def _resolve_off_client() -> Tuple[Any, bool]:
 OFFClient, OFF_AVAILABLE = _resolve_off_client()
 
 logger = logging.getLogger(__name__)
+
+
+class UnifiedFoodResult(TypedDict):
+    """Payload contract used by menu-engine compatible unified search helpers."""
+
+    name: str
+    nutrients_per_100g: Dict[str, float]
+    cost_per_100g: float
+    tags: List[str]
+    availability_regions: List[str]
+    source: str
+    source_id: str
+    category: Optional[str]
 
 
 @dataclass
@@ -122,7 +135,7 @@ class UnifiedFoodItem:
             category=off_item.categories[0] if off_item.categories else None,
         )
 
-    def to_menu_engine_format(self) -> Dict[str, Any]:
+    def to_menu_engine_format(self) -> UnifiedFoodResult:
         """Convert to format expected by menu_engine.py"""
         return {
             "name": self.name,
@@ -400,7 +413,7 @@ async def get_unified_food_db() -> UnifiedFoodDatabase:
     return _unified_db_instance
 
 
-async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+async def search_foods_unified(query: str, max_results: int = 5) -> List[UnifiedFoodResult]:
     """
     RU: Упрощенная функция поиска продуктов для использования в menu_engine.
     EN: Simplified food search function for use in menu_engine.
@@ -415,15 +428,16 @@ async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[st
 
 async def search_unified_food(
     query: str, language: str | None = None, max_results: int = 5
-) -> List[Dict[str, Any]]:
+) -> List[UnifiedFoodResult]:
     """Backward-compatible unified search with language contract.
 
     RU: Поддерживает language-параметр без изменения runtime поведения поиска.
     EN: Supports language parameter without changing search runtime behavior.
     """
-    normalize_unified_db_language(language)
-    # Intentionally keep search behavior source-agnostic; language is a stable
-    # contract input for callers and future routing decisions.
+    normalized_language = normalize_unified_db_language(language)
+    # NOTE: normalized_language is intentionally computed as a SoT extension point.
+    # Today it does not change unified search behavior; future routing may use it.
+    _ = normalized_language
     return await search_foods_unified(query, max_results=max_results)
 
 
