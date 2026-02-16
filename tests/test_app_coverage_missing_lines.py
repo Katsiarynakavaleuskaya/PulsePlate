@@ -261,7 +261,6 @@ class TestAppMissingLinesCoverage:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test force database update endpoint."""
-        client = client
         scheduler = make_scheduler_stub()
         patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
