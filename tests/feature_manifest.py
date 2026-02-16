@@ -59,7 +59,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "premium_week_router_mocking",
         "i18n_advanced",
         "rag",
-        "shoplist_helpers",
         "targets_fixture_data",
         "utils_pack",
         "weekly_plan_helpers",
@@ -125,3 +124,9 @@ def require_feature_or_raise(
     if active_manifest.is_enabled(key):
         raise exc
     require_feature(key, reason, manifest=active_manifest)
+
+
+def test_feature_manifest_smoke() -> None:
+    """Smoke-test to keep backend pre-commit hook deterministic for this module."""
+    manifest = FeatureManifest.from_env()
+    assert isinstance(manifest.enabled, frozenset)

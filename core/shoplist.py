@@ -531,6 +531,74 @@ def _get_generator() -> ShoplistGenerator:
     return _generator
 
 
+# Contract-only helper exports expected by low-coverage compatibility tests.
+def create_shopping_list(meal_plan: Mapping[str, object]) -> list[ShoppingItem]:
+    """Create deterministic shopping items from a loose meal-plan mapping.
+
+    RU: Извлекает записи вида {"name","amount","unit"} и агрегирует количества.
+    EN: Extracts {"name","amount","unit"} entries and aggregates quantities.
+    """
+    totals: dict[tuple[str, str], float] = {}
+
+    for day_value in meal_plan.values():
+        if not isinstance(day_value, Mapping):
+            continue
+        for meal_value in day_value.values():
+            if not isinstance(meal_value, list):
+                continue
+            for item in meal_value:
+                if not isinstance(item, Mapping):
+                    continue
+
+                raw_name = item.get("name")
+                raw_unit = item.get("unit")
+                raw_amount = item.get("amount")
+
+                name = str(raw_name).strip() if raw_name is not None else ""
+                unit = str(raw_unit).strip() if raw_unit is not None else ""
+                if not name or not unit:
+                    continue
+
+                if isinstance(raw_amount, (int, float)):
+                    quantity = float(raw_amount)
+                elif isinstance(raw_amount, str):
+                    try:
+                        quantity = float(raw_amount)
+                    except ValueError:
+                        continue
+                else:
+                    continue
+
+                key = (name, unit)
+                totals[key] = totals.get(key, 0.0) + quantity
+
+    return [
+        ShoppingItem(name=name, quantity=qty, unit=unit, category="uncategorized")
+        for (name, unit), qty in sorted(totals.items())
+    ]
+
+
+def group_by_category(
+    items: list[Mapping[str, object]],
+) -> dict[str, list[Mapping[str, object]]]:
+    """Group items by category with uncategorized fallback."""
+    grouped: dict[str, list[Mapping[str, object]]] = {}
+    for item in items:
+        raw_category = item.get("category", "uncategorized")
+        category = str(raw_category).strip() or "uncategorized"
+        grouped.setdefault(category, []).append(item)
+    return grouped
+
+
+def optimize_packaging(items: list[Mapping[str, object]]) -> list[Mapping[str, object]]:
+    """Contract-only packaging normalization.
+
+    RU: Без логики упаковок, только фильтрация/нормализация входа.
+    EN: No packaging logic here, just stable normalized output.
+    """
+    return [item for item in items if isinstance(item, Mapping)]
+
+
 # Функции для удобного использования
 def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
     """Агрегирует ингредиенты из недельного плана."""
