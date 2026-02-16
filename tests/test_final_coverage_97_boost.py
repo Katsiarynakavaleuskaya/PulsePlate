@@ -144,7 +144,9 @@ class TestUnifiedDbCoverage:
         """Test unified_db language normalization contract."""
         from core.food_apis import unified_db as unified_db_mod
 
-        async def _fake_search(query: str, max_results: int = 5) -> list[dict[str, object]]:
+        async def _fake_search(
+            query: str, max_results: int = 5
+        ) -> list[unified_db_mod.UnifiedFoodResult]:
             _ = (query, max_results)
             return []
 
