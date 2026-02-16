@@ -160,10 +160,10 @@ Next (separate package):
 ```bash
 # 1) confirm docs-only delta for this governance PR
 git diff --name-only origin/main...HEAD \
-  | rg -v '\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$'
+  | rg -v '^docs/.*\.md$'
 
 # 2) show files touching shoplist runtime surface (must be empty in parallel docs PR)
-git diff --name-only origin/main...HEAD | rg -n 'shoplist|shopping_list|core/shoplist'
+git diff --name-only origin/main...HEAD | rg 'shoplist|shopping_list|core/shoplist'
 
 # 3) prove branch cleanliness before moving back to runtime work
 git status --short
