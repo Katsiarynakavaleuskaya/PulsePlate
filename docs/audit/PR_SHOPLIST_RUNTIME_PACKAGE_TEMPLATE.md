@@ -4,9 +4,14 @@
 
 - **Document type:** Runtime work-package PR description.
 - **Primary audience:** Reviewers, maintainers, bots, and future contributors.
-- **Desired impact:** Fast, deterministic review with zero ambiguity on scope and acceptance gates.
-- **Source context:** `docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md`, `AGENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`.
-- **Constraints:** One value package (`plan -> shoplist`), no scope creep, merge only with green CI and resolved review threads.
+- **Desired impact:** Fast, deterministic review with zero ambiguity
+  on scope and acceptance gates.
+- **Source context:**
+  `docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md`,
+  `AGENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`.
+- **Constraints:** One value package (`plan -> shoplist`),
+  no scope creep, merge only with green CI and resolved
+  review threads.
 
 ## Evidence anchors
 
@@ -30,7 +35,8 @@ This PR is a complete, testable, and reversible runtime package (not scaffolding
 
 - **plan:** canonical backend plan payload used as the source input for list generation.
 - **shoplist:** canonical shopping-list payload derived from the plan input.
-- **plan -> shoplist:** given the same valid input fixtures, the flow must produce identical outputs (deterministic contract).
+- **plan -> shoplist:** given the same valid input fixtures,
+  the flow must produce identical outputs (deterministic contract).
 
 ## Scope Freeze
 
@@ -72,8 +78,10 @@ Any OUT item discovered during execution is deferred to `docs/roadmap/BACKLOG_LE
 
 - Invalid inputs -> 422.
 - Auth/tier mismatch -> 401/403.
-- Rate limit -> 429 for flow endpoints that use `@limit_if_available`.
-- If no endpoint in this flow is rate-limited, state that explicitly in the PR test plan.
+- Rate limit -> 429 for flow endpoints that use
+  `@limit_if_available`.
+- If no endpoint in this flow is rate-limited,
+  state that explicitly in the PR test plan.
 
 ### Anti-flake rules
 
@@ -118,11 +126,13 @@ Any OUT item discovered during execution is deferred to `docs/roadmap/BACKLOG_LE
 - [ ] required checks PASS
 - [ ] IN/OUT scope validation confirmed
 
-**Note:** Green CI is necessary but not sufficient; merge is blocked until all gates above pass.
+**Note:** Green CI is necessary but not sufficient;
+merge is blocked until all gates above pass.
 
 ## Deferred / Follow-ups
 
-- Link any deferred OUT items to `docs/roadmap/BACKLOG_LEDGER.md` with Owner/Priority/Target PR/DoD.
+- Link any deferred OUT items to `docs/roadmap/BACKLOG_LEDGER.md`
+  with Owner/Priority/Target PR/DoD.
 
 ## Reader Testing Checklist (Doc-Coauthoring Stage 3)
 
