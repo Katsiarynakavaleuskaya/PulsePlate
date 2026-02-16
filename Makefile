@@ -97,10 +97,10 @@ test: ## Run pytest
 	@echo "$(YELLOW)🧪 Запуск тестов...$(NC)"
 	. .venv/bin/activate && pytest -q
 
-## Fast tests (last failed)
-test-fast: ## Run only last failed tests
-	@echo "$(YELLOW)⚡ Быстрые тесты...$(NC)"
-	. .venv/bin/activate && pytest --lf --maxfail=3 -q
+## Fast tests (deterministic smoke subset)
+test-fast: ## Run smoke tests (deterministic subset)
+	@echo "$(YELLOW)⚡ Smoke tests...$(NC)"
+	. .venv/bin/activate && pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
