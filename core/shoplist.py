@@ -591,6 +591,7 @@ def group_by_category(
 
 
 def optimize_packaging(items: list[Mapping[str, object]]) -> list[Mapping[str, object]]:
+    # NOTE: Compatibility API name is preserved intentionally; behavior stays contract-only.
     """Contract-only packaging normalization.
 
     RU: Без логики упаковок, только фильтрация/нормализация входа.
