@@ -2,22 +2,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from collections.abc import Callable
-from types import SimpleNamespace
 from typing import Any
-
-
-def _default_force_update_result() -> object:
-    """Return attribute-shaped result compatible with force-update response formatter."""
-    return SimpleNamespace(
-        success=True,
-        old_version="stub-old",
-        new_version="stub-new",
-        records_added=0,
-        records_updated=0,
-        records_removed=0,
-        duration_seconds=0.0,
-        errors=[],
-    )
 
 
 def make_scheduler_stub(usda_result: Any = None) -> object:
@@ -29,10 +14,9 @@ def make_scheduler_stub(usda_result: Any = None) -> object:
     class _SchedulerStub:
         async def force_update(self, source: str | None = None) -> dict[str, Any]:
             _ = source
-            source_result = (
-                usda_result if usda_result is not None else _default_force_update_result()
-            )
-            return {"usda": source_result}
+            if usda_result is not None:
+                return {"usda": usda_result}
+            return {"usda": {"ok": True, "status": "stubbed"}}
 
     return _SchedulerStub()
 

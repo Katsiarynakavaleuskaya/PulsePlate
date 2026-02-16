@@ -298,7 +298,7 @@ class TestAppAdminEndpoints:
         response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 404, 500, 503]
 
-    def test_admin_force_update(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_admin_force_update(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin force update."""
         scheduler = make_scheduler_stub()
         patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
