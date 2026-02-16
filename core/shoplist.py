@@ -631,12 +631,9 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
             if raw_name is None or raw_quantity is None or raw_unit is None:
                 continue
             # Keep runtime behavior broad: accept any value float() can coerce.
-            raw_quantity_value: object = raw_quantity
             try:
                 quantity = float(
-                    cast(
-                        str | bytes | bytearray | SupportsFloat | SupportsIndex, raw_quantity_value
-                    )
+                    cast(str | bytes | bytearray | SupportsFloat | SupportsIndex, raw_quantity)
                 )
             except (TypeError, ValueError):
                 continue
@@ -649,7 +646,6 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
                     "category": category or "uncategorized",
                 }
             )
-            continue
         if isinstance(item, ShoppingItem):
             normalized.append(
                 {
