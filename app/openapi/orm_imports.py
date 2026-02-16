@@ -10,18 +10,51 @@ ORM side effects.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Type
+import importlib
+from typing import Final
 
-if TYPE_CHECKING:  # pragma: no cover
-    from app.models import NutritionEvent  # noqa: F401
+# Import-safe cache: values are model classes or other resolved objects.
+# We intentionally avoid `Any` in core/openapi logic.
+_ORM_IMPORT_CACHE: dict[str, object] = {}
+
+# Canonical cache keys (stable string literals).
+_NUTRITION_EVENT_KEY: Final[str] = "nutrition_event_model"
 
 
-def get_nutrition_event_model() -> Type["NutritionEvent"]:
-    """Return NutritionEvent ORM model via runtime import.
+def clear_orm_import_cache() -> None:
+    """Test-only helper. Do not use in runtime code.
 
-    RU: runtime import, чтобы избежать import-time side effects.
-    EN: runtime import to avoid import-time side effects.
+    RU: Только для тестов. Сбрасывает кэш import-safe ORM-резолвера,
+    чтобы избежать зависимостей от порядка импортов.
     """
-    from app.models import NutritionEvent
+    _ORM_IMPORT_CACHE.clear()
 
-    return NutritionEvent
+
+def _lazy_import_attr(module_path: str, attr_name: str) -> object:
+    """Import `module_path` lazily and return `attr_name`.
+
+    RU: Ленивый импорт без side effects на уровне модуля. ORM-модели не должны
+    импортироваться при генерации OpenAPI / schema-only режимах.
+    """
+    module = importlib.import_module(module_path)
+    return getattr(module, attr_name)
+
+
+def get_nutrition_event_model() -> object:
+    """Return the NutritionEvent ORM model class (import-safe).
+
+    RU: Возвращает ORM-модель NutritionEvent лениво, чтобы не регистрировать
+    ORM на этапе импорта роутеров.
+    EN: Returns NutritionEvent ORM model lazily to avoid ORM registration at
+    router module import time.
+
+    Note: cache writes are intentionally lock-free; concurrent cold starts may do
+    redundant imports/assignments, but importlib import is idempotent and this is harmless.
+    """
+    cached = _ORM_IMPORT_CACHE.get(_NUTRITION_EVENT_KEY)
+    if cached is not None:
+        return cached
+
+    model = _lazy_import_attr("app.models", "NutritionEvent")
+    _ORM_IMPORT_CACHE[_NUTRITION_EVENT_KEY] = model
+    return model
