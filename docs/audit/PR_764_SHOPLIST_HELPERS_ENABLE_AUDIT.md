@@ -139,3 +139,8 @@ Note:
 
 - PR-764 scoped checks (`tests/test_remaining_modules.py` +
   skip-marker absence + pre-commit + mypy/lint) are green.
+
+## Merge status
+
+- Merged SHA: `48c87f39`
+- CI: required checks passed at merge time for PR-764.
