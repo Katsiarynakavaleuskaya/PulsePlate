@@ -134,6 +134,41 @@ Now (this package):
 Next (separate package):
 - Deferred items only, recorded in `docs/roadmap/BACKLOG_LEDGER.md` with owner/DoD/target PR.
 
+## Parallel ownership seams (conflict-avoidance contract)
+
+### Shoplist owner (primary)
+
+- `core/shoplist.py`
+- `app/core/shopping_list/*`
+- `tests/*shoplist*`, `tests/*shopping_list*`
+- shoplist flow contract/integration tests and related audit notes
+
+### Parallel track (safe while shoplist is in progress)
+
+- `tests/helpers/*` and non-shoplist tests
+- CI/gates updates and docs-only governance updates
+- security hardening outside shoplist paths (`app/security/*`, guard tests not tied to shoplist)
+
+### Do-not-touch list for parallel track
+
+- router/schema/service connection points that expose shoplist runtime surface
+- shoplist API DTO/response contract files
+- shoplist route registration points
+
+### Evidence commands (pre-push)
+
+```bash
+# 1) confirm docs-only delta for this governance PR
+git diff --name-only origin/main...HEAD \
+  | rg -v '^docs/.*\.md$'
+
+# 2) show files touching shoplist runtime surface (must be empty in parallel docs PR)
+git diff --name-only origin/main...HEAD | rg 'shoplist|shopping_list|core/shoplist'
+
+# 3) prove branch cleanliness before moving back to runtime work
+git status --short
+```
+
 ## Task matrix with checkpoints (A/B/C/D)
 
 | Phase | Objective | Responsible | Checkpoint (objective evidence) | Hard gate |
