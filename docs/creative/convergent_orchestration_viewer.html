@@ -446,7 +446,7 @@
             colorPalette: ["#d97757", "#6a9bcc", "#788c5d"],
         };
 
-        let defaultParams = { ...params };
+        let defaultParams = { ...params, colorPalette: [...params.colorPalette] };
         let particles = [];
         let flowField = [];
         let cols, rows;
