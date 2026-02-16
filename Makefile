@@ -100,7 +100,7 @@ test: ## Run pytest
 ## Fast tests (last failed)
 test-fast: ## Run only last failed tests
 	@echo "$(YELLOW)⚡ Быстрые тесты...$(NC)"
-	. .venv/bin/activate && pytest --lf --maxfail=3 -q
+	. .venv/bin/activate && pytest -q
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)

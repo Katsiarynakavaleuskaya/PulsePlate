@@ -14,7 +14,7 @@ echo -e "${BLUE}⚡ Быстрая проверка PulsePlate${NC}"
 
 # 1. Быстрые тесты (только измененные файлы)
 echo -e "${YELLOW}🧪 Запуск быстрых тестов...${NC}"
-if python -m pytest --lf --maxfail=1 -q; then
+if python -m pytest --maxfail=1 -q; then
     echo -e "${GREEN}✅ Быстрые тесты пройдены${NC}"
 else
     echo -e "${RED}❌ Быстрые тесты провалены${NC}"
