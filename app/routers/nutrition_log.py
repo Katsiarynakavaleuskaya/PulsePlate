@@ -7,7 +7,7 @@ EN: PRO nutrition logging endpoints that feed the adherence micro-model.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -38,13 +38,13 @@ router = APIRouter(
 IDEMP_CONSTRAINT = "uq_nutrition_events_idempotency"
 
 
-def _nutrition_event_model() -> object:
+def _nutrition_event_model() -> "type[NutritionEventModel]":
     """Resolve NutritionEvent ORM model lazily (OpenAPI import-safe).
 
     RU: Ленивое получение ORM-модели, чтобы не тянуть ORM при импорте роутера
     (важно для OpenAPI/schema-only путей).
     """
-    return get_nutrition_event_model()
+    return cast("type[NutritionEventModel]", get_nutrition_event_model())
 
 
 def _is_idempotency_violation(err: IntegrityError) -> bool:
