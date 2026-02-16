@@ -140,17 +140,27 @@ class TestUnifiedDbCoverage:
             require_feature("unified_db", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
-    async def test_unified_db_language_support(self) -> None:
-        """Test unified_db with different languages."""
-        try:
-            from core.food_apis.unified_db import search_unified_food
+    async def test_unified_db_language_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test unified_db language normalization contract."""
+        from core.food_apis import unified_db as unified_db_mod
 
-            languages = ["en", "ru", "es"]
-            for lang in languages:
-                result = await search_unified_food("apple", language=lang)
-                assert result is not None
-        except (ImportError, TypeError):
-            require_feature("unified_db_language", reason=FEATURE_REASON)
+        async def _fake_search(
+            query: str, max_results: int = 5
+        ) -> list[unified_db_mod.UnifiedFoodResult]:
+            _ = (query, max_results)
+            return []
+
+        monkeypatch.setattr(unified_db_mod, "search_foods_unified", _fake_search)
+
+        languages = ["en", "ru", "es", "es-ES", "ru_RU", "", "  "]
+        for lang in languages:
+            result = await unified_db_mod.search_unified_food("apple", language=lang, max_results=1)
+            assert result is not None
+            assert isinstance(result, list)
+
+        default_result = await unified_db_mod.search_unified_food("apple", max_results=1)
+        assert default_result is not None
+        assert isinstance(default_result, list)
 
 
 class TestUpdateManagerCoverage:
