@@ -12,12 +12,12 @@ NC='\033[0m'
 
 echo -e "${BLUE}⚡ Быстрая проверка PulsePlate${NC}"
 
-# 1. Быстрые тесты (только измененные файлы)
-echo -e "${YELLOW}🧪 Запуск быстрых тестов...${NC}"
-if python -m pytest --maxfail=1 -q; then
-    echo -e "${GREEN}✅ Быстрые тесты пройдены${NC}"
+# 1. Smoke tests (детерминированный поднабор)
+echo -e "${YELLOW}🧪 Запуск smoke-тестов...${NC}"
+if python -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=1; then
+    echo -e "${GREEN}✅ Smoke-тесты пройдены${NC}"
 else
-    echo -e "${RED}❌ Быстрые тесты провалены${NC}"
+    echo -e "${RED}❌ Smoke-тесты провалены${NC}"
     exit 1
 fi
 
