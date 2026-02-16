@@ -129,6 +129,47 @@ Now (this package):
 Next (separate package):
 - Deferred items only, recorded in `docs/roadmap/BACKLOG_LEDGER.md` with owner/DoD/target PR.
 
+## Task matrix with checkpoints (A/B/C/D)
+
+| Phase | Objective | Responsible | Checkpoint (objective evidence) | Hard gate |
+|---|---|---|---|---|
+| A. Docs PR closure | Merge docs-only package governance updates | Coordinator + Author | PR has docs-only diff and is merged | `python scripts/ci/check_docs_phase1_gates.py --files ...` |
+| B. Runtime package execution | Implement `plan -> shoplist` in one scoped package | Runtime Owner + Bug Hunter | Local verification is green and scope IN/OUT is respected | `pre-commit run --all-files` + `make verify` |
+| C. Review/bot/CI closure | Resolve all reviewer and bot actionables | Author + Reviewers | No unresolved threads, bots have no actionables, required CI checks pass | required checks PASS on PR |
+| D. Merge readiness | Final go/no-go and merge | Coordinator + Maintainer | Merge criteria are all satisfied, then merge | no open review threads + no red checks |
+
+### RACI-lite
+
+| Step | Responsible | Reviewer | Approver |
+|---|---|---|---|
+| Freeze package scope (IN/OUT) | Architecture Specialist | Logic Agent | Coordinator |
+| Test matrix freeze | Bug Hunter | Data Scientist Agent | Coordinator |
+| Security acceptance | Security Auditor | Architecture Specialist | Coordinator |
+| CI/bot closure | Runtime Author | Reviewers | Maintainer |
+| Final merge decision | Coordinator | Reviewers | Maintainer |
+
+### Fail-path protocol
+
+1. CI red:
+   - capture failing command output and `file:line:error`,
+   - fix root cause (no masking with `|| true`),
+   - re-run `make verify`.
+2. Bot actionables present:
+   - resolve each actionable or document a justified deferral,
+   - close related review threads.
+3. Unresolved review threads:
+   - merge is blocked until all required threads are resolved.
+
+### KPI checkpoint block (work-package effectiveness)
+
+Evaluation window: 8-12 weeks (vs previous 8-12 week baseline).
+
+- Lead time to merge (median)
+- Review cycles per PR
+- First-run CI pass rate
+- Revert/hotfix rate within 14 days
+- Package completion rate (planned scope delivered in one package)
+
 ## Checklists
 
 ### Pre-push
