@@ -578,14 +578,22 @@ def create_shopping_list(meal_plan: Mapping[str, object]) -> list[ShoppingItem]:
     ]
 
 
-def group_by_category(
-    items: list[Mapping[str, object]],
-) -> dict[str, list[Mapping[str, object]]]:
-    """Group items by category with uncategorized fallback."""
-    grouped: dict[str, list[Mapping[str, object]]] = {}
+def group_by_category(items: list[object]) -> dict[str, list[object]]:
+    """Group items by category with uncategorized fallback.
+
+    Supports both mapping-style items and `ShoppingItem` dataclass instances
+    so helper pipelines remain compatible.
+    """
+    grouped: dict[str, list[object]] = {}
     for item in items:
-        raw_category = item.get("category", "uncategorized")
-        category = str(raw_category).strip() or "uncategorized"
+        if isinstance(item, Mapping):
+            raw_category = item.get("category", "uncategorized")
+        else:
+            raw_category = getattr(item, "category", "uncategorized")
+        if raw_category is None:
+            category = "uncategorized"
+        else:
+            category = str(raw_category).strip() or "uncategorized"
         grouped.setdefault(category, []).append(item)
     return grouped
 

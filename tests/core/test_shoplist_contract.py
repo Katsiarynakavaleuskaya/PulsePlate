@@ -48,9 +48,9 @@ def test_create_shopping_list_aggregates_and_sorts() -> None:
     assert out[1].unit == "g"
 
 
-def test_group_by_category_fallbacks_to_uncategorized() -> None:
-    items: list[Mapping[str, object]] = [
-        {"name": "flour", "quantity": 350, "unit": "g"},
+def test_group_by_category_accepts_dataclasses_and_mappings() -> None:
+    items: list[object] = [
+        ShoppingItem(name="flour", quantity=350.0, unit="g", category=None),
         {"name": "meat", "quantity": 1, "unit": "kg", "category": "protein"},
         {"name": "blank", "quantity": 1, "unit": "x", "category": "   "},
     ]
