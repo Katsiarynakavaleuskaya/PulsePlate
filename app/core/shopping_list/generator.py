@@ -82,7 +82,8 @@ def generate_shopping_list_from_plan(
     # Group by category
     categories_map: Dict[str, List[ShoppingListItem]] = defaultdict(list)
 
-    for data in aggregated.values():
+    for normalized_key in sorted(aggregated):
+        data = aggregated[normalized_key]
         category_key = category_for_ingredient(data["key"])
 
         # Track unknown categories for debugging
