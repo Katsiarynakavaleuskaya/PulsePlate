@@ -618,10 +618,10 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
             raw_category = item.get("category", "uncategorized")
             if raw_name is None or raw_quantity is None or raw_unit is None:
                 continue
-            if not isinstance(raw_quantity, (int, float, str)):
-                continue
+            # Keep runtime behavior broad: accept any value float() can coerce.
+            raw_quantity_value: Any = raw_quantity
             try:
-                quantity = float(raw_quantity)
+                quantity = float(raw_quantity_value)
             except (TypeError, ValueError):
                 continue
             category = str(raw_category).strip() if raw_category is not None else ""
