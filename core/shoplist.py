@@ -12,7 +12,7 @@ import math
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union, Tuple
+from typing import Any, Dict, List, Mapping, Optional, TypeAlias, Union, Tuple
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -125,6 +125,9 @@ class ShoppingItem:
     package_size: Optional[float] = None
     packages_needed: Optional[int] = None
     total_weight: Optional[float] = None
+
+
+ShoplistItem: TypeAlias = ShoppingItem | Mapping[str, object]
 
 
 class ShoplistGenerator:
@@ -578,13 +581,13 @@ def create_shopping_list(meal_plan: Mapping[str, object]) -> list[ShoppingItem]:
     ]
 
 
-def group_by_category(items: list[object]) -> dict[str, list[object]]:
+def group_by_category(items: list[ShoplistItem]) -> dict[str, list[ShoplistItem]]:
     """Group items by category with uncategorized fallback.
 
     Supports both mapping-style items and `ShoppingItem` dataclass instances
     so helper pipelines remain compatible.
     """
-    grouped: dict[str, list[object]] = {}
+    grouped: dict[str, list[ShoplistItem]] = {}
     for item in items:
         if isinstance(item, Mapping):
             raw_category = item.get("category", "uncategorized")
