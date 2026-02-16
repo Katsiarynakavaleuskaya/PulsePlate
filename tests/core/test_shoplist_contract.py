@@ -95,6 +95,7 @@ def test_optimize_packaging_normalizes_dataclass_and_filters_invalid() -> None:
         {"name": "flour", "quantity": 350, "unit": "g"},
         ShoppingItem(name="oats", quantity=50.0, unit="g", category="grains"),
         ShoppingItem(name="rice", quantity=100.0, unit="g", category=None),
+        {"name": "bad-qty", "quantity": {"unexpected": "mapping"}, "unit": "g"},
         "not-a-mapping",
         123,
         {"name": "sugar", "quantity": 150, "unit": "g"},
