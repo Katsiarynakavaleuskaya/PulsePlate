@@ -606,26 +606,41 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
     """Contract-only packaging normalization.
 
     RU: Без логики упаковок, только фильтрация/нормализация входа.
-    EN: No packaging logic here, just stable normalized output.
+    RU: Возвращает mapping-элементы с ключами name/quantity/unit/category.
+    EN: Returns mapping-shaped items with keys name/quantity/unit/category.
     """
     normalized: list[Mapping[str, object]] = []
     for item in items:
         if isinstance(item, Mapping):
-            normalized.append(item)
+            raw_name = item.get("name")
+            raw_quantity = item.get("quantity")
+            raw_unit = item.get("unit")
+            raw_category = item.get("category", "uncategorized")
+            if raw_name is None or raw_quantity is None or raw_unit is None:
+                continue
+            try:
+                quantity = float(raw_quantity)
+            except (TypeError, ValueError):
+                continue
+            category = str(raw_category).strip() if raw_category is not None else ""
+            normalized.append(
+                {
+                    "name": str(raw_name),
+                    "quantity": quantity,
+                    "unit": str(raw_unit),
+                    "category": category or "uncategorized",
+                }
+            )
             continue
-        if not isinstance(item, ShoppingItem):
-            continue
-        normalized.append(
-            {
-                "name": item.name,
-                "quantity": item.quantity,
-                "unit": item.unit,
-                "category": item.category,
-                "package_size": item.package_size,
-                "packages_needed": item.packages_needed,
-                "total_weight": item.total_weight,
-            }
-        )
+        if isinstance(item, ShoppingItem):
+            normalized.append(
+                {
+                    "name": item.name,
+                    "quantity": item.quantity,
+                    "unit": item.unit,
+                    "category": item.category or "uncategorized",
+                }
+            )
     return normalized
 
 

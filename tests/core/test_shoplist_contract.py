@@ -94,14 +94,22 @@ def test_optimize_packaging_normalizes_dataclass_and_filters_invalid() -> None:
     items: list[object] = [
         {"name": "flour", "quantity": 350, "unit": "g"},
         ShoppingItem(name="oats", quantity=50.0, unit="g", category="grains"),
+        ShoppingItem(name="rice", quantity=100.0, unit="g", category=None),
         "not-a-mapping",
         123,
         {"name": "sugar", "quantity": 150, "unit": "g"},
     ]
     out = optimize_packaging(cast(list[ShoppingItem | Mapping[str, object]], items))
     assert isinstance(out, list)
-    assert len(out) == 3
+    assert len(out) == 4
+    assert set(out[0].keys()) == {"name", "quantity", "unit", "category"}
     assert out[0]["name"] == "flour"
+    assert out[0]["category"] == "uncategorized"
+    assert set(out[1].keys()) == {"name", "quantity", "unit", "category"}
     assert out[1]["name"] == "oats"
     assert out[1]["category"] == "grains"
-    assert out[2]["name"] == "sugar"
+    assert set(out[2].keys()) == {"name", "quantity", "unit", "category"}
+    assert out[2]["name"] == "rice"
+    assert out[2]["category"] == "uncategorized"
+    assert set(out[3].keys()) == {"name", "quantity", "unit", "category"}
+    assert out[3]["name"] == "sugar"
