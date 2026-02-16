@@ -6,6 +6,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+import app as app_mod
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 
 class TestAppMissingLinesCoverage:
@@ -254,9 +256,11 @@ class TestAppMissingLinesCoverage:
             503,
         ], f"Unexpected status code: {response.status_code}\nResponse: {response.json()}"
 
-    def test_force_database_update_endpoint(self, client):
+    def test_force_database_update_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force database update endpoint."""
         client = client
+        scheduler = make_scheduler_stub()
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
         response = client.post(
             "/api/v1/admin/force-update",

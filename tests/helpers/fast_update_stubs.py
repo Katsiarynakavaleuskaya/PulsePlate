@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 
@@ -10,7 +11,8 @@ def make_scheduler_stub(usda_result: dict[str, Any] | None = None) -> object:
     """
 
     class _SchedulerStub:
-        async def force_update(self) -> dict[str, Any]:
+        async def force_update(self, source: str | None = None) -> dict[str, Any]:
+            _ = source
             return {"usda": usda_result or {"ok": True, "status": "stubbed"}}
 
     return _SchedulerStub()
@@ -60,3 +62,8 @@ def test_fast_update_stubs_smoke() -> None:
     """Smoke-test helper stubs to satisfy deterministic changed-file hooks."""
     scheduler = make_scheduler_stub()
     assert scheduler is not None
+    force_update = getattr(scheduler, "force_update")
+    result_default = asyncio.run(force_update())
+    result_with_source = asyncio.run(force_update("usda"))
+    assert "usda" in result_default
+    assert "usda" in result_with_source
