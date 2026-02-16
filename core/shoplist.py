@@ -601,7 +601,7 @@ def group_by_category(items: list[ShoplistItem]) -> dict[str, list[ShoplistItem]
     return grouped
 
 
-def optimize_packaging(items: list[Mapping[str, object]]) -> list[Mapping[str, object]]:
+def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
     # NOTE: Compatibility API name is preserved intentionally; behavior stays contract-only.
     """Contract-only packaging normalization.
 
