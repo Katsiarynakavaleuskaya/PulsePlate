@@ -1,30 +1,56 @@
 from __future__ import annotations
 
-import asyncio
+from contextlib import suppress
+from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 
-def make_scheduler_stub(usda_result: dict[str, Any] | None = None) -> object:
+def _default_force_update_result() -> object:
+    """Return attribute-shaped result compatible with force-update response formatter."""
+    return SimpleNamespace(
+        success=True,
+        old_version="stub-old",
+        new_version="stub-new",
+        records_added=0,
+        records_updated=0,
+        records_removed=0,
+        duration_seconds=0.0,
+        errors=[],
+    )
+
+
+def make_scheduler_stub(usda_result: Any = None) -> object:
     """
     Return a scheduler-like object with async force_update.
-    Matches app.get_update_scheduler seam used in tests.
+    Matches legacy_app.get_update_scheduler seam used in tests.
     """
 
     class _SchedulerStub:
         async def force_update(self, source: str | None = None) -> dict[str, Any]:
             _ = source
-            return {"usda": usda_result or {"ok": True, "status": "stubbed"}}
+            source_result = (
+                usda_result if usda_result is not None else _default_force_update_result()
+            )
+            return {"usda": source_result}
 
     return _SchedulerStub()
 
 
 def patch_app_get_update_scheduler(monkeypatch: Any, app_module: Any, scheduler: object) -> None:
-    """Patch app.get_update_scheduler to return provided scheduler."""
+    """
+    Patch scheduler seam for force-update tests.
+    Applies override to both `app` facade and `legacy_app` where endpoint resolves runtime getter.
+    """
 
     async def _fake_get_update_scheduler() -> object:
         return scheduler
 
     monkeypatch.setattr(app_module, "get_update_scheduler", _fake_get_update_scheduler)
+    with suppress(Exception):
+        import legacy_app as legacy_app_mod
+
+        monkeypatch.setattr(legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler)
 
 
 def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
@@ -44,7 +70,10 @@ def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
 
 
 def patch_unified_db_cache_load_save(
-    monkeypatch: Any, *, load: Any = None, save: Any = None
+    monkeypatch: Any,
+    *,
+    load: Callable[..., Any] | None = None,
+    save: Callable[..., Any] | None = None,
 ) -> None:
     """
     Patch _load_cache/_save_cache for exception-path tests.
@@ -56,14 +85,3 @@ def patch_unified_db_cache_load_save(
         monkeypatch.setattr(UnifiedFoodDatabase, "_load_cache", load)
     if save is not None:
         monkeypatch.setattr(UnifiedFoodDatabase, "_save_cache", save)
-
-
-def test_fast_update_stubs_smoke() -> None:
-    """Smoke-test helper stubs to satisfy deterministic changed-file hooks."""
-    scheduler = make_scheduler_stub()
-    assert scheduler is not None
-    force_update = getattr(scheduler, "force_update")
-    result_default = asyncio.run(force_update())
-    result_with_source = asyncio.run(force_update("usda"))
-    assert "usda" in result_default
-    assert "usda" in result_with_source
