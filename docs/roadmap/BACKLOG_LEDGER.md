@@ -476,6 +476,24 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (runtime work-package PR)
+  - Status: 📋 Planned
+  - Area: backend / contracts / integration tests
+  - Finding Type: delivery packaging / flow contract
+  - Reason: Move from micro-PR fragmentation to one scoped runtime package delivering a full user-visible flow outcome with deterministic tests and rollback.
+  - Links:
+    - `docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md`
+    - `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md`
+  - DoD:
+    - One scoped runtime PR delivers `plan -> shoplist` end-to-end outcome
+    - Contract tests cover 200 + key failure statuses where applicable
+    - Integration happy path is deterministic
+    - `Content-Type` and error envelope assertions are explicit
+    - `make verify` passes and required CI checks are green
+
 - [x] P1: Re-enable repository `sys.modules` mutation guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
