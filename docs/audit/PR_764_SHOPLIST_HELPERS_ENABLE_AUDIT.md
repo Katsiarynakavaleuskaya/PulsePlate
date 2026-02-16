@@ -144,9 +144,9 @@ Output:
 
 ## Gap register for next work-package
 
-- Missing flow-level contract assertions (`plan -> shoplist`).
-- Missing integration test that validates one end-to-end happy path.
-- Missing deterministic negative-path matrix for validation and auth/tier behavior where applicable.
+- Flow-level contract assertions are not yet defined (`plan -> shoplist`).
+- Integration coverage still requires one deterministic end-to-end happy path.
+- A deterministic negative-path matrix for validation and auth/tier behavior is still pending.
 
 ## Follow-up recommendation
 

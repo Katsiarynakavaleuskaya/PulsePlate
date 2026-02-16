@@ -15,7 +15,7 @@ This plan intentionally avoids ultra-atomic "3-file PR" fragmentation while pres
 
 ## Why now
 
-- PR #763, #764, #765 removed blockers and improved baseline determinism.
+- PR-763, PR-764, and PR-765 removed blockers and improved baseline determinism.
 - PR-764 enabled helper contracts, but not the full flow outcome.
 - Next step should be one reversible value package, not a sequence of micro-PRs.
 
@@ -55,9 +55,9 @@ This plan intentionally avoids ultra-atomic "3-file PR" fragmentation while pres
 
 ## Exclusion criteria (must stay out)
 
-- Any change whose value is independent from `plan -> shoplist`.
-- Any change requiring a different rollout, risk owner, or quality gate set.
-- Any "while we are here" refactor not tied to this flow.
+- Changes independent from `plan -> shoplist`.
+- Work requiring a different rollout owner or a different quality-gate profile.
+- "While we are here" refactors not tied to this flow outcome.
 
 ## Test strategy (minimum)
 
@@ -104,9 +104,12 @@ This plan intentionally avoids ultra-atomic "3-file PR" fragmentation while pres
 ## Ready-to-merge gates
 
 - `pre-commit run --all-files`
-- `make verify`
-- targeted pytest run for new flow tests + relevant guards
+- `make verify` (canonical readiness wording: lint -> typecheck -> test-fast -> diff-cov)
+- targeted pytest run for new flow tests + relevant guards (additional package gate)
 - no unresolved review threads or actionable bot comments
+
+Policy alignment reference:
+- See `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md` -> "Corrections and policy-aligned wording" for canonical readiness phrasing.
 
 ## Metrics block (work-package vs atomic PR)
 
