@@ -96,7 +96,8 @@ Output:
 Command:
 
 ```bash
-bash -lc 'set -o pipefail; pytest -q -rs tests/test_remaining_modules.py 2>&1 | \
+bash -lc 'set -o pipefail; pytest -q -rs \
+tests/test_remaining_modules.py 2>&1 | \
 rg -n "feature_disabled:shoplist_helpers"; echo "exit_code=$?"'
 ```
 
