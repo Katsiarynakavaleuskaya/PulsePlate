@@ -1,10 +1,16 @@
 # PR-764 — shoplist_helpers minimal enable audit
 
-## Scope
+## Scope (PR-764, historical)
 
-- Remove `shoplist_helpers` from feature TODO manifest.
-- Ensure `core.shoplist` exports the required compatibility symbols used by `tests/test_remaining_modules.py`.
-- Keep change contract-only, with no added IO/DB/network behavior.
+- Enable `shoplist_helpers` contract path (minimal, contract-only).
+- Ensure `core.shoplist` exports compatibility symbols consumed by `tests/test_remaining_modules.py`.
+- No new IO/DB/network behavior.
+
+## Scope width assessment
+
+PR-764 was intentionally narrow and valid as a compatibility unblocker, but it is not a full user flow.
+For follow-up delivery, scope should move from "helpers only" to one value package:
+`plan -> shoplist` with contract + integration guarantees.
 
 ## Evidence (before)
 
@@ -89,7 +95,7 @@ pytest -q -rs tests/test_remaining_modules.py
 Output:
 
 - `.....ssss                                                                [100%]`
-- no `feature_disabled:shoplist_helpers` in summary
+- No `feature_disabled:shoplist_helpers` in summary.
 
 ### 2) Marker absence check
 
@@ -118,24 +124,31 @@ pre-commit run --all-files
 
 Output:
 
-- all hooks passed (after auto-format rerun)
+- All hooks passed (after auto-format rerun).
 
-### 4) Verify gate status
+## Corrections and policy-aligned wording
 
-Command:
+1. Verify/test-fast wording:
+   - Do not describe readiness via partial/legacy `pytest --lf` behavior.
+   - Canonical readiness wording is: `make verify` (lint -> typecheck -> test-fast -> diff-cov).
+   - `test-fast` is deterministic and must not rely on last-failed cache.
 
-```bash
-make verify
-```
+2. "Green" wording:
+   - Do not claim "merge-ready" unless required gates are complete and review threads/actionables are closed.
 
-Observed:
+3. Flow-level outcome:
+   - PR-764 is correctly documented as contract-only enablement.
+   - Full runtime value package (`plan -> shoplist`) is a separate follow-up and should include contract + integration + negative tests.
 
-- `flake8` passed
-- `mypy` passed (`Success: no issues found in 202 source files`)
-- `pytest --lf --maxfail=3 -q` reached ~84% and stalled in this
-  environment during this run
+## Gap register for next work-package
 
-Note:
+- Missing flow-level contract assertions (`plan -> shoplist`).
+- Missing integration test that validates one end-to-end happy path.
+- Missing deterministic negative-path matrix for validation and auth/tier behavior where applicable.
 
-- PR-764 scoped checks (`tests/test_remaining_modules.py` +
-  skip-marker absence + pre-commit + mypy/lint) are green.
+## Follow-up recommendation
+
+Use a single runtime work-package PR for flow stabilization with strict IN/OUT boundaries:
+
+- IN: flow wiring, contract tests, integration happy path, negative tests, deterministic behavior.
+- OUT: AI/RAG endpoints, unrelated frontend/iOS work, CVE/security suppression changes, broad refactors.
