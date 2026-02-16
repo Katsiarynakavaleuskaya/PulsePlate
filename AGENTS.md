@@ -12,8 +12,14 @@ Or individually:
 
 - `make lint` — ruff/flake8 checks
 - `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
-- `make test-fast` — pytest quick run
+- `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
 - `make diff-cov` — diff-cover ≥97% against origin/main
+
+**Tooling behavior contract (test-fast / quick-check):**
+
+- `test-fast` is deterministic and does not use `.pytest_cache`/`--lf`.
+- `scripts/quick_check.sh` runs the same deterministic smoke subset as `make test-fast`.
+- Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
 **If ANY command fails:**
 
