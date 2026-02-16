@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from contextlib import suppress
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 
-def make_scheduler_stub(usda_result: Any = None) -> object:
+class SchedulerLike(Protocol):
+    async def force_update(self, source: str | None = None) -> dict[str, Any]: ...
+
+
+def make_scheduler_stub(usda_result: Any = None) -> SchedulerLike:
     """
     Return a scheduler-like object with async force_update.
     Matches legacy_app.get_update_scheduler seam used in tests.
@@ -31,10 +34,13 @@ def patch_app_get_update_scheduler(monkeypatch: Any, app_module: Any, scheduler:
         return scheduler
 
     monkeypatch.setattr(app_module, "get_update_scheduler", _fake_get_update_scheduler)
-    with suppress(Exception):
+    try:
         import legacy_app as legacy_app_mod
-
-        monkeypatch.setattr(legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler)
+    except ModuleNotFoundError:
+        return
+    monkeypatch.setattr(
+        legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler, raising=False
+    )
 
 
 def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
