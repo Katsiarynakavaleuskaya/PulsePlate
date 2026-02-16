@@ -1,0 +1,47 @@
+# Convergent Orchestration
+
+Convergent Orchestration is a generative movement about many independent
+agents becoming one coherent intention without losing individual motion.
+The image is never a static composition; it is the trace of governance
+in motion, where local freedom negotiates with global structure.
+The algorithm must read like a meticulously crafted algorithm, not a
+sketch: every force is deliberate, every curve is a consequence of deep
+computational expertise, and every equilibrium point is the result of
+painstaking optimization.
+
+Its mathematical core is dual-field synthesis: a turbulent base flow
+derived from layered noise, and a consensus lattice that introduces
+periodic directional bias. Noise provides diversity, drift, and asymmetry;
+lattice dynamics provide convergence, cadence, and alignment.
+The beauty emerges from the tension between the two.
+A master-level implementation should keep this balance sharp:
+too much noise produces collapse into visual static, too much lattice
+produces lifeless rigidity. The art lives in the narrow deterministic
+corridor between those failures.
+
+Particles are the carriers of negotiation.
+They do not merely follow vectors; they encode system state through
+velocity, curvature, and persistence. Fast particles carve bright
+commitments, slow particles reveal deliberation, and cluster density marks
+collective certainty. Trails are not decoration; they are memory.
+The final system should feel like it took countless hours to tune, with
+trajectory smoothness, divergence thresholds, and reentry behavior shaped
+by meticulous craftsmanship and hard-won calibration.
+
+Temporal behavior is essential: the field must pulse through phases of
+disagreement and agreement. In divergence phases, local variation dominates
+and channels fan out. In convergence phases, a periodic attractor compresses
+motion into braided corridors, then releases it before complete collapse.
+This cyclic governance creates emergent motifs that no single parameter can
+predict. A painstakingly optimized implementation should make those
+transitions legible without obvious seams, as if the composition is
+breathing through policy waves.
+
+Seeded variation is the contract between rigor and surprise.
+A fixed seed must always reproduce the same world, yet each seed should
+reveal a different governance temperament: brittle, resilient, fluid,
+or disciplined. Parameterization should expose interpretable controls
+(agent density, tension, pulse strength, turbulence, memory), while
+preserving creative headroom for future reinterpretations.
+In this movement, the frame is only an artifact; the true artwork is the
+continuously negotiated process that generated it.

@@ -1374,6 +1374,19 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 ---
 
+## Work-Package and Flow Contract Rules (Hard Rule)
+
+1. **Work-package rule:** If a change delivers a user-visible flow outcome, it MUST be implemented as one scoped work-package PR with explicit **IN/OUT**, **DoD**, **rollback plan**, and **test plan** in the PR description.
+2. **Flow contract rule:** Any new or stabilized flow MUST include:
+   - contract tests (200 + key failures where applicable),
+   - one integration happy path,
+   - deterministic behavior guarantees,
+   - explicit assertions for `Content-Type` and error envelope fields.
+
+Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserving strict scope and deterministic quality gates.
+
+---
+
 ## Backlog Ledger Policy (Canonical)
 
 **Canonical backlog lives in `docs/roadmap/BACKLOG_LEDGER.md`.**
