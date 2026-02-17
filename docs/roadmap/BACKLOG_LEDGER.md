@@ -480,7 +480,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #778
-  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24458da4f0bb101b0c92d77e4607a6aded`)
+  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
   - Merge SHA: 48ae6d24458da4f0bb101b0c92d77e4607a6aded
   - Area: backend / realtime / security baseline
   - Finding Type: delivery packaging / transport foundation
