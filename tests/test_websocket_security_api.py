@@ -4,6 +4,7 @@ import json
 
 import pytest
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -26,6 +27,54 @@ def ws_client(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("WS_MAX_MESSAGES_PER_WINDOW", "3")
     monkeypatch.setenv("WS_MAX_MESSAGE_BYTES", "128")
     return TestClient(app)
+
+
+def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("WS_MAX_MESSAGE_BYTES", raising=False)
+    monkeypatch.setenv("WS_WINDOW_SECONDS", "not-an-int")
+    monkeypatch.setenv("WS_MAX_MESSAGES_PER_WINDOW", "0")
+
+    policy = realtime_ws._policy_from_env()
+
+    assert policy.max_message_bytes == realtime_ws.DEFAULT_MAX_MESSAGE_BYTES
+    assert policy.window_seconds == realtime_ws.DEFAULT_WINDOW_SECONDS
+    assert policy.max_messages_per_window == realtime_ws.DEFAULT_MAX_MESSAGES_PER_WINDOW
+
+
+def test_token_verifier_accepts_valid_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _require_pro_tier_stub(token: str) -> object:
+        return {"token": token}
+
+    monkeypatch.setattr("app.middleware.api_tiers.require_pro_tier", _require_pro_tier_stub)
+    verifier = realtime_ws._get_token_verifier()
+    result = verifier("valid-token")
+    assert result == {"token": "valid-token"}
+
+
+def test_token_verifier_maps_http_exception_to_permission_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_http_exception(_token: str) -> object:
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    monkeypatch.setattr("app.middleware.api_tiers.require_pro_tier", _raise_http_exception)
+    verifier = realtime_ws._get_token_verifier()
+    with pytest.raises(PermissionError, match="auth_invalid"):
+        verifier("bad-token")
+
+
+def test_token_verifier_maps_unexpected_exception_to_permission_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_unexpected(_token: str) -> object:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.middleware.api_tiers.require_pro_tier", _raise_unexpected)
+    verifier = realtime_ws._get_token_verifier()
+    with pytest.raises(PermissionError, match="auth_invalid"):
+        verifier("bad-token")
 
 
 def test_ws_disabled_returns_1008(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:

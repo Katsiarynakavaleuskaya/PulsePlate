@@ -82,6 +82,8 @@ def _get_token_verifier() -> TokenVerifier:
         try:
             return require_pro_tier(token)
         except HTTPException as exc:
+            if exc.status_code in (401, 403):
+                raise PermissionError("auth_invalid") from exc
             raise PermissionError("auth_invalid") from exc
         except Exception as exc:
             raise PermissionError("auth_invalid") from exc
@@ -99,7 +101,7 @@ def _extract_bearer_token(ws: WebSocket) -> str | None:
             return token
 
     token = ws.query_params.get("token", "").strip()
-    return token if token else None
+    return token or None
 
 
 async def _authenticate_or_close(ws: WebSocket) -> bool:
@@ -201,8 +203,5 @@ async def ws_root(ws: WebSocket) -> None:
             if message_type == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
                 continue
-
-            await ws.close(code=1008, reason="handler_not_implemented")
-            return
     except WebSocketDisconnect:
         return
