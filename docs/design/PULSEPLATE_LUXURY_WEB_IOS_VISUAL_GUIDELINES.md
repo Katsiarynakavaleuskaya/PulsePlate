@@ -18,13 +18,16 @@ The objective is not "decorative luxury", but a trusted premium visual system:
 Use PulsePlate core style as the default:
 
 - Mood: minimalism + cozy + intelligent + luxury-clean
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`)
 - Palette:
   - Navy `#0F172A`
   - Blue `#339FFF`
   - Accent Green `#20C997`
   - Heart Red `#FF5D5D` (accent only)
 - Visual style: flat forms, soft shadows, subtle gradients
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`)
 - Mascot policy: FitChef is lifestyle and encouragement, never clinical
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`)
 
 ## Authoritative Sources (What to Apply)
 
@@ -77,6 +80,7 @@ Use PulsePlate core style as the default:
 - Keep premium tone through spacing and weight contrast, not font noise.
 - iOS: respect Dynamic Type scaling; no clipped labels in compact widths.
 - Web: define stable scale tokens and lock line-height per text role.
+  (`ios/AGENTS.md:257`, `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:62`)
 
 ### 2) Color and Material
 
@@ -84,6 +88,7 @@ Use PulsePlate core style as the default:
 - Heart Red should be sparse and meaningful (critical state/emphasis only).
 - Use gradients as subtle depth signals, never as dominant decoration.
 - Keep shadow softness consistent across cards, dialogs, and navigation surfaces.
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`)
 
 ### 3) Composition and Spacing
 
@@ -98,6 +103,8 @@ Use PulsePlate core style as the default:
 - Cap duration for micro-interactions; avoid heavy choreography in task flows.
 - Respect `prefers-reduced-motion` on web and equivalent comfort behavior on iOS.
 - No distracting loops near primary CTA or result values.
+  (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:56`,
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:99`)
 
 ### 5) Iconography
 
@@ -112,6 +119,8 @@ Use PulsePlate core style as the default:
 - Support larger text and assistive navigation from the start.
 - Ensure all key states are distinguishable without color dependency.
 - Verify touch/click targets remain generous in dense screens.
+  (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:50`,
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:62`)
 
 ## Screen-Specific Guidance
 
@@ -207,6 +216,8 @@ Mark release candidate pass only when all are true:
 7. No clinical/diagnostic implication in wellness visuals
 8. Negative UX matrix risks are reviewed and mitigated
 9. Social promotion safeguards are satisfied for campaign creatives
+   (`docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:13`,
+   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:33`)
 
 ## Integration Notes
 
@@ -214,6 +225,11 @@ Mark release candidate pass only when all are true:
   `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - Sora skill specification:
   `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md`
+- Evidence anchors used in this document:
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`
+  - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:13`
 
 Use this document for visual governance decisions in iOS/Web feature PRs that
 impact perceived product quality.

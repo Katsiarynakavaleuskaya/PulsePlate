@@ -21,13 +21,16 @@ Related visual governance guide for iOS/Web premium execution:
 ### 1.1 Style DNA (non-negotiable invariants)
 
 - Brand mood: minimalism + cozy + intelligent + luxury-clean.
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`)
 - Palette lock:
   - Navy `#0F172A`
   - Blue `#339FFF`
   - Accent Green `#20C997`
   - Heart Red `#FF5D5D` (accent only)
 - Visual style: flat forms, soft shadows, subtle gradients, clean geometry.
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`)
 - Mascot policy: FitChef is lifestyle-friendly, never clinical/medical.
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`)
 - Composition policy: one focal center, high readability in small sizes, low clutter.
 
 ### 1.2 Parallel Operating Model
@@ -115,6 +118,7 @@ Versioning:
 5. Accessibility regression (icon unreadable at small size)
    - Prevent: small-size readability requirement in prompt
    - Detect: 24px/32px/60px visual test + contrast check
+   (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:105`)
 6. Over-complex visuals for UI usage
    - Prevent: "single focal center, low clutter" policy
    - Detect: UI mock insertion test
@@ -373,3 +377,10 @@ If generated video/visuals fail QA or are unavailable:
 - Use only trusted visual anchors from the current draft (logo and FitChef image).
 - Treat all other rough draft elements as non-authoritative.
 - Keep this playbook as the single source for Sora style and anti-drift policy.
+
+## Evidence anchors
+
+- `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`
+- `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`
+- `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:105`
