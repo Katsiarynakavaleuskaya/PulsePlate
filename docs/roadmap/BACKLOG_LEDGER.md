@@ -548,11 +548,11 @@ If it is not recorded here — it does not exist.
     - ✅ xdist PASS on target suite
     - ✅ No `core.db` reload
 
-- [ ] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
+- [x] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-732
-  - Status: 📋 Planned (after PR-729 and PR-730)
+  - Target PR: PR-773
+  - Status: ✅ Merged (PR-773, 2026-02-16)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
   - Locations:
@@ -567,11 +567,38 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `core/food_apis/unified_db.py:265`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
+  - Merge SHA: `3404ca39`
+  - Notes: CP1+CP2 done in PR-773; CP3 deferred to a separate follow-up PR.
   - DoD:
     - Drift-based skips are reduced via canonical test alignment (not API inflation for coverage)
     - Signature mismatches are resolved with explicit contract assertions
     - Remaining intentional skips are documented as product decisions
     - `make verify` passes in PR-732
+
+- [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (CP3 follow-up)
+  - Status: 📋 Planned (deferred from PR-773)
+  - Area: backend / tests / contracts
+  - Finding Type: drift / contract mismatch
+  - Locations:
+    - `tests/test_zero_coverage_modules.py`
+    - `tests/test_remaining_modules.py`
+    - `tests/test_final_core_coverage.py`
+    - `tests/test_direct_core_functions.py`
+    - `tests/test_quick_coverage_boost.py`
+  - Reason for deferral: CP3 was intentionally split out from PR-773 to keep CP1+CP2 merge-safe and avoid scope creep in a test-only stabilization package.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `core/food_apis/unified_db.py:265`
+  - DoD:
+    - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
+    - Remaining intentional skips are documented as product decisions with canonical feature keys.
+    - No ad-hoc skip reasons are introduced; skip protocol remains `feature_disabled:<key>`.
+    - `make verify` passes in the CP3 execution PR.
 
 - [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
