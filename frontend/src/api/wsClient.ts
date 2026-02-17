@@ -1,6 +1,6 @@
 import { getApiBase } from "./client";
 
-export type WsConnectionState = "connecting" | "open" | "closing" | "closed" | "error";
+export type WsConnectionState = "connecting" | "open" | "closed" | "error";
 
 export interface RealtimeWsEnvelope {
   version: "1";
@@ -32,6 +32,15 @@ export function buildRealtimeWsUrl(path: string = DEFAULT_WS_PATH, token?: strin
   return url.toString();
 }
 
+function isRealtimeWsEnvelope(value: unknown): value is RealtimeWsEnvelope {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const maybeEnvelope = value as { version?: unknown; type?: unknown };
+  return maybeEnvelope.version === "1" && typeof maybeEnvelope.type === "string";
+}
+
 export function connectRealtimeWs(options: RealtimeWsConnectOptions = {}): WebSocket {
   const url = buildRealtimeWsUrl(options.path ?? DEFAULT_WS_PATH, options.token);
   const socket = new WebSocket(url);
@@ -52,7 +61,11 @@ export function connectRealtimeWs(options: RealtimeWsConnectOptions = {}): WebSo
 
   socket.onmessage = (event: MessageEvent<string>) => {
     try {
-      const parsed = JSON.parse(event.data) as RealtimeWsEnvelope;
+      const parsed: unknown = JSON.parse(event.data);
+      if (!isRealtimeWsEnvelope(parsed)) {
+        options.onStateChange?.("error");
+        return;
+      }
       options.onMessage?.(parsed);
     } catch {
       options.onStateChange?.("error");

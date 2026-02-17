@@ -306,7 +306,8 @@ describe('ThinClientGuards', () => {
 
   it('should create WebSocket connections only in api/wsClient.ts', () => {
     const violations: Array<{ file: string; line: number; content: string }> = [];
-    const websocketCtorPattern = /\bnew\s+WebSocket\s*\(/;
+    // Detect direct WebSocket usage forms to keep a single thin adapter boundary.
+    const websocketCtorPattern = /(?:\bnew\s+)?(?:window\.|globalThis\.)?WebSocket\s*\(/;
 
     for (const file of sourceFiles) {
       if (isAllowedWebSocketFile(file.relativePath)) {

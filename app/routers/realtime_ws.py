@@ -256,7 +256,14 @@ async def ws_root(ws: WebSocket) -> None:
 
             version = _resolve_message_version(message, policy)
             if version != policy.protocol_version:
-                logger.info("ws_policy_close", extra={"reason": REASON_UNSUPPORTED_VERSION})
+                logger.info(
+                    "ws_policy_close",
+                    extra={
+                        "reason": REASON_UNSUPPORTED_VERSION,
+                        "version": version,
+                        "type": message_type,
+                    },
+                )
                 await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_UNSUPPORTED_VERSION)
                 return
 

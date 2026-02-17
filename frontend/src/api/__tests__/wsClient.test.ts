@@ -95,4 +95,29 @@ describe("wsClient", () => {
 
     expect(states).toEqual(["connecting", "error"]);
   });
+
+  it("connectRealtimeWs emits error state for invalid envelope shape", () => {
+    setApiClientDependencies({
+      getStoredApiKey: () => null,
+      clearStoredApiKey: () => undefined,
+      apiBase: "http://localhost:8000/api/v1",
+    });
+
+    const states: WsConnectionState[] = [];
+    const fakeSocket = {
+      onopen: null as (() => void) | null,
+      onclose: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      onmessage: null as ((event: { data: string }) => void) | null,
+    };
+
+    vi.stubGlobal("WebSocket", vi.fn(() => fakeSocket) as unknown as typeof WebSocket);
+
+    connectRealtimeWs({
+      onStateChange: (state) => states.push(state),
+    });
+    fakeSocket.onmessage?.({ data: '{"type":"pong"}' });
+
+    expect(states).toEqual(["connecting", "error"]);
+  });
 });
