@@ -10,9 +10,9 @@ Convert CP3 from "cleanup by assumption" to evidence-driven execution.
 ## Scope guard (hard)
 
 - This plan is docs-and-audit only.
-- No runtime code changes.
-- No test behavior rewrites without new evidence.
-- No new skip mechanics beyond canonical protocol.
+- Runtime code changes are out of scope.
+- Test behavior rewrites require new evidence.
+- Only the canonical skip protocol is permitted (no new mechanics).
 
 ## A1 summary (input state)
 
@@ -29,7 +29,8 @@ Reference: `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
 ## Falsifiable hypotheses (next audit stage)
 
 1. Expanded CP3 scope still contains only canonical skip protocol usage.
-2. Any non-canonical skip in expanded scope is attributable to a concrete file and line and can be fixed without runtime edits.
+2. Any non-canonical skip in expanded scope is attributable to a
+   concrete file and line and can be fixed without runtime edits.
 3. "No-op" remains true for scoped files unless a new test drift is introduced.
 
 ### Promotion criteria to execution PR
@@ -55,8 +56,9 @@ Otherwise, keep CP3 as a no-op with documented evidence.
 
 ### KPI Baseline Update Protocol
 
-The baseline skip counts are snapshot values from the latest completed audit pass.
-They must be updated after each CP3 audit cycle, or when skip delta exceeds plus or minus 3 across tracked keys.
+The baseline skip counts are snapshot values from the latest completed
+audit pass. They must be updated after each CP3 audit cycle, or when
+skip delta exceeds plus or minus 3 across tracked keys.
 
 Update sequence:
 
@@ -69,12 +71,14 @@ Update sequence:
 
 - Canonical skip compliance: `100%` required.
 - Ad-hoc skip strings: `0` allowed.
-- Protocol regressions (`require_feature_or_raise` missing where required): `0` allowed.
+- Protocol regressions (`require_feature_or_raise` missing where
+  required): `0` allowed.
 
 ## Uncertainty and stop/degrade policy
 
 - Confidence labels for findings: High / Medium / Low.
-- Stop expansion if evidence quality is Low and cannot be improved by one additional audit pass.
+- Stop expansion if evidence quality is Low and cannot be improved
+  by one additional audit pass.
 - Degrade behavior under low evidence:
   - reduce to smallest reproducible file slice
   - avoid speculative rewrites
@@ -102,7 +106,8 @@ Canonical SoT for verification commands and evidence format:
 
 Plan-level requirement:
 
-- Each CP3 phase must reference canonical evidence from the audit SoT and record the decision (`no-op` or `actionable`) in this plan.
+- Each CP3 phase must reference canonical evidence from the audit SoT
+  and record the decision (`no-op` or `actionable`) in this plan.
 
 ## Stakeholder framing
 
