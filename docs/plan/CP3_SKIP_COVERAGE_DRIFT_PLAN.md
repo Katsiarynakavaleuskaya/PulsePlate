@@ -4,7 +4,7 @@
 
 Convert CP3 from "cleanup by assumption" to evidence-driven execution.
 
-- A1 in narrow scope is no-op (already canonical).
+- A1 in narrow scope is a no-op (already canonical).
 - Next step is controlled audit expansion with strict scope guards.
 
 ## Scope guard (hard)
@@ -40,7 +40,7 @@ Promote only if at least one of the following is true:
 - Missing `require_feature_or_raise(...)` in an ImportError gating path.
 - Contract drift found between skip reason key and ledger key.
 
-Otherwise, keep CP3 as no-op with documented evidence.
+Otherwise, keep CP3 as a no-op with documented evidence.
 
 ## KPI baseline and thresholds
 
@@ -52,6 +52,18 @@ Otherwise, keep CP3 as no-op with documented evidence.
 | `utils_pack` | 3 |
 | `sports_disclaimers_lifestage` | 3 |
 | `exports_recipes_products` | 5 |
+
+### KPI Baseline Update Protocol
+
+The baseline skip counts are snapshot values from the latest completed audit pass.
+They must be updated after each CP3 audit cycle, or when skip delta exceeds plus or minus 3 across tracked keys.
+
+Update sequence:
+
+1. Re-run the canonical command block from the audit SoT document.
+2. Attach 1-3 raw evidence lines with exit code.
+3. Update the baseline table in this plan.
+4. Add a short status note in `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ### Thresholds
 
@@ -84,21 +96,13 @@ Otherwise, keep CP3 as no-op with documented evidence.
 
 ## Evidence and traceability format
 
-For each CP3 phase:
+Canonical SoT for verification commands and evidence format:
 
-1. exact command
-2. 1-3 raw output lines
-3. exit code
-4. file:line anchors
-5. decision (no-op / actionable)
+- `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
 
-## Verification commands (for CP3 docs and audits)
+Plan-level requirement:
 
-```bash
-pytest -q -rs tests/test_remaining_modules.py tests/test_zero_coverage_modules.py | rg -n "SKIPPED|feature_disabled:"
-rg -n "require_feature\\(|require_feature_or_raise\\(" tests/test_remaining_modules.py tests/test_zero_coverage_modules.py
-rg -n "pytest\\.skip|skip\\(" tests/test_remaining_modules.py tests/test_zero_coverage_modules.py
-```
+- Each CP3 phase must reference canonical evidence from the audit SoT and record the decision (`no-op` or `actionable`) in this plan.
 
 ## Stakeholder framing
 
