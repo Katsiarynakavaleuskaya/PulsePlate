@@ -31,39 +31,39 @@ Use PulsePlate core style as the default:
 ### iOS / Apple
 
 1. Apple Human Interface Guidelines
-   - Link: `https://developer.apple.com/design/human-interface-guidelines`
+   - Link: [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines)
    - Apply: prioritize clarity, deference, and depth; design around native
      interaction expectations before adding visual effects.
 
 2. Apple Design Resources
-   - Link: `https://developer.apple.com/design/resources`
+   - Link: [Apple Design Resources](https://developer.apple.com/design/resources)
    - Apply: keep component spacing/rhythm aligned with Apple references to
      avoid "almost native" visual mismatch.
 
 3. Apple's "What's New" Design updates
-   - Link: `https://developers.apple.com/design/whats-new`
+   - Link: [Apple Design - What's New](https://developer.apple.com/design/whats-new)
    - Apply: review typography, color, and motion updates before major visual
      refreshes to keep the app modern on current iOS.
 
 ### Web / Accessibility / UX
 
 1. web.dev Color and Contrast Accessibility
-   - Link: `https://web.dev/articles/color-and-contrast-accessibility`
+   - Link: [web.dev Color and Contrast Accessibility](https://web.dev/articles/color-and-contrast-accessibility)
    - Apply: keep text/background contrast at least WCAG AA and use color as a
      support signal, not the only signal.
 
 2. web.dev Motion Accessibility
-   - Link: `https://web.dev/learn/accessibility/motion`
+   - Link: [web.dev Motion Accessibility](https://web.dev/learn/accessibility/motion)
    - Apply: respect reduced motion preferences; avoid decorative motion that
      harms comfort or comprehension.
 
 3. web.dev Accessibility Tips
-   - Link: `https://web.dev/articles/a11y-tips-for-web-dev`
+   - Link: [web.dev Accessibility Tips](https://web.dev/articles/a11y-tips-for-web-dev)
    - Apply: ensure keyboard and screen-reader compatibility for all actionable
      UI elements.
 
 4. W3C WCAG
-   - Link: `https://www.w3.org/WAI/standards-guidelines/wcag/`
+   - Link: [W3C WCAG](https://www.w3.org/WAI/standards-guidelines/wcag/)
    - Apply: map key screens to perceivable/operable/understandable principles,
      especially onboarding, paywall, and metrics cards.
 

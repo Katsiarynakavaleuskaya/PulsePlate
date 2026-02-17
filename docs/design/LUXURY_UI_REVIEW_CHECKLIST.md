@@ -15,7 +15,8 @@ Related SoT:
 - [ ] **Legibility:** text/icons remain clear at target device sizes.
 - [ ] **Motion comfort:** animations are smooth, purposeful,
       and reduced-motion safe.
-- [ ] **Accessibility:** contrast and interaction affordances satisfy baseline checks.
+- [ ] **Accessibility:** WCAG AA contrast baseline is met (4.5:1 body, 3:1 large text),
+      focus visibility is clear, and interactive controls are obviously tappable/clickable.
 - [ ] **Wellness safety:** no clinical/diagnostic framing or manipulative fear tone.
 - [ ] **Cross-surface consistency:** iOS, Web, and social variants
       feel like one family.
