@@ -579,7 +579,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (CP3 follow-up)
+  - Target PR: PR-TBD (CP3 execution follow-up)
   - Status: 📋 Planned (deferred from PR-773)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
@@ -593,6 +593,8 @@ If it is not recorded here — it does not exist.
   - Links:
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
+    - `docs/plan/CP3_SKIP_COVERAGE_DRIFT_PLAN.md`
     - `core/food_apis/unified_db.py:265`
   - DoD:
     - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
