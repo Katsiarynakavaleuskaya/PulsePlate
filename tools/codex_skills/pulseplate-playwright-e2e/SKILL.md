@@ -9,11 +9,13 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 - Step 3 extension after core productivity pack is in place.
 - Validating key browser flows in `frontend/` (login, onboarding, premium gates, exports).
 - Reproducing UI bugs that are hard to isolate with unit tests only.
+- Running predefined Step 3 smoke scenarios from the runbook.
 
 ## Inputs required
 - Target environment URL (local or preview).
 - Flow list (1-3 user journeys to validate).
 - Expected pass criteria per journey.
+- Scenario IDs (from runbook matrix, e.g. `E2E-01` ... `E2E-04`).
 
 ## Procedure (commands)
 1. Ensure frontend dependencies are ready:
@@ -28,9 +30,11 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
    - failing step and selector/action
    - screenshot path or trace path when available
 4. Re-run only failing flow after fix.
+5. Follow the runbook evidence contract for every flow.
 
 ## Output format
 - `Flow matrix`: flow name + pass/fail.
+- `Scenario IDs`: include exact executed scenario IDs.
 - `Failure evidence`: raw failing lines and failing step.
 - `Pointers`: file references for impacted UI/API contracts.
 - `Fix plan`: minimal changes to restore flow.
@@ -45,5 +49,6 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 ## SoT links
 - `frontend/AGENTS.md`
 - `tools/codex_skills/pulseplate-frontend-ui/SKILL.md`
+- `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
 - `.cursor/agents/dev-operator.md`
 - `AGENTS.md`

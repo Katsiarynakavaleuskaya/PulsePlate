@@ -46,6 +46,7 @@ After installation or updates, restart Codex so newly installed skills are loade
 
 - Skill source folders: `tools/codex_skills/`
 - Installer script: `scripts/install_codex_skills.sh`
+- Step 3 runbook: `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
 - Coordinator and agent index:
   - `.cursor/agents/agent-coordinator.md`
   - `docs/agents/index.md`
