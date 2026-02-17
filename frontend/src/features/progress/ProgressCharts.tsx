@@ -13,6 +13,7 @@ import {
   Bar
 } from 'recharts';
 import { Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { showError } from '../../components/ui';
 
 const chartTokens = {
   primary: 'var(--color-primary)',
@@ -66,35 +67,39 @@ const exportToPDF = async () => {
     const html2canvas = await import('html2canvas');
     const { jsPDF } = await import('jspdf');
     const element = document.getElementById('progress-charts');
-    if (element) {
-      const canvas = await html2canvas.default(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
+    if (!element) {
+      throw new Error('Progress chart container not found');
+    }
 
-      let position = 0;
+    const canvas = await html2canvas.default(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgWidth = 210;
+    const pageHeight = 295;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
 
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save('progress-report.pdf');
     }
+
+    pdf.save('progress-report.pdf');
   } catch (error) {
-    console.error('Failed to export PDF:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    showError(`Failed to export PDF: ${message}`);
+    throw error;
   }
 };
 
@@ -241,8 +246,8 @@ export default function ProgressCharts() {
                 dataKey="value"
                 label={({ name, percentage }) => `${name}: ${percentage}%`}
               >
-                {macroData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {macroData.map((entry) => (
+                  <Cell key={`cell-${entry.name}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip
@@ -266,8 +271,8 @@ export default function ProgressCharts() {
         >
           <h3 className="mb-4 text-lg font-semibold" style={{ color: chartTokens.text }}>Nutrient Breakdown</h3>
           <div className="space-y-3">
-            {macroData.map((nutrient, index) => (
-              <div key={index} className="flex items-center justify-between">
+            {macroData.map((nutrient) => (
+              <div key={nutrient.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div
                       className="w-4 h-4 rounded"

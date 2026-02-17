@@ -80,20 +80,22 @@ struct ProgressViewPP: View {
     }
 
     private func summaryCard(nutritionData: NutritionData) -> some View {
-        GlassCard {
+        let clampedProgress = min(max(nutritionData.totalProgress, 0), 1)
+
+        return GlassCard {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Overall completion")
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
-                    Text("\(Int((nutritionData.totalProgress * 100).rounded()))%")
+                    Text("\(Int((clampedProgress * 100).rounded()))%")
                         .font(.title2.bold())
                         .foregroundStyle(Color.textPrimary)
                 }
 
                 Spacer()
 
-                ProgressView(value: nutritionData.totalProgress, total: 1.0)
+                ProgressView(value: clampedProgress, total: 1.0)
                     .progressViewStyle(.linear)
                     .tint(Color.success)
                     .frame(width: 140)
@@ -116,7 +118,7 @@ struct ProgressViewPP: View {
                             segment.targetValue > 0 ? min(segment.currentValue / segment.targetValue, 1.0) : 0
                         )
                     )
-                    .foregroundStyle(colorFromString(segment.color))
+                    .foregroundStyle(Color.segmentSemanticColor(from: segment.color))
                 }
                 .chartYScale(domain: 0 ... 1)
                 .frame(height: 220)
@@ -134,7 +136,7 @@ struct ProgressViewPP: View {
                 ForEach(nutritionData.segments, id: \.name) { segment in
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(colorFromString(segment.color))
+                            .fill(Color.segmentSemanticColor(from: segment.color))
                             .frame(width: 8, height: 8)
                         Text(segment.name)
                             .font(.subheadline)
@@ -180,25 +182,6 @@ struct ProgressViewPP: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func colorFromString(_ colorString: String) -> Color {
-        switch colorString.lowercased() {
-        case "green":
-            return .success
-        case "red":
-            return .heart
-        case "orange":
-            return .warning
-        case "yellow":
-            return .warning
-        case "blue":
-            return .appPrimary
-        case "purple":
-            return .appPrimary
-        default:
-            return .textTertiary
         }
     }
 }

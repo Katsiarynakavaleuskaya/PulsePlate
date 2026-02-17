@@ -138,23 +138,23 @@ struct HomeView: View {
 
     private func makeShoppingListScreen() -> some View {
         let service = DefaultShoppingListService(apiClient: apiClient)
-        let vm = ShoppingListReaderViewModel(
+        let shoppingListViewModel = ShoppingListReaderViewModel(
             service: service,
             apiKeyProvider: { ProKeyProvider.value() }
         )
         return ShoppingListReaderScreen(
-            vm: vm,
+            vm: shoppingListViewModel,
             planData: ShoppingListStubPlan.minimal()
         )
     }
 
     private func makeWeeklyPlanReaderScreen() -> some View {
         let service = DefaultWeeklyPlanService(apiClient: apiClient)
-        let vm = WeeklyPlanReaderViewModel(
+        let weeklyPlanViewModel = WeeklyPlanReaderViewModel(
             service: service,
             apiKey: ProKeyProvider.value()
         )
-        return WeeklyPlanReaderView(vm: vm)
+        return WeeklyPlanReaderView(vm: weeklyPlanViewModel)
     }
 }
 

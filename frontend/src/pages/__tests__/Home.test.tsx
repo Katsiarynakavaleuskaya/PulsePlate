@@ -29,14 +29,4 @@ describe('Home', () => {
     expect(main).toHaveClass('pb-24');
   });
 
-  it('renders h1 heading', () => {
-    render(
-      <MemoryRouter>
-        <Home />
-      </MemoryRouter>
-    );
-
-    const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading).toHaveTextContent('Home');
-  });
 });

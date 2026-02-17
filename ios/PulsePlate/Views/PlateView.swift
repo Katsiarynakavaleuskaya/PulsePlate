@@ -53,7 +53,7 @@ struct PlateViewPP: View {
 
       return NutritionSegment(
         name: segmentData.name,
-        color: colorFromString(segmentData.color),
+        color: Color.segmentSemanticColor(from: segmentData.color),
         startAngle: startAngle,
         endAngle: endAngle,
         percentage: segmentData.percentage,
@@ -181,25 +181,6 @@ struct PlateViewPP: View {
           await nutritionService.fetchNutritionData(for: Date())
         }
       }
-    }
-  }
-
-  func colorFromString(_ colorString: String) -> Color {
-    switch colorString.lowercased() {
-    case "green":
-      return .success
-    case "red":
-      return .heart
-    case "orange":
-      return .warning
-    case "yellow":
-      return .warning
-    case "blue":
-      return .appPrimary
-    case "purple":
-      return .appPrimary
-    default:
-      return .textTertiary
     }
   }
 }

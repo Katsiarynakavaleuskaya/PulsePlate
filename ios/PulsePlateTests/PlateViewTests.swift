@@ -42,19 +42,15 @@ class PlateViewTests: XCTestCase {
     XCTAssertEqual(segmentData?.targetValue, 4.0)
   }
 
-	  func testColorMapping() {
-	    // Given
-	    let view = PlateViewPP()
-
-	    // When & Then
-	    XCTAssertEqual(view.colorFromString("green"), .success)
-	    XCTAssertEqual(view.colorFromString("red"), .heart)
-	    XCTAssertEqual(view.colorFromString("orange"), .warning)
-	    XCTAssertEqual(view.colorFromString("yellow"), .warning)
-	    XCTAssertEqual(view.colorFromString("blue"), .appPrimary)
-	    XCTAssertEqual(view.colorFromString("unknown"), .textTertiary)
-	  }
-		}
+  func testColorMapping() {
+    XCTAssertEqual(Color.segmentSemanticColor(from: "green"), .success)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "red"), .heart)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "orange"), .warning)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "yellow"), .warning)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "blue"), .appPrimary)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "unknown"), .textTertiary)
+  }
+}
 
 // MARK: - PlateRing Tests
 class PlateRingTests: XCTestCase {
