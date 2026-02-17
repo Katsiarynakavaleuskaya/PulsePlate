@@ -230,6 +230,8 @@ dist/
 # Local development
 local/
 dev/
+!docs/dev/
+!docs/dev/**
 debug_*.py
 reproduce_*.py
 
