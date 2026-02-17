@@ -1,5 +1,7 @@
 # PR-P1: WebSocket Foundation Audit
 
+<!-- markdownlint-disable MD013 -->
+
 **Status:** Pre-merge evidence checklist
 **Branch:** `feat/p1-secure-websocket-foundation`
 **Date:** 2026-02-16
@@ -27,7 +29,7 @@
 ## Architectural Invariants
 
 | INV | Rule | Evidence anchor |
-|-----|------|-----------------|
+| ----- | ------ | ----------------- |
 | INV-1 | Route registration is unconditional; feature flag checked at request time | `app/main.py:40`, `app/routers/realtime_ws.py:153` |
 | INV-2 | `ws.accept()` runs before any `ws.close()` branch | `app/routers/realtime_ws.py:151` |
 | INV-3 | Verifier is not a WS handler argument | `app/routers/realtime_ws.py:150` |
@@ -62,7 +64,7 @@
 ### Close codes
 
 | Code | Reason | Trigger |
-|------|--------|---------|
+| ------ | -------- | --------- |
 | 1008 | `ws_disabled` | `FEATURE_WEBSOCKET_ENABLED != true` |
 | 1008 | `auth_required` | token missing |
 | 1008 | `auth_invalid` | verifier rejected token |
@@ -74,7 +76,7 @@
 ### Policy defaults
 
 | Variable | Default |
-|----------|---------|
+| ---------- | --------- |
 | `FEATURE_WEBSOCKET_ENABLED` | `false` |
 | `WS_MAX_MESSAGE_BYTES` | `4096` |
 | `WS_WINDOW_SECONDS` | `10` |
