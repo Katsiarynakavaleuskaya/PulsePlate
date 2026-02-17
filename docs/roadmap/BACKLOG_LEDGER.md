@@ -548,11 +548,11 @@ If it is not recorded here — it does not exist.
     - ✅ xdist PASS on target suite
     - ✅ No `core.db` reload
 
-- [ ] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
+- [x] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-732
-  - Status: 📋 Planned (after PR-729 and PR-730)
+  - Target PR: PR-773
+  - Status: ✅ Merged (PR-773, 2026-02-16)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
   - Locations:
@@ -567,6 +567,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `core/food_apis/unified_db.py:265`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
+  - Merge SHA: `3404ca39`
+  - Notes: CP1+CP2 done in PR-773; CP3 deferred to a separate follow-up PR.
   - DoD:
     - Drift-based skips are reduced via canonical test alignment (not API inflation for coverage)
     - Signature mismatches are resolved with explicit contract assertions
