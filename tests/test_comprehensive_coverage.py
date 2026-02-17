@@ -15,6 +15,10 @@ from typing import cast
 
 import app as app_mod
 from app import app
+from tests.helpers.fast_update_stubs import (
+    make_scheduler_stub,
+    patch_app_get_update_scheduler,
+)
 
 
 class TestComprehensiveCoverage:
@@ -108,56 +112,50 @@ class TestComprehensiveCoverage:
         data = response.json()
         assert "detail" in data
 
-    def test_force_update_endpoint_success(self) -> None:
+    def test_force_update_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force update endpoint success case with deterministic status."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_result = MagicMock()
-            mock_result.success = True
-            mock_result.old_version = "1.0"
-            mock_result.new_version = "1.1"
-            mock_result.records_added = 10
-            mock_result.records_updated = 5
-            mock_result.records_removed = 0
-            mock_result.duration_seconds = 1.0
-            mock_result.errors = []
-            mock_scheduler.force_update = AsyncMock(return_value={"usda": mock_result})
-            mock_get_scheduler.return_value = mock_scheduler
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.old_version = "1.0"
+        mock_result.new_version = "1.1"
+        mock_result.records_added = 10
+        mock_result.records_updated = 5
+        mock_result.records_removed = 0
+        mock_result.duration_seconds = 1.0
+        mock_result.errors = []
+        scheduler = make_scheduler_stub(usda_result=mock_result)
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
-            response = self.client.post(
-                "/api/v1/admin/force-update", headers={"X-API-Key": "test_key"}
-            )
-            # With successful mock, expect deterministic 200
-            assert response.status_code == 200
-            data = response.json()
-            assert "message" in data
-            assert "results" in data
+        response = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
+        # With successful mock, expect deterministic 200
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "results" in data
 
-    def test_force_update_endpoint_with_source(self) -> None:
+    def test_force_update_endpoint_with_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force update endpoint with specific source - deterministic success."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_result = MagicMock()
-            mock_result.success = True
-            mock_result.old_version = "1.0"
-            mock_result.new_version = "1.1"
-            mock_result.records_added = 5
-            mock_result.records_updated = 3
-            mock_result.records_removed = 1
-            mock_result.duration_seconds = 0.5
-            mock_result.errors = []
-            mock_scheduler.force_update = AsyncMock(return_value={"usda": mock_result})
-            mock_get_scheduler.return_value = mock_scheduler
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.old_version = "1.0"
+        mock_result.new_version = "1.1"
+        mock_result.records_added = 5
+        mock_result.records_updated = 3
+        mock_result.records_removed = 1
+        mock_result.duration_seconds = 0.5
+        mock_result.errors = []
+        scheduler = make_scheduler_stub(usda_result=mock_result)
+        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
 
-            response = self.client.post(
-                "/api/v1/admin/force-update?source=usda",
-                headers={"X-API-Key": "test_key"},
-            )
-            # With successful mock, expect deterministic 200
-            assert response.status_code == 200
-            data = response.json()
-            assert "message" in data
-            assert "results" in data
+        response = self.client.post(
+            "/api/v1/admin/force-update?source=usda",
+            headers={"X-API-Key": "test_key"},
+        )
+        # With successful mock, expect deterministic 200
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "results" in data
 
     def test_force_update_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force update endpoint exception handling - deterministic.

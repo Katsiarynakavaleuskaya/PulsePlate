@@ -51,17 +51,22 @@ def extract_ingredients_from_plan(plan_data: Dict[str, Any]) -> List[RawIngredie
                 continue
 
             # Use meal title as reference, fallback to indexed key
-            meal_key = meal.get("title", f"meal_{day_idx}_{meal_idx}")
+            raw_meal_title = meal.get("title")
+            if isinstance(raw_meal_title, str):
+                normalized_title = raw_meal_title.strip()
+                meal_key = normalized_title if normalized_title else f"meal_{day_idx}_{meal_idx}"
+            else:
+                meal_key = f"meal_{day_idx}_{meal_idx}"
 
             # Extract grams dict (all quantities are in grams)
             grams_dict = meal.get("grams", {})
             if not isinstance(grams_dict, dict):
                 continue
 
-            for ingredient_key, quantity in grams_dict.items():
+            # Iterate keys in sorted order for deterministic extraction results.
+            for ingredient_key in sorted(k for k in grams_dict if isinstance(k, str)):
                 # Skip non-string keys
-                if not isinstance(ingredient_key, str):
-                    continue
+                quantity = grams_dict[ingredient_key]
 
                 # Convert quantity to float, skip invalid values
                 try:

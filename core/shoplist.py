@@ -12,7 +12,19 @@ import math
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, TypeAlias, Union, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    SupportsFloat,
+    SupportsIndex,
+    TypeAlias,
+    Union,
+    Tuple,
+    cast,
+)
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -618,8 +630,11 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
             raw_category = item.get("category", "uncategorized")
             if raw_name is None or raw_quantity is None or raw_unit is None:
                 continue
+            # Keep runtime behavior broad: accept any value float() can coerce.
             try:
-                quantity = float(raw_quantity)
+                quantity = float(
+                    cast(str | bytes | bytearray | SupportsFloat | SupportsIndex, raw_quantity)
+                )
             except (TypeError, ValueError):
                 continue
             category = str(raw_category).strip() if raw_category is not None else ""
@@ -631,7 +646,6 @@ def optimize_packaging(items: list[ShoplistItem]) -> list[Mapping[str, object]]:
                     "category": category or "uncategorized",
                 }
             )
-            continue
         if isinstance(item, ShoppingItem):
             normalized.append(
                 {

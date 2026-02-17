@@ -8,9 +8,11 @@ import os
 from unittest.mock import Mock
 from tests._client import get_client
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 
 class TestAppHelperFunctions:
@@ -136,7 +138,7 @@ class TestEndpointsAndValidation:
         }
         assert self.client.post("/bmi", json=bad_enum).status_code == 422
 
-    def test_admin_and_debug_endpoints(self):
+    def test_admin_and_debug_endpoints(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Debug page is defined in main.py; tolerate environments where it might be restricted
         r = self.client.get("/debug_env")
         assert r.status_code in [200, 404, 405]
@@ -144,5 +146,7 @@ class TestEndpointsAndValidation:
         # Admin endpoints (provided by routers) may be up or return 500/503 when backends are unavailable
         r1 = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
         assert r1.status_code in [200, 500, 503]
+        scheduler = make_scheduler_stub()
+        patch_app_get_update_scheduler(monkeypatch, app_module, scheduler)
         r2 = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
         assert r2.status_code in [200, 500, 503]

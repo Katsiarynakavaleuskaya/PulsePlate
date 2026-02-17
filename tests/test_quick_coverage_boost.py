@@ -305,7 +305,7 @@ class TestQuickCoverageBoost:
             require_feature_or_raise(
                 exc,
                 "food_apis",
-                reason=f"{FEATURE_REASON} Missing optional module: core.food_apis.update_manager.",
+                reason=FEATURE_REASON,
             )
 
         manager = DatabaseUpdateManager(update_interval_hours=1)
