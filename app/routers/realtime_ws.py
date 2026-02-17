@@ -239,9 +239,6 @@ async def ws_root(ws: WebSocket) -> None:
         await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_WS_DISABLED)
         return
 
-    if not await _authenticate_or_close(ws):
-        return
-
     policy = _policy_from_env()
     connection_acquired = _active_connections.try_acquire(policy.max_connections)
     if not connection_acquired:
@@ -249,12 +246,15 @@ async def ws_root(ws: WebSocket) -> None:
         await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_TOO_MANY_CONNECTIONS)
         return
 
-    limiter = _BurstLimiter(
-        window_seconds=policy.window_seconds,
-        max_events=policy.max_messages_per_window,
-    )
-
     try:
+        if not await _authenticate_or_close(ws):
+            return
+
+        limiter = _BurstLimiter(
+            window_seconds=policy.window_seconds,
+            max_events=policy.max_messages_per_window,
+        )
+
         while True:
             frame = await ws.receive()
             if frame.get("type") == "websocket.disconnect":

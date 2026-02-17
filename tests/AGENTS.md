@@ -23,14 +23,7 @@
 
 ### WebSocket/realtime test invariants
 
-- Any PR touching `app/routers/realtime_ws.py` must include deterministic tests for both:
-  - a success path, and
-  - a policy-close/failure path.
-- Coverage for websocket guardrails should include at least one over-limit scenario
-  (message burst and/or active connection cap).
-- For connection-cap tests, keep the first connection open while opening the second one
-  (nested websocket context managers) so concurrency behavior is actually validated.
-- Avoid time-based flakiness in realtime tests: do not rely on arbitrary sleeps for assertions.
+- See canonical WebSocket/realtime invariants in root `AGENTS.md`.
 
 ### Module purge / reload invariant (xdist stability)
 

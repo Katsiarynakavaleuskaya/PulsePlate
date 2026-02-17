@@ -287,6 +287,38 @@ def test_ws_rejects_connection_when_over_max_connections(
         assert exc.value.code == 1008
 
 
+def test_ws_over_cap_does_not_call_auth(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WS_MAX_CONNECTIONS", "1")
+
+    called = {"auth": 0}
+
+    def _spy(_token: str) -> object:
+        called["auth"] += 1
+        return {"sub": "ws-user"}
+
+    monkeypatch.setattr("app.middleware.api_tiers.require_pro_tier", _spy)
+
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+        assert response["version"] == "1"
+        assert response["type"] == "pong"
+        assert isinstance(response["server_time_ms"], int)
+        assert called["auth"] == 1
+
+        called["auth"] = 0
+        with ws_client.websocket_connect(
+            "/ws", headers={"Authorization": "Bearer valid-token"}
+        ) as ws2:
+            with pytest.raises(WebSocketDisconnect) as exc:
+                ws2.receive_text()
+        assert exc.value.code == 1008
+        assert called["auth"] == 0
+
+
 def test_ws_rejects_subscribe_with_unknown_channel(
     ws_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
