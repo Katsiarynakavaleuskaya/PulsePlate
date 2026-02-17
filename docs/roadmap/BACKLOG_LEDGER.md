@@ -476,6 +476,26 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #778
+  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
+  - Area: backend / realtime / security baseline
+  - Finding Type: delivery packaging / transport foundation
+  - Reason: Deliver one scoped realtime package with fail-closed auth, deterministic guardrails, and policy-anchored docs/tests without scope creep into client integration.
+  - Links:
+    - `docs/audit/PR_XXX_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_XXX_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `app/routers/realtime_ws.py`
+    - `tests/test_websocket_security_api.py`
+  - DoD:
+    - `/ws` route is registered once in canonical app entrypoint and guarded against duplicates
+    - WebSocket auth remains fail-closed with explicit policy close paths
+    - Deterministic tests cover auth reject/accept, payload/limit guards, and disconnect path
+    - Governance/docs are synchronized in AGENTS + audit + plan
+    - CI gates for PR #778 are green before merge
+
 - [ ] P1: WebSocket foundation follow-up (realtime expansion package)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
