@@ -576,6 +576,30 @@ If it is not recorded here — it does not exist.
     - Remaining intentional skips are documented as product decisions
     - `make verify` passes in PR-732
 
+- [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (CP3 follow-up)
+  - Status: 📋 Planned (deferred from PR-773)
+  - Area: backend / tests / contracts
+  - Finding Type: drift / contract mismatch
+  - Locations:
+    - `tests/test_zero_coverage_modules.py`
+    - `tests/test_remaining_modules.py`
+    - `tests/test_final_core_coverage.py`
+    - `tests/test_direct_core_functions.py`
+    - `tests/test_quick_coverage_boost.py`
+  - Reason for deferral: CP3 was intentionally split out from PR-773 to keep CP1+CP2 merge-safe and avoid scope creep in a test-only stabilization package.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `core/food_apis/unified_db.py:265`
+  - DoD:
+    - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
+    - Remaining intentional skips are documented as product decisions with canonical feature keys.
+    - No ad-hoc skip reasons are introduced; skip protocol remains `feature_disabled:<key>`.
+    - `make verify` passes in the CP3 execution PR.
+
 - [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
