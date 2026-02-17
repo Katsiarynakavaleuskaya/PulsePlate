@@ -1532,6 +1532,24 @@ If it is not recorded here — it does not exist.
 
 ## P2 — Future (Low priority / research)
 
+### Home+Plate+Progress design execution follow-up
+
+- [ ] Figma slice structure absent in current Make file
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR1/Follow-up
+  - Priority: P2
+  - Area: design / ios / frontend
+  - Finding Type: deferred execution
+  - Reason: The audit defines the component/page blueprint, but Figma structure execution is tracked as a follow-up work package to keep PR_781 docs-scoped.
+  - Links:
+    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
+    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md` (Gap matrix, P2 row)
+  - DoD:
+    - Pages created: `00_Foundation_Tokens`, `01_Components`, `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`, `20_Web_Parity`
+    - Component set created under `01_Components` according to the audit runbook
+    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>` applied consistently
+    - Follow-up implementation PR merged with evidence links/screenshots and this ledger item closed
+
 ### Multimodal / CV / measurement (future, contract-first)
 
 - [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet

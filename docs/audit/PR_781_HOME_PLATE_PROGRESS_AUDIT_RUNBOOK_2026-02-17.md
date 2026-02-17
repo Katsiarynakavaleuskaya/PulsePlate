@@ -1,4 +1,4 @@
-# PR_TBD Home+Plate+Progress Audit + Runbook (2026-02-17)
+# PR_781 Home+Plate+Progress Audit + Runbook (2026-02-17)
 
 ## 1. Scope and non-goals
 
@@ -17,6 +17,15 @@
 - No merge-readiness claim from docs-only work.
 
 ## 2. Evidence baseline (SoT anchors)
+
+### Anchor maintenance protocol
+
+- `file:line` anchors are evidence snapshots at the audit date.
+- When referenced files change in follow-up PRs, refresh affected anchors in this audit in the same PR.
+- Minimum refresh check:
+  - `rg -n "HomeView|ProgressViewPP|PlateViewPP|weekly-plan|shopping-list" ios/PulsePlate frontend/src app/routers`
+  - confirm changed symbols still map to the listed `file:line` anchors.
+- If a symbol moves significantly, update this audit and add a short note in PR body under `Deferred / Follow-ups`.
 
 ### Web baseline
 
@@ -170,7 +179,7 @@
 ### PR1 (docs-only)
 
 ```bash
-python scripts/ci/check_docs_phase1_gates.py --files docs/audit/PR_TBD_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md
+python scripts/ci/check_docs_phase1_gates.py --files docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md
 make lint
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
