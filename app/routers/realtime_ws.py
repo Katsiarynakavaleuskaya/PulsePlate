@@ -82,8 +82,6 @@ def _get_token_verifier() -> TokenVerifier:
     def _verify(token: str) -> object:
         try:
             return require_pro_tier(token)
-        except HTTPException as exc:
-            raise PermissionError("auth_invalid") from exc
         except Exception as exc:
             raise PermissionError("auth_invalid") from exc
 
@@ -185,7 +183,7 @@ async def ws_root(ws: WebSocket) -> None:
 
             text = frame.get("text")
             if text is None:
-                await ws.close(code=1008, reason="invalid_json")
+                await ws.close(code=1008, reason="text_frame_required")
                 return
 
             if not _is_within_size_limit(text, policy.max_message_bytes):

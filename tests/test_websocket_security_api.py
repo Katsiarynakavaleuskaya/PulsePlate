@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from fastapi import FastAPI
@@ -142,7 +142,7 @@ def test_ws_accepts_token_via_query_param_and_responds_pong(
 def test_ws_maps_require_pro_tier_exceptions_to_auth_invalid(
     ws_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-    exception_factory,
+    exception_factory: Callable[[], BaseException],
 ) -> None:
     def _raise(_token: str) -> object:
         raise exception_factory()
