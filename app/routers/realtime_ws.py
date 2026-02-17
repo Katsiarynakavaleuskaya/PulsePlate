@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, WebSocket
+from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter(tags=["realtime"])
@@ -113,7 +114,7 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
 
     try:
         verifier = _get_token_verifier()
-        verifier(token)
+        await run_in_threadpool(verifier, token)
         return True
     except Exception:
         await ws.close(code=1008, reason="auth_invalid")
@@ -180,7 +181,14 @@ async def ws_root(ws: WebSocket) -> None:
 
     try:
         while True:
-            text = await ws.receive_text()
+            frame = await ws.receive()
+            if frame.get("type") == "websocket.disconnect":
+                return
+
+            text = frame.get("text")
+            if text is None:
+                await ws.close(code=1008, reason="invalid_json")
+                return
 
             if not _is_within_size_limit(text, policy.max_message_bytes):
                 await ws.close(code=1008, reason="payload_too_large")
