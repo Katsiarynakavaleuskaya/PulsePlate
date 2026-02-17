@@ -46,21 +46,19 @@ You are a senior creative designer and visual identity specialist for **PulsePla
 
 ### Color Palette (Canonical)
 
-**Primary Colors:**
-- **Navy** (Primary Background): `#0F172A` / `rgb(15, 23, 42)` — Main theme background
-- **Blue** (Primary Accent): `#339FFF` / `rgb(51, 159, 255)` — Primary CTA, links, highlights
-- **Accent Green** (Success/Health): `#20C997` / `rgb(32, 201, 151)` — Success states, health indicators
-- **Heart Red** (Emotional/Alert): `#FF5D5D` / `rgb(255, 93, 93)` — Heart rate, alerts, emotional connection
+Use token files as the only source of truth for colors. Do not hardcode hex values in this agent doc.
 
-**Semantic Colors:**
-- Success: `#22c55e` / `#10B981`
-- Warning: `#F59E0B`
-- Error: `#EF4444`
-- Info: `#3B82F6`
+**Primary references:**
+- `frontend/src/styles/tokens.css` (CSS variables and dark-mode overrides)
+- `frontend/src/styles/tokens.ts` (typed token exports)
+- `frontend/tailwind.config.ts` (token-to-tailwind mapping)
 
-**Neutral Grays:**
-- Gray scale: `#f9fafb` (50) → `#111827` (900)
-- Text: White primary, white 80% secondary, white 60% tertiary
+**Token mapping guidance:**
+- Primary background: `--color-navy-*`, alias `--pp-navy`
+- Primary accent: `--color-primary`, alias `--pp-primary`
+- Success/accent states: `--color-success`, alias `--pp-accent`
+- Error/alert states: `--color-error`
+- Neutral/text: `--color-gray-*`, `--color-text`, `--color-text-muted`
 
 ### Typography
 

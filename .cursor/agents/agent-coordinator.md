@@ -148,6 +148,27 @@ Bug detection, CI failures, guard violations, and coverage gaps.
 
 ---
 
+### backend-engineer
+Backend FastAPI/core implementation with strict policy and gate compliance.
+
+**Canonical doc:** `.cursor/agents/backend-engineer.md`
+
+---
+
+### frontend-engineer
+Frontend implementation in PulsePlate style using token SoT and thin HTTP adapter rules.
+
+**Canonical doc:** `.cursor/agents/frontend-engineer.md`
+
+---
+
+### dev-operator
+Terminal-first autonomous operator for safe command execution and deterministic diagnostics.
+
+**Canonical doc:** `.cursor/agents/dev-operator.md`
+
+---
+
 ### creative-designer
 UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
@@ -159,6 +180,13 @@ UI/UX design, brand assets, App Store visuals, and marketing creatives.
 ASO/SEO, growth strategy, positioning, and conversion optimization.
 
 **Canonical doc:** `.cursor/agents/marketing-strategist.md`
+
+---
+
+### ai-trend-reporter
+Structured AI market and product trend reporting across daily/weekly/monthly/quarterly cadences.
+
+**Canonical doc:** `.cursor/agents/ai-trend-reporter.md`
 
 ---
 

@@ -18,8 +18,12 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | ai-innovation-specialist | auto | AI/ML features, RAG, computer vision, LLM integration, research-backed innovations | `.cursor/agents/ai-innovation-specialist.md` | AI/ML features, research, computer vision |
 | architecture-specialist | auto | Code structure, architectural patterns, invariant enforcement, design patterns | `.cursor/agents/architecture-specialist.md` | Architecture decisions, pattern design, invariant checks |
 | bug-hunter | auto | Bug detection, CI failures, guard violations, coverage gaps | `.cursor/agents/bug-hunter.md` | Bugs, test failures, quality gates |
+| backend-engineer | auto | Backend FastAPI/core implementation with policy and gate compliance | `.cursor/agents/backend-engineer.md` | Backend feature work, API contracts, policy-safe endpoint updates |
+| frontend-engineer | auto | Frontend implementation in PulsePlate style with token SoT and thin-client rules | `.cursor/agents/frontend-engineer.md` | Web UI/features, frontend contract-safe updates |
+| dev-operator | auto | Terminal-first operator for safe command execution and deterministic diagnostics | `.cursor/agents/dev-operator.md` | Local gate runs, failure triage, evidence capture |
 | creative-designer | auto | UI/UX design, brand assets, App Store visuals, marketing creatives | `.cursor/agents/creative-designer.md` | Design, visuals, brand assets |
 | marketing-strategist | auto | ASO/SEO, growth strategy, positioning, conversion optimization | `.cursor/agents/marketing-strategist.md` | Marketing, growth, ASO/SEO |
+| ai-trend-reporter | auto | Structured AI market and product reporting across daily/weekly/monthly/quarterly cadences | `.cursor/agents/ai-trend-reporter.md` | Trend reports, wellness AI opportunities, GTM-focused updates |
 | security-auditor | auto | Security reviews, vulnerabilities, threat modeling, compliance checks | `.cursor/agents/security-auditor.md` | Security audits, vulnerability scans |
 | philosophy-agent | auto | Claim semantics, falsifiability, wellness boundaries; blocks unsafe/meaningless claims | `.cursor/agents/philosophy-agent.md` | Safety language, claim quality, “meaning” validation |
 | logic-agent | auto | Contradiction detection, invariant checks for recommendations, guardable logic contracts | `.cursor/agents/logic-agent.md` | Consistency checks, rule contracts, contradiction audits |
