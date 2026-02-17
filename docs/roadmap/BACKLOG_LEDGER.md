@@ -517,6 +517,26 @@ If it is not recorded here — it does not exist.
     - Add deterministic integration tests for expanded event flow
     - Keep `make verify` and diff-coverage gates green in expansion PR
 
+- [ ] P1: WebSocket idle-timeout follow-up (capacity safeguard)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-WS-IDLE-TIMEOUT (deferred from PR #783)
+  - Status: 🔜 Deferred
+  - Area: backend / realtime / capacity
+  - Finding Type: deferred hardening / runtime safeguard
+  - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/783`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
+    - `app/routers/realtime_ws.py`
+  - DoD:
+    - Add `WS_IDLE_TIMEOUT_SECONDS` with conservative default and explicit disable mode
+    - Close idle websocket connections with deterministic policy close semantics
+    - Add deterministic tests for idle-timeout behavior without `sleep()`-based flakiness
+    - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
+    - Pass `make verify` and diff-coverage gates in follow-up PR
+
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
