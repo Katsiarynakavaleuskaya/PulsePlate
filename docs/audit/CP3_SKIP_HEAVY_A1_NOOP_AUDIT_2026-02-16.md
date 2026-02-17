@@ -45,12 +45,14 @@ rg -n "require_feature\\(|require_feature_or_raise\\(" \
 Observed output lines:
 
 - `tests/test_remaining_modules.py:40` (and subsequent matches) -> `require_feature_or_raise(...)`
-- `tests/test_zero_coverage_modules.py:47` (and subsequent matches) -> `require_feature_or_raise(...)`
+- `tests/test_zero_coverage_modules.py:47` (and subsequent matches) ->
+  `require_feature_or_raise(...)`
 
 Command:
 
 ```bash
-rg -n "pytest\\.skip|skip\\(" tests/test_remaining_modules.py tests/test_zero_coverage_modules.py
+rg -n "pytest\\.skip|skip\\(" tests/test_remaining_modules.py \
+  tests/test_zero_coverage_modules.py
 ```
 
 Observed output lines:

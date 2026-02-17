@@ -26,12 +26,32 @@ Convert CP3 from "cleanup by assumption" to evidence-driven execution.
 
 Reference: `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
 
+Evidence anchors:
+
+- `tests/test_remaining_modules.py:40` and
+  `tests/test_zero_coverage_modules.py:47` show
+  `require_feature_or_raise(...)` usage.
+- `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md:53` and
+  `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md:58` record
+  no ad-hoc `pytest.skip(...)` matches.
+- `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md:33` and
+  `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md:36` record
+  observed `feature_disabled:<key>` output.
+
 ## Falsifiable hypotheses (next audit stage)
 
 1. Expanded CP3 scope still contains only canonical skip protocol usage.
 2. Any non-canonical skip in expanded scope is attributable to a
    concrete file and line and can be fixed without runtime edits.
 3. "No-op" remains true for scoped files unless a new test drift is introduced.
+
+Hypothesis evidence anchors:
+
+- Canonical baseline for these hypotheses is captured in
+  `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md:31`-`36`,
+  plus file-level anchors at
+  `tests/test_remaining_modules.py:40` and
+  `tests/test_zero_coverage_modules.py:47`.
 
 ### Promotion criteria to execution PR
 
@@ -111,5 +131,7 @@ Plan-level requirement:
 
 ## Stakeholder framing
 
-- This phase optimizes delivery predictability and trust by avoiding cosmetic rewrites.
-- Value is risk reduction and audit precision, not artificial code churn.
+- This phase optimizes delivery predictability and trust by avoiding
+  cosmetic rewrites.
+- Value is risk reduction and audit precision, not artificial code
+  churn.
