@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD013 -->
 
 **Status:** Pre-merge evidence checklist
-**Branch:** `feat/p1-secure-websocket-foundation`
+**Branch:** `feat/ws-foundation-workpackage`
 **Date:** 2026-02-16
 
 ---
@@ -30,11 +30,11 @@
 
 | INV | Rule | Evidence anchor |
 | ----- | ------ | ----------------- |
-| INV-1 | Route registration is unconditional; feature flag checked at request time | `app/main.py:40`, `app/routers/realtime_ws.py:153` |
-| INV-2 | `ws.accept()` runs before any `ws.close()` branch | `app/routers/realtime_ws.py:151` |
-| INV-3 | Verifier is not a WS handler argument | `app/routers/realtime_ws.py:150` |
+| INV-1 | Route registration is unconditional; feature flag checked at request time | `app/main.py:36`, `app/routers/realtime_ws.py:165` |
+| INV-2 | `ws.accept()` runs before any `ws.close()` branch | `app/routers/realtime_ws.py:163` |
+| INV-3 | Verifier is not a WS handler argument | `app/routers/realtime_ws.py:160` |
 | INV-4 | WebSocket env values are read call-time (no import freeze) | `app/routers/realtime_ws.py:22`, `app/routers/realtime_ws.py:43` |
-| INV-5 | `_BurstLimiter` supports injectable clock for deterministic tests | `app/routers/realtime_ws.py:114` |
+| INV-5 | `_BurstLimiter` supports injectable clock for deterministic tests | `app/routers/realtime_ws.py:127` |
 
 ---
 
@@ -94,6 +94,13 @@ rg -n 'FEATURE_WEBSOCKET_ENABLED|WS_MAX_MESSAGE_BYTES|WS_WINDOW_SECONDS|WS_MAX_M
 pre-commit run --all-files
 make verify
 ```
+
+---
+
+## Plan and Follow-ups
+
+- Work-package plan: `docs/plan/PR_XXX_WEBSOCKET_FOUNDATION_PLAN.md`
+- Deferred follow-ups: `docs/roadmap/BACKLOG_LEDGER.md` (WebSocket realtime expansion item)
 
 ---
 
