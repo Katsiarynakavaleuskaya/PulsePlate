@@ -1532,24 +1532,30 @@ If it is not recorded here — it does not exist.
 
 ## P2 — Future (Low priority / research)
 
-### Design execution (Home+Plate+Progress)
+### Home+Plate+Progress design execution follow-up
 
-- [ ] Figma Home+Plate+Progress blueprint execution (unblocked)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-TBD (follow-up execution PR)
+- [ ] Figma slice structure absent in current Make file
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR1/Follow-up
   - Priority: P2
   - Status: ▶️ In progress (Unblocked: Figma seat `Full`, 2026-02-17)
   - Area: design / ios / frontend
-  - Finding Type: process / design-execution
-  - Reason: Access is upgraded to Full; execute blueprint in `MrztJU3CQtxhADBbtAsWJ6` and lock structure/components per runbook.
+  - Finding Type: deferred execution
+  - Reason: PR_781 defines the blueprint and keeps docs scope; execution
+    continues as a follow-up work package in Figma file
+    `MrztJU3CQtxhADBbtAsWJ6`.
   - Links:
-    - `docs/audit/PR_TBD_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
+    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
     - `https://www.figma.com/make/MrztJU3CQtxhADBbtAsWJ6/Untitled`
   - DoD:
-    - Pages created: `00_Foundation_Tokens`, `01_Components`, `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`, `20_Web_Parity`
-    - Component set created in `01_Components` per runbook
-    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>` applied
-    - Follow-up PR merged with evidence (screenshots/links) and ledger status updated
+    - Pages created: `00_Foundation_Tokens`, `01_Components`,
+      `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`,
+      `20_Web_Parity`
+    - Component set created in `01_Components` per audit runbook
+    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>`
+      applied consistently
+    - Follow-up implementation PR merged with evidence
+      (screenshots/links) and this ledger item closed
 
 ### Multimodal / CV / measurement (future, contract-first)
 
