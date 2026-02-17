@@ -138,22 +138,28 @@ Next (separate package):
 
 ### Shoplist owner (primary)
 
-- `core/shoplist.py`
-- `app/core/shopping_list/*`
-- `tests/*shoplist*`, `tests/*shopping_list*`
-- shoplist flow contract/integration tests and related audit notes
+- `core/shoplist.py` (example: `core/shoplist.py:538`, `create_shopping_list(...)`)
+- `app/core/shopping_list/*` (example: `app/core/shopping_list/generator.py:31`)
+- `tests/*shoplist*`, `tests/*shopping_list*` (example: `tests/test_shoplist_helpers.py:9`)
+- shoplist flow contract/integration tests and related audit notes (example: `app/schemas/vip_shoplist.py:203`)
 
 ### Parallel track (safe while shoplist is in progress)
 
-- `tests/helpers/*` and non-shoplist tests
-- CI/gates updates and docs-only governance updates
-- security hardening outside shoplist paths (`app/security/*`, guard tests not tied to shoplist)
+- `tests/helpers/*` and non-shoplist tests (examples: `tests/helpers/module_resolve.py:7`, `tests/conftest.py:445`)
+- CI/gates updates and docs-only governance updates (example: `scripts/ci/check_docs_phase1_gates.py:1`)
+- security hardening outside shoplist paths (`app/security/*`, guard tests not tied to shoplist; examples: `app/security/rate_limit.py:1`, `tests/test_repo_policy_guards.py:1`)
 
 ### Do-not-touch list for parallel track
 
-- router/schema/service connection points that expose shoplist runtime surface
-- shoplist API DTO/response contract files
-- shoplist route registration points
+- router/schema/service connection points that expose shoplist runtime surface:
+  - `app/routers/vip_shoplist.py:58` (`router = APIRouter(...)`)
+  - `core/shoplist.py:538` (`create_shopping_list(...)`)
+- shoplist API DTO/response contract files:
+  - `app/schemas/vip_shoplist.py:67` (`ShoplistGenerateRequest`)
+  - `app/schemas/vip_shoplist.py:203` (`ShoplistGenerateResponse`)
+- shoplist route registration points:
+  - `app/routers/vip.py:130` (`router.include_router(vip_shoplist_router)`)
+  - `app/routers/vip_registration.py:54` (`app.include_router(vip_module.router, ...)`)
 
 ### Evidence commands (pre-push)
 

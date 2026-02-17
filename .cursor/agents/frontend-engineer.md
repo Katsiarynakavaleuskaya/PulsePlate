@@ -23,7 +23,7 @@ Build and refine web UI in the existing PulsePlate style:
 Before doing any work:
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
 - Load required context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
-- Apply root and frontend scoped AGENTS files.
+- Apply root and frontend-scoped AGENTS files.
 
 ## Core workflow
 

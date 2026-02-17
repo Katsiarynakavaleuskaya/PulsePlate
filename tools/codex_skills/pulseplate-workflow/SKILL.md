@@ -47,8 +47,8 @@ If blocked, always include:
 
 ## Guardrails
 - Do not claim green/ready/mergeable without local gate evidence.
-- Do not bypass hard rules in `AGENTS.md`.
-- Do not edit unrelated dirty files.
+- Avoid bypassing hard rules in `AGENTS.md`.
+- Refrain from editing unrelated dirty files.
 - Do not use GUI/RPA automation in this workflow.
 
 ## SoT links

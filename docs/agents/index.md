@@ -56,5 +56,5 @@ If an agent file is added/renamed in `.cursor/agents/`, update this index in the
 
 ---
 
-**Last updated:** 2026-02-10 (PR TBD)
+**Last updated:** 2026-02-17 (PR `#776`)
 **Related:** `AGENTS.md` (Agent Coordination section), `docs/agents/model_policy.md`

@@ -52,6 +52,7 @@ Use token files as the only source of truth for colors. Do not hardcode hex valu
 - `frontend/src/styles/tokens.css` (CSS variables and dark-mode overrides)
 - `frontend/src/styles/tokens.ts` (typed token exports)
 - `frontend/tailwind.config.ts` (token-to-tailwind mapping)
+- `ios/PulsePlate/Assets.xcassets/` (iOS color assets, including `Navy.colorset`, `AppPrimary.colorset`, `AccentGreen.colorset`, `HeartRed.colorset`)
 
 **Token mapping guidance:**
 - Primary background: `--color-navy-*`, alias `--pp-navy`

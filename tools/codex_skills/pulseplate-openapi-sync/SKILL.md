@@ -18,7 +18,7 @@ description: Regenerate backend OpenAPI and frontend API types with deterministi
 ## Procedure (commands)
 1. Generate canonical OpenAPI:
    ```bash
-   python scripts/generate_openapi.py
+   make openapi
    ```
 2. Regenerate frontend types:
    ```bash

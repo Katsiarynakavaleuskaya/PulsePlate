@@ -27,6 +27,7 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_SRC_ROOT="${REPO_ROOT}/tools/codex_skills"
+COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
 DEST_ROOT="${CODEX_HOME_DEFAULT}/skills"
@@ -72,7 +73,11 @@ if [[ ! -d "${SKILLS_SRC_ROOT}" ]]; then
   exit 1
 fi
 
-mapfile -t SKILL_DIRS < <(find "${SKILLS_SRC_ROOT}" -mindepth 1 -maxdepth 1 -type d | sort)
+SKILL_DIRS=()
+while IFS= read -r src_dir; do
+  SKILL_DIRS+=("${src_dir}")
+done < <(find "${SKILLS_SRC_ROOT}" -mindepth 1 -maxdepth 1 -type d | sort)
+
 if [[ "${#SKILL_DIRS[@]}" -eq 0 ]]; then
   echo "Error: no skill directories found under ${SKILLS_SRC_ROOT}" >&2
   exit 1
@@ -91,9 +96,19 @@ list_skills() {
     skill_name="$(basename "${src_dir}")"
     dest_dir="${DEST_ROOT}/${skill_name}"
     if [[ -L "${dest_dir}" ]]; then
-      status="linked -> $(readlink "${dest_dir}")"
+      local linked_target
+      linked_target="$(readlink "${dest_dir}")"
+      if [[ "${linked_target}" == "${src_dir}" ]]; then
+        status="linked(managed) -> ${linked_target}"
+      else
+        status="linked(external) -> ${linked_target}"
+      fi
     elif [[ -d "${dest_dir}" ]]; then
-      status="copied"
+      if [[ -f "${dest_dir}/${COPY_MARKER_FILE}" ]]; then
+        status="copied(managed)"
+      else
+        status="copied(external)"
+      fi
     else
       status="not installed"
     fi
@@ -134,6 +149,7 @@ install_skills() {
 
     if [[ "${MODE}" == "copy" ]]; then
       cp -R "${src_dir}" "${dest_dir}"
+      printf '%s\n' "${src_dir}" > "${dest_dir}/${COPY_MARKER_FILE}"
       echo "Copied: ${skill_name}"
     else
       ln -s "${src_dir}" "${dest_dir}"
@@ -151,14 +167,30 @@ unlink_skills() {
     dest_dir="${DEST_ROOT}/${skill_name}"
 
     if [[ -L "${dest_dir}" ]]; then
-      rm "${dest_dir}"
-      echo "Unlinked: ${skill_name}"
+      local linked_target
+      linked_target="$(readlink "${dest_dir}")"
+      if [[ "${linked_target}" == "${src_dir}" ]]; then
+        rm "${dest_dir}"
+        echo "Unlinked: ${skill_name}"
+      else
+        echo "Skip external symlink for ${skill_name}: ${linked_target}" >&2
+      fi
       continue
     fi
 
     if [[ -d "${dest_dir}" && -f "${dest_dir}/SKILL.md" ]]; then
-      rm -rf "${dest_dir}"
-      echo "Removed copied skill: ${skill_name}"
+      if [[ -f "${dest_dir}/${COPY_MARKER_FILE}" ]]; then
+        local marker_source
+        marker_source="$(cat "${dest_dir}/${COPY_MARKER_FILE}")"
+        if [[ "${marker_source}" == "${src_dir}" ]]; then
+          rm -rf "${dest_dir}"
+          echo "Removed copied skill: ${skill_name}"
+        else
+          echo "Skip external copied skill for ${skill_name}: ${dest_dir}" >&2
+        fi
+      else
+        echo "Skip unmarked copied skill for ${skill_name}: ${dest_dir}" >&2
+      fi
       continue
     fi
 

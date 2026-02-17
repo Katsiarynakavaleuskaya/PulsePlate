@@ -42,7 +42,7 @@ description: Record deferred work in the canonical backlog ledger with enforceab
 - `Ledger action`: created/updated item title.
 - `Traceability`: PR/task linkage and references.
 - `DoD`: explicit acceptance list.
-- `Status`: open/merged/wont-do.
+- `Status`: open/merged/won't do.
 
 On failure include:
 - Raw failing lines.
