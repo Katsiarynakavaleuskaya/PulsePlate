@@ -48,6 +48,7 @@ class PlateViewTests: XCTestCase {
     XCTAssertEqual(Color.segmentSemanticColor(from: "orange"), .warning)
     XCTAssertEqual(Color.segmentSemanticColor(from: "yellow"), .warning)
     XCTAssertEqual(Color.segmentSemanticColor(from: "blue"), .appPrimary)
+    XCTAssertEqual(Color.segmentSemanticColor(from: "purple"), .appPrimary)
     XCTAssertEqual(Color.segmentSemanticColor(from: "unknown"), .textTertiary)
   }
 }

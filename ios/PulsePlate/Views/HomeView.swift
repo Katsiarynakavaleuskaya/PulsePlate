@@ -152,7 +152,7 @@ struct HomeView: View {
         let service = DefaultWeeklyPlanService(apiClient: apiClient)
         let weeklyPlanViewModel = WeeklyPlanReaderViewModel(
             service: service,
-            apiKey: ProKeyProvider.value()
+            apiKeyProvider: { ProKeyProvider.value() }
         )
         return WeeklyPlanReaderView(vm: weeklyPlanViewModel)
     }

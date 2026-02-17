@@ -57,11 +57,11 @@ const macroData = [
   { name: 'Other', value: 70, color: chartTokens.info, percentage: 15 },
 ];
 
-const formatDate = (dateStr: string) => {
+const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const exportToPDF = async () => {
+const exportToPDF = async (): Promise<void> => {
   // Simple PDF export using html2canvas + jspdf
   try {
     const html2canvas = await import('html2canvas');
@@ -99,11 +99,11 @@ const exportToPDF = async () => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     showError(`Failed to export PDF: ${message}`);
-    throw error;
+    return;
   }
 };
 
-export default function ProgressCharts() {
+export default function ProgressCharts(): JSX.Element {
   const latestWeight = weightData[weightData.length - 1];
   const previousWeight = weightData[weightData.length - 2];
   const weightChange = latestWeight.weight - previousWeight.weight;

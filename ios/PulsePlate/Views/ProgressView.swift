@@ -104,21 +104,25 @@ struct ProgressViewPP: View {
     }
 
     private func segmentChartCard(nutritionData: NutritionData) -> some View {
-        GlassCard {
+        let segments = indexedSegments(nutritionData.segments)
+
+        return GlassCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Segment progress")
                     .font(.headline)
                     .foregroundStyle(Color.textPrimary)
 
-                Chart(nutritionData.segments, id: \.name) { segment in
+                Chart(segments, id: \.index) { item in
                     BarMark(
-                        x: .value("Segment", segment.name),
+                        x: .value("Segment", item.segment.name),
                         y: .value(
                             "Completion",
-                            segment.targetValue > 0 ? min(segment.currentValue / segment.targetValue, 1.0) : 0
+                            item.segment.targetValue > 0
+                                ? min(item.segment.currentValue / item.segment.targetValue, 1.0)
+                                : 0
                         )
                     )
-                    .foregroundStyle(Color.segmentSemanticColor(from: segment.color))
+                    .foregroundStyle(Color.segmentSemanticColor(from: item.segment.color))
                 }
                 .chartYScale(domain: 0 ... 1)
                 .frame(height: 220)
@@ -127,28 +131,42 @@ struct ProgressViewPP: View {
     }
 
     private func segmentListCard(nutritionData: NutritionData) -> some View {
-        GlassCard {
+        let segments = indexedSegments(nutritionData.segments)
+
+        return GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Today")
                     .font(.headline)
                     .foregroundStyle(Color.textPrimary)
 
-                ForEach(nutritionData.segments, id: \.name) { segment in
+                ForEach(segments, id: \.index) { item in
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(Color.segmentSemanticColor(from: segment.color))
+                            .fill(Color.segmentSemanticColor(from: item.segment.color))
                             .frame(width: 8, height: 8)
-                        Text(segment.name)
+                        Text(item.segment.name)
                             .font(.subheadline)
                             .foregroundStyle(Color.textPrimary)
                         Spacer()
-                        Text(String(format: "%.1f / %.1f", segment.currentValue, segment.targetValue))
+                        Text(
+                            String(
+                                format: "%.1f / %.1f",
+                                item.segment.currentValue,
+                                item.segment.targetValue
+                            )
+                        )
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
                     }
                 }
             }
         }
+    }
+
+    private func indexedSegments(
+        _ segments: [NutritionSegmentData]
+    ) -> [(index: Int, segment: NutritionSegmentData)] {
+        Array(segments.enumerated()).map { (index: $0.offset, segment: $0.element) }
     }
 
     private func issueCard(issue: PlateLoadIssue) -> some View {

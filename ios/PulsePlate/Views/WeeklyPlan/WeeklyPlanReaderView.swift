@@ -183,7 +183,7 @@ private struct VipCTASection: View {
         WeeklyPlanReaderView(
             vm: WeeklyPlanReaderViewModel(
                 service: MockWeeklyPlanService(),
-                apiKey: "preview" // pragma: allowlist secret
+                apiKeyProvider: { "preview" } // pragma: allowlist secret
             )
         )
     }
