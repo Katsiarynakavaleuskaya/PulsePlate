@@ -143,9 +143,9 @@ struct HomeView: View {
             apiKeyProvider: { ProKeyProvider.value() }
         )
         #if DEBUG
-        let bootstrapPlanData = ShoppingListStubPlan.minimal()
+        let bootstrapPlanData: ShoppingPlan? = ShoppingListStubPlan.minimal()
         #else
-        let bootstrapPlanData = ShoppingPlan(dailyMenus: [])
+        let bootstrapPlanData: ShoppingPlan? = nil
         #endif
 
         return ShoppingListReaderScreen(
@@ -180,6 +180,7 @@ private struct HomeStatusCard: View {
                     Circle()
                         .fill(color)
                         .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
                     Text(value)
                         .font(.headline)
                         .foregroundStyle(Color.textPrimary)
