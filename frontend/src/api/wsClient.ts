@@ -47,19 +47,19 @@ export function connectRealtimeWs(options: RealtimeWsConnectOptions = {}): WebSo
 
   options.onStateChange?.("connecting");
 
-  socket.onopen = () => {
+  socket.onopen = (): void => {
     options.onStateChange?.("open");
   };
 
-  socket.onclose = () => {
+  socket.onclose = (): void => {
     options.onStateChange?.("closed");
   };
 
-  socket.onerror = () => {
+  socket.onerror = (): void => {
     options.onStateChange?.("error");
   };
 
-  socket.onmessage = (event: MessageEvent<string>) => {
+  socket.onmessage = (event: MessageEvent<string>): void => {
     try {
       const parsed: unknown = JSON.parse(event.data);
       if (!isRealtimeWsEnvelope(parsed)) {

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from typing import cast
 
 import pytest
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import WebSocket
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -250,6 +252,18 @@ def test_ws_rejects_unsupported_protocol_version(
     assert exc.value.code == 1008
 
 
+def test_ws_rejects_ping_with_non_string_version(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": 1, "type": "ping"}))
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
 def test_ws_rejects_subscribe_with_unknown_channel(
     ws_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -326,4 +340,4 @@ async def test_ws_handles_websocket_disconnect_exception(
     monkeypatch.setattr(realtime_ws, "_is_ws_enabled", lambda: True)
     monkeypatch.setattr(realtime_ws, "_authenticate_or_close", _auth_ok)
 
-    await realtime_ws.ws_root(_DummyWebSocket())
+    await realtime_ws.ws_root(cast(WebSocket, _DummyWebSocket()))

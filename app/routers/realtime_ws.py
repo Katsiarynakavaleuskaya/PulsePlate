@@ -187,8 +187,8 @@ def _resolve_message_version(message: dict[str, Any], policy: WsPolicy) -> str |
     normalize to v1. For other events, version is required.
     """
     raw_version = message.get("version")
-    if isinstance(raw_version, str):
-        return raw_version
+    if "version" in message:
+        return raw_version if isinstance(raw_version, str) else None
 
     message_type = message.get("type")
     if message_type == "ping":
@@ -198,7 +198,7 @@ def _resolve_message_version(message: dict[str, Any], policy: WsPolicy) -> str |
 
 def _encode_event(event: dict[str, Any]) -> str:
     """Serialize websocket event deterministically."""
-    return json.dumps(event, separators=(",", ":"))
+    return json.dumps(event, separators=(",", ":"), sort_keys=True)
 
 
 @router.websocket("/ws")

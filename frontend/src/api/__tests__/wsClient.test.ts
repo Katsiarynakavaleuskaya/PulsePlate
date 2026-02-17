@@ -6,58 +6,68 @@ import {
   type RealtimeWsEnvelope,
   type WsConnectionState,
 } from "../wsClient";
-import { setApiClientDependencies } from "../client";
+import { setApiClientDependencies, type ApiClientDependencies } from "../client";
 
-describe("wsClient", () => {
-  afterEach(() => {
+type MockWebSocketHandlers = {
+  onopen: (() => void) | null;
+  onclose: (() => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onmessage: ((event: { data: string }) => void) | null;
+};
+
+describe("wsClient", (): void => {
+  afterEach((): void => {
     setApiClientDependencies(null);
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("buildRealtimeWsUrl converts https API base to wss", () => {
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
+  it("buildRealtimeWsUrl converts https API base to wss", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
       apiBase: "https://api.example.com/api/v1",
-    });
+    };
+    setApiClientDependencies(deps);
 
     expect(buildRealtimeWsUrl("/ws")).toBe("wss://api.example.com/ws");
   });
 
-  it("buildRealtimeWsUrl appends token in query string", () => {
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
+  it("buildRealtimeWsUrl appends token in query string", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
       apiBase: "http://localhost:8000/api/v1",
-    });
+    };
+    setApiClientDependencies(deps);
 
     expect(buildRealtimeWsUrl("/ws", "abc123")).toBe("ws://localhost:8000/ws?token=abc123");
   });
 
-  it("connectRealtimeWs emits state transitions and parses messages", () => {
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
+  it("connectRealtimeWs emits state transitions and parses messages", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
       apiBase: "http://localhost:8000/api/v1",
-    });
+    };
+    setApiClientDependencies(deps);
 
     const states: WsConnectionState[] = [];
     const messages: RealtimeWsEnvelope[] = [];
 
-    const fakeSocket = {
+    const fakeSocket: MockWebSocketHandlers = {
       onopen: null as (() => void) | null,
       onclose: null as (() => void) | null,
-      onerror: null as (() => void) | null,
+      onerror: null as ((event: Event) => void) | null,
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
-    const wsCtor = vi.fn(() => fakeSocket);
+    const wsCtor = vi.fn((_: string): MockWebSocketHandlers => fakeSocket);
     vi.stubGlobal("WebSocket", wsCtor as unknown as typeof WebSocket);
 
     connectRealtimeWs({
-      onStateChange: (state) => states.push(state),
-      onMessage: (event) => messages.push(event),
+      onStateChange: (state: WsConnectionState): void => states.push(state),
+      onMessage: (event: RealtimeWsEnvelope): void => messages.push(event),
     });
 
     expect(states).toEqual(["connecting"]);
@@ -71,50 +81,52 @@ describe("wsClient", () => {
     expect(messages).toEqual([{ version: "1", type: "pong" }]);
   });
 
-  it("connectRealtimeWs emits error state for invalid JSON message", () => {
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
+  it("connectRealtimeWs emits error state for invalid JSON message", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
       apiBase: "http://localhost:8000/api/v1",
-    });
+    };
+    setApiClientDependencies(deps);
 
     const states: WsConnectionState[] = [];
-    const fakeSocket = {
+    const fakeSocket: MockWebSocketHandlers = {
       onopen: null as (() => void) | null,
       onclose: null as (() => void) | null,
-      onerror: null as (() => void) | null,
+      onerror: null as ((event: Event) => void) | null,
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
     vi.stubGlobal("WebSocket", vi.fn(() => fakeSocket) as unknown as typeof WebSocket);
 
     connectRealtimeWs({
-      onStateChange: (state) => states.push(state),
+      onStateChange: (state: WsConnectionState): void => states.push(state),
     });
     fakeSocket.onmessage?.({ data: "not-json" });
 
     expect(states).toEqual(["connecting", "error"]);
   });
 
-  it("connectRealtimeWs emits error state for invalid envelope shape", () => {
-    setApiClientDependencies({
-      getStoredApiKey: () => null,
-      clearStoredApiKey: () => undefined,
+  it("connectRealtimeWs emits error state for invalid envelope shape", (): void => {
+    const deps: ApiClientDependencies = {
+      getStoredApiKey: (): string | null => null,
+      clearStoredApiKey: (): void => undefined,
       apiBase: "http://localhost:8000/api/v1",
-    });
+    };
+    setApiClientDependencies(deps);
 
     const states: WsConnectionState[] = [];
-    const fakeSocket = {
+    const fakeSocket: MockWebSocketHandlers = {
       onopen: null as (() => void) | null,
       onclose: null as (() => void) | null,
-      onerror: null as (() => void) | null,
+      onerror: null as ((event: Event) => void) | null,
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
     vi.stubGlobal("WebSocket", vi.fn(() => fakeSocket) as unknown as typeof WebSocket);
 
     connectRealtimeWs({
-      onStateChange: (state) => states.push(state),
+      onStateChange: (state: WsConnectionState): void => states.push(state),
     });
     fakeSocket.onmessage?.({ data: '{"type":"pong"}' });
 
