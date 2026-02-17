@@ -25,7 +25,7 @@ final class ShoppingListReaderViewModel: ObservableObject {
 
     func load(planData: ShoppingPlan?, preferences: [String: Any]? = nil) async {
         guard let planData, !planData.dailyMenus.isEmpty else {
-            state = .error("Generate a weekly plan first to build a shopping list.")
+            state = .error(NSLocalizedString("shopping_list_no_plan_error", comment: ""))
             return
         }
 

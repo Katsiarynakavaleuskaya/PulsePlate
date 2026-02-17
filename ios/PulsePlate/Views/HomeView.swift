@@ -21,6 +21,10 @@ struct HomeView: View {
         profileProvider.proNutritionProfile() != nil
     }
 
+    private func localized(_ key: String) -> String {
+        NSLocalizedString(key, comment: "")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -28,21 +32,25 @@ struct HomeView: View {
 
                 HStack(spacing: 12) {
                     HomeStatusCard(
-                        title: "PRO Key",
-                        value: hasProKey ? "Configured" : "Missing",
+                        title: localized("home.status.pro_key.title"),
+                        value: hasProKey
+                            ? localized("home.status.pro_key.configured")
+                            : localized("home.status.pro_key.missing"),
                         color: hasProKey ? .success : .warning
                     )
 
                     HomeStatusCard(
-                        title: "Profile",
-                        value: hasProfile ? "Ready" : "Incomplete",
+                        title: localized("home.status.profile.title"),
+                        value: hasProfile
+                            ? localized("home.status.profile.ready")
+                            : localized("home.status.profile.incomplete"),
                         color: hasProfile ? .success : .warning
                     )
                 }
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Quick actions")
+                        Text(localized("home.section.quick_actions"))
                             .font(.headline)
                             .foregroundStyle(Color.textPrimary)
 
@@ -50,8 +58,8 @@ struct HomeView: View {
                             BMICalculatorScreen()
                         } label: {
                             HomeActionRow(
-                                title: "BMI Calculator",
-                                subtitle: "Update core body metrics",
+                                title: localized("home.action.bmi.title"),
+                                subtitle: localized("home.action.bmi.subtitle"),
                                 icon: "gauge"
                             )
                         }
@@ -60,8 +68,8 @@ struct HomeView: View {
                             ProfileView()
                         } label: {
                             HomeActionRow(
-                                title: "Profile Setup",
-                                subtitle: "Configure PRO profile and language",
+                                title: localized("home.action.profile_setup.title"),
+                                subtitle: localized("home.action.profile_setup.subtitle"),
                                 icon: "person.crop.circle"
                             )
                         }
@@ -70,8 +78,8 @@ struct HomeView: View {
                             PlateViewPP()
                         } label: {
                             HomeActionRow(
-                                title: "Open Plate",
-                                subtitle: "Review your daily nutrition split",
+                                title: localized("home.action.open_plate.title"),
+                                subtitle: localized("home.action.open_plate.subtitle"),
                                 icon: "fork.knife.circle"
                             )
                         }
@@ -81,7 +89,7 @@ struct HomeView: View {
                 if FeatureFlags.weeklyPlanReaderEnabled {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("PRO tools")
+                            Text(localized("home.section.pro_tools"))
                                 .font(.headline)
                                 .foregroundStyle(Color.textPrimary)
 
@@ -89,8 +97,8 @@ struct HomeView: View {
                                 makeWeeklyPlanReaderScreen()
                             } label: {
                                 HomeActionRow(
-                                    title: "Weekly Plan Reader",
-                                    subtitle: "Review canonical /api/v1/pro/meal/weekly output",
+                                    title: localized("home.action.weekly_plan_reader.title"),
+                                    subtitle: localized("home.action.weekly_plan_reader.subtitle"),
                                     icon: "calendar.badge.clock"
                                 )
                             }
@@ -99,8 +107,8 @@ struct HomeView: View {
                                 makeShoppingListScreen()
                             } label: {
                                 HomeActionRow(
-                                    title: "Shopping List Generator",
-                                    subtitle: "Build list via /api/v1/pro/meal/shopping-list",
+                                    title: localized("home.action.shopping_list.title"),
+                                    subtitle: localized("home.action.shopping_list.subtitle"),
                                     icon: "cart"
                                 )
                             }
@@ -115,20 +123,20 @@ struct HomeView: View {
             .padding(.bottom, 20)
         }
         .background(Color.navy.ignoresSafeArea())
-        .navigationTitle("Home")
+        .navigationTitle(localized("home.navigation.title"))
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityLabel("Home Screen")
+        .accessibilityLabel(localized("home.accessibility.screen_label"))
     }
 
     private var heroCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 8) {
-                Text("PulsePlate")
+                Text(localized("home.hero.title"))
                     .font(.largeTitle)
                     .bold()
                     .foregroundStyle(Color.textPrimary)
 
-                Text("Home + Plate + Progress production slice")
+                Text(localized("home.hero.subtitle"))
                     .font(.subheadline)
                     .foregroundStyle(Color.textSecondary)
             }
