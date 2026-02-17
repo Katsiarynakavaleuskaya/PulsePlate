@@ -476,6 +476,27 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #778
+  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
+  - Merge SHA: 48ae6d24458da4f0bb101b0c92d77e4607a6aded
+  - Area: backend / realtime / security baseline
+  - Finding Type: delivery packaging / transport foundation
+  - Reason: Deliver one scoped realtime package with fail-closed auth, deterministic guardrails, and policy-anchored docs/tests without scope creep into client integration.
+  - Links:
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `app/routers/realtime_ws.py`
+    - `tests/test_websocket_security_api.py`
+  - DoD:
+    - `/ws` route is registered once in canonical app entrypoint and guarded against duplicates
+    - WebSocket auth remains fail-closed with explicit policy close paths
+    - Deterministic tests cover auth reject/accept, payload/limit guards, and disconnect path
+    - Governance/docs are synchronized in AGENTS + audit + plan
+    - CI gates for PR #778 are green before merge
+
 - [ ] P1: WebSocket foundation follow-up (realtime expansion package)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -485,8 +506,8 @@ If it is not recorded here — it does not exist.
   - Finding Type: scope control / deferred enhancement
   - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
   - Links:
-    - `docs/audit/PR_XXX_WEBSOCKET_FOUNDATION_AUDIT.md`
-    - `docs/plan/PR_XXX_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
   - DoD:
     - Define versioned event contract for realtime payloads
     - Add client integration scope (web/iOS) without violating thin-adapter policy

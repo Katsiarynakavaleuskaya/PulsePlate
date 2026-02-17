@@ -110,7 +110,7 @@ make verify
 
 ## Plan and Follow-ups
 
-- Work-package plan: `docs/plan/PR_XXX_WEBSOCKET_FOUNDATION_PLAN.md`
+- Work-package plan: `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
 - Deferred follow-ups: `docs/roadmap/BACKLOG_LEDGER.md` (WebSocket realtime expansion item)
 
 ---
