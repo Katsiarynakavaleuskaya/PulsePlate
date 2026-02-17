@@ -153,6 +153,24 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Sora Prompt Engineer (`sora-prompt-engineer`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root)
+- `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+- `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md`
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+- `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+
+**Must know:**
+
+- Style lock and anti-drift constraints are mandatory before prompt generation
+- Wellness-safe framing must avoid medical implication
+- Generated assets must pass QA gates before product/social usage
+
+---
+
 ### Backend Engineer (`backend-engineer`)
 
 **Primary:**
