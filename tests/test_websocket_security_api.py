@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 
 import pytest
 from fastapi import FastAPI
@@ -21,14 +21,13 @@ def _deny_stub(token: str) -> object:
 
 
 @pytest.fixture()
-def ws_client(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def ws_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Client configured for deterministic websocket policy tests."""
     monkeypatch.setenv("FEATURE_WEBSOCKET_ENABLED", "true")
     monkeypatch.setenv("WS_WINDOW_SECONDS", "9999")
     monkeypatch.setenv("WS_MAX_MESSAGES_PER_WINDOW", "3")
     monkeypatch.setenv("WS_MAX_MESSAGE_BYTES", "128")
-    with TestClient(app) as client:
-        yield client
+    return client
 
 
 def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
@@ -229,3 +228,34 @@ def test_ws_rejects_binary_frame_with_policy_close(
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
+
+
+@pytest.mark.asyncio
+async def test_ws_handles_websocket_disconnect_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure explicit WebSocketDisconnect path is covered and graceful."""
+
+    class _DummyWebSocket:
+        headers: dict[str, str] = {}
+        query_params: dict[str, str] = {}
+
+        async def accept(self) -> None:
+            return None
+
+        async def close(self, code: int, reason: str) -> None:
+            return None
+
+        async def receive(self) -> dict[str, str]:
+            raise WebSocketDisconnect()
+
+        async def send_text(self, _text: str) -> None:
+            return None
+
+    async def _auth_ok(_ws: object) -> bool:
+        return True
+
+    monkeypatch.setattr(realtime_ws, "_is_ws_enabled", lambda: True)
+    monkeypatch.setattr(realtime_ws, "_authenticate_or_close", _auth_ok)
+
+    await realtime_ws.ws_root(_DummyWebSocket())
