@@ -137,20 +137,42 @@ Use PulsePlate core style as the default:
 
 Use this matrix during design review and prompt planning.
 
-| Risk | Design rule | Prompt guard |
-|------|-------------|--------------|
-| Neon/acid palette drift | Keep only canonical palette and muted gradients | `no neon, no acid colors, palette locked` |
-| Visual clutter | One focal object and controlled negative space | `single focal center, low clutter` |
-| Generic AI "slop" look | Prefer clean geometry and stable depth cues | `no generic ai slop, no glossy blobs` |
-| Clinical/medical vibe | Wellness lifestyle framing only | `wellness lifestyle, not medical` |
-| Overly dramatic imagery | Calm, confident, supportive emotional tone | `no fear, no panic, no dramatic hospital mood` |
-| Unreadable icons | Enforce small-size silhouette clarity | `high small-size readability, clear silhouette` |
-| Inconsistent mascot | Keep FitChef shape/mood continuity | `consistent FitChef style and expression` |
-| Motion discomfort | Limit motion intensity and duration | `slow smooth motion, no jitter, no flashes` |
-| Color-only status meaning | Add structure, labels, and icon support | `status must be clear without color dependency` |
-| Tiny touch targets | Keep platform minimum interaction areas | `large tappable controls, avoid tiny UI elements` |
-| Social ad manipulation tone | Use informative and respectful value messaging | `no manipulative urgency or miracle framing` |
-| Competitor-like visuals | Preserve distinctive PulsePlate visual identity | `no copycat look, no brand imitation` |
+- **Neon/acid palette drift**
+  - Design rule: Keep only canonical palette and muted gradients.
+  - Prompt guard: `no neon, no acid colors, palette locked`
+- **Visual clutter**
+  - Design rule: One focal object and controlled negative space.
+  - Prompt guard: `single focal center, low clutter`
+- **Generic AI "slop" look**
+  - Design rule: Prefer clean geometry and stable depth cues.
+  - Prompt guard: `no generic ai slop, no glossy blobs`
+- **Clinical/medical vibe**
+  - Design rule: Wellness lifestyle framing only.
+  - Prompt guard: `wellness lifestyle, not medical`
+- **Overly dramatic imagery**
+  - Design rule: Calm, confident, supportive emotional tone.
+  - Prompt guard: `no fear, no panic, no dramatic hospital mood`
+- **Unreadable icons**
+  - Design rule: Enforce small-size silhouette clarity.
+  - Prompt guard: `high small-size readability, clear silhouette`
+- **Inconsistent mascot**
+  - Design rule: Keep FitChef shape/mood continuity.
+  - Prompt guard: `consistent FitChef style and expression`
+- **Motion discomfort**
+  - Design rule: Limit motion intensity and duration.
+  - Prompt guard: `slow smooth motion, no jitter, no flashes`
+- **Color-only status meaning**
+  - Design rule: Add structure, labels, and icon support.
+  - Prompt guard: `status must be clear without color dependency`
+- **Tiny touch targets**
+  - Design rule: Keep platform minimum interaction areas.
+  - Prompt guard: `large tappable controls, avoid tiny UI elements`
+- **Social ad manipulation tone**
+  - Design rule: Use informative and respectful value messaging.
+  - Prompt guard: `no manipulative urgency or miracle framing`
+- **Competitor-like visuals**
+  - Design rule: Preserve distinctive PulsePlate visual identity.
+  - Prompt guard: `no copycat look, no brand imitation`
 
 ## Social Promotion Visual Safeguards
 

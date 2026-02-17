@@ -8,7 +8,9 @@ This playbook covers three requested steps in one execution flow:
 2. Audit and parallel brainstorm outputs (with web-backed constraints)
 3. Ready-to-use prompt packs and anti-drift dictionary
 
-The goal is consistent, brand-distinct visual generation for PulsePlate assets (icons, onboarding art, mascot scenes, UI objects, and background textures) without style drift.
+The goal is consistent, brand-distinct visual generation for PulsePlate assets
+(icons, onboarding art, mascot scenes, UI objects, and background textures)
+without style drift.
 
 Related visual governance guide for iOS/Web premium execution:
 
@@ -41,7 +43,8 @@ Related visual governance guide for iOS/Web premium execution:
 
 ### 1.3 Delivery Pipeline
 
-Brief -> Prompt spec -> Generate (3-5 candidates) -> QA rubric -> Iterate -> Approve -> Export -> PR
+Brief -> Prompt spec -> Generate (3-5 candidates) -> QA rubric ->
+Iterate -> Approve -> Export -> PR
 
 ### 1.4 Project Structure (asset ops)
 
@@ -82,13 +85,16 @@ Versioning:
 
 ### 2.1 Web-Backed Constraints (where needed)
 
-- OpenAI Sora prompting resources emphasize treating prompts as production specs and using stable prefixes for consistency.
+- OpenAI Sora prompting resources emphasize treating prompts as production
+  specs and using stable prefixes for consistency.
   - `https://developers.openai.com/cookbook/examples/sora/sora2_prompting_guide/`
   - `https://developers.openai.com/api/docs/models/sora-2`
-- Apple App Review and metadata constraints require originality and ownership/permission for visual assets and app identity.
+- Apple App Review and metadata constraints require originality and
+  ownership/permission for visual assets and app identity.
   - `https://developer.apple.com/app-store/review/guidelines`
   - `https://help.apple.com/asc/appsspec/en.lproj/static.html`
-- Accessibility baseline for contrast and legibility should be verified for icon/button assets.
+- Accessibility baseline for contrast and legibility should be verified for
+  icon/button assets.
   - `https://developer.apple.com/help/app-store-connect/manage-app-accessibility/sufficient-contrast-accessibility-evaluation-criteria/`
   - `https://developer.apple.com/design/human-interface-guidelines`
 
@@ -162,7 +168,10 @@ Return:
 Use this one-liner as a stable prefix:
 
 ```text
-PulsePlate style lock: luxury-clean flat wellness, palette #0F172A #339FFF #20C997 with #FF5D5D accents, soft shadows, subtle gradients, strong focal center, high small-size readability, FitChef lifestyle (not medical), no generic AI/glossy/neon/purple/gold.
+PulsePlate style lock: luxury-clean flat wellness, palette #0F172A #339FFF
+#20C997 with #FF5D5D accents, soft shadows, subtle gradients, strong focal
+center, high small-size readability, FitChef lifestyle (not medical), no
+generic AI/glossy/neon/purple/gold.
 ```
 
 ### 3.3 v1 Screen Prompt Pack
@@ -173,7 +182,9 @@ Prompt:
 
 ```text
 {NANO_PREFIX}
-Create onboarding illustration for first session habit start. Calm interior morning mood, one dominant focal object, low clutter, clear silhouette forms, no text overlays, export for iOS onboarding card ratio 4:5.
+Create onboarding illustration for first session habit start. Calm interior
+morning mood, one dominant focal object, low clutter, clear silhouette forms,
+no text overlays, export for iOS onboarding card ratio 4:5.
 ```
 
 Variations:
@@ -188,7 +199,9 @@ Prompt:
 
 ```text
 {NANO_PREFIX}
-Create premium paywall hero visual that communicates confidence and calm progress, not pressure. Premium depth via subtle gradient and soft shadow layering, one central trust anchor, no medical claims, no text.
+Create premium paywall hero visual that communicates confidence and calm
+progress, not pressure. Premium depth via subtle gradient and soft shadow
+layering, one central trust anchor, no medical claims, no text.
 ```
 
 Variations:
@@ -203,7 +216,9 @@ Prompt:
 
 ```text
 {NANO_PREFIX}
-Create modular home-card background and object accents for daily wellness dashboard. Maintain low visual noise, strong contrast for overlay text, clean geometry, icon-friendly composition.
+Create modular home-card background and object accents for daily wellness
+dashboard. Maintain low visual noise, strong contrast for overlay text, clean
+geometry, icon-friendly composition.
 ```
 
 Variations:
@@ -218,28 +233,34 @@ Variations:
 
 ```text
 {NANO_PREFIX}
-Create iOS app icon concept with one dominant symbol, no text, square composition optimized for 60/120/1024 sizes, high recognition in crowded App Store rows.
+Create iOS app icon concept with one dominant symbol, no text, square
+composition optimized for 60/120/1024 sizes, high recognition in crowded
+App Store rows.
 ```
 
 #### Button Icon Set
 
 ```text
 {NANO_PREFIX}
-Create minimal UI icon set (add, save, close, settings, profile) with consistent stroke weight and strong legibility at 24-32 px.
+Create minimal UI icon set (add, save, close, settings, profile) with
+consistent stroke weight and strong legibility at 24-32 px.
 ```
 
 #### Nutrition Object Set
 
 ```text
 {NANO_PREFIX}
-Create nutrition object set (plate, greens, fruit, simple utensils) for UI cards, clean silhouettes, low-detail flat style, no realism.
+Create nutrition object set (plate, greens, fruit, simple utensils) for UI
+cards, clean silhouettes, low-detail flat style, no realism.
 ```
 
 #### FitChef Character Frame
 
 ```text
 {NANO_PREFIX}
-Create FitChef mascot frame with friendly lifestyle gesture, clear silhouette and expression consistency with prior versions, no chef-hat cliché, no clinical context.
+Create FitChef mascot frame with friendly lifestyle gesture, clear silhouette
+and expression consistency with prior versions, no chef-hat cliché,
+no clinical context.
 ```
 
 ## Anti-Drift Dictionary
