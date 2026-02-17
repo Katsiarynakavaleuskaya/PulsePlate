@@ -21,7 +21,7 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 1. Ensure frontend dependencies are ready:
    ```bash
    cd frontend
-   npm install
+   npm ci
    cd ..
    ```
 2. Use Playwright skill/tooling to run browser automation against selected flows.
