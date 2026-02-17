@@ -7,7 +7,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, WebSocket
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketDisconnect
 
@@ -72,9 +72,9 @@ class TokenVerifier(Protocol):
 def _get_token_verifier() -> TokenVerifier:
     """Wire canonical PRO auth verifier via existing api_tiers stack.
 
-    RU: Явно маппим HTTPException в PermissionError, чтобы websocket auth
+    RU: Любую ошибку в verifier маппим в PermissionError, чтобы websocket auth
     оставался единообразно fail-closed.
-    EN: Explicitly map HTTPException to PermissionError to keep websocket auth
+    EN: Map any verifier error to PermissionError to keep websocket auth
     behavior uniformly fail-closed.
     """
     from app.middleware.api_tiers import require_pro_tier
