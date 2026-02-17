@@ -83,8 +83,6 @@ def _get_token_verifier() -> TokenVerifier:
         try:
             return require_pro_tier(token)
         except HTTPException as exc:
-            if exc.status_code in (401, 403):
-                raise PermissionError("auth_invalid") from exc
             raise PermissionError("auth_invalid") from exc
         except Exception as exc:
             raise PermissionError("auth_invalid") from exc
