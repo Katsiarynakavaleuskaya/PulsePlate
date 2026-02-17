@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections import deque
@@ -12,11 +13,21 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter(tags=["realtime"])
+logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
 DEFAULT_MAX_MESSAGES_PER_WINDOW: int = 20
 ALLOWED_EVENT_TYPES: frozenset[str] = frozenset({"ping"})
+POLICY_CLOSE_CODE: int = 1008
+REASON_WS_DISABLED: str = "ws_disabled"
+REASON_AUTH_REQUIRED: str = "auth_required"
+REASON_AUTH_INVALID: str = "auth_invalid"
+REASON_TEXT_FRAME_REQUIRED: str = "text_frame_required"
+REASON_PAYLOAD_TOO_LARGE: str = "payload_too_large"
+REASON_RATE_LIMITED: str = "rate_limited"
+REASON_INVALID_JSON: str = "invalid_json"
+REASON_EVENT_TYPE_NOT_ALLOWED: str = "event_type_not_allowed"
 
 
 def _is_ws_enabled() -> bool:
@@ -105,7 +116,8 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
     """Authenticate websocket and close with policy code on failure."""
     token = _extract_bearer_token(ws)
     if not token:
-        await ws.close(code=1008, reason="auth_required")
+        logger.info("ws_policy_close", extra={"reason": REASON_AUTH_REQUIRED})
+        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_AUTH_REQUIRED)
         return False
 
     try:
@@ -113,7 +125,8 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
         await run_in_threadpool(verifier, token)
         return True
     except Exception:
-        await ws.close(code=1008, reason="auth_invalid")
+        logger.info("ws_policy_close", extra={"reason": REASON_AUTH_INVALID})
+        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_AUTH_INVALID)
         return False
 
 
@@ -163,7 +176,8 @@ async def ws_root(ws: WebSocket) -> None:
     await ws.accept()
 
     if not _is_ws_enabled():
-        await ws.close(code=1008, reason="ws_disabled")
+        logger.info("ws_policy_close", extra={"reason": REASON_WS_DISABLED})
+        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_WS_DISABLED)
         return
 
     if not await _authenticate_or_close(ws):
@@ -183,29 +197,35 @@ async def ws_root(ws: WebSocket) -> None:
 
             text = frame.get("text")
             if text is None:
-                await ws.close(code=1008, reason="text_frame_required")
+                logger.info("ws_policy_close", extra={"reason": REASON_TEXT_FRAME_REQUIRED})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_TEXT_FRAME_REQUIRED)
                 return
 
             if not _is_within_size_limit(text, policy.max_message_bytes):
-                await ws.close(code=1008, reason="payload_too_large")
+                logger.info("ws_policy_close", extra={"reason": REASON_PAYLOAD_TOO_LARGE})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_PAYLOAD_TOO_LARGE)
                 return
 
             if not limiter.allow():
-                await ws.close(code=1008, reason="rate_limited")
+                logger.info("ws_policy_close", extra={"reason": REASON_RATE_LIMITED})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_RATE_LIMITED)
                 return
 
             message = _parse_message(text)
             if message is None:
-                await ws.close(code=1008, reason="invalid_json")
+                logger.info("ws_policy_close", extra={"reason": REASON_INVALID_JSON})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_INVALID_JSON)
                 return
 
             message_type = message.get("type")
             if not isinstance(message_type, str) or message_type not in policy.allowed_event_types:
-                await ws.close(code=1008, reason="event_type_not_allowed")
+                logger.info("ws_policy_close", extra={"reason": REASON_EVENT_TYPE_NOT_ALLOWED})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_EVENT_TYPE_NOT_ALLOWED)
                 return
 
             if message_type == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
                 continue
     except WebSocketDisconnect:
+        logger.info("ws_disconnect", extra={"reason": "client_disconnected"})
         return

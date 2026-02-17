@@ -103,7 +103,6 @@ make verify
 - Deferred follow-ups: `docs/roadmap/BACKLOG_LEDGER.md` (WebSocket realtime expansion item)
 
 ---
-
 ## DoD Checklist
 
 - [ ] `/ws` endpoint exists and is authenticated.
