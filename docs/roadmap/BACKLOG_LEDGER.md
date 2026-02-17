@@ -497,11 +497,12 @@ If it is not recorded here — it does not exist.
     - Governance/docs are synchronized in AGENTS + audit + plan
     - CI gates for PR #778 are green before merge
 
-- [ ] P1: WebSocket foundation follow-up (realtime expansion package)
+- [x] P1: WebSocket foundation follow-up (realtime expansion package)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-WS-REALTIME-EXPANSION (in progress)
-  - Status: In progress (`feat/websocket-realtime-expansion`)
+  - Target PR: PR #783
+  - Status: ✅ Merged (PR #783, 2026-02-17, `a78040a0`)
+  - Merge SHA: a78040a0d8a191876f702b426b98ae82ae9460cc
   - Area: backend / realtime / contracts
   - Finding Type: scope control / deferred enhancement
   - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
