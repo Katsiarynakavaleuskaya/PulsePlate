@@ -135,6 +135,63 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Backend Engineer (`backend-engineer`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `app/AGENTS.md`
+- `core/AGENTS.md`
+- `tests/AGENTS.md` (if tests are touched)
+
+**Must know:**
+- Backend layer split: adapters in `app/`, domain logic in `core/`
+- Rate-limit/quota and deterministic test expectations for expensive endpoints
+
+---
+
+### Frontend Engineer (`frontend-engineer`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `frontend/AGENTS.md`
+- `frontend/src/styles/tokens.css`
+- `frontend/src/styles/tokens.ts`
+- `frontend/tailwind.config.ts`
+
+**Must know:**
+- Thin-client adapter policy (`frontend/src/api/client.ts` as network boundary)
+- UI style SoT is token-driven; avoid ad-hoc literals
+
+---
+
+### Dev Operator (`dev-operator`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `RUNBOOK_AGENT.md`
+- `scripts/AGENTS.md`
+- `tests/AGENTS.md`
+- `Makefile`
+
+**Must know:**
+- Allowlist command execution only (terminal-first, no GUI/RPA in MVP)
+- Evidence contract: raw failing lines + `file:line:error` + rerun commands
+
+---
+
+### AI Trend Reporter (`ai-trend-reporter`)
+
+**Primary:**
+- `AGENTS.md` (root)
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- `docs/roadmap/BACKLOG_LEDGER.md` (if deferrals are introduced)
+
+**Must know:**
+- External claims must be evidence-backed with explicit date/time context
+- Wellness framing must avoid medical advice and include risk notes
+
+---
+
 ### Philosophy Agent (`philosophy-agent`)
 
 **Primary:**
@@ -333,5 +390,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-10 (PR TBD)
+**Last updated:** 2026-02-17 (PR `#776`)
 **Status:** Canonical
