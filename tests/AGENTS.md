@@ -21,6 +21,17 @@
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
 - `ui_labels` is a required part of `WHOTargetsResponse` contract (SoT: `app/schemas/premium_contracts.py`); assert ES anchor string (`"Calorías diarias"`) in snapshot tests and do not feature-gate this contract after implementation.
 
+### WebSocket/realtime test invariants
+
+- Any PR touching `app/routers/realtime_ws.py` must include deterministic tests for both:
+  - a success path, and
+  - a policy-close/failure path.
+- Coverage for websocket guardrails should include at least one over-limit scenario
+  (message burst and/or active connection cap).
+- For connection-cap tests, keep the first connection open while opening the second one
+  (nested websocket context managers) so concurrency behavior is actually validated.
+- Avoid time-based flakiness in realtime tests: do not rely on arbitrary sleeps for assertions.
+
 ### Module purge / reload invariant (xdist stability)
 
 Some tests intentionally purge/reload modules (e.g., via `module_purge.purge_modules(...)` or

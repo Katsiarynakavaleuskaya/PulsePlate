@@ -44,6 +44,7 @@ def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
     assert policy.max_message_bytes == realtime_ws.DEFAULT_MAX_MESSAGE_BYTES
     assert policy.window_seconds == realtime_ws.DEFAULT_WINDOW_SECONDS
     assert policy.max_messages_per_window == realtime_ws.DEFAULT_MAX_MESSAGES_PER_WINDOW
+    assert policy.max_connections == realtime_ws.DEFAULT_MAX_CONNECTIONS
     assert policy.protocol_version == realtime_ws.PROTOCOL_VERSION
 
 
@@ -262,6 +263,28 @@ def test_ws_rejects_ping_with_non_string_version(
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
+
+
+def test_ws_rejects_connection_when_over_max_connections(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WS_MAX_CONNECTIONS", "1")
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+        assert response["version"] == "1"
+        assert response["type"] == "pong"
+        assert isinstance(response["server_time_ms"], int)
+
+        with ws_client.websocket_connect(
+            "/ws", headers={"Authorization": "Bearer valid-token"}
+        ) as ws2:
+            with pytest.raises(WebSocketDisconnect) as exc:
+                ws2.receive_text()
+        assert exc.value.code == 1008
 
 
 def test_ws_rejects_subscribe_with_unknown_channel(

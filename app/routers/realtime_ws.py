@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
 DEFAULT_MAX_MESSAGES_PER_WINDOW: int = 20
+DEFAULT_MAX_CONNECTIONS: int = 200
 PROTOCOL_VERSION: str = "1"
 ALLOWED_EVENT_TYPES: frozenset[str] = frozenset({"ping", "subscribe"})
 ALLOWED_CHANNELS: frozenset[str] = frozenset({"progress"})
@@ -32,6 +34,30 @@ REASON_INVALID_JSON: str = "invalid_json"
 REASON_EVENT_TYPE_NOT_ALLOWED: str = "event_type_not_allowed"
 REASON_UNSUPPORTED_VERSION: str = "unsupported_version"
 REASON_CHANNEL_NOT_ALLOWED: str = "channel_not_allowed"
+REASON_TOO_MANY_CONNECTIONS: str = "too_many_connections"
+
+
+class _ActiveConnectionsTracker:
+    """Thread-safe counter for per-process active websocket connections."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._count = 0
+
+    def try_acquire(self, limit: int) -> bool:
+        with self._lock:
+            if self._count >= limit:
+                return False
+            self._count += 1
+            return True
+
+    def release(self) -> None:
+        with self._lock:
+            if self._count > 0:
+                self._count -= 1
+
+
+_active_connections = _ActiveConnectionsTracker()
 
 
 def _is_ws_enabled() -> bool:
@@ -52,6 +78,7 @@ class WsPolicy:
     max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
     window_seconds: int = DEFAULT_WINDOW_SECONDS
     max_messages_per_window: int = DEFAULT_MAX_MESSAGES_PER_WINDOW
+    max_connections: int = DEFAULT_MAX_CONNECTIONS
     protocol_version: str = PROTOCOL_VERSION
     allowed_event_types: frozenset[str] = field(default_factory=lambda: ALLOWED_EVENT_TYPES)
     allowed_channels: frozenset[str] = field(default_factory=lambda: ALLOWED_CHANNELS)
@@ -76,6 +103,7 @@ def _policy_from_env() -> WsPolicy:
         max_messages_per_window=_get_positive_int(
             "WS_MAX_MESSAGES_PER_WINDOW", DEFAULT_MAX_MESSAGES_PER_WINDOW
         ),
+        max_connections=_get_positive_int("WS_MAX_CONNECTIONS", DEFAULT_MAX_CONNECTIONS),
         protocol_version=PROTOCOL_VERSION,
         allowed_event_types=ALLOWED_EVENT_TYPES,
         allowed_channels=ALLOWED_CHANNELS,
@@ -215,6 +243,12 @@ async def ws_root(ws: WebSocket) -> None:
         return
 
     policy = _policy_from_env()
+    connection_acquired = _active_connections.try_acquire(policy.max_connections)
+    if not connection_acquired:
+        logger.info("ws_policy_close", extra={"reason": REASON_TOO_MANY_CONNECTIONS})
+        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_TOO_MANY_CONNECTIONS)
+        return
+
     limiter = _BurstLimiter(
         window_seconds=policy.window_seconds,
         max_events=policy.max_messages_per_window,
@@ -299,3 +333,6 @@ async def ws_root(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("ws_disconnect", extra={"reason": "client_disconnected"})
         return
+    finally:
+        if connection_acquired:
+            _active_connections.release()
