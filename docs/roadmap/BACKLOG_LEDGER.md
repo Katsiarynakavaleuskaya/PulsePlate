@@ -500,14 +500,16 @@ If it is not recorded here — it does not exist.
 - [ ] P1: WebSocket foundation follow-up (realtime expansion package)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-WS-EXPANSION (placeholder)
-  - Status: Planned
+  - Target PR: PR-WS-REALTIME-EXPANSION (in progress)
+  - Status: In progress (`feat/websocket-realtime-expansion`)
   - Area: backend / realtime / contracts
   - Finding Type: scope control / deferred enhancement
   - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
   - Links:
     - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
     - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
   - DoD:
     - Define versioned event contract for realtime payloads
     - Add client integration scope (web/iOS) without violating thin-adapter policy

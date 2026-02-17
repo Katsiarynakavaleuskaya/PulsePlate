@@ -176,6 +176,21 @@ curl -fsS https://.../metrics | grep http_requests_total
   fallback). `MISS` may fallback only during migration; plan DB-authoritative follow-up.
 - Never fail-open on tier checks.
 
+## WebSocket realtime hardening (PR-783 follow-up)
+
+- Any change to `/ws` message handling MUST include deterministic tests for:
+  - one success path (e.g. `ping` -> `pong`), and
+  - one fail-closed path (e.g. malformed version / disallowed event / policy close).
+- Protocol version rules are strict:
+  - if `version` key is present and not a string -> reject (policy close),
+  - legacy fallback is allowed only for explicitly supported legacy messages.
+- Per-process active connection cap is mandatory for `/ws`:
+  - use `WS_MAX_CONNECTIONS` policy setting,
+  - reject over-cap connections fail-closed with policy close (1008),
+  - release tracker state in `finally` on every exit path.
+- WebSocket response serialization should be deterministic (`sort_keys=True` where applicable)
+  so tests and cross-runtime behavior remain stable.
+
 ### Typing rule: Pydantic v2 `model_validate()` + mypy
 
 Pydantic v2 `BaseModel.model_validate()` is typed as returning `Any` for mypy in many cases.

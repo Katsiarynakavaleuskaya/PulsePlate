@@ -50,6 +50,17 @@ npm run build
 
 ---
 
+## Realtime WebSocket adapter policy
+
+- Raw `WebSocket(...)` construction is allowed only in `src/api/wsClient.ts`.
+- `src/api/__tests__/thin-client-guards.test.ts` must enforce this restriction and stay green.
+- Incoming realtime payloads MUST be minimally validated at runtime in adapter layer
+  before forwarding to UI callbacks (at least protocol `version` and event `type`).
+- WebSocket state and message callbacks in adapter code should use explicit function type
+  signatures to keep TypeScript guardrails clear in review and CI.
+
+---
+
 ## Contracts & Types policy (OpenAPI)
 
 **Canonical source:** See root `AGENTS.md` section "OpenAPI generation (determinism requirement)" for full policy.
