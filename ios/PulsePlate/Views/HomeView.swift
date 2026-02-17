@@ -142,9 +142,15 @@ struct HomeView: View {
             service: service,
             apiKeyProvider: { ProKeyProvider.value() }
         )
+        #if DEBUG
+        let bootstrapPlanData = ShoppingListStubPlan.minimal()
+        #else
+        let bootstrapPlanData = ShoppingPlan(dailyMenus: [])
+        #endif
+
         return ShoppingListReaderScreen(
             vm: shoppingListViewModel,
-            planData: ShoppingListStubPlan.minimal()
+            planData: bootstrapPlanData
         )
     }
 
@@ -194,6 +200,7 @@ private struct HomeActionRow: View {
             Image(systemName: icon)
                 .foregroundStyle(Color.appPrimary)
                 .frame(width: 20)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -209,6 +216,7 @@ private struct HomeActionRow: View {
             Image(systemName: "chevron.right")
                 .font(.caption.bold())
                 .foregroundStyle(Color.textTertiary)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
