@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
 DEFAULT_MAX_MESSAGES_PER_WINDOW: int = 20
-ALLOWED_EVENT_TYPES: frozenset[str] = frozenset({"ping"})
+PROTOCOL_VERSION: str = "1"
+ALLOWED_EVENT_TYPES: frozenset[str] = frozenset({"ping", "subscribe"})
+ALLOWED_CHANNELS: frozenset[str] = frozenset({"progress"})
 POLICY_CLOSE_CODE: int = 1008
 REASON_WS_DISABLED: str = "ws_disabled"
 REASON_AUTH_REQUIRED: str = "auth_required"
@@ -28,6 +30,8 @@ REASON_PAYLOAD_TOO_LARGE: str = "payload_too_large"
 REASON_RATE_LIMITED: str = "rate_limited"
 REASON_INVALID_JSON: str = "invalid_json"
 REASON_EVENT_TYPE_NOT_ALLOWED: str = "event_type_not_allowed"
+REASON_UNSUPPORTED_VERSION: str = "unsupported_version"
+REASON_CHANNEL_NOT_ALLOWED: str = "channel_not_allowed"
 
 
 def _is_ws_enabled() -> bool:
@@ -48,7 +52,9 @@ class WsPolicy:
     max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
     window_seconds: int = DEFAULT_WINDOW_SECONDS
     max_messages_per_window: int = DEFAULT_MAX_MESSAGES_PER_WINDOW
+    protocol_version: str = PROTOCOL_VERSION
     allowed_event_types: frozenset[str] = field(default_factory=lambda: ALLOWED_EVENT_TYPES)
+    allowed_channels: frozenset[str] = field(default_factory=lambda: ALLOWED_CHANNELS)
 
 
 def _policy_from_env() -> WsPolicy:
@@ -70,7 +76,9 @@ def _policy_from_env() -> WsPolicy:
         max_messages_per_window=_get_positive_int(
             "WS_MAX_MESSAGES_PER_WINDOW", DEFAULT_MAX_MESSAGES_PER_WINDOW
         ),
+        protocol_version=PROTOCOL_VERSION,
         allowed_event_types=ALLOWED_EVENT_TYPES,
+        allowed_channels=ALLOWED_CHANNELS,
     )
 
 
@@ -170,6 +178,29 @@ def _parse_message(text: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _resolve_message_version(message: dict[str, Any], policy: WsPolicy) -> str | None:
+    """Resolve protocol version with backward-compatible ping handling.
+
+    RU: Для ping разрешаем отсутствие version (legacy foundation behavior),
+    но нормализуем к v1 для ответа. Для остальных событий version обязателен.
+    EN: For ping we allow missing version (legacy foundation behavior) and
+    normalize to v1. For other events, version is required.
+    """
+    raw_version = message.get("version")
+    if isinstance(raw_version, str):
+        return raw_version
+
+    message_type = message.get("type")
+    if message_type == "ping":
+        return policy.protocol_version
+    return None
+
+
+def _encode_event(event: dict[str, Any]) -> str:
+    """Serialize websocket event deterministically."""
+    return json.dumps(event, separators=(",", ":"))
+
+
 @router.websocket("/ws")
 async def ws_root(ws: WebSocket) -> None:
     """Secure and deterministic WebSocket endpoint."""
@@ -223,8 +254,40 @@ async def ws_root(ws: WebSocket) -> None:
                 await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_EVENT_TYPE_NOT_ALLOWED)
                 return
 
+            version = _resolve_message_version(message, policy)
+            if version != policy.protocol_version:
+                logger.info("ws_policy_close", extra={"reason": REASON_UNSUPPORTED_VERSION})
+                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_UNSUPPORTED_VERSION)
+                return
+
             if message_type == "ping":
-                await ws.send_text(json.dumps({"type": "pong"}))
+                await ws.send_text(
+                    _encode_event(
+                        {
+                            "version": policy.protocol_version,
+                            "type": "pong",
+                            "server_time_ms": int(time.time() * 1000),
+                        }
+                    )
+                )
+                continue
+
+            if message_type == "subscribe":
+                channel = message.get("channel")
+                if not isinstance(channel, str) or channel not in policy.allowed_channels:
+                    logger.info("ws_policy_close", extra={"reason": REASON_CHANNEL_NOT_ALLOWED})
+                    await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_CHANNEL_NOT_ALLOWED)
+                    return
+
+                await ws.send_text(
+                    _encode_event(
+                        {
+                            "version": policy.protocol_version,
+                            "type": "subscribed",
+                            "channel": channel,
+                        }
+                    )
+                )
                 continue
     except WebSocketDisconnect:
         logger.info("ws_disconnect", extra={"reason": "client_disconnected"})

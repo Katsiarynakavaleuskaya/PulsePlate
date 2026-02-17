@@ -42,6 +42,7 @@ def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
     assert policy.max_message_bytes == realtime_ws.DEFAULT_MAX_MESSAGE_BYTES
     assert policy.window_seconds == realtime_ws.DEFAULT_WINDOW_SECONDS
     assert policy.max_messages_per_window == realtime_ws.DEFAULT_MAX_MESSAGES_PER_WINDOW
+    assert policy.protocol_version == realtime_ws.PROTOCOL_VERSION
 
 
 def test_token_verifier_accepts_valid_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,9 +114,11 @@ def test_ws_accepts_valid_token_and_responds_pong(
 ) -> None:
     monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
     with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
-        ws.send_text(json.dumps({"type": "ping"}))
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
         response = json.loads(ws.receive_text())
-    assert response == {"type": "pong"}
+    assert response["version"] == "1"
+    assert response["type"] == "pong"
+    assert isinstance(response["server_time_ms"], int)
 
 
 def test_ws_accepts_token_via_query_param_and_responds_pong(
@@ -126,9 +129,24 @@ def test_ws_accepts_token_via_query_param_and_responds_pong(
         "app.middleware.api_tiers.require_pro_tier", lambda _token: {"sub": "ws-user"}
     )
     with ws_client.websocket_connect("/ws?token=valid-token") as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+    assert response["version"] == "1"
+    assert response["type"] == "pong"
+    assert isinstance(response["server_time_ms"], int)
+
+
+def test_ws_legacy_ping_without_version_is_still_supported(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
         ws.send_text(json.dumps({"type": "ping"}))
         response = json.loads(ws.receive_text())
-    assert response == {"type": "pong"}
+    assert response["version"] == "1"
+    assert response["type"] == "pong"
+    assert isinstance(response["server_time_ms"], int)
 
 
 @pytest.mark.parametrize(
@@ -173,10 +191,13 @@ def test_ws_rate_limit_closes_after_burst(
     limit = 3
     with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
         for _ in range(limit):
-            ws.send_text(json.dumps({"type": "ping"}))
-            assert json.loads(ws.receive_text()) == {"type": "pong"}
+            ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+            response = json.loads(ws.receive_text())
+            assert response["version"] == "1"
+            assert response["type"] == "pong"
+            assert isinstance(response["server_time_ms"], int)
 
-        ws.send_text(json.dumps({"type": "ping"}))
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
@@ -188,7 +209,54 @@ def test_ws_rejects_unknown_event_type(
 ) -> None:
     monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
     with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
-        ws.send_text(json.dumps({"type": "subscribe", "channel": "bmi"}))
+        ws.send_text(json.dumps({"version": "1", "type": "unknown", "channel": "bmi"}))
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+def test_ws_subscribe_progress_channel_returns_ack(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "subscribe", "channel": "progress"}))
+        response = json.loads(ws.receive_text())
+    assert response == {"version": "1", "type": "subscribed", "channel": "progress"}
+
+
+def test_ws_rejects_subscribe_without_version(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"type": "subscribe", "channel": "progress"}))
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+def test_ws_rejects_unsupported_protocol_version(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "2", "type": "ping"}))
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+def test_ws_rejects_subscribe_with_unknown_channel(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "subscribe", "channel": "bmi"}))
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
