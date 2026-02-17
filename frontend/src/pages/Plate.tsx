@@ -1,25 +1,52 @@
+import type { CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import PremiumGate from "../components/PremiumGate";
 import { usePremium } from "../lib/usePremium";
 import { PREMIUM_GATE_SOURCES } from "../config/constants";
+
+const cardStyle: CSSProperties = {
+  backgroundColor: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--pp-radius-xl)',
+};
 
 export default function Plate() {
   const isPremium = usePremium();
 
   if (isPremium === undefined) {
     return (
-      <main className="p-4">
-        <h1>Plate</h1>
-        <p>Loading…</p>
+      <main className="p-4 pb-24">
+        <section className="p-5" style={cardStyle}>
+          <h1 className="text-2xl font-bold text-text">Plate</h1>
+          <p className="mt-2 text-sm text-muted">Loading…</p>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="p-4">
-      <h1>Plate</h1>
+    <main className="p-4 pb-24 space-y-4">
+      <section className="p-5" style={cardStyle}>
+        <h1 className="text-2xl font-bold text-text">Plate</h1>
+        <p className="mt-2 text-sm text-muted">
+          PRO nutrition slice built on canonical routes and thin-client adapters.
+        </p>
+      </section>
+
       <PremiumGate isPremium={isPremium} source={PREMIUM_GATE_SOURCES.PLATE_PAGE}>
-        <section className="mt-4">
-          <p>Premium-only section preview…</p>
+        <section className="p-4 space-y-3" style={cardStyle}>
+          <h2 className="text-base font-semibold text-text">PRO nutrition controls</h2>
+          <p className="text-sm text-muted">
+            Use setup to refresh targets, then open progress for trend tracking.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Link className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white" to="/setup">
+              Open setup
+            </Link>
+            <Link className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3 text-sm font-semibold text-text" to="/progress">
+              Open progress
+            </Link>
+          </div>
         </section>
       </PremiumGate>
     </main>

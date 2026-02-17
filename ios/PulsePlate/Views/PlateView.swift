@@ -187,19 +187,19 @@ struct PlateViewPP: View {
   func colorFromString(_ colorString: String) -> Color {
     switch colorString.lowercased() {
     case "green":
-      return .green
+      return .success
     case "red":
-      return .red
+      return .heart
     case "orange":
-      return .orange
+      return .warning
     case "yellow":
-      return .yellow
+      return .warning
     case "blue":
-      return .blue
+      return .appPrimary
     case "purple":
-      return .purple
+      return .appPrimary
     default:
-      return .gray
+      return .textTertiary
     }
   }
 }
@@ -230,7 +230,7 @@ private struct PlateIssueView: View {
       }
     }
     .padding()
-    .background(Color.white.opacity(0.08))
+    .background(Color.surfaceElevated)
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     .padding(.horizontal)
   }
@@ -317,7 +317,7 @@ struct SegmentDetailView: View {
       }
     }
     .padding()
-    .background(Color.white.opacity(0.1))
+    .background(Color.surfaceElevated)
     .cornerRadius(12)
     .overlay(
       RoundedRectangle(cornerRadius: 12)

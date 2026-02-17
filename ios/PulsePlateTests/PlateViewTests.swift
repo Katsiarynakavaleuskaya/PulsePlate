@@ -47,14 +47,14 @@ class PlateViewTests: XCTestCase {
 	    let view = PlateViewPP()
 
 	    // When & Then
-	    XCTAssertEqual(view.colorFromString("green"), .green)
-	    XCTAssertEqual(view.colorFromString("red"), .red)
-	    XCTAssertEqual(view.colorFromString("orange"), .orange)
-	    XCTAssertEqual(view.colorFromString("yellow"), .yellow)
-	    XCTAssertEqual(view.colorFromString("blue"), .blue)
-	    XCTAssertEqual(view.colorFromString("unknown"), .gray)
+	    XCTAssertEqual(view.colorFromString("green"), .success)
+	    XCTAssertEqual(view.colorFromString("red"), .heart)
+	    XCTAssertEqual(view.colorFromString("orange"), .warning)
+	    XCTAssertEqual(view.colorFromString("yellow"), .warning)
+	    XCTAssertEqual(view.colorFromString("blue"), .appPrimary)
+	    XCTAssertEqual(view.colorFromString("unknown"), .textTertiary)
 	  }
-	}
+		}
 
 // MARK: - PlateRing Tests
 class PlateRingTests: XCTestCase {
