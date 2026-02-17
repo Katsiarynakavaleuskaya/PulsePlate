@@ -97,7 +97,10 @@ describe("wsClient", (): void => {
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
-    vi.stubGlobal("WebSocket", vi.fn(() => fakeSocket) as unknown as typeof WebSocket);
+    vi.stubGlobal(
+      "WebSocket",
+      vi.fn((_: string): MockWebSocketHandlers => fakeSocket) as unknown as typeof WebSocket,
+    );
 
     connectRealtimeWs({
       onStateChange: (state: WsConnectionState): void => states.push(state),
@@ -123,7 +126,10 @@ describe("wsClient", (): void => {
       onmessage: null as ((event: { data: string }) => void) | null,
     };
 
-    vi.stubGlobal("WebSocket", vi.fn(() => fakeSocket) as unknown as typeof WebSocket);
+    vi.stubGlobal(
+      "WebSocket",
+      vi.fn((_: string): MockWebSocketHandlers => fakeSocket) as unknown as typeof WebSocket,
+    );
 
     connectRealtimeWs({
       onStateChange: (state: WsConnectionState): void => states.push(state),
