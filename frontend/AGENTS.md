@@ -18,10 +18,10 @@
 - Keep UI changes in sync with backend schema updates.
 - For coordinated iOS+frontend work (designer/marketing/dev), follow:
   `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
-- Visual quality SoT for premium UX:
-  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`.
-- PR review gate (short checklist):
-  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
+- Visual quality SoT and PR review gate are canonical in
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` and
+  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` (see root `AGENTS.md` policy:
+  one canonical instruction, scoped files reference it).
 - This is a workflow reference only (no runtime behavior).
 
 ## Thin HTTP Adapter Policy (Hard Rule)
