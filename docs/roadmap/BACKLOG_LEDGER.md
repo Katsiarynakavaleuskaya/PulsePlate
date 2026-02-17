@@ -476,6 +476,23 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] P1: WebSocket foundation follow-up (realtime expansion package)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-WS-EXPANSION (placeholder)
+  - Status: Planned
+  - Area: backend / realtime / contracts
+  - Finding Type: scope control / deferred enhancement
+  - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
+  - Links:
+    - `docs/audit/PR_XXX_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_XXX_WEBSOCKET_FOUNDATION_PLAN.md`
+  - DoD:
+    - Define versioned event contract for realtime payloads
+    - Add client integration scope (web/iOS) without violating thin-adapter policy
+    - Add deterministic integration tests for expanded event flow
+    - Keep `make verify` and diff-coverage gates green in expansion PR
+
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

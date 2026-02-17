@@ -134,6 +134,16 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Implementation: `app/security/rate_limit.py`
 - Tests: `tests/test_rate_limit_llm_and_exports_api.py`, `tests/test_rate_limit_client_key_api.py`
 
+**WebSocket foundation policy (hard rule):**
+
+- Canonical websocket surface is foundation-only endpoint `/ws`, registered in `app/main.py`.
+- WebSocket authentication is mandatory and fail-closed (missing/invalid token -> policy close `1008`).
+- Runtime guardrails are mandatory: message-size limit, sliding-window burst limit, and event allowlist.
+- Feature flagging must be request-time (`FEATURE_WEBSOCKET_ENABLED`) to keep tests deterministic and avoid import-time freeze.
+- Any websocket behavior expansion (new event types, rooms, fan-out) must be tracked in `docs/roadmap/BACKLOG_LEDGER.md` before implementation.
+
+**Rationale:** WebSocket transport is long-lived and stateful; strict baseline rules prevent auth bypass and uncontrolled scope creep.
+
 ---
 
 ## REQUIRED READING (before any change)
