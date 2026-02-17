@@ -6,20 +6,25 @@ description: Produce PulsePlate AI reports in daily, weekly, monthly, and quarte
 # PulsePlate AI Reports
 
 ## When to use
+
 - Creating recurring AI market and product intelligence reports.
 - Preparing wellness/fitness/psychology AI trend summaries.
 - Identifying low-capex, low-regulatory entry opportunities.
 
 ## Inputs required
+
 - Report period (`daily`, `weekly`, `monthly`, `quarterly`).
 - Audience (`product`, `engineering`, `marketing`, `founder`).
 - Geographic focus and language requirements.
 
 ## Procedure (commands)
+
 1. Collect validated repo context first:
+
    ```bash
    ls docs/roadmap docs/audit docs/security
    ```
+
 2. Produce report using canonical structure:
    - Title
    - Highlights (3-7)
@@ -33,6 +38,7 @@ description: Produce PulsePlate AI reports in daily, weekly, monthly, and quarte
 4. For web research workflows, use bounded evidence and source logs.
 
 ## Output format
+
 - `Title`
 - `Highlights`
 - `Tech Trends`
@@ -42,15 +48,18 @@ description: Produce PulsePlate AI reports in daily, weekly, monthly, and quarte
 - `Next Steps`
 
 Always include:
+
 - Concrete dates.
 - Risk notes (regulatory, ethics, safety language).
 
 ## Guardrails
+
 - No medical claims presented as diagnosis/treatment advice.
 - No unsupported trend claims without evidence.
 - Keep easy-entry ideas non-licensed by default unless explicitly requested otherwise.
 
 ## SoT links
+
 - `.cursor/agents/web-research-agent.md`
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - `AGENTS.md`

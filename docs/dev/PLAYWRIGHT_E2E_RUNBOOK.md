@@ -1,5 +1,7 @@
 # Playwright E2E Runbook (Step 3 Extension)
 
+<!-- markdownlint-disable MD013 -->
+
 This runbook defines the Step 3 browser E2E extension for the PulsePlate productivity pack.
 
 ## Scope guard
@@ -19,18 +21,23 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 ## Prerequisites (local)
 
 1. Ensure Node toolchain is available:
+
    ```bash
    command -v npx >/dev/null 2>&1
    node --version
    npm --version
    ```
+
 2. Resolve Playwright CLI wrapper path:
+
    ```bash
    export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
    export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
    "$PWCLI" --help
    ```
+
 3. Prepare frontend dependencies:
+
    ```bash
    cd frontend
    npm install
@@ -40,10 +47,12 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 ## Local execution profile
 
 1. Start frontend in deterministic local mode:
+
    ```bash
    cd frontend
    npm run dev -- --host 127.0.0.1 --port 4173
    ```
+
 2. Execute flows in a second terminal with Playwright CLI wrapper.
 3. Re-snapshot after each navigation or major DOM mutation.
 

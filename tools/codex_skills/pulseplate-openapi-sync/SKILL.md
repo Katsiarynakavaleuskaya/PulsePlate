@@ -5,38 +5,52 @@ description: Regenerate backend OpenAPI and frontend API types with deterministi
 
 # PulsePlate OpenAPI Sync
 
+<!-- markdownlint-disable MD013 -->
+
 ## When to use
+
 - Backend schema or route contracts changed.
 - Frontend API types are stale or mismatched.
 - PR includes API contract updates.
 
 ## Inputs required
+
 - Target branch/base for diff comparison.
 - Confirmation that backend app imports successfully.
 - Whether frontend build/test should be run after sync.
 
 ## Procedure (commands)
+
 1. Generate canonical OpenAPI:
+
    ```bash
    make openapi
    ```
+
 2. Verify OpenAPI determinism and checks:
+
    ```bash
    make openapi-check
    pytest tests/test_openapi_determinism.py
    ```
+
 3. Regenerate frontend types:
+
    ```bash
    cd frontend
    npm run generate-types
    cd ..
    ```
+
 4. Inspect resulting diff:
+
    ```bash
    git status --short
    git diff -- frontend/src/api/openapi.json frontend/src/api/schema.ts
    ```
+
 5. Validate frontend compile/test path:
+
    ```bash
    cd frontend
    npm test
@@ -45,6 +59,7 @@ description: Regenerate backend OpenAPI and frontend API types with deterministi
    ```
 
 ## Output format
+
 - `Regeneration status`: openapi/types commands with exit codes.
 - `Changed artifacts`: list changed contract files.
 - `Contract notes`: notable API shape changes.
@@ -52,11 +67,13 @@ description: Regenerate backend OpenAPI and frontend API types with deterministi
 - `Rerun commands`: exact commands for reviewers.
 
 Include on failure:
+
 - Raw failing lines.
 - `file:line:error` pointers.
 - Minimal fix steps.
 
 ## Guardrails
+
 - Do not edit generated files manually.
 - Do not skip type regeneration after OpenAPI changes.
 - Do not merge API contract changes without frontend validation.
@@ -64,6 +81,7 @@ Include on failure:
 - Always run `make openapi-check` and `pytest tests/test_openapi_determinism.py` before merge.
 
 ## SoT links
+
 - `scripts/generate_openapi.py`
 - `frontend/AGENTS.md`
 - `frontend/src/api/openapi.json`

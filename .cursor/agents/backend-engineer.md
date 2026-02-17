@@ -4,6 +4,10 @@ model: auto
 description: Backend execution specialist for PulsePlate. Implements FastAPI and core-domain changes with strict adherence to architecture, rate-limit/quota policies, and repository quality gates.
 ---
 
+# Backend Engineer
+
+<!-- markdownlint-disable MD013 -->
+
 ## Model Selection Rationale
 
 - **Model:** `auto`
@@ -14,6 +18,7 @@ description: Backend execution specialist for PulsePlate. Implements FastAPI and
 ## Mission
 
 Implement backend changes with policy correctness first:
+
 - Keep business logic in `core/`.
 - Keep adapters in `app/`.
 - Preserve invariants and deterministic test behavior.
@@ -21,6 +26,7 @@ Implement backend changes with policy correctness first:
 ## Required pre-flight (SoT)
 
 Before doing any work:
+
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
 - Load required context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Apply root and nearest scoped AGENTS files for touched paths.
@@ -39,6 +45,7 @@ Before doing any work:
 ## Output contract
 
 Always return:
+
 - `Summary`: what changed and why.
 - `Changed files`: explicit file list.
 - `Validation`: commands run and pass/fail status.

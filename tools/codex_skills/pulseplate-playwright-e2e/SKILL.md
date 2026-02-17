@@ -5,25 +5,32 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 
 # PulsePlate Playwright E2E
 
+<!-- markdownlint-disable MD013 -->
+
 ## When to use
+
 - Step 3 extension after core productivity pack is in place.
 - Validating key browser flows in `frontend/` (login, onboarding, premium gates, exports).
 - Reproducing UI bugs that are hard to isolate with unit tests only.
 - Running predefined Step 3 smoke scenarios from the runbook.
 
 ## Inputs required
+
 - Target environment URL (local or preview).
 - Flow list (1-3 user journeys to validate).
 - Expected pass criteria per journey.
 - Scenario IDs (from runbook matrix, e.g. `E2E-01` ... `E2E-04`).
 
 ## Procedure (commands)
+
 1. Ensure frontend dependencies are ready:
+
    ```bash
    cd frontend
    npm ci
    cd ..
    ```
+
 2. Use Playwright skill/tooling to run browser automation against selected flows.
 3. Capture deterministic artifacts:
    - command and config used
@@ -33,6 +40,7 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 5. Follow the runbook evidence contract for every flow.
 
 ## Output format
+
 - `Flow matrix`: flow name + pass/fail.
 - `Scenario IDs`: include exact executed scenario IDs.
 - `Failure evidence`: raw failing lines and failing step.
@@ -41,12 +49,14 @@ description: Execute controlled Playwright browser E2E checks for PulsePlate web
 - `Rerun`: exact command sequence.
 
 ## Guardrails
+
 - Scope is browser E2E only; no desktop RPA.
 - Do not use Playwright to bypass thin-client policy or API contracts.
 - Keep runs targeted; avoid broad unstable suites without need.
 - Do not claim release readiness solely from E2E; keep hard backend gates mandatory.
 
 ## SoT links
+
 - `frontend/AGENTS.md`
 - `tools/codex_skills/pulseplate-frontend-ui/SKILL.md`
 - `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`

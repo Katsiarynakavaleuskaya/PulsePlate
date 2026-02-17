@@ -1,5 +1,7 @@
 # PulsePlate Codex Skills
 
+<!-- markdownlint-disable MD013 -->
+
 Repo-tracked source for project-specific Codex skills.
 
 - Source of truth: `tools/codex_skills/*`
@@ -9,6 +11,7 @@ Repo-tracked source for project-specific Codex skills.
 Default install mode uses symlinks so updates in this repo immediately apply to installed skills.
 
 Current skills:
+
 - `pulseplate-workflow`
 - `pulseplate-gates`
 - `pulseplate-openapi-sync`

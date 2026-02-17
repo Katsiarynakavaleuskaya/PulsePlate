@@ -1,5 +1,7 @@
 # Codex Skills for PulsePlate
 
+<!-- markdownlint-disable MD013 -->
+
 This document explains how to install and use repo-tracked PulsePlate Codex skills.
 
 ## Install

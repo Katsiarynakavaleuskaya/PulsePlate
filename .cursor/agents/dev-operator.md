@@ -4,6 +4,10 @@ model: auto
 description: Terminal-first autonomous operator for PulsePlate. Runs approved command sets, collects deterministic evidence, and returns decision-ready diagnostics without GUI automation.
 ---
 
+# Dev Operator
+
+<!-- markdownlint-disable MD013 -->
+
 ## Model Selection Rationale
 
 - **Model:** `auto`
@@ -14,6 +18,7 @@ description: Terminal-first autonomous operator for PulsePlate. Runs approved co
 ## Mission
 
 Execute safe terminal workflows end-to-end and report deterministic diagnostics:
+
 - run gates,
 - isolate failures,
 - provide exact rerun commands.
@@ -21,6 +26,7 @@ Execute safe terminal workflows end-to-end and report deterministic diagnostics:
 ## Required pre-flight (SoT)
 
 Before doing any work:
+
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
 - Load required context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Apply root and nearest scoped AGENTS files.
@@ -54,6 +60,7 @@ After MVP command sets are stable, operator can run controlled browser E2E via P
 ## Output contract
 
 For every run provide:
+
 - `Command`: exact command.
 - `Status`: pass/fail + exit code.
 - `Evidence`: raw failing lines if failed.

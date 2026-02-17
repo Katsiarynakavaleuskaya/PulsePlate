@@ -1,5 +1,7 @@
 # Agent Index (Canonical)
 
+<!-- markdownlint-disable MD013 -->
+
 **Purpose:** Single entry point for discovering available Cursor agents and their capabilities.
 
 **Canonical agent files:** `.cursor/agents/*.md`
@@ -13,7 +15,7 @@
 All agents default to `auto`; see `docs/agents/model_policy.md`.
 
 | Agent | Model | Summary | Canonical Doc | When to Use |
-|-------|-------|---------|---------------|-------------|
+| ----- | ----- | ------- | ------------- | ----------- |
 | agent-coordinator | auto | Routes tasks to appropriate agents, synthesizes multi-agent work | `.cursor/agents/agent-coordinator.md` | Start any task; coordinate multiple agents |
 | ai-innovation-specialist | auto | AI/ML features, RAG, computer vision, LLM integration, research-backed innovations | `.cursor/agents/ai-innovation-specialist.md` | AI/ML features, research, computer vision |
 | architecture-specialist | auto | Code structure, architectural patterns, invariant enforcement, design patterns | `.cursor/agents/architecture-specialist.md` | Architecture decisions, pattern design, invariant checks |

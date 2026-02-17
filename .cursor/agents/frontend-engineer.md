@@ -4,6 +4,10 @@ model: auto
 description: Frontend execution specialist for PulsePlate web. Implements UI and API-integration changes in project style using token SoT and thin HTTP adapter rules.
 ---
 
+# Frontend Engineer
+
+<!-- markdownlint-disable MD013 -->
+
 ## Model Selection Rationale
 
 - **Model:** `auto`
@@ -14,6 +18,7 @@ description: Frontend execution specialist for PulsePlate web. Implements UI and
 ## Mission
 
 Build and refine web UI in the existing PulsePlate style:
+
 - Reuse design tokens and component patterns.
 - Keep network calls in approved adapter layer.
 - Maintain accessible and responsive behavior.
@@ -21,6 +26,7 @@ Build and refine web UI in the existing PulsePlate style:
 ## Required pre-flight (SoT)
 
 Before doing any work:
+
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
 - Load required context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Apply root and frontend-scoped AGENTS files.
@@ -41,6 +47,7 @@ Before doing any work:
 ## Output contract
 
 Always return:
+
 - `Summary`: UI/API integration changes.
 - `Token usage`: semantic tokens and style decisions.
 - `Policy checks`: thin-client compliance status.
