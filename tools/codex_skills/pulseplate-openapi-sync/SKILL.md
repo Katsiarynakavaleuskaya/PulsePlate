@@ -20,18 +20,23 @@ description: Regenerate backend OpenAPI and frontend API types with deterministi
    ```bash
    make openapi
    ```
-2. Regenerate frontend types:
+2. Verify OpenAPI determinism and checks:
+   ```bash
+   make openapi-check
+   pytest tests/test_openapi_determinism.py
+   ```
+3. Regenerate frontend types:
    ```bash
    cd frontend
    npm run generate-types
    cd ..
    ```
-3. Inspect resulting diff:
+4. Inspect resulting diff:
    ```bash
    git status --short
    git diff -- frontend/src/api/openapi.json frontend/src/api/schema.ts
    ```
-4. Validate frontend compile/test path:
+5. Validate frontend compile/test path:
    ```bash
    cd frontend
    npm test
@@ -56,6 +61,7 @@ Include on failure:
 - Do not skip type regeneration after OpenAPI changes.
 - Do not merge API contract changes without frontend validation.
 - Keep backend schema generation on canonical entrypoint only.
+- Always run `make openapi-check` and `pytest tests/test_openapi_determinism.py` before merge.
 
 ## SoT links
 - `scripts/generate_openapi.py`
