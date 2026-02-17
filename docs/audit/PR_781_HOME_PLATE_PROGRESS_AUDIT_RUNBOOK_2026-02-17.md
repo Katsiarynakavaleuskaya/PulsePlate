@@ -6,7 +6,8 @@
 
 - Slice: `Home + Plate + Progress` for iOS first, then web parity.
 - Artifact contract for PR1: one combined audit+runbook document.
-- Figma stage in this stream: blueprint definition plus execution track (seat now unblocked).
+- Figma stage in this stream: blueprint definition + execution track
+  (seat unblocked).
 - Delivery order: `PR1 docs` -> `PR2 iOS` -> `PR3 web`.
 
 ### Non-goals (PR1)
@@ -21,11 +22,14 @@
 ### Anchor maintenance protocol
 
 - `file:line` anchors are evidence snapshots at the audit date.
-- When referenced files change in follow-up PRs, refresh affected anchors in this audit in the same PR.
+- When referenced files change in follow-up PRs, refresh affected
+  anchors in this audit in the same PR.
 - Minimum refresh check:
-  - `rg -n "HomeView|ProgressViewPP|PlateViewPP|weekly-plan|shopping-list" ios/PulsePlate frontend/src app/routers`
+  - `rg -n "HomeView|ProgressViewPP|PlateViewPP|weekly-plan|shopping-list" \
+    ios/PulsePlate frontend/src app/routers`
   - confirm changed symbols still map to the listed `file:line` anchors.
-- If a symbol moves significantly, update this audit and add a short note in PR body under `Deferred / Follow-ups`.
+- If a symbol moves significantly, update this audit and add a short
+  note in PR body under `Deferred / Follow-ups`.
 
 ### Web baseline
 
@@ -94,25 +98,66 @@
 
 ## 4. Backend ↔ frontend ↔ iOS attachment matrix
 
-| Domain flow | Backend SoT | Web attachment | iOS attachment | Notes |
-| --- | --- | --- | --- | --- |
-| BMI calculate | `app/routers/bmi.py:198` | BMI route (`/bmi`) and existing BMI pages | `ios/PulsePlate/Services/BMIService.swift:31` | Keep FREE flow contract intact |
-| Plate daily nutrition | `app/routers/pro.py:369` | Plate/Setup adapters and Premium flow | `ios/PulsePlate/Services/ProDailyNutritionService.swift:38` | Canonical path `/api/v1/pro/nutrition/daily` |
-| Weekly plan | `app/routers/pro.py:245` | `frontend/src/api/premium/weekly-plan.ts:15` | `ios/PulsePlate/Services/WeeklyPlanService.swift:8` | No endpoint migration in this stream |
-| Shopping list | `app/routers/shopping_list_pro.py:18` | Existing web premium flow where used | `ios/PulsePlate/Services/ShoppingListService.swift:8` | Surface discoverability moves to production entry points |
-| Nutrition targets/plate contracts | `app/routers/pro_nutrition_contracts.py:26` | `frontend/src/api/premium/targets.ts:9`, `frontend/src/api/premium/plate.ts:12` | iOS plate profile + daily contract path | Keep thin adapters only |
-| Legacy BMR alias | backend alias preserved | `frontend/src/api/premium/bmr.ts:4` | N/A (iOS uses dedicated services) | Migration only in separate audited PR |
+- BMI calculate:
+  - Backend SoT: `app/routers/bmi.py:198`
+  - Web attachment: BMI route (`/bmi`) and existing BMI pages
+  - iOS attachment: `ios/PulsePlate/Services/BMIService.swift:31`
+  - Notes: Keep FREE flow contract intact.
+- Plate daily nutrition:
+  - Backend SoT: `app/routers/pro.py:369`
+  - Web attachment: Plate/Setup adapters and Premium flow
+  - iOS attachment:
+    `ios/PulsePlate/Services/ProDailyNutritionService.swift:38`
+  - Notes: Canonical path `/api/v1/pro/nutrition/daily`.
+- Weekly plan:
+  - Backend SoT: `app/routers/pro.py:245`
+  - Web attachment: `frontend/src/api/premium/weekly-plan.ts:15`
+  - iOS attachment: `ios/PulsePlate/Services/WeeklyPlanService.swift:8`
+  - Notes: No endpoint migration in this stream.
+- Shopping list:
+  - Backend SoT: `app/routers/shopping_list_pro.py:18`
+  - Web attachment: Existing web premium flow where used
+  - iOS attachment: `ios/PulsePlate/Services/ShoppingListService.swift:8`
+  - Notes: Surface discoverability moves to production entry points.
+- Nutrition targets/plate contracts:
+  - Backend SoT: `app/routers/pro_nutrition_contracts.py:26`
+  - Web attachment:
+    `frontend/src/api/premium/targets.ts:9`,
+    `frontend/src/api/premium/plate.ts:12`
+  - iOS attachment: iOS plate profile + daily contract path
+  - Notes: Keep thin adapters only.
+- Legacy BMR alias:
+  - Backend SoT: backend alias preserved
+  - Web attachment: `frontend/src/api/premium/bmr.ts:4`
+  - iOS attachment: N/A (iOS uses dedicated services)
+  - Notes: Migration only in separate audited PR.
 
 ## 5. Gap matrix (P0/P1/P2)
 
-| Priority | Gap | Owner | DoD | Target PR |
-| --- | --- | --- | --- | --- |
-| P0 | Home/Profile placeholders on web | Frontend | Production cards/states, token-only styling, tests green | PR3 |
-| P0 | Home/Progress placeholders on iOS | iOS | Real stateful screens with loading/empty/error/data surfaces | PR2 |
-| P1 | Weekly/Shopping discoverability limited to debug path on iOS | iOS | Production entry points available behind existing feature flags | PR2 |
-| P1 | Progress visual token drift on web charts/cards | Frontend | Replace ad-hoc color values with semantic tokens | PR3 |
-| P2 | Figma slice structure absent in current Make file | Design + FE + iOS | Page/component blueprint defined; execution in progress with unblocked seat | PR1/Follow-up |
-| P2 | Browser E2E evidence not consistently attached per flow | Dev Operator | Runbook + deterministic evidence contract used for E2E-01..04 | PR3 + Step3 |
+- P0, Home/Profile placeholders on web:
+  - Owner: Frontend
+  - DoD: production cards/states, token-only styling, tests green
+  - Target PR: PR3
+- P0, Home/Progress placeholders on iOS:
+  - Owner: iOS
+  - DoD: real stateful screens with loading/empty/error/data surfaces
+  - Target PR: PR2
+- P1, Weekly/Shopping discoverability limited to debug path on iOS:
+  - Owner: iOS
+  - DoD: production entry points behind existing feature flags
+  - Target PR: PR2
+- P1, Progress visual token drift on web charts/cards:
+  - Owner: Frontend
+  - DoD: replace ad-hoc color values with semantic tokens
+  - Target PR: PR3
+- P2, Figma slice structure absent in current Make file:
+  - Owner: Design + FE + iOS
+  - DoD: page/component blueprint defined; execution in progress
+  - Target PR: PR1/Follow-up
+- P2, Browser E2E evidence not consistently attached per flow:
+  - Owner: Dev Operator
+  - DoD: runbook + deterministic evidence contract for E2E-01..04
+  - Target PR: PR3 + Step3
 
 ## 6. Figma structure spec (Home+Plate+Progress slice)
 
@@ -145,8 +190,12 @@
 
 ### Token mapping rules
 
-- Web SoT: `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`, `frontend/tailwind.config.ts`.
-- iOS SoT: color assets in `ios/PulsePlate/Assets.xcassets/*.colorset` and runtime bridge in `ios/PulsePlate/Extensions/Color+Assets.swift:4`.
+- Web SoT: `frontend/src/styles/tokens.css`,
+  `frontend/src/styles/tokens.ts`,
+  `frontend/tailwind.config.ts`.
+- iOS SoT: color assets in
+  `ios/PulsePlate/Assets.xcassets/*.colorset` and runtime bridge in
+  `ios/PulsePlate/Extensions/Color+Assets.swift:4`.
 - Naming convention: `PP/<Platform>/<Screen>/<Component>/<State>`.
 
 ## 7. Execution checklist (PR2 + PR3)
@@ -156,21 +205,27 @@
 1. Replace `HomeView` placeholder with stateful dashboard shell.
 2. Replace `ProgressViewPP` placeholder with chart/KPI stateful shell.
 3. Keep `PlateViewPP` API flow canonical; align style blocks to token SoT.
-4. Lift weekly/shopping discoverability from debug-only path into production Home entry points behind existing flags.
+4. Lift weekly/shopping discoverability from debug-only path into
+   production Home entry points behind existing flags.
 5. Preserve thin-client invariants (no business-logic duplication).
 6. Run iOS and repo gates before merge-ready statement.
 
 ### PR3 (web parity)
 
-1. Replace `Home/Profile/Plate` placeholder shells with production card/state surfaces.
-2. Keep API calls through existing adapters only (`frontend/src/api/client.ts` wrappers).
+1. Replace `Home/Profile/Plate` placeholder shells with production
+   card/state surfaces.
+2. Keep API calls through existing adapters only
+   (`frontend/src/api/client.ts` wrappers).
 3. Keep canonical premium endpoints unchanged.
 4. Align Progress visuals with semantic tokens, remove ad-hoc color drift.
-5. Run frontend tests/build + repo guards + verify gates before merge-ready statement.
+5. Run frontend tests/build + repo guards + verify gates before
+   merge-ready statement.
 
 ### Step 3 extension (post-stabilization)
 
-- Run controlled Playwright operator scenarios from `tools/codex_skills/pulseplate-playwright-e2e/SKILL.md` and `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`.
+- Run controlled Playwright operator scenarios from
+  `tools/codex_skills/pulseplate-playwright-e2e/SKILL.md` and
+  `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`.
 - Scenarios: `E2E-01` Home, `E2E-02` BMI, `E2E-03` Setup, `E2E-04` Pro.
 - Deterministic dependency install: `cd frontend && npm ci`.
 
@@ -179,7 +234,8 @@
 ### PR1 (docs-only)
 
 ```bash
-python scripts/ci/check_docs_phase1_gates.py --files docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md
+python scripts/ci/check_docs_phase1_gates.py --files \
+  docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md
 make lint
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
@@ -188,7 +244,8 @@ pre-commit run --all-files
 Acceptance criteria:
 
 - Docs gate passes.
-- At least one valid `file:line` evidence anchor exists (this doc includes explicit anchors).
+- At least one valid `file:line` evidence anchor exists
+  (this doc includes explicit anchors).
 - No runtime/API change introduced in PR1.
 
 ### PR2 (iOS)
@@ -205,7 +262,8 @@ Acceptance criteria:
 
 - Home/Progress are not placeholders.
 - Plate remains canonical on `/api/v1/pro/nutrition/daily` flow.
-- Weekly/Shopping production discoverability exists behind existing flags.
+- Weekly/Shopping production discoverability exists behind existing
+  flags.
 
 ### PR3 (web)
 
@@ -221,7 +279,8 @@ make verify
 Acceptance criteria:
 
 - Home/Profile/Plate are not skeleton placeholders.
-- Progress style uses semantic tokens (no ad-hoc drift in updated surfaces).
+- Progress style uses semantic tokens
+  (no ad-hoc drift in updated surfaces).
 - Thin-client policy remains green.
 
 ## Security notes
@@ -232,9 +291,12 @@ Acceptance criteria:
 
 ## Marketing & GTM notes
 
-- Home+Plate+Progress creates stable demo surfaces for App Store/Product Hunt content.
-- Web+iOS visual parity reduces brand drift and review friction for launch materials.
-- Playwright Step 3 evidence gives deterministic walkthrough artifacts for stakeholders.
+- Home+Plate+Progress creates stable demo surfaces for App Store and
+  Product Hunt content.
+- Web+iOS visual parity reduces brand drift and review friction for
+  launch materials.
+- Playwright Step 3 evidence gives deterministic walkthrough artifacts
+  for stakeholders.
 
 ## Decision log
 
@@ -249,4 +311,5 @@ Acceptance criteria:
 - Figma seat is `Full`; blueprint execution is allowed in the current workspace.
 - Figma Make file is treated as blank scaffold baseline for this slice.
 - No runtime backend contract changes are included in this stream.
-- Deferred follow-ups must be tracked in `docs/roadmap/BACKLOG_LEDGER.md` with Owner, DoD, and Target PR.
+- Deferred follow-ups must be tracked in
+  `docs/roadmap/BACKLOG_LEDGER.md` with Owner, DoD, and Target PR.
