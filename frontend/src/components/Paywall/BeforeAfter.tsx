@@ -8,6 +8,7 @@ type Props = {
   onClose: () => void;
   onPurchase?: () => void | Promise<void>;
   purchaseLabel?: string;
+  processingLabel?: string;
   purchaseDisabled?: boolean;
   source?: string;
   via?: string;
@@ -29,6 +30,7 @@ export default function BeforeAfter({
   onClose,
   onPurchase,
   purchaseLabel,
+  processingLabel,
   purchaseDisabled = false,
   source = "unknown",
   via = "paywall",
@@ -90,7 +92,7 @@ export default function BeforeAfter({
     } else {
       primaryButtonRef.current?.focus();
     }
-  }, [purchaseDisabled, isPurchasing]);
+  }, [purchaseDisabled]);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
 
@@ -163,7 +165,9 @@ export default function BeforeAfter({
             }
           }}
         >
-          {isPurchasing ? "Processing..." : (purchaseLabel ?? t("paywall.cta"))}
+          {isPurchasing
+            ? (processingLabel ?? purchaseLabel ?? t("paywall.cta"))
+            : (purchaseLabel ?? t("paywall.cta"))}
         </button>
 
         {purchaseError && (

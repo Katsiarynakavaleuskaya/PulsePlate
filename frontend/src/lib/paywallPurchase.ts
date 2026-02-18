@@ -25,6 +25,15 @@ export async function purchasePremium(request: PurchaseRequest): Promise<Purchas
   });
 
   if (response.status !== "ok") {
+    try {
+      log(Events.PURCHASE_FAILURE, {
+        source: request.source,
+        via: request.via,
+        status: response.status,
+      });
+    } catch {
+      // Ignore analytics transport failures in purchase flow.
+    }
     throw new Error("Purchase failed");
   }
 

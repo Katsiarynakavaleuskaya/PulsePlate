@@ -11,6 +11,7 @@ vi.mock("../../api/client", () => ({
 vi.mock("../analytics", () => ({
   Events: {
     PURCHASE_SUCCESS: "purchase_success",
+    PURCHASE_FAILURE: "purchase_failure",
   },
   log: (...args: unknown[]) => logMock(...args),
 }));
@@ -52,5 +53,10 @@ describe("purchasePremium", () => {
     ).rejects.toThrow("Purchase failed");
 
     expect(localStorage.getItem("pp_premium")).toBeNull();
+    expect(logMock).toHaveBeenCalledWith("purchase_failure", {
+      source: "plate",
+      via: "paywall_cta",
+      status: "error",
+    });
   });
 });
