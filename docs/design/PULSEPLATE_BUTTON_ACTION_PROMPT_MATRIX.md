@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # PulsePlate Button Action + Prompt Matrix (H+P+Pr)
 
 **Date:** February 18, 2026
@@ -164,3 +165,4 @@ Output: retry and secondary action pair with accessible contrast.
   - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 
 RU reminder: колонка prompt предназначена для шаблонов и контроля качества, а не для хранения чувствительных данных.
+<!-- markdownlint-enable MD013 -->
