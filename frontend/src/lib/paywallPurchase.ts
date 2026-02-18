@@ -40,8 +40,12 @@ export async function purchasePremium(request: PurchaseRequest): Promise<Purchas
   // RU: После успешной покупки синхронизируем premium-статус в клиенте.
   // EN: Keep local premium state in sync after successful purchase.
   if (typeof window !== "undefined") {
-    localStorage.setItem("pp_premium", "true");
-    window.dispatchEvent(new Event("pp-premium-change"));
+    try {
+      localStorage.setItem("pp_premium", "true");
+      window.dispatchEvent(new Event("pp-premium-change"));
+    } catch {
+      // Ignore local storage synchronization failures.
+    }
   }
 
   try {

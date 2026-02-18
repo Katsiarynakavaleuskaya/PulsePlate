@@ -158,7 +158,7 @@ export default function BeforeAfter({
               setIsPurchasing(true);
               await onPurchase?.();
             } catch (error) {
-              const message = error instanceof Error ? error.message : "Purchase failed. Please try again.";
+              const message = error instanceof Error ? error.message : t("common.tryAgain");
               setPurchaseError(message);
             } finally {
               setIsPurchasing(false);
@@ -166,7 +166,7 @@ export default function BeforeAfter({
           }}
         >
           {isPurchasing
-            ? (processingLabel ?? purchaseLabel ?? t("paywall.cta"))
+            ? (processingLabel ?? purchaseLabel ?? t("common.retrying"))
             : (purchaseLabel ?? t("paywall.cta"))}
         </button>
 

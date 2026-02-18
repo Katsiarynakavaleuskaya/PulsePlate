@@ -66,7 +66,7 @@ describe("Paywall BeforeAfter", () => {
     expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
   });
 
-  test("fires purchase_attempt on CTA click", async () => {
+  test("fires purchase_attempt on CTA click", async (): Promise<void> => {
     const onPurchase = vi.fn();
     render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
 
@@ -81,7 +81,7 @@ describe("Paywall BeforeAfter", () => {
     });
   });
 
-  test("shows purchase error when callback rejects", async () => {
+  test("shows purchase error when callback rejects", async (): Promise<void> => {
     const onPurchase = vi.fn().mockRejectedValue(new Error("Payment failed"));
     render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
 
