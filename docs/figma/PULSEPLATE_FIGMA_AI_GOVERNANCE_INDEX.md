@@ -43,7 +43,15 @@ Use this block as the canonical instruction payload for Figma AI in the current 
 
 ## Brand and tone lock (non-negotiable)
 - Mood: minimal + cozy + intelligent + luxury-clean.
-- Palette lock: #0F172A, #339FFF, #20C997, #FF5D5D (accent only).
+- Palette lock: use canonical semantic tokens (no hard-coded hex in Figma guidance).
+  - Web token SoT: frontend/src/styles/tokens.css, frontend/src/styles/tokens.ts, frontend/tailwind.config.ts.
+  - iOS token SoT: ios/PulsePlate/Assets.xcassets/*.colorset, ios/PulsePlate/Extensions/Color+Assets.swift.
+  - Role mapping:
+    - primary/base: web `--pp-navy` / `--color-navy-900`; iOS `Color.navy` (`Navy.colorset`)
+    - secondary/action: web `--pp-primary` / `--color-primary`; iOS `Color.appPrimary` (`AppPrimary.colorset`)
+    - success/positive: web `--color-success` (legacy alias `--pp-accent` where required); iOS `Color.success` (`AccentGreen.colorset`)
+    - accent-alert: web `--color-error`; iOS `Color.heart` or `Color.error` (`HeartRed.colorset`)
+  - Accent is contextual only, never dominant.
 - Visual style: flat forms, soft shadows, subtle gradients, clear small-size silhouettes.
 - Tone: wellness lifestyle; never medical or diagnostic.
 - RU: без медицинских обещаний, без клинического фрейминга.
