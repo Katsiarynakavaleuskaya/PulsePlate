@@ -7,6 +7,7 @@
 - Add structured policy-close logs with normalized reasons.
 - Add deterministic negative-path tests
   (no `sleep()`).
+- Evidence anchors: `app/middleware/metrics.py:213`, `app/routers/realtime_ws.py:270`.
 
 ## Scope
 

@@ -179,7 +179,7 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
     """Authenticate websocket and close with policy code on failure."""
     token = _extract_bearer_token(ws)
     if not token:
-        await _close_with_policy(ws, REASON_AUTH_REQUIRED)
+        await _close_with_policy(ws, REASON_AUTH_REQUIRED, record_rejected_connect=True)
         return False
 
     try:
@@ -187,7 +187,7 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
         await run_in_threadpool(verifier, token)
         return True
     except Exception:
-        await _close_with_policy(ws, REASON_AUTH_INVALID)
+        await _close_with_policy(ws, REASON_AUTH_INVALID, record_rejected_connect=True)
         return False
 
 
@@ -272,8 +272,12 @@ async def _close_with_policy(
     reason: str,
     *,
     extra_fields: dict[str, Any] | None = None,
+    record_rejected_connect: bool = False,
 ) -> None:
     """Close websocket with normalized, structured policy log."""
+    if record_rejected_connect:
+        record_ws_connect(WS_ROUTE_LABEL, result="rejected", reason=reason)
+
     log_payload: dict[str, Any] = {
         "path": WS_ROUTE_LABEL,
         "close_code": POLICY_CLOSE_CODE,
@@ -293,13 +297,13 @@ async def ws_root(ws: WebSocket) -> None:
     ws_metrics_active = False
 
     if not _is_ws_enabled():
-        await _close_with_policy(ws, REASON_WS_DISABLED)
+        await _close_with_policy(ws, REASON_WS_DISABLED, record_rejected_connect=True)
         return
 
     policy = _policy_from_env()
     connection_acquired = _active_connections.try_acquire(policy.max_connections)
     if not connection_acquired:
-        await _close_with_policy(ws, REASON_TOO_MANY_CONNECTIONS)
+        await _close_with_policy(ws, REASON_TOO_MANY_CONNECTIONS, record_rejected_connect=True)
         return
 
     try:

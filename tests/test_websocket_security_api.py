@@ -140,11 +140,23 @@ def test_ws_disabled_returns_1008(app: FastAPI, monkeypatch: pytest.MonkeyPatch)
     assert exc.value.code == 1008
 
 
-def test_ws_rejects_missing_token(ws_client: TestClient) -> None:
+def test_ws_rejects_missing_token(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_stub = _WsMetricsStub()
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", metrics_stub)
+
     with ws_client.websocket_connect("/ws") as ws:
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
+    assert metrics_stub.ws_connect_total.value == 1.0
+    assert metrics_stub.ws_connect_total.label_calls[-1] == {
+        "path": "/ws",
+        "result": "rejected",
+        "reason": "auth_required",
+    }
 
 
 def test_ws_rejects_invalid_token(
@@ -476,6 +488,13 @@ def test_ws_metrics_increment_and_active_gauge_restore(
     assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/ws"
     assert metrics_stub.ws_connect_total.label_calls[-1]["result"] == "accepted"
     assert metrics_stub.ws_connect_total.label_calls[-1]["reason"] == "none"
+    assert {labels["direction"] for labels in metrics_stub.ws_messages_total.label_calls[-2:]} == {
+        "in",
+        "out",
+    }
+    for labels in metrics_stub.ws_messages_total.label_calls[-2:]:
+        assert labels["path"] == "/ws"
+        assert labels["status"] == "ok"
 
 
 def test_ws_policy_close_log_contains_bounded_fields(
