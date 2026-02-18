@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Events, log } from "../../lib/analytics";
@@ -6,7 +6,7 @@ import { useFocusTrap } from "../../lib/useFocusTrap";
 
 type Props = {
   onClose: () => void;
-  onPurchase?: () => void;
+  onPurchase?: () => void | Promise<void>;
   purchaseLabel?: string;
   purchaseDisabled?: boolean;
   source?: string;
@@ -34,6 +34,8 @@ export default function BeforeAfter({
   via = "paywall",
 }: Props) {
   const { t } = useTranslation();
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -83,12 +85,12 @@ export default function BeforeAfter({
   // Focus effect - reactive to purchaseDisabled changes
   useEffect(() => {
     // Set focus on primary button, or fallback to Cancel if CTA is disabled
-    if (purchaseDisabled) {
+    if (purchaseDisabled || isPurchasing) {
       cancelButtonRef.current?.focus();
     } else {
       primaryButtonRef.current?.focus();
     }
-  }, [purchaseDisabled]);
+  }, [purchaseDisabled, isPurchasing]);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
 
@@ -139,21 +141,36 @@ export default function BeforeAfter({
           className="w-full py-3 rounded-xl bg-pp-primary text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ minHeight: 44 }}
           data-testid="paywall-cta"
-          disabled={purchaseDisabled}
-          aria-disabled={purchaseDisabled}
-          onClick={() => {
-            if (purchaseDisabled) return;
+          disabled={purchaseDisabled || isPurchasing}
+          aria-disabled={purchaseDisabled || isPurchasing}
+          onClick={async () => {
+            if (purchaseDisabled || isPurchasing) return;
+            setPurchaseError(null);
             // Fire-and-forget analytics before invoking callback
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
             } catch {
               // Ignore analytics errors
             }
-            onPurchase?.();
+            try {
+              setIsPurchasing(true);
+              await onPurchase?.();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Purchase failed. Please try again.";
+              setPurchaseError(message);
+            } finally {
+              setIsPurchasing(false);
+            }
           }}
         >
-          {purchaseLabel ?? t("paywall.cta")}
+          {isPurchasing ? "Processing..." : (purchaseLabel ?? t("paywall.cta"))}
         </button>
+
+        {purchaseError && (
+          <p className="mt-2 text-xs text-red-600" data-testid="paywall-purchase-error">
+            {purchaseError}
+          </p>
+        )}
 
         <button
           type="button"

@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { vi, describe, test, expect, afterEach, beforeAll } from "vitest";
 import "@testing-library/jest-dom";
 import BeforeAfter from "../BeforeAfter";
@@ -66,17 +66,30 @@ describe("Paywall BeforeAfter", () => {
     expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
   });
 
-  test("fires purchase_attempt on CTA click", () => {
+  test("fires purchase_attempt on CTA click", async () => {
     const onPurchase = vi.fn();
     render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
 
     const ctas = screen.getAllByTestId("paywall-cta");
     fireEvent.click(ctas[0]);
-    expect(onPurchase).toHaveBeenCalled();
-    // Should have PAYWALL_VIEW (on mount) + PURCHASE_ATTEMPT (on click)
-    expect(log).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
-    expect(log).toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT, expect.anything());
+    await waitFor(() => {
+      expect(onPurchase).toHaveBeenCalled();
+      // Should have PAYWALL_VIEW (on mount) + PURCHASE_ATTEMPT (on click)
+      expect(log).toHaveBeenCalledTimes(2);
+      expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
+      expect(log).toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT, expect.anything());
+    });
+  });
+
+  test("shows purchase error when callback rejects", async () => {
+    const onPurchase = vi.fn().mockRejectedValue(new Error("Payment failed"));
+    render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
+
+    fireEvent.click(screen.getByTestId("paywall-cta"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("paywall-purchase-error")).toHaveTextContent("Payment failed");
+    });
   });
 
   test("fires purchase_cancel on Cancel click", () => {

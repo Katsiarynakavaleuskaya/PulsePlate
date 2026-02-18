@@ -51,6 +51,14 @@ class PlateViewTests: XCTestCase {
     XCTAssertEqual(Color.segmentSemanticColor(from: "purple"), .appPrimary)
     XCTAssertEqual(Color.segmentSemanticColor(from: "unknown"), .textTertiary)
   }
+
+  func testPrimaryCTAAddMealDestination() {
+    XCTAssertEqual(destination(for: .addMeal), .mealEntry)
+  }
+
+  func testPrimaryCTAViewDetailsDestination() {
+    XCTAssertEqual(destination(for: .viewDetails), .nutritionDetails)
+  }
 }
 
 // MARK: - PlateRing Tests

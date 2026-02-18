@@ -1,6 +1,7 @@
 import React, { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInert } from "../lib/useInert";
+import { purchasePremium } from "../lib/paywallPurchase";
 import Paywall from "./Paywall/BeforeAfter";
 // import { log, Events } from "../lib/analytics"; // TODO: Add analytics when needed
 
@@ -64,8 +65,9 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
           onClose={() => {
             setOpen(false);
           }}
-          onPurchase={() => {
-            // hook for purchase flow
+          onPurchase={async () => {
+            await purchasePremium({ source, via: "paywall_cta" });
+            setOpen(false);
           }}
         />
       )}

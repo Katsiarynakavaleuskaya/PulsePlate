@@ -15,6 +15,9 @@ describe('Home', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument();
     expect(screen.getByText('Quick actions')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open setup' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open plate' })).toHaveAttribute('href', '/plate');
+    expect(screen.getByRole('link', { name: 'Open progress' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'Open Pro' })).toHaveAttribute('href', '/pro');
   });
 
   it('has correct CSS classes', () => {
