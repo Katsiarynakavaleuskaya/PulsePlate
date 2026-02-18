@@ -193,6 +193,15 @@ UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 ---
 
+### sora-prompt-engineer
+
+Sora prompt-engineering owner for PulsePlate visual assets: style-lock templates, variant strategy, anti-drift controls, and release QA criteria.
+
+**Canonical doc:** `.cursor/agents/sora-prompt-engineer.md`
+**Visual SoT:** `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+
+---
+
 ### marketing-strategist
 
 ASO/SEO, growth strategy, positioning, and conversion optimization.
