@@ -355,6 +355,74 @@ Rationale (обоснование): предотвратить бесконеч�
 
 ---
 
+## Визуализация диалога (Dialogue Visualization Contract)
+
+**Назначение:** единый формат Mermaid-графа для аудита multi-agent диалогов.
+
+### Формат входа (Input Contract)
+
+- `dialogue_id`: стабильный идентификатор сессии (например, `dlg-2026-02-18-001`)
+- `task_id`: идентификатор задачи/PR (например, `PR-795`)
+- `participants`: список агентов с ролями
+- `iterations`: ровно 1-3 итерации
+- `edges`: сообщения/ответы между агентами с направлением
+- `outcome`: `consensus` или `forced-decision`
+
+### Формат выхода (Mermaid Output Contract)
+
+```mermaid
+flowchart TD
+  subgraph I1["Iteration 1"]
+    A1["Agent A: Proposal"]
+    B1["Agent B: Proposal"]
+    C1["Agent C: Proposal"]
+  end
+
+  subgraph I2["Iteration 2"]
+    A2["Agent A: Refinement"]
+    B2["Agent B: Refinement"]
+    C2["Agent C: Refinement"]
+  end
+
+  subgraph I3["Iteration 3"]
+    D3{"Consensus?"}
+    J3["Joint decision"]
+    F3["Coordinator forced decision"]
+  end
+
+  A1 --> B1
+  B1 --> C1
+  C1 --> A2
+  A2 --> B2
+  B2 --> C2
+  C2 --> D3
+  D3 -- yes --> J3
+  D3 -- no --> F3
+```
+
+### Обязательные поля на рёбрах (Edge Metadata)
+
+- `from_agent`
+- `to_agent`
+- `iteration`
+- `message_type` (`proposal`, `question`, `refinement`, `decision`)
+
+### Пример (Example Snapshot)
+
+```mermaid
+flowchart LR
+  AS["Architecture Specialist"] --> AIS["AI Innovation Specialist"]
+  AIS --> SA["Security Auditor"]
+  SA --> C{"Consensus"}
+  C -- yes --> OUT["ChromaDB selected"]
+  C -- no --> FD["Coordinator forced decision"]
+```
+
+Правило соответствия:
+- если в диалоге зафиксирован `forced decision`, в графе обязательно должна быть ветка `no -> Coordinator forced decision`.
+
+---
+
 ## Проверочный чек-лист (Verification Checklist)
 
 Перед началом диалога проверьте:

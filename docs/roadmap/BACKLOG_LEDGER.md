@@ -1735,13 +1735,20 @@ If it is not recorded here — it does not exist.
 
 - [ ] Dialogue Visualization (interaction graph)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR-TBD (`docs/orchestration-dialogue-visualization`)
+  - Status: 🚧 In progress (started 2026-02-19)
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: tooling
   - Reason: Multi-agent dialogue is hard to audit without a visual interaction graph.
   - Links:
     - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+    - docs/orchestration/workflow.md
+    - docs/plan/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_TASK_ANALYSIS.md
+    - docs/plan/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_EXECUTION_PLAN.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_BRAINSTORMING.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_AUDIT.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_PR_BODY_SKELETON.md
   - DoD:
     - Mermaid output format defined (inputs + expected diagram)
     - Example visualization added to orchestration docs or runbook
