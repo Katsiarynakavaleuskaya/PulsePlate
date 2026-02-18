@@ -22,6 +22,10 @@
   `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` and
   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` (see root `AGENTS.md` policy:
   one canonical instruction, scoped files reference it).
+- Button-level visual execution and prompt handoff SoT (Home/Plate/Progress):
+  `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+- Prompt guardrails/playbook:
+  `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`.
 - This is a workflow reference only (no runtime behavior).
 
 ## Thin HTTP Adapter Policy (Hard Rule)

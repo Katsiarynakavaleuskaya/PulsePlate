@@ -496,6 +496,12 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Frontend -> backend: REST `/api/v1/*` endpoints with API key + session auth; contracts derive from
   Pydantic models in `app/schemas/` and FastAPI OpenAPI output.
 - iOS -> backend: same REST endpoints and auth; mobile flows mirror web API behavior.
+- Visual execution SoT for Home/Plate/Progress CTA behavior and prompt handoff:
+  `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+- Visual quality and review standards:
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`,
+  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`,
+  `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`.
 - DB migrations: Alembic in `alembic/` targets SQLite/Postgres; keep migrations in sync with
   SQLAlchemy models.
 - Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.
