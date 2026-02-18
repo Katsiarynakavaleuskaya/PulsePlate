@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import threading
 import time
 from collections import deque
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -20,6 +22,7 @@ DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
 DEFAULT_MAX_MESSAGES_PER_WINDOW: int = 20
 DEFAULT_MAX_CONNECTIONS: int = 200
+DEFAULT_IDLE_TIMEOUT_SECONDS: int = 0
 PROTOCOL_VERSION: str = "1"
 ALLOWED_EVENT_TYPES: frozenset[str] = frozenset({"ping", "subscribe"})
 ALLOWED_CHANNELS: frozenset[str] = frozenset({"progress"})
@@ -35,6 +38,7 @@ REASON_EVENT_TYPE_NOT_ALLOWED: str = "event_type_not_allowed"
 REASON_UNSUPPORTED_VERSION: str = "unsupported_version"
 REASON_CHANNEL_NOT_ALLOWED: str = "channel_not_allowed"
 REASON_TOO_MANY_CONNECTIONS: str = "too_many_connections"
+REASON_IDLE_TIMEOUT: str = "idle_timeout"
 
 
 class _ActiveConnectionsTracker:
@@ -79,6 +83,7 @@ class WsPolicy:
     window_seconds: int = DEFAULT_WINDOW_SECONDS
     max_messages_per_window: int = DEFAULT_MAX_MESSAGES_PER_WINDOW
     max_connections: int = DEFAULT_MAX_CONNECTIONS
+    idle_timeout_seconds: int = DEFAULT_IDLE_TIMEOUT_SECONDS
     protocol_version: str = PROTOCOL_VERSION
     allowed_event_types: frozenset[str] = field(default_factory=lambda: ALLOWED_EVENT_TYPES)
     allowed_channels: frozenset[str] = field(default_factory=lambda: ALLOWED_CHANNELS)
@@ -97,6 +102,16 @@ def _policy_from_env() -> WsPolicy:
             return default
         return value if value > 0 else default
 
+    def _get_non_negative_int(name: str, default: int) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            return default
+        return value if value >= 0 else default
+
     return WsPolicy(
         max_message_bytes=_get_positive_int("WS_MAX_MESSAGE_BYTES", DEFAULT_MAX_MESSAGE_BYTES),
         window_seconds=_get_positive_int("WS_WINDOW_SECONDS", DEFAULT_WINDOW_SECONDS),
@@ -104,6 +119,9 @@ def _policy_from_env() -> WsPolicy:
             "WS_MAX_MESSAGES_PER_WINDOW", DEFAULT_MAX_MESSAGES_PER_WINDOW
         ),
         max_connections=_get_positive_int("WS_MAX_CONNECTIONS", DEFAULT_MAX_CONNECTIONS),
+        idle_timeout_seconds=_get_non_negative_int(
+            "WS_IDLE_TIMEOUT_SECONDS", DEFAULT_IDLE_TIMEOUT_SECONDS
+        ),
         protocol_version=PROTOCOL_VERSION,
         allowed_event_types=ALLOWED_EVENT_TYPES,
         allowed_channels=ALLOWED_CHANNELS,
@@ -229,6 +247,20 @@ def _encode_event(event: dict[str, Any]) -> str:
     return json.dumps(event, separators=(",", ":"), sort_keys=True)
 
 
+async def _receive_frame_with_idle_timeout(
+    ws: WebSocket, idle_timeout_seconds: int
+) -> MutableMapping[str, Any] | None:
+    """Receive one frame, optionally enforcing idle timeout."""
+    try:
+        if idle_timeout_seconds <= 0:
+            return await ws.receive()
+        return await asyncio.wait_for(ws.receive(), timeout=float(idle_timeout_seconds))
+    except asyncio.TimeoutError:
+        logger.info("ws_policy_close", extra={"reason": REASON_IDLE_TIMEOUT})
+        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_IDLE_TIMEOUT)
+        return None
+
+
 @router.websocket("/ws")
 async def ws_root(ws: WebSocket) -> None:
     """Secure and deterministic WebSocket endpoint."""
@@ -256,7 +288,12 @@ async def ws_root(ws: WebSocket) -> None:
         )
 
         while True:
-            frame = await ws.receive()
+            frame = await _receive_frame_with_idle_timeout(
+                ws,
+                policy.idle_timeout_seconds,
+            )
+            if frame is None:
+                return
             if frame.get("type") == "websocket.disconnect":
                 return
 

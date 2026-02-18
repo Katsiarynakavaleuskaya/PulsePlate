@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
@@ -38,6 +38,7 @@ def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
     monkeypatch.delenv("WS_MAX_MESSAGE_BYTES", raising=False)
     monkeypatch.setenv("WS_WINDOW_SECONDS", "not-an-int")
     monkeypatch.setenv("WS_MAX_MESSAGES_PER_WINDOW", "0")
+    monkeypatch.setenv("WS_IDLE_TIMEOUT_SECONDS", "invalid")
 
     policy = realtime_ws._policy_from_env()
 
@@ -45,6 +46,7 @@ def test_policy_from_env_uses_defaults_for_missing_and_invalid_values(
     assert policy.window_seconds == realtime_ws.DEFAULT_WINDOW_SECONDS
     assert policy.max_messages_per_window == realtime_ws.DEFAULT_MAX_MESSAGES_PER_WINDOW
     assert policy.max_connections == realtime_ws.DEFAULT_MAX_CONNECTIONS
+    assert policy.idle_timeout_seconds == realtime_ws.DEFAULT_IDLE_TIMEOUT_SECONDS
     assert policy.protocol_version == realtime_ws.PROTOCOL_VERSION
 
 
@@ -317,6 +319,46 @@ def test_ws_over_cap_does_not_call_auth(
                 ws2.receive_text()
         assert exc.value.code == 1008
         assert called["auth"] == 0
+
+
+def test_ws_idle_timeout_closes_connection_without_sleep(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WS_IDLE_TIMEOUT_SECONDS", "5")
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+
+    async def _timeout(awaitable: Any, timeout: float) -> dict[str, Any]:
+        if hasattr(awaitable, "close"):
+            awaitable.close()
+        raise TimeoutError(f"idle timeout={timeout}")
+
+    monkeypatch.setattr(realtime_ws.asyncio, "wait_for", _timeout)
+
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+def test_ws_idle_timeout_zero_disables_wait_for_branch(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WS_IDLE_TIMEOUT_SECONDS", "0")
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+
+    async def _wait_for_must_not_be_called(_awaitable: Any, _timeout: float) -> dict[str, Any]:
+        raise AssertionError("wait_for should not be called when idle timeout is disabled")
+
+    monkeypatch.setattr(realtime_ws.asyncio, "wait_for", _wait_for_must_not_be_called)
+
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+    assert response["version"] == "1"
+    assert response["type"] == "pong"
+    assert isinstance(response["server_time_ms"], int)
 
 
 def test_ws_rejects_subscribe_with_unknown_channel(
