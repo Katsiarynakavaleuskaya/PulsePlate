@@ -517,7 +517,7 @@ If it is not recorded here — it does not exist.
     - Add deterministic integration tests for expanded event flow
     - Keep `make verify` and diff-coverage gates green in expansion PR
 
-- [ ] P1: WebSocket idle-timeout follow-up (capacity safeguard)
+- [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #786
@@ -527,7 +527,7 @@ If it is not recorded here — it does not exist.
   - Finding Type: deferred hardening / runtime safeguard
   - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
   - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/783`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
     - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
     - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
     - `docs/plan/PR_WS_IDLE_TIMEOUT_PLAN.md`
