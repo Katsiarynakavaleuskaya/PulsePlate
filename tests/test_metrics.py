@@ -589,3 +589,44 @@ def test_route_cache_eviction_on_overflow(monkeypatch: pytest.MonkeyPatch) -> No
     stats = metrics_mod._route_cache_stats()
     assert stats["size"] == 2  # Max size enforced
     assert stats["evictions"] >= 1  # At least 1 eviction occurred
+
+
+def test_ws_observability_helpers_noop_when_metrics_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WS helper functions must be safe no-op when metrics are unavailable."""
+    import app.middleware.metrics as metrics_mod
+
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", None)
+
+    metrics_mod.record_ws_connect("/ws")
+    metrics_mod.record_ws_message("/ws", direction="in")
+    metrics_mod.inc_ws_active_connections("/ws")
+    metrics_mod.dec_ws_active_connections("/ws")
+
+
+def test_ws_observability_helpers_swallow_metrics_backend_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WS helper functions must not raise when labels/inc/dec fails."""
+    import app.middleware.metrics as metrics_mod
+
+    class _BadCounter:
+        def labels(self, **_kwargs: object) -> object:
+            raise RuntimeError("boom")
+
+    class _BadGauge:
+        def labels(self, **_kwargs: object) -> object:
+            raise RuntimeError("boom")
+
+    class _BadMetrics:
+        ws_connect_total = _BadCounter()
+        ws_messages_total = _BadCounter()
+        ws_active_connections = _BadGauge()
+
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", _BadMetrics())
+
+    metrics_mod.record_ws_connect("/ws")
+    metrics_mod.record_ws_message("/ws", direction="out")
+    metrics_mod.inc_ws_active_connections("/ws")
+    metrics_mod.dec_ws_active_connections("/ws")
