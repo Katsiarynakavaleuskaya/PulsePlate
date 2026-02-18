@@ -23,7 +23,12 @@ final class ShoppingListReaderViewModel: ObservableObject {
         self.apiKeyProvider = apiKeyProvider
     }
 
-    func load(planData: ShoppingPlan, preferences: [String: Any]? = nil) async {
+    func load(planData: ShoppingPlan?, preferences: [String: Any]? = nil) async {
+        guard let planData, !planData.dailyMenus.isEmpty else {
+            state = .error(NSLocalizedString("shopping_list_no_plan_error", comment: ""))
+            return
+        }
+
         state = .loading
         do {
             let payload = ShoppingListRequestPayload(planData: planData, preferences: preferences)

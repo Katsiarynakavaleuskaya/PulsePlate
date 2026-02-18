@@ -106,3 +106,30 @@
 "onboarding.welcome.cta.back" = "Назад";
 "onboarding.welcome.cta.start" = "Начать";
 "onboarding.welcome.stepA11y" = "Шаг %d из %d";
+
+/* Home View */
+"home.status.pro_key.title" = "PRO ключ";
+"home.status.pro_key.configured" = "Настроен";
+"home.status.pro_key.missing" = "Отсутствует";
+"home.status.profile.title" = "Профиль";
+"home.status.profile.ready" = "Готов";
+"home.status.profile.incomplete" = "Не заполнен";
+"home.section.quick_actions" = "Быстрые действия";
+"home.action.bmi.title" = "Калькулятор ИМТ";
+"home.action.bmi.subtitle" = "Обновите ключевые показатели тела";
+"home.action.profile_setup.title" = "Настройка профиля";
+"home.action.profile_setup.subtitle" = "Настройте PRO-профиль и язык";
+"home.action.open_plate.title" = "Открыть Plate";
+"home.action.open_plate.subtitle" = "Проверьте дневной баланс питания";
+"home.section.pro_tools" = "Инструменты PRO";
+"home.action.weekly_plan_reader.title" = "Просмотр недельного плана";
+"home.action.weekly_plan_reader.subtitle" = "Просмотр каноничного ответа /api/v1/pro/meal/weekly";
+"home.action.shopping_list.title" = "Генератор списка покупок";
+"home.action.shopping_list.subtitle" = "Соберите список через /api/v1/pro/meal/shopping-list";
+"home.navigation.title" = "Главная";
+"home.accessibility.screen_label" = "Экран главной";
+"home.hero.title" = "PulsePlate";
+"home.hero.subtitle" = "Продакшн-срез Home + Plate + Progress";
+
+/* Shopping List */
+"shopping_list_no_plan_error" = "Сначала сгенерируйте недельный план, чтобы собрать список покупок.";

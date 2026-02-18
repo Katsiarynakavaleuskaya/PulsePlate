@@ -16,6 +16,7 @@ describe('Progress', () => {
     render(<Progress />);
 
     expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
     expect(screen.getByTestId('progress-charts')).toBeInTheDocument();
   });
 
@@ -27,5 +28,7 @@ describe('Progress', () => {
       backgroundColor: 'var(--pp-navy)',
       minHeight: '100vh'
     });
+    expect(main).toHaveClass('p-4');
+    expect(main).toHaveClass('pb-24');
   });
 });

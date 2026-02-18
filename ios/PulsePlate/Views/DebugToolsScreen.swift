@@ -105,7 +105,7 @@ struct DebugToolsScreen: View {
         let service = DefaultWeeklyPlanService(apiClient: apiClient)
         let vm = WeeklyPlanReaderViewModel(
             service: service,
-            apiKey: ProKeyProvider.value()
+            apiKeyProvider: { ProKeyProvider.value() }
         )
         return WeeklyPlanReaderView(vm: vm)
     }

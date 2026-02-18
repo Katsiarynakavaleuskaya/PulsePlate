@@ -53,7 +53,7 @@ struct PlateViewPP: View {
 
       return NutritionSegment(
         name: segmentData.name,
-        color: colorFromString(segmentData.color),
+        color: Color.segmentSemanticColor(from: segmentData.color),
         startAngle: startAngle,
         endAngle: endAngle,
         percentage: segmentData.percentage,
@@ -183,25 +183,6 @@ struct PlateViewPP: View {
       }
     }
   }
-
-  func colorFromString(_ colorString: String) -> Color {
-    switch colorString.lowercased() {
-    case "green":
-      return .green
-    case "red":
-      return .red
-    case "orange":
-      return .orange
-    case "yellow":
-      return .yellow
-    case "blue":
-      return .blue
-    case "purple":
-      return .purple
-    default:
-      return .gray
-    }
-  }
 }
 
 private struct PlateIssueView: View {
@@ -230,7 +211,7 @@ private struct PlateIssueView: View {
       }
     }
     .padding()
-    .background(Color.white.opacity(0.08))
+    .background(Color.surfaceElevated)
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     .padding(.horizontal)
   }
@@ -317,7 +298,7 @@ struct SegmentDetailView: View {
       }
     }
     .padding()
-    .background(Color.white.opacity(0.1))
+    .background(Color.surfaceElevated)
     .cornerRadius(12)
     .overlay(
       RoundedRectangle(cornerRadius: 12)
