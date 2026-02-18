@@ -8,24 +8,24 @@ engineering in PulsePlate.
 Use this skill when requests involve:
 
 - Sora prompt creation/refinement for PulsePlate visuals
-  (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:23`)
+  (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:49`)
 - Prompt packs for onboarding/paywall/home-card assets
-  (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:180`)
+  (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:181`)
 - Anti-drift controls for mascot/icon/background consistency
   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:275`)
 
 ## Required Outputs
 
 1. Master prompt template (full style lock)
-   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:138`)
+   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:140`)
 2. Nano prompt template (fast iteration mode)
-   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:167`)
+   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:171`)
 3. Screen/asset prompt pack with variations
-   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:177`)
+   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:181`)
 4. Negative prompt blocks
-   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:296`)
+   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:308`)
 5. QA rubric with pass/fail checks
-   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:274`)
+   (`docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:299`)
 
 ## Canonical Brand Lock
 
