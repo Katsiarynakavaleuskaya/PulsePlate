@@ -24,11 +24,8 @@
   `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`.
 - PR review gate (short checklist):
   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
-- Button-level visual execution and prompt handoff SoT (Home/Plate/Progress):
-  `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
-- Prompt guardrails/playbook:
-  `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`.
-- This is a workflow reference only (no runtime behavior).
+- For button-level visual execution and prompt references, use the canonical root section in
+  `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
 
 ## CI: Greenlight iOS preflight (P0 report-only)
 

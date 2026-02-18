@@ -162,11 +162,11 @@ Output: retry and secondary action pair with accessible contrast.
 | Priority | Item | Why | Target PR | Owner |
 | --- | --- | --- | --- | --- |
 | `P0` | Replace iOS Plate placeholders behind `Add Meal` and `View Details` (`ios/PulsePlate/Views/PlateView.swift:136`) | Core CTA routes end in placeholder screens; blocks production-level UX continuity | Next iOS follow-up after current backend/security stream | iOS + Design |
-| `P0` | Add deterministic CTA behavior tests for iOS Home/Plate/Progress primary actions | Critical CTA behavior currently lacks button-level tests; regression risk is high | Same follow-up PR as above | iOS QA |
+| `P0` | Add deterministic CTA behavior tests for iOS Home/Plate/Progress primary actions (`ios/PulsePlate/Views/HomeView.swift:57`, `ios/PulsePlate/Views/ProgressView.swift:50`, `ios/PulsePlateTests/PlateViewTests.swift:7`) | CTA actions are defined in runtime views, while current tests are mostly render/data mapping checks rather than button-tap outcome assertions | Same follow-up PR as above | iOS QA |
 | `P1` | Wire real purchase path for `PremiumGate` / paywall modal (`frontend/src/components/PremiumGate.tsx:67`) | CTA exists but monetization action is callback-only | Web monetization PR | Frontend + Product |
-| `P1` | Add Web click-through integration tests for Home/Plate auth-gated CTAs | Presence tests exist; end-to-end route/guard behavior not asserted | Web parity test hardening PR | Frontend QA |
-| `P2` | Fill `Figma Node ID` column for all matrix rows using `PP/<Platform>/<Screen>/<Component>/<State>` naming | Needed for design-to-code traceability and MCP handoff speed | Figma execution follow-up | Design + FE + iOS |
-| `P2` | Normalize row-level prompt files in `docs/sora/prompts/*` from this matrix IDs | Enables deterministic prompt ops and QA linking | Sora prompt pack follow-up | Sora Prompt Engineer |
+| `P1` | Add Web click-through integration tests for Home/Plate auth-gated CTAs (`frontend/src/pages/__tests__/Home.test.tsx:17`, `frontend/src/pages/__tests__/Plate.test.tsx:56`, `frontend/src/auth/RequireKey.tsx:13`) | Presence tests exist, but route-guard redirect and full CTA navigation outcomes are not asserted end-to-end | Web parity test hardening PR | Frontend QA |
+| `P2` | Fill `Figma Node ID` column for all matrix rows using `PP/<Platform>/<Screen>/<Component>/<State>` naming (`docs/roadmap/BACKLOG_LEDGER.md:1634`, `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:199`) | Needed for design-to-code traceability and MCP handoff speed | Figma execution follow-up | Design + FE + iOS |
+| `P2` | Normalize row-level prompt files from matrix IDs into a dedicated prompt pack (current baseline: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:245`) | Prompt templates exist in a centralized playbook, but row-level prompt-ID files are not materialized yet for deterministic ops | Sora prompt pack follow-up | Sora Prompt Engineer |
 
 ## 7) Security + Safety Notes for Prompt Column
 
