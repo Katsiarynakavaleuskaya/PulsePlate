@@ -255,7 +255,7 @@ async def _receive_frame_with_idle_timeout(
         if idle_timeout_seconds <= 0:
             return await ws.receive()
         return await asyncio.wait_for(ws.receive(), timeout=float(idle_timeout_seconds))
-    except TimeoutError:
+    except asyncio.TimeoutError:
         logger.info("ws_policy_close", extra={"reason": REASON_IDLE_TIMEOUT})
         await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_IDLE_TIMEOUT)
         return None
