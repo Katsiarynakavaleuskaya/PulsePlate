@@ -1,0 +1,164 @@
+<!-- markdownlint-disable MD013 -->
+# Figma Implementation Runbook (Git Context, H+P+Pr)
+
+**Date:** February 18, 2026
+**Scope:** Home + Plate + Progress only (`H+P+Pr`), Web + iOS
+**Language mode:** EN primary, RU notes for critical constraints
+
+## 1) Purpose and Scope
+
+This runbook tells Figma exactly where to read context in Git for implementation decisions,
+how to refresh context, and how to avoid brand/design drift.
+
+RU (critical): не расширять scope за пределы `Home + Plate + Progress` без явной задачи и записи в backlog.
+
+## 2) Start Here (reading order)
+
+Read in this order for every new Figma task:
+
+1. `docs/figma/README.md`
+2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+5. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+6. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+7. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+8. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+
+## 3) Git Packs to Read by Intent
+
+### 3.1 Brand and visual rules
+
+- `docs/design/`
+
+Use when defining layout direction, hierarchy, quality level, accessibility, and premium visual tone.
+
+### 3.2 Prompt safety and anti-drift
+
+- `docs/sora/`
+
+Use when generating prompt stubs, negative constraints, and style-lock clauses.
+
+### 3.3 Figma handoff and execution operations
+
+- `docs/figma/`
+
+Use for runbooks, inbox contract, delivery checklist, and orchestration session artifacts.
+
+### 3.4 Web token source of truth
+
+- `frontend/src/styles/`
+- `frontend/tailwind.config.ts`
+
+Use for color/spacing/type/radius/shadow decisions on web parity frames.
+
+### 3.5 iOS token source of truth
+
+- `ios/PulsePlate/Assets.xcassets/`
+- `ios/PulsePlate/Extensions/Color+Assets.swift`
+
+Use for iOS color/material/state consistency.
+
+### 3.6 Governance and rules
+
+- `AGENTS.md`
+- `frontend/AGENTS.md`
+- `ios/AGENTS.md`
+
+Use when conflicts appear or when acceptance criteria are unclear.
+
+## 4) Implementation Lookup Matrix
+
+| Need | Read this first | Then validate against |
+| --- | --- | --- |
+| CTA behavior and states | `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` |
+| Style and quality constraints | `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` | `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` |
+| Prompt constraints and guardrails | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md` |
+| Token values | `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`, `ios/PulsePlate/Assets.xcassets/` | `ios/PulsePlate/Extensions/Color+Assets.swift` |
+| Handoff payload requirements | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` | `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` |
+
+## 5) Precedence Rules (Conflict Resolution)
+
+If information conflicts:
+
+1. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
+2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
+3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
+4. Token values: code token sources are primary (`frontend/src/styles/*`, iOS assets and bridge).
+5. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
+
+## 6) Context Refresh Protocol
+
+Run refresh before every Figma task, before PR review, and weekly.
+
+### 6.1 Refresh commands
+
+```bash
+git diff --name-only origin/main...HEAD -- \
+  docs/figma docs/design docs/sora \
+  frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
+
+git log --since="14 days ago" -- \
+  docs/figma docs/design docs/sora \
+  frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
+
+rg -n "web.home|web.plate|web.progress|ios.home|ios.plate|ios.progress" \
+  docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md
+```
+
+### 6.2 Refresh output contract
+
+Attach this snapshot to request payload:
+
+- `context_version`: date + commit hash
+- changed files in tracked packs
+- CTA rows impacted
+- token files impacted (web/iOS)
+
+## 7) Hard Exclusions
+
+- `docs/archive/**` is not source of truth.
+- Ad-hoc notes without canonical links are advisory only.
+- Out-of-scope files outside `H+P+Pr` are not used for implementation decisions in this stream.
+
+## 8) Security and Safety
+
+- No secrets, API keys, or internal URLs in prompt payloads.
+- No medical claims, no diagnostic framing, no copycat style.
+- Keep wellness-safe and non-manipulative tone for all CTA visuals.
+
+RU (critical): не включать в prompt служебные URL, токены или внутренние данные.
+
+## 9) Output Contract for Figma
+
+Every delivered unit must include:
+
+- `Button/CTA ID`
+- `Platform`
+- `Screen`
+- `State set` (default, interactive, disabled/locked, loading, error as applicable)
+- `Figma Node ID` (or `TBD`)
+- `Prompt Stub ID`
+- `Implement Needed` note
+
+## 10) Orchestration Hook
+
+Before any brainstorm session in `docs/figma/orchestration/`:
+
+1. Run context refresh protocol first.
+2. Capture `context_version` and changed-pack snapshot in session `01_TASK_ANALYSIS.md`.
+3. Keep dialogue cap at 3 iterations (canonical orchestration rule).
+4. Record final synthesis and forced-decision marker if needed.
+
+## 11) Canonical References
+
+- `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+- `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+- `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+- `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+- `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+- `AGENTS.md`
+<!-- markdownlint-enable MD013 -->
