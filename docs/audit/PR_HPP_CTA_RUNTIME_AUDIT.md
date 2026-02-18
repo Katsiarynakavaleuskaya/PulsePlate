@@ -49,7 +49,7 @@
 - [ ] No unresolved review threads.
 - [ ] CodeRabbit status is pass/no actionables.
 - [ ] Sourcery and Cubic statuses are pass/no actionables.
-- [ ] PR Body Phase2 gates pass with fixed-in-commit mapping.
+- [ ] PR Body Phase 2 gates pass with fixed-in-commit mapping.
 
 ---
 
