@@ -540,11 +540,12 @@ If it is not recorded here — it does not exist.
     - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
     - Pass `make verify` and diff-coverage gates in follow-up PR
 
-- [ ] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
+- [x] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`feat/ws-observability-hardening`)
-  - Status: 📋 Planned (next runtime package after PR #786)
+  - Target PR: PR #789
+  - Status: ✅ Merged (PR #789, 2026-02-18, `7d9e74ec`)
+  - Merge SHA: 7d9e74eca58841a120249f98db19880dc18c56e3
   - Area: backend / realtime / observability
   - Finding Type: operational hardening / incident response readiness
   - Reason: After deterministic idle-timeout delivery in PR #786, the remaining high-value runtime gap is operational visibility of `/ws` behavior under load. Without explicit websocket metrics and constrained structured logs, incident triage is slower and capacity regressions are harder to detect early.
@@ -562,8 +563,11 @@ If it is not recorded here — it does not exist.
     - Never log tokens, user IDs, raw payloads, or unbounded labels.
     - Metrics labels must remain low-cardinality and enum-bound.
   - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/789`
     - `app/routers/realtime_ws.py`
     - `app/middleware/metrics.py`
+    - `docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_HARDENING_PLAN.md`
     - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
   - DoD:
@@ -676,8 +680,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (CP3 execution follow-up)
-  - Status: 📋 Planned (deferred from PR-773)
+  - Target PR: PR-TBD (`feat/cp3-skip-drift-skeleton`)
+  - Status: 🚧 In progress (skeleton package started on 2026-02-18)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
   - Locations:
@@ -692,6 +696,10 @@ If it is not recorded here — it does not exist.
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
     - `docs/plan/CP3_SKIP_COVERAGE_DRIFT_PLAN.md`
+    - `docs/plan/PR_CP3_SKIP_DRIFT_TASK_ANALYSIS.md`
+    - `docs/plan/PR_CP3_SKIP_DRIFT_EXECUTION_PLAN.md`
+    - `docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md`
+    - `docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md`
     - `core/food_apis/unified_db.py:265`
   - DoD:
     - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
