@@ -36,6 +36,28 @@ ROUTE_CACHE_MAX_SIZE: int = 1024
 # If set (seconds), cached entries expire after TTL. None = no expiry.
 ROUTE_CACHE_TTL_S: float | None = None
 
+# Bounded WS observability labels (low-cardinality contract).
+WS_ALLOWED_PATH_LABELS: frozenset[str] = frozenset({"/ws"})
+WS_ALLOWED_CLOSE_REASONS: frozenset[str] = frozenset(
+    {
+        "ws_disabled",
+        "auth_required",
+        "auth_invalid",
+        "text_frame_required",
+        "payload_too_large",
+        "rate_limited",
+        "invalid_json",
+        "event_type_not_allowed",
+        "unsupported_version",
+        "channel_not_allowed",
+        "too_many_connections",
+        "idle_timeout",
+        "none",
+        "unknown",
+    }
+)
+WS_ALLOWED_DIRECTIONS: frozenset[str] = frozenset({"in", "out", "unknown"})
+
 
 class _CounterChild(Protocol):
     def inc(self, amount: float = 1.0) -> None: ...
@@ -53,10 +75,23 @@ class _Histogram(Protocol):
     def labels(self, *, method: str, route: str, status: str) -> _HistogramChild: ...
 
 
+class _GaugeChild(Protocol):
+    def inc(self, amount: float = 1.0) -> None: ...
+
+    def dec(self, amount: float = 1.0) -> None: ...
+
+
+class _Gauge(Protocol):
+    def labels(self, *, path: str) -> _GaugeChild: ...
+
+
 @dataclass(frozen=True)
 class _Metrics:
     requests_total: _Counter
     request_duration_seconds: _Histogram
+    ws_connect_total: Any
+    ws_messages_total: Any
+    ws_active_connections: _Gauge
 
 
 # Type alias for dependency injection (testability)
@@ -91,6 +126,7 @@ def _build_metrics() -> _Metrics | None:
     """
     try:
         Counter, Histogram = _import_prometheus()
+        Gauge = cast(Any, import_module("prometheus_client").Gauge)
     except ImportError:
         return None
 
@@ -115,6 +151,31 @@ def _build_metrics() -> _Metrics | None:
                 buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
             ),
         )
+
+        ws_connect_total: _Counter = cast(
+            _Counter,
+            Counter(
+                "ws_connect_total",
+                "Total WS connection outcomes",
+                labelnames=("path", "result", "reason"),
+            ),
+        )
+        ws_messages_total: _Counter = cast(
+            _Counter,
+            Counter(
+                "ws_messages_total",
+                "Total WS messages by direction",
+                labelnames=("path", "direction", "status"),
+            ),
+        )
+        ws_active_connections: _Gauge = cast(
+            _Gauge,
+            Gauge(
+                "ws_active_connections",
+                "Current active WS connections",
+                labelnames=("path",),
+            ),
+        )
     except ValueError:
         logger.warning(
             "Duplicate prometheus metric registration in _build_metrics (metrics disabled)",
@@ -123,11 +184,78 @@ def _build_metrics() -> _Metrics | None:
         return None
 
     return _Metrics(
-        requests_total=requests_total, request_duration_seconds=request_duration_seconds
+        requests_total=requests_total,
+        request_duration_seconds=request_duration_seconds,
+        ws_connect_total=ws_connect_total,
+        ws_messages_total=ws_messages_total,
+        ws_active_connections=ws_active_connections,
     )
 
 
 PROMETHEUS_METRICS: _Metrics | None = _build_metrics()
+
+
+def _normalize_ws_path(path: str) -> str:
+    normalized = _normalized_path(path)
+    return normalized if normalized in WS_ALLOWED_PATH_LABELS else "other"
+
+
+def normalize_ws_close_reason(reason: str) -> str:
+    normalized = reason.strip().lower() if reason else "unknown"
+    return normalized if normalized in WS_ALLOWED_CLOSE_REASONS else "unknown"
+
+
+def _normalize_ws_direction(direction: str) -> str:
+    normalized = direction.strip().lower() if direction else "unknown"
+    return normalized if normalized in WS_ALLOWED_DIRECTIONS else "unknown"
+
+
+def record_ws_connect(path: str, *, result: str = "accepted", reason: str = "none") -> None:
+    metrics = PROMETHEUS_METRICS
+    if metrics is None:
+        return
+    try:
+        metrics.ws_connect_total.labels(
+            path=_normalize_ws_path(path),
+            result=result.strip().lower(),
+            reason=normalize_ws_close_reason(reason),
+        ).inc()
+    except Exception:  # nosec B110 - best-effort observability
+        pass
+
+
+def record_ws_message(path: str, *, direction: str, status: str = "ok") -> None:
+    metrics = PROMETHEUS_METRICS
+    if metrics is None:
+        return
+    try:
+        metrics.ws_messages_total.labels(
+            path=_normalize_ws_path(path),
+            direction=_normalize_ws_direction(direction),
+            status=status.strip().lower(),
+        ).inc()
+    except Exception:  # nosec B110 - best-effort observability
+        pass
+
+
+def inc_ws_active_connections(path: str) -> None:
+    metrics = PROMETHEUS_METRICS
+    if metrics is None:
+        return
+    try:
+        metrics.ws_active_connections.labels(path=_normalize_ws_path(path)).inc()
+    except Exception:  # nosec B110 - best-effort observability
+        pass
+
+
+def dec_ws_active_connections(path: str) -> None:
+    metrics = PROMETHEUS_METRICS
+    if metrics is None:
+        return
+    try:
+        metrics.ws_active_connections.labels(path=_normalize_ws_path(path)).dec()
+    except Exception:  # nosec B110 - best-effort observability
+        pass
 
 
 def _normalized_path(path: str) -> str:

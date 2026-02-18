@@ -15,8 +15,17 @@ from fastapi import APIRouter, WebSocket
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketDisconnect
 
+from app.middleware.metrics import (
+    dec_ws_active_connections,
+    inc_ws_active_connections,
+    normalize_ws_close_reason,
+    record_ws_connect,
+    record_ws_message,
+)
+
 router = APIRouter(tags=["realtime"])
 logger = logging.getLogger(__name__)
+WS_ROUTE_LABEL: str = "/ws"
 
 DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
@@ -170,8 +179,7 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
     """Authenticate websocket and close with policy code on failure."""
     token = _extract_bearer_token(ws)
     if not token:
-        logger.info("ws_policy_close", extra={"reason": REASON_AUTH_REQUIRED})
-        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_AUTH_REQUIRED)
+        await _close_with_policy(ws, REASON_AUTH_REQUIRED)
         return False
 
     try:
@@ -179,8 +187,7 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
         await run_in_threadpool(verifier, token)
         return True
     except Exception:
-        logger.info("ws_policy_close", extra={"reason": REASON_AUTH_INVALID})
-        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_AUTH_INVALID)
+        await _close_with_policy(ws, REASON_AUTH_INVALID)
         return False
 
 
@@ -256,9 +263,26 @@ async def _receive_frame_with_idle_timeout(
             return await ws.receive()
         return await asyncio.wait_for(ws.receive(), timeout=float(idle_timeout_seconds))
     except asyncio.TimeoutError:
-        logger.info("ws_policy_close", extra={"reason": REASON_IDLE_TIMEOUT})
-        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_IDLE_TIMEOUT)
+        await _close_with_policy(ws, REASON_IDLE_TIMEOUT)
         return None
+
+
+async def _close_with_policy(
+    ws: WebSocket,
+    reason: str,
+    *,
+    extra_fields: dict[str, Any] | None = None,
+) -> None:
+    """Close websocket with normalized, structured policy log."""
+    log_payload: dict[str, Any] = {
+        "path": WS_ROUTE_LABEL,
+        "close_code": POLICY_CLOSE_CODE,
+        "reason": normalize_ws_close_reason(reason),
+    }
+    if extra_fields:
+        log_payload.update(extra_fields)
+    logger.info("ws_policy_close", extra=log_payload)
+    await ws.close(code=POLICY_CLOSE_CODE, reason=reason)
 
 
 @router.websocket("/ws")
@@ -266,21 +290,25 @@ async def ws_root(ws: WebSocket) -> None:
     """Secure and deterministic WebSocket endpoint."""
     await ws.accept()
 
+    ws_metrics_active = False
+
     if not _is_ws_enabled():
-        logger.info("ws_policy_close", extra={"reason": REASON_WS_DISABLED})
-        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_WS_DISABLED)
+        await _close_with_policy(ws, REASON_WS_DISABLED)
         return
 
     policy = _policy_from_env()
     connection_acquired = _active_connections.try_acquire(policy.max_connections)
     if not connection_acquired:
-        logger.info("ws_policy_close", extra={"reason": REASON_TOO_MANY_CONNECTIONS})
-        await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_TOO_MANY_CONNECTIONS)
+        await _close_with_policy(ws, REASON_TOO_MANY_CONNECTIONS)
         return
 
     try:
         if not await _authenticate_or_close(ws):
             return
+
+        record_ws_connect(WS_ROUTE_LABEL, reason="none")
+        inc_ws_active_connections(WS_ROUTE_LABEL)
+        ws_metrics_active = True
 
         limiter = _BurstLimiter(
             window_seconds=policy.window_seconds,
@@ -299,43 +327,36 @@ async def ws_root(ws: WebSocket) -> None:
 
             text = frame.get("text")
             if text is None:
-                logger.info("ws_policy_close", extra={"reason": REASON_TEXT_FRAME_REQUIRED})
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_TEXT_FRAME_REQUIRED)
+                await _close_with_policy(ws, REASON_TEXT_FRAME_REQUIRED)
                 return
 
             if not _is_within_size_limit(text, policy.max_message_bytes):
-                logger.info("ws_policy_close", extra={"reason": REASON_PAYLOAD_TOO_LARGE})
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_PAYLOAD_TOO_LARGE)
+                await _close_with_policy(ws, REASON_PAYLOAD_TOO_LARGE)
                 return
 
+            record_ws_message(WS_ROUTE_LABEL, direction="in")
+
             if not limiter.allow():
-                logger.info("ws_policy_close", extra={"reason": REASON_RATE_LIMITED})
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_RATE_LIMITED)
+                await _close_with_policy(ws, REASON_RATE_LIMITED)
                 return
 
             message = _parse_message(text)
             if message is None:
-                logger.info("ws_policy_close", extra={"reason": REASON_INVALID_JSON})
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_INVALID_JSON)
+                await _close_with_policy(ws, REASON_INVALID_JSON)
                 return
 
             message_type = message.get("type")
             if not isinstance(message_type, str) or message_type not in policy.allowed_event_types:
-                logger.info("ws_policy_close", extra={"reason": REASON_EVENT_TYPE_NOT_ALLOWED})
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_EVENT_TYPE_NOT_ALLOWED)
+                await _close_with_policy(ws, REASON_EVENT_TYPE_NOT_ALLOWED)
                 return
 
             version = _resolve_message_version(message, policy)
             if version != policy.protocol_version:
-                logger.info(
-                    "ws_policy_close",
-                    extra={
-                        "reason": REASON_UNSUPPORTED_VERSION,
-                        "version": version,
-                        "type": message_type,
-                    },
+                await _close_with_policy(
+                    ws,
+                    REASON_UNSUPPORTED_VERSION,
+                    extra_fields={"version": version, "type": message_type},
                 )
-                await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_UNSUPPORTED_VERSION)
                 return
 
             if message_type == "ping":
@@ -348,13 +369,13 @@ async def ws_root(ws: WebSocket) -> None:
                         }
                     )
                 )
+                record_ws_message(WS_ROUTE_LABEL, direction="out")
                 continue
 
             if message_type == "subscribe":
                 channel = message.get("channel")
                 if not isinstance(channel, str) or channel not in policy.allowed_channels:
-                    logger.info("ws_policy_close", extra={"reason": REASON_CHANNEL_NOT_ALLOWED})
-                    await ws.close(code=POLICY_CLOSE_CODE, reason=REASON_CHANNEL_NOT_ALLOWED)
+                    await _close_with_policy(ws, REASON_CHANNEL_NOT_ALLOWED)
                     return
 
                 await ws.send_text(
@@ -366,10 +387,13 @@ async def ws_root(ws: WebSocket) -> None:
                         }
                     )
                 )
+                record_ws_message(WS_ROUTE_LABEL, direction="out")
                 continue
     except WebSocketDisconnect:
         logger.info("ws_disconnect", extra={"reason": "client_disconnected"})
         return
     finally:
+        if ws_metrics_active:
+            dec_ws_active_connections(WS_ROUTE_LABEL)
         if connection_acquired:
             _active_connections.release()

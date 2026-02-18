@@ -11,6 +11,7 @@ from fastapi import WebSocket
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+import app.middleware.metrics as metrics_mod
 from app.routers import realtime_ws
 
 
@@ -20,6 +21,52 @@ def _accept_stub(token: str) -> object:
 
 def _deny_stub(token: str) -> object:
     raise PermissionError(f"denied token={token!r}")
+
+
+class _CounterChild:
+    def __init__(self, parent: "_LabeledCounter") -> None:
+        self._parent = parent
+
+    def inc(self, amount: float = 1.0) -> None:
+        self._parent.value += amount
+
+
+class _LabeledCounter:
+    def __init__(self) -> None:
+        self.value: float = 0.0
+        self.label_calls: list[dict[str, str]] = []
+
+    def labels(self, **kwargs: str) -> _CounterChild:
+        self.label_calls.append(kwargs)
+        return _CounterChild(self)
+
+
+class _GaugeChild:
+    def __init__(self, parent: "_LabeledGauge") -> None:
+        self._parent = parent
+
+    def inc(self, amount: float = 1.0) -> None:
+        self._parent.value += amount
+
+    def dec(self, amount: float = 1.0) -> None:
+        self._parent.value -= amount
+
+
+class _LabeledGauge:
+    def __init__(self) -> None:
+        self.value: float = 0.0
+        self.label_calls: list[dict[str, str]] = []
+
+    def labels(self, **kwargs: str) -> _GaugeChild:
+        self.label_calls.append(kwargs)
+        return _GaugeChild(self)
+
+
+class _WsMetricsStub:
+    def __init__(self) -> None:
+        self.ws_connect_total = _LabeledCounter()
+        self.ws_messages_total = _LabeledCounter()
+        self.ws_active_connections = _LabeledGauge()
 
 
 @pytest.fixture()
@@ -407,6 +454,66 @@ def test_ws_rejects_binary_frame_with_policy_close(
         with pytest.raises(WebSocketDisconnect) as exc:
             ws.receive_text()
     assert exc.value.code == 1008
+
+
+def test_ws_metrics_increment_and_active_gauge_restore(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_stub = _WsMetricsStub()
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", metrics_stub)
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+
+    with ws_client.websocket_connect("/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+        assert response["type"] == "pong"
+
+    assert metrics_stub.ws_connect_total.value == 1.0
+    assert metrics_stub.ws_messages_total.value == 2.0  # in + out for ping/pong
+    assert metrics_stub.ws_active_connections.value == 0.0
+
+    assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/ws"
+    assert metrics_stub.ws_connect_total.label_calls[-1]["result"] == "accepted"
+    assert metrics_stub.ws_connect_total.label_calls[-1]["reason"] == "none"
+
+
+def test_ws_policy_close_log_contains_bounded_fields(
+    ws_client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("INFO", logger="app.routers.realtime_ws")
+
+    with ws_client.websocket_connect("/ws") as ws:
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_text()
+
+    policy_records = [r for r in caplog.records if r.msg == "ws_policy_close"]
+    assert policy_records, "Expected at least one ws_policy_close record"
+    record = policy_records[-1]
+
+    assert getattr(record, "path", "") == "/ws"
+    assert getattr(record, "close_code", 0) == 1008
+    assert getattr(record, "reason", "") == "auth_required"
+
+
+@pytest.mark.asyncio
+async def test_close_with_policy_normalizes_unknown_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("INFO", logger="app.routers.realtime_ws")
+
+    class _DummyWebSocket:
+        async def close(self, code: int, reason: str) -> None:
+            assert code == 1008
+            assert reason == "new_unlisted_reason"
+
+    await realtime_ws._close_with_policy(cast(WebSocket, _DummyWebSocket()), "new_unlisted_reason")
+
+    policy_records = [r for r in caplog.records if r.msg == "ws_policy_close"]
+    assert policy_records, "Expected ws_policy_close log for helper"
+    assert getattr(policy_records[-1], "reason", "") == "unknown"
 
 
 @pytest.mark.asyncio
