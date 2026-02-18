@@ -476,6 +476,26 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`feat/hpp-cta-runtime-remediation`)
+  - Status: 📋 Planned
+  - Area: web / ios / design handoff
+  - Finding Type: execution follow-up / button-level UX parity
+  - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
+  - Links:
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `AGENTS.md`
+    - `frontend/AGENTS.md`
+    - `ios/AGENTS.md`
+  - DoD:
+    - iOS `Add Meal` and `View Details` CTA destinations are no longer placeholders
+    - Deterministic CTA-level tests exist for Home/Plate/Progress critical paths (web+iOS)
+    - Web paywall CTA has production-ready purchase wiring and success/failure handling
+    - Matrix `Exists Now / Missing / Implement Needed` statuses are updated after remediation PR
+    - `make verify` and required CI checks are green in remediation PR
+
 - [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

@@ -22,7 +22,8 @@
   `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` and
   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` (see root `AGENTS.md` policy:
   one canonical instruction, scoped files reference it).
-- This is a workflow reference only (no runtime behavior).
+- For button-level visual execution and prompt references, use the canonical root section in
+  `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
 
 ## Thin HTTP Adapter Policy (Hard Rule)
 
