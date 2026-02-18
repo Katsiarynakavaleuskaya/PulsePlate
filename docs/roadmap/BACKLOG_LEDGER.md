@@ -517,16 +517,17 @@ If it is not recorded here — it does not exist.
     - Add deterministic integration tests for expanded event flow
     - Keep `make verify` and diff-coverage gates green in expansion PR
 
-- [ ] P1: WebSocket idle-timeout follow-up (capacity safeguard)
+- [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`feat/ws-idle-timeout-pr`)
-  - Status: 🟡 In progress (execution started 2026-02-16)
+  - Target PR: PR #786
+  - Status: ✅ Merged (PR #786, 2026-02-18, `a2e248cb`)
+  - Merge SHA: a2e248cb5feaa84608acc68491954476228751d4
   - Area: backend / realtime / capacity
   - Finding Type: deferred hardening / runtime safeguard
   - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
   - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/783`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
     - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
     - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
     - `docs/plan/PR_WS_IDLE_TIMEOUT_PLAN.md`
@@ -538,6 +539,39 @@ If it is not recorded here — it does not exist.
     - Add deterministic tests for idle-timeout behavior without `sleep()`-based flakiness
     - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
     - Pass `make verify` and diff-coverage gates in follow-up PR
+
+- [ ] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`feat/ws-observability-hardening`)
+  - Status: 📋 Planned (next runtime package after PR #786)
+  - Area: backend / realtime / observability
+  - Finding Type: operational hardening / incident response readiness
+  - Reason: After deterministic idle-timeout delivery in PR #786, the remaining high-value runtime gap is operational visibility of `/ws` behavior under load. Without explicit websocket metrics and constrained structured logs, incident triage is slower and capacity regressions are harder to detect early.
+  - Worst-case scenario: high-volume idle/malformed websocket traffic degrades service while missing or high-cardinality observability obscures root cause and delays mitigation.
+  - Scope IN:
+    - Add low-cardinality counters for websocket connect result and close reasons.
+    - Add active websocket gauge aligned with tracker state.
+    - Add message counters by allowlisted event type (`ping`, `subscribe`) and outcome (`ok`/`closed`).
+    - Add structured logs for policy closes using non-sensitive fields only.
+  - Scope OUT:
+    - Product analytics, user-behavior funnels, and per-user telemetry.
+    - New websocket protocol features/channels.
+    - Frontend/iOS telemetry changes.
+  - Guardrails:
+    - Never log tokens, user IDs, raw payloads, or unbounded labels.
+    - Metrics labels must remain low-cardinality and enum-bound.
+  - Links:
+    - `app/routers/realtime_ws.py`
+    - `app/middleware/metrics.py`
+    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
+  - DoD:
+    - `ws_connect_total{result,reason}` and `ws_messages_total{type,result}` are implemented with bounded labels.
+    - `ws_active_connections` gauge reflects tracker state without negative drift.
+    - Structured websocket logs include only safe, bounded fields (`reason`, `event_type`, `version`, `result`).
+    - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
+    - `make verify` and diff-coverage gates are green in observability PR.
 
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
