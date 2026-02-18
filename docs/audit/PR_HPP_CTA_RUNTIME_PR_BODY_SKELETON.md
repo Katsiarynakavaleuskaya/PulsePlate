@@ -4,8 +4,10 @@
 
 - Execute runtime remediation for Home/Plate/Progress CTA gaps from matrix SoT.
 - Remove iOS placeholder CTA destinations in critical user paths.
-- Add production-ready web paywall purchase CTA wiring with deterministic result handling.
-- Add deterministic CTA-level tests and synchronize matrix status after runtime evidence.
+- Add production-ready web paywall purchase CTA wiring with deterministic
+  result handling.
+- Add deterministic CTA-level tests and synchronize matrix status after
+  runtime evidence.
 - Evidence anchors: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:1`,
   `docs/roadmap/BACKLOG_LEDGER.md:479`.
 

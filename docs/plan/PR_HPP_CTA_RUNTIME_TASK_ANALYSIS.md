@@ -4,7 +4,8 @@
 
 ## Task Analysis
 
-**Task:** Execute runtime remediation for Home/Plate/Progress CTA flows using the visual matrix as source of truth.
+**Task:** Execute runtime remediation for Home/Plate/Progress CTA flows
+using the visual matrix as source of truth.
 
 **Domain(s):** Multiple (Frontend | iOS | QA | Design Docs)
 
@@ -39,7 +40,8 @@
 **Proposed Approach:**
 
 1. Lock exact CTA set from matrix and map to canonical destinations.
-2. Implement runtime fixes in smallest possible slices (iOS destination parity, then web paywall wiring).
+2. Implement runtime fixes in smallest possible slices
+   (iOS destination parity, then web paywall wiring).
 3. Add deterministic CTA tests and keep transport logic in thin adapters.
 4. Update matrix statuses only after runtime evidence is green.
 
