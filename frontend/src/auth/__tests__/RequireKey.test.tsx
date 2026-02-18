@@ -9,9 +9,13 @@ vi.mock("../AuthContext", () => ({
 
 import { useAuth } from "../AuthContext";
 
-function EnterKeyProbe() {
+interface EnterKeyLocationState {
+  from?: { pathname?: string };
+}
+
+function EnterKeyProbe(): JSX.Element {
   const location = useLocation();
-  const fromPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "none";
+  const fromPath = (location.state as EnterKeyLocationState | null)?.from?.pathname ?? "none";
   return <div data-testid="enter-key-probe">{fromPath}</div>;
 }
 
