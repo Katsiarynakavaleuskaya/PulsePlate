@@ -480,12 +480,17 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD (`feat/hpp-cta-runtime-remediation`)
-  - Status: 📋 Planned
+  - Status: 🚧 In progress (execution matrix package started on 2026-02-18)
   - Area: web / ios / design handoff
   - Finding Type: execution follow-up / button-level UX parity
   - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
   - Links:
     - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_TASK_ANALYSIS.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_EXECUTION_PLAN.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md`
     - `AGENTS.md`
     - `frontend/AGENTS.md`
     - `ios/AGENTS.md`
@@ -697,11 +702,11 @@ If it is not recorded here — it does not exist.
     - Remaining intentional skips are documented as product decisions
     - `make verify` passes in PR-732
 
-- [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
+- [x] P1: CP3 follow-up for skip-heavy coverage drift cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`feat/cp3-skip-drift-skeleton`)
-  - Status: 🚧 In progress (skeleton package started on 2026-02-18)
+  - Target PR: PR #791 (`feat/cp3-skip-drift-execution`)
+  - Status: ✅ Merged (PR #791, 2026-02-18)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
   - Locations:
@@ -712,6 +717,7 @@ If it is not recorded here — it does not exist.
     - `tests/test_quick_coverage_boost.py`
   - Reason for deferral: CP3 was intentionally split out from PR-773 to keep CP1+CP2 merge-safe and avoid scope creep in a test-only stabilization package.
   - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/791`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
@@ -721,6 +727,7 @@ If it is not recorded here — it does not exist.
     - `docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md`
     - `docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md`
     - `core/food_apis/unified_db.py:265`
+  - Merge SHA: `2ea565ddf2c16ead430a1f1aa6770fade88d22bd`
   - DoD:
     - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
     - Remaining intentional skips are documented as product decisions with canonical feature keys.
