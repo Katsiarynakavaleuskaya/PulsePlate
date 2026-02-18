@@ -476,15 +476,17 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
+- [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`feat/hpp-cta-runtime-remediation`)
-  - Status: 🚧 In progress (execution matrix package started on 2026-02-18)
+  - Target PR: PR #794 (`feat/hpp-cta-runtime-remediation`)
+  - Status: ✅ Merged (PR #794, 2026-02-18)
+  - Merge SHA: 9ebcca2fc377753dc3024a080e6e4f24f59b6479
   - Area: web / ios / design handoff
   - Finding Type: execution follow-up / button-level UX parity
   - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
   - Links:
+    - PR #794
     - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
     - `docs/plan/PR_HPP_CTA_RUNTIME_TASK_ANALYSIS.md`
     - `docs/plan/PR_HPP_CTA_RUNTIME_EXECUTION_PLAN.md`
