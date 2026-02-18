@@ -1,5 +1,7 @@
 # Dev Orchestrator Workflow (Canonical)
 
+<!-- markdownlint-disable MD013 MD022 MD024 MD032 -->
+
 **Purpose:** Canonical workflow for starting and completing any development task using agent coordination.
 
 **Status:** dev-only, no runtime impact
@@ -215,6 +217,7 @@ Task
 - Capability Matrix: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Dialogue Template: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md`
+- Dialogue Visualization Contract (Mermaid): `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md` (section `Визуализация диалога`)
 - Parallel Work Protocol: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 
 ---

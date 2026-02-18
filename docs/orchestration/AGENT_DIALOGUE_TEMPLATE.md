@@ -1,5 +1,7 @@
 # Шаблон диалога агентов (Agent Dialogue Template)
 
+<!-- markdownlint-disable MD013 MD022 MD024 MD032 -->
+
 **Назначение:** Формальный протокол для брейншторма и принятия решений несколькими агентами.
 
 **Status:** Canonical (PR-634). Канонический источник истины для лимита итераций диалога.
@@ -40,12 +42,12 @@
 **Путь эскалации:**
 1. Итерации 1–2: брейншторм, альтернативы, trade-offs
 2. Итерация 3: конвергенция (convergence) или явное перечисление блокеров
-3. После итерации 3: координатор фиксирует итог (если консенсус есть) или принимает `forced decision` и закрывает обсуждение
+3. После итерации 3: координатор фиксирует итог (если консенсус есть) или принимает `forced-decision` и закрывает обсуждение
 
 Без исключений: если консенсус не достигнут за 3 итерации, координатор:
 - синтезирует лучший доступный вариант,
 - документирует trade-offs и риски,
-- продолжает с явным маркером `forced decision`.
+- продолжает с явным маркером `forced-decision`.
 
 Rationale (обоснование): предотвратить бесконечные LLM-дискуссии и обеспечить завершение задачи.
 
@@ -70,7 +72,7 @@ Rationale (обоснование): предотвратить бесконеч�
 
 После завершения Iteration 3 диалог считается **закрытым**, и координатор **возвращается к обязанностям синтеза**:
 - фиксирует исход (record) при наличии консенсуса,
-- либо делает `forced decision` при отсутствии консенсуса,
+- либо делает `forced-decision` при отсутствии консенсуса,
 - затем выполняет финальную сборку решения на этапе финализации / sync point.
 
 См. также:
@@ -191,7 +193,7 @@ Rationale (обоснование): предотвратить бесконеч�
 
 Если консенсус не достигнут:
 
-#### Coordinator (forced decision)
+#### Coordinator (forced-decision)
 
 **Причина эскалации (Escalation reason):**
 - [Почему агенты не смогли прийти к консенсусу]
@@ -208,7 +210,7 @@ Rationale (обоснование): предотвратить бесконеч�
 **Follow-up:**
 - [План пересмотра, если решение окажется неверным]
 
-**Маркер принудительного решения (`forced decision`):** ⚠️ override координатора (iteration 3 limit)
+**Маркер принудительного решения (`forced-decision`):** ⚠️ override координатора (iteration 3 limit)
 
 ---
 
@@ -350,8 +352,76 @@ Rationale (обоснование): предотвратить бесконеч�
 - Final approach: ChromaDB (local embeddings)
 
 **Notes:**
-- No forced decision needed
+- No forced-decision needed
 - Any follow-ups should be recorded in `BACKLOG_LEDGER.md` if deferred
+
+---
+
+## Визуализация диалога (Dialogue Visualization Contract)
+
+**Назначение:** единый формат Mermaid-графа для аудита multi-agent диалогов.
+
+### Формат входа (Input Contract)
+
+- `dialogue_id`: стабильный идентификатор сессии (например, `dlg-2026-02-18-001`)
+- `task_id`: идентификатор задачи/PR (например, `PR-795`)
+- `participants`: список агентов с ролями
+- `iterations`: ровно 1-3 итерации
+- `edges`: сообщения/ответы между агентами с направлением
+- `outcome`: `consensus` или `forced-decision`
+
+### Формат выхода (Mermaid Output Contract)
+
+```mermaid
+flowchart TD
+  subgraph I1["Iteration 1"]
+    A1["Agent A: Proposal"]
+    B1["Agent B: Proposal"]
+    C1["Agent C: Proposal"]
+  end
+
+  subgraph I2["Iteration 2"]
+    A2["Agent A: Refinement"]
+    B2["Agent B: Refinement"]
+    C2["Agent C: Refinement"]
+  end
+
+  subgraph I3["Iteration 3"]
+    D3{"Consensus?"}
+    J3["Joint decision"]
+    F3["Coordinator forced-decision"]
+  end
+
+  A1 --> B1
+  B1 --> C1
+  C1 --> A2
+  A2 --> B2
+  B2 --> C2
+  C2 --> D3
+  D3 -- yes --> J3
+  D3 -- no --> F3
+```
+
+### Обязательные поля на рёбрах (Edge Metadata)
+
+- `from_agent`
+- `to_agent`
+- `iteration`
+- `message_type` (`proposal`, `question`, `refinement`, `decision`)
+
+### Пример (Example Snapshot)
+
+```mermaid
+flowchart LR
+  AS["Architecture Specialist"] --> AIS["AI Innovation Specialist"]
+  AIS --> SA["Security Auditor"]
+  SA --> C{"Consensus"}
+  C -- yes --> OUT["ChromaDB selected"]
+  C -- no --> FD["Coordinator forced-decision"]
+```
+
+Правило соответствия:
+- если в диалоге зафиксирован `forced-decision`, в графе обязательно должна быть ветка `no -> Coordinator forced-decision`.
 
 ---
 
