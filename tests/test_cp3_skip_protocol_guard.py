@@ -16,11 +16,32 @@ def _read_target(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _collect_relevant_source(content: str) -> str:
-    """Return token stream text without comments/strings to avoid false positives."""
+def _collect_docstring_lines(source_tree: ast.AST) -> set[int]:
+    """Collect all docstring line numbers from module/class/function scopes."""
+    lines: set[int] = set()
+    for node in ast.walk(source_tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.body:
+            continue
+        first_stmt = node.body[0]
+        if (
+            isinstance(first_stmt, ast.Expr)
+            and isinstance(first_stmt.value, ast.Constant)
+            and isinstance(first_stmt.value.value, str)
+        ):
+            end_lineno = first_stmt.end_lineno or first_stmt.lineno
+            lines.update(range(first_stmt.lineno, end_lineno + 1))
+    return lines
+
+
+def _collect_relevant_source(content: str, *, docstring_lines: set[int]) -> str:
+    """Return token stream text without comments/docstrings."""
     relevant: list[str] = []
     for token in tokenize.generate_tokens(StringIO(content).readline):
-        if token.type in (tokenize.COMMENT, tokenize.STRING):
+        if token.type == tokenize.COMMENT:
+            continue
+        if token.type == tokenize.STRING and token.start[0] in docstring_lines:
             continue
         relevant.append(token.string)
     return " ".join(relevant)
@@ -87,7 +108,11 @@ def test_cp3_target_files_use_canonical_skip_protocol() -> None:
 
         content = _read_target(path)
         source_tree = ast.parse(content, filename=filename)
-        non_string_source = _collect_relevant_source(content)
+        docstring_lines = _collect_docstring_lines(source_tree)
+        non_string_source = _collect_relevant_source(
+            content,
+            docstring_lines=docstring_lines,
+        )
         pytest_module_aliases, pytest_skip_aliases = _collect_pytest_skip_aliases(source_tree)
 
         has_manifest_import = False
@@ -145,3 +170,29 @@ def test_is_pytest_skip_call_detects_direct_skip_import_alias() -> None:
         )
         for node in calls
     )
+
+
+def test_collect_relevant_source_keeps_non_docstring_literals() -> None:
+    code = 'x = "feature_disabled:manual"\n'
+    tree = ast.parse(code)
+    relevant = _collect_relevant_source(
+        code,
+        docstring_lines=_collect_docstring_lines(tree),
+    )
+    assert "feature_disabled:manual" in relevant
+
+
+def test_collect_relevant_source_ignores_docstrings() -> None:
+    code = (
+        '"""feature_disabled:docstring"""\n'
+        "def foo() -> None:\n"
+        '    """feature_disabled:inner_docstring"""\n'
+        "    return None\n"
+    )
+    tree = ast.parse(code)
+    relevant = _collect_relevant_source(
+        code,
+        docstring_lines=_collect_docstring_lines(tree),
+    )
+    assert "feature_disabled:docstring" not in relevant
+    assert "feature_disabled:inner_docstring" not in relevant
