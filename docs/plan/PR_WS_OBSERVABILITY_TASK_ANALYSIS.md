@@ -40,7 +40,8 @@
 **Proposed Approach:**
 
 1. Add bounded WS metric helpers in `app/middleware/metrics.py`.
-2. Wire helpers into `app/routers/realtime_ws.py` with single decrement path and structured close logs.
+2. Wire helpers into `app/routers/realtime_ws.py` with single decrement path
+   and structured close logs.
 3. Extend `tests/test_websocket_security_api.py` with deterministic metric/log assertions.
 4. Run targeted tests + `make verify`; update audit evidence section.
 
