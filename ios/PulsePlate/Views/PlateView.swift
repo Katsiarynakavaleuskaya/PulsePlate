@@ -1,32 +1,103 @@
 import SwiftUI
 
+enum PlatePrimaryCTA {
+  case addMeal
+  case viewDetails
+}
+
+enum PlatePrimaryDestination: Equatable {
+  case mealEntry
+  case nutritionDetails
+}
+
+func destination(for action: PlatePrimaryCTA) -> PlatePrimaryDestination {
+  switch action {
+  case .addMeal:
+    return .mealEntry
+  case .viewDetails:
+    return .nutritionDetails
+  }
+}
+
 struct MealEntryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var mealName = ""
+    @State private var servings = "1.0"
+    @State private var mealSaved = false
+
+    private var isFormValid: Bool {
+        !mealName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        VStack {
-            Text("Meal Entry")
-                .font(.largeTitle)
-                .bold()
-                .padding()
-            Text("Here you can add a new meal.")
-                .foregroundStyle(.gray)
+        Form {
+            Section("Meal") {
+                TextField("Meal name", text: $mealName)
+                TextField("Servings", text: $servings)
+                    .keyboardType(.decimalPad)
+            }
+
+            Section {
+                Button("Save meal") {
+                    mealSaved = true
+                }
+                .disabled(!isFormValid)
+            }
+
+            if mealSaved {
+                Section("Saved") {
+                    Text("\(mealName) added to today's log.")
+                        .foregroundStyle(.green)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.navy.ignoresSafeArea())
+        .navigationTitle("Add Meal")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
     }
 }
 
 struct NutritionDetailsView: View {
+    let segments: [NutritionSegment]
+    let progress: Double
+
+    private var clampedProgress: Double {
+        min(max(progress, 0.0), 1.0)
+    }
+
     var body: some View {
-        VStack {
-            Text("Nutrition Details")
-                .font(.largeTitle)
-                .bold()
-                .padding()
-            Text("Detailed nutrition breakdown will appear here.")
-                .foregroundStyle(.gray)
+        List {
+            Section("Overall") {
+                Text("Completion: \(Int((clampedProgress * 100).rounded()))%")
+            }
+
+            Section("Segments") {
+                ForEach(segments.indices, id: \.self) { index in
+                    let segment = segments[index]
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(segment.name)
+                            .font(.headline)
+                        Text(
+                            String(
+                                format: "%.1f / %.1f servings",
+                                segment.currentValue,
+                                segment.targetValue
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.navy.ignoresSafeArea())
+        .navigationTitle("Nutrition Details")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -66,6 +137,15 @@ struct PlateViewPP: View {
 
   private var progress: Double {
     nutritionService.nutritionData?.totalProgress ?? 0.0
+  }
+
+  private func handlePrimaryCTA(_ action: PlatePrimaryCTA) {
+    switch destination(for: action) {
+    case .mealEntry:
+      showMealEntry = true
+    case .nutritionDetails:
+      showNutritionDetails = true
+    }
   }
 
   var body: some View {
@@ -137,7 +217,7 @@ struct PlateViewPP: View {
         MealEntryView()
       }
       .navigationDestination(isPresented: $showNutritionDetails) {
-        NutritionDetailsView()
+        NutritionDetailsView(segments: segments, progress: progress)
       }
       .navigationDestination(isPresented: $showProfile) {
         ProfileView()
@@ -157,12 +237,12 @@ struct PlateViewPP: View {
 
           HStack(spacing: 16) {
             Button("Add Meal") {
-              showMealEntry = true
+              handlePrimaryCTA(.addMeal)
             }
             .buttonStyle(.bordered)
 
             Button("View Details") {
-              showNutritionDetails = true
+              handlePrimaryCTA(.viewDetails)
             }
             .buttonStyle(.borderedProminent)
           }

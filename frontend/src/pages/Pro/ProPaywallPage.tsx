@@ -3,6 +3,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import BeforeAfter from '../../components/Paywall/BeforeAfter';
+import { purchasePremium } from '../../lib/paywallPurchase';
 
 export default function ProPaywallPage(): JSX.Element {
   const navigate = useNavigate();
@@ -11,11 +12,15 @@ export default function ProPaywallPage(): JSX.Element {
     navigate(-1); // Go back to previous page
   };
 
+  const handlePurchase = async (): Promise<void> => {
+    await purchasePremium({ source: "bmi_soft_paywall", via: "pro_page" });
+    navigate(-1);
+  };
+
   return (
     <BeforeAfter
       onClose={handleClose}
-      purchaseDisabled
-      purchaseLabel="Coming soon"
+      onPurchase={handlePurchase}
       source="bmi_soft_paywall"
       via="pro_page"
     />
