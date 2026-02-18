@@ -15,6 +15,18 @@ Use it together with:
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 
+### Anchor Stability Protocol
+
+- `file:line` anchors are snapshot evidence for this matrix revision.
+- Anchor intent is semantic ownership (button -> flow -> dependency), not immutable line numbers.
+- Before PR merge for matrix updates, re-validate anchors and update drifted lines in-place.
+- Validation command:
+
+```bash
+python scripts/ci/check_docs_phase1_gates.py \
+  --files docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md
+```
+
 Evidence anchors for current implementation baseline:
 
 - Web Home/Plate/Profile/Progress CTA surfaces: `frontend/src/pages/Home.tsx:34`, `frontend/src/pages/Plate.tsx:37`, `frontend/src/pages/Profile.tsx:25`, `frontend/src/features/progress/ProgressCharts.tsx:120`
@@ -30,7 +42,8 @@ Evidence anchors for current implementation baseline:
 - **Safety lock:** wellness-lifestyle framing only, never clinical/diagnostic.
 - **Anti-drift lock:** no generic AI slop, no neon drift, no copycat style.
 
-RU note: промпты для кнопок/иконок должны оставаться wellness-safe и не содержать медицинских обещаний.
+Reminder: button/icon prompts must stay wellness-safe and must not include medical promises.
+(RU: промпты для кнопок/иконок должны оставаться wellness-safe и не содержать медицинских обещаний.)
 
 ## 3) Status Legend
 
@@ -164,5 +177,6 @@ Output: retry and secondary action pair with accessible contrast.
   - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
   - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 
-RU reminder: колонка prompt предназначена для шаблонов и контроля качества, а не для хранения чувствительных данных.
+Reminder: the prompt column is for templates and quality control, not for sensitive data.
+(RU: колонка prompt предназначена для шаблонов и контроля качества, а не для хранения чувствительных данных.)
 <!-- markdownlint-enable MD013 -->
