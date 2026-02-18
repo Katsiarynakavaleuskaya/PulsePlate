@@ -1743,7 +1743,7 @@ If it is not recorded here — it does not exist.
   - Finding Type: tooling
   - Reason: Multi-agent dialogue is hard to audit without a visual interaction graph.
   - Links:
-    - PR #796: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/796
+    - PR #796: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/796>
     - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
     - docs/orchestration/workflow.md
     - docs/plan/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_TASK_ANALYSIS.md
