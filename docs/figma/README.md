@@ -16,7 +16,8 @@ Purpose: single Git folder for everything you pass to Figma AI.
 ## Files
 
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-  - Full runbook for where to read Git context, refresh protocol, conflict resolution, and output contract.
+  - Full runbook for where to read Git context, refresh protocol,
+    conflict resolution, and output contract.
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
   - Compact map: which project packs to read, when, and drift risk if skipped.
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`

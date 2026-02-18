@@ -125,23 +125,33 @@ Attach this snapshot to request payload:
 
 ## 8) Security and Safety
 
-- No secrets, API keys, or internal URLs in prompt payloads.
-- No medical claims, no diagnostic framing, no copycat style.
-- Keep wellness-safe and non-manipulative tone for all CTA visuals.
+Use this canonical guardrail block in prompt-facing documents:
+
+- no secrets, API keys, or internal URLs
+- no medical claims
+- no diagnostic framing
+- no copycat style
+- no manipulative fear/shame tone
+- wellness-safe, trust-first language
+
+All related docs under `docs/figma/` should reference this section instead of
+creating alternative wording for the same rule set.
 
 RU (critical): не включать в prompt служебные URL, токены или внутренние данные.
 
 ## 9) Output Contract for Figma
 
-Every delivered unit must include:
+This is the canonical handoff schema for all Figma deliverables:
 
 - `Button/CTA ID`
 - `Platform`
 - `Screen`
-- `State set` (default, interactive, disabled/locked, loading, error as applicable)
+- `State set` (default, interactive, disabled/locked, loading, error)
 - `Figma Node ID` (or `TBD`)
 - `Prompt Stub ID`
-- `Implement Needed` note
+- `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
+- `Implement Needed`
+- `context_version` (date + commit hash)
 
 ## 10) Orchestration Hook
 

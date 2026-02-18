@@ -24,10 +24,11 @@ It aligns Figma AI output with project visual SoT and button-level behavior SoT:
 
 Operational anchors:
 
-- Root visual references: `AGENTS.md:499`, `AGENTS.md:502`
-- Frontend scoped reference: `frontend/AGENTS.md:21`
-- iOS scoped reference: `ios/AGENTS.md:23`
-- Figma page blueprint baseline: `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:162`
+- Root visual references: `AGENTS.md` (visual execution + SoT links)
+- Frontend scoped reference: `frontend/AGENTS.md` (visual quality refs)
+- iOS scoped reference: `ios/AGENTS.md` (visual quality refs)
+- Figma page blueprint baseline:
+  `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
 
 ## 2) Paste-Ready Figma AI Instructions (for `guidelines/Guidelines.md`)
 
@@ -93,7 +94,8 @@ Use this page index (from current audit blueprint) as fixed skeleton:
 5. `12_iOS_Progress`
 6. `20_Web_Parity`
 
-Reference: `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:169`.
+Reference:
+`docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`.
 
 ### 3.1 `00_Foundation_Tokens`
 
@@ -121,7 +123,8 @@ Required component sets:
 - Mascot block
 - Section header
 
-Reference: `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:178`.
+Reference:
+`docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`.
 
 ## 4) CTA Registry Index (H+P+Pr)
 
@@ -156,7 +159,7 @@ This list is the baseline set to register in Figma as components/variants.
 - `ios.progress.refresh`
 - `ios.progress.issue_action_dynamic`
 
-Canonical source: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
+Canonical source: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
 ## 5) Prompt Stub Index for Figma AI
 
@@ -169,17 +172,12 @@ Use prompt stubs as structured placeholders (not final marketing prompts):
 - `CTA_LOADING_STUB_V1`
 - `CTA_ERROR_STUB_V1`
 
-Canonical templates: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:85`.
+Canonical templates: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
-Mandatory guard clause block (attach to each prompt family):
+Mandatory guard clause block source:
+`docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 8).
 
-- no medical claims
-- no diagnostic framing
-- no body-shaming or fear pressure
-- no copycat brand imitation
-- no generic AI slop
-
-Prompt governance source: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:290`.
+Prompt governance source: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`.
 
 ## 6) Figma QA Gate (Pass/Fail)
 
@@ -193,20 +191,24 @@ Before accepting generated visuals/components:
 - Wellness-safe (no clinical/diagnostic framing)
 - Cross-surface consistency (iOS/Web/social)
 
-Reference checklist: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:13`.
+Reference checklist: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
 
 ## 7) Handoff Contract (Design -> Sora -> FE/iOS)
 
-Required output fields per CTA/component:
+Required output fields per CTA/component use the canonical schema from:
+`docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 9).
+
+Fields:
 
 - `Button/CTA ID`
-- `Figma Node ID` (or `TBD` if not assigned yet)
-- `State` (default/hover/focus/disabled/loading/error)
-- `Sora Prompt Stub ID`
-- `Status` (`Implemented`, `Partial`, `Missing`, `Blocked by flag`)
+- `Platform`
+- `Screen`
+- `State set`
+- `Figma Node ID` (or `TBD`)
+- `Prompt Stub ID`
+- `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
-
-Status legend source: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:49`.
+- `context_version`
 
 ## 8) Security Notes
 

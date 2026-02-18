@@ -7,8 +7,12 @@
 - Git context snapshot is attached (context_version + changed packs).
 - Button IDs match matrix IDs from `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 - Brand lock is present: `#0F172A #339FFF #20C997 #FF5D5D(accent)`.
-- Guardrails are included: no medical claims, no diagnostic framing, no copycat style.
-- Requested states are explicit: default, interactive, disabled/locked, loading, error.
+- Guardrail source:
+  `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 8).
+- Guardrails are included:
+  no medical claims, no diagnostic framing, no copycat style.
+- Requested states are explicit:
+  default, interactive, disabled/locked, loading, error.
 
 ## After receiving from Figma AI
 
@@ -22,10 +26,14 @@
 
 ## Handoff payload minimum
 
+Canonical schema source:
+`docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 9).
+
 - `Button/CTA ID`
 - `Screen + Platform`
 - `Target state(s)`
 - `Figma Node ID` (or `TBD`)
 - `Prompt Stub ID`
+- `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
 - `context_version` (date + commit hash)

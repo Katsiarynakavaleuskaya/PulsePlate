@@ -2,7 +2,8 @@
 
 ## Decision
 
-Adopt a full Figma Git runbook plus packs index under `docs/figma`, and require context refresh before each Figma task.
+Adopt a full Figma Git runbook plus packs index under `docs/figma`.
+Require context refresh before each Figma task.
 
 ## Rationale
 
