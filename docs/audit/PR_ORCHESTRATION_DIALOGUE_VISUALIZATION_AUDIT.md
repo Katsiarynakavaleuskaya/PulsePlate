@@ -4,7 +4,7 @@
 
 **Status:** Draft audit (to be finalized during PR)
 **Branch:** `docs/orchestration-dialogue-visualization`
-**Date:** 2026-02-19
+**Date:** 2026-02-18
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## Evidence Anchors (Baseline)
 
-- Backlog source item: `docs/roadmap/BACKLOG_LEDGER.md:1577`
+- Backlog source item: `docs/roadmap/BACKLOG_LEDGER.md:1736`
 - Dialogue hard-limit rule: `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:36`
 - Workflow protocol hub: `docs/orchestration/workflow.md:14`
 

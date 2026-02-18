@@ -1736,7 +1736,7 @@ If it is not recorded here — it does not exist.
 - [ ] Dialogue Visualization (interaction graph)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-TBD (`docs/orchestration-dialogue-visualization`)
-  - Status: 🚧 In progress (started 2026-02-19)
+  - Status: 🚧 In progress (started 2026-02-18)
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: tooling

@@ -4,7 +4,7 @@
 
 **Status:** execution-ready (docs/process only)
 **Branch:** `docs/orchestration-dialogue-visualization`
-**Date:** 2026-02-19
+**Date:** 2026-02-18
 
 ---
 
@@ -31,7 +31,7 @@
 ### Phase 1 - Contract freeze
 
 - Freeze mandatory graph entities: participants, iterations, edges, outcome.
-- Align with dialogue hard limit (`<=3`) and forced decision semantics.
+- Align with dialogue hard limit (`<=3`) and forced-decision semantics.
 
 ### Phase 2 - Documentation implementation
 

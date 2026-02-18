@@ -40,12 +40,12 @@
 **Путь эскалации:**
 1. Итерации 1–2: брейншторм, альтернативы, trade-offs
 2. Итерация 3: конвергенция (convergence) или явное перечисление блокеров
-3. После итерации 3: координатор фиксирует итог (если консенсус есть) или принимает `forced decision` и закрывает обсуждение
+3. После итерации 3: координатор фиксирует итог (если консенсус есть) или принимает `forced-decision` и закрывает обсуждение
 
 Без исключений: если консенсус не достигнут за 3 итерации, координатор:
 - синтезирует лучший доступный вариант,
 - документирует trade-offs и риски,
-- продолжает с явным маркером `forced decision`.
+- продолжает с явным маркером `forced-decision`.
 
 Rationale (обоснование): предотвратить бесконечные LLM-дискуссии и обеспечить завершение задачи.
 
@@ -70,7 +70,7 @@ Rationale (обоснование): предотвратить бесконеч�
 
 После завершения Iteration 3 диалог считается **закрытым**, и координатор **возвращается к обязанностям синтеза**:
 - фиксирует исход (record) при наличии консенсуса,
-- либо делает `forced decision` при отсутствии консенсуса,
+- либо делает `forced-decision` при отсутствии консенсуса,
 - затем выполняет финальную сборку решения на этапе финализации / sync point.
 
 См. также:
@@ -191,7 +191,7 @@ Rationale (обоснование): предотвратить бесконеч�
 
 Если консенсус не достигнут:
 
-#### Coordinator (forced decision)
+#### Coordinator (forced-decision)
 
 **Причина эскалации (Escalation reason):**
 - [Почему агенты не смогли прийти к консенсусу]
@@ -208,7 +208,7 @@ Rationale (обоснование): предотвратить бесконеч�
 **Follow-up:**
 - [План пересмотра, если решение окажется неверным]
 
-**Маркер принудительного решения (`forced decision`):** ⚠️ override координатора (iteration 3 limit)
+**Маркер принудительного решения (`forced-decision`):** ⚠️ override координатора (iteration 3 limit)
 
 ---
 
@@ -350,7 +350,7 @@ Rationale (обоснование): предотвратить бесконеч�
 - Final approach: ChromaDB (local embeddings)
 
 **Notes:**
-- No forced decision needed
+- No forced-decision needed
 - Any follow-ups should be recorded in `BACKLOG_LEDGER.md` if deferred
 
 ---
@@ -387,7 +387,7 @@ flowchart TD
   subgraph I3["Iteration 3"]
     D3{"Consensus?"}
     J3["Joint decision"]
-    F3["Coordinator forced decision"]
+    F3["Coordinator forced-decision"]
   end
 
   A1 --> B1
@@ -415,11 +415,11 @@ flowchart LR
   AIS --> SA["Security Auditor"]
   SA --> C{"Consensus"}
   C -- yes --> OUT["ChromaDB selected"]
-  C -- no --> FD["Coordinator forced decision"]
+  C -- no --> FD["Coordinator forced-decision"]
 ```
 
 Правило соответствия:
-- если в диалоге зафиксирован `forced decision`, в графе обязательно должна быть ветка `no -> Coordinator forced decision`.
+- если в диалоге зафиксирован `forced-decision`, в графе обязательно должна быть ветка `no -> Coordinator forced-decision`.
 
 ---
 

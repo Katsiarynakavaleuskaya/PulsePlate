@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Date:** 2026-02-19
+**Date:** 2026-02-18
 **Scope:** Define a practical, canonical interaction-graph contract for agent dialogue audits.
 
 ---
@@ -18,7 +18,7 @@ We need a lightweight visual format that:
 
 Evidence anchors:
 
-- `docs/roadmap/BACKLOG_LEDGER.md:1577`
+- `docs/roadmap/BACKLOG_LEDGER.md:1736`
 - `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md:36`
 
 ---
@@ -54,7 +54,7 @@ Evidence anchors:
 
 - Keep this PR docs-only.
 - Keep visualization aligned to existing dialogue semantics; do not redefine protocol.
-- Ensure graph explicitly supports both `consensus` and `forced decision` outcomes.
+- Ensure graph explicitly supports both `consensus` and `forced-decision` outcomes.
 - Avoid telemetry/tooling scope in this PR.
 
 ---
