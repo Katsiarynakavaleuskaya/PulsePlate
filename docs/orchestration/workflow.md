@@ -1,5 +1,7 @@
 # Dev Orchestrator Workflow (Canonical)
 
+<!-- markdownlint-disable MD013 MD022 MD024 MD032 -->
+
 **Purpose:** Canonical workflow for starting and completing any development task using agent coordination.
 
 **Status:** dev-only, no runtime impact

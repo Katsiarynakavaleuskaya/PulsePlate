@@ -1,5 +1,7 @@
 # Task Analysis: P2 Dialogue Visualization (Interaction Graph)
 
+<!-- markdownlint-disable MD013 -->
+
 ---
 
 ## Task Analysis
