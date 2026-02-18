@@ -188,6 +188,10 @@ curl -fsS https://.../metrics | grep http_requests_total
   - use `WS_MAX_CONNECTIONS` policy setting,
   - reject over-cap connections fail-closed with policy close (1008),
   - release tracker state in `finally` on every exit path.
+- Idle-timeout policy for `/ws` must remain deterministic:
+  - use `WS_IDLE_TIMEOUT_SECONDS` with default `0` (explicitly disabled),
+  - if timeout is enabled (`>0`), close idle connections fail-closed with policy close (1008),
+  - tests for timeout branches must not use `sleep()`; use deterministic timeout injection/mocking.
 - WebSocket response serialization should be deterministic (`sort_keys=True` where applicable)
   so tests and cross-runtime behavior remain stable.
 
