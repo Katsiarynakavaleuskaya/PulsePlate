@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Figma + Clawbot Operating Model (H+P+Pr)
 
 Date: 2026-02-19
@@ -7,6 +8,7 @@ Mode: process/systematization only (no runtime perimeter expansion)
 ## 1) Purpose
 
 Define one canonical operating model for:
+
 - `figma.com/make` ideation and reconciliation
 - `figma.com/design` node-level mapping and Code Connect activation
 - OpenClaw/Clawbat terminal execution with deterministic evidence
@@ -29,6 +31,7 @@ If only Make is available, status must remain `blocked_by_design_url` in mapping
 ## 3) Command Contract (OpenClaw/Clawbat)
 
 Every terminal run must capture:
+
 - exact command line
 - working directory
 - session id
@@ -37,6 +40,7 @@ Every terminal run must capture:
 - evidence snippet (1-3 raw lines) and pointer links
 
 Forbidden:
+
 - hidden skips (`|| true`, silent continue)
 - manual paraphrase without raw evidence
 - fabricated node ids or design keys
@@ -44,9 +48,11 @@ Forbidden:
 ## 4) Session-ID Discipline
 
 Session format:
+
 - `figma-hpp-<YYYYMMDD>-<HHMMSS>`
 
 Rules:
+
 - One session id per run
 - Same id across logs, evidence, and output docs
 - No cross-session evidence reuse without explicit note
@@ -54,6 +60,7 @@ Rules:
 ## 5) Artifact Capture Contract
 
 Minimum artifact set per run:
+
 - command block
 - output block
 - exit code
@@ -61,6 +68,7 @@ Minimum artifact set per run:
 - blocker state (`none`, `blocked_by_design_url`, `blocked_by_node_id_capture`, `stale`)
 
 Required fields in evidence summaries:
+
 - `context_version` (date + commit)
 - `fileKey` (if design-known)
 - `nodeId` (if design-known)
@@ -69,6 +77,7 @@ Required fields in evidence summaries:
 ## 6) Failure Triage Protocol
 
 When run fails:
+
 1. Copy first failing raw line(s)
 2. Classify failure:
    - auth/token

@@ -41,6 +41,7 @@ Use this checklist before approving any generated visual.
 ## Failure Reason Tags
 
 Use one or more:
+
 - `palette_drift`
 - `mascot_drift`
 - `safety_violation`

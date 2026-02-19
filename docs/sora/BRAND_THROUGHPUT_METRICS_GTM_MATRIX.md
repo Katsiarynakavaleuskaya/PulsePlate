@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Brand Throughput Metrics + GTM Matrix (P2)
 
 Date: 2026-02-19
@@ -6,6 +7,7 @@ Scope: HPP visual workflow acceleration
 ## 1) Throughput Metrics
 
 Track weekly:
+
 - Lead time (brief -> approved visual)
 - Iteration count per approved asset
 - Reject rate by failure tag
@@ -42,6 +44,7 @@ Track weekly:
 ## 6) Reporting Template
 
 For each reporting cycle:
+
 - what shipped
 - throughput numbers
 - quality failures by tag
