@@ -31,8 +31,8 @@ If it is not recorded here — it does not exist.
   - Status: 🔄 In progress (Step 1 + Step 2 complete; Step 3/merge pending)
   - Reason: After recent Figma AI component/code updates, web UX quality regressed ("site looks bad"), and iOS app launch/open flow is broken. This blocks core product readiness and must be fixed before P1 work.
   - Links:
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/819
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818
+    - [PR #819](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/819)
+    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
     - docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md
     - frontend/ (affected UI surfaces, to be narrowed in triage)
     - ios/ (app-open failure triage scope)
@@ -47,7 +47,7 @@ If it is not recorded here — it does not exist.
       - iOS "app does not open" not reproduced in deterministic simulator build/test path; high-risk touchpoints remain `ios/PulsePlate/Views/RootTabs.swift`, `ios/PulsePlate/Views/HomeView.swift`, `ios/PulsePlate/Views/ProgressView.swift`
   - Fixes applied by fact (pending remediation PR):
     - Web presentation fix prepared: card/token class unification + CTA consistency updates in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx`
-    - Step 3 implementation PR opened: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/820
+    - Step 3 implementation PR opened: [PR #820](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/820)
   - DoD:
     - ✅ Repro steps captured for both regressions (web visual + iOS open failure)
     - ✅ Root cause identified with evidence (`file:line` + failing test/log)
@@ -472,7 +472,7 @@ If it is not recorded here — it does not exist.
   - Status: ✅ Merged (PR #818, 2026-02-19)
   - Reason: Canonical `/ws` endpoint and security behavior are now validated with deterministic tests. Authentication and rate-limit close behavior are covered to prevent drift.
   - Links:
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818
+    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
     - tests/test_realtime_ws_security.py
     - app/routers/realtime_ws.py
     - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
