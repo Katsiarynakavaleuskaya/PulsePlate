@@ -20,10 +20,14 @@ Read in this order for every new Figma task:
 2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-6. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-7. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
-8. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+5. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+6. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+7. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+8. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+9. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+10. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+11. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+12. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 
 ## 3) Git Packs to Read by Intent
 
@@ -67,6 +71,14 @@ Use for iOS color/material/state consistency.
 
 Use when conflicts appear or when acceptance criteria are unclear.
 
+### 3.7 Code Connect and mapping bridge assets
+
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+
+Use when translating Figma nodes to existing site components and tracking map status.
+
 ## 4) Implementation Lookup Matrix
 
 | Need | Read this first | Then validate against |
@@ -76,6 +88,9 @@ Use when conflicts appear or when acceptance criteria are unclear.
 | Prompt constraints and guardrails | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md` |
 | Token values | `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`, `ios/PulsePlate/Assets.xcassets/` | `ios/PulsePlate/Extensions/Color+Assets.swift` |
 | Handoff payload requirements | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` | `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` |
+| Make-vs-Git drift status | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
+| Need Design URL and node IDs for activation | `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
+| Site connection via Code Connect | `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
 
 ## 5) Precedence Rules (Conflict Resolution)
 
@@ -116,6 +131,19 @@ Attach this snapshot to request payload:
 - changed files in tracked packs
 - CTA rows impacted
 - token files impacted (web/iOS)
+
+### 6.3 Make sync loop (mandatory for current source mode)
+
+When source mode is Make-only:
+
+1. Run MCP `get_design_context` for Make file root:
+   - `fileKey=MrztJU3CQtxhADBbtAsWJ6`
+   - `nodeId=0:1`
+2. Review latest `guidelines/Guidelines.md`, `src/app/App.tsx`,
+   `src/app/components/pp-button.tsx`, `src/styles/theme.css`.
+3. Record findings in `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
+4. Refresh CTA mapping status in
+   `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 
 ## 7) Hard Exclusions
 
@@ -166,9 +194,34 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
+- `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
 - `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `AGENTS.md`
+
+## 12) Code Connect Bridge Flow (Activation)
+
+Use this only when Design file URL/node IDs are available.
+
+1. Validate candidate rows in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
+2. Run `get_code_connect_suggestions(fileKey, nodeId)`.
+3. Confirm selected mappings via `send_code_connect_mappings(...)`.
+4. If explicit mapping is needed, run `add_code_connect_map(...)`.
+5. Verify via `get_code_connect_map(fileKey, nodeId)`.
+6. Update matrix `Figma Node ID` cells and candidate status (`active`).
+
+## 13) Blocker Protocol (No Design URL)
+
+If Design URL/node IDs are missing:
+
+1. Keep status `blocked_by_design_url` in candidate mapping table.
+2. Do not fabricate file keys or node IDs.
+3. Run `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` to capture dependency.
+4. Track blocker in `docs/roadmap/BACKLOG_LEDGER.md` with Owner/DoD/Target PR.
+5. Continue Make sync audits and CTA mapping preparation until blocker closes.
 <!-- markdownlint-enable MD013 -->

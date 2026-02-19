@@ -1653,6 +1653,28 @@ If it is not recorded here — it does not exist.
     - Follow-up implementation PR merged with evidence
       (screenshots/links) and this ledger item closed
 
+- [ ] Design file URL + node IDs required for Code Connect activation (H+P+Pr)
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR/Figma-CodeConnect-Activation
+  - Priority: P1
+  - Status: 🔒 Blocked by dependency
+  - Area: design / frontend / ios
+  - Finding Type: integration dependency
+  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
+    node-level Code Connect cannot be activated without Design file key and node IDs.
+  - Links:
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+  - DoD:
+    - Figma Design file URL is recorded in repo docs
+    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
+      (`web.home.open_setup`, `web.plate.premium_gate_cta`,
+      `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_map` returns expected active mappings for P0 set
+    - Matrix `Figma Node ID` column updated for activated rows
+
 ### Multimodal / CV / measurement (future, contract-first)
 
 - [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet

@@ -9,9 +9,14 @@ Purpose: single Git folder for everything you pass to Figma AI.
 2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
-6. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-7. `docs/figma/orchestration/README.md`
+5. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+6. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+7. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+8. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+9. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+10. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
+11. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
+12. `docs/figma/orchestration/README.md`
 
 ## Files
 
@@ -23,6 +28,14 @@ Purpose: single Git folder for everything you pass to Figma AI.
 - `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
   - Main governance SoT for Home + Plate + Progress (Web + iOS).
   - Includes paste-ready rules block for Figma `guidelines/Guidelines.md`.
+- `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+  - Make-vs-Git reconciliation audit with drift blocks and action queue.
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+  - Canonical runbook for Code Connect bridge to existing site components.
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+  - Deterministic protocol to capture `figma.com/design` URL and P0 node IDs.
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+  - 23-row CTA mapping registry for candidate/blocked/active states.
 - `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
   - What to verify before sending and after receiving outputs.
 - `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
@@ -33,10 +46,15 @@ Purpose: single Git folder for everything you pass to Figma AI.
 ## Recommended workflow
 
 1. Refresh Git context using `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`.
-2. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
-3. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
-4. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
-5. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
+2. Reconcile Make updates with `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`.
+3. Review bridge rules in `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
+4. If Design URL/node IDs are missing, run
+   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
+5. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
+6. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
+7. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
+8. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+9. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
 
 ## Canonical project links
 
@@ -44,3 +62,5 @@ Purpose: single Git folder for everything you pass to Figma AI.
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+- `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+- `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`

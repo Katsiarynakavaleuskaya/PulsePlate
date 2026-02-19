@@ -13,7 +13,9 @@ Use it together with:
 
 - `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+- `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+- `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`
 
 ### Anchor Stability Protocol
 
@@ -157,7 +159,37 @@ Negative: no blame language, no body-shaming, no copycat visual tone.
 Output: retry and secondary action pair with accessible contrast.
 ```
 
-## 6) Execution Queue (Priority)
+## 6) Visual Variant Mapping (Button ID -> Variant/Prompt/Placement)
+
+Behavior ownership remains in Section 4. This section maps each CTA ID to visual variant and prompt base IDs.
+
+| Button/CTA ID | Recommended Variant | Placement Zone | Sora Prompt ID Base | Visual SoT Reference |
+| --- | --- | --- | --- | --- |
+| `web.home.open_setup` | `V1` | `W_HOME_QA_GRID` | `SORA_BTN_web_home_open_setup_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.home.open_plate` | `V3` | `W_HOME_QA_GRID` | `SORA_BTN_web_home_open_plate_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.home.open_progress` | `V3` | `W_HOME_QA_GRID` | `SORA_BTN_web_home_open_progress_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.home.open_pro` | `V2` | `W_HOME_QA_GRID` | `SORA_BTN_web_home_open_pro_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.plate.open_setup` | `V1` | `W_PLATE_GATE_ACTIONS` | `SORA_BTN_web_plate_open_setup_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.plate.open_progress` | `V3` | `W_PLATE_GATE_ACTIONS` | `SORA_BTN_web_plate_open_progress_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.plate.premium_gate_cta` | `V2` | `W_PLATE_GATE_ACTIONS` | `SORA_BTN_web_plate_premium_gate_cta_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.progress.export_pdf` | `V3` | `W_PROGRESS_HEADER_UTIL` | `SORA_BTN_web_progress_export_pdf_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.home.bmi_calculator` | `V1` | `I_HOME_QUICK_ACTIONS` | `SORA_BTN_ios_home_bmi_calculator_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.home.profile_setup` | `V1` | `I_HOME_QUICK_ACTIONS` | `SORA_BTN_ios_home_profile_setup_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.home.open_plate` | `V1` | `I_HOME_QUICK_ACTIONS` | `SORA_BTN_ios_home_open_plate_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.home.weekly_plan_reader` | `V3` | `I_HOME_PRO_TOOLS` | `SORA_BTN_ios_home_weekly_plan_reader_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.home.shopping_list_generator` | `V3` | `I_HOME_PRO_TOOLS` | `SORA_BTN_ios_home_shopping_list_generator_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.plate.add_meal` | `V1` | `I_PLATE_BOTTOMBAR_PRIMARY` | `SORA_BTN_ios_plate_add_meal_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.plate.view_details` | `V3` | `I_PLATE_BOTTOMBAR_PRIMARY` | `SORA_BTN_ios_plate_view_details_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.plate.issue_action_dynamic` | `V1` | `I_PLATE_ISSUE_RECOVERY` | `SORA_BTN_ios_plate_issue_action_dynamic_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.progress.refresh` | `V1` | `I_PROGRESS_EMPTY_RECOVERY` | `SORA_BTN_ios_progress_refresh_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `ios.progress.issue_action_dynamic` | `V1` | `I_PROGRESS_ISSUE_RECOVERY` | `SORA_BTN_ios_progress_issue_action_dynamic_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.paywall.modal.cta` | `V2` | `W_PAYWALL_MODAL_FOOTER` | `SORA_BTN_web_paywall_modal_cta_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.paywall.modal.cancel` | `V3` | `W_PAYWALL_MODAL_FOOTER` | `SORA_BTN_web_paywall_modal_cancel_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.setup.submit_calculate` | `V1` | `W_SETUP_FORM_FOOTER` | `SORA_BTN_web_setup_submit_calculate_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.setup.result.retry` | `V1` | `W_SETUP_RESULT_ACTIONS` | `SORA_BTN_web_setup_result_retry_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+| `web.setup.result.edit` | `V3` | `W_SETUP_RESULT_ACTIONS` | `SORA_BTN_web_setup_result_edit_<variant>_<state>_V1` | `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` |
+
+## 7) Execution Queue (Priority)
 
 | Priority | Item | Why | Target PR | Owner |
 | --- | --- | --- | --- | --- |
@@ -168,7 +200,7 @@ Output: retry and secondary action pair with accessible contrast.
 | `P2` | Fill `Figma Node ID` column for all matrix rows using `PP/<Platform>/<Screen>/<Component>/<State>` naming (`docs/roadmap/BACKLOG_LEDGER.md:1634`, `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md:199`) | Needed for design-to-code traceability and MCP handoff speed | Figma execution follow-up | Design + FE + iOS |
 | `P2` | Normalize row-level prompt files from matrix IDs into a dedicated prompt pack (current baseline: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md:245`) | Prompt templates exist in a centralized playbook, but row-level prompt-ID files are not materialized yet for deterministic ops | Sora prompt pack follow-up | Sora Prompt Engineer |
 
-## 7) Security + Safety Notes for Prompt Column
+## 8) Security + Safety Notes for Prompt Column
 
 - Do not place secrets, API keys, internal URLs, or proprietary credentials in prompt text.
 - Keep all prompt stubs wellness-safe: no medical diagnosis/cure claims.
