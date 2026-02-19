@@ -134,10 +134,11 @@ Attach this snapshot to request payload:
 
 ### 6.3 Make sync loop (mandatory for current source mode)
 
-When source mode is Make-only:
+When source mode is Make-only
+(`docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`, `Source mode` field):
 
 1. Run MCP `get_design_context` for Make file root:
-   - `fileKey=<FIGMA_MAKE_FILE_ID>`
+   - Make file identifier from approved internal handoff (do not store raw key in repo docs)
    - `nodeId=0:1`
 2. Review latest `guidelines/Guidelines.md`, `src/app/App.tsx`,
    `src/app/components/pp-button.tsx`, `src/styles/theme.css`.
@@ -213,7 +214,11 @@ Use this only when Design file URL/node IDs are available.
 3. Confirm selected mappings via `send_code_connect_mappings(...)`.
 4. If explicit mapping is needed, run `add_code_connect_map(...)`.
 5. Verify via `get_code_connect_map(fileKey, nodeId)`.
-6. Update matrix `Figma Node ID` cells and candidate status (`active`).
+6. Update `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`:
+   set `Figma Node ID` cells and candidate status (`active`).
+   If mapping affects CTA behavior surfaces, also sync corresponding
+   `Figma Node ID` entries in
+   `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
 ## 13) Blocker Protocol (No Design URL)
 
