@@ -45,4 +45,5 @@ def test_ws_rate_limit_closes_connection(
         websocket.send_text(json.dumps({"type": "ping", "version": "1"}))
         with pytest.raises(WebSocketDisconnect) as exc_info:
             websocket.receive_text()
+        # 1008 is the canonical close code our server uses for rate-limit violations.
         assert exc_info.value.code == 1008
