@@ -24,6 +24,7 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | frontend-engineer | auto | Frontend implementation in PulsePlate style with token SoT and thin-client rules | `.cursor/agents/frontend-engineer.md` | Web UI/features, frontend contract-safe updates |
 | dev-operator | auto | Terminal-first operator for safe command execution and deterministic diagnostics | `.cursor/agents/dev-operator.md` | Local gate runs, failure triage, evidence capture |
 | creative-designer | auto | UI/UX design, brand assets, App Store visuals, marketing creatives | `.cursor/agents/creative-designer.md` | Design, visuals, brand assets |
+| designer-artist-agent | auto | Production emblem/logo specialist: drawable SVG geometry + synchronized Figma/Sora/Nano Banana packets | `.cursor/agents/designer-artist-agent.md` | Emblem/logo package production with executable handoff specs |
 | sora-prompt-engineer | auto | Style-locked Sora prompt specs, anti-drift policy, and release QA for generated visual assets | `.cursor/agents/sora-prompt-engineer.md` | Sora prompt frameworks, variation packs, visual QA gates |
 | marketing-strategist | auto | ASO/SEO, growth strategy, positioning, conversion optimization | `.cursor/agents/marketing-strategist.md` | Marketing, growth, ASO/SEO |
 | ai-trend-reporter | auto | Structured AI market and product reporting across daily/weekly/monthly/quarterly cadences | `.cursor/agents/ai-trend-reporter.md` | Trend reports, wellness AI opportunities, GTM-focused updates |
@@ -59,5 +60,5 @@ If an agent file is added/renamed in `.cursor/agents/`, update this index in the
 
 ---
 
-**Last updated:** 2026-02-18 (PR `#785`)
+**Last updated:** 2026-02-19 (PR `#817`)
 **Related:** `AGENTS.md` (Agent Coordination section), `docs/agents/model_policy.md`

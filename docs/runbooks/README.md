@@ -30,6 +30,9 @@ operational tasks.
 - [`FRONTEND_CI_FIX_LOG.md`](FRONTEND_CI_FIX_LOG.md)
 - [`FRONTEND_CI_IMPROVEMENTS.md`](FRONTEND_CI_IMPROVEMENTS.md)
 - [`FRONTEND_CI_PR_NOTES.md`](FRONTEND_CI_PR_NOTES.md)
+
+## Figma / MCP / Design Ops
+
 - [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and
   code-to-canvas flow for Codex/Claude
 - [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md) — runtime
@@ -38,6 +41,16 @@ operational tasks.
   first-session live activation protocol
 - [Figma Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
   reproducible code-to-canvas evidence capture checklist
+- [`FIGMA_MCP_DESIGN_SYSTEM_RULES.md`](FIGMA_MCP_DESIGN_SYSTEM_RULES.md) —
+  implementation rules for design-system translation into
+  `frontend/`
+- [`FIGMA_TERMINAL_CLAWBOT_MCP.md`](FIGMA_TERMINAL_CLAWBOT_MCP.md) —
+  terminal-to-Figma/Clawbot operating workflow
+
+## PR Matrix / Execution
+
+- [`PR_CANONICAL_MATRIX_CHECKLIST.md`](PR_CANONICAL_MATRIX_CHECKLIST.md) —
+  strict PR flow (scope -> audit -> plan -> CI -> bot loop -> merge gate)
 
 ## Project maintenance
 
