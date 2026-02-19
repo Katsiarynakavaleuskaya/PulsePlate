@@ -44,15 +44,15 @@
   - `mermaidSyntax` simple `code -> canvas -> iteration` flow
 - Result:
   - diagram created successfully in FigJam
-  - URL:
-    [PulsePlate code-to-figma smoke](https://www.figma.com/online-whiteboard/create-diagram/580b99ea-ef7b-47b6-bf64-4f0283765f2c)
+  - URL: `<REDACTED_FIGJAM_URL>`
 
 ## Validation
 
 - MCP auth status: pass
 - Make context fetch status: pass
 - Write operation to Figma (FigJam): pass
-- Direct Make screenshot operation: fail (tool unsupported for Make in this runtime)
+- Direct Make screenshot operation: fail (`get_screenshot` unsupported for
+  Figma Make in this runtime)
 
 ## Security Check
 
