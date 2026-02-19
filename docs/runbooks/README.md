@@ -23,6 +23,7 @@ Practical playbooks: how to run checks, diagnose failures, and perform safe oper
 - [`FRONTEND_CI_FIX_LOG.md`](FRONTEND_CI_FIX_LOG.md)
 - [`FRONTEND_CI_IMPROVEMENTS.md`](FRONTEND_CI_IMPROVEMENTS.md)
 - [`FRONTEND_CI_PR_NOTES.md`](FRONTEND_CI_PR_NOTES.md)
+- [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and code-to-canvas flow for Codex/Claude
 
 ## Project maintenance
 - [`PROJECT_UPDATES.md`](PROJECT_UPDATES.md) — how to maintain project updates
