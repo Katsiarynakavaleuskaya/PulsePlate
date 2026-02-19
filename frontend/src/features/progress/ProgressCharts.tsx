@@ -12,6 +12,7 @@ import {
   BarChart,
   Bar
 } from 'recharts';
+import { useMemo, useCallback } from 'react';
 import { Download, TrendingUp, TrendingDown } from 'lucide-react';
 import { showError } from '../../components/ui';
 
@@ -28,7 +29,6 @@ const chartTokens = {
   tooltipBackground: 'var(--color-bg)',
 };
 
-// Mock data for progress tracking
 const weightData = [
   { date: '2024-01-01', weight: 75.2, bmi: 24.1 },
   { date: '2024-01-08', weight: 74.8, bmi: 23.9 },
@@ -57,12 +57,25 @@ const macroData = [
   { name: 'Other', value: 70, color: chartTokens.info, percentage: 15 },
 ];
 
+const beforeAfterShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+
+type ProgressWindow = '7D' | '30D' | '90D';
+
+interface ProgressChartsProps {
+  windowRange?: ProgressWindow;
+}
+
+const filterByWindow = <T,>(data: T[], windowRange: ProgressWindow): T[] => {
+  if (windowRange === '7D') return data.slice(-3);
+  if (windowRange === '30D') return data.slice(-5);
+  return data;
+};
+
 const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const exportToPDF = async (): Promise<void> => {
-  // Simple PDF export using html2canvas + jspdf
   try {
     const html2canvas = await import('html2canvas');
     const { jsPDF } = await import('jspdf');
@@ -84,7 +97,6 @@ const exportToPDF = async (): Promise<void> => {
     let heightLeft = imgHeight;
 
     let position = 0;
-
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
@@ -99,45 +111,48 @@ const exportToPDF = async (): Promise<void> => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     showError(`Failed to export PDF: ${message}`);
-    return;
   }
 };
 
-export default function ProgressCharts(): JSX.Element {
-  const latestWeight = weightData[weightData.length - 1];
-  const previousWeight = weightData[weightData.length - 2];
+export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsProps): JSX.Element {
+  const scopedWeightData = useMemo(() => filterByWindow(weightData, windowRange), [windowRange]);
+  const scopedCalorieData = useMemo(() => filterByWindow(calorieData, windowRange), [windowRange]);
+  const latestWeight = scopedWeightData[scopedWeightData.length - 1];
+  const previousWeight = scopedWeightData[Math.max(0, scopedWeightData.length - 2)];
   const weightChange = latestWeight.weight - previousWeight.weight;
   const isWeightLoss = weightChange < 0;
+  const tooltipStyle = useMemo(
+    () => ({
+      backgroundColor: chartTokens.tooltipBackground,
+      border: `1px solid ${chartTokens.border}`,
+      borderRadius: '8px',
+      boxShadow: beforeAfterShadow,
+    }),
+    []
+  );
+  const handleExportToPdf = useCallback(() => {
+    void exportToPDF();
+  }, []);
 
   return (
     <div id="progress-charts" className="space-y-6 p-4">
-      {/* Header with Export Button */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: chartTokens.text }}>Progress Tracking</h2>
-          <p style={{ color: chartTokens.muted }}>Monitor your health journey</p>
+          <p style={{ color: chartTokens.muted }}>Monitor your health journey ({windowRange})</p>
         </div>
         <button
-          onClick={exportToPDF}
+          onClick={handleExportToPdf}
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:opacity-90"
-          style={{
-            backgroundColor: chartTokens.primary,
-            color: chartTokens.text
-          }}
+          style={{ backgroundColor: chartTokens.primary, color: '#fff' }}
+          aria-label="Export progress report as PDF"
         >
           <Download className="w-4 h-4" />
           Export PDF
         </button>
       </div>
 
-      {/* Weight Progress Chart */}
-      <div
-        className="rounded-lg p-6 shadow-sm"
-        style={{
-          backgroundColor: chartTokens.surface,
-          border: `1px solid ${chartTokens.border}`
-        }}
-      >
+      <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: chartTokens.text }}>Weight & BMI Progress</h3>
           <div className="flex items-center gap-2">
@@ -146,138 +161,59 @@ export default function ProgressCharts(): JSX.Element {
             ) : (
               <TrendingUp className="h-5 w-5" style={{ color: chartTokens.error }} />
             )}
-            <span
-              className="text-sm font-medium"
-              style={{ color: isWeightLoss ? chartTokens.success : chartTokens.error }}
-            >
+            <span className="text-sm font-medium" style={{ color: isWeightLoss ? chartTokens.success : chartTokens.error }}>
               {Math.abs(weightChange).toFixed(1)} kg {isWeightLoss ? 'lost' : 'gained'}
             </span>
           </div>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={weightData}>
+          <LineChart data={scopedWeightData}>
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatDate}
-              className="text-gray-600 dark:text-gray-400"
-            />
+            <XAxis dataKey="date" tickFormatter={formatDate} className="text-gray-600 dark:text-gray-400" />
             <YAxis className="text-gray-600 dark:text-gray-400" />
-            <Tooltip
-              labelFormatter={(value) => formatDate(value)}
-              contentStyle={{
-                backgroundColor: chartTokens.tooltipBackground,
-                border: `1px solid ${chartTokens.border}`,
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="weight"
-              stroke={chartTokens.primary}
-              strokeWidth={3}
-              dot={{ fill: chartTokens.primary, strokeWidth: 2, r: 4 }}
-              name="Weight (kg)"
-            />
-            <Line
-              type="monotone"
-              dataKey="bmi"
-              stroke={chartTokens.success}
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ fill: chartTokens.success, strokeWidth: 2, r: 3 }}
-              name="BMI"
-            />
+            <Tooltip labelFormatter={(value) => formatDate(value)} contentStyle={tooltipStyle} />
+            <Line type="monotone" dataKey="weight" stroke={chartTokens.primary} strokeWidth={3} dot={{ fill: chartTokens.primary, strokeWidth: 2, r: 4 }} name="Weight (kg)" />
+            <Line type="monotone" dataKey="bmi" stroke={chartTokens.success} strokeWidth={2} strokeDasharray="5 5" dot={{ fill: chartTokens.success, strokeWidth: 2, r: 3 }} name="BMI" />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Calorie Balance Chart */}
-      <div
-        className="rounded-lg p-6 shadow-sm"
-        style={{
-          backgroundColor: chartTokens.surface,
-          border: `1px solid ${chartTokens.border}`
-        }}
-      >
+      <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
         <h3 className="mb-4 text-lg font-semibold" style={{ color: chartTokens.text }}>Calorie Balance</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={calorieData}>
+          <BarChart data={scopedCalorieData}>
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatDate}
-              className="text-gray-600 dark:text-gray-400"
-            />
+            <XAxis dataKey="date" tickFormatter={formatDate} className="text-gray-600 dark:text-gray-400" />
             <YAxis className="text-gray-600 dark:text-gray-400" />
-            <Tooltip
-              labelFormatter={(value) => formatDate(value)}
-              contentStyle={{
-                backgroundColor: chartTokens.tooltipBackground,
-                border: `1px solid ${chartTokens.border}`,
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              }}
-            />
+            <Tooltip labelFormatter={(value) => formatDate(value)} contentStyle={tooltipStyle} />
             <Bar dataKey="consumed" fill={chartTokens.error} name="Consumed" />
             <Bar dataKey="burned" fill={chartTokens.success} name="Burned" />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Macronutrient Distribution */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div
-          className="rounded-lg p-6 shadow-sm"
-          style={{
-            backgroundColor: chartTokens.surface,
-            border: `1px solid ${chartTokens.border}`
-          }}
-        >
+        <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
           <h3 className="mb-4 text-lg font-semibold" style={{ color: chartTokens.text }}>Macronutrient Distribution</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie
-                data={macroData}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                dataKey="value"
-                label={({ name, percentage }) => `${name}: ${percentage}%`}
-              >
+              <Pie data={macroData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percentage }) => `${name}: ${percentage}%`}>
                 {macroData.map((entry) => (
-                  <Cell key={`cell-${entry.name}`} fill={entry.color} />
+                  <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: chartTokens.tooltipBackground,
-                  border: `1px solid ${chartTokens.border}`,
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                }}
-              />
+              <Tooltip contentStyle={tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
-        <div
-          className="rounded-lg p-6 shadow-sm"
-          style={{
-            backgroundColor: chartTokens.surface,
-            border: `1px solid ${chartTokens.border}`
-          }}
-        >
+        <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
           <h3 className="mb-4 text-lg font-semibold" style={{ color: chartTokens.text }}>Nutrient Breakdown</h3>
           <div className="space-y-3">
             {macroData.map((nutrient) => (
               <div key={nutrient.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div
-                      className="w-4 h-4 rounded"
-                      style={{ backgroundColor: nutrient.color }}
-                    />
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: nutrient.color }} />
                   <span style={{ color: chartTokens.text }}>{nutrient.name}</span>
                 </div>
                 <div className="text-right">

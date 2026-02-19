@@ -35,7 +35,7 @@ describe('ProgressCharts', () => {
     render(<ProgressCharts />);
 
     expect(screen.getByText('Progress Tracking')).toBeInTheDocument();
-    expect(screen.getByText('Monitor your health journey')).toBeInTheDocument();
+    expect(screen.getByText('Monitor your health journey (30D)')).toBeInTheDocument();
   });
 
   it('renders export PDF button', () => {

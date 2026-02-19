@@ -43,17 +43,24 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-primary/20">
-      <h3 className="text-lg font-semibold text-text mb-2">
+    <div
+      className="rounded-2xl border p-6 shadow-sm"
+      style={{
+        background:
+          'linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-muted) 100%)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
+      <h3 className="mb-2 text-lg font-semibold text-text">
         {hook.message.default_title}
       </h3>
-      <p className="text-muted mb-4">
+      <p className="mb-5 text-muted">
         {hook.message.default_body}
       </p>
       <button
         type="button"
         onClick={handleClick}
-        className="px-4 py-2 bg-primary text-navy rounded-lg hover:bg-primary/90 transition-colors font-medium"
+        className="min-h-[44px] rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
         data-testid="soft-paywall-cta"
       >
         {hook.message.default_cta}
