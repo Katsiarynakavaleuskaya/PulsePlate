@@ -2280,6 +2280,28 @@ If it is not recorded here — it does not exist.
     - Decision documented: pursue / defer / won't do for publication track
     - If pursue: venue + outline for one paper; no mandatory timeline
 
+- [ ] P1: Agent knowledge library template packs (domain-specific)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (process scalability)
+  - Target PR: PR_TBD_AGENT_LIBRARY_TEMPLATE_PACKS
+  - Status: 📋 Planned
+  - Reason (EN): Bootstrap library artifacts are in place, but recurring cycles
+    need reusable, domain-specific packs (security, RAG, UX, DS) to keep
+    brainstorm-to-PR flow fast and deterministic without policy drift.
+  - Links:
+    - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+    - `docs/library/index.md`
+    - `docs/library/promotion/2026-02-19_agent-library-bootstrap_promotion-log.md`
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+  - DoD:
+    - Add template packs under `docs/library/templates/` for at least 4 tracks:
+      security, RAG, UX/accessibility, data/evaluation
+    - Each template includes routing card, evidence section, promotion target,
+      and deferred-item ledger block
+    - Add one worked example cycle using one template pack
+    - `ReadLints` clean for all new docs
+
 ---
 
 **Last updated:** 2026-02-16 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
