@@ -70,9 +70,9 @@ If both succeed for all P0 rows, blocker is cleared and activation may proceed v
 | Button/CTA ID | Design URL | fileKey | nodeId | Captured by | Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `web.home.open_setup` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System?node-id=1-72` | `umcCk7TtO760DJ3N6M7mvh` | `1:72` | OpenClaw (browser capture) | 2026-02-19 | validated |
-| `web.plate.premium_gate_cta` | TBD | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
-| `web.progress.export_pdf` | TBD | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
-| `ios.plate.issue_action_dynamic` | TBD | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+| `web.plate.premium_gate_cta` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+| `web.progress.export_pdf` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+| `ios.plate.issue_action_dynamic` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
 
 **Capture note (2026-02-19):** in public browser session, `Find` with scope `All pages` returned `No results in this file` for `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic`; only `web.home.open_setup` resolved to `node-id=1-72`.
 
