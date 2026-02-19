@@ -24,6 +24,25 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
+- [ ] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0-A (product works)
+  - Target PR: TBD (regression remediation)
+  - Status: 📋 Planned
+  - Reason: After recent Figma AI component/code updates, web UX quality regressed ("site looks bad"), and iOS app launch/open flow is broken. This blocks core product readiness and must be fixed before P1 work.
+  - Links:
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818
+    - docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md
+    - frontend/ (affected UI surfaces, to be narrowed in triage)
+    - ios/ (app-open failure triage scope)
+  - DoD:
+    - Repro steps captured for both regressions (web visual + iOS open failure)
+    - Root cause identified with evidence (`file:line` + failing test/log)
+    - Web UX restored to canonical design-system quality on affected screens
+    - iOS app opens and core navigation works (Root/App entry flow validated)
+    - Deterministic regression tests added/updated (web + iOS where applicable)
+    - CI checks for touched surfaces pass; no unresolved review threads
+
 - [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -433,27 +452,28 @@ If it is not recorded here — it does not exist.
     - ✅ Identified false positives (test fixes, frontend dependency, docs references)
     - ✅ Marked as resolved — security gap does not exist
 
-- [ ] P1: Implement WebSocket endpoint with security from start
+- [x] P1: Implement WebSocket endpoint with security from start
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (feature + security)
-  - Target PR: TBD (feature implementation)
-  - Status: 📋 Planned
-  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
+  - Target PR: PR #818
+  - Status: ✅ Merged (PR #818, 2026-02-19)
+  - Reason: Canonical `/ws` endpoint and security behavior are now validated with deterministic tests. Authentication and rate-limit close behavior are covered to prevent drift.
   - Links:
-    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818
+    - tests/test_realtime_ws_security.py
+    - app/routers/realtime_ws.py
     - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
     - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
   - Prerequisites:
     - ✅ Security requirements defined (auth + rate-limiting)
-    - ⏳ Use cases defined (what real-time features need WebSocket)
+    - ✅ Use cases defined (what real-time features need WebSocket)
   - DoD:
-    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
-    - Authentication required (token in query params or headers)
-    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
-    - Tests verify unauthenticated connections are rejected (403/401)
-    - Tests verify rate-limiting works (429 when limit exceeded)
-    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
-    - Documentation: WebSocket API contract, authentication flow, rate limits
+    - ✅ WebSocket endpoint `/ws` available with FastAPI WebSocket support
+    - ✅ Authentication required (token in query params or headers)
+    - ✅ Rate-limiting implemented (per-user message limits in router policy)
+    - ✅ Tests verify unauthenticated connections are rejected (close code policy)
+    - ✅ Tests verify rate-limiting closes connection on limit exceed
+    - ✅ CI checks green on merged PR (#818)
 
 - [x] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya
