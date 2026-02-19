@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Design URL + Node ID Capture Protocol (H+P+Pr)
 
-**Date:** February 18, 2026
+**Date:** February 19, 2026
 **Scope:** unblock Code Connect activation for Home + Plate + Progress CTA mappings
 
 ## 1) Purpose
