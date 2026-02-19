@@ -62,7 +62,12 @@ In IDE/Codex MCP panel:
 
 ### Step 6: Capture evidence
 
-Store in `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`:
+Do not edit `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md` directly.
+For each live session, copy it to a session file under:
+
+- `docs/runbooks/sessions/FIGMA_MCP_SESSION_<YYYY-MM-DD>_<slug>.md`
+
+Then store:
 
 - source route,
 - target Figma URL,
