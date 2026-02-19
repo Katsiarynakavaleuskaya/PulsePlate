@@ -1,3 +1,6 @@
+export function createWebSocketConnection(url: string): WebSocket {
+  return new WebSocket(url);
+}
 import { getApiBase } from "./client";
 
 export type WsConnectionState = "connecting" | "open" | "closed" | "error";

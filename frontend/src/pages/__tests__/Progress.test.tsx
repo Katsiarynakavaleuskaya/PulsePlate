@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import Progress from '../Progress';
 
 // Mock ProgressCharts component
@@ -13,15 +14,25 @@ afterEach(() => {
 
 describe('Progress', () => {
   it('renders progress page with ProgressCharts', () => {
-    render(<Progress />);
+    render(
+      <MemoryRouter>
+        <Progress />
+      </MemoryRouter>
+    );
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Refresh setup inputs' })).toHaveAttribute('href', '/setup');
     expect(screen.getByTestId('progress-charts')).toBeInTheDocument();
   });
 
   it('has correct inline styles', () => {
-    render(<Progress />);
+    render(
+      <MemoryRouter>
+        <Progress />
+      </MemoryRouter>
+    );
 
     const main = screen.getByRole('main');
     expect(main).toHaveStyle({

@@ -13,6 +13,8 @@ describe('Home', () => {
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open progress live' })).toHaveAttribute('href', '/progress');
     expect(screen.getByText('Quick actions')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open setup' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open plate' })).toHaveAttribute('href', '/plate');
