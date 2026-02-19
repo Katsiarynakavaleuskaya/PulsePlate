@@ -153,6 +153,21 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Designer Artist Agent (`designer-artist-agent`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root) — coordinator-first policy and scope discipline
+- `.cursor/agents/designer-artist-agent.md` — emblem packet contract and output schema
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` — brand visual constraints
+
+**Must know:**
+
+- Scope is strictly emblem/logo package production, not generic UI/UX implementation
+- Deliverables must be drawable and synchronized across SVG + Figma + Sora + Nano Banana packet formats
+
+---
+
 ### Sora Prompt Engineer (`sora-prompt-engineer`)
 
 **Primary (task-dependent):**
@@ -462,5 +477,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-17 (PR `#776`)
+**Last updated:** 2026-02-19 (PR `#817`)
 **Status:** Canonical
