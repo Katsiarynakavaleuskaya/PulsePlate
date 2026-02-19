@@ -556,6 +556,45 @@ If it is not recorded here — it does not exist.
     - Deterministic tests added for hook, indicator, and HPP page integration
     - Thin-client websocket guard remains green (`src/api/wsClient.ts` adapter boundary)
 
+- [x] P1: Home/Plate/Progress live indicator A/B variant + telemetry enrichment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #803 (`feat/hpp-live-indicator-ab-variant`)
+  - Status: ✅ Merged (PR #803, 2026-02-19)
+  - Merge SHA: d1e2fa1668156b8621557daee235844bd4703ced
+  - Area: frontend / product-metrics / experimentation
+  - Finding Type: user-visible experiment package
+  - Reason: Extend the shipped live-indicator package with deterministic A/B variant
+    assignment (`compact`/`emphasized`) and enriched telemetry needed to measure
+    variant-level CTA and paywall-open behavior without expanding backend scope.
+  - Experiment Window:
+    - Start: 2026-02-20
+    - End: 2026-03-05
+    - Guardrails: websocket connect success >= 99%, no JS runtime error increase,
+      no layout-shift regressions on Home/Plate/Progress
+  - Metric Tracking:
+    - Primary KPI: `hpp_live_cta_click_rate_by_variant`
+    - Secondary KPI: `paywall_open_from_live_by_variant`
+    - Supporting Signals:
+      - `hpp_live_indicator_impression`
+      - `hpp_cta_impression`
+      - `hpp_cta_click`
+      - `hpp_paywall_open_from_live`
+  - Links:
+    - PR #803
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/features/progress/__tests__/useHppLiveIndicator.test.ts`
+    - `frontend/src/features/progress/__tests__/LiveProgressIndicator.test.tsx`
+    - `frontend/src/features/progress/__tests__/hppTelemetry.test.ts`
+  - DoD:
+    - Deterministic variant assignment implemented (`userId hash % 2`, fallback `compact`)
+    - UI variant rendering validated for `compact` and `emphasized`
+    - Telemetry payload includes `placement` and `variant` across impression/click events
+    - Paywall-open event from live indicator is emitted with stable payload shape
+    - Deterministic tests and snapshots cover variant logic and telemetry shape
+
 - [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
