@@ -39,7 +39,7 @@ operational tasks.
   capability matrix (`generate_figma_design` availability by client)
 - [`FIGMA_MCP_LIVE_ACTIVATION.md`](FIGMA_MCP_LIVE_ACTIVATION.md) —
   first-session live activation protocol
-- [`FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
+- [Figma Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
   reproducible code-to-canvas evidence capture checklist
 - [`FIGMA_MCP_DESIGN_SYSTEM_RULES.md`](FIGMA_MCP_DESIGN_SYSTEM_RULES.md) —
   implementation rules for design-system translation into
