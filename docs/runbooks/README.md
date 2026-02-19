@@ -32,6 +32,8 @@ operational tasks.
 - [`FRONTEND_CI_PR_NOTES.md`](FRONTEND_CI_PR_NOTES.md)
 - [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and
   code-to-canvas flow for Codex/Claude
+- [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md) — runtime
+  capability matrix (`generate_figma_design` availability by client)
 - [`FIGMA_MCP_LIVE_ACTIVATION.md`](FIGMA_MCP_LIVE_ACTIVATION.md) —
   first-session live activation protocol
 - [Figma Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
