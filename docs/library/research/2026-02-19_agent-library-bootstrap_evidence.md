@@ -30,6 +30,7 @@ External sources were used only for demonstration and reporting context.
 ## Conclusion
 
 Evidence is sufficient for process bootstrap:
+
 - CLI operational,
 - SoT docs linked,
 - artifact pipeline ready for PR-driven cycles.
