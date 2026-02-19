@@ -16,7 +16,12 @@ Purpose: single Git folder for everything you pass to Figma AI.
 9. `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
 10. `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`
 11. `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
-12. `docs/figma/orchestration/README.md`
+12. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+13. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+14. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+15. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+16. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+17. `docs/figma/orchestration/README.md`
 
 ## Files
 
@@ -40,8 +45,19 @@ Purpose: single Git folder for everything you pass to Figma AI.
   - What to verify before sending and after receiving outputs.
 - `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`
   - Template for adding new requests in a stable format.
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+  - Canonical operating model for Make vs Design source-of-truth lock and
+    OpenClaw/Clawbat terminal workflow contract.
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+  - P1 specification for sandbox design-agent contracts, safety gates, and DoD.
 - `docs/figma/orchestration/README.md`
   - How to run Figma-focused multi-agent sessions with canonical constraints.
+- `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+  - P2 prompt templates and controlled variations for Home/Plate/Progress assets.
+- `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+  - Release-ready QA rubric (pass/fail) for prompt outputs.
+- `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+  - Throughput measurement and GTM matrix for visual experiments.
 
 ## Recommended workflow
 
@@ -53,8 +69,10 @@ Purpose: single Git folder for everything you pass to Figma AI.
 5. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 6. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
 7. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
-8. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
-9. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
+8. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
+9. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+10. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
+11. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
 
 ## Canonical project links
 

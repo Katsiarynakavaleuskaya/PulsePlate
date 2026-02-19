@@ -28,6 +28,11 @@ Read in this order for every new Figma task:
 10. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 11. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 12. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+13. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+14. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+15. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+16. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+17. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
 
 ## 3) Git Packs to Read by Intent
 
@@ -78,6 +83,13 @@ Use when conflicts appear or when acceptance criteria are unclear.
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 
 Use when translating Figma nodes to existing site components and tracking map status.
+
+### 3.8 Clawbot/OpenClaw operating model and sandbox agent spec
+
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+
+Use when running terminal automation, evidence capture, and human-gated design-agent tasks.
 
 ## 4) Implementation Lookup Matrix
 
@@ -199,6 +211,11 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+- `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+- `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+- `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
 - `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`

@@ -194,6 +194,9 @@ A **task** is any unit of work that:
 - Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
 - Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - Design URL + node-id capture protocol for Code Connect activation: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- Figma/OpenClaw operating model and evidence contract: `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- Sandbox design-agent specification and HITL gates: `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+- Sora prompt pack and QA rubric for HPP visuals: `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`, `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 - Dialogue visualization contract (Mermaid): `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md` (section `Визуализация диалога`)
 
 **Full workflow:** See `docs/orchestration/workflow.md`
