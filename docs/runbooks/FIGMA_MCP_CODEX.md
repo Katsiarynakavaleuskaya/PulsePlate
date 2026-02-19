@@ -36,6 +36,9 @@ If your Claude Code runtime supports plugin install command:
 /plugin install figma@claude-plugin-directory
 ```
 
+Note: `figma@claude-plugin-directory` is a placeholder. Use the exact plugin
+identifier/command required by your Claude/Codex environment.
+
 After install:
 
 - Restart Claude Code session.
@@ -55,11 +58,17 @@ bearer_token_env_var = "FIGMA_OAUTH_TOKEN"
 http_headers = { "X-Figma-Region" = "us-east-1" }
 ```
 
+If you are unsure about region:
+
+- confirm your org region in Figma admin/workspace settings, or
+- omit the `X-Figma-Region` header initially and add it only if required by
+  your tenant/network policy.
+
 Set token in shell before launching Codex:
 
 ```bash
 export FIGMA_OAUTH_TOKEN="<your_token>"
-echo "$FIGMA_OAUTH_TOKEN"
+test -n "$FIGMA_OAUTH_TOKEN" && echo "FIGMA_OAUTH_TOKEN is set"
 ```
 
 Restart Codex/Cursor after config changes.
@@ -96,9 +105,11 @@ Restart Codex/Cursor after config changes.
 ## Evidence Commands
 
 ```bash
-echo "$FIGMA_OAUTH_TOKEN"
+test -n "$FIGMA_OAUTH_TOKEN" && echo "FIGMA_OAUTH_TOKEN is set"
+printf "FIGMA_OAUTH_TOKEN length: %s\n" "${#FIGMA_OAUTH_TOKEN}"
 ```
 
 Expected:
 
-- non-empty token output in active shell session.
+- token presence check passes in active shell session.
+- length is greater than zero.
