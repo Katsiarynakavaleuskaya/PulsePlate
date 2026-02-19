@@ -48,9 +48,9 @@ Source references: attached real-cat photos + current PulsePlate logo direction
 
 ## 5) Quick Likeness QA
 
-- Pass when first-glance recognition matches the real prototype cat.
-- Pass when the silhouette stays compact and friendly.
-- Pass when eye/nose/chest/paw markers remain intact.
+- First-glance recognition should match the real prototype cat.
+- Keep the silhouette compact and friendly in all variants.
+- Ensure eye/nose/chest/paw markers remain intact.
 - Fail if mascot can be mistaken for a different cat identity.
 - Fail if style continuity breaks between image and animation packs.
 
