@@ -47,16 +47,16 @@ export default function Home() {
       <section className="p-4 space-y-3" style={pageCardStyle}>
         <h2 className="text-base font-semibold text-text">Quick actions</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Link className="rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-white" to="/setup">
+          <Link className="rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90" to="/setup">
             Open setup
           </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text" to="/plate">
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/plate">
             Open plate
           </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text" to="/progress">
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/progress">
             Open progress
           </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text" to="/pro">
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/pro">
             Open Pro
           </Link>
         </div>

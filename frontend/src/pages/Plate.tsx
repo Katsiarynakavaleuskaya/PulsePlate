@@ -35,10 +35,10 @@ export default function Plate() {
             Use setup to refresh targets, then open progress for trend tracking.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Link className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white" to="/setup">
+            <Link className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90" to="/setup">
               Open setup
             </Link>
-            <Link className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3 text-sm font-semibold text-text" to="/progress">
+            <Link className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/progress">
               Open progress
             </Link>
           </div>
