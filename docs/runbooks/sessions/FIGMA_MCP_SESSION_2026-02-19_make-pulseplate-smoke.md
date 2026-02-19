@@ -5,8 +5,8 @@
 - Date: 2026-02-19
 - Operator: Codex agent + user session
 - Branch: `docs/figma-mcp-session-smoke-evidence`
-- Local source route: N/A (Make-source smoke focus)
-- Target Figma source URL: `https://www.figma.com/make/MrztJU3CQtxhADBbtAsWJ6/PulsePlate_Web`
+- Local source root: N/A (Make-source smoke focus)
+- Target Figma source URL: `https://www.figma.com/make/<REDACTED_FILE_KEY>/PulsePlate_Web`
 - Target node/frame: Make root node (`0:1`) and FigJam output canvas
 
 ## Preconditions Check
@@ -22,15 +22,15 @@
 
 - Tool: `plugin-figma-figma.whoami`
 - Result:
-  - email: `lexakm532@gmail.com`
-  - handle: `Katsiaryna Kavaleuskaya`
-  - plan: `Катерина's team` (`pro`, seat `Full`)
+  - email: `l***@g***.com` (redacted)
+  - handle: `K*** K***` (redacted)
+  - plan: `Team (redacted)` (`pro`, seat `Full`)
 
 ### Request 2 (Make context extraction)
 
 - Tool: `plugin-figma-figma.get_design_context`
 - Arguments:
-  - `fileKey=MrztJU3CQtxhADBbtAsWJ6`
+  - `fileKey=<REDACTED_FILE_KEY>`
   - `nodeId=0:1`
 - Result:
   - returned Make source resources (including `src/app/App.tsx`)
@@ -44,7 +44,8 @@
   - `mermaidSyntax` simple `code -> canvas -> iteration` flow
 - Result:
   - diagram created successfully in FigJam
-  - URL: [PulsePlate code-to-figma smoke](https://www.figma.com/online-whiteboard/create-diagram/580b99ea-ef7b-47b6-bf64-4f0283765f2c?utm_source=other&utm_content=edit_in_figjam&oai_id=&request_id=dc3224b6-5130-48d3-ab9f-e9c30bbcc58d)
+  - URL:
+    [PulsePlate code-to-figma smoke](https://www.figma.com/online-whiteboard/create-diagram/580b99ea-ef7b-47b6-bf64-4f0283765f2c)
 
 ## Validation
 
@@ -64,7 +65,7 @@
   - Output line: user identity payload returned
   - Exit: success
 
-- Call: `get_design_context(fileKey=MrztJU3CQtxhADBbtAsWJ6,nodeId=0:1)`
+- Call: `get_design_context(fileKey=<REDACTED_FILE_KEY>,nodeId=0:1)`
   - Output line:
     "This contains the resource links for all the source files in the
     Figma Make."
