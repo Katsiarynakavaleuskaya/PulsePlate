@@ -5,7 +5,7 @@
 **Scope:** 23 CTA IDs from `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
 **Context version:** 2026-02-18 / commit `162ad6ef`
 
-Status policy for this revision: rows remain `blocked_by_node_id_capture` (`missing_node_id`) until node IDs are available in Design; rows with verified node capture are marked `validated`.
+Status policy for this revision: rows stay `blocked_by_design_url` when the Design file key is missing; once the Design URL exists but node IDs are missing, use `blocked_by_node_id_capture` (`missing_node_id`); rows with verified node capture are marked `validated`.
 
 | Button/CTA ID | Platform | Screen | Existing Site Surface (file:line) | Candidate Component/Entry | Code Connect Label | Design File Key | Node ID | Status | Gap/Refactor Needed | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ Status policy for this revision: rows remain `blocked_by_node_id_capture` (`miss
 - Mapping coverage is complete for all 23 CTA IDs in H+P+Pr scope.
 - Candidate rows intentionally avoid fake node IDs.
 - 2026-02-19 browser capture validated `web.home.open_setup` as `1:72` in file `umcCk7TtO760DJ3N6M7mvh`; `Find (All pages)` returned no results for `web.plate.premium_gate_cta`, `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`.
-- Clear note: Design URL exists, node IDs missing in design file.
+- Clear note: For `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic`, the Design URL exists but node IDs are missing in the design file.
 - Activation starts after missing node IDs are added in Design and capture is completed.
 
 ## Next action for designer
