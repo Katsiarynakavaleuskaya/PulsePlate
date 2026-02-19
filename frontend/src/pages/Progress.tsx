@@ -1,5 +1,6 @@
 import ProgressCharts from '../features/progress/ProgressCharts';
 import { pageCardStyle } from '../components/ui/pageCardStyle';
+import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 
 export default function Progress() {
   return (
@@ -8,6 +9,7 @@ export default function Progress() {
         <h1 className="text-2xl font-bold text-text">Progress</h1>
         <p className="mt-2 text-sm text-muted">Daily and weekly trend surface for Home+Plate slice.</p>
       </section>
+      <LiveProgressIndicator source="progress" ctaTo="/setup" ctaLabel="Refresh setup inputs" />
       <ProgressCharts />
     </main>
   );

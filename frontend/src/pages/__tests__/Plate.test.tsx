@@ -54,6 +54,8 @@ describe('Plate', () => {
     expect(screen.getByTestId('premium-gate')).toBeInTheDocument();
     expect(screen.getByText('PRO nutrition controls')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open setup' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open progress live' })).toHaveAttribute('href', '/progress');
   });
 
   it('passes correct isPremium prop to PremiumGate', () => {

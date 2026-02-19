@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getStoredApiKey } from '../auth/storage';
 import { pageCardStyle } from '../components/ui/pageCardStyle';
+import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { usePremium } from '../lib/usePremium';
 
 export default function Home() {
@@ -27,6 +28,8 @@ export default function Home() {
           </p>
         </article>
       </section>
+
+      <LiveProgressIndicator source="home" ctaTo="/progress" ctaLabel="Open progress live" />
 
       <section className="p-4 space-y-3" style={pageCardStyle}>
         <h2 className="text-base font-semibold text-text">Quick actions</h2>

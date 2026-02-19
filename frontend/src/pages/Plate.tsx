@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import PremiumGate from "../components/PremiumGate";
 import { pageCardStyle } from "../components/ui/pageCardStyle";
+import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { usePremium } from "../lib/usePremium";
 import { PREMIUM_GATE_SOURCES } from "../config/constants";
 
@@ -42,6 +43,7 @@ export default function Plate() {
             </Link>
           </div>
         </section>
+        <LiveProgressIndicator source="plate" ctaTo="/progress" ctaLabel="Open progress live" />
       </PremiumGate>
     </main>
   );
