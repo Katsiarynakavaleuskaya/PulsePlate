@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   trackHppCtaClick,
@@ -25,8 +25,15 @@ export default function LiveProgressIndicator({
 }: LiveProgressIndicatorProps) {
   const { status, lastEventAt, variant: assignedVariant } = useHppLiveIndicator();
   const resolvedVariant = variant ?? assignedVariant;
+  const lastImpressionKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const impressionKey = `${source}|${ctaTo}|${resolvedVariant}|${status}`;
+    if (lastImpressionKeyRef.current === impressionKey) {
+      return;
+    }
+    lastImpressionKeyRef.current = impressionKey;
+
     const basePayload = {
       source: 'hpp_live_indicator' as const,
       placement: source,
@@ -45,7 +52,8 @@ export default function LiveProgressIndicator({
     resolvedVariant === 'emphasized'
       ? 'inline-flex rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white'
       : 'inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white';
-  const isPaywallCta = ctaTo.includes('/pro') || ctaTo.includes('/paywall');
+  const path = ctaTo.split('?')[0];
+  const isPaywallCta = /^\/pro(?:\/|$)/.test(path) || /^\/paywall(?:\/|$)/.test(path);
 
   return (
     <section

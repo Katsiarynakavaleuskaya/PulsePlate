@@ -21,7 +21,11 @@ const getStoredUserId = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
   }
-  return localStorage.getItem(HPP_USER_ID_STORAGE_KEY) || sessionStorage.getItem(HPP_USER_ID_STORAGE_KEY);
+  try {
+    return localStorage.getItem(HPP_USER_ID_STORAGE_KEY) || sessionStorage.getItem(HPP_USER_ID_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 };
 
 export function assignHppLiveVariant(userId: string | null | undefined): HppLiveVariant {
@@ -52,7 +56,7 @@ export function useHppLiveIndicator(
     return overrideWsUrl === null ? null : getConfiguredWsUrl();
   }, [overrideWsUrl]);
 
-  const variant = useMemo(() => {
+  const variant = useMemo((): HppLiveVariant => {
     const userId = overrideUserId !== undefined ? overrideUserId : getStoredUserId();
     return assignHppLiveVariant(userId);
   }, [overrideUserId]);
