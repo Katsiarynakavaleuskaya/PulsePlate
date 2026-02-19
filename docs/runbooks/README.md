@@ -42,7 +42,8 @@ operational tasks.
 - [`FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
   reproducible code-to-canvas evidence capture checklist
 - [`FIGMA_MCP_DESIGN_SYSTEM_RULES.md`](FIGMA_MCP_DESIGN_SYSTEM_RULES.md) —
-  implementation rules for design-system translation into `frontend/`
+  implementation rules for design-system translation into
+  `frontend/`
 - [`FIGMA_TERMINAL_CLAWBOT_MCP.md`](FIGMA_TERMINAL_CLAWBOT_MCP.md) —
   terminal-to-Figma/Clawbot operating workflow
 

@@ -1,5 +1,7 @@
 # Home+Plate+Progress Audit + Runbook (2026-02-17)
 
+<!-- markdownlint-disable MD013 -->
+
 ## 1. Scope and non-goals
 
 ### Scope
