@@ -30,27 +30,13 @@ Use these constraints in every prompt family below.
 No neon cyberpunk, no purple-gold luxury drift, no glossy 3D blobs, no hospital equipment, no diagnosis/cure implication, no fear/shame framing, no copycat competitor style, no noisy micro-textures, no unreadable tiny details.
 ```
 
-## 2) FitChef Identity Profile (for likeness stability)
+## 2) FitChef Identity SoT (for likeness stability)
 
-### Fixed morphology (must stay)
+Canonical identity rules live in:
 
-- Domestic tabby cat with white chest and white paws ("socks")
-- Large warm amber/yellow eyes, soft round gaze
-- Pink nose with subtle darker contour
-- Distinct tabby forehead/cheek striping and dark ear edges
-- Compact, friendly silhouette (not elongated, not angular-predatory)
+- `docs/sora/prompts/brand_core/FITCHEF_IDENTITY_PROFILE_v1.md`
 
-### Expression policy
-
-- Emotional baseline: calm, curious, supportive
-- Allowed: soft wink, gentle smile, attentive head tilt
-- Forbidden: aggressive grin, uncanny human-like teeth, dramatic anger
-
-### Wardrobe/accessory policy
-
-- Product mode: optional minimal collar/charm only
-- Marketing mode: optional subtle chef cue (small hat or badge), never caricature-heavy
-- No heavy costume, no medical uniforms, no stethoscope symbolism
+Use this pack as execution guidance only. Do not redefine morphology or expression rules here.
 
 ## 3) Prompt Family A - Image: FitChef Character System
 
@@ -195,19 +181,13 @@ Create a 3-6 second loop: FitChef subtle breathing rhythm with faint pulse-ring 
 | Composition | One focal center, low clutter | Negative space amount, background depth |
 | Motion | Smooth, no flash, no jitter | Loop length and amplitude within comfort band |
 
-## 7) Failure Tags for Deterministic Review
+## 7) Failure Tag SoT
 
-Use one or more tags for rejected candidates:
+Use canonical failure tags from:
 
-- `palette_drift`
-- `mascot_drift`
-- `safety_violation`
-- `readability_failure`
-- `hierarchy_failure`
-- `undocumented_variation`
-- `motion_discomfort`
-- `small_size_failure`
-- `logo_semantic_drift`
+- `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+
+Do not introduce local tag aliases in this file.
 
 ## 8) Release-Ready Gate
 
