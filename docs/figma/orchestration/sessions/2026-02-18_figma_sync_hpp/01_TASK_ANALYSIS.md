@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # 01 Task Analysis (Figma Sync H+P+Pr)
 
 - context_version: 2026-02-18 / commit `162ad6ef`

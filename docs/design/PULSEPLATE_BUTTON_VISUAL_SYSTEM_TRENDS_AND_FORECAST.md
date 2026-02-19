@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD013 MD034 -->
 # PulsePlate Button Visual System + 5-Year Trend Intelligence (H+P+Pr)
 
 **Date:** February 18, 2026

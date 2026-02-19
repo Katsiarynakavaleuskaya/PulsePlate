@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # 02 Brainstorm Tracks (Figma Sync H+P+Pr)
 
 ## Track A — Reconciliation model
