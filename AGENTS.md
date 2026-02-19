@@ -191,6 +191,9 @@ A **task** is any unit of work that:
 - Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Research brainstorming (brainstorm → optional web/OSS intake → decision → promotion): `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+- Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- Design URL + node-id capture protocol for Code Connect activation: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 
 **Full workflow:** See `docs/orchestration/workflow.md`
 

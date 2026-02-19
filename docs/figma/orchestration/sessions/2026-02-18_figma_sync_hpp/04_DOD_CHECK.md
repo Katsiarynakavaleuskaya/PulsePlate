@@ -16,7 +16,7 @@
 
 ## Verification DoD
 
-- [ ] docs phase1 gates passed
+- [ ] docs phase 1 gates passed
 - [ ] repo policy guards passed
 - [ ] lint/hooks passed
 - [ ] make verify passed

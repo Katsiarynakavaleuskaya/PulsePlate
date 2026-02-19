@@ -3,6 +3,8 @@
 
 - context_version: 2026-02-18 / commit `162ad6ef`
 - source mode: Make-only (`<FIGMA_MAKE_FILE_ID>`) until Design URL exists
+  - Evidence: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md:6`
+  - Evidence: `docs/figma/orchestration/sessions/2026-02-18_figma_sync_hpp/03_SYNTHESIS_DECISION.md:6`
 - primary objective: reconcile Figma Make updates with Git SoT and prepare Code Connect bridge to existing site
 - fixed scope: Home + Plate + Progress + linked CTA flows only
 

@@ -23,9 +23,11 @@ Primary SoT references:
 
 ## 2) Baseline Snapshot (Evidence)
 
-- Figma MCP auth confirms active Pro/Full seat (captured via MCP `whoami`).
+- Figma MCP auth check is mandatory in the activation workflow (`whoami` gate).
+  Evidence: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:14`
 - Active Make file pointer exists in backlog: `docs/roadmap/BACKLOG_LEDGER.md:1643`.
-- Current Make file contains local docs + generated UI scaffolding and guideline pack (observed via MCP `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)`).
+- Make-only sync loop explicitly requires `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)` before reconciliation.
+  Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:139`
 - Project CTA behavior SoT remains matrix-driven: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
 
 ## 3) Aligned
@@ -70,7 +72,8 @@ Risk: generated components map to non-canonical entry points.
 1. No Design file URL or node IDs for node-level Code Connect.
 2. `Figma Node ID` still `TBD` across matrix rows.
 Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
-3. No repository Code Connect mapping registry for 23 CTA IDs.
+3. Mapping registry exists for 23 CTA IDs:
+   `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
 4. No status lifecycle tracking (`candidate -> validated -> active`) in current handoff contract.
 
 ## 6) Action Required
