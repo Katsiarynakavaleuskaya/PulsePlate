@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026
 **Scope:** Home + Plate + Progress (Web + iOS) and linked CTA flows
-**Source mode:** Make-only (`MrztJU3CQtxhADBbtAsWJ6`) until Design URL is provided
+**Source mode:** Make-only (`<FIGMA_MAKE_FILE_ID>`) until Design URL is provided
 **Context version:** 2026-02-18 / commit `162ad6ef`
 
 ## 1) Purpose
@@ -25,7 +25,7 @@ Primary SoT references:
 
 - Figma MCP auth confirms active Pro/Full seat (captured via MCP `whoami`).
 - Active Make file pointer exists in backlog: `docs/roadmap/BACKLOG_LEDGER.md:1643`.
-- Current Make file contains local docs + generated UI scaffolding and guideline pack (observed via MCP `get_design_context(fileKey=MrztJU3CQtxhADBbtAsWJ6, nodeId=0:1)`).
+- Current Make file contains local docs + generated UI scaffolding and guideline pack (observed via MCP `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)`).
 - Project CTA behavior SoT remains matrix-driven: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
 
 ## 3) Aligned

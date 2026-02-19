@@ -11,7 +11,7 @@ Provide a deterministic way to complete the missing dependency:
 
 ## 2) Constraint (why this protocol is required)
 
-Current source is a **Figma Make** file (`MrztJU3CQtxhADBbtAsWJ6`).
+Current source is a **Figma Make** file (`<FIGMA_MAKE_FILE_ID>`).
 MCP tools for Code Connect (`get_code_connect_suggestions`, `get_metadata`,
 `get_code_connect_map`) are supported for **Figma Design** files only.
 
@@ -22,7 +22,7 @@ Therefore, this dependency cannot be auto-closed from Make context alone.
 ### Step 1: obtain Design file URL
 
 1. Open the canonical Make file:
-   `https://www.figma.com/make/MrztJU3CQtxhADBbtAsWJ6/Untitled`
+   `https://www.figma.com/make/<FIGMA_MAKE_FILE_ID>/Untitled`
 2. Open the corresponding **Figma Design** file used for component mapping.
 3. Copy the Design URL in format:
    `https://www.figma.com/design/<fileKey>/<fileName>?node-id=<nodeId>`

@@ -137,7 +137,7 @@ Attach this snapshot to request payload:
 When source mode is Make-only:
 
 1. Run MCP `get_design_context` for Make file root:
-   - `fileKey=MrztJU3CQtxhADBbtAsWJ6`
+   - `fileKey=<FIGMA_MAKE_FILE_ID>`
    - `nodeId=0:1`
 2. Review latest `guidelines/Guidelines.md`, `src/app/App.tsx`,
    `src/app/components/pp-button.tsx`, `src/styles/theme.css`.

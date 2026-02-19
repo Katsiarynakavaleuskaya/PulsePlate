@@ -1,7 +1,7 @@
 # 01 Task Analysis (Figma Sync H+P+Pr)
 
 - context_version: 2026-02-18 / commit `162ad6ef`
-- source mode: Make-only (`MrztJU3CQtxhADBbtAsWJ6`) until Design URL exists
+- source mode: Make-only (`<FIGMA_MAKE_FILE_ID>`) until Design URL exists
 - primary objective: reconcile Figma Make updates with Git SoT and prepare Code Connect bridge to existing site
 - fixed scope: Home + Plate + Progress + linked CTA flows only
 
