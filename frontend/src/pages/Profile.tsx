@@ -22,10 +22,10 @@ export default function Profile() {
       <section className="p-4 space-y-3" style={pageCardStyle}>
         <h2 className="text-base font-semibold text-text">Actions</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Link className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white" to="/enter-key">
+          <Link className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90" to="/enter-key">
             Configure API key
           </Link>
-          <Link className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3 text-sm font-semibold text-text" to="/setup">
+          <Link className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/setup">
             Open nutrition setup
           </Link>
         </div>
