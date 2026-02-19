@@ -32,6 +32,10 @@ operational tasks.
 - [`FRONTEND_CI_PR_NOTES.md`](FRONTEND_CI_PR_NOTES.md)
 - [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and
   code-to-canvas flow for Codex/Claude
+- [`FIGMA_MCP_LIVE_ACTIVATION.md`](FIGMA_MCP_LIVE_ACTIVATION.md) —
+  first-session live activation protocol
+- [Figma Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
+  reproducible code-to-canvas evidence capture checklist
 
 ## Project maintenance
 
