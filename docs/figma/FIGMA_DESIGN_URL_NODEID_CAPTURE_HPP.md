@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Design URL + Node ID Capture Protocol (H+P+Pr)
 
-**Date:** February 18, 2026
+**Date:** February 19, 2026
 **Scope:** unblock Code Connect activation for Home + Plate + Progress CTA mappings
 
 ## 1) Purpose
@@ -69,10 +69,22 @@ If both succeed for all P0 rows, blocker is cleared and activation may proceed v
 
 | Button/CTA ID | Design URL | fileKey | nodeId | Captured by | Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `web.home.open_setup` | TBD | TBD | TBD | TBD | TBD | blocked_by_design_url |
-| `web.plate.premium_gate_cta` | TBD | TBD | TBD | TBD | TBD | blocked_by_design_url |
-| `web.progress.export_pdf` | TBD | TBD | TBD | TBD | TBD | blocked_by_design_url |
-| `ios.plate.issue_action_dynamic` | TBD | TBD | TBD | TBD | TBD | blocked_by_design_url |
+| `web.home.open_setup` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System?node-id=1-72` | `umcCk7TtO760DJ3N6M7mvh` | `1:72` | OpenClaw (browser capture) | 2026-02-19 | validated |
+| `web.plate.premium_gate_cta` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+| `web.progress.export_pdf` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+| `ios.plate.issue_action_dynamic` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
+
+**Capture note (2026-02-19):** in public browser session, `Find` with scope `All pages` returned `No results in this file` for `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic`; only `web.home.open_setup` resolved to `node-id=1-72`.
+
+**Clear note:** Design URL exists, node IDs missing in design file.
+
+## Next action for designer
+
+Add/restore the following node names in Design file `umcCk7TtO760DJ3N6M7mvh` and provide selection URLs with node IDs:
+
+- `web.plate.premium_gate_cta`
+- `web.progress.export_pdf`
+- `ios.plate.issue_action_dynamic`
 
 ## 5) Done Criteria
 
@@ -81,7 +93,7 @@ Dependency is considered closed only when:
 1. Design URL is recorded in repo docs.
 2. All four P0 rows have non-`TBD` `fileKey` and `nodeId`.
 3. MCP verification succeeds for all four rows.
-4. Mapping registry status is updated out of `blocked_by_design_url`.
+4. Mapping registry status is updated out of `blocked_by_node_id_capture` / `missing_node_id`.
 
 ## 6) Canonical links
 
