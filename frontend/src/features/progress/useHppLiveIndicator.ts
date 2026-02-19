@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { createWebSocketConnection } from '../../api/wsClient';
 
 export type HppLiveStatus = 'live' | 'static';
+export type HppLiveVariant = 'compact' | 'emphasized';
 
 interface UseHppLiveIndicatorResult {
   status: HppLiveStatus;
   lastEventAt: number | null;
+  variant: HppLiveVariant;
 }
 
 const getConfiguredWsUrl = (): string | null => {
@@ -13,7 +15,33 @@ const getConfiguredWsUrl = (): string | null => {
   return value.length > 0 ? value : null;
 };
 
-export function useHppLiveIndicator(overrideWsUrl?: string | null): UseHppLiveIndicatorResult {
+const HPP_USER_ID_STORAGE_KEY = 'pp_user_id';
+
+const getStoredUserId = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return localStorage.getItem(HPP_USER_ID_STORAGE_KEY) || sessionStorage.getItem(HPP_USER_ID_STORAGE_KEY);
+};
+
+export function assignHppLiveVariant(userId: string | null | undefined): HppLiveVariant {
+  if (!userId) {
+    return 'compact';
+  }
+
+  // Deterministic hash for stable user-to-variant assignment.
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+
+  return hash % 2 === 0 ? 'compact' : 'emphasized';
+}
+
+export function useHppLiveIndicator(
+  overrideWsUrl?: string | null,
+  overrideUserId?: string | null
+): UseHppLiveIndicatorResult {
   const [status, setStatus] = useState<HppLiveStatus>('static');
   const [lastEventAt, setLastEventAt] = useState<number | null>(null);
 
@@ -23,6 +51,11 @@ export function useHppLiveIndicator(overrideWsUrl?: string | null): UseHppLiveIn
     }
     return overrideWsUrl === null ? null : getConfiguredWsUrl();
   }, [overrideWsUrl]);
+
+  const variant = useMemo(() => {
+    const userId = overrideUserId !== undefined ? overrideUserId : getStoredUserId();
+    return assignHppLiveVariant(userId);
+  }, [overrideUserId]);
 
   useEffect(() => {
     if (!wsUrl || typeof WebSocket === 'undefined') {
@@ -56,5 +89,5 @@ export function useHppLiveIndicator(overrideWsUrl?: string | null): UseHppLiveIn
     };
   }, [wsUrl]);
 
-  return { status, lastEventAt };
+  return { status, lastEventAt, variant };
 }

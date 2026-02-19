@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useHppLiveIndicator } from '../useHppLiveIndicator';
+import { assignHppLiveVariant, useHppLiveIndicator } from '../useHppLiveIndicator';
 
 type Listener = (event?: Event) => void;
 
@@ -44,6 +44,7 @@ describe('useHppLiveIndicator', () => {
 
     expect(result.current.status).toBe('static');
     expect(result.current.lastEventAt).toBeNull();
+    expect(result.current.variant).toBe('compact');
   });
 
   it('switches to live status on open and message', () => {
@@ -90,5 +91,16 @@ describe('useHppLiveIndicator', () => {
     });
 
     expect(result.current.status).toBe('static');
+  });
+
+  it('assigns deterministic variant by user id hash', () => {
+    expect(assignHppLiveVariant('user_alpha')).toBe(assignHppLiveVariant('user_alpha'));
+    expect(assignHppLiveVariant(null)).toBe('compact');
+
+    const variantA = assignHppLiveVariant('a');
+    const variantB = assignHppLiveVariant('b');
+    expect(['compact', 'emphasized']).toContain(variantA);
+    expect(['compact', 'emphasized']).toContain(variantB);
+    expect(variantA).not.toBe(variantB);
   });
 });
