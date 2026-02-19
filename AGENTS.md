@@ -194,6 +194,7 @@ A **task** is any unit of work that:
 - Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
 - Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - Design URL + node-id capture protocol for Code Connect activation: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- Dialogue visualization contract (Mermaid): `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md` (section `Визуализация диалога`)
 
 **Full workflow:** See `docs/orchestration/workflow.md`
 
