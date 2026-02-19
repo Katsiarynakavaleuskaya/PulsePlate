@@ -530,6 +530,32 @@ If it is not recorded here — it does not exist.
     - Orchestration session artifacts committed for the sync package
     - Root `AGENTS.md` updated with canonical Figma workflow protocol references
 
+- [x] P1: Home/Plate/Progress live indicator + CTA instrumentation (web-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #801 (`feat/hpp-live-indicator-cta`)
+  - Status: ✅ Merged (PR #801, 2026-02-19)
+  - Merge SHA: aec126d6b8757a7a413ebf051f5e7f8a917c3e42
+  - Area: frontend / product-metrics / HPP UX
+  - Finding Type: user-visible activation package
+  - Reason: Deliver one narrow user-facing package that adds a live progress signal on
+    Home/Plate/Progress, keeps strict static fallback when realtime transport is unavailable,
+    and instruments CTA impression/click events for conversion measurement.
+  - Links:
+    - PR #801
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/pages/Home.tsx`
+    - `frontend/src/pages/Plate.tsx`
+    - `frontend/src/pages/Progress.tsx`
+  - DoD:
+    - Live indicator renders on Home, Plate, and Progress surfaces
+    - Fallback invariant preserved (`ws unavailable/error -> static indicator + CTA works`)
+    - CTA telemetry events (`impression`, `click`) emitted through centralized helper
+    - Deterministic tests added for hook, indicator, and HPP page integration
+    - Thin-client websocket guard remains green (`src/api/wsClient.ts` adapter boundary)
+
 - [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
