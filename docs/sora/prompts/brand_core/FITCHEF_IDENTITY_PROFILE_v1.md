@@ -32,11 +32,11 @@ Source references: attached real-cat photos + current PulsePlate logo direction
 
 ## 3) Non-Negotiables
 
-- Do not alter core facial proportions between variants.
-- Do not shift eye color family away from warm amber/yellow.
-- Do not remove white chest/paws identifiers.
-- Do not use clinical attire or medical symbolism.
-- Do not turn mascot into cartoon parody style.
+- Preserve core facial proportions across all variants.
+- Keep eye color inside the warm amber/yellow family.
+- Retain white chest/paws identifiers in every output.
+- Avoid clinical attire and medical symbolism.
+- Keep mascot style serious and brand-consistent, not parody-like.
 
 ## 4) Forbidden Drift Patterns
 
@@ -48,11 +48,11 @@ Source references: attached real-cat photos + current PulsePlate logo direction
 
 ## 5) Quick Likeness QA
 
-- PASS if first-glance recognition matches the real prototype cat.
-- PASS if silhouette remains compact and friendly.
-- PASS if eye/nose/chest/paw markers are preserved.
-- FAIL if mascot could be mistaken for a different cat identity.
-- FAIL if style continuity breaks between image and animation packs.
+- Pass when first-glance recognition matches the real prototype cat.
+- Pass when the silhouette stays compact and friendly.
+- Pass when eye/nose/chest/paw markers remain intact.
+- Fail if mascot can be mistaken for a different cat identity.
+- Fail if style continuity breaks between image and animation packs.
 
 ## 6) Usage with Prompt Packs
 
