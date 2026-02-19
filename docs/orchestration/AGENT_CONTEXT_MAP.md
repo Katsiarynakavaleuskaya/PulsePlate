@@ -157,14 +157,14 @@ This map reduces “missing context” failures by making required inputs explic
 
 **Primary (task-dependent):**
 
-- `AGENTS.md` (root) — coordinator-first policy and scope discipline
-- `.cursor/agents/designer-artist-agent.md` — emblem packet contract and output schema
-- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` — brand visual constraints
+- `AGENTS.md` (root) — coordinator-first policy and scope discipline (`AGENTS.md:157-159`)
+- `.cursor/agents/designer-artist-agent.md` — emblem packet contract and output schema (`.cursor/agents/designer-artist-agent.md:4`, `.cursor/agents/designer-artist-agent.md:34-36`, `.cursor/agents/designer-artist-agent.md:43-44`)
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` — brand visual constraints (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:20`, `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:210`)
 
 **Must know:**
 
-- Scope is strictly emblem/logo package production, not generic UI/UX implementation
-- Deliverables must be drawable and synchronized across SVG + Figma + Sora + Nano Banana packet formats
+- Scope is strictly emblem/logo package production, not generic UI/UX implementation (`.cursor/agents/designer-artist-agent.md:4`, `.cursor/agents/designer-artist-agent.md:39`)
+- Deliverables must be drawable and synchronized across SVG + Figma + Sora + Nano Banana packet formats (`.cursor/agents/designer-artist-agent.md:34-36`, `.cursor/agents/designer-artist-agent.md:77-79`, `.cursor/agents/designer-artist-agent.md:85`)
 
 ---
 
