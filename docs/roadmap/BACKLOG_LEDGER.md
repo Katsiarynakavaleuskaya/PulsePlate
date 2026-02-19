@@ -485,7 +485,7 @@ If it is not recorded here — it does not exist.
     - ✅ Authentication required (token in query params or headers)
     - ✅ Rate-limiting implemented (per-user message limits in router policy)
     - ✅ Tests verify unauthenticated connections are rejected (close code policy)
-    - ✅ Tests verify rate-limiting closes connection on limit exceed
+    - ✅ Tests verify rate-limiting closes connection when the limit is exceeded
     - ✅ CI checks green on merged PR (#818)
 
 - [x] P1: Extract hardcoded constants (BMR, export formats)
