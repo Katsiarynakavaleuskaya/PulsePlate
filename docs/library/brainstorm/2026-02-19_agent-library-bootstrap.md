@@ -2,7 +2,7 @@
 
 - Date: 2026-02-19
 - Coordinator: `agent-coordinator`
-- Status: in_progress
+- Status: promoted
 
 ## Decision question
 
