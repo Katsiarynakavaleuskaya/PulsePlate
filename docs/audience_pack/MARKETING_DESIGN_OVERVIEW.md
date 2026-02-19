@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 MD022 MD032 MD024 MD029 MD031 MD060 -->
+
 # Marketing + Design + Growth Overview
 
 Дата версии: 19 февраля 2026 года (`America/New_York`)

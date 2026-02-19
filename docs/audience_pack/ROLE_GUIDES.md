@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 MD022 MD032 MD024 MD029 MD031 MD060 -->
+
 # Role Guides: Что Это За Проект Для Каждой Специальности
 
 Дата версии: 19 февраля 2026 года (`America/New_York`)
