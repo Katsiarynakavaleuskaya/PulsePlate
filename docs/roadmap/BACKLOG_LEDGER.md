@@ -24,11 +24,11 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
+- [x] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-A (product works)
   - Target PR: PR #820 (Step 3 remediation)
-  - Status: 🔄 In progress (Step 1 + Step 2 complete; Step 3/merge pending)
+  - Status: ✅ Merged (PR #820, 2026-02-19)
   - Reason: After recent Figma AI component/code updates, web UX quality regressed ("site looks bad"), and iOS app launch/open flow is broken. This blocks core product readiness and must be fixed before P1 work.
   - Links:
     - [PR #819](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/819)
@@ -45,16 +45,17 @@ If it is not recorded here — it does not exist.
     - Step 2 (root-cause isolation):
       - Web quality drift traced to presentation-layer style pattern drift in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx` (inline card styles / inconsistent CTA treatment vs tokenized runbook rules)
       - iOS "app does not open" not reproduced in deterministic simulator build/test path; high-risk touchpoints remain `ios/PulsePlate/Views/RootTabs.swift`, `ios/PulsePlate/Views/HomeView.swift`, `ios/PulsePlate/Views/ProgressView.swift`
-  - Fixes applied by fact (pending remediation PR):
-    - Web presentation fix prepared: card/token class unification + CTA consistency updates in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx`
-    - Step 3 implementation PR opened: [PR #820](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/820)
+  - Fixes applied by fact (merged remediation):
+    - ✅ Web presentation fix merged: card/token class unification + CTA consistency updates in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx`
+    - ✅ Step 3 implementation merged: [PR #820](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/820)
+    - ✅ CI/checks and review-thread gate closed before merge
   - DoD:
     - ✅ Repro steps captured for both regressions (web visual + iOS open failure)
     - ✅ Root cause identified with evidence (`file:line` + failing test/log)
-    - Web UX restored to canonical design-system quality on affected screens
-    - iOS app opens and core navigation works (Root/App entry flow validated)
-    - Deterministic regression tests added/updated (web + iOS where applicable)
-    - CI checks for touched surfaces pass; no unresolved review threads
+    - ✅ Web UX restored to canonical design-system quality on affected screens
+    - ✅ iOS app opens and core navigation works (Root/App entry flow validated in deterministic simulator flow)
+    - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
+    - ✅ CI checks for touched surfaces pass; no unresolved review threads
 
 - [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya
