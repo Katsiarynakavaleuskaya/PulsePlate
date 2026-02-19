@@ -1,7 +1,7 @@
 # Sora Style QA Checklist (Pass/Fail)
 
-Version: v1.0
-Scope: PulsePlate HPP asset candidates
+Version: v1.1
+Scope: PulsePlate HPP + Brand Core asset candidates (images + micro-motions)
 
 Use this checklist before approving any generated visual.
 
@@ -26,6 +26,13 @@ Use this checklist before approving any generated visual.
 - [ ] FAIL if micro-detail makes information unreadable in app contexts
 - [ ] FAIL if key affordances are visually ambiguous
 
+## Motion Comfort (for animated assets)
+
+- [ ] PASS if motion is smooth and purposeful (no jitter/strobe/harsh cuts)
+- [ ] PASS if reduced-motion-safe fallback is possible
+- [ ] FAIL if loop distracts from primary CTA or key metric reading
+- [ ] FAIL if frame-to-frame mascot identity drifts
+
 ## Variation Control
 
 - [ ] PASS if fixed elements remain fixed across A/B/C variants
@@ -48,3 +55,6 @@ Use one or more:
 - `readability_failure`
 - `hierarchy_failure`
 - `undocumented_variation`
+- `motion_discomfort`
+- `small_size_failure`
+- `logo_semantic_drift`
