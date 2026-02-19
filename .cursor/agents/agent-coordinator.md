@@ -196,6 +196,7 @@ UI/UX design, brand assets, App Store visuals, and marketing creatives.
 ### designer-artist-agent
 
 Specialized emblem-production agent: owns drawable SVG blueprinting + synchronized Figma/Sora/Nano Banana handoff packets (not generic UI/UX, not Sora-only prompt QA).
+Use only for emblem/logo package production tasks.
 
 **Canonical doc:** `.cursor/agents/designer-artist-agent.md`
 
