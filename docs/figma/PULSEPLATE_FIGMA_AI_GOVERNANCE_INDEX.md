@@ -14,6 +14,10 @@ Operational runbook (mandatory):
 
 - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 - `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
+- `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 
 It aligns Figma AI output with project visual SoT and button-level behavior SoT:
 
@@ -21,6 +25,8 @@ It aligns Figma AI output with project visual SoT and button-level behavior SoT:
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+- `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
+- `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`
 
 Operational anchors:
 
@@ -180,7 +186,10 @@ Use prompt stubs as structured placeholders (not final marketing prompts):
 - `CTA_LOADING_STUB_V1`
 - `CTA_ERROR_STUB_V1`
 
-Canonical templates: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+Canonical templates:
+
+- `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+- `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`
 
 Mandatory guard clause block source:
 `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` (Section 8).
@@ -236,4 +245,17 @@ Fields:
 - 2026-02-18: Preserved H+P+Pr fixed scope and PP naming contract.
 - 2026-02-18: Prompt stubs kept template-level by design; no mass final-prompt generation in this phase.
 - 2026-02-18: Added operational runbook + Git packs index as mandatory context layer.
+- 2026-02-18: Added deep-link to CTA visual-system and trend forecast SoT for variant decisions.
+- 2026-02-18: Added Make sync audit + Code Connect bridge layer for existing-site integration.
+
+## 11) Make Sync + Code Connect Operations
+
+Use these artifacts as mandatory operational layer:
+
+1. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` for reconciliation findings.
+2. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` for activation flow and blocker protocol.
+3. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` for Design URL + P0 node capture.
+4. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` for 23 CTA map readiness.
+
+RU (critical): без Design URL/node IDs все строки остаются `blocked_by_design_url`; не подставлять фиктивные node-id.
 <!-- markdownlint-enable MD013 -->

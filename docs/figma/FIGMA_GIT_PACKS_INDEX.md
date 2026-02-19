@@ -4,7 +4,12 @@
 | Pack path | What Figma gets from it | When to read | Priority (P0/P1/P2) | Owner lane (Creative/Sora/FE/iOS/Coordinator) | Drift risk if skipped |
 | --- | --- | --- | --- | --- | --- |
 | `docs/figma/` | Operational handoff contracts, runbook, inbox/checklist, orchestration session evidence | Every task start and handoff | P0 | Coordinator | High: missing operational consistency |
+| `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` | Reconciled Make-vs-Git drift findings and required actions | Before every Figma sync cycle | P1 | Coordinator | Medium: hidden drift and inconsistent assumptions |
+| `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` | Code Connect activation flow, lifecycle, blocker protocol | Before any site-connection attempt | P1 | FE/iOS/Coordinator | High: incorrect mapping activation steps |
+| `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | Exact protocol to capture `figma.com/design` URL and P0 node IDs | When status is `blocked_by_design_url` | P1 | Coordinator/Design | High: activation blocked indefinitely |
+| `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` | 23 CTA mapping readiness table for existing site surfaces | During mapping prep and activation | P1 | FE/iOS | High: missing CTA-to-component traceability |
 | `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` | Button IDs, CTA behavior, status, missing/implement-needed fields | Any CTA/frame/button work | P0 | Creative | High: wrong flows and wrong CTA states |
+| `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md` | Variant system (V1/V2/V3), placement zones, trend/forecast rationale, per-CTA visual mapping | Button styling, prompt generation, visual QA alignment | P1 | Creative/Sora | Medium: inconsistent variants and weak trend justification |
 | `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` | Visual DNA, accessibility and anti-drift rules | Any style/layout decision | P0 | Creative | High: brand drift and inconsistent quality |
 | `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` | Pass/fail quality gate before acceptance | Before sign-off | P0 | Coordinator | High: no deterministic quality gate |
 | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | Prompt style lock, negative guardrails, anti-drift constraints | Any prompt stub or visual generation step | P0 | Sora | High: unsafe or off-brand prompts |
