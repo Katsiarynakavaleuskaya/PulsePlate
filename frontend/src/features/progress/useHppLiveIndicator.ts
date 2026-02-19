@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createWebSocketConnection } from '../../api/wsClient';
 
 export type HppLiveStatus = 'live' | 'static';
 
@@ -30,7 +31,7 @@ export function useHppLiveIndicator(overrideWsUrl?: string | null): UseHppLiveIn
       return;
     }
 
-    const socket = new WebSocket(wsUrl);
+    const socket = createWebSocketConnection(wsUrl);
 
     const markLive = () => {
       setStatus('live');
