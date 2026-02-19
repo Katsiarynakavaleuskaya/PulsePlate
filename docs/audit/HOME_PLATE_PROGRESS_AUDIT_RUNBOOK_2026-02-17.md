@@ -111,8 +111,8 @@
 
 ### Preconditions
 
-- Current Make file (`MrztJU3CQtxhADBbtAsWJ6`) treated as blank scaffold.
-- MCP seat is now `Full` (Pro plan); direct design edits are available.
+- Current Make file (`MrztJU3CQtxhADBbtAsWJ6`) treated as blank scaffold (assumption).
+- MCP seat is now `Full` (Pro plan); direct design edits are available (assumption).
 
 ### Pages
 
@@ -239,7 +239,7 @@ Acceptance criteria:
 
 ## Assumptions and defaults
 
-- Figma seat is `Full`; blueprint execution is allowed in the current workspace.
-- Figma Make file is treated as blank scaffold baseline for this slice.
+- Figma seat is `Full`; blueprint execution is allowed in the current workspace (assumption).
+- Figma Make file is treated as blank scaffold baseline for this slice (assumption).
 - No runtime backend contract changes are included in this stream.
 - Deferred follow-ups must be tracked in `docs/roadmap/BACKLOG_LEDGER.md` with Owner, DoD, and Target PR.
