@@ -79,6 +79,8 @@ Restart Codex/Cursor after config changes.
 - Figma tools are callable (metadata/context/screenshot/export tools).
 - No auth errors in first tool call.
 - Region header matches your Figma org region.
+- Runtime capability expectations are confirmed against
+  [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md).
 
 ## Canonical code-to-Figma flow
 
