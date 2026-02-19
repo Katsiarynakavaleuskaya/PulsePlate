@@ -503,6 +503,33 @@ If it is not recorded here — it does not exist.
     - Matrix `Exists Now / Missing / Implement Needed` statuses are updated after remediation PR
     - `make verify` and required CI checks are green in remediation PR
 
+- [x] P1: Home/Plate/Progress Figma sync and Code Connect bridge docs package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #798 (`docs/figma-hpp-sync-package`)
+  - Status: ✅ Merged (PR #798, 2026-02-19)
+  - Merge SHA: 891a3fcaaac3da351c104a3ebb164c4c02a126c3
+  - Area: docs / design / orchestration
+  - Finding Type: documentation contract delivery
+  - Reason: Landed canonical H+P+Pr Figma sync protocols and Code Connect activation
+    bridge docs with evidence anchors, bot-review remediations, and policy-aligned
+    AGENTS updates; this closes the docs package while keeping Design URL/node ID
+    activation dependency explicitly tracked as a separate open ledger item.
+  - Links:
+    - PR #798
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+    - `AGENTS.md`
+  - DoD:
+    - Figma Make sync audit protocol committed with evidence anchors
+    - Code Connect activation blocker protocol and mapping candidate registry committed
+    - Design URL + node ID capture protocol committed
+    - Orchestration session artifacts committed for the sync package
+    - Root `AGENTS.md` updated with canonical Figma workflow protocol references
+
 - [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
