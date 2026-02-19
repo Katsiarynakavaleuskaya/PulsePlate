@@ -6,7 +6,7 @@ import SegmentedControl from '../components/ui/SegmentedControl';
 
 type ProgressWindow = '7D' | '30D' | '90D';
 
-export default function Progress() {
+export default function Progress(): JSX.Element {
   const [windowRange, setWindowRange] = useState<ProgressWindow>('30D');
 
   return (

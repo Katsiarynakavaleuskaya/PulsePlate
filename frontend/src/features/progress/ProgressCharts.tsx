@@ -198,8 +198,8 @@ export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsPr
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={macroData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percentage }) => `${name}: ${percentage}%`}>
-                {macroData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {macroData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} />
@@ -210,8 +210,8 @@ export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsPr
         <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
           <h3 className="mb-4 text-lg font-semibold" style={{ color: chartTokens.text }}>Nutrient Breakdown</h3>
           <div className="space-y-3">
-            {macroData.map((nutrient, index) => (
-              <div key={index} className="flex items-center justify-between">
+            {macroData.map((nutrient) => (
+              <div key={nutrient.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: nutrient.color }} />
                   <span style={{ color: chartTokens.text }}>{nutrient.name}</span>
