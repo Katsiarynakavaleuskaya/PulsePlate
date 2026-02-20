@@ -26,9 +26,9 @@ const afterItems = [
 ] as const;
 
 const plans = [
-  { name: "Free", subtitle: "Basics", highlighted: false },
-  { name: "Pro", subtitle: "Best value", highlighted: true },
-  { name: "VIP", subtitle: "Advanced", highlighted: false },
+  { nameKey: "paywall.plans.free.name", subtitleKey: "paywall.plans.free.subtitle", highlighted: false },
+  { nameKey: "paywall.plans.pro.name", subtitleKey: "paywall.plans.pro.subtitle", highlighted: true },
+  { nameKey: "paywall.plans.vip.name", subtitleKey: "paywall.plans.vip.subtitle", highlighted: false },
 ] as const;
 
 /**
@@ -125,7 +125,7 @@ export default function BeforeAfter({
         <div className="overflow-y-auto p-5">
           <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
             <div className="mb-2 inline-flex items-center rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-              PRO
+              {t("paywall.badge", "PRO")}
             </div>
             <h2 id="paywall-title" className="text-2xl mb-1">
               {t("paywall.title")}
@@ -155,7 +155,7 @@ export default function BeforeAfter({
           <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs">
             {plans.map((plan) => (
               <div
-                key={plan.name}
+                key={plan.nameKey}
                 className={`rounded-lg p-2 ${
                   plan.highlighted
                     ? "border border-[var(--color-primary)] bg-[var(--color-surface-muted)]"
@@ -167,10 +167,10 @@ export default function BeforeAfter({
                     plan.highlighted ? "text-[var(--color-primary)]" : "text-gray-700"
                   }`}
                 >
-                  {plan.name}
+                  {t(plan.nameKey)}
                 </div>
                 <div className={plan.highlighted ? "text-gray-600" : "text-gray-500"}>
-                  {plan.subtitle}
+                  {t(plan.subtitleKey)}
                 </div>
               </div>
             ))}

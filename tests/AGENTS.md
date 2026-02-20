@@ -343,6 +343,7 @@ If CI is red:
 
 Global workflow rules (CI recovery, Definition of Done, canonical commands) live in root `AGENTS.md`.
 Use: `make verify`, `make cov-check`, and `git push` as described there (force push is forbidden).
+See canonical "Local-only artifacts (hard rule)" in root `AGENTS.md`.
 
 This file (`tests/AGENTS.md`) contains ONLY test-specific rules (diff coverage, mocking constraints, forbidden patterns).
 

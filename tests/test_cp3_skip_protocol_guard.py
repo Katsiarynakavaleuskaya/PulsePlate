@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 
@@ -21,14 +22,25 @@ ALLOWLIST_FILES = {
 
 def _diff_added_test_lines() -> list[tuple[str, int, str]]:
     """Return (file, line_no, content) for newly added lines in tests diff."""
-    try:
-        diff = subprocess.check_output(
-            ["git", "diff", "--unified=0", "--no-color", "origin/main...HEAD", "--", "tests"],
-            text=True,
-            stderr=subprocess.STDOUT,
-        )
-    except subprocess.CalledProcessError as exc:
-        pytest.skip(f"CP3 skip guard skipped: cannot read git diff ({exc})")
+    base_ref = os.getenv("CP3_GIT_BASE_REF", "origin/main")
+    diff_args_candidates = [
+        ["git", "diff", "--unified=0", "--no-color", f"{base_ref}...HEAD", "--", "tests"],
+        ["git", "diff", "--unified=0", "--no-color", "HEAD~1..HEAD", "--", "tests"],
+    ]
+    diff: str | None = None
+    last_error: Exception | None = None
+    for args in diff_args_candidates:
+        try:
+            diff = subprocess.check_output(
+                args,
+                text=True,
+                stderr=subprocess.STDOUT,
+            )
+            break
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            last_error = exc
+    if diff is None:
+        pytest.fail(f"CP3 skip guard failed: cannot read git diff ({last_error})")
 
     current_file: str | None = None
     current_new_line = 0

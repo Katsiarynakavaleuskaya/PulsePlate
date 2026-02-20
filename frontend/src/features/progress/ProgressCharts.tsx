@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useMemo, useCallback } from 'react';
 import { Download, TrendingUp, TrendingDown } from 'lucide-react';
+import type { JSX } from 'react';
 
 const chartTokens = {
   primary: 'var(--color-primary)',
@@ -71,11 +72,11 @@ const filterByWindow = <T,>(data: T[], windowRange: ProgressWindow): T[] => {
   return data;
 };
 
-const formatDate = (dateStr: string) => {
+const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const exportToPDF = async () => {
+const exportToPDF = async (): Promise<void> => {
   // Simple PDF export using html2canvas + jspdf
   try {
     const html2canvas = await import('html2canvas');
@@ -113,7 +114,7 @@ const exportToPDF = async () => {
   }
 };
 
-export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsProps) {
+export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsProps): JSX.Element {
   const scopedWeightData = useMemo(
     () => filterByWindow(weightData, windowRange),
     [windowRange]
@@ -135,8 +136,8 @@ export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsPr
     }),
     []
   );
-  const handleExportToPdf = useCallback(() => {
-    void exportToPDF();
+  const handleExportToPdf = useCallback(async (): Promise<void> => {
+    await exportToPDF();
   }, []);
 
   return (

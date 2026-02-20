@@ -108,6 +108,16 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+## Pre-push hygiene checklist (mandatory)
+
+Run from repo root before any push/PR:
+
+1. `git status --porcelain` → must be empty (or only intentional expected files)
+2. `git ls-files worktrees | wc -l` → must be `0`
+3. `git check-ignore -v worktrees/` → must show an ignore rule
+4. `pre-commit run --all-files`
+5. `make verify`
+
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a

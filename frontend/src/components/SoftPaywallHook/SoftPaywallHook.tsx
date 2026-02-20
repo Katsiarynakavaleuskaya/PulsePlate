@@ -51,9 +51,6 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
         borderColor: 'var(--color-border)',
       }}
     >
-      <div className="mb-3 inline-flex items-center rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-        PRO Insights
-      </div>
       <h3 className="mb-2 text-lg font-semibold text-text">
         {hook.message.default_title}
       </h3>

@@ -17,7 +17,7 @@ export default function SegmentedControl<T extends string>({
     <div
       className="inline-flex items-center rounded-full border p-1"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-muted)' }}
-      role="group"
+      role="radiogroup"
       aria-label={ariaLabel}
     >
       {options.map((option) => (
@@ -30,7 +30,8 @@ export default function SegmentedControl<T extends string>({
             backgroundColor: value === option ? 'var(--color-surface)' : 'transparent',
             color: 'var(--color-text)',
           }}
-          aria-pressed={value === option}
+          role="radio"
+          aria-checked={value === option}
         >
           {option}
         </button>

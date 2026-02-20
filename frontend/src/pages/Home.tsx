@@ -1,13 +1,9 @@
-import type { CSSProperties } from 'react';
+import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { getStoredApiKey } from '../auth/storage';
 import { usePremium } from '../lib/usePremium';
 
-const cardStyle: CSSProperties = {
-  backgroundColor: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--pp-radius-xl)',
-};
+const cardClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]';
 
 const quickActions = [
   { to: '/setup', label: 'Open setup', primary: true },
@@ -16,7 +12,7 @@ const quickActions = [
   { to: '/pro', label: 'Open Pro', primary: false },
 ] as const;
 
-export default function Home() {
+export default function Home(): JSX.Element {
   const isPremium = usePremium();
   const hasApiKey = getStoredApiKey() !== null;
   const premiumLabel = isPremium === undefined ? 'Checking…' : isPremium ? 'Active' : 'Inactive';
@@ -24,7 +20,7 @@ export default function Home() {
 
   return (
     <main className="p-4 pb-24 space-y-4">
-      <section className="p-6" style={cardStyle}>
+      <section className={`${cardClass} p-6`}>
         <p className="text-xs uppercase tracking-wide text-muted">Today</p>
         <h1 className="mt-2 text-2xl font-bold text-text">Home</h1>
         <p className="mt-2 text-sm text-muted">
@@ -41,20 +37,20 @@ export default function Home() {
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <article className="p-4" style={cardStyle}>
+        <article className={`${cardClass} p-4`}>
           <p className="text-xs uppercase tracking-wide text-muted">API key</p>
           <p className="mt-2 text-lg font-semibold text-text">{hasApiKey ? 'Connected' : 'Not configured'}</p>
           <p className="mt-2 text-sm text-muted">Setup unlocks personalized guidance and sync.</p>
         </article>
 
-        <article className="p-4" style={cardStyle}>
+        <article className={`${cardClass} p-4`}>
           <p className="text-xs uppercase tracking-wide text-muted">Premium</p>
           <p className="mt-2 text-lg font-semibold text-text">{premiumLabel}</p>
           <p className="mt-2 text-sm text-muted">Pro enables advanced insights and premium planning views.</p>
         </article>
       </section>
 
-      <section className="p-4 space-y-3" style={cardStyle}>
+      <section className={`${cardClass} p-4 space-y-3`}>
         <h2 className="text-base font-semibold text-text">Quick actions</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {quickActions.map((action) => (

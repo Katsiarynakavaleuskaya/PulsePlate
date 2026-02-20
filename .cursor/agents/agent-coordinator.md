@@ -100,6 +100,15 @@ Canonical protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`.
 
 When a task is created:
 
+0. **Repo hygiene gate (mandatory):**
+   - Run `git status --porcelain`
+   - Run `git ls-files worktrees`
+   - If tracked `worktrees/` paths exist, stop and fix hygiene first:
+     - `git rm -r worktrees` (for tracked files),
+     - ensure `worktrees/` is present in `.gitignore`,
+     - ensure lint/pre-commit excludes are aligned where applicable.
+   - Continue task analysis only after the hygiene gate is clean.
+
 1. **Analyze the task**:
    - What domain(s) does it touch? (AI/ML, Architecture, Bugs, Design, Marketing, Security)
    - What's the complexity? (Single-agent vs multi-agent)
@@ -337,6 +346,8 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 - Guard tests pass (architectural invariants)
 - Coverage ≥97% (total + diff-coverage)
 - Security scans pass (bandit/pip-audit)
+- `git ls-files worktrees` is empty
+- no generated/local artifacts tracked in git
 
 ## Integration with Project Workflow
 
