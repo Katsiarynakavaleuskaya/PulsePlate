@@ -173,6 +173,11 @@ function isAllowedFetchFile(relativePath: string): boolean {
   return normalized === 'api/client.ts' || normalized.endsWith('/api/client.ts');
 }
 
+function isAllowedWebSocketFile(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, '/');
+  return normalized === 'api/wsClient.ts' || normalized.endsWith('/api/wsClient.ts');
+}
+
 describe('ThinClientGuards', () => {
   const srcDir = path.resolve(__dirname, '../..');
 
@@ -293,6 +298,59 @@ describe('ThinClientGuards', () => {
           `${report}\n\n` +
           `All HTTP calls must go through api() from src/api/client.ts.\n` +
           `Direct fetch() calls violate the thin client policy.`
+      );
+    }
+
+    expect(violations).toHaveLength(0);
+  });
+
+  it('should create WebSocket connections only in api/wsClient.ts', () => {
+    const violations: Array<{ file: string; line: number; content: string }> = [];
+    // Detect direct WebSocket usage forms to keep a single thin adapter boundary.
+    const websocketCtorPattern = /(?:\bnew\s+)?(?:window\.|globalThis\.)?WebSocket\s*\(/;
+
+    for (const file of sourceFiles) {
+      if (isAllowedWebSocketFile(file.relativePath)) {
+        continue;
+      }
+
+      let inBlockComment = false;
+
+      for (let i = 0; i < file.lines.length; i++) {
+        const line = file.lines[i];
+        const commentCheck = isLineInComment(line, inBlockComment);
+        inBlockComment = commentCheck.newBlockCommentState;
+
+        if (commentCheck.skip) {
+          continue;
+        }
+
+        const candidate = stripInlineComments(line);
+        if (!candidate.trim()) {
+          continue;
+        }
+
+        if (websocketCtorPattern.test(candidate)) {
+          violations.push({
+            file: file.relativePath,
+            line: i + 1,
+            content: line.trim().substring(0, 100),
+          });
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      const report = violations
+        .map((v) => `  ${v.file}:${v.line}\n    ${v.content}`)
+        .join('\n');
+
+      expect.fail(
+        `Direct WebSocket usage detected!\n\n` +
+          `Found ${violations.length} violation(s):\n\n` +
+          `${report}\n\n` +
+          `WebSocket connections must be created only in src/api/wsClient.ts.\n` +
+          `Components/hooks should consume thin adapter abstractions only.`
       );
     }
 

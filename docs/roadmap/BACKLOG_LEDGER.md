@@ -24,6 +24,96 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
+- [x] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0-A (product works)
+  - Target PR: PR #820 (Step 3 remediation)
+  - Status: ✅ Merged (PR #820, 2026-02-19)
+  - Reason: After recent Figma AI component/code updates, web UX quality regressed ("site looks bad"), and iOS app launch/open flow is broken. This blocks core product readiness and must be fixed before P1 work.
+  - Links:
+    - [PR #819](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/819)
+    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
+    - docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md
+    - frontend/ (affected UI surfaces, to be narrowed in triage)
+    - ios/ (app-open failure triage scope)
+  - Evidence (2026-02-19, America/New_York):
+    - Step 1 (repro/verification):
+      - `npm run test -- src/pages/__tests__/Home.test.tsx src/pages/__tests__/Plate.test.tsx src/pages/__tests__/Profile.test.tsx` -> `3 passed`
+      - `npm run build` -> success (Vite build green)
+      - `xcodebuild build -project PulsePlate.xcodeproj -scheme PulsePlate -destination "platform=iOS Simulator,id=8B9BF341-A44D-4BB0-A898-EC8CFEE56B79" -configuration Debug -derivedDataPath ../.derivedData` -> success
+      - `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate -destination "platform=iOS Simulator,id=8B9BF341-A44D-4BB0-A898-EC8CFEE56B79" -configuration Debug -derivedDataPath ../.derivedData -skip-testing:PulsePlateUITests -only-testing:PulsePlateTests/PlateViewTests` -> success
+    - Step 2 (root-cause isolation):
+      - Web quality drift traced to presentation-layer style pattern drift in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx` (inline card styles / inconsistent CTA treatment vs tokenized runbook rules)
+      - iOS "app does not open" not reproduced in deterministic simulator build/test path; high-risk touchpoints remain `ios/PulsePlate/Views/RootTabs.swift`, `ios/PulsePlate/Views/HomeView.swift`, `ios/PulsePlate/Views/ProgressView.swift`
+  - Fixes applied by fact (merged remediation):
+    - ✅ Web presentation fix merged: card/token class unification + CTA consistency updates in `frontend/src/pages/Home.tsx`, `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Profile.tsx`
+    - ✅ Step 3 implementation merged: [PR #820](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/820)
+    - ✅ CI/checks and review-thread gate closed before merge
+  - DoD:
+    - ✅ Repro steps captured for both regressions (web visual + iOS open failure)
+    - ✅ Root cause identified with evidence (`file:line` + failing test/log)
+    - ✅ Web UX restored to canonical design-system quality on affected screens
+    - ✅ iOS app opens and core navigation works (Root/App entry flow validated in deterministic simulator flow)
+    - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
+    - ✅ CI checks for touched surfaces pass; no unresolved review threads
+
+- [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-AGENT-CP-MVP
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: architecture / backend / security
+  - Finding Type: platform hardening / modernization
+  - Locations:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: replace third-party local agent dependency with policy-first, vendor-independent control plane.
+  - Links:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - DoD:
+    - Control plane MVP contract documented and accepted
+    - Deny-by-default policy requirements and fail-closed semantics documented
+    - Signed audit trail requirements documented with verification checklist
+    - Follow-up implementation PRs opened and linked
+
+- [ ] P0: Security hardening wave for agent automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-AGENT-SEC-HARDENING
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: security / runbooks / operations
+  - Finding Type: incident prevention
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `RUNBOOK_AGENT.md`
+  - Reason: enforce short-lived credentials, rotation protocol, and secret persistence bans after local-agent incident.
+  - Links:
+    - `docs/runbooks/README.md`
+  - DoD:
+    - Rotation protocol documented and adopted for bot/API/webhook credentials
+    - Security release gate conditions documented
+    - Mandatory controls mapped to owner and verification evidence
+
+- [ ] P0: Growth telemetry canon and KPI dashboard baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-GROWTH-TELEMETRY-CANON
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: analytics / frontend / growth
+  - Finding Type: product optimization
+  - Locations:
+    - `docs/analytics/ANALYTICS_INDEX.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: establish canonical funnel semantics and events for onboarding -> paywall -> conversion -> retention.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+  - DoD:
+    - Core funnel metrics defined with owner and update cadence
+    - Event taxonomy anchored in docs and frontend registry
+    - Dashboard baseline requirements documented
+
 - [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -433,27 +523,28 @@ If it is not recorded here — it does not exist.
     - ✅ Identified false positives (test fixes, frontend dependency, docs references)
     - ✅ Marked as resolved — security gap does not exist
 
-- [ ] P1: Implement WebSocket endpoint with security from start
+- [x] P1: Implement WebSocket endpoint with security from start
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (feature + security)
-  - Target PR: TBD (feature implementation)
-  - Status: 📋 Planned
-  - Reason: WebSocket needed for real-time features (meal plan updates, live nutrition tracking, push notifications, future collaborative meal planning). Must be implemented with authentication and rate-limiting from the start to avoid security gaps.
+  - Target PR: PR #818
+  - Status: ✅ Merged (PR #818, 2026-02-19)
+  - Reason: Canonical `/ws` endpoint and security behavior are now validated with deterministic tests. Authentication and rate-limit close behavior are covered to prevent drift.
   - Links:
-    - docs/audit/WEBSOCKET_ANALYSIS.md (current state — no WebSocket exists)
+    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
+    - tests/test_realtime_ws_security.py
+    - app/routers/realtime_ws.py
     - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
     - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
   - Prerequisites:
     - ✅ Security requirements defined (auth + rate-limiting)
-    - ⏳ Use cases defined (what real-time features need WebSocket)
+    - ✅ Use cases defined (what real-time features need WebSocket)
   - DoD:
-    - WebSocket endpoint `/ws` implemented with FastAPI WebSocket support
-    - Authentication required (token in query params or headers)
-    - Rate-limiting implemented (per-user message limits, e.g., 100 messages/minute)
-    - Tests verify unauthenticated connections are rejected (403/401)
-    - Tests verify rate-limiting works (429 when limit exceeded)
-    - OpenAPI schema updated (if FastAPI/OpenAPI supports WebSocket documentation)
-    - Documentation: WebSocket API contract, authentication flow, rate limits
+    - ✅ WebSocket endpoint `/ws` available with FastAPI WebSocket support
+    - ✅ Authentication required (token in query params or headers)
+    - ✅ Rate-limiting implemented (per-user message limits in router policy)
+    - ✅ Tests verify unauthenticated connections are rejected (close code policy)
+    - ✅ Tests verify rate-limiting closes connection when the limit is exceeded
+    - ✅ CI checks green on merged PR (#818)
 
 - [x] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya
@@ -475,6 +566,316 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #794 (`feat/hpp-cta-runtime-remediation`)
+  - Status: ✅ Merged (PR #794, 2026-02-18)
+  - Merge SHA: 9ebcca2fc377753dc3024a080e6e4f24f59b6479
+  - Area: web / ios / design handoff
+  - Finding Type: execution follow-up / button-level UX parity
+  - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
+  - Links:
+    - PR #794
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_TASK_ANALYSIS.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_EXECUTION_PLAN.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md`
+    - `AGENTS.md`
+    - `frontend/AGENTS.md`
+    - `ios/AGENTS.md`
+  - DoD:
+    - iOS `Add Meal` and `View Details` CTA destinations are no longer placeholders
+    - Deterministic CTA-level tests exist for Home/Plate/Progress critical paths (web+iOS)
+    - Web paywall CTA has production-ready purchase wiring and success/failure handling
+    - Matrix `Exists Now / Missing / Implement Needed` statuses are updated after remediation PR
+    - `make verify` and required CI checks are green in remediation PR
+
+- [x] P1: Home/Plate/Progress Figma sync and Code Connect bridge docs package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #798 (`docs/figma-hpp-sync-package`)
+  - Status: ✅ Merged (PR #798, 2026-02-19)
+  - Merge SHA: 891a3fcaaac3da351c104a3ebb164c4c02a126c3
+  - Area: docs / design / orchestration
+  - Finding Type: documentation contract delivery
+  - Reason: Landed canonical H+P+Pr Figma sync protocols and Code Connect activation
+    bridge docs with evidence anchors, bot-review remediations, and policy-aligned
+    AGENTS updates; this closes the docs package while keeping Design URL/node ID
+    activation dependency explicitly tracked as a separate open ledger item.
+  - Links:
+    - PR #798
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+    - `AGENTS.md`
+  - DoD:
+    - Figma Make sync audit protocol committed with evidence anchors
+    - Code Connect activation blocker protocol and mapping candidate registry committed
+    - Design URL + node ID capture protocol committed
+    - Orchestration session artifacts committed for the sync package
+    - Root `AGENTS.md` updated with canonical Figma workflow protocol references
+
+- [x] P1: Home/Plate/Progress live indicator + CTA instrumentation (web-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #801 (`feat/hpp-live-indicator-cta`)
+  - Status: ✅ Merged (PR #801, 2026-02-19)
+  - Merge SHA: aec126d6b8757a7a413ebf051f5e7f8a917c3e42
+  - Area: frontend / product-metrics / HPP UX
+  - Finding Type: user-visible activation package
+  - Reason: Deliver one narrow user-facing package that adds a live progress signal on
+    Home/Plate/Progress, keeps strict static fallback when realtime transport is unavailable,
+    and instruments CTA impression/click events for conversion measurement.
+  - Links:
+    - PR #801
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/pages/Home.tsx`
+    - `frontend/src/pages/Plate.tsx`
+    - `frontend/src/pages/Progress.tsx`
+  - DoD:
+    - Live indicator renders on Home, Plate, and Progress surfaces
+    - Fallback invariant preserved (`ws unavailable/error -> static indicator + CTA works`)
+    - CTA telemetry events (`impression`, `click`) emitted through centralized helper
+    - Deterministic tests added for hook, indicator, and HPP page integration
+    - Thin-client websocket guard remains green (`src/api/wsClient.ts` adapter boundary)
+
+- [x] P1: Home/Plate/Progress live indicator A/B variant + telemetry enrichment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #803 (`feat/hpp-live-indicator-ab-variant`)
+  - Status: ✅ Merged (PR #803, 2026-02-19)
+  - Merge SHA: d1e2fa1668156b8621557daee235844bd4703ced
+  - Area: frontend / product-metrics / experimentation
+  - Finding Type: user-visible experiment package
+  - Reason: Extend the shipped live-indicator package with deterministic A/B variant
+    assignment (`compact`/`emphasized`) and enriched telemetry needed to measure
+    variant-level CTA and paywall-open behavior without expanding backend scope.
+  - Experiment Window:
+    - Start: 2026-02-20
+    - End: 2026-03-05
+    - Guardrails: websocket connect success >= 99%, no JS runtime error increase,
+      no layout-shift regressions on Home/Plate/Progress
+  - Metric Tracking:
+    - Primary KPI: `hpp_live_cta_click_rate_by_variant`
+    - Secondary KPI: `paywall_open_from_live_by_variant`
+    - Supporting Signals:
+      - `hpp_live_indicator_impression`
+      - `hpp_cta_impression`
+      - `hpp_cta_click`
+      - `hpp_paywall_open_from_live`
+  - Links:
+    - PR #803
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/features/progress/__tests__/useHppLiveIndicator.test.ts`
+    - `frontend/src/features/progress/__tests__/LiveProgressIndicator.test.tsx`
+    - `frontend/src/features/progress/__tests__/hppTelemetry.test.ts`
+  - DoD:
+    - Deterministic variant assignment implemented (`userId hash % 2`, fallback `compact`)
+    - UI variant rendering validated for `compact` and `emphasized`
+    - Telemetry payload includes `placement` and `variant` across impression/click events
+    - Paywall-open event from live indicator is emitted with stable payload shape
+    - Deterministic tests and snapshots cover variant logic and telemetry shape
+
+- [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #778
+  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
+  - Merge SHA: 48ae6d24458da4f0bb101b0c92d77e4607a6aded
+  - Area: backend / realtime / security baseline
+  - Finding Type: delivery packaging / transport foundation
+  - Reason: Deliver one scoped realtime package with fail-closed auth, deterministic guardrails, and policy-anchored docs/tests without scope creep into client integration.
+  - Links:
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `app/routers/realtime_ws.py`
+    - `tests/test_websocket_security_api.py`
+  - DoD:
+    - `/ws` route is registered once in canonical app entrypoint and guarded against duplicates
+    - WebSocket auth remains fail-closed with explicit policy close paths
+    - Deterministic tests cover auth reject/accept, payload/limit guards, and disconnect path
+    - Governance/docs are synchronized in AGENTS + audit + plan
+    - CI gates for PR #778 are green before merge
+
+- [x] P1: WebSocket foundation follow-up (realtime expansion package)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #783
+  - Status: ✅ Merged (PR #783, 2026-02-17, `a78040a0`)
+  - Merge SHA: a78040a0d8a191876f702b426b98ae82ae9460cc
+  - Area: backend / realtime / contracts
+  - Finding Type: scope control / deferred enhancement
+  - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
+  - Links:
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
+  - DoD:
+    - Define versioned event contract for realtime payloads
+    - Add client integration scope (web/iOS) without violating thin-adapter policy
+    - Add deterministic integration tests for expanded event flow
+    - Keep `make verify` and diff-coverage gates green in expansion PR
+
+- [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #786
+  - Status: ✅ Merged (PR #786, 2026-02-18, `a2e248cb`)
+  - Merge SHA: a2e248cb5feaa84608acc68491954476228751d4
+  - Area: backend / realtime / capacity
+  - Finding Type: deferred hardening / runtime safeguard
+  - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
+    - `docs/plan/PR_WS_IDLE_TIMEOUT_PLAN.md`
+    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
+    - `app/routers/realtime_ws.py`
+  - DoD:
+    - Add `WS_IDLE_TIMEOUT_SECONDS` with conservative default and explicit disable mode
+    - Close idle websocket connections with deterministic policy close semantics
+    - Add deterministic tests for idle-timeout behavior without `sleep()`-based flakiness
+    - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
+    - Pass `make verify` and diff-coverage gates in follow-up PR
+
+- [x] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #789
+  - Status: ✅ Merged (PR #789, 2026-02-18, `7d9e74ec`)
+  - Merge SHA: 7d9e74eca58841a120249f98db19880dc18c56e3
+  - Area: backend / realtime / observability
+  - Finding Type: operational hardening / incident response readiness
+  - Reason: After deterministic idle-timeout delivery in PR #786, the remaining high-value runtime gap is operational visibility of `/ws` behavior under load. Without explicit websocket metrics and constrained structured logs, incident triage is slower and capacity regressions are harder to detect early.
+  - Worst-case scenario: high-volume idle/malformed websocket traffic degrades service while missing or high-cardinality observability obscures root cause and delays mitigation.
+  - Scope IN:
+    - Add low-cardinality counters for websocket connect result and close reasons.
+    - Add active websocket gauge aligned with tracker state.
+    - Add message counters by allowlisted event type (`ping`, `subscribe`) and outcome (`ok`/`closed`).
+    - Add structured logs for policy closes using non-sensitive fields only.
+  - Scope OUT:
+    - Product analytics, user-behavior funnels, and per-user telemetry.
+    - New websocket protocol features/channels.
+    - Frontend/iOS telemetry changes.
+  - Guardrails:
+    - Never log tokens, user IDs, raw payloads, or unbounded labels.
+    - Metrics labels must remain low-cardinality and enum-bound.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/789`
+    - `app/routers/realtime_ws.py`
+    - `app/middleware/metrics.py`
+    - `docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_HARDENING_PLAN.md`
+    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
+  - DoD:
+    - `ws_connect_total{result,reason}` and `ws_messages_total{type,result}` are implemented with bounded labels.
+    - `ws_active_connections` gauge reflects tracker state without negative drift.
+    - Structured websocket logs include only safe, bounded fields (`reason`, `event_type`, `version`, `result`).
+    - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
+    - `make verify` and diff-coverage gates are green in observability PR.
+
+- [ ] P1: Wave 2 contract governance v2 + CI throughput program
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-W2-CONTRACT-CI
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: backend / frontend / ios / devex
+  - Finding Type: maintainability / delivery speed
+  - Locations:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - DoD:
+    - Contract governance checklist with OpenAPI diff risk labels documented
+    - CI throughput baseline and target defined with flake budget owner
+    - Follow-up implementation PRs linked
+
+- [ ] P1: Wave 2 experimentation framework and paywall optimization loop
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-W2-EXPERIMENTS
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: product / growth / analytics
+  - Finding Type: growth optimization
+  - Locations:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - Experiment lifecycle states documented
+    - Initial prioritized growth experiments registered with owners and dates
+    - Guardrail metrics required for promotion decisions
+
+- [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TELEMETRY-API-NORMALIZATION
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: frontend / analytics / architecture
+  - Finding Type: naming/abstraction hygiene
+  - Locations:
+    - `frontend/src/lib/telemetry.ts`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: growth events currently use `trackVipEvent`; rename to a generic API surface and keep compatibility wrapper to avoid VIP-specific naming leakage in broader telemetry families.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
+    - Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
+    - Enum constraints documented for shared growth fields where runtime validation is required
+    - Tests updated for both legacy and new entrypoints
+    - `make verify` and required CI checks pass
+
+- [ ] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: In progress (branch complete, pending merge)
+  - Area: docs / frontend / ci / review-ops
+  - Finding Type: review remediation / quality-gate closure
+  - Locations:
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+    - `frontend/src/lib/__tests__/telemetry.test.ts`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Reason: close all bot actionables and reach zero unresolved review threads with full CI green.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/825`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - Checklist (Matrix):
+    - [x] Sourcery actionables addressed with commit mapping in PR body
+    - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
+    - [x] PR Body Phase2 gates passed after checklist/mapping update
+    - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
+    - [x] Required CI checks are green (`gh pr checks 825`)
+    - [x] Unresolved review threads count is zero
+  - DoD:
+    - Sourcery actionables addressed with commit mapping in PR body
+    - CodeRabbit actionables addressed with file-level fixes and thread replies
+    - PR Body Phase2 gates pass after checklist/mapping update
+    - Docs Phase1 gates pass with evidence anchors in audit/security docs
+    - Required CI checks are green (`gh pr checks 825`)
+    - Unresolved review threads count is zero
 
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
@@ -576,11 +977,11 @@ If it is not recorded here — it does not exist.
     - Remaining intentional skips are documented as product decisions
     - `make verify` passes in PR-732
 
-- [ ] P1: CP3 follow-up for skip-heavy coverage drift cleanup
+- [x] P1: CP3 follow-up for skip-heavy coverage drift cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (CP3 execution follow-up)
-  - Status: 📋 Planned (deferred from PR-773)
+  - Target PR: PR #791 (`feat/cp3-skip-drift-execution`)
+  - Status: ✅ Merged (PR #791, 2026-02-18)
   - Area: backend / tests / contracts
   - Finding Type: drift / contract mismatch
   - Locations:
@@ -591,11 +992,17 @@ If it is not recorded here — it does not exist.
     - `tests/test_quick_coverage_boost.py`
   - Reason for deferral: CP3 was intentionally split out from PR-773 to keep CP1+CP2 merge-safe and avoid scope creep in a test-only stabilization package.
   - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/791`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
     - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
     - `docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md`
     - `docs/plan/CP3_SKIP_COVERAGE_DRIFT_PLAN.md`
+    - `docs/plan/PR_CP3_SKIP_DRIFT_TASK_ANALYSIS.md`
+    - `docs/plan/PR_CP3_SKIP_DRIFT_EXECUTION_PLAN.md`
+    - `docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md`
+    - `docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md`
     - `core/food_apis/unified_db.py:265`
+  - Merge SHA: `2ea565ddf2c16ead430a1f1aa6770fade88d22bd`
   - DoD:
     - CP3 buckets are implemented in a dedicated follow-up PR with explicit mapping by test file.
     - Remaining intentional skips are documented as product decisions with canonical feature keys.
@@ -1494,6 +1901,72 @@ If it is not recorded here — it does not exist.
 
 ## P2 — Future (Low priority / research)
 
+### Home+Plate+Progress design execution follow-up
+
+- [ ] Figma slice structure absent in current Make file
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR1/Follow-up
+  - Priority: P2
+  - Status: ▶️ In progress (Unblocked: Figma seat `Full`, 2026-02-17)
+  - Area: design / ios / frontend
+  - Finding Type: deferred execution
+  - Reason: PR_781 defines the blueprint and keeps docs scope; execution
+    continues as a follow-up work package in Figma file
+    `<FIGMA_MAKE_FILE_ID>`.
+  - Links:
+    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
+    - `https://www.figma.com/make/<FIGMA_MAKE_FILE_ID>/Untitled`
+  - DoD:
+    - Pages created: `00_Foundation_Tokens`, `01_Components`,
+      `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`,
+      `20_Web_Parity`
+    - Component set created in `01_Components` per audit runbook
+    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>`
+      applied consistently
+    - Follow-up implementation PR merged with evidence
+      (screenshots/links) and this ledger item closed
+
+- [ ] Design file URL + node IDs required for Code Connect activation (H+P+Pr)
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR/Figma-CodeConnect-Activation
+  - Priority: P1
+  - Status: 🔒 Blocked by dependency
+  - Area: design / frontend / iOS
+  - Finding Type: integration dependency
+  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
+    node-level Code Connect cannot be activated without Design file key and node IDs.
+  - Links:
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+  - DoD:
+    - Figma Design file URL is recorded in repo docs
+    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
+      (`web.home.open_setup`, `web.plate.premium_gate_cta`,
+      `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_map` returns expected active mappings for P0 set
+    - Matrix `Figma Node ID` column updated for activated rows
+
+- [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-W3-RAG-SAFETY
+  - Status: Planned (Wave 3 / day 91-180)
+  - Area: AI platform / security / reliability
+  - Finding Type: modernization / risk reduction
+  - Locations:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - Reason: scale AI capability with explicit safety gates and degraded-mode confidence before broad autonomy.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - DoD:
+    - RAG v2 capability scope and citation/eval expectations documented
+    - Safety regression gate classes documented (jailbreak/policy bypass)
+    - Reliability game day scenarios and ownership defined
+
 ### Multimodal / CV / measurement (future, contract-first)
 
 - [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
@@ -1574,15 +2047,24 @@ If it is not recorded here — it does not exist.
     - Minimal telemetry spec defined (what metrics, where recorded, retention)
     - Metrics collection does not affect runtime product behavior
 
-- [ ] Dialogue Visualization (interaction graph)
+- [x] Dialogue Visualization (interaction graph)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR #796
+  - Status: ✅ Merged (PR #796, 2026-02-18)
+  - Merge SHA: `fca3d6e7e2f2ab40a2cc4222e4330a30456e1a0b`
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: tooling
   - Reason: Multi-agent dialogue is hard to audit without a visual interaction graph.
   - Links:
+    - PR #796: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/796>
     - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+    - docs/orchestration/workflow.md
+    - docs/plan/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_TASK_ANALYSIS.md
+    - docs/plan/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_EXECUTION_PLAN.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_BRAINSTORMING.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_AUDIT.md
+    - docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_PR_BODY_SKELETON.md
   - DoD:
     - Mermaid output format defined (inputs + expected diagram)
     - Example visualization added to orchestration docs or runbook

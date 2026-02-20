@@ -118,6 +118,22 @@ Run from repo root before any push/PR:
 4. `pre-commit run --all-files`
 5. `make verify`
 
+## Agent Control Plane Security Ops (Wave 1 baseline)
+
+Use this checklist when operating agent automation or closing a token/secrets incident.
+
+1. **Containment**
+   - Stop agent runtime and disable auto-start service.
+   - Quarantine local runtime state for forensics.
+2. **Secrets rotation**
+   - Revoke old tokens/keys first, then issue new scoped credentials.
+   - Reset webhook endpoints and confirm `getWebhookInfo` reports empty/expected URL.
+3. **Verification**
+   - Ensure no active runtime process/socket remains for disabled agent service.
+   - Confirm privileged automation path is routed through policy gate only.
+4. **Documentation**
+   - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
+   - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a

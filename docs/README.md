@@ -8,6 +8,8 @@ Start here depending on what you need:
 - Deployment guides: [`deploy/README.md`](deploy/README.md)
 - API / contracts / specs: [`specs/README.md`](specs/README.md)
 - Roadmaps & plans: [`roadmap/README.md`](roadmap/README.md)
+- Security posture and baselines: [`security/`](security/)
+- Analytics and experimentation canon: [`analytics/README.md`](analytics/README.md)
 - Reports / status / fix logs: [`reports/README.md`](reports/README.md)
 - RFCs: [`rfc/README.md`](rfc/README.md)
 

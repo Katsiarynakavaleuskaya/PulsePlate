@@ -71,6 +71,15 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
     }
 )
 
+# CP3 skip-drift execution target suites (single source of truth for CP3 guards/plans).
+CP3_SKIP_DRIFT_TARGET_FILES: tuple[str, ...] = (
+    "test_zero_coverage_modules.py",
+    "test_remaining_modules.py",
+    "test_final_core_coverage.py",
+    "test_direct_core_functions.py",
+    "test_quick_coverage_boost.py",
+)
+
 
 def require_feature(key: str, reason: str, *, manifest: FeatureManifest | None = None) -> None:
     """Skip test if optional feature isn't enabled.

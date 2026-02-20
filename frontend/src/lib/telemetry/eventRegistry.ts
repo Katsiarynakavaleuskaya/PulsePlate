@@ -21,6 +21,14 @@ export enum EventType {
   VIP_GATE_INTERACTED = 'vip_gate_interacted',
   VIP_BADGE_VIEWED = 'vip_badge_viewed',
 
+  // Growth Funnel Events
+  ONBOARDING_STARTED = 'onboarding_started',
+  ONBOARDING_COMPLETED = 'onboarding_completed',
+  PAYWALL_VIEWED = 'paywall_viewed',
+  PAYWALL_CTA_CLICKED = 'paywall_cta_clicked',
+  TRIAL_STARTED = 'trial_started',
+  RETENTION_HEARTBEAT = 'retention_heartbeat',
+
   // Future Events (add here as needed)
   // TARGETS_OPENED = 'targets_opened',
   // PLAN_GENERATED = 'plan_generated',
@@ -75,6 +83,38 @@ export interface VipBadgeViewedPayload extends BaseEventPayload {
   isVip: boolean;
 }
 
+export interface OnboardingStartedPayload extends BaseEventPayload {
+  source: string;
+  variant: string;
+}
+
+export interface OnboardingCompletedPayload extends BaseEventPayload {
+  source: string;
+  durationSec?: number;
+}
+
+export interface PaywallViewedPayload extends BaseEventPayload {
+  source: string;
+  placement: string;
+  tierContext: 'free' | 'pro' | 'vip';
+}
+
+export interface PaywallCtaClickedPayload extends BaseEventPayload {
+  source: string;
+  ctaId: string;
+  tierContext: 'free' | 'pro' | 'vip';
+}
+
+export interface TrialStartedPayload extends BaseEventPayload {
+  source: string;
+  planType: string;
+}
+
+export interface RetentionHeartbeatPayload extends BaseEventPayload {
+  dayBucket: 'd1' | 'd7' | 'd30';
+  source: string;
+}
+
 // Centralized event payload mapping
 export interface EventPayloadMap {
   [EventType.VIP_MODULE_VIEWED]: VipModuleViewedPayload;
@@ -84,7 +124,24 @@ export interface EventPayloadMap {
   [EventType.VIP_UPGRADE_CLICKED]: VipUpgradeClickedPayload;
   [EventType.VIP_GATE_INTERACTED]: VipGateInteractedPayload;
   [EventType.VIP_BADGE_VIEWED]: VipBadgeViewedPayload;
+  [EventType.ONBOARDING_STARTED]: OnboardingStartedPayload;
+  [EventType.ONBOARDING_COMPLETED]: OnboardingCompletedPayload;
+  [EventType.PAYWALL_VIEWED]: PaywallViewedPayload;
+  [EventType.PAYWALL_CTA_CLICKED]: PaywallCtaClickedPayload;
+  [EventType.TRIAL_STARTED]: TrialStartedPayload;
+  [EventType.RETENTION_HEARTBEAT]: RetentionHeartbeatPayload;
 }
+
+type PrimitiveFieldType = 'string' | 'number' | 'boolean';
+
+interface EventFieldSchema {
+  type: PrimitiveFieldType;
+  required: boolean;
+  enum?: readonly string[];
+}
+
+const tierContextEnum = ['free', 'pro', 'vip'] as const;
+const retentionDayBucketEnum = ['d1', 'd7', 'd30'] as const;
 
 
 /**
@@ -149,6 +206,50 @@ export const EVENT_REGISTRY = {
       isVip: { type: 'boolean', required: true },
     },
   },
+  [EventType.ONBOARDING_STARTED]: {
+    description: 'User started onboarding flow',
+    fields: {
+      source: { type: 'string', required: true },
+      variant: { type: 'string', required: true },
+    },
+  },
+  [EventType.ONBOARDING_COMPLETED]: {
+    description: 'User completed onboarding flow',
+    fields: {
+      source: { type: 'string', required: true },
+      durationSec: { type: 'number', required: false },
+    },
+  },
+  [EventType.PAYWALL_VIEWED]: {
+    description: 'User viewed paywall in growth funnel',
+    fields: {
+      source: { type: 'string', required: true },
+      placement: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true, enum: tierContextEnum },
+    },
+  },
+  [EventType.PAYWALL_CTA_CLICKED]: {
+    description: 'User clicked paywall CTA',
+    fields: {
+      source: { type: 'string', required: true },
+      ctaId: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true, enum: tierContextEnum },
+    },
+  },
+  [EventType.TRIAL_STARTED]: {
+    description: 'User started trial from paywall',
+    fields: {
+      source: { type: 'string', required: true },
+      planType: { type: 'string', required: true },
+    },
+  },
+  [EventType.RETENTION_HEARTBEAT]: {
+    description: 'Retention heartbeat event for cohort analysis',
+    fields: {
+      dayBucket: { type: 'string', required: true, enum: retentionDayBucketEnum },
+      source: { type: 'string', required: true },
+    },
+  },
 } as const;
 
 /**
@@ -196,30 +297,42 @@ export function validateEventPayload<T extends EventType>(
 
   // Validate each field according to its schema
   for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {
+    const typedFieldSchema = fieldSchema as EventFieldSchema;
     const value = payload[fieldName as keyof EventPayloadMap[T]];
 
     // Check if required field is missing
-    if (fieldSchema.required && (value === undefined || value === null)) {
+    if (typedFieldSchema.required && (value === undefined || value === null)) {
       console.error(`Missing required field '${fieldName}' for event '${eventType}'`);
       return false;
     }
 
     // Skip type validation for optional fields that are undefined
-    if (!fieldSchema.required && value === undefined) {
+    if (!typedFieldSchema.required && value === undefined) {
       continue;
     }
 
     // Reject null for optional fields
-    if (!fieldSchema.required && value === null) {
+    if (!typedFieldSchema.required && value === null) {
       console.error(`Field '${fieldName}' in event '${eventType}' cannot be null (use undefined for optional fields)`);
       return false;
     }
 
     // Perform type validation
     const actualType = getValueType(value);
-    if (actualType !== fieldSchema.type) {
+    if (actualType !== typedFieldSchema.type) {
       console.error(
-        `Invalid type for field '${fieldName}' in event '${eventType}': expected '${fieldSchema.type}', got '${actualType}'`
+        `Invalid type for field '${fieldName}' in event '${eventType}': expected '${typedFieldSchema.type}', got '${actualType}'`
+      );
+      return false;
+    }
+
+    if (
+      typedFieldSchema.enum &&
+      typedFieldSchema.type === 'string' &&
+      !typedFieldSchema.enum.includes(String(value))
+    ) {
+      console.error(
+        `Invalid value for field '${fieldName}' in event '${eventType}': expected one of [${typedFieldSchema.enum.join(', ')}], got '${String(value)}'`
       );
       return false;
     }
@@ -247,7 +360,9 @@ export function getAllEventTypes(): EventType[] {
 /**
  * Get event configuration
  */
-export function getEventConfig(eventType: EventType) {
+export function getEventConfig(
+  eventType: EventType
+): (typeof EVENT_REGISTRY)[keyof typeof EVENT_REGISTRY] | undefined {
   return EVENT_REGISTRY[eventType];
 }
 

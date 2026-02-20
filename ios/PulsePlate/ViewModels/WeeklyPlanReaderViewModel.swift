@@ -19,7 +19,7 @@ public final class WeeklyPlanReaderViewModel {
 
     private let service: WeeklyPlanServicing
     private let endpointPath: String
-    private let apiKey: String?
+    private let apiKeyProvider: @Sendable () -> String?
 
     // MARK: - Private State
 
@@ -31,11 +31,11 @@ public final class WeeklyPlanReaderViewModel {
     public init(
         service: WeeklyPlanServicing,
         endpointPath: String = "/api/v1/pro/meal/weekly",
-        apiKey: String? = nil
+        apiKeyProvider: @escaping @Sendable () -> String? = { nil }
     ) {
         self.service = service
         self.endpointPath = endpointPath
-        self.apiKey = apiKey
+        self.apiKeyProvider = apiKeyProvider
     }
 
     // MARK: - Public Actions
@@ -57,7 +57,7 @@ public final class WeeklyPlanReaderViewModel {
         // Store targets for retry
         lastTargets = targets
 
-        guard let apiKey else {
+        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
             state = .failed("PRO API key not configured. Add it in Debug Tools / Keychain.")
             return
         }

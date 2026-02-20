@@ -72,7 +72,6 @@ For every run provide:
 
 - No GUI control, no desktop RPA, no Accessibility automation.
 - No clipboard scraping or app-driving on user desktop.
-- Exception: controlled Playwright browser E2E for web flows is allowed as defined above.
 - No "green/ready/mergeable" wording unless required local gates pass with shown evidence.
 
 ## Guardrails

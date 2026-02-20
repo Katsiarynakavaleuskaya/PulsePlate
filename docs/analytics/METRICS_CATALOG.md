@@ -52,12 +52,121 @@ activation = users_with_first_success_within_window / eligible_new_users
 
 #### Owner
 
-TBD
+Product + Data
 
 #### Update frequency
 
-TBD
+Daily
 
 #### Change history
 
 - 2026-02-11: initial placeholder definition (vendor-agnostic)
+- 2026-02-20: owner and update frequency defined for Wave 1 baseline
+
+---
+
+## Onboarding completion rate
+
+#### Definition
+
+Percent of first-launch sessions that complete onboarding in the same or subsequent session within the attribution window.
+
+#### Formula
+
+```text
+onboarding_completion_rate =
+  users_with_onboarding_completed / users_with_onboarding_started
+```
+
+#### Owner
+
+Product + Growth
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-20: initial Wave 1 definition
+
+---
+
+## Trial -> Paid conversion
+
+#### Definition
+
+Percent of users who start a trial and become paid subscribers within the configured conversion window.
+
+#### Formula
+
+```text
+trial_to_paid_conversion =
+  users_paid_after_trial / users_started_trial
+```
+
+#### Owner
+
+Growth + Finance
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-20: initial Wave 1 definition
+
+---
+
+## Retention D30
+
+#### Definition
+
+Percent of activated users who are active on day 30 after activation.
+
+#### Formula
+
+```text
+retention_d30 =
+  activated_users_active_on_day_30 / activated_users
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Weekly
+
+#### Change history
+
+- 2026-02-20: initial Wave 1 definition
+
+---
+
+## LLM cost per active user
+
+#### Definition
+
+Total LLM/API inference spend divided by active users in the same aggregation window.
+
+#### Formula
+
+```text
+llm_cost_per_active_user =
+  total_llm_cost_window / active_users_window
+```
+
+#### Owner
+
+Platform + Finance
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-20: initial Wave 1 definition

@@ -106,3 +106,30 @@
 "onboarding.welcome.cta.back" = "Atrás";
 "onboarding.welcome.cta.start" = "Empezar";
 "onboarding.welcome.stepA11y" = "Paso %d de %d";
+
+/* Home View */
+"home.status.pro_key.title" = "Clave PRO";
+"home.status.pro_key.configured" = "Configurada";
+"home.status.pro_key.missing" = "Falta";
+"home.status.profile.title" = "Perfil";
+"home.status.profile.ready" = "Listo";
+"home.status.profile.incomplete" = "Incompleto";
+"home.section.quick_actions" = "Acciones rápidas";
+"home.action.bmi.title" = "Calculadora BMI";
+"home.action.bmi.subtitle" = "Actualiza métricas corporales clave";
+"home.action.profile_setup.title" = "Configurar perfil";
+"home.action.profile_setup.subtitle" = "Configura el perfil PRO y el idioma";
+"home.action.open_plate.title" = "Abrir Plate";
+"home.action.open_plate.subtitle" = "Revisa tu distribución diaria de nutrición";
+"home.section.pro_tools" = "Herramientas PRO";
+"home.action.weekly_plan_reader.title" = "Lector de plan semanal";
+"home.action.weekly_plan_reader.subtitle" = "Revisa la salida canónica de /api/v1/pro/meal/weekly";
+"home.action.shopping_list.title" = "Generador de lista de compras";
+"home.action.shopping_list.subtitle" = "Genera la lista vía /api/v1/pro/meal/shopping-list";
+"home.navigation.title" = "Inicio";
+"home.accessibility.screen_label" = "Pantalla de inicio";
+"home.hero.title" = "PulsePlate";
+"home.hero.subtitle" = "Slice de producción Home + Plate + Progress";
+
+/* Shopping List */
+"shopping_list_no_plan_error" = "Primero genera un plan semanal para crear la lista de compras.";

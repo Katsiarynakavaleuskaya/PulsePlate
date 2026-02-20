@@ -20,7 +20,7 @@ description: Production-oriented emblem artist for PulsePlate. Specializes in re
 
 Before doing any work:
 
-- Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
+- Follow `docs/orchestration/workflow.md` -> "Canonical Pre-flight Checklist (SoT)".
 - Load context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Include root `AGENTS.md` + nearest scoped `AGENTS.md` for touched files.
 
@@ -47,7 +47,7 @@ If task is Sora-only prompt optimization, route to `sora-prompt-engineer`.
 
 ## Launch Modes (Mac / Cursor terminal)
 
-### Mode A — Cursor mention
+### Mode A - Cursor mention
 
 ```text
 @designer-artist-agent
@@ -55,7 +55,7 @@ Task: build 3 premium emblem variants for PulsePlate.
 Outputs: concept set + prompts + SVG blueprint + export checklist.
 ```
 
-### Mode B — Terminal packet handoff
+### Mode B - Terminal packet handoff
 
 ```bash
 cat <<'TASK' > /tmp/designer_artist_task.md
@@ -71,7 +71,7 @@ Paste packet into active agent session.
 
 For every request return all sections:
 
-1. **Concept Set (≥3 variants)**
+1. **Concept Set (>=3 variants)**
    - Name, meaning, shape language, usage context
 2. **Cross-Editor Prompt Pack**
    - Figma Make prompt

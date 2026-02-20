@@ -18,52 +18,55 @@ The objective is not "decorative luxury", but a trusted premium visual system:
 Use PulsePlate core style as the default:
 
 - Mood: minimalism + cozy + intelligent + luxury-clean
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`)
 - Palette:
   - Navy `#0F172A`
   - Blue `#339FFF`
   - Accent Green `#20C997`
   - Heart Red `#FF5D5D` (accent only)
 - Visual style: flat forms, soft shadows, subtle gradients
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`)
 - Mascot policy: FitChef is lifestyle and encouragement, never clinical
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`)
 
 ## Authoritative Sources (What to Apply)
 
 ### iOS / Apple
 
 1. Apple Human Interface Guidelines
-   - Link: `https://developer.apple.com/design/human-interface-guidelines`
+   - Link: [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines)
    - Apply: prioritize clarity, deference, and depth; design around native
      interaction expectations before adding visual effects.
 
 2. Apple Design Resources
-   - Link: `https://developer.apple.com/design/resources`
+   - Link: [Apple Design Resources](https://developer.apple.com/design/resources)
    - Apply: keep component spacing/rhythm aligned with Apple references to
      avoid "almost native" visual mismatch.
 
 3. Apple's "What's New" Design updates
-   - Link: `https://developers.apple.com/design/whats-new`
+   - Link: [Apple Design - What's New](https://developer.apple.com/design/whats-new)
    - Apply: review typography, color, and motion updates before major visual
      refreshes to keep the app modern on current iOS.
 
 ### Web / Accessibility / UX
 
 1. web.dev Color and Contrast Accessibility
-   - Link: `https://web.dev/articles/color-and-contrast-accessibility`
+   - Link: [web.dev Color and Contrast Accessibility](https://web.dev/articles/color-and-contrast-accessibility)
    - Apply: keep text/background contrast at least WCAG AA and use color as a
      support signal, not the only signal.
 
 2. web.dev Motion Accessibility
-   - Link: `https://web.dev/learn/accessibility/motion`
+   - Link: [web.dev Motion Accessibility](https://web.dev/learn/accessibility/motion)
    - Apply: respect reduced motion preferences; avoid decorative motion that
      harms comfort or comprehension.
 
 3. web.dev Accessibility Tips
-   - Link: `https://web.dev/articles/a11y-tips-for-web-dev`
+   - Link: [web.dev Accessibility Tips](https://web.dev/articles/a11y-tips-for-web-dev)
    - Apply: ensure keyboard and screen-reader compatibility for all actionable
      UI elements.
 
 4. W3C WCAG
-   - Link: `https://www.w3.org/WAI/standards-guidelines/wcag/`
+   - Link: [W3C WCAG](https://www.w3.org/WAI/standards-guidelines/wcag/)
    - Apply: map key screens to perceivable/operable/understandable principles,
      especially onboarding, paywall, and metrics cards.
 
@@ -77,6 +80,7 @@ Use PulsePlate core style as the default:
 - Keep premium tone through spacing and weight contrast, not font noise.
 - iOS: respect Dynamic Type scaling; no clipped labels in compact widths.
 - Web: define stable scale tokens and lock line-height per text role.
+  (`ios/AGENTS.md:257`, `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:62`)
 
 ### 2) Color and Material
 
@@ -84,6 +88,7 @@ Use PulsePlate core style as the default:
 - Heart Red should be sparse and meaningful (critical state/emphasis only).
 - Use gradients as subtle depth signals, never as dominant decoration.
 - Keep shadow softness consistent across cards, dialogs, and navigation surfaces.
+  (`docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`)
 
 ### 3) Composition and Spacing
 
@@ -98,6 +103,8 @@ Use PulsePlate core style as the default:
 - Cap duration for micro-interactions; avoid heavy choreography in task flows.
 - Respect `prefers-reduced-motion` on web and equivalent comfort behavior on iOS.
 - No distracting loops near primary CTA or result values.
+  (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:56`,
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:99`)
 
 ### 5) Iconography
 
@@ -112,6 +119,8 @@ Use PulsePlate core style as the default:
 - Support larger text and assistive navigation from the start.
 - Ensure all key states are distinguishable without color dependency.
 - Verify touch/click targets remain generous in dense screens.
+  (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:50`,
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:62`)
 
 ## Screen-Specific Guidance
 
@@ -137,20 +146,42 @@ Use PulsePlate core style as the default:
 
 Use this matrix during design review and prompt planning.
 
-| Risk | Design rule | Prompt guard |
-|------|-------------|--------------|
-| Neon/acid palette drift | Keep only canonical palette and muted gradients | `no neon, no acid colors, palette locked` |
-| Visual clutter | One focal object and controlled negative space | `single focal center, low clutter` |
-| Generic AI "slop" look | Prefer clean geometry and stable depth cues | `no generic ai slop, no glossy blobs` |
-| Clinical/medical vibe | Wellness lifestyle framing only | `wellness lifestyle, not medical` |
-| Overly dramatic imagery | Calm, confident, supportive emotional tone | `no fear, no panic, no dramatic hospital mood` |
-| Unreadable icons | Enforce small-size silhouette clarity | `high small-size readability, clear silhouette` |
-| Inconsistent mascot | Keep FitChef shape/mood continuity | `consistent FitChef style and expression` |
-| Motion discomfort | Limit motion intensity and duration | `slow smooth motion, no jitter, no flashes` |
-| Color-only status meaning | Add structure, labels, and icon support | `status must be clear without color dependency` |
-| Tiny touch targets | Keep platform minimum interaction areas | `large tappable controls, avoid tiny UI elements` |
-| Social ad manipulation tone | Use informative and respectful value messaging | `no manipulative urgency or miracle framing` |
-| Competitor-like visuals | Preserve distinctive PulsePlate visual identity | `no copycat look, no brand imitation` |
+- **Neon/acid palette drift**
+  - Design rule: Keep only canonical palette and muted gradients.
+  - Prompt guard: `no neon, no acid colors, palette locked`
+- **Visual clutter**
+  - Design rule: One focal object and controlled negative space.
+  - Prompt guard: `single focal center, low clutter`
+- **Generic AI "slop" look**
+  - Design rule: Prefer clean geometry and stable depth cues.
+  - Prompt guard: `no generic ai slop, no glossy blobs`
+- **Clinical/medical vibe**
+  - Design rule: Wellness lifestyle framing only.
+  - Prompt guard: `wellness lifestyle, not medical`
+- **Overly dramatic imagery**
+  - Design rule: Calm, confident, supportive emotional tone.
+  - Prompt guard: `no fear, no panic, no dramatic hospital mood`
+- **Unreadable icons**
+  - Design rule: Enforce small-size silhouette clarity.
+  - Prompt guard: `high small-size readability, clear silhouette`
+- **Inconsistent mascot**
+  - Design rule: Keep FitChef shape/mood continuity.
+  - Prompt guard: `consistent FitChef style and expression`
+- **Motion discomfort**
+  - Design rule: Limit motion intensity and duration.
+  - Prompt guard: `slow smooth motion, no jitter, no flashes`
+- **Color-only status meaning**
+  - Design rule: Add structure, labels, and icon support.
+  - Prompt guard: `status must be clear without color dependency`
+- **Tiny touch targets**
+  - Design rule: Keep platform minimum interaction areas.
+  - Prompt guard: `large tappable controls, avoid tiny UI elements`
+- **Social ad manipulation tone**
+  - Design rule: Use informative and respectful value messaging.
+  - Prompt guard: `no manipulative urgency or miracle framing`
+- **Competitor-like visuals**
+  - Design rule: Preserve distinctive PulsePlate visual identity.
+  - Prompt guard: `no copycat look, no brand imitation`
 
 ## Social Promotion Visual Safeguards
 
@@ -185,6 +216,8 @@ Mark release candidate pass only when all are true:
 7. No clinical/diagnostic implication in wellness visuals
 8. Negative UX matrix risks are reviewed and mitigated
 9. Social promotion safeguards are satisfied for campaign creatives
+   (`docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:13`,
+   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:33`)
 
 ## Integration Notes
 
@@ -192,6 +225,11 @@ Mark release candidate pass only when all are true:
   `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - Sora skill specification:
   `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md`
+- Evidence anchors used in this document:
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:24`
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:30`
+  - `docs/sora/SKILL_PULSEPLATE_SORA_PROMPT_ENGINEERING.md:31`
+  - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md:13`
 
 Use this document for visual governance decisions in iOS/Web feature PRs that
 impact perceived product quality.

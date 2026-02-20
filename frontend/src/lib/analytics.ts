@@ -34,5 +34,6 @@ export const Events = {
   PURCHASE_ATTEMPT: "purchase_attempt",
   PURCHASE_CANCEL: "purchase_cancel",
   PURCHASE_SUCCESS: "purchase_success",
+  PURCHASE_FAILURE: "purchase_failure",
   RESTORE_SUCCESS: "restore_success",
 } as const;

@@ -8,7 +8,10 @@ struct RootTabs: View {
 
   var body: some View {
     TabView {
-      HomeView().tabItem { Label("Home", systemImage: "house") }
+      NavigationStack {
+        HomeView()
+      }
+      .tabItem { Label("Home", systemImage: "house") }
       NavigationStack {
         BMICalculatorScreen()
       }

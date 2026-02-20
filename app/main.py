@@ -14,10 +14,25 @@ from legacy_app import app as _legacy_app  # re-export FastAPI instance from leg
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
+import app.routers.realtime_ws as realtime_ws
 
 app: FastAPI = _legacy_app
 
 register_metrics(app)
 register_pro_contract_routes(app)
+
+
+def _assert_no_duplicate_ws_route() -> None:
+    """Fail fast if /ws is already registered elsewhere."""
+    existing_paths = {getattr(route, "path", None) for route in app.routes}
+    if "/ws" in existing_paths:
+        raise RuntimeError(
+            "Duplicate /ws route detected. "
+            "Check legacy_app.py or other router registration points."
+        )
+
+
+_assert_no_duplicate_ws_route()
+app.include_router(realtime_ws.router)
 
 __all__ = ["app"]

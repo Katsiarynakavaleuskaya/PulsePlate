@@ -1,5 +1,8 @@
 # 🎯 Глобальный план модернизации PulsePlate 2025
 
+> Update (2026-02-20): active strategic execution track is documented in
+> `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md` and `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`.
+
 ## 📋 Обзор проекта
 
 **Цель квартала:**

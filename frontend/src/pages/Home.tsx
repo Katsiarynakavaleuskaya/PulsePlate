@@ -1,18 +1,10 @@
-import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { getStoredApiKey } from '../auth/storage';
+import { pageCardStyle } from '../components/ui/pageCardStyle';
+import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { usePremium } from '../lib/usePremium';
 
-const cardClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]';
-
-const quickActions = [
-  { to: '/setup', label: 'Open setup', primary: true },
-  { to: '/plate', label: 'Open plate', primary: false },
-  { to: '/progress', label: 'Open progress', primary: false },
-  { to: '/pro', label: 'Open Pro', primary: false },
-] as const;
-
-export default function Home(): JSX.Element {
+export default function Home() {
   const isPremium = usePremium();
   const hasApiKey = getStoredApiKey() !== null;
   const premiumLabel = isPremium === undefined ? 'Checking…' : isPremium ? 'Active' : 'Inactive';
@@ -20,7 +12,7 @@ export default function Home(): JSX.Element {
 
   return (
     <main className="p-4 pb-24 space-y-4">
-      <section className={`${cardClass} p-6`}>
+      <section className="p-6" style={pageCardStyle}>
         <p className="text-xs uppercase tracking-wide text-muted">Today</p>
         <h1 className="mt-2 text-2xl font-bold text-text">Home</h1>
         <p className="mt-2 text-sm text-muted">
@@ -37,35 +29,36 @@ export default function Home(): JSX.Element {
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <article className={`${cardClass} p-4`}>
+        <article className="p-4" style={pageCardStyle}>
           <p className="text-xs uppercase tracking-wide text-muted">API key</p>
           <p className="mt-2 text-lg font-semibold text-text">{hasApiKey ? 'Connected' : 'Not configured'}</p>
           <p className="mt-2 text-sm text-muted">Setup unlocks personalized guidance and sync.</p>
         </article>
 
-        <article className={`${cardClass} p-4`}>
+        <article className="p-4" style={pageCardStyle}>
           <p className="text-xs uppercase tracking-wide text-muted">Premium</p>
           <p className="mt-2 text-lg font-semibold text-text">{premiumLabel}</p>
           <p className="mt-2 text-sm text-muted">Pro enables advanced insights and premium planning views.</p>
         </article>
       </section>
 
-      <section className={`${cardClass} p-4 space-y-3`}>
+      <LiveProgressIndicator source="home" ctaTo="/progress" ctaLabel="Open progress live" />
+
+      <section className="p-4 space-y-3" style={pageCardStyle}>
         <h2 className="text-base font-semibold text-text">Quick actions</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {quickActions.map((action) => (
-            <Link
-              key={action.to}
-              className={`rounded-full px-4 py-3 text-center text-sm font-semibold ${
-                action.primary
-                  ? 'bg-primary text-white'
-                  : 'bg-[var(--color-surface-muted)] text-text'
-              }`}
-              to={action.to}
-            >
-              {action.label}
-            </Link>
-          ))}
+          <Link className="rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90" to="/setup">
+            Open setup
+          </Link>
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/plate">
+            Open plate
+          </Link>
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/progress">
+            Open progress
+          </Link>
+          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/pro">
+            Open Pro
+          </Link>
         </div>
       </section>
     </main>

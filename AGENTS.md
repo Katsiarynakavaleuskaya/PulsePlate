@@ -155,6 +155,16 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Implementation: `app/security/rate_limit.py`
 - Tests: `tests/test_rate_limit_llm_and_exports_api.py`, `tests/test_rate_limit_client_key_api.py`
 
+**WebSocket foundation policy (hard rule):**
+
+- Canonical websocket surface is foundation-only endpoint `/ws`, registered in `app/main.py`.
+- WebSocket authentication is mandatory and fail-closed (missing/invalid token -> policy close `1008`).
+- Runtime guardrails are mandatory: message-size limit, sliding-window burst limit, and event allowlist.
+- Feature flagging must be request-time (`FEATURE_WEBSOCKET_ENABLED`) to keep tests deterministic and avoid import-time freeze.
+- Any websocket behavior expansion (new event types, rooms, fan-out) must be tracked in `docs/roadmap/BACKLOG_LEDGER.md` before implementation.
+
+**Rationale:** WebSocket transport is long-lived and stateful; strict baseline rules prevent auth bypass and uncontrolled scope creep.
+
 ---
 
 ## REQUIRED READING (before any change)
@@ -201,7 +211,15 @@ A **task** is any unit of work that:
 - Message envelopes (multi-model parseability): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Research brainstorming (brainstorm → optional web/OSS intake → decision → promotion): `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+- Agent knowledge library worktree runbook (brainstorm → promotion → PR): `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
 - Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+- Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+- Design URL + node-id capture protocol for Code Connect activation: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+- Figma/OpenClaw operating model and evidence contract: `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- Sandbox design-agent specification and HITL gates: `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+- Sora prompt pack and QA rubric for HPP visuals: `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`, `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Dialogue visualization contract (Mermaid): `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md` (section `Визуализация диалога`)
 
 **Full workflow:** See `docs/orchestration/workflow.md`
 
@@ -507,6 +525,12 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Frontend -> backend: REST `/api/v1/*` endpoints with API key + session auth; contracts derive from
   Pydantic models in `app/schemas/` and FastAPI OpenAPI output.
 - iOS -> backend: same REST endpoints and auth; mobile flows mirror web API behavior.
+- Visual execution SoT for Home/Plate/Progress CTA behavior and prompt handoff:
+  `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+- Visual quality and review standards:
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`,
+  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`,
+  `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`.
 - DB migrations: Alembic in `alembic/` targets SQLite/Postgres; keep migrations in sync with
   SQLAlchemy models.
 - Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.

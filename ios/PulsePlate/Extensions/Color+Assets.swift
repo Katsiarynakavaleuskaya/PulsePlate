@@ -22,6 +22,22 @@ extension Color {
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.8)
     static let textTertiary = Color.white.opacity(0.6)
+
+    /// Maps backend segment color names to canonical semantic UI colors.
+    static func segmentSemanticColor(from colorString: String) -> Color {
+        switch colorString.lowercased() {
+        case "green":
+            return .success
+        case "red":
+            return .heart
+        case "orange", "yellow":
+            return .warning
+        case "blue", "purple":
+            return .appPrimary
+        default:
+            return .textTertiary
+        }
+    }
 }
 
 // MARK: - Color Hex Initializer

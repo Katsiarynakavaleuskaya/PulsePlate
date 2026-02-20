@@ -27,6 +27,6 @@
 
 - Item:
   - add per-domain template packs for security, RAG, UX, DS cycles
-  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md` (to be added in next PR)
+  - Ledger link: `docs/roadmap/BACKLOG_LEDGER.md` (recorded in this PR)
   - Owner: `agent-coordinator`
   - Target PR: `PR_TBD_AGENT_LIBRARY_TEMPLATE_PACKS`

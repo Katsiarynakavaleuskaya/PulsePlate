@@ -6,7 +6,7 @@ final class WeeklyPlanReaderViewModelTests: XCTestCase {
     func test_load_withoutApiKey_setsFailed_andDoesNotCallService() async {
         let service = CapturingWeeklyPlanService(result: .failure(.unknown("should not be called")))
         let vm = await MainActor.run {
-            WeeklyPlanReaderViewModel(service: service, apiKey: nil)
+            WeeklyPlanReaderViewModel(service: service, apiKeyProvider: { nil })
         }
 
         await MainActor.run {
@@ -26,7 +26,10 @@ final class WeeklyPlanReaderViewModelTests: XCTestCase {
     func test_load_maps401_toUserFacingMessage() async {
         let service = CapturingWeeklyPlanService(result: .failure(.api(statusCode: 401, message: "nope")))
         let vm = await MainActor.run {
-            WeeklyPlanReaderViewModel(service: service, apiKey: "pp-placeholder") // pragma: allowlist secret
+            WeeklyPlanReaderViewModel(
+                service: service,
+                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret
+            )
         }
 
         await MainActor.run {
@@ -46,7 +49,10 @@ final class WeeklyPlanReaderViewModelTests: XCTestCase {
     func test_load_maps403_toUserFacingMessage() async {
         let service = CapturingWeeklyPlanService(result: .failure(.api(statusCode: 403, message: "nope")))
         let vm = await MainActor.run {
-            WeeklyPlanReaderViewModel(service: service, apiKey: "pp-placeholder") // pragma: allowlist secret
+            WeeklyPlanReaderViewModel(
+                service: service,
+                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret
+            )
         }
 
         await MainActor.run {

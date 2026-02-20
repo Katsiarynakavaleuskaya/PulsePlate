@@ -40,7 +40,7 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 
    ```bash
    cd frontend
-   npm install
+   npm ci
    cd ..
    ```
 

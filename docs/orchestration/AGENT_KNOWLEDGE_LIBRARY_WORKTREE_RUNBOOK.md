@@ -3,7 +3,8 @@
 **Purpose:** canonical template for running agent-driven knowledge enrichment
 in a dedicated worktree and promoting validated outcomes via PR.
 
-**Language:** RU-first, English terms in `code` on first use.
+**Language note:** examples are written in English for tooling consistency;
+teams may keep RU-first discussion and decision context in artifacts when needed.
 
 ## 1) Canonical links (SoT)
 
@@ -49,7 +50,7 @@ docs/library/
   decisions/
     ADR_<id>_<topic>.md
   promotion/
-    YYYY-MM-DD_<topic>_promotion_log.md
+    YYYY-MM-DD_<topic>_promotion-log.md
 ```
 
 Rules:
@@ -125,7 +126,7 @@ KPP reference: [`docs/memory/kpp_knowledge_promotion_pipeline.md`](../memory/kpp
 
 ## 7) Promotion log template (fill by agents)
 
-Create `docs/library/promotion/YYYY-MM-DD_<topic>_promotion_log.md`:
+Create `docs/library/promotion/YYYY-MM-DD_<topic>_promotion-log.md`:
 
 ```md
 # Promotion Log: <topic>

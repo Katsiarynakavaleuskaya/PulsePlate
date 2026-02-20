@@ -23,6 +23,12 @@ import {
   type VipUpgradeClickedPayload,
   type VipGateInteractedPayload,
   type VipBadgeViewedPayload,
+  type OnboardingStartedPayload,
+  type OnboardingCompletedPayload,
+  type PaywallViewedPayload,
+  type PaywallCtaClickedPayload,
+  type TrialStartedPayload,
+  type RetentionHeartbeatPayload,
 } from './telemetry/eventRegistry';
 
 /**
@@ -56,7 +62,13 @@ export type VipEventPayload =
   | VipPaywallDismissedPayload
   | VipUpgradeClickedPayload
   | VipGateInteractedPayload
-  | VipBadgeViewedPayload;
+  | VipBadgeViewedPayload
+  | OnboardingStartedPayload
+  | OnboardingCompletedPayload
+  | PaywallViewedPayload
+  | PaywallCtaClickedPayload
+  | TrialStartedPayload
+  | RetentionHeartbeatPayload;
 
 /**
  * Core telemetry tracking function
@@ -164,6 +176,31 @@ export const vipTelemetry = {
       variant,
       isVip,
     });
+  },
+};
+
+/**
+ * Growth funnel telemetry helpers.
+ * These events feed onboarding/paywall/conversion/retention dashboards.
+ */
+export const growthTelemetry = {
+  onboardingStarted: (source: string, variant: string) => {
+    trackVipEvent(EventType.ONBOARDING_STARTED, { source, variant });
+  },
+  onboardingCompleted: (source: string, durationSec?: number) => {
+    trackVipEvent(EventType.ONBOARDING_COMPLETED, { source, durationSec });
+  },
+  paywallViewed: (source: string, placement: string, tierContext: 'free' | 'pro' | 'vip') => {
+    trackVipEvent(EventType.PAYWALL_VIEWED, { source, placement, tierContext });
+  },
+  paywallCtaClicked: (source: string, ctaId: string, tierContext: 'free' | 'pro' | 'vip') => {
+    trackVipEvent(EventType.PAYWALL_CTA_CLICKED, { source, ctaId, tierContext });
+  },
+  trialStarted: (source: string, planType: string) => {
+    trackVipEvent(EventType.TRIAL_STARTED, { source, planType });
+  },
+  retentionHeartbeat: (dayBucket: 'd1' | 'd7' | 'd30', source: string) => {
+    trackVipEvent(EventType.RETENTION_HEARTBEAT, { dayBucket, source });
   },
 };
 

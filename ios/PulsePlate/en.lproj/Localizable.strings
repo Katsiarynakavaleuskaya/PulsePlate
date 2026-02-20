@@ -90,3 +90,30 @@
 "onboarding.welcome.cta.back" = "Back";
 "onboarding.welcome.cta.start" = "Get started";
 "onboarding.welcome.stepA11y" = "Step %d of %d";
+
+/* Home View */
+"home.status.pro_key.title" = "PRO Key";
+"home.status.pro_key.configured" = "Configured";
+"home.status.pro_key.missing" = "Missing";
+"home.status.profile.title" = "Profile";
+"home.status.profile.ready" = "Ready";
+"home.status.profile.incomplete" = "Incomplete";
+"home.section.quick_actions" = "Quick actions";
+"home.action.bmi.title" = "BMI Calculator";
+"home.action.bmi.subtitle" = "Update core body metrics";
+"home.action.profile_setup.title" = "Profile Setup";
+"home.action.profile_setup.subtitle" = "Configure PRO profile and language";
+"home.action.open_plate.title" = "Open Plate";
+"home.action.open_plate.subtitle" = "Review your daily nutrition split";
+"home.section.pro_tools" = "PRO tools";
+"home.action.weekly_plan_reader.title" = "Weekly Plan Reader";
+"home.action.weekly_plan_reader.subtitle" = "Review canonical /api/v1/pro/meal/weekly output";
+"home.action.shopping_list.title" = "Shopping List Generator";
+"home.action.shopping_list.subtitle" = "Build list via /api/v1/pro/meal/shopping-list";
+"home.navigation.title" = "Home";
+"home.accessibility.screen_label" = "Home Screen";
+"home.hero.title" = "PulsePlate";
+"home.hero.subtitle" = "Home + Plate + Progress production slice";
+
+/* Shopping List */
+"shopping_list_no_plan_error" = "Generate a weekly plan first to build a shopping list.";

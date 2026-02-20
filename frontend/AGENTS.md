@@ -18,11 +18,12 @@
 - Keep UI changes in sync with backend schema updates.
 - For coordinated iOS+frontend work (designer/marketing/dev), follow:
   `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`.
-- Visual quality SoT for premium UX:
-  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`.
-- PR review gate (short checklist):
-  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
-- This is a workflow reference only (no runtime behavior).
+- Visual quality SoT and PR review gate are canonical in
+  `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` and
+  `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` (see root `AGENTS.md` policy:
+  one canonical instruction, scoped files reference it).
+- For button-level visual execution and prompt references, use the canonical root section in
+  `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
 
 ## Thin HTTP Adapter Policy (Hard Rule)
 
@@ -51,6 +52,17 @@ npm run build
 **Links:**
 - Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
 - Audit: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md`
+
+---
+
+## Realtime WebSocket adapter policy
+
+- Raw `WebSocket(...)` construction is allowed only in `src/api/wsClient.ts`.
+- `src/api/__tests__/thin-client-guards.test.ts` must enforce this restriction and stay green.
+- Incoming realtime payloads MUST be minimally validated at runtime in adapter layer
+  before forwarding to UI callbacks (at least protocol `version` and event `type`).
+- WebSocket state and message callbacks in adapter code should use explicit function type
+  signatures to keep TypeScript guardrails clear in review and CI.
 
 ---
 

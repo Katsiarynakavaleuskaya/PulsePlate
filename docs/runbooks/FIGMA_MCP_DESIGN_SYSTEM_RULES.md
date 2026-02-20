@@ -65,7 +65,7 @@ export const colors = {
 - Composition and route-level assembly via `frontend/src/App.tsx`
 - Feature pages in `frontend/src/pages/` consume shared components
 
-### Documentation and storybook
+### Documentation and Storybook
 
 - No Storybook configuration detected in `frontend/`.
 - Component behavior is validated primarily through Vitest + RTL tests under

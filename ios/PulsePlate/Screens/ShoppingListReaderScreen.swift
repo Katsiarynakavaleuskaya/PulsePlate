@@ -3,12 +3,12 @@ import SwiftUI
 struct ShoppingListReaderScreen: View {
     @StateObject private var vm: ShoppingListReaderViewModel
 
-    private let planData: ShoppingPlan
+    private let planData: ShoppingPlan?
     private let preferences: [String: Any]?
 
     init(
         vm: ShoppingListReaderViewModel,
-        planData: ShoppingPlan,
+        planData: ShoppingPlan?,
         preferences: [String: Any]? = nil
     ) {
         _vm = StateObject(wrappedValue: vm)

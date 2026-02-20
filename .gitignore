@@ -230,7 +230,6 @@ dist/
 # Local development
 local/
 dev/
-worktrees/
 !docs/dev/
 !docs/dev/**
 debug_*.py

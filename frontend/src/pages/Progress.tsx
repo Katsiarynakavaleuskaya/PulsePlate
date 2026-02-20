@@ -1,5 +1,7 @@
 import type { JSX } from 'react';
 import ProgressCharts from '../features/progress/ProgressCharts';
+import { pageCardStyle } from '../components/ui/pageCardStyle';
+import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { useState } from 'react';
 import SegmentedControl from '../components/ui/SegmentedControl';
 
@@ -10,10 +12,7 @@ export default function Progress(): JSX.Element {
 
   return (
     <main className="p-4 pb-24 space-y-4" style={{ backgroundColor: 'var(--pp-navy)', minHeight: '100vh' }}>
-      <section
-        className="rounded-2xl border p-4"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-      >
+      <section className="p-4" style={pageCardStyle}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-text">Progress</h1>
@@ -27,6 +26,7 @@ export default function Progress(): JSX.Element {
           />
         </div>
       </section>
+      <LiveProgressIndicator source="progress" ctaTo="/setup" ctaLabel="Refresh setup inputs" />
       <ProgressCharts windowRange={windowRange} />
     </main>
   );

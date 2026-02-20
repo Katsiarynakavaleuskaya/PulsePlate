@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Events, log } from "../../lib/analytics";
@@ -6,8 +6,9 @@ import { useFocusTrap } from "../../lib/useFocusTrap";
 
 type Props = {
   onClose: () => void;
-  onPurchase?: () => void;
+  onPurchase?: () => void | Promise<void>;
   purchaseLabel?: string;
+  processingLabel?: string;
   purchaseDisabled?: boolean;
   source?: string;
   via?: string;
@@ -26,9 +27,9 @@ const afterItems = [
 ] as const;
 
 const plans = [
-  { nameKey: "paywall.plans.free.name", subtitleKey: "paywall.plans.free.subtitle", highlighted: false },
-  { nameKey: "paywall.plans.pro.name", subtitleKey: "paywall.plans.pro.subtitle", highlighted: true },
-  { nameKey: "paywall.plans.vip.name", subtitleKey: "paywall.plans.vip.subtitle", highlighted: false },
+  { name: "Free", subtitle: "Basics", highlighted: false },
+  { name: "Pro", subtitle: "Best value", highlighted: true },
+  { name: "VIP", subtitle: "Advanced", highlighted: false },
 ] as const;
 
 /**
@@ -47,11 +48,14 @@ export default function BeforeAfter({
   onClose,
   onPurchase,
   purchaseLabel,
+  processingLabel,
   purchaseDisabled = false,
   source = "unknown",
   via = "paywall",
 }: Props) {
   const { t } = useTranslation();
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -101,7 +105,7 @@ export default function BeforeAfter({
   // Focus effect - reactive to purchaseDisabled changes
   useEffect(() => {
     // Set focus on primary button, or fallback to Cancel if CTA is disabled
-    if (purchaseDisabled) {
+    if (purchaseDisabled || isPurchasing) {
       cancelButtonRef.current?.focus();
     } else {
       primaryButtonRef.current?.focus();
@@ -125,7 +129,7 @@ export default function BeforeAfter({
         <div className="overflow-y-auto p-5">
           <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
             <div className="mb-2 inline-flex items-center rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-              {t("paywall.badge", "PRO")}
+              PRO
             </div>
             <h2 id="paywall-title" className="text-2xl mb-1">
               {t("paywall.title")}
@@ -155,7 +159,7 @@ export default function BeforeAfter({
           <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs">
             {plans.map((plan) => (
               <div
-                key={plan.nameKey}
+                key={plan.name}
                 className={`rounded-lg p-2 ${
                   plan.highlighted
                     ? "border border-[var(--color-primary)] bg-[var(--color-surface-muted)]"
@@ -167,10 +171,10 @@ export default function BeforeAfter({
                     plan.highlighted ? "text-[var(--color-primary)]" : "text-gray-700"
                   }`}
                 >
-                  {t(plan.nameKey)}
+                  {plan.name}
                 </div>
                 <div className={plan.highlighted ? "text-gray-600" : "text-gray-500"}>
-                  {t(plan.subtitleKey)}
+                  {plan.subtitle}
                 </div>
               </div>
             ))}
@@ -186,21 +190,38 @@ export default function BeforeAfter({
             className="w-full rounded-xl bg-pp-primary py-3 text-white disabled:cursor-not-allowed disabled:opacity-50"
             style={{ minHeight: 44 }}
             data-testid="paywall-cta"
-            disabled={purchaseDisabled}
-            aria-disabled={purchaseDisabled}
-            onClick={() => {
-              if (purchaseDisabled) return;
+            disabled={purchaseDisabled || isPurchasing}
+            aria-disabled={purchaseDisabled || isPurchasing}
+            onClick={async () => {
+              if (purchaseDisabled || isPurchasing) return;
+              setPurchaseError(null);
               // Fire-and-forget analytics before invoking callback
               try {
                 log(Events.PURCHASE_ATTEMPT, { source, via });
               } catch {
                 // Ignore analytics errors
               }
-              onPurchase?.();
+              try {
+                setIsPurchasing(true);
+                await onPurchase?.();
+              } catch (error) {
+                const message = error instanceof Error ? error.message : t("common.tryAgain");
+                setPurchaseError(message);
+              } finally {
+                setIsPurchasing(false);
+              }
             }}
           >
-            {purchaseLabel ?? t("paywall.cta")}
+            {isPurchasing
+              ? (processingLabel ?? purchaseLabel ?? t("common.retrying"))
+              : (purchaseLabel ?? t("paywall.cta"))}
           </button>
+
+          {purchaseError && (
+            <p className="mt-2 text-xs text-red-600" data-testid="paywall-purchase-error">
+              {purchaseError}
+            </p>
+          )}
 
           <button
             type="button"
