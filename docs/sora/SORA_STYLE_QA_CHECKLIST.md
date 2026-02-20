@@ -58,3 +58,18 @@ Use one or more:
 - `motion_discomfort`
 - `small_size_failure`
 - `logo_semantic_drift`
+
+## Drift Severity Levels
+
+L1 - Cosmetic drift
+Minor visual deviation, no brand or semantic risk. Fix recommended.
+
+L2 - Brand consistency risk
+Noticeable deviation in tone, hierarchy, or token precision. Requires correction before release.
+
+L3 - Release blocker
+Palette violation, mascot drift, accessibility failure, or semantic ambiguity. Cannot ship.
+
+L4 - Identity violation
+Break of FitChef identity profile, medical implication drift, or icon semantic corruption.
+Immediate rejection and revision required.

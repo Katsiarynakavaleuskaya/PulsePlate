@@ -515,6 +515,23 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.
 - Auth and tiers: API key + user sessions; VIP/Pro tier routing enforced in middleware.
 
+## Visual Governance Policy (Hard Rule)
+
+No new visual rules may be introduced outside:
+- identity profile updates
+- Sora prompt playbook updates
+- QA checklist updates
+
+All new visual constraints must go through PR and update the relevant SoT document.
+Silent rule additions are prohibited.
+
+For any changes to icon assets or lock docs under `docs/design/`, `make icon-silhouette-check`
+is a mandatory execution gate before finalizing Results/Evidence artifacts.
+For any design export or icon-core lock updates, `make design-guard` is mandatory.
+Design exports without updating `docs/design/figma-manifest.json` are policy violations and must fail CI.
+For icon lock artifacts, Figma source fields (`figma_design_url`, `figma_file_key`, `figma_node_id`)
+must reference `figma.com/design` nodes (Figma Make links are not SoT).
+
 ## Thin HTTP Adapter Policy (Hard Rule)
 
 **Invariant:** Clients (iOS/Web) must be **thin adapters only** — zero business logic, only transport/contract/UX.

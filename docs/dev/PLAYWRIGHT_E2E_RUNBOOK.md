@@ -56,6 +56,26 @@ This runbook defines the Step 3 browser E2E extension for the PulsePlate product
 2. Execute flows in a second terminal with Playwright CLI wrapper.
 3. Re-snapshot after each navigation or major DOM mutation.
 
+### npm-first fast lane (preferred for frontend contributors)
+
+From `frontend/`:
+
+```bash
+npm run test:e2e
+```
+
+Headed debug mode:
+
+```bash
+npm run test:e2e:headed
+```
+
+Storybook visual sanity check:
+
+```bash
+npm run storybook
+```
+
 ## Scenario matrix (baseline)
 
 | ID | Flow | Start URL | Expected outcome | Artifacts |

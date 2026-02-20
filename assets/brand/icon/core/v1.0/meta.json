@@ -1,0 +1,24 @@
+{
+  "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+  "version": "v1.0",
+  "master_policy": "dual-master-svg-png",
+  "figma_source_type": "design",
+  "figma_design_url": "",
+  "figma_file_key": "",
+  "figma_node_id": "",
+  "assets": {
+    "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+    "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+    "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+    "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+    "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+    "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png"
+  },
+  "hashes": {
+    "master_svg_sha256": "",
+    "master_png_1024_sha256": "",
+    "master_png_60_sha256": "",
+    "silhouette_mask_sha256_1024": "",
+    "silhouette_mask_sha256_60": ""
+  }
+}

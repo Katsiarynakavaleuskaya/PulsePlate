@@ -30,6 +30,7 @@ This section defines the **design canon** for Web+iOS work. It is intentionally 
   - iOS consumes aligned DTOs (example: `ios/PulsePlate/Models/NutritionData.swift:L7-L28`; SoT pipeline note: `ios/AGENTS.md:L91-L94`).
 - **Thin-client policy**: no business logic duplication on clients (`AGENTS.md:L426-L457`, `ios/AGENTS.md:L34-L55`, `frontend/AGENTS.md:L23-L33`).
 - **Design tokens (Web)**: `frontend/src/styles/tokens.ts` (`frontend/src/styles/tokens.ts:L1-L120`).
+- **Design tokens (iOS mirror)**: `ios/PulsePlate/DesignSystem/DesignTokens.swift` (cross-platform token parity scaffold).
 
 ### UI-only (allowed) mapping
 

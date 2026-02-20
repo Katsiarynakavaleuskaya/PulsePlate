@@ -1102,10 +1102,48 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
 
+- [ ] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend delivery accelerator)
+  - Target PR: PR/HPP-Storybook-Bootstrap
+  - Status: 📋 Planned
+  - Area: frontend / HPP / design-system tooling
+  - Finding Type: execution foundation
+  - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
+    review of tokenized primitives before route-level integration and reduces regressions during rapid UI iteration.
+  - Links:
+    - `frontend/package.json`
+    - `frontend/src/components/ui/`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+  - DoD:
+    - Storybook is wired in `frontend` (`storybook`, `build-storybook` scripts)
+    - HPP stories exist for `SegmentedControl`, `Toggle`, `FormField`, and page-card shell
+    - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
+    - Storybook build passes in local verification
+
+- [ ] HPP Web visual workflow: Playwright deterministic smoke lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend quality guardrail)
+  - Target PR: PR/HPP-Playwright-Smoke-Lane
+  - Status: 📋 Planned
+  - Area: frontend / HPP / e2e visual smoke
+  - Finding Type: execution foundation
+  - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
+    (`/`, `/plate`, `/progress`, `/pro`) before broader CI hardening.
+  - Links:
+    - `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
+    - `frontend/playwright.config.ts`
+    - `frontend/e2e/`
+  - DoD:
+    - Playwright config and smoke specs exist for canonical HPP routes
+    - `npm run test:e2e` and headed variant are available in `frontend/package.json`
+    - Smoke checks run with deterministic local web server settings
+    - Runbook contains npm-first execution commands
+
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)
-  - Target PR: TBD
+  - Target PR: PR/HPP-Token-Parity-Web-iOS
   - Status: 📋 Planned
   - Reason: Web has initial brand colors in `frontend/src/styles/tokens.ts`, but iOS lacks a centralized token mirror
     (colors/spacing/typography/motion). Without a minimal design system, UI work drifts, is slower to delegate, and is
