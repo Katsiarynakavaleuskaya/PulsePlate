@@ -2,11 +2,11 @@
 
 # Proof Pack
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Назначение
 
-Proof Pack дает sales и investor-стороне пакет доказательств:
+Proof Pack дает sales- и investor-сторонам пакет доказательств:
 не "мы планируем", а "вот что уже видно и как это проверено".
 
 ## 1) Beta Metrics Block (Template)

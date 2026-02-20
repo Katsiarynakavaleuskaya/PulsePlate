@@ -2,7 +2,7 @@
 
 # PulsePlate Audience Pack
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Назначение
 
@@ -36,17 +36,13 @@
 ## Deferred Layer (Set C)
 
 Пункты Set C зафиксированы в `docs/roadmap/BACKLOG_LEDGER.md`.
-Без ledger-entry deferred работа считается несуществующей.
+Без записи в ledger deferred-работа считается несуществующей.
 
-## Owner & Cadence Protocol (Summary)
+## Owner & Cadence Protocol (Canonical SoT)
 
-| Doc Group | Primary Owner | Cadence |
-|---|---|---|
-| Facts + Engineering | Product + Backend | Monthly |
-| Investor + Narrative | Founder + Product Marketing | Monthly |
-| Marketing + Sales + Proof | Growth + Sales | Weekly/Bi-weekly |
-| Strategy + Risk + Roadmap | Product Architect + Security | Monthly |
-| Reporting Templates | AI Trend Reporter | Monthly |
+- Каноническая owner/cadence матрица находится в
+  `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md`.
+- Любое изменение owner/cadence сначала вносится в этот документ, чтобы избежать drift.
 
 ## Claim Hygiene Standard
 

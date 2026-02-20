@@ -2,11 +2,16 @@
 
 # Living Document Protocol
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Purpose
 
 Нужен единый протокол, чтобы пакет не устаревал через 2-3 месяца.
+
+## Version Header Standard
+
+- Для всех audience-pack документов используется формат:
+  `Версия: YYYY-MM-DD (TZ: America/New_York)`.
 
 ## Ownership Matrix
 

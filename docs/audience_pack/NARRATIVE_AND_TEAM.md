@@ -2,7 +2,7 @@
 
 # Narrative and Team Credibility
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Назначение
 

@@ -2,11 +2,11 @@
 
 # Competitive Intelligence Layer
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Назначение
 
-Этот документ отвечает на ключевой вопрос инвестора и sales:
+Этот документ отвечает на ключевой вопрос инвесторов и sales-команд:
 "чем PulsePlate лучше X".
 
 ## Direct Competitors (Working List)
