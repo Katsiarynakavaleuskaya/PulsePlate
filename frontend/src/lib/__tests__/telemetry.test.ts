@@ -373,6 +373,32 @@ describe('Telemetry', () => {
       expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(false);
     });
 
+    it('should validate growth payload with allowed tierContext values', () => {
+      const validGrowthPayload = {
+        source: 'onboarding',
+        placement: 'soft_paywall',
+        tierContext: 'pro' as const,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true },
+      };
+
+      expect(validateEventPayload(EventType.PAYWALL_VIEWED, validGrowthPayload)).toBe(true);
+    });
+
+    it('should reject growth payload with invalid tierContext enum value', () => {
+      const invalidGrowthPayload = {
+        source: 'onboarding',
+        placement: 'soft_paywall',
+        tierContext: 'enterprise',
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true },
+      } as any;
+
+      expect(validateEventPayload(EventType.PAYWALL_VIEWED, invalidGrowthPayload)).toBe(false);
+    });
+
     it('should reject payload with wrong BaseEventPayload field types', () => {
       const payloadWithWrongTimestamp = {
         source: 'dashboard',

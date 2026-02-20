@@ -132,6 +132,17 @@ export interface EventPayloadMap {
   [EventType.RETENTION_HEARTBEAT]: RetentionHeartbeatPayload;
 }
 
+type PrimitiveFieldType = 'string' | 'number' | 'boolean';
+
+type EventFieldSchema = {
+  type: PrimitiveFieldType;
+  required: boolean;
+  enum?: readonly string[];
+};
+
+const TIER_CONTEXT_ENUM = ['free', 'pro', 'vip'] as const;
+const RETENTION_DAY_BUCKET_ENUM = ['d1', 'd7', 'd30'] as const;
+
 
 /**
  * Event Registry Configuration with type-safe validation
@@ -214,7 +225,7 @@ export const EVENT_REGISTRY = {
     fields: {
       source: { type: 'string', required: true },
       placement: { type: 'string', required: true },
-      tierContext: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true, enum: TIER_CONTEXT_ENUM },
     },
   },
   [EventType.PAYWALL_CTA_CLICKED]: {
@@ -222,7 +233,7 @@ export const EVENT_REGISTRY = {
     fields: {
       source: { type: 'string', required: true },
       ctaId: { type: 'string', required: true },
-      tierContext: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true, enum: TIER_CONTEXT_ENUM },
     },
   },
   [EventType.TRIAL_STARTED]: {
@@ -235,7 +246,7 @@ export const EVENT_REGISTRY = {
   [EventType.RETENTION_HEARTBEAT]: {
     description: 'Retention heartbeat event for cohort analysis',
     fields: {
-      dayBucket: { type: 'string', required: true },
+      dayBucket: { type: 'string', required: true, enum: RETENTION_DAY_BUCKET_ENUM },
       source: { type: 'string', required: true },
     },
   },
@@ -286,30 +297,42 @@ export function validateEventPayload<T extends EventType>(
 
   // Validate each field according to its schema
   for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {
+    const typedFieldSchema = fieldSchema as EventFieldSchema;
     const value = payload[fieldName as keyof EventPayloadMap[T]];
 
     // Check if required field is missing
-    if (fieldSchema.required && (value === undefined || value === null)) {
+    if (typedFieldSchema.required && (value === undefined || value === null)) {
       console.error(`Missing required field '${fieldName}' for event '${eventType}'`);
       return false;
     }
 
     // Skip type validation for optional fields that are undefined
-    if (!fieldSchema.required && value === undefined) {
+    if (!typedFieldSchema.required && value === undefined) {
       continue;
     }
 
     // Reject null for optional fields
-    if (!fieldSchema.required && value === null) {
+    if (!typedFieldSchema.required && value === null) {
       console.error(`Field '${fieldName}' in event '${eventType}' cannot be null (use undefined for optional fields)`);
       return false;
     }
 
     // Perform type validation
     const actualType = getValueType(value);
-    if (actualType !== fieldSchema.type) {
+    if (actualType !== typedFieldSchema.type) {
       console.error(
-        `Invalid type for field '${fieldName}' in event '${eventType}': expected '${fieldSchema.type}', got '${actualType}'`
+        `Invalid type for field '${fieldName}' in event '${eventType}': expected '${typedFieldSchema.type}', got '${actualType}'`
+      );
+      return false;
+    }
+
+    if (
+      typedFieldSchema.enum &&
+      typedFieldSchema.type === 'string' &&
+      !typedFieldSchema.enum.includes(String(value))
+    ) {
+      console.error(
+        `Invalid value for field '${fieldName}' in event '${eventType}': expected one of [${typedFieldSchema.enum.join(', ')}], got '${String(value)}'`
       );
       return false;
     }

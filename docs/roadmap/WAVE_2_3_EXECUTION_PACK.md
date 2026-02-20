@@ -62,7 +62,7 @@ Deliverables:
 KPIs:
 
 - Citation coverage target met on benchmark set
-- Hallucination risk trend down release-over-release
+- Hallucination risk trending down release-over-release
 
 ### 2) Safety Evals at Scale
 

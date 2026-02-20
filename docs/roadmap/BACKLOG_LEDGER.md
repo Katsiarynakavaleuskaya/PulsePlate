@@ -819,6 +819,27 @@ If it is not recorded here — it does not exist.
     - Initial prioritized growth experiments registered with owners and dates
     - Guardrail metrics required for promotion decisions
 
+- [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TELEMETRY-API-NORMALIZATION
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: frontend / analytics / architecture
+  - Finding Type: naming/abstraction hygiene
+  - Locations:
+    - `frontend/src/lib/telemetry.ts`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: growth events currently use `trackVipEvent`; rename to a generic API surface and keep compatibility wrapper to avoid VIP-specific naming leakage in broader telemetry families.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
+    - Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
+    - Enum constraints documented for shared growth fields where runtime validation is required
+    - Tests updated for both legacy and new entrypoints
+    - `make verify` and required CI checks pass
+
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

@@ -4,29 +4,40 @@
 
 Define the minimum security controls required to operate PulsePlate agent automation safely.
 
+## Evidence anchors
+
+- `RUNBOOK_AGENT.md:121` — canonical Security Ops checklist for containment, rotation, and verification.
+- `docs/orchestration/workflow.md:97` — governance checkpoint that gates agent automation changes.
+- `docs/runbooks/README.md:26` — runbook index entry for this baseline.
+
 ## Mandatory Controls (P0)
 
 1. Secrets lifecycle
+
 - No long-lived secrets in local agent files
 - Use short-lived scoped credentials from a broker
 - Enforce rotation playbooks for bot/API/provider keys
 
-2. Policy-first execution
+1. Policy-first execution
+
 - Every privileged action must pass policy evaluation
 - Default deny for unknown actions/tools/targets
 - Fail-closed when policy engine is unavailable
 
-3. Auditability
+1. Auditability
+
 - Signed execution envelopes (request + decision + result hash)
 - Immutable/tamper-evident logs for privileged operations
 - Incident timeline reproducibility within 15 minutes
 
-4. Isolation
+1. Isolation
+
 - Sandboxed execution for high-risk actions
 - Outbound allowlist for tool calls and webhooks
 - No direct unrestricted local filesystem access
 
-5. Approval model
+1. Approval model
+
 - Auto-safe actions can run autonomously
 - High-impact actions require human approval (review-required mode)
 
