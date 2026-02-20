@@ -70,6 +70,27 @@ Or individually:
 - Pushing PRs without running `pre-commit run --all-files` first
 - Using `SKIP=...` or disabling hooks without explicit justification (default: "fix it, don't skip it"; if skip is needed, document why in PR description/comment)
 
+## Local-only artifacts (hard rule)
+
+**Hard rule:** local/dev artifacts must never be tracked in git.
+
+**Forbidden to commit:**
+- `worktrees/`
+- `.venv/`
+- `.pytest_cache/`
+- `.mypy_cache/`
+- `.ruff_cache/`
+- `node_modules/`
+- `.DS_Store`
+- `coverage.*`
+- `.coverage`
+- `dist/`
+- `build/`
+
+**Enforcement:**
+- Any appearance of these paths in `git status` is a **P0 stop** condition. Remove/ignore them before continuing any task.
+- Any PR with tracked `worktrees/` paths is **No-Go** and must not be merged.
+
 **SKIPPED policy (Bad skip vs Intentional skip):**
 
 - **Intentional skip:** Documented, scoped (e.g. known missing module, expected-red guard),
@@ -1425,6 +1446,15 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
    - explicit assertions for `Content-Type` and error envelope fields.
 
 Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserving strict scope and deterministic quality gates.
+
+### DoD hygiene additions (mandatory for any PR)
+
+- ✅ `git ls-files worktrees` returns empty
+- ✅ if `worktrees/` was tracked by mistake, cleanup uses `git rm -r --cached worktrees`
+  (index-only) after explicit confirmation
+- ✅ `pre-commit run --all-files` is green
+- ✅ `make verify` is green
+- ✅ no generated/local artifacts are tracked
 
 ---
 

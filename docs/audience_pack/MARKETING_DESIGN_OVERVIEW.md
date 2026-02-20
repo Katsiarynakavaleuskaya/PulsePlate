@@ -2,145 +2,96 @@
 
 # Marketing + Design + Growth Overview
 
-Дата версии: 19 февраля 2026 года (`America/New_York`)
+Дата версии: 20 февраля 2026 года (`America/New_York`)
 
-## 1) Что За Проект С Позиции GTM
-PulsePlate — AI wellness companion, который помогает пользователю перейти от цифр к действиям.
+## Что Уже Сделано Хорошо
 
-Продуктовая формула ценности:
-- видно отправную точку,
-- понятно, что это значит,
-- есть практический план на каждый день.
+- Четкая сегментация аудитории и единый language framework.
+- Wellness-safe wording уже встроен в коммуникацию.
+- Базовая структура каналов (ASO/SEO/Social/Product Hunt) уже есть.
 
-## 2) Позиционирование
+## Главная Проблема Текущей Версии GTM
 
-### Категория
-- AI wellness product (не clinical/medical app).
+90-дневный блок был описан как список активностей.
+Для роста нужен формат гипотез с KPI и правилами решений.
 
-### Core message
-- "PulsePlate превращает health-метрики в понятные ежедневные решения по питанию и привычкам".
+## GTM North Star
 
-### Differentiation
-- лестница ценности `FREE -> PRO -> VIP`,
-- ежедневная прикладная польза (план, shopping list, экспорт),
-- multi-platform delivery (web + iOS),
-- дисциплина claims (wellness-safe wording).
+PulsePlate: "метрики -> интерпретация -> ежедневное действие".
 
-## 3) ICP / JTBD
+Основной North Star KPI:
+`[VERIFY_VALUE:NORTH_STAR_KPI]`
 
-| ICP | JTBD | Основной pain | Value message |
+## 90-Day GTM Hypotheses (Вместо Activity-List)
+
+| Hypothesis | Metric | Baseline | Target | Owner | Check Date | Decision Rule |
+|---|---|---|---|---|---|---|
+| ASO subtitle A/B (3 варианта) поднимет install CVR | Impressions -> Install rate | `[VERIFY_VALUE:ASO_BASELINE]` | `+15%` | Growth Lead | 12 марта 2026 | Scale если uplift >= 10%, stop если < 5% |
+| Landing SEO-кластер "AI wellness + habit" даст органический signup рост | Organic sessions -> Signup CVR | `[VERIFY_VALUE:SEO_BASELINE]` | `+20% signup` | Content Lead | 26 марта 2026 | Continue если CAC <= `[VERIFY_VALUE:CAC_SEO_LIMIT]` |
+| Short-form UGC (3 формата) улучшит activation quality | Install -> D1 activation | `[VERIFY_VALUE:D1_BASELINE]` | `+12%` | Social Lead | 2 апреля 2026 | Keep 2 лучших формата, 1 отключить |
+| Product Hunt launch week увеличит qualified waitlist | Qualified waitlist/week | `[VERIFY_VALUE:PH_BASELINE]` | `x2` | Founder + Marketing | 16 апреля 2026 | Expand если quality score >= `[VERIFY_VALUE:PH_QUALITY]` |
+| Lifecycle onboarding copy снизит early churn | D7 retention | `[VERIFY_VALUE:D7_BASELINE]` | `+8 p.p.` | Product Marketing | 30 апреля 2026 | Ship globally если D7 uplift >= 5 p.p. |
+
+## ICP / JTBD (Уточненный)
+
+| ICP | JTBD | Pain | Value Message |
 |---|---|---|---|
-| Новички в wellness | "Хочу простой старт без перегруза" | Сложно начать и удержать рутину | "Первые понятные шаги за 1 сессию" |
-| Активные fitness users | "Хочу видеть прогресс не только по весу" | Непонятно, что корректировать | "Метрики + интерпретация + действие" |
-| Занятые профессионалы | "Хочу меньше решать вручную каждый день" | Decision fatigue | "Персональный ежедневный контур" |
+| Новички в wellness | "Хочу начать без перегруза" | Не понимаю, что делать с цифрами | "Первый actionable шаг за одну сессию" |
+| Fitness users | "Хочу управлять прогрессом, а не только смотреть графики" | Много данных, мало решений | "Понятная интерпретация + daily loop" |
+| Занятые профессионалы | "Хочу меньше ручных решений" | Decision fatigue | "Автоматизированный daily contour" |
 
-## 4) Тон И Язык Коммуникации
-- Простой, спокойный, уверенный.
-- Без запугивания.
-- Без медицинских обещаний.
-- Не "магический AI", а "практичный помощник".
+## Activation & Retention Mini Playbook
 
-Разрешенный язык:
-- "помогает отслеживать",
-- "поддерживает привычки",
-- "дает ориентиры".
+### Aha Moment
 
-Запрещенный язык:
-- "лечит",
-- "диагностирует",
-- "гарантирует медицинский результат".
+Пользователь за первую сессию получает:
+- ясную интерпретацию состояния,
+- первый персональный action,
+- понятный следующий шаг на завтра.
 
-## 5) Каналы И Роли Каналов
+### Trigger Map
 
-### ASO
-- фокус на intent keywords (BMI, nutrition, habit, progress),
-- A/B по иконке, subtitle, первым скриншотам,
-- review velocity как trust-signal.
+- Day 1: "первый actionable plan".
+- Day 3: "подтверждение прогресса / корректировка".
+- Day 7: "weekly continuity и закрепление привычки".
 
-### SEO
-- контент-кластеры:
-  - объяснения метрик,
-  - практические wellness-гайды,
-  - сравнительные и how-to материалы.
-- сильный long-tail и FAQ страницы.
+### Churn Signals
 
-### Соцсети
-- short-form видео + карусели,
-- контент вокруг micro-habits и weekly consistency,
-- UGC/creator-friendly форматы.
+- отсутствие completion ключевого шага в первые 48 часов;
+- нулевая реакция на Day 3 touchpoint;
+- падение открытия приложения к Day 7.
 
-### Product Hunt
-- запуск как milestone,
-- pre-launch buildup: waitlist + narrative + proof pack,
-- founder-led ответы в день запуска.
+### Re-engagement
 
-## 6) Контент-Матрица
+- push/email сценарий с одним понятным действием;
+- без guilt messaging;
+- с безопасной wellness формулировкой.
 
-| Pillar | Формат | Цель | KPI |
+## Second-Order Distribution Layer
+
+| Блок | Кто делает | Бюджет/ресурс | Частота решения |
 |---|---|---|---|
-| Education | карусель, короткие статьи | awareness | save/share/CTR |
-| Utility | чеклисты, mini-calculators | consideration | click to onboarding |
-| Product proof | короткие демо, кейсы | trust | signup/install CVR |
-| Retention | email/push контент | удержание | D7, D30 return rate |
-| Conversion | paywall narratives, offer pages | revenue | trial start, paid conversion |
+| Контент production | Content + Designer | `[VERIFY_VALUE:CONTENT_BUDGET]` | Weekly review |
+| Канальный приоритизатор | Growth + Product | `[VERIFY_VALUE:GROWTH_BUDGET]` | Bi-weekly |
+| Масштабирование winners | Founder + Growth | По факту KPI | Monthly |
+| Kill/Stop решения | Product Council | N/A | Monthly |
 
-## 7) Дизайн-Указания Для Команды
-- UI должен транслировать clarity и trust.
-- Важна визуальная иерархия "метрика -> смысл -> действие".
-- Не перегружать интерфейс цифрами без объяснения.
-- Один экран = одна ясная цель.
-- Для premium UX использовать различие не "дороже по цвету", а "глубже по смыслу".
+## Monetization Experiments (Верхний Уровень)
 
-## 8) Onboarding Narrative
-1. "Где вы сейчас".
-2. "Что это значит".
-3. "Что делать сегодня".
-4. "Как закрепить на неделе".
-
-Обязательная compliance-строка в onboarding:
-- "PulsePlate — wellness-инструмент и не заменяет консультацию лицензированного медицинского специалиста".
-
-## 9) 90-Дневный GTM Фрейм
-Период: 19 февраля 2026 года -> 20 мая 2026 года (`America/New_York`).
-
-### Days 1-30
-- финализировать messaging и визуальный пакет,
-- запустить базовую ASO/SEO матрицу,
-- собрать baseline event analytics.
-
-### Days 31-60
-- запустить системную social content cadence,
-- протестировать 2-3 conversion hypotheses,
-- отладить onboarding drop-off points.
-
-### Days 61-90
-- масштабировать лучшие каналы,
-- провести Product Hunt/PR burst,
-- зафиксировать repeatable growth playbook.
-
-## 10) KPI, Которые Должны Видеть Маркетинг И Дизайн
-- acquisition: installs/signup.
-- activation: onboarding completion, first plan created.
-- retention: D7, D30.
-- conversion: free -> trial, trial -> paid.
-- trust: rating, review quality, support signal trend.
-
-## 11) Синхронизация С Инженерией
-Маркетинг и дизайн должны проверять claims через `docs/audience_pack/FACTS_CANONICAL.md`.
-
-Обязательная цепочка перед релизом кампании:
-1. capability подтвержден кодом,
-2. текст прошел compliance-safe wording,
-3. KPI и owner назначены,
-4. есть план измерения результата.
+| Эксперимент | KPI | Статус | Следующий шаг |
+|---|---|---|---|
+| Soft vs hard paywall | Trial start, Paid conversion | `[VERIFY_VALUE:PAYWALL_STATUS]` | Подтвердить baseline |
+| Pricing ladder test | ARPU, churn | `[VERIFY_VALUE:PRICING_STATUS]` | Подготовить A/B дизайн |
+| B2B pilot offer | Pilot-to-paid | `[VERIFY_VALUE:B2B_STATUS]` | 2 целевых пилота |
 
 ## Security Notes
-- В рекламных и onboarding текстах запрещены клинические обещания.
-- Любой health-контент должен иметь wellness disclaimer.
-- Для user-generated кейсов запрещено публиковать чувствительные данные без явного consent.
-- В креативах нельзя обещать функциональность, не подтвержденную продуктом.
+
+- Коммуникация остается wellness-only; medical claims запрещены.
+- Любой KPI без источника должен быть placeholder.
+- Маркетинг не публикует цифры без верификации владельцем метрики.
 
 ## Marketing & GTM
-- Главная история бренда: "простые ежедневные решения".
-- Главный KPI-подход: channel -> message -> conversion -> retention.
-- Главный growth-принцип: сначала консистентная база контента и аналитики, потом масштаб.
+
+- GTM считается системой гипотез, а не списком задач.
+- Каждый канал обязан иметь baseline, target и decision rule.
+- Все решения о масштабировании принимаются только по данным и cadence-ревью.

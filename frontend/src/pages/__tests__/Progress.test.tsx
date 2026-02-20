@@ -24,9 +24,9 @@ describe('Progress', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Update setup parameters' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('button', { name: 'WEEK' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'MONTH' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'QUARTER' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'WEEK' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'MONTH' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'QUARTER' })).toBeInTheDocument();
     expect(screen.getByTestId('progress-charts')).toBeInTheDocument();
   });
 
