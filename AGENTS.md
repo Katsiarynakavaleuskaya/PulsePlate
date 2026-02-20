@@ -1129,7 +1129,7 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **Before resolving conflicts: check whether upstream PRs already landed; if branch becomes identical to main, close as duplicate.**
 - ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
-- ✅ **After PR merge, clean local/remote branch and remove merged worktree in the same work session.**
+- ✅ **After PR merge, clean local branch, remote branch, and merged worktree in the same work session.**
 - ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
@@ -1138,22 +1138,32 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 **Worktree cleanup protocol (mandatory after merge):**
 
 ```bash
-# 1) Sync main reference first
-git fetch origin
+# 1) Sync refs first
+git fetch --prune origin
 
 # 2) Remove merged local branch (if present)
 git branch --list <branch-name>
 # If listed, run:
 git branch -d <branch-name>
 
-# 3) Remove merged worktree
-git worktree remove worktrees/<worktree-name>
+# 3) Remove merged remote branch (if present)
+git ls-remote --heads origin <branch-name>
+# If listed, run:
+git push origin --delete <branch-name>
 
-# 4) Prune stale worktree metadata
+# 4) Discover the exact worktree path to remove
+git worktree list
+# Copy the exact path for <branch-name>; if this repo is your current directory,
+# switch to another worktree first.
+
+# 5) Remove merged worktree using the discovered path
+git worktree remove <worktree-path>
+
+# 6) Prune stale worktree metadata
 git worktree prune
 
-# 5) Ensure local repo sees the new main head
-git fetch origin && git rev-parse origin/main
+# 7) Ensure local repo sees the new main head
+git rev-parse origin/main
 ```
 
 **Incident response (if force-push to main occurred):**
