@@ -15,6 +15,7 @@ diff-cover~=10.2.0
 # Code quality tools: use compatible release for stability
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
+cryptography>=46.0.5  # Keep explicit dependency floor for dependency-security guard
 pre-commit~=4.5.1
 pip-tools~=7.5.3
 detect-secrets~=1.5.0
