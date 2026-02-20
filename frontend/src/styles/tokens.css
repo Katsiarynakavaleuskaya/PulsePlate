@@ -13,10 +13,10 @@
      ============================================================================ */
 
   /* Canonical PulsePlate brand tokens (bridge phase: no visual change) */
-  --pp-navy: #102a43;
-  --pp-blue: #3b82f6;
-  --pp-green: #22c55e;
-  --pp-red: #ef4444;
+  --pp-navy: #0f172a;
+  --pp-blue: #339fff;
+  --pp-green: #20c997;
+  --pp-red: #ff5d5d;
   --pp-gold: #d4af37;
 
   /* Navy theme */
@@ -95,7 +95,7 @@
   --color-error: var(--pp-red);
   --color-info: var(--pp-blue);
   --color-focus: var(--pp-blue);
-  --color-focus-rgb: 59, 130, 246;
+  --color-focus-rgb: 51, 159, 255;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
 
   /* Legacy aliases (deprecated, keep until PR-2 migration) */
