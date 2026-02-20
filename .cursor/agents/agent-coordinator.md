@@ -193,6 +193,14 @@ UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 ---
 
+### designer-artist-agent
+
+Specialized emblem-production agent: owns drawable SVG blueprinting + synchronized Figma/Sora/Nano Banana handoff packets (not generic UI/UX, not Sora-only prompt QA).
+
+**Canonical doc:** `.cursor/agents/designer-artist-agent.md`
+
+---
+
 ### sora-prompt-engineer
 
 Sora prompt-engineering owner for PulsePlate visual assets: style-lock templates, variant strategy, anti-drift controls, and release QA criteria.
