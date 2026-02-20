@@ -373,7 +373,7 @@ describe('Telemetry', () => {
       expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(false);
     });
 
-    it('should validate growth payload with allowed tierContext values', () => {
+    it('should validate growth payload with allowed tierContext values', (): void => {
       const validGrowthPayload = {
         source: 'onboarding',
         placement: 'soft_paywall',
@@ -386,7 +386,7 @@ describe('Telemetry', () => {
       expect(validateEventPayload(EventType.PAYWALL_VIEWED, validGrowthPayload)).toBe(true);
     });
 
-    it('should reject growth payload with invalid tierContext enum value', () => {
+    it('should reject growth payload with invalid tierContext enum value', (): void => {
       const invalidGrowthPayload = {
         source: 'onboarding',
         placement: 'soft_paywall',

@@ -134,14 +134,14 @@ export interface EventPayloadMap {
 
 type PrimitiveFieldType = 'string' | 'number' | 'boolean';
 
-type EventFieldSchema = {
+interface EventFieldSchema {
   type: PrimitiveFieldType;
   required: boolean;
   enum?: readonly string[];
-};
+}
 
-const TIER_CONTEXT_ENUM = ['free', 'pro', 'vip'] as const;
-const RETENTION_DAY_BUCKET_ENUM = ['d1', 'd7', 'd30'] as const;
+const tierContextEnum = ['free', 'pro', 'vip'] as const;
+const retentionDayBucketEnum = ['d1', 'd7', 'd30'] as const;
 
 
 /**
@@ -225,7 +225,7 @@ export const EVENT_REGISTRY = {
     fields: {
       source: { type: 'string', required: true },
       placement: { type: 'string', required: true },
-      tierContext: { type: 'string', required: true, enum: TIER_CONTEXT_ENUM },
+      tierContext: { type: 'string', required: true, enum: tierContextEnum },
     },
   },
   [EventType.PAYWALL_CTA_CLICKED]: {
@@ -233,7 +233,7 @@ export const EVENT_REGISTRY = {
     fields: {
       source: { type: 'string', required: true },
       ctaId: { type: 'string', required: true },
-      tierContext: { type: 'string', required: true, enum: TIER_CONTEXT_ENUM },
+      tierContext: { type: 'string', required: true, enum: tierContextEnum },
     },
   },
   [EventType.TRIAL_STARTED]: {
@@ -246,7 +246,7 @@ export const EVENT_REGISTRY = {
   [EventType.RETENTION_HEARTBEAT]: {
     description: 'Retention heartbeat event for cohort analysis',
     fields: {
-      dayBucket: { type: 'string', required: true, enum: RETENTION_DAY_BUCKET_ENUM },
+      dayBucket: { type: 'string', required: true, enum: retentionDayBucketEnum },
       source: { type: 'string', required: true },
     },
   },
@@ -360,7 +360,9 @@ export function getAllEventTypes(): EventType[] {
 /**
  * Get event configuration
  */
-export function getEventConfig(eventType: EventType) {
+export function getEventConfig(
+  eventType: EventType
+): (typeof EVENT_REGISTRY)[keyof typeof EVENT_REGISTRY] | undefined {
   return EVENT_REGISTRY[eventType];
 }
 
