@@ -7,8 +7,12 @@
 ## Что Уже Сделано Хорошо
 
 - Структура по аудиториям уже разделена: инвесторы, инженеры, маркетинг.
-- `FACTS_CANONICAL.md` уже работает как единый источник правды.
-- Wellness-only позиционирование и запрет medical claims уже встроены.
+- `FACTS_CANONICAL.md` уже работает как единый источник правды
+  (evidence: `docs/audience_pack/FACTS_CANONICAL.md:8`, `docs/audience_pack/FACTS_CANONICAL.md:101`).
+- Wellness-only позиционирование и запрет medical claims уже встроены
+  (evidence: `docs/audience_pack/FACTS_CANONICAL.md:101`,
+  `docs/orchestration/AGENT_CONTEXT_MAP.md:263`,
+  `docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md:19`).
 
 ## 90-Second Pitch (Обновленная Версия)
 
