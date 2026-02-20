@@ -553,6 +553,12 @@ Design exports without updating `docs/design/figma-manifest.json` are policy vio
 For icon lock artifacts, Figma source fields (`figma_design_url`, `figma_file_key`, `figma_node_id`)
 must reference `figma.com/design` nodes (Figma Make links are not SoT).
 
+Design token SoT for web is `frontend/src/styles/tokens.css` (single source).
+Token migrations must follow staged policy: PR-1 bridge aliases -> PR-2 palette switch -> PR-3 raw-hex guard.
+
+Raw hex values are forbidden in `frontend/src/**` runtime files.
+Allowlist only: `frontend/src/styles/tokens.css`, `**/*.test.*`, `**/*.spec.*`, `**/*.stories.*`.
+
 ## Thin HTTP Adapter Policy (Hard Rule)
 
 **Invariant:** Clients (iOS/Web) must be **thin adapters only** — zero business logic, only transport/contract/UX.
