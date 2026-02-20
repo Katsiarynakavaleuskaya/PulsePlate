@@ -846,6 +846,30 @@ If it is not recorded here — it does not exist.
     - Tests updated for both legacy and new entrypoints
     - `make verify` and required CI checks pass
 
+- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Completed on branch (2026-02-20), pending merge
+  - Area: docs / frontend / ci / review-ops
+  - Finding Type: review remediation / quality-gate closure
+  - Locations:
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+    - `frontend/src/lib/__tests__/telemetry.test.ts`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Reason: close all bot actionables and reach zero unresolved review threads with full CI green.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/825`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - Checklist (Matrix):
+    - [x] Sourcery actionables addressed with commit mapping in PR body
+    - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
+    - [x] PR Body Phase2 gates passed after checklist/mapping update
+    - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
+    - [x] Required CI checks are green (`gh pr checks 825`)
+    - [x] Unresolved review threads count is zero
+
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
