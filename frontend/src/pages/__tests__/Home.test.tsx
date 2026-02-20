@@ -14,12 +14,12 @@ describe('Home', () => {
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument();
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open progress live' })).toHaveAttribute('href', '/progress');
-    expect(screen.getByText('Quick actions')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open setup' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open plate' })).toHaveAttribute('href', '/plate');
-    expect(screen.getByRole('link', { name: 'Open progress' })).toHaveAttribute('href', '/progress');
-    expect(screen.getByRole('link', { name: 'Open Pro' })).toHaveAttribute('href', '/pro');
+    expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByText('Quick Navigation')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
+    expect(screen.getByRole('link', { name: 'Progress View' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'Premium Features' })).toHaveAttribute('href', '/pro');
   });
 
   it('has correct CSS classes', () => {
@@ -30,8 +30,9 @@ describe('Home', () => {
     );
 
     const main = screen.getByRole('main');
-    expect(main).toHaveClass('p-4');
-    expect(main).toHaveClass('pb-24');
+    expect(main).toHaveClass('flex');
+    expect(main).toHaveClass('min-h-screen');
+    expect(main).toHaveClass('flex-col');
   });
 
 });
