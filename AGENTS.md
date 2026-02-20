@@ -1129,9 +1129,32 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **Before resolving conflicts: check whether upstream PRs already landed; if branch becomes identical to main, close as duplicate.**
 - ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
+- ✅ **After PR merge, clean local/remote branch and remove merged worktree in the same work session.**
+- ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.
+
+**Worktree cleanup protocol (mandatory after merge):**
+
+```bash
+# 1) Sync main reference first
+git fetch origin
+
+# 2) Remove merged local branch (if present)
+git branch --list <branch-name>
+# If listed, run:
+git branch -d <branch-name>
+
+# 3) Remove merged worktree
+git worktree remove worktrees/<worktree-name>
+
+# 4) Prune stale worktree metadata
+git worktree prune
+
+# 5) Ensure local repo sees the new main head
+git fetch origin && git rev-parse origin/main
+```
 
 **Incident response (if force-push to main occurred):**
 
