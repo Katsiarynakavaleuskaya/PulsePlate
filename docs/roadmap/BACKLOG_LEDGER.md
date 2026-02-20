@@ -846,11 +846,11 @@ If it is not recorded here — it does not exist.
     - Tests updated for both legacy and new entrypoints
     - `make verify` and required CI checks pass
 
-- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+- [ ] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: ✅ Completed on branch (2026-02-20), pending merge
+  - Status: In progress (branch complete, pending merge)
   - Area: docs / frontend / ci / review-ops
   - Finding Type: review remediation / quality-gate closure
   - Locations:
@@ -867,8 +867,15 @@ If it is not recorded here — it does not exist.
     - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
     - [x] PR Body Phase2 gates passed after checklist/mapping update
     - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
-    - [x] Required CI checks are green (`gh pr checks 825`)
-    - [x] Unresolved review threads count is zero
+    - [ ] Required CI checks are green (`gh pr checks 825`)
+    - [ ] Unresolved review threads count is zero
+  - DoD:
+    - Sourcery actionables addressed with commit mapping in PR body
+    - CodeRabbit actionables addressed with file-level fixes and thread replies
+    - PR Body Phase2 gates pass after checklist/mapping update
+    - Docs Phase1 gates pass with evidence anchors in audit/security docs
+    - Required CI checks are green (`gh pr checks 825`)
+    - Unresolved review threads count is zero
 
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
