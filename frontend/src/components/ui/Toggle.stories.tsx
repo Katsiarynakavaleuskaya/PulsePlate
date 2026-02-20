@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { Toggle } from './Toggle';
 
-function ToggleDemo() {
+function ToggleDemo(): JSX.Element {
   const [enabled, setEnabled] = useState(false);
 
   return (

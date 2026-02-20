@@ -30,7 +30,7 @@ export function NumberInput({
   locale = 'en',
   inputMode = 'decimal',
   ...props
-}: NumberInputProps) {
+}: NumberInputProps): JSX.Element {
   const displayValue = useMemo(() => {
     if (value === '') return '';
     const asString = String(value);
@@ -42,7 +42,7 @@ export function NumberInput({
     setDraftValue(displayValue);
   }, [displayValue]);
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const rawValue = event.target.value;
     setDraftValue(rawValue);
 
@@ -54,7 +54,7 @@ export function NumberInput({
     onValueChange(parsedValue);
   };
 
-  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+  const handleBlur = (event: FocusEvent<HTMLInputElement>): void => {
     if (shouldDeferNumericCommit(draftValue)) {
       const parsedValue = parseNumericInput(draftValue);
       onValueChange(parsedValue);

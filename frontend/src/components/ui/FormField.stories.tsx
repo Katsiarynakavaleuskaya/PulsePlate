@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
 import { FormField } from './FormField';
 
-function FormFieldDemo() {
+function FormFieldDemo(): JSX.Element {
   const [value, setValue] = useState('');
 
   return (
