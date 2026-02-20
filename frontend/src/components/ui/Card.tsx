@@ -2,7 +2,7 @@ import type { HTMLAttributes, PropsWithChildren } from 'react';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {}
 
-export function Card({ children, className = '', ...props }: PropsWithChildren<CardProps>) {
+export function Card({ children, className = '', ...props }: PropsWithChildren<CardProps>): JSX.Element {
   return (
     <div
       className={[
@@ -18,7 +18,11 @@ export function Card({ children, className = '', ...props }: PropsWithChildren<C
   );
 }
 
-export function CardHeader({ children, className = '', ...props }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+export function CardHeader({
+  children,
+  className = '',
+  ...props
+}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>): JSX.Element {
   return (
     <div className={['px-6 pt-6', className].join(' ').trim()} {...props}>
       {children}
@@ -30,7 +34,7 @@ export function CardContent({
   children,
   className = '',
   ...props
-}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>): JSX.Element {
   return (
     <div className={['px-6 pb-6', className].join(' ').trim()} {...props}>
       {children}

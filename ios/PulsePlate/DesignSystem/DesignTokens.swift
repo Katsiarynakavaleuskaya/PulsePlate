@@ -27,10 +27,10 @@ enum PPDesignTokens {
     }
 
     enum Typography {
-        static let caption = Font.system(size: 12, weight: .regular)
-        static let body = Font.system(size: 16, weight: .regular)
-        static let bodyStrong = Font.system(size: 16, weight: .semibold)
-        static let heading = Font.system(size: 24, weight: .bold)
+        static let caption = Font.caption
+        static let body = Font.body
+        static let bodyStrong = Font.body.weight(.semibold)
+        static let heading = Font.title.weight(.bold)
     }
 
     enum Radius {
