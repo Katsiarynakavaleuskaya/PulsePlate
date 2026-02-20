@@ -26,6 +26,7 @@ def _diff_added_test_lines() -> list[tuple[str, int, str]]:
     diff_args_candidates = [
         ["git", "diff", "--unified=0", "--no-color", f"{base_ref}...HEAD", "--", "tests"],
         ["git", "diff", "--unified=0", "--no-color", "HEAD~1..HEAD", "--", "tests"],
+        ["git", "diff", "--unified=0", "--no-color", "--", "tests"],
     ]
     diff: str | None = None
     last_error: Exception | None = None
