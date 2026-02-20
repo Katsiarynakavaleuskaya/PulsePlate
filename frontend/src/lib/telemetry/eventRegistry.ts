@@ -21,6 +21,14 @@ export enum EventType {
   VIP_GATE_INTERACTED = 'vip_gate_interacted',
   VIP_BADGE_VIEWED = 'vip_badge_viewed',
 
+  // Growth Funnel Events
+  ONBOARDING_STARTED = 'onboarding_started',
+  ONBOARDING_COMPLETED = 'onboarding_completed',
+  PAYWALL_VIEWED = 'paywall_viewed',
+  PAYWALL_CTA_CLICKED = 'paywall_cta_clicked',
+  TRIAL_STARTED = 'trial_started',
+  RETENTION_HEARTBEAT = 'retention_heartbeat',
+
   // Future Events (add here as needed)
   // TARGETS_OPENED = 'targets_opened',
   // PLAN_GENERATED = 'plan_generated',
@@ -75,6 +83,38 @@ export interface VipBadgeViewedPayload extends BaseEventPayload {
   isVip: boolean;
 }
 
+export interface OnboardingStartedPayload extends BaseEventPayload {
+  source: string;
+  variant: string;
+}
+
+export interface OnboardingCompletedPayload extends BaseEventPayload {
+  source: string;
+  durationSec?: number;
+}
+
+export interface PaywallViewedPayload extends BaseEventPayload {
+  source: string;
+  placement: string;
+  tierContext: 'free' | 'pro' | 'vip';
+}
+
+export interface PaywallCtaClickedPayload extends BaseEventPayload {
+  source: string;
+  ctaId: string;
+  tierContext: 'free' | 'pro' | 'vip';
+}
+
+export interface TrialStartedPayload extends BaseEventPayload {
+  source: string;
+  planType: string;
+}
+
+export interface RetentionHeartbeatPayload extends BaseEventPayload {
+  dayBucket: 'd1' | 'd7' | 'd30';
+  source: string;
+}
+
 // Centralized event payload mapping
 export interface EventPayloadMap {
   [EventType.VIP_MODULE_VIEWED]: VipModuleViewedPayload;
@@ -84,6 +124,12 @@ export interface EventPayloadMap {
   [EventType.VIP_UPGRADE_CLICKED]: VipUpgradeClickedPayload;
   [EventType.VIP_GATE_INTERACTED]: VipGateInteractedPayload;
   [EventType.VIP_BADGE_VIEWED]: VipBadgeViewedPayload;
+  [EventType.ONBOARDING_STARTED]: OnboardingStartedPayload;
+  [EventType.ONBOARDING_COMPLETED]: OnboardingCompletedPayload;
+  [EventType.PAYWALL_VIEWED]: PaywallViewedPayload;
+  [EventType.PAYWALL_CTA_CLICKED]: PaywallCtaClickedPayload;
+  [EventType.TRIAL_STARTED]: TrialStartedPayload;
+  [EventType.RETENTION_HEARTBEAT]: RetentionHeartbeatPayload;
 }
 
 
@@ -147,6 +193,50 @@ export const EVENT_REGISTRY = {
       component: { type: 'string', required: true },
       variant: { type: 'string', required: true },
       isVip: { type: 'boolean', required: true },
+    },
+  },
+  [EventType.ONBOARDING_STARTED]: {
+    description: 'User started onboarding flow',
+    fields: {
+      source: { type: 'string', required: true },
+      variant: { type: 'string', required: true },
+    },
+  },
+  [EventType.ONBOARDING_COMPLETED]: {
+    description: 'User completed onboarding flow',
+    fields: {
+      source: { type: 'string', required: true },
+      durationSec: { type: 'number', required: false },
+    },
+  },
+  [EventType.PAYWALL_VIEWED]: {
+    description: 'User viewed paywall in growth funnel',
+    fields: {
+      source: { type: 'string', required: true },
+      placement: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true },
+    },
+  },
+  [EventType.PAYWALL_CTA_CLICKED]: {
+    description: 'User clicked paywall CTA',
+    fields: {
+      source: { type: 'string', required: true },
+      ctaId: { type: 'string', required: true },
+      tierContext: { type: 'string', required: true },
+    },
+  },
+  [EventType.TRIAL_STARTED]: {
+    description: 'User started trial from paywall',
+    fields: {
+      source: { type: 'string', required: true },
+      planType: { type: 'string', required: true },
+    },
+  },
+  [EventType.RETENTION_HEARTBEAT]: {
+    description: 'Retention heartbeat event for cohort analysis',
+    fields: {
+      dayBucket: { type: 'string', required: true },
+      source: { type: 'string', required: true },
     },
   },
 } as const;
