@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { getStoredApiKey } from '../auth/storage';
-import { pageCardStyle } from '../components/ui/pageCardStyle';
+import { Card, CardContent, buttonClasses } from '../components/ui';
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { usePremium } from '../lib/usePremium';
 
@@ -11,56 +11,121 @@ export default function Home() {
   const statusTone = isPremium === true ? 'text-[var(--color-success)]' : 'text-text';
 
   return (
-    <main className="p-4 pb-24 space-y-4">
-      <section className="p-6" style={pageCardStyle}>
-        <p className="text-xs uppercase tracking-wide text-muted">Today</p>
-        <h1 className="mt-2 text-2xl font-bold text-text">Home</h1>
-        <p className="mt-2 text-sm text-muted">
-          Your wellness control panel with quick access to setup, plate, and progress.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-medium text-text">
-            API {hasApiKey ? 'Connected' : 'Missing'}
-          </span>
-          <span className={`rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-medium ${statusTone}`}>
-            Premium {premiumLabel}
-          </span>
+    <main className="flex min-h-screen flex-col bg-[var(--color-bg)]">
+      {/* Hero Section */}
+      <section className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
+            Wellness Control Panel
+          </p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight text-[var(--color-text)] sm:text-5xl">
+            Home
+          </h1>
+          <p className="mt-4 text-lg leading-relaxed text-[var(--color-text-muted)]">
+            Quick access to your wellness setup, nutrition tracking, and progress insights. Everything you need for
+            optimal health in one place.
+          </p>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <article className="p-4" style={pageCardStyle}>
-          <p className="text-xs uppercase tracking-wide text-muted">API key</p>
-          <p className="mt-2 text-lg font-semibold text-text">{hasApiKey ? 'Connected' : 'Not configured'}</p>
-          <p className="mt-2 text-sm text-muted">Setup unlocks personalized guidance and sync.</p>
-        </article>
+      {/* Status Cards */}
+      <section className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* API Status Card */}
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent className="flex h-full flex-col justify-between p-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
+                API Connection
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-[var(--color-text)]">
+                {hasApiKey ? 'Connected' : 'Not Set'}
+              </p>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-muted)]">
+              {hasApiKey
+                ? 'Your API key is configured. Personalized guidance is enabled.'
+                : 'Configure your API key to unlock personalized nutrition insights and cloud sync.'}
+            </p>
+            </CardContent>
+          </Card>
 
-        <article className="p-4" style={pageCardStyle}>
-          <p className="text-xs uppercase tracking-wide text-muted">Premium</p>
-          <p className="mt-2 text-lg font-semibold text-text">{premiumLabel}</p>
-          <p className="mt-2 text-sm text-muted">Pro enables advanced insights and premium planning views.</p>
-        </article>
-      </section>
-
-      <LiveProgressIndicator source="home" ctaTo="/progress" ctaLabel="Open progress live" />
-
-      <section className="p-4 space-y-3" style={pageCardStyle}>
-        <h2 className="text-base font-semibold text-text">Quick actions</h2>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Link className="rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90" to="/setup">
-            Open setup
-          </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/plate">
-            Open plate
-          </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/progress">
-            Open progress
-          </Link>
-          <Link className="rounded-full bg-[var(--color-surface-muted)] px-4 py-3 text-center text-sm font-semibold text-text transition-colors hover:bg-[var(--color-border)]" to="/pro">
-            Open Pro
-          </Link>
+          {/* Premium Status Card */}
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent className="flex h-full flex-col justify-between p-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
+                Premium Status
+              </p>
+              <p className={`mt-3 text-2xl font-semibold ${statusTone}`}>
+                {premiumLabel}
+              </p>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-muted)]">
+              {isPremium
+                ? 'You have access to advanced analytics and premium nutrition optimization.'
+                : 'Upgrade to Pro to unlock advanced insights, meal planning, and premium features.'}
+            </p>
+            </CardContent>
+          </Card>
         </div>
       </section>
+
+      {/* Progress Indicator */}
+      <section className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <LiveProgressIndicator source="home" ctaTo="/progress" ctaLabel="View detailed progress" />
+        </div>
+      </section>
+
+      {/* Quick Actions Section */}
+      <section className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">
+              Quick Navigation
+            </h2>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+              Jump to any section of your wellness journey
+            </p>
+          </div>
+
+          {/* Primary Action */}
+          <div className="mb-4">
+            <Link
+              to="/setup"
+              className={buttonClasses({ variant: 'primary', size: 'lg', fullWidth: true, className: 'block text-center' })}
+            >
+              Configure Setup
+            </Link>
+          </div>
+
+          {/* Secondary Actions Grid */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Link
+              to="/plate"
+              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
+            >
+              Nutrition Plate
+            </Link>
+            <Link
+              to="/progress"
+              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
+            >
+              Progress View
+            </Link>
+            <Link
+              to="/pro"
+              className={buttonClasses({ variant: 'secondary', size: 'md', className: 'block text-center' })}
+            >
+              Premium Features
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer Spacing for Tab Bar */}
+      <div className="h-24" />
     </main>
   );
 }

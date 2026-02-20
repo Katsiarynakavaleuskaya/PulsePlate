@@ -59,15 +59,15 @@ const macroData = [
 
 const beforeAfterShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
 
-type ProgressWindow = '7D' | '30D' | '90D';
+type ProgressWindow = 'WEEK' | 'MONTH' | 'QUARTER';
 
 interface ProgressChartsProps {
   windowRange?: ProgressWindow;
 }
 
 const filterByWindow = <T,>(data: T[], windowRange: ProgressWindow): T[] => {
-  if (windowRange === '7D') return data.slice(-3);
-  if (windowRange === '30D') return data.slice(-5);
+  if (windowRange === 'WEEK') return data.slice(-3);
+  if (windowRange === 'MONTH') return data.slice(-5);
   return data;
 };
 
@@ -114,7 +114,7 @@ const exportToPDF = async (): Promise<void> => {
   }
 };
 
-export default function ProgressCharts({ windowRange = '30D' }: ProgressChartsProps): JSX.Element {
+export default function ProgressCharts({ windowRange = 'MONTH' }: ProgressChartsProps): JSX.Element {
   const scopedWeightData = useMemo(() => filterByWindow(weightData, windowRange), [windowRange]);
   const scopedCalorieData = useMemo(() => filterByWindow(calorieData, windowRange), [windowRange]);
   const latestWeight = scopedWeightData[scopedWeightData.length - 1];

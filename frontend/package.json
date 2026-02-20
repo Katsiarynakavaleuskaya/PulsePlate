@@ -9,10 +9,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "test": "vitest",
     "test:ci": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts --alphabetize"
   },
   "dependencies": {
@@ -41,6 +45,11 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/addon-interactions": "^8.6.14",
+    "@storybook/react-vite": "^8.6.14",
+    "@storybook/test": "^8.6.14",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.6.1",
@@ -63,6 +72,7 @@
     "msw": "^2.11.3",
     "openapi-typescript": "7.10.1",
     "postcss": "^8.4.38",
+    "storybook": "^8.6.14",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
     "vite": "^6.3.4",

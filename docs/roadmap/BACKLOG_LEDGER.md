@@ -56,6 +56,7 @@ If it is not recorded here — it does not exist.
     - ✅ iOS app opens and core navigation works (Root/App entry flow validated in deterministic simulator flow)
     - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
     - ✅ CI checks for touched surfaces pass; no unresolved review threads
+
 - [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -566,30 +567,6 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [x] P1: Agent Control Plane baseline + 6-month balanced program package
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: ✅ Merged (PR #825, 2026-02-20)
-  - Merge SHA: `946b954f1d832cfe2475b580194fb2841ff889da`
-  - Area: docs / governance / analytics / frontend telemetry
-  - Finding Type: execution package / governance hardening
-  - Reason: Landed the balanced 6-month execution program, Agent Control Plane
-    governance baseline, and telemetry taxonomy updates in one scoped package with
-    canonical CI gates and bot-thread closure.
-  - Links:
-    - PR #825
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `frontend/src/lib/telemetry/eventRegistry.ts`
-  - DoD:
-    - Agent Control Plane baseline docs and governance checkpoints are merged
-    - Phase2/Docs gates for the package are green in CI
-    - Telemetry taxonomy updates and validation tests are merged
-    - No unresolved review threads remain at merge time
-
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -869,12 +846,11 @@ If it is not recorded here — it does not exist.
     - Tests updated for both legacy and new entrypoints
     - `make verify` and required CI checks pass
 
-- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+- [ ] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: ✅ Merged (PR #825, 2026-02-20, `946b954f`)
-  - Merge SHA: 946b954f1d832cfe2475b580194fb2841ff889da
+  - Status: In progress (branch complete, pending merge)
   - Area: docs / frontend / ci / review-ops
   - Finding Type: review remediation / quality-gate closure
   - Locations:
@@ -1126,10 +1102,48 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
 
+- [ ] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend delivery accelerator)
+  - Target PR: PR/HPP-Storybook-Bootstrap
+  - Status: 📋 Planned
+  - Area: frontend / HPP / design-system tooling
+  - Finding Type: execution foundation
+  - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
+    review of tokenized primitives before route-level integration and reduces regressions during rapid UI iteration.
+  - Links:
+    - `frontend/package.json`
+    - `frontend/src/components/ui/`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+  - DoD:
+    - Storybook is wired in `frontend` (`storybook`, `build-storybook` scripts)
+    - HPP stories exist for `SegmentedControl`, `Toggle`, `FormField`, and page-card shell
+    - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
+    - Storybook build passes in local verification
+
+- [ ] HPP Web visual workflow: Playwright deterministic smoke lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend quality guardrail)
+  - Target PR: PR/HPP-Playwright-Smoke-Lane
+  - Status: 📋 Planned
+  - Area: frontend / HPP / e2e visual smoke
+  - Finding Type: execution foundation
+  - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
+    (`/`, `/plate`, `/progress`, `/pro`) before broader CI hardening.
+  - Links:
+    - `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
+    - `frontend/playwright.config.ts`
+    - `frontend/e2e/`
+  - DoD:
+    - Playwright config and smoke specs exist for canonical HPP routes
+    - `npm run test:e2e` and headed variant are available in `frontend/package.json`
+    - Smoke checks run with deterministic local web server settings
+    - Runbook contains npm-first execution commands
+
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)
-  - Target PR: TBD
+  - Target PR: PR/HPP-Token-Parity-Web-iOS
   - Status: 📋 Planned
   - Reason: Web has initial brand colors in `frontend/src/styles/tokens.ts`, but iOS lacks a centralized token mirror
     (colors/spacing/typography/motion). Without a minimal design system, UI work drifts, is slower to delegate, and is
@@ -2526,38 +2540,8 @@ If it is not recorded here — it does not exist.
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
-- [ ] P1: Audience Pack Set C deferred layer (unit economics + activation + localization + monetization + partnerships)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (investor/sales readiness)
-  - Target PR: PR_TBD_AUDIENCE_PACK_SET_C
-  - Status: 📋 Deferred (after Set A/Set B docs PRs)
-  - Reason (EN): Set A and Set B close the highest-impact communication gaps first
-    (pitch, KPI hypotheses, competitive layer, risk register, proof pack). Set C
-    remains necessary but is deferred to keep the current docs-only PR scope
-    tight and mergeable without mixing runtime work.
-  - Links:
-    - `docs/audience_pack/README.md`
-    - `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md`
-    - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
-    - `docs/audience_pack/COMPETITIVE_INTELLIGENCE.md`
-    - `docs/audience_pack/RISK_REGISTER.md`
-    - `docs/audience_pack/PROOF_PACK.md`
-    - `docs/audience_pack/ROADMAP_KILL_CRITERIA.md`
-    - `docs/audience_pack/NARRATIVE_AND_TEAM.md`
-    - `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md`
-  - DoD:
-    - Add `docs/audience_pack/UNIT_ECONOMICS_MODEL.md`
-    - Add `docs/audience_pack/ACTIVATION_RETENTION_PLAYBOOK.md`
-    - Add `docs/audience_pack/MONETIZATION_EXPERIMENTS_LOG.md`
-    - Add `docs/audience_pack/LOCALIZATION_MARKETS_STRATEGY.md`
-    - Add `docs/audience_pack/PARTNERSHIPS_INTEGRATIONS.md`
-    - Add `docs/audience_pack/DISTRIBUTION_OPERATING_MODEL.md`
-    - Add `docs/audience_pack/EXIT_OPTIONALITY.md`
-    - Link all Set C docs from `docs/audience_pack/README.md`
-    - Run `pre-commit run --all-files` + `make verify` in the Set C PR
-
 ---
 
-**Last updated:** 2026-02-20 (audience pack Set C deferred layer added)
+**Last updated:** 2026-02-16 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
