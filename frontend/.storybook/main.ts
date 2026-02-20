@@ -11,9 +11,20 @@ const config: StorybookConfig = {
   async viteFinal(config) {
     config.resolve ??= {};
     config.resolve.alias ??= {};
+    const srcAlias = path.resolve(__dirname, '../src');
 
-    if (!Array.isArray(config.resolve.alias)) {
-      config.resolve.alias['@'] = path.resolve(__dirname, '../src');
+    if (Array.isArray(config.resolve.alias)) {
+      const hasAlias = config.resolve.alias.some((aliasEntry) => {
+        if (typeof aliasEntry === 'object' && aliasEntry !== null && 'find' in aliasEntry) {
+          return String(aliasEntry.find) === '@';
+        }
+        return false;
+      });
+      if (!hasAlias) {
+        config.resolve.alias.push({ find: '@', replacement: srcAlias });
+      }
+    } else {
+      config.resolve.alias['@'] = srcAlias;
     }
 
     return config;

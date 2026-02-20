@@ -51,10 +51,12 @@ export function Button({
   variant = 'primary',
   size = 'md',
   fullWidth = false,
+  type = 'button',
   ...props
 }: PropsWithChildren<ButtonProps>) {
   return (
     <button
+      type={type}
       className={buttonClasses({ variant, size, fullWidth, className })}
       {...props}
     >

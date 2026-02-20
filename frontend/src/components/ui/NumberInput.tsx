@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, InputHTMLAttributes } from 'react';
 import { Input } from './Input';
 
@@ -19,6 +19,13 @@ function parseNumericInput(rawValue: string): NumberInputValue {
   return Number.isFinite(parsed) ? parsed : '';
 }
 
+function isCompleteNumericInput(rawValue: string): boolean {
+  const normalized = rawValue.trim().replace(',', '.');
+  if (normalized.length === 0) return false;
+  if (normalized.endsWith('.')) return false;
+  return /^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(normalized);
+}
+
 export function NumberInput({
   value,
   onValueChange,
@@ -26,18 +33,34 @@ export function NumberInput({
   inputMode = 'decimal',
   ...props
 }: NumberInputProps) {
-  const displayValue = useMemo(() => {
+  const displayValueFromValue = useMemo(() => {
     if (value === '') return '';
     const asString = String(value);
     return locale === 'ru' ? asString.replace('.', ',') : asString;
   }, [locale, value]);
+  const [rawValue, setRawValue] = useState(displayValueFromValue);
+
+  useEffect(() => {
+    setRawValue(displayValueFromValue);
+  }, [displayValueFromValue]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const parsedValue = parseNumericInput(event.target.value);
-    onValueChange(parsedValue);
+    const nextRawValue = event.target.value;
+    setRawValue(nextRawValue);
+
+    if (nextRawValue.trim().length === 0) {
+      onValueChange('');
+      return;
+    }
+    if (!isCompleteNumericInput(nextRawValue)) return;
+
+    const parsedValue = parseNumericInput(nextRawValue);
+    if (parsedValue !== '') {
+      onValueChange(parsedValue);
+    }
   };
 
-  return <Input type="text" inputMode={inputMode} value={displayValue} onChange={handleChange} {...props} />;
+  return <Input type="text" inputMode={inputMode} value={rawValue} onChange={handleChange} {...props} />;
 }
 
 export default NumberInput;
