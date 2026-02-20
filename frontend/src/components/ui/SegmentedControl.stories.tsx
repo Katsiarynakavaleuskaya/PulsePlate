@@ -4,7 +4,7 @@ import SegmentedControl from './SegmentedControl';
 
 type RangeOption = 'WEEK' | 'MONTH' | 'QUARTER';
 
-function SegmentedControlDemo() {
+function SegmentedControlDemo(): JSX.Element {
   const [value, setValue] = useState<RangeOption>('MONTH');
 
   return (

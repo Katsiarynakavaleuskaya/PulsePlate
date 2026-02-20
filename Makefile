@@ -134,6 +134,41 @@ typecheck: ## Run mypy typecheck on app and core
 verify: lint typecheck test-fast diff-cov ## Run all gates: lint + typecheck + tests + diff-coverage
 	@echo "$(GREEN)🎉 Все проверки пройдены! Ready for push.$(NC)"
 
+# --- App Icon L4 silhouette control ------------------------------------------
+
+ICON_SVG ?= assets/brand/icon/core/v1.0/icon_core_v1.svg
+ICON_60 ?= assets/brand/icon/core/v1.0/icon_core_v1_60.png
+ICON_1024 ?= assets/brand/icon/core/v1.0/icon_core_v1_1024.png
+
+# Baseline ratios (from docs/design/EMBLEM_CORE_v1.0_LOCK.md)
+ICON_BASELINE_WHITE ?= 0.0000
+ICON_BASELINE_BLACK ?= 0.0000
+
+.PHONY: icon-silhouette-lock icon-silhouette-check design-guard
+
+## Validate icon core v1.0 folder structure
+icon-core-validate:
+	python3 scripts/validate_icon_core_v1.py
+
+## Enforce design invariant manifest, palette, and lock hashes
+design-guard:
+	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json
+
+## Print silhouette hashes + density ratios (initial lock/evidence)
+icon-silhouette-lock:
+	shasum -a 256 "$(ICON_SVG)"
+	python3 scripts/silhouette_hash.py "$(ICON_60)"
+	python3 scripts/silhouette_hash.py "$(ICON_1024)"
+
+## Enforce baseline density drift thresholds (warning >1%, hard fail >3%)
+icon-silhouette-check:
+	python3 scripts/silhouette_hash.py "$(ICON_60)" \
+		--baseline-white-ratio "$(ICON_BASELINE_WHITE)" \
+		--baseline-black-ratio "$(ICON_BASELINE_BLACK)"
+	python3 scripts/silhouette_hash.py "$(ICON_1024)" \
+		--baseline-white-ratio "$(ICON_BASELINE_WHITE)" \
+		--baseline-black-ratio "$(ICON_BASELINE_BLACK)"
+
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
@@ -352,4 +387,4 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard

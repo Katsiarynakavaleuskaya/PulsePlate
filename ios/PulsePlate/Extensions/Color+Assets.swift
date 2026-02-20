@@ -78,7 +78,7 @@ extension View {
     /// Apply glass card styling with consistent background and corner radius
     func glassCardStyle() -> some View {
         self
-            .background(PPDesignTokens.ColorToken.surface)
+            .background(PPDesignTokens.ColorToken.surface.opacity(0.8))
             .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous)

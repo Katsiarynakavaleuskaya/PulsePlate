@@ -56,8 +56,8 @@ export function Button({
 }: PropsWithChildren<ButtonProps>) {
   return (
     <button
-      type={type}
       className={buttonClasses({ variant, size, fullWidth, className })}
+      type={type}
       {...props}
     >
       {children}

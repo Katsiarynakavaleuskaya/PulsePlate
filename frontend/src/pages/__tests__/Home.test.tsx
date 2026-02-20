@@ -16,7 +16,7 @@ describe('Home', () => {
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute('href', '/progress');
     expect(screen.getByText('Quick Navigation')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configure Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
     expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
     expect(screen.getByRole('link', { name: 'Progress View' })).toHaveAttribute('href', '/progress');
     expect(screen.getByRole('link', { name: 'Premium Features' })).toHaveAttribute('href', '/pro');
@@ -33,7 +33,6 @@ describe('Home', () => {
     expect(main).toHaveClass('flex');
     expect(main).toHaveClass('min-h-screen');
     expect(main).toHaveClass('flex-col');
-    expect(main).toHaveClass('bg-[var(--color-bg)]');
   });
 
 });

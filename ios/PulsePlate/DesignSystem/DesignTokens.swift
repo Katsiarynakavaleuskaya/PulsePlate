@@ -4,7 +4,7 @@ import SwiftUI
 /// Mirrors the canonical web token groups (color/spacing/type/radius/elevation/motion).
 enum PPDesignTokens {
     enum ColorToken {
-        static let success = Color(hex: "#10B981")
+        static let success = Color(hex: "#22C55E")
         static let warning = Color(hex: "#F59E0B")
         static let error = Color(hex: "#EF4444")
         static let info = Color(hex: "#3B82F6")
@@ -27,10 +27,10 @@ enum PPDesignTokens {
     }
 
     enum Typography {
-        static let caption = Font.caption
-        static let body = Font.body
-        static let bodyStrong = Font.body.weight(.semibold)
-        static let heading = Font.title.weight(.bold)
+        static let caption = Font.system(size: 12, weight: .regular)
+        static let body = Font.system(size: 16, weight: .regular)
+        static let bodyStrong = Font.system(size: 16, weight: .semibold)
+        static let heading = Font.system(size: 24, weight: .bold)
     }
 
     enum Radius {

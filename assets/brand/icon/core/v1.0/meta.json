@@ -1,0 +1,24 @@
+{
+  "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+  "version": "v1.0",
+  "master_policy": "dual-master-svg-png",
+  "figma_source_type": "design",
+  "figma_design_url": "TBD_AFTER_WINNER_LOCK",
+  "figma_file_key": "TBD_AFTER_WINNER_LOCK",
+  "figma_node_id": "TBD_AFTER_WINNER_LOCK",
+  "assets": {
+    "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+    "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+    "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+    "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+    "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+    "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png"
+  },
+  "hashes": {
+    "master_svg_sha256": "TBD_AFTER_WINNER_LOCK",
+    "master_png_1024_sha256": "TBD_AFTER_WINNER_LOCK",
+    "master_png_60_sha256": "TBD_AFTER_WINNER_LOCK",
+    "silhouette_mask_sha256_1024": "TBD_AFTER_WINNER_LOCK",
+    "silhouette_mask_sha256_60": "TBD_AFTER_WINNER_LOCK"
+  }
+}

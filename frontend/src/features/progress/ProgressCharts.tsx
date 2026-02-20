@@ -68,7 +68,6 @@ interface ProgressChartsProps {
 const filterByWindow = <T,>(data: T[], windowRange: ProgressWindow): T[] => {
   if (windowRange === 'WEEK') return data.slice(-3);
   if (windowRange === 'MONTH') return data.slice(-5);
-  if (windowRange === 'QUARTER') return data.slice(-13);
   return data;
 };
 

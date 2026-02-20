@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
 
 interface DialogProps {
@@ -7,8 +6,7 @@ interface DialogProps {
   title?: ReactNode;
 }
 
-export function Dialog({ open, onClose, title, children }: PropsWithChildren<DialogProps>): JSX.Element | null {
-  const titleId = useId();
+export function Dialog({ open, onClose, title, children }: PropsWithChildren<DialogProps>) {
   if (!open) return null;
 
   return (
@@ -16,13 +14,11 @@ export function Dialog({ open, onClose, title, children }: PropsWithChildren<Dia
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : 'Dialog'}
         className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] shadow-xl"
       >
         {(title || onClose) && (
           <header className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
-            {title ? <h2 id={titleId} className="text-lg font-semibold">{title}</h2> : <span />}
+            <h2 className="text-lg font-semibold">{title}</h2>
             <button
               type="button"
               onClick={onClose}

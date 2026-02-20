@@ -1,0 +1,21 @@
+{
+  "manifest_version": "1.0",
+  "contract_status": "bootstrap",
+  "token_source": "frontend/src/styles/tokens.css",
+  "allowed_palette_hex": [
+    "#102A43",
+    "#3B82F6",
+    "#20C997",
+    "#EF4444",
+    "#D4AF37"
+  ],
+  "core_lock": {
+    "path": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+    "svg_sha256": "",
+    "version": "v1.0",
+    "lock_type": "L4",
+    "figma_url": "",
+    "node_id": ""
+  },
+  "exports": []
+}

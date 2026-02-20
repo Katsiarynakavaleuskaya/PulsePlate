@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, InputHTMLAttributes } from 'react';
+import type { ChangeEvent, FocusEvent, InputHTMLAttributes } from 'react';
 import { Input } from './Input';
 
 type NumberInputValue = number | '';
@@ -19,11 +19,9 @@ function parseNumericInput(rawValue: string): NumberInputValue {
   return Number.isFinite(parsed) ? parsed : '';
 }
 
-function isCompleteNumericInput(rawValue: string): boolean {
-  const normalized = rawValue.trim().replace(',', '.');
-  if (normalized.length === 0) return false;
-  if (normalized.endsWith('.')) return false;
-  return /^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(normalized);
+function shouldDeferNumericCommit(rawValue: string): boolean {
+  const normalized = rawValue.trim();
+  return normalized === '-' || normalized.endsWith('.') || normalized.endsWith(',');
 }
 
 export function NumberInput({
@@ -32,35 +30,49 @@ export function NumberInput({
   locale = 'en',
   inputMode = 'decimal',
   ...props
-}: NumberInputProps) {
-  const displayValueFromValue = useMemo(() => {
+}: NumberInputProps): JSX.Element {
+  const displayValue = useMemo(() => {
     if (value === '') return '';
     const asString = String(value);
     return locale === 'ru' ? asString.replace('.', ',') : asString;
   }, [locale, value]);
-  const [rawValue, setRawValue] = useState(displayValueFromValue);
+  const [draftValue, setDraftValue] = useState(displayValue);
 
   useEffect(() => {
-    setRawValue(displayValueFromValue);
-  }, [displayValueFromValue]);
+    setDraftValue(displayValue);
+  }, [displayValue]);
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextRawValue = event.target.value;
-    setRawValue(nextRawValue);
+  const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const rawValue = event.target.value;
+    setDraftValue(rawValue);
 
-    if (nextRawValue.trim().length === 0) {
-      onValueChange('');
+    if (shouldDeferNumericCommit(rawValue)) {
       return;
     }
-    if (!isCompleteNumericInput(nextRawValue)) return;
 
-    const parsedValue = parseNumericInput(nextRawValue);
-    if (parsedValue !== '') {
-      onValueChange(parsedValue);
-    }
+    const parsedValue = parseNumericInput(rawValue);
+    onValueChange(parsedValue);
   };
 
-  return <Input type="text" inputMode={inputMode} value={rawValue} onChange={handleChange} {...props} />;
+  const handleBlur = (event: FocusEvent<HTMLInputElement>): void => {
+    if (shouldDeferNumericCommit(draftValue)) {
+      const parsedValue = parseNumericInput(draftValue);
+      onValueChange(parsedValue);
+    }
+    setDraftValue(displayValue);
+    props.onBlur?.(event);
+  };
+
+  return (
+    <Input
+      {...props}
+      type="text"
+      inputMode={inputMode}
+      value={draftValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+    />
+  );
 }
 
 export default NumberInput;

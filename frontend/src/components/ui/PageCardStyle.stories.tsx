@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { pageCardStyle } from './pageCardStyle';
 
-function PageCardStyleDemo(): JSX.Element {
+function PageCardStyleDemo() {
   return (
     <article style={pageCardStyle} className="w-[360px] p-5">
       <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">HPP Card</p>

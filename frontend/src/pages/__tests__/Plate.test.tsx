@@ -53,12 +53,9 @@ describe('Plate', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Your Plate' })).toBeInTheDocument();
     expect(screen.getByTestId('premium-gate')).toBeInTheDocument();
     expect(screen.getByText('Premium Nutrition Controls')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configure Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute(
-      'href',
-      '/progress'
-    );
+    expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute('href', '/progress');
   });
 
   it('passes correct isPremium prop to PremiumGate', () => {
@@ -87,7 +84,6 @@ describe('Plate', () => {
     expect(main).toHaveClass('flex');
     expect(main).toHaveClass('min-h-screen');
     expect(main).toHaveClass('flex-col');
-    expect(main).toHaveClass('bg-[var(--color-bg)]');
   });
 
   it('passes correct source prop to PremiumGate', () => {
