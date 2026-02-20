@@ -5,6 +5,27 @@
  * Provides type-safe access to colors, spacing, typography, and other design values.
  */
 
+/**
+ * Canonical PulsePlate brand tokens.
+ * Bridge phase uses current runtime values to avoid visual drift in PR-1.
+ */
+export const canonicalBrand = {
+  navy: '#102a43',
+  blue: '#3b82f6',
+  green: '#22c55e',
+  red: '#ef4444',
+  gold: '#d4af37',
+} as const;
+
+/**
+ * @deprecated Use canonicalBrand.* directly in new code.
+ * Kept only for soft migration compatibility.
+ */
+export const legacyBrandAliases = {
+  primary: canonicalBrand.blue,
+  accent: canonicalBrand.green,
+} as const;
+
 // ============================================================================
 // COLOR TOKENS
 // ============================================================================
@@ -85,10 +106,10 @@ export const colors = {
 
   // Semantic colors
   semantic: {
-    success: '#22c55e',
+    success: canonicalBrand.green,
     warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6',
+    error: canonicalBrand.red,
+    info: canonicalBrand.blue,
   },
 } as const;
 
