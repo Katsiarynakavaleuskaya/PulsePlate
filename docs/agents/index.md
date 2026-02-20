@@ -24,6 +24,7 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | frontend-engineer | auto | Frontend implementation in PulsePlate style with token SoT and thin-client rules | `.cursor/agents/frontend-engineer.md` | Web UI/features, frontend contract-safe updates |
 | dev-operator | auto | Terminal-first operator for safe command execution and deterministic diagnostics | `.cursor/agents/dev-operator.md` | Local gate runs, failure triage, evidence capture |
 | creative-designer | auto | UI/UX design, brand assets, App Store visuals, marketing creatives | `.cursor/agents/creative-designer.md` | Design, visuals, brand assets |
+| designer-artist-agent | auto | Production-oriented emblem and logo artist with SVG geometry and cross-editor execution packets | `.cursor/agents/designer-artist-agent.md` | Logo/emblem construction, vector asset production, brand mark execution |
 | marketing-strategist | auto | ASO/SEO, growth strategy, positioning, conversion optimization | `.cursor/agents/marketing-strategist.md` | Marketing, growth, ASO/SEO |
 | ai-trend-reporter | auto | Structured AI market and product reporting across daily/weekly/monthly/quarterly cadences | `.cursor/agents/ai-trend-reporter.md` | Trend reports, wellness AI opportunities, GTM-focused updates |
 | security-auditor | auto | Security reviews, vulnerabilities, threat modeling, compliance checks | `.cursor/agents/security-auditor.md` | Security audits, vulnerability scans |
@@ -32,6 +33,7 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | bayesian-uq-agent | auto | Uncertainty quantification, calibration, confidence contracts for AI outputs | `.cursor/agents/bayesian-uq-agent.md` | Confidence/uncertainty policies, reliability metrics |
 | rag-systems-agent | auto | RAG architecture, recursive verification, budgets/stop conditions, grounding contracts | `.cursor/agents/rag-systems-agent.md` | RAG design, recursive retrieval policies, grounding audits |
 | web-research-agent | auto | Web/OSS intake: bounded research with evidence logs (ECR + scorecards) | `.cursor/agents/web-research-agent.md` | Library comparisons, security advisories, evidence-backed decisions |
+| sora-prompt-engineer | auto | Style-locked Sora prompt engineering with anti-drift controls and release-ready visual QA | `.cursor/agents/sora-prompt-engineer.md` | Sora prompt specs, variation strategy, asset QA for releases |
 | cv-agent | auto | Computer vision pipeline contracts (photo→items→confidence→nutrition mapping) | `.cursor/agents/cv-agent.md` | CV feature design, confidence scoring, privacy boundaries |
 | ai-app-architect | auto | AI subsystem architecture: seams, feature flags, determinism, integration contracts | `.cursor/agents/ai-app-architect.md` | AI system design, integration planning, invariant alignment |
 | data-scientist-agent | auto | Evaluation design, metrics, offline experiments planning, telemetry questions | `.cursor/agents/data-scientist-agent.md` | Evals, KPIs, A/B ideas, measurement plans |

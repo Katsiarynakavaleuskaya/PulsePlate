@@ -153,6 +153,21 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### Designer Artist Agent (`designer-artist-agent`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root) — product/brand boundaries and delivery constraints
+- `frontend/AGENTS.md` and/or `ios/AGENTS.md` — if produced assets are integrated in clients
+- `docs/agents/index.md` — canonical capabilities and usage positioning
+
+**Must know:**
+
+- Deliverables must be production-usable (SVG geometry, export specs, handoff packets)
+- Keep visual output consistent with PulsePlate brand constraints and review gates
+
+---
+
 ### Backend Engineer (`backend-engineer`)
 
 **Primary:**
@@ -276,6 +291,21 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+
+---
+
+### Sora Prompt Engineer (`sora-prompt-engineer`)
+
+**Primary (task-dependent):**
+
+- `AGENTS.md` (root) — scope, safety, and PR policy constraints
+- `docs/agents/index.md` — canonical capabilities and routing
+- `frontend/AGENTS.md` / `ios/AGENTS.md` — when prompts target app-facing assets
+
+**Must know:**
+
+- Prompt specs must remain style-locked and reproducible across variations
+- Include anti-drift controls and QA-ready acceptance criteria for generated assets
 
 ---
 
