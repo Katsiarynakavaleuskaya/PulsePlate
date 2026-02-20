@@ -2,46 +2,67 @@
 
 # PulsePlate Audience Pack
 
-Дата версии: 19 февраля 2026 года (`America/New_York`)
+Дата версии: 20 февраля 2026 года (`America/New_York`)
 
 ## Назначение
-Этот пакет объясняет проект PulsePlate для разных аудиторий:
-- инвесторы и обычные пользователи (простым языком),
-- инженеры (профессиональным языком),
-- маркетинг, дизайн, growth, продажи и support (через их задачи).
 
-Пакет рассчитан как база для:
-- продажи,
-- рекламы,
-- соцсетей,
-- онбординга,
-- внутреннего выравнивания команды.
+Этот пакет объясняет PulsePlate для разных аудиторий:
+- инвесторы и публичные стейкхолдеры,
+- инженерные команды,
+- маркетинг/дизайн/growth,
+- sales/onboarding/support.
 
 ## Что Внутри
-- `docs/audience_pack/FACTS_CANONICAL.md` — единые факты проекта и связи между модулями.
-- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md` — обзор простым языком для инвесторов и массовой аудитории.
-- `docs/audience_pack/ENGINEERING_OVERVIEW.md` — технический обзор для разработчиков.
-- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md` — обзор для маркетинга, дизайна и роста.
-- `docs/audience_pack/ROLE_GUIDES.md` — краткие карты для всех ключевых специальностей.
-- `docs/audience_pack/SALES_SOCIAL_ONBOARDING_BASE.md` — готовые материалы для sales, соцсетей и onboarding.
-- `docs/audience_pack/AI_REPORT_TEMPLATES.md` — шаблоны ежедневных/недельных/месячных/квартальных AI-репортов.
-- `docs/audience_pack/DECISION_LOG.md` — журнал решений по структуре пакета.
+
+- `docs/audience_pack/FACTS_CANONICAL.md` — единые факты и архитектурные ограничения.
+- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md` — investor/public narrative + ask framework.
+- `docs/audience_pack/ENGINEERING_OVERVIEW.md` — технический срез для разработчиков.
+- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md` — GTM с KPI-гипотезами.
+- `docs/audience_pack/ROLE_GUIDES.md` — Build/Grow/Steer кластеры + day-1 checklist.
+- `docs/audience_pack/SALES_SOCIAL_ONBOARDING_BASE.md` — demo/outreach/onboarding playbook.
+- `docs/audience_pack/AI_REPORT_TEMPLATES.md` — шаблоны + заполненные daily/weekly demo samples.
+- `docs/audience_pack/SOCIAL_PROOF_BASELINE.md` — testimonials/metrics/competitor proof baseline.
+- `docs/audience_pack/DECISION_LOG.md` — почему пакет перестроен в сторону "почему мы/почему сейчас".
+
+## Owner & Cadence Protocol
+
+| Документ | Primary Owner | Cadence | Review Gate |
+|---|---|---|---|
+| FACTS_CANONICAL | Product + Backend | Monthly | architecture + compliance |
+| INVESTOR_PUBLIC_OVERVIEW | Founder + Product Marketing | Monthly | claim hygiene + strategy |
+| MARKETING_DESIGN_OVERVIEW | Growth + Design | Bi-weekly | KPI board review |
+| ROLE_GUIDES | Operations + Leads | Monthly | onboarding sync |
+| SALES_SOCIAL_ONBOARDING_BASE | Sales Lead | Weekly | message + KPI review |
+| AI_REPORT_TEMPLATES | AI Trend Reporter | Monthly | reporting quality |
+| SOCIAL_PROOF_BASELINE | Growth Ops + Sales | Weekly | source + consent validation |
+| DECISION_LOG | Coordinator | Per major update | decision traceability |
 
 ## Как Использовать
-1. Начните с `FACTS_CANONICAL.md` как единого источника правды.
-2. Для внешней коммуникации используйте `INVESTOR_PUBLIC_OVERVIEW.md`.
-3. Для техкоманды и аудита используйте `ENGINEERING_OVERVIEW.md`.
-4. Для go-to-market и бренда используйте `MARKETING_DESIGN_OVERVIEW.md`.
-5. Для ежедневной операционной работы используйте `ROLE_GUIDES.md` и `SALES_SOCIAL_ONBOARDING_BASE.md`.
+
+1. Начинать с `FACTS_CANONICAL.md` перед любыми внешними материалами.
+2. Для investor/sales коммуникации использовать в связке:
+- `INVESTOR_PUBLIC_OVERVIEW.md`,
+- `SOCIAL_PROOF_BASELINE.md`,
+- `SALES_SOCIAL_ONBOARDING_BASE.md`.
+3. Для GTM-операций использовать:
+- `MARKETING_DESIGN_OVERVIEW.md`,
+- `AI_REPORT_TEMPLATES.md`.
+4. Для onboarding команды использовать `ROLE_GUIDES.md`.
+
+## Claim Hygiene Standard
+
+- Подтвержденная цифра: source обязателен.
+- Неподтвержденная цифра: только placeholder (`[VERIFY_SOURCE:*]`, `[VERIFY_VALUE:*]`).
+- Без source/placeholder — claim удаляется.
 
 ## Security Notes
-- PulsePlate позиционируется как wellness-продукт, не медицинская диагностика и не лечение.
-- Во внешних материалах нельзя использовать medical claims уровня "диагностирует", "лечит", "предотвращает заболевания".
-- Для AI-функций применяются лимиты и квоты на стороне сервера до дорогих вызовов.
-- Любые внешние тексты должны быть согласованы с `FACTS_CANONICAL.md`, чтобы не обещать того, чего нет в продукте.
+
+- PulsePlate позиционируется как wellness-продукт, не медицинская диагностика.
+- Медицинские обещания в маркетинговых/инвесторских текстах запрещены.
+- Social proof публикуется только при соблюдении consent и privacy требований.
 
 ## Marketing & GTM
-- Каноническая коммуникация: "данные -> понятный смысл -> ежедневные действия".
-- Главная воронка: `FREE -> PRO -> VIP` с мягким апгрейдом на ценности, а не на давлении.
-- Приоритетные каналы: ASO, SEO, short-form соцсети, Product Hunt, партнерские интеграции.
-- Для каждого канала обязательна связка: гипотеза -> KPI -> срок -> owner.
+
+- Пакет используется как operating system для внешней коммуникации.
+- Каждая гипотеза должна иметь KPI, owner и decision rule.
+- Главный нарратив: "данные -> интерпретация -> ежедневное действие".

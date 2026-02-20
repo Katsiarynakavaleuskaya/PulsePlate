@@ -2,43 +2,69 @@
 
 # Decision Log: Audience Documentation Pack
 
-Дата: 19 февраля 2026 года (`America/New_York`)
+Дата: 20 февраля 2026 года (`America/New_York`)
 
 ## Контекст
-Пользовательский запрос: подготовить детальный обзор проекта для нескольких аудиторий как основу для продажи, рекламы, соцсетей и onboarding, с работой в отдельном worktree и многоагентным брейнштормингом.
 
-## Принятые Решения
-1. Создан отдельный `git worktree` для изоляции задач документирования.
-2. Введен единый фактовый слой `FACTS_CANONICAL.md`, чтобы все аудитории опирались на одну правду.
-3. Документация разделена на 3 основные аудитории + рольовой cross-functional слой.
-4. Добавлен прикладной GTM блок (`SALES_SOCIAL_ONBOARDING_BASE.md`) с готовыми шаблонами, а не только обзорный текст.
-5. Добавлены reusable-шаблоны AI-репортов (daily/weekly/monthly/quarterly).
-6. В каждом документе есть секции `Security Notes` и `Marketing & GTM`.
+Исходный пакет хорошо объяснял, что сделано в продукте, но недостаточно отвечал
+на критичные внешние вопросы:
+- почему именно PulsePlate,
+- почему именно сейчас,
+- почему это должно работать экономически и коммерчески.
 
-## Агентный Вклад (Brainstorming)
-В рамках задачи использованы специализированные агентные треки:
-- coordinator track: task analysis, routing, DoD.
-- architecture track: factual architecture summary.
-- investor track: one-pager + FAQ + pitch.
-- marketing track: ICP/JTBD + channel strategy + KPI frame.
-- security/compliance track: safe wording + risk template.
-- sales track: demo/objections/outreach.
-- ai-reporting track: cadence templates.
+## Ключевой Вывод
 
-## Ограничения
-- PR-level bot comments недоступны до фактического открытия PR в remote.
-- "Зеленое" состояние PR требует полного цикла локальных и удаленных проверок; локально можно выполнить hard gates и pre-commit.
+Пакет должен отвечать не только "что сделано", но и
+"почему нам / почему сейчас".
 
-## Что Нуждается В Следующей Итерации
-1. Дополнить пакет конкретными скриншотами и визуальными примерами для media kit.
-2. Связать каждый GTM тезис с текущими dashboard метриками команды.
-3. Сверить пакет с актуальным roadmap перед внешним использованием.
-4. Добавить версию на английском для международных партнеров/инвесторов.
+## Что Было Сохранено
+
+1. Разделение по аудиториям.
+2. `FACTS_CANONICAL.md` как единый source of truth.
+3. Wellness-only language и запрет medical claims.
+4. AI report cadence (daily/weekly/monthly/quarterly).
+
+## Что Было Изменено (Set A)
+
+1. Investor doc: обновлен 90-second pitch, why-now, why-us, ask framework.
+2. Marketing doc: activity-list заменен на KPI hypothesis board.
+3. Role guides: 15 ролей перегруппированы в Build/Grow/Steer + day-1 checklists.
+4. Sales doc: generic outreach заменен на ICP-specific варианты.
+5. AI report templates: добавлены заполненные daily/weekly demo examples.
+6. Добавлен `SOCIAL_PROOF_BASELINE.md` как отдельный доказательный слой.
+
+## Decision Rules
+
+1. Любая цифра без источника маркируется placeholder (`[VERIFY_*]`).
+2. Любой внешний claim проходит claim-hygiene проверку.
+3. Любой GTM тезис должен иметь KPI, owner и decision rule.
+4. Любой docs пакет должен иметь owner и cadence обновления.
+
+## Приоритизация Следующих Шагов
+
+Высокий приоритет (минимум усилий, максимум эффекта):
+1. Pitch с цифрами и конкурентным углом.
+2. GTM гипотезы вместо activity-list.
+3. Social proof baseline для sales/investor коммуникации.
+
+Средний/долгий контур:
+- unit economics,
+- activation/retention playbook,
+- monetization log,
+- roadmap with kill criteria.
+
+## Агентный Вклад
+
+- Coordinator: split на docs-only поток без вмешательства в runtime PR.
+- Docs track: переработка narrative для инвестора, маркетинга и sales.
+- Ledger track: deferred элементы вынесены в backlog для управляемого follow-up.
 
 ## Security Notes
-- Публичные материалы должны регулярно проходить compliance-проверку формулировок.
-- Любые численные claims без проверяемого источника должны быть удалены.
+
+- Дисциплина wellness-safe wording сохраняется как обязательная.
+- Неподтвержденные рыночные/финансовые значения не публикуются как факты.
 
 ## Marketing & GTM
-- Пакет рассчитан как baseline и должен обновляться по cadence: weekly (операционные блоки), monthly (позиционирование и KPI narrative).
-- Перед запуском кампании проводить short alignment с product + legal + security.
+
+- Пакет переводится в режим living-doc, ориентированный на KPI и decision cycles.
+- Основной фокус: быстрее закрывать вопросы "почему сейчас" и "чем лучше X".
