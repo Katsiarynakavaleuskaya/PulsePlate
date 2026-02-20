@@ -34,7 +34,6 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | bayesian-uq-agent | auto | Uncertainty quantification, calibration, confidence contracts for AI outputs | `.cursor/agents/bayesian-uq-agent.md` | Confidence/uncertainty policies, reliability metrics |
 | rag-systems-agent | auto | RAG architecture, recursive verification, budgets/stop conditions, grounding contracts | `.cursor/agents/rag-systems-agent.md` | RAG design, recursive retrieval policies, grounding audits |
 | web-research-agent | auto | Web/OSS intake: bounded research with evidence logs (ECR + scorecards) | `.cursor/agents/web-research-agent.md` | Library comparisons, security advisories, evidence-backed decisions |
-| sora-prompt-engineer | auto | Style-locked Sora prompt engineering with anti-drift controls and release-ready visual QA | `.cursor/agents/sora-prompt-engineer.md` | Sora prompt specs, variation strategy, asset QA for releases |
 | cv-agent | auto | Computer vision pipeline contracts (photo→items→confidence→nutrition mapping) | `.cursor/agents/cv-agent.md` | CV feature design, confidence scoring, privacy boundaries |
 | ai-app-architect | auto | AI subsystem architecture: seams, feature flags, determinism, integration contracts | `.cursor/agents/ai-app-architect.md` | AI system design, integration planning, invariant alignment |
 | data-scientist-agent | auto | Evaluation design, metrics, offline experiments planning, telemetry questions | `.cursor/agents/data-scientist-agent.md` | Evals, KPIs, A/B ideas, measurement plans |

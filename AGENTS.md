@@ -1433,6 +1433,8 @@ Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserv
 ### DoD hygiene additions (mandatory for any PR)
 
 - ✅ `git ls-files worktrees` returns empty
+- ✅ if `worktrees/` was tracked by mistake, cleanup uses `git rm -r --cached worktrees`
+  (index-only) after explicit confirmation
 - ✅ `pre-commit run --all-files` is green
 - ✅ `make verify` is green
 - ✅ no generated/local artifacts are tracked

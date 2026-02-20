@@ -312,21 +312,6 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-### Sora Prompt Engineer (`sora-prompt-engineer`)
-
-**Primary (task-dependent):**
-
-- `AGENTS.md` (root) — scope, safety, and PR policy constraints
-- `docs/agents/index.md` — canonical capabilities and routing
-- `frontend/AGENTS.md` / `ios/AGENTS.md` — when prompts target app-facing assets
-
-**Must know:**
-
-- Prompt specs must remain style-locked and reproducible across variations
-- Include anti-drift controls and QA-ready acceptance criteria for generated assets
-
----
-
 ### Web Research Agent (`web-research-agent`)
 
 **Primary:**
@@ -492,5 +477,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-19 (PR `#817`)
+**Last updated:** 2026-02-20 (PR `#822`)
 **Status:** Canonical

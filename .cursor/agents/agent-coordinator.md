@@ -101,13 +101,11 @@ Canonical protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`.
 When a task is created:
 
 0. **Repo hygiene gate (mandatory):**
-   - Run `git status --porcelain`
-   - Run `git ls-files worktrees`
-   - If tracked `worktrees/` paths exist, stop and fix hygiene first:
-     - `git rm -r worktrees` (for tracked files),
-     - ensure `worktrees/` is present in `.gitignore`,
-     - ensure lint/pre-commit excludes are aligned where applicable.
-   - Continue task analysis only after the hygiene gate is clean.
+   - Follow canonical SoT: `docs/orchestration/workflow.md` → “Repo hygiene gate (SoT)”.
+   - Verify with `git status --porcelain` and `git ls-files worktrees`.
+   - If tracked `worktrees/` paths exist, confirm removal is intended, then use index-only cleanup:
+     `git rm -r --cached worktrees`, and align `.gitignore` + lint/pre-commit excludes.
+   - Continue task analysis only after the gate is clean.
 
 1. **Analyze the task**:
    - What domain(s) does it touch? (AI/ML, Architecture, Bugs, Design, Marketing, Security)
