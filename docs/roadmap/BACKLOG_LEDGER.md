@@ -1102,11 +1102,11 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
 
-- [ ] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
+- [x] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (frontend delivery accelerator)
-  - Target PR: PR/HPP-Storybook-Bootstrap
-  - Status: 📋 Planned
+  - Target PR: #828
+  - Status: ✅ Merged (2026-02-20)
   - Area: frontend / HPP / design-system tooling
   - Finding Type: execution foundation
   - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
@@ -1121,11 +1121,11 @@ If it is not recorded here — it does not exist.
     - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
     - Storybook build passes in local verification
 
-- [ ] HPP Web visual workflow: Playwright deterministic smoke lane
+- [x] HPP Web visual workflow: Playwright deterministic smoke lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (frontend quality guardrail)
-  - Target PR: PR/HPP-Playwright-Smoke-Lane
-  - Status: 📋 Planned
+  - Target PR: #828
+  - Status: ✅ Merged (2026-02-20)
   - Area: frontend / HPP / e2e visual smoke
   - Finding Type: execution foundation
   - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
@@ -1143,8 +1143,8 @@ If it is not recorded here — it does not exist.
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)
-  - Target PR: PR/HPP-Token-Parity-Web-iOS
-  - Status: 📋 Planned
+  - Target PR: #828 (phase 1), follow-up TBD
+  - Status: 🟡 In progress (phase 1 merged in #828)
   - Reason: Web has initial brand colors in `frontend/src/styles/tokens.ts`, but iOS lacks a centralized token mirror
     (colors/spacing/typography/motion). Without a minimal design system, UI work drifts, is slower to delegate, and is
     harder to review consistently across platforms.
