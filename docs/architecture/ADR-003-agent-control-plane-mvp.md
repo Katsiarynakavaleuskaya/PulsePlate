@@ -40,6 +40,18 @@ flowchart LR
 - Short-lived credentials only (no plaintext local secret persistence)
 - Fail-closed behavior when policy/secrets are unavailable
 
+## Evidence and intent markers (`file:line`)
+
+- Existing enforcement baseline:
+  - `AGENTS.md:8` — canonical hard gate requires `make verify`.
+  - `RUNBOOK_AGENT.md:121` — Security Ops checklist for containment/rotation/verification.
+  - `docs/orchestration/workflow.md:97` — governance checkpoint for agent automation work.
+  - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:9` — mandatory controls contract.
+- Intent-only architecture seams in this ADR (to be implemented in follow-up PRs):
+  - `PolicyGate`, `SecretsBroker`, `ExecutionSandbox`, `SignedAuditTrail` in the diagram are MVP target components, not already-landed runtime modules in this PR.
+  - Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
+  - Exit criteria: convert each seam from intent to implementation with code-level anchors in `app/`/`core/` and deterministic tests; then update this ADR evidence block with concrete `file:line` pointers.
+
 ## Security Boundaries
 
 - `SecretsBroker`: single authority for credential vending

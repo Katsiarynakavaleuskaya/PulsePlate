@@ -798,6 +798,9 @@ If it is not recorded here — it does not exist.
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
   - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
   - DoD:
     - Contract governance checklist with OpenAPI diff risk labels documented
     - CI throughput baseline and target defined with flake budget owner
@@ -814,6 +817,9 @@ If it is not recorded here — it does not exist.
     - `docs/analytics/EXPERIMENT_REGISTRY.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
   - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
   - DoD:
     - Experiment lifecycle states documented
     - Initial prioritized growth experiments registered with owners and dates
@@ -1922,6 +1928,9 @@ If it is not recorded here — it does not exist.
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
   - Reason: scale AI capability with explicit safety gates and degraded-mode confidence before broad autonomy.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
   - DoD:
     - RAG v2 capability scope and citation/eval expectations documented
     - Safety regression gate classes documented (jailbreak/policy bypass)
