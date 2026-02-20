@@ -867,8 +867,8 @@ If it is not recorded here — it does not exist.
     - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
     - [x] PR Body Phase2 gates passed after checklist/mapping update
     - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
-    - [ ] Required CI checks are green (`gh pr checks 825`)
-    - [ ] Unresolved review threads count is zero
+    - [x] Required CI checks are green (`gh pr checks 825`)
+    - [x] Unresolved review threads count is zero
   - DoD:
     - Sourcery actionables addressed with commit mapping in PR body
     - CodeRabbit actionables addressed with file-level fixes and thread replies
