@@ -14,8 +14,9 @@ describe('Profile', () => {
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Profile' })).toBeInTheDocument();
-    expect(screen.getByText('Environment status')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configure API key' })).toBeInTheDocument();
+    expect(screen.getByText('Configuration Status')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure API Key' })).toHaveAttribute('href', '/enter-key');
+    expect(screen.getByRole('link', { name: 'Configure Nutrition Profile' })).toHaveAttribute('href', '/setup');
   });
 
   it('has correct CSS classes', () => {
@@ -26,8 +27,9 @@ describe('Profile', () => {
     );
 
     const main = screen.getByRole('main');
-    expect(main).toHaveClass('p-4');
-    expect(main).toHaveClass('pb-24');
+    expect(main).toHaveClass('flex');
+    expect(main).toHaveClass('min-h-screen');
+    expect(main).toHaveClass('flex-col');
   });
 
 });

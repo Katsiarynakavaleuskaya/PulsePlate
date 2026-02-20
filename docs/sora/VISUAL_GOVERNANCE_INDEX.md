@@ -44,13 +44,10 @@ It defines source-of-truth ownership and prevents silent rule drift.
 
 ## Rule Introduction Policy
 
-No new visual rules may be introduced outside:
-- identity profile updates
-- Sora prompt playbook updates
-- QA checklist updates
+Canonical policy location:
+- `AGENTS.md` -> `Visual Governance Policy (Hard Rule)`
 
-All new visual constraints must go through PR and update the relevant SoT document.
-Silent rule additions are prohibited.
+This index references that policy and must not duplicate global rule text.
 
 ## Figma MCP Integration Contract
 
