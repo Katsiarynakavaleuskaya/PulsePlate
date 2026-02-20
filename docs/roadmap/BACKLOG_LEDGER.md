@@ -510,6 +510,49 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [x] P1: Agent Control Plane baseline + 6-month balanced program package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Merged (PR #825, 2026-02-20)
+  - Merge SHA: `946b954f1d832cfe2475b580194fb2841ff889da`
+  - Area: docs / governance / analytics / frontend telemetry
+  - Finding Type: execution package / governance hardening
+  - Reason: Landed the balanced 6-month execution program, Agent Control Plane
+    governance baseline, and telemetry taxonomy updates in one scoped package with
+    canonical CI gates and bot-thread closure.
+  - Links:
+    - PR #825
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - DoD:
+    - Agent Control Plane baseline docs and governance checkpoints are merged
+    - Phase2/Docs gates for the package are green in CI
+    - Telemetry taxonomy updates and validation tests are merged
+    - No unresolved review threads remain at merge time
+
+- [ ] P1: Telemetry API normalization (`trackVipEvent` -> `trackEvent`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TELEMETRY-API-NORMALIZATION
+  - Status: 📋 Planned (created post-merge after PR #825)
+  - Reason for deferral: PR #825 intentionally focused on roadmap/governance + telemetry
+    taxonomy package; API surface normalization was deferred to keep scope bounded and
+    avoid mixing contract migration risk into the merged package.
+  - Links:
+    - PR #825
+    - `frontend/src/lib/telemetry.ts`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - No direct `trackVipEvent` usage remains in frontend sources
+    - Canonical telemetry helper contract is `trackEvent` with deterministic tests
+    - Event payload validation remains green after migration
+    - Required CI checks and bot threads are green in the execution PR
+
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
