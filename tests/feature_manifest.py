@@ -20,6 +20,7 @@ import pytest
 
 ENV_FEATURES = "PULSEPLATE_FEATURES"
 FEATURE_REASON = "Feature not implemented yet; see BACKLOG_LEDGER (Target PR: PR-738+)."
+FEATURE_DISABLED_CATEGORY = "feature_disabled"
 
 
 @dataclass(frozen=True)
@@ -99,7 +100,9 @@ def require_feature(key: str, reason: str, *, manifest: FeatureManifest | None =
     if active_manifest.is_enabled(key):
         return
 
-    standardized = f"feature_disabled:{key} (enable via {ENV_FEATURES}=all or CSV). " f"{reason}"
+    standardized = (
+        f"{FEATURE_DISABLED_CATEGORY}:{key} (enable via {ENV_FEATURES}=all or CSV). {reason}"
+    )
     pytest.skip(standardized)
 
 
