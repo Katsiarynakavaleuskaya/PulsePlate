@@ -56,7 +56,6 @@ If it is not recorded here — it does not exist.
     - ✅ iOS app opens and core navigation works (Root/App entry flow validated in deterministic simulator flow)
     - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
     - ✅ CI checks for touched surfaces pass; no unresolved review threads
-
 - [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -567,6 +566,30 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [x] P1: Agent Control Plane baseline + 6-month balanced program package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Merged (PR #825, 2026-02-20)
+  - Merge SHA: `946b954f1d832cfe2475b580194fb2841ff889da`
+  - Area: docs / governance / analytics / frontend telemetry
+  - Finding Type: execution package / governance hardening
+  - Reason: Landed the balanced 6-month execution program, Agent Control Plane
+    governance baseline, and telemetry taxonomy updates in one scoped package with
+    canonical CI gates and bot-thread closure.
+  - Links:
+    - PR #825
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - DoD:
+    - Agent Control Plane baseline docs and governance checkpoints are merged
+    - Phase2/Docs gates for the package are green in CI
+    - Telemetry taxonomy updates and validation tests are merged
+    - No unresolved review threads remain at merge time
+
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -846,11 +869,12 @@ If it is not recorded here — it does not exist.
     - Tests updated for both legacy and new entrypoints
     - `make verify` and required CI checks pass
 
-- [ ] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: In progress (branch complete, pending merge)
+  - Status: ✅ Merged (PR #825, 2026-02-20, `946b954f`)
+  - Merge SHA: 946b954f1d832cfe2475b580194fb2841ff889da
   - Area: docs / frontend / ci / review-ops
   - Finding Type: review remediation / quality-gate closure
   - Locations:
