@@ -23,6 +23,7 @@ operational tasks.
 ## Ops / Scheduled jobs
 
 - [`CRON.md`](CRON.md) — cron setup and operational notes
+- [`../security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`](../security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md) — security baseline for agent automation
 
 ## Frontend CI (if applicable)
 
