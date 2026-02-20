@@ -24,8 +24,11 @@ PulsePlate делает следующий шаг: превращает метр
 - shopping list,
 - повторяемый ритм прогресса.
 
-Модель: freemium -> подписка (`FREE -> PRO -> VIP`).
-Текущее состояние: рабочий backend, web + iOS клиенты, CI-процессы и guardrails.
+Модель: freemium -> подписка (`FREE -> PRO -> VIP`; evidence: `app/middleware/api_tiers.py:43`).
+Текущее состояние: backend/web/iOS и quality-process подтверждаются репо-артефактами;
+runtime-статус выносится в placeholder `[VERIFY_VALUE:RUNTIME_STATUS]`
+(evidence: `app/main.py:1`, `frontend/src/main.tsx:2`, `ios/README.md:1`, `Makefile:134`,
+`tests/test_repo_policy_guards.py:657`).
 
 Ask:
 - пилот с измеримым KPI,
@@ -49,14 +52,19 @@ Ask:
 
 - Пользовательский спрос на wellness AI растет, но доверие к "магическим" обещаниям падает.
 - Рынок сдвигается к продуктам с прозрачной логикой и измеримым результатом.
-- У PulsePlate уже есть продуктовый каркас, который можно масштабировать без смены архитектуры.
+- У PulsePlate уже есть продуктовый каркас; тезис "масштабирование без смены архитектуры"
+  фиксируется как гипотеза до верификации: `[VERIFY_VALUE:SCALING_WITHOUT_REWRITE]`.
 
 ## Почему Мы
 
-- Единый backend для web + iOS с чистыми контрактами.
-- Tier-модель монетизации уже встроена и понятна пользователю.
-- Безопасность и дисциплина claims заложены в процессах, а не "добавлены потом".
-- Команда работает в режиме policy-first: guard tests, CI, decision logs.
+- Единый backend для web + iOS с контрактным подходом (evidence: `app/main.py:1`,
+  `frontend/src/main.tsx:2`, `ios/README.md:1`).
+- Tier-модель монетизации встроена через `FREE/PRO/VIP`
+  (evidence: `app/middleware/api_tiers.py:43`).
+- Безопасность и claim-discipline формализованы; внешний эффект подтверждается только после
+  проверки: `[VERIFY_VALUE:SECURITY_AND_CLAIMS_EFFECTIVENESS]`.
+- Policy-first процессы (guard tests + CI gates) зафиксированы в репо
+  (evidence: `tests/test_repo_policy_guards.py:657`, `Makefile:134`).
 
 ## Competitive Angle (На Одной Странице)
 
@@ -70,10 +78,14 @@ Ask:
 
 ## Текущее Состояние Продукта
 
-- Backend: FastAPI + core domain layer.
-- Клиенты: web (React/TypeScript) + iOS (SwiftUI).
-- Операционная дисциплина: lint/type/test/coverage gate, pre-commit, CI.
-- Продуктовый контур: входные метрики -> интерпретация -> ежедневные действия.
+- Backend: FastAPI entrypoint + core domain module
+  (evidence: `app/main.py:1`, `core/bmi/engine.py:1`).
+- Клиенты: web (React/TypeScript) + iOS (SwiftUI structure)
+  (evidence: `frontend/src/main.tsx:2`, `ios/README.md:1`).
+- Операционная дисциплина: `make verify` (lint/type/test-fast/diff-cov) + policy guards
+  (evidence: `Makefile:134`, `tests/test_repo_policy_guards.py:657`).
+- Продуктовый контур "метрики -> интерпретация -> ежедневные действия" публикуется как
+  управленческая формулировка до доп.метрик adoption: `[VERIFY_VALUE:ACTION_LAYER_ADOPTION]`.
 
 ## Ask Framework (Для Инвестора Или Партнера)
 
