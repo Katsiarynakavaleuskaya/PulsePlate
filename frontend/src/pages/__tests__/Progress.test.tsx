@@ -23,15 +23,14 @@ describe('Progress', () => {
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Refresh setup inputs' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('radiogroup', { name: 'Progress date range' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '7D' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '30D' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '90D' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Update setup parameters' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('radio', { name: 'WEEK' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'MONTH' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'QUARTER' })).toBeInTheDocument();
     expect(screen.getByTestId('progress-charts')).toBeInTheDocument();
   });
 
-  it('has correct inline styles', () => {
+  it('has expected layout classes', () => {
     render(
       <MemoryRouter>
         <Progress />
@@ -39,11 +38,9 @@ describe('Progress', () => {
     );
 
     const main = screen.getByRole('main');
-    expect(main).toHaveStyle({
-      backgroundColor: 'var(--pp-navy)',
-      minHeight: '100vh'
-    });
-    expect(main).toHaveClass('p-4');
-    expect(main).toHaveClass('pb-24');
+    expect(main).toHaveClass('flex');
+    expect(main).toHaveClass('min-h-screen');
+    expect(main).toHaveClass('flex-col');
+    expect(main).toHaveClass('bg-[var(--color-bg)]');
   });
 });

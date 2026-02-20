@@ -8,20 +8,20 @@ extension Color {
     static let heart = Color("HeartRed")
 
     // MARK: - Semantic Colors
-    static let success = Color(hex: "#10B981")
-    static let warning = Color(hex: "#F59E0B")
-    static let error = Color(hex: "#EF4444")
-    static let info = Color(hex: "#3B82F6")
+    static let success = PPDesignTokens.ColorToken.success
+    static let warning = PPDesignTokens.ColorToken.warning
+    static let error = PPDesignTokens.ColorToken.error
+    static let info = PPDesignTokens.ColorToken.info
 
     // MARK: - Surface Colors
-    static let surface = Color.gray.opacity(0.1)
-    static let surfaceElevated = Color.white.opacity(0.1)
-    static let surfaceHighlight = Color.white.opacity(0.25)
+    static let surface = PPDesignTokens.ColorToken.surface
+    static let surfaceElevated = PPDesignTokens.ColorToken.surfaceElevated
+    static let surfaceHighlight = PPDesignTokens.ColorToken.surfaceHighlight
 
     // MARK: - Text Colors
-    static let textPrimary = Color.white
-    static let textSecondary = Color.white.opacity(0.8)
-    static let textTertiary = Color.white.opacity(0.6)
+    static let textPrimary = PPDesignTokens.ColorToken.textPrimary
+    static let textSecondary = PPDesignTokens.ColorToken.textSecondary
+    static let textTertiary = PPDesignTokens.ColorToken.textTertiary
 
     /// Maps backend segment color names to canonical semantic UI colors.
     static func segmentSemanticColor(from colorString: String) -> Color {
@@ -78,11 +78,11 @@ extension View {
     /// Apply glass card styling with consistent background and corner radius
     func glassCardStyle() -> some View {
         self
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(PPDesignTokens.ColorToken.surface)
+            .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous)
+                    .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: 1)
             )
     }
 

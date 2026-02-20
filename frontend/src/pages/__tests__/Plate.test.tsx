@@ -37,7 +37,7 @@ describe('Plate', () => {
 
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Plate' })).toBeInTheDocument();
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByText('Loading your nutrition data…')).toBeInTheDocument();
   });
 
   it('renders premium gate when premium status is defined', () => {
@@ -50,12 +50,15 @@ describe('Plate', () => {
     );
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Plate' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Your Plate' })).toBeInTheDocument();
     expect(screen.getByTestId('premium-gate')).toBeInTheDocument();
-    expect(screen.getByText('PRO nutrition controls')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open setup' })).toBeInTheDocument();
+    expect(screen.getByText('Premium Nutrition Controls')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toBeInTheDocument();
     expect(screen.getByLabelText('Live progress indicator')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open progress live' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'View detailed progress' })).toHaveAttribute(
+      'href',
+      '/progress'
+    );
   });
 
   it('passes correct isPremium prop to PremiumGate', () => {
@@ -81,8 +84,10 @@ describe('Plate', () => {
     );
 
     const main = screen.getByRole('main');
-    expect(main).toHaveClass('p-4');
-    expect(main).toHaveClass('pb-24');
+    expect(main).toHaveClass('flex');
+    expect(main).toHaveClass('min-h-screen');
+    expect(main).toHaveClass('flex-col');
+    expect(main).toHaveClass('bg-[var(--color-bg)]');
   });
 
   it('passes correct source prop to PremiumGate', () => {

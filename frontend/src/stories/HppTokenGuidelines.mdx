@@ -1,0 +1,18 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="HPP/Token Guidelines" />
+
+# HPP Token Guidelines
+
+## Usage rules
+
+- Use semantic color variables (`--color-*`) for all HPP cards, CTA surfaces, and text.
+- Reuse `pageCardStyle` for container parity across `Home`, `Plate`, and `Progress`.
+- Keep interaction states deterministic: default, hover/focus-visible, disabled/loading, and error.
+
+## HPP state variants
+
+- `default`: static indicator + CTA visible.
+- `realtime-active`: live signal visible, CTA unchanged.
+- `fallback`: websocket unavailable, static indicator and CTA still actionable.
+- `conversion`: paywall/open events tracked through centralized telemetry helpers.
