@@ -3,15 +3,22 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests.feature_manifest import FEATURE_TODO_KEYS
+import pytest
+
+from tests.feature_manifest import (
+    FEATURE_TODO_KEYS,
+    FeatureManifest,
+    require_feature,
+    require_feature_or_raise,
+)
+
+SKIP_REASON_RE = re.compile(r"^feature_disabled:[a-z0-9_]+(?:\s.*)?$")
 
 
 def test_feature_manifest_keys_are_used_in_tests() -> None:
     """Ensure each feature-manifest key is referenced by require_feature in tests."""
     tests_root = Path(__file__).parent
-    content_parts: list[str] = []
-    for path in tests_root.rglob("*.py"):
-        content_parts.append(path.read_text(encoding="utf-8"))
+    content_parts = [path.read_text(encoding="utf-8") for path in tests_root.rglob("*.py")]
     content = "\n".join(content_parts)
 
     missing: list[str] = []
@@ -22,3 +29,32 @@ def test_feature_manifest_keys_are_used_in_tests() -> None:
             missing.append(key)
 
     assert not missing, f"Unused feature keys in feature_manifest: {missing}"
+
+
+def test_require_feature_skip_reason_uses_canonical_prefix() -> None:
+    """Require canonical feature_disabled:<key> skip reason prefix."""
+    manifest = FeatureManifest(enabled=frozenset())
+    with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
+        require_feature("core_db", reason="CP3 guard check", manifest=manifest)
+
+    assert str(exc_info.value).startswith("feature_disabled:core_db")
+
+
+def test_require_feature_or_raise_reraises_when_feature_enabled() -> None:
+    """Enabled feature must re-raise ImportError (never skip silently)."""
+    manifest = FeatureManifest(enabled=frozenset({"core_db"}))
+    sentinel = ImportError("core_db import failed")
+
+    with pytest.raises(ImportError, match="core_db import failed"):
+        require_feature_or_raise(sentinel, "core_db", reason="CP3 guard check", manifest=manifest)
+
+
+def test_require_feature_or_raise_skips_when_feature_disabled() -> None:
+    """Disabled feature may skip with canonical reason."""
+    manifest = FeatureManifest(enabled=frozenset())
+    sentinel = ImportError("core_db import failed")
+
+    with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
+        require_feature_or_raise(sentinel, "core_db", reason="CP3 guard check", manifest=manifest)
+
+    assert str(exc_info.value).startswith("feature_disabled:core_db")

@@ -20,5 +20,9 @@ exclude =
     .claude,
     venv,
     env,
+    worktrees,
+    .pytest_cache,
+    .mypy_cache,
+    .ruff_cache,
     releases/*,
     node_modules

@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import ProgressCharts from '../features/progress/ProgressCharts';
 import { pageCardStyle } from '../components/ui/pageCardStyle';
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';

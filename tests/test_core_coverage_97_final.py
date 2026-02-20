@@ -1,6 +1,6 @@
 """Final core modules coverage tests to reach 97% coverage."""
 
-import pytest
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestCoreCoverage97Final:
@@ -17,8 +17,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(ex, "export_csv"))
             if hasattr(ex, "export_json"):
                 assert callable(getattr(ex, "export_json"))
-        except ImportError:
-            pytest.skip("core.exports_simple not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
 
     def test_core_food_apis_unified_db_classes(self):
         """Test core.food_apis.unified_db classes."""
@@ -33,8 +33,8 @@ class TestCoreCoverage97Final:
                 assert UnifiedFoodDB is not None
             if FoodSource is not None:
                 assert FoodSource is not None
-        except ImportError:
-            pytest.skip("core.food_apis.unified_db not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
 
     def test_core_menu_engine_functions(self):
         """Test core.menu_engine functions."""
@@ -49,8 +49,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(me, "build_day"))
             if hasattr(me, "repair_day"):
                 assert callable(getattr(me, "repair_day"))
-        except ImportError:
-            pytest.skip("core.menu_engine not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_core_plate_functions(self):
         """Test core.plate functions."""
@@ -63,8 +63,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(plate, "compute_plate"))
             if hasattr(plate, "calculate_macros"):
                 assert callable(getattr(plate, "calculate_macros"))
-        except ImportError:
-            pytest.skip("core.plate not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_core_recommendations_functions(self):
         """Test core.recommendations functions."""
@@ -77,8 +77,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rec, "suggest"))
             if hasattr(rec, "get_nutrition_tips"):
                 assert callable(getattr(rec, "get_nutrition_tips"))
-        except ImportError:
-            pytest.skip("core.recommendations not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_core_product_finder_functions(self):
         """Test core.product_finder functions."""
@@ -91,8 +91,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(pf, "find_products"))
             if hasattr(pf, "search_products"):
                 assert callable(getattr(pf, "search_products"))
-        except ImportError:
-            pytest.skip("core.product_finder not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
 
     def test_core_recipe_synth_functions(self):
         """Test core.recipe_synth functions."""
@@ -105,8 +105,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rs, "generate_recipe"))
             if hasattr(rs, "synthesize_recipe"):
                 assert callable(getattr(rs, "synthesize_recipe"))
-        except ImportError:
-            pytest.skip("core.recipe_synth not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
 
     def test_core_targets_functions(self):
         """Test core.targets functions."""
@@ -119,8 +119,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(targets, "validate_targets"))
             if hasattr(targets, "calculate_targets"):
                 assert callable(getattr(targets, "calculate_targets"))
-        except ImportError:
-            pytest.skip("core.targets not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "targets_fixture_data", reason=FEATURE_REASON)
 
     def test_core_time_utils_functions(self):
         """Test core.time_utils functions."""
@@ -133,8 +133,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(tu, "format_time"))
             if hasattr(tu, "human_delta"):
                 assert callable(getattr(tu, "human_delta"))
-        except ImportError:
-            pytest.skip("core.time_utils not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
 
     def test_core_region_catalog_functions(self):
         """Test core.region_catalog functions."""
@@ -147,8 +147,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rc, "get_region_products"))
             if hasattr(rc, "search_products"):
                 assert callable(getattr(rc, "search_products"))
-        except ImportError:
-            pytest.skip("core.region_catalog not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_rag_simple_rag_classes(self):
         """Test core.rag.simple_rag classes."""
@@ -163,8 +163,8 @@ class TestCoreCoverage97Final:
                 assert SimpleRAG is not None
             if RAGEngine is not None:
                 assert RAGEngine is not None
-        except ImportError:
-            pytest.skip("core.rag.simple_rag not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
 
     def test_core_recipe_db_functions(self):
         """Test core.recipe_db functions."""
@@ -177,8 +177,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rdb, "search"))
             if hasattr(rdb, "get_recipe"):
                 assert callable(getattr(rdb, "get_recipe"))
-        except ImportError:
-            pytest.skip("core.recipe_db not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_recipe_db_new_functions(self):
         """Test core.recipe_db_new functions."""
@@ -191,8 +191,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rdbn, "search"))
             if hasattr(rdbn, "get_recipe"):
                 assert callable(getattr(rdbn, "get_recipe"))
-        except ImportError:
-            pytest.skip("core.recipe_db_new not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_food_db_functions(self):
         """Test core.food_db functions."""
@@ -205,8 +205,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(fdb, "search"))
             if hasattr(fdb, "get_food"):
                 assert callable(getattr(fdb, "get_food"))
-        except ImportError:
-            pytest.skip("core.food_db not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_food_merge_functions(self):
         """Test core.food_merge functions."""
@@ -219,8 +219,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(fm, "merge_foods"))
             if hasattr(fm, "deduplicate"):
                 assert callable(getattr(fm, "deduplicate"))
-        except ImportError:
-            pytest.skip("core.food_merge not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_menu_engine_new_functions(self):
         """Test core.menu_engine_new functions."""
@@ -233,8 +233,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(men, "build_week"))
             if hasattr(men, "build_day"):
                 assert callable(getattr(men, "build_day"))
-        except ImportError:
-            pytest.skip("core.menu_engine_new not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_core_product_varieties_functions(self):
         """Test core.product_varieties functions."""
@@ -247,8 +247,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(pv, "get_varieties"))
             if hasattr(pv, "search_varieties"):
                 assert callable(getattr(pv, "search_varieties"))
-        except ImportError:
-            pytest.skip("core.product_varieties not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
 
     def test_core_rules_who_functions(self):
         """Test core.rules_who functions."""
@@ -261,8 +261,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rw, "validate_rules"))
             if hasattr(rw, "apply_rules"):
                 assert callable(getattr(rw, "apply_rules"))
-        except ImportError:
-            pytest.skip("core.rules_who not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_core_food_apis_update_manager_functions(self):
         """Test core.food_apis.update_manager functions."""
@@ -275,8 +275,8 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(um, "update_data"))
             if hasattr(um, "sync_data"):
                 assert callable(getattr(um, "sync_data"))
-        except ImportError:
-            pytest.skip("core.food_apis.update_manager not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_core_food_apis_scheduler_functions(self):
         """Test core.food_apis.scheduler functions."""
@@ -289,5 +289,5 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(sched, "get_update_scheduler"))
             if hasattr(sched, "schedule_update"):
                 assert callable(getattr(sched, "schedule_update"))
-        except ImportError:
-            pytest.skip("core.food_apis.scheduler not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)

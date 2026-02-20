@@ -56,6 +56,62 @@ If it is not recorded here — it does not exist.
     - ✅ iOS app opens and core navigation works (Root/App entry flow validated in deterministic simulator flow)
     - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
     - ✅ CI checks for touched surfaces pass; no unresolved review threads
+- [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-AGENT-CP-MVP
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: architecture / backend / security
+  - Finding Type: platform hardening / modernization
+  - Locations:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: replace third-party local agent dependency with policy-first, vendor-independent control plane.
+  - Links:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - DoD:
+    - Control plane MVP contract documented and accepted
+    - Deny-by-default policy requirements and fail-closed semantics documented
+    - Signed audit trail requirements documented with verification checklist
+    - Follow-up implementation PRs opened and linked
+
+- [ ] P0: Security hardening wave for agent automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-AGENT-SEC-HARDENING
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: security / runbooks / operations
+  - Finding Type: incident prevention
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `RUNBOOK_AGENT.md`
+  - Reason: enforce short-lived credentials, rotation protocol, and secret persistence bans after local-agent incident.
+  - Links:
+    - `docs/runbooks/README.md`
+  - DoD:
+    - Rotation protocol documented and adopted for bot/API/webhook credentials
+    - Security release gate conditions documented
+    - Mandatory controls mapped to owner and verification evidence
+
+- [ ] P0: Growth telemetry canon and KPI dashboard baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-GROWTH-TELEMETRY-CANON
+  - Status: Planned (Wave 1 / 0-30 days)
+  - Area: analytics / frontend / growth
+  - Finding Type: product optimization
+  - Locations:
+    - `docs/analytics/ANALYTICS_INDEX.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: establish canonical funnel semantics and events for onboarding -> paywall -> conversion -> retention.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+  - DoD:
+    - Core funnel metrics defined with owner and update cadence
+    - Event taxonomy anchored in docs and frontend registry
+    - Dashboard baseline requirements documented
 
 - [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya
@@ -510,6 +566,30 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [x] P1: Agent Control Plane baseline + 6-month balanced program package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Merged (PR #825, 2026-02-20)
+  - Merge SHA: `946b954f1d832cfe2475b580194fb2841ff889da`
+  - Area: docs / governance / analytics / frontend telemetry
+  - Finding Type: execution package / governance hardening
+  - Reason: Landed the balanced 6-month execution program, Agent Control Plane
+    governance baseline, and telemetry taxonomy updates in one scoped package with
+    canonical CI gates and bot-thread closure.
+  - Links:
+    - PR #825
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - DoD:
+    - Agent Control Plane baseline docs and governance checkpoints are merged
+    - Phase2/Docs gates for the package are green in CI
+    - Telemetry taxonomy updates and validation tests are merged
+    - No unresolved review threads remain at merge time
+
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -729,6 +809,97 @@ If it is not recorded here — it does not exist.
     - Structured websocket logs include only safe, bounded fields (`reason`, `event_type`, `version`, `result`).
     - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
     - `make verify` and diff-coverage gates are green in observability PR.
+
+- [ ] P1: Wave 2 contract governance v2 + CI throughput program
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-W2-CONTRACT-CI
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: backend / frontend / ios / devex
+  - Finding Type: maintainability / delivery speed
+  - Locations:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - DoD:
+    - Contract governance checklist with OpenAPI diff risk labels documented
+    - CI throughput baseline and target defined with flake budget owner
+    - Follow-up implementation PRs linked
+
+- [ ] P1: Wave 2 experimentation framework and paywall optimization loop
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-W2-EXPERIMENTS
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: product / growth / analytics
+  - Finding Type: growth optimization
+  - Locations:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - Experiment lifecycle states documented
+    - Initial prioritized growth experiments registered with owners and dates
+    - Guardrail metrics required for promotion decisions
+
+- [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TELEMETRY-API-NORMALIZATION
+  - Status: Planned (Wave 2 / day 31-90)
+  - Area: frontend / analytics / architecture
+  - Finding Type: naming/abstraction hygiene
+  - Locations:
+    - `frontend/src/lib/telemetry.ts`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: growth events currently use `trackVipEvent`; rename to a generic API surface and keep compatibility wrapper to avoid VIP-specific naming leakage in broader telemetry families.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - DoD:
+    - Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
+    - Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
+    - Enum constraints documented for shared growth fields where runtime validation is required
+    - Tests updated for both legacy and new entrypoints
+    - `make verify` and required CI checks pass
+
+- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Merged (PR #825, 2026-02-20, `946b954f`)
+  - Merge SHA: 946b954f1d832cfe2475b580194fb2841ff889da
+  - Area: docs / frontend / ci / review-ops
+  - Finding Type: review remediation / quality-gate closure
+  - Locations:
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+    - `frontend/src/lib/__tests__/telemetry.test.ts`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Reason: close all bot actionables and reach zero unresolved review threads with full CI green.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/825`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - Checklist (Matrix):
+    - [x] Sourcery actionables addressed with commit mapping in PR body
+    - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
+    - [x] PR Body Phase2 gates passed after checklist/mapping update
+    - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
+    - [x] Required CI checks are green (`gh pr checks 825`)
+    - [x] Unresolved review threads count is zero
+  - DoD:
+    - Sourcery actionables addressed with commit mapping in PR body
+    - CodeRabbit actionables addressed with file-level fixes and thread replies
+    - PR Body Phase2 gates pass after checklist/mapping update
+    - Docs Phase1 gates pass with evidence anchors in audit/security docs
+    - Required CI checks are green (`gh pr checks 825`)
+    - Unresolved review threads count is zero
 
 - [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
   - Owner: @katsiaryna_kavaleuskaya
@@ -1800,6 +1971,25 @@ If it is not recorded here — it does not exist.
       `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
     - `get_code_connect_map` returns expected active mappings for P0 set
     - Matrix `Figma Node ID` column updated for activated rows
+
+- [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-W3-RAG-SAFETY
+  - Status: Planned (Wave 3 / day 91-180)
+  - Area: AI platform / security / reliability
+  - Finding Type: modernization / risk reduction
+  - Locations:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - Reason: scale AI capability with explicit safety gates and degraded-mode confidence before broad autonomy.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - DoD:
+    - RAG v2 capability scope and citation/eval expectations documented
+    - Safety regression gate classes documented (jailbreak/policy bypass)
+    - Reliability game day scenarios and ownership defined
 
 ### Multimodal / CV / measurement (future, contract-first)
 
