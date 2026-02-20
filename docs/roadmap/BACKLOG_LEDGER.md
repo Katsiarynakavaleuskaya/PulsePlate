@@ -2526,8 +2526,38 @@ If it is not recorded here — it does not exist.
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
+- [ ] P1: Audience Pack Set C deferred layer (unit economics + activation + localization + monetization + partnerships)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (investor/sales readiness)
+  - Target PR: PR_TBD_AUDIENCE_PACK_SET_C
+  - Status: 📋 Deferred (after Set A/Set B docs PRs)
+  - Reason (EN): Set A and Set B close the highest-impact communication gaps first
+    (pitch, KPI hypotheses, competitive layer, risk register, proof pack). Set C
+    remains necessary but is deferred to keep the current docs-only PR scope
+    tight and mergeable without mixing runtime work.
+  - Links:
+    - `docs/audience_pack/README.md`
+    - `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md`
+    - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
+    - `docs/audience_pack/COMPETITIVE_INTELLIGENCE.md`
+    - `docs/audience_pack/RISK_REGISTER.md`
+    - `docs/audience_pack/PROOF_PACK.md`
+    - `docs/audience_pack/ROADMAP_KILL_CRITERIA.md`
+    - `docs/audience_pack/NARRATIVE_AND_TEAM.md`
+    - `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md`
+  - DoD:
+    - Add `docs/audience_pack/UNIT_ECONOMICS_MODEL.md`
+    - Add `docs/audience_pack/ACTIVATION_RETENTION_PLAYBOOK.md`
+    - Add `docs/audience_pack/MONETIZATION_EXPERIMENTS_LOG.md`
+    - Add `docs/audience_pack/LOCALIZATION_MARKETS_STRATEGY.md`
+    - Add `docs/audience_pack/PARTNERSHIPS_INTEGRATIONS.md`
+    - Add `docs/audience_pack/DISTRIBUTION_OPERATING_MODEL.md`
+    - Add `docs/audience_pack/EXIT_OPTIONALITY.md`
+    - Link all Set C docs from `docs/audience_pack/README.md`
+    - Run `pre-commit run --all-files` + `make verify` in the Set C PR
+
 ---
 
-**Last updated:** 2026-02-16 (SCIENTIFIC_INNOVATION_ANALYSIS.md canonical doc, backlog links)
+**Last updated:** 2026-02-20 (audience pack Set C deferred layer added)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

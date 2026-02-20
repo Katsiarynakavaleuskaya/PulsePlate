@@ -2,7 +2,7 @@
 
 # PulsePlate Audience Pack
 
-Дата версии: 20 февраля 2026 года (`America/New_York`)
+Версия: 2026-02-20 (TZ: America/New_York)
 
 ## Назначение
 
@@ -12,57 +12,66 @@
 - маркетинг/дизайн/growth,
 - sales/onboarding/support.
 
-## Что Внутри
+## Layer 1: Core Pack (Set A)
 
-- `docs/audience_pack/FACTS_CANONICAL.md` — единые факты и архитектурные ограничения.
-- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md` — investor/public narrative + ask framework.
-- `docs/audience_pack/ENGINEERING_OVERVIEW.md` — технический срез для разработчиков.
-- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md` — GTM с KPI-гипотезами.
-- `docs/audience_pack/ROLE_GUIDES.md` — Build/Grow/Steer кластеры + day-1 checklist.
-- `docs/audience_pack/SALES_SOCIAL_ONBOARDING_BASE.md` — demo/outreach/onboarding playbook.
-- `docs/audience_pack/AI_REPORT_TEMPLATES.md` — шаблоны + заполненные daily/weekly demo samples.
-- `docs/audience_pack/SOCIAL_PROOF_BASELINE.md` — testimonials/metrics/competitor proof baseline.
-- `docs/audience_pack/DECISION_LOG.md` — почему пакет перестроен в сторону "почему мы/почему сейчас".
+- `docs/audience_pack/FACTS_CANONICAL.md` — фактовый source of truth.
+- `docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW.md` — pitch, why-now, why-us, ask.
+- `docs/audience_pack/ENGINEERING_OVERVIEW.md` — техническая архитектура.
+- `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md` — GTM гипотезы и KPI.
+- `docs/audience_pack/ROLE_GUIDES.md` — Build/Grow/Steer + day-1 checklists.
+- `docs/audience_pack/SALES_SOCIAL_ONBOARDING_BASE.md` — outreach/demo/onboarding base.
+- `docs/audience_pack/AI_REPORT_TEMPLATES.md` — templates + filled daily/weekly samples.
+- `docs/audience_pack/SOCIAL_PROOF_BASELINE.md` — testimonials/metrics/competitor placeholders.
+- `docs/audience_pack/DECISION_LOG.md` — ключевые решения по пакету.
 
-## Owner & Cadence Protocol
+## Layer 2: Strategic Pack (Set B)
 
-| Документ | Primary Owner | Cadence | Review Gate |
-|---|---|---|---|
-| FACTS_CANONICAL | Product + Backend | Monthly | architecture + compliance |
-| INVESTOR_PUBLIC_OVERVIEW | Founder + Product Marketing | Monthly | claim hygiene + strategy |
-| MARKETING_DESIGN_OVERVIEW | Growth + Design | Bi-weekly | KPI board review |
-| ROLE_GUIDES | Operations + Leads | Monthly | onboarding sync |
-| SALES_SOCIAL_ONBOARDING_BASE | Sales Lead | Weekly | message + KPI review |
-| AI_REPORT_TEMPLATES | AI Trend Reporter | Monthly | reporting quality |
-| SOCIAL_PROOF_BASELINE | Growth Ops + Sales | Weekly | source + consent validation |
-| DECISION_LOG | Coordinator | Per major update | decision traceability |
+- `docs/audience_pack/COMPETITIVE_INTELLIGENCE.md` — direct competitors + gap map + parity.
+- `docs/audience_pack/RISK_REGISTER.md` — risk table with mitigation/owner/kill criteria.
+- `docs/audience_pack/PROOF_PACK.md` — beta metrics, demo assets, mini-case templates.
+- `docs/audience_pack/ROADMAP_KILL_CRITERIA.md` — roadmap with success + kill rules.
+- `docs/audience_pack/NARRATIVE_AND_TEAM.md` — story arc, credibility, anti-portfolio.
+- `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md` — owner/cadence/review/expiry protocol.
 
-## Как Использовать
+## Deferred Layer (Set C)
 
-1. Начинать с `FACTS_CANONICAL.md` перед любыми внешними материалами.
-2. Для investor/sales коммуникации использовать в связке:
-- `INVESTOR_PUBLIC_OVERVIEW.md`,
-- `SOCIAL_PROOF_BASELINE.md`,
-- `SALES_SOCIAL_ONBOARDING_BASE.md`.
-3. Для GTM-операций использовать:
-- `MARKETING_DESIGN_OVERVIEW.md`,
-- `AI_REPORT_TEMPLATES.md`.
-4. Для onboarding команды использовать `ROLE_GUIDES.md`.
+Пункты Set C зафиксированы в `docs/roadmap/BACKLOG_LEDGER.md`.
+Без записи в ledger deferred-работа считается несуществующей.
+
+## Owner & Cadence Protocol (Canonical SoT)
+
+- Каноническая owner/cadence матрица находится в
+  `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md`.
+- Любое изменение owner/cadence сначала вносится в этот документ, чтобы избежать drift.
 
 ## Claim Hygiene Standard
 
-- Подтвержденная цифра: source обязателен.
-- Неподтвержденная цифра: только placeholder (`[VERIFY_SOURCE:*]`, `[VERIFY_VALUE:*]`).
-- Без source/placeholder — claim удаляется.
+- Подтвержденная цифра -> source обязателен.
+- Неподтвержденная цифра -> placeholder (`[VERIFY_SOURCE:*]`, `[VERIFY_VALUE:*]`).
+- Без source/placeholder -> claim удаляется.
+
+## Как Использовать
+
+1. Перед любой коммуникацией начать с `FACTS_CANONICAL.md`.
+2. Для investor/sales использовать связку:
+- `INVESTOR_PUBLIC_OVERVIEW.md`,
+- `SOCIAL_PROOF_BASELINE.md`,
+- `PROOF_PACK.md`,
+- `COMPETITIVE_INTELLIGENCE.md`.
+3. Для GTM управления использовать:
+- `MARKETING_DESIGN_OVERVIEW.md`,
+- `ROADMAP_KILL_CRITERIA.md`,
+- `RISK_REGISTER.md`.
+4. Для обновляемости пакета следовать `LIVING_DOCUMENT_PROTOCOL.md`.
 
 ## Security Notes
 
-- PulsePlate позиционируется как wellness-продукт, не медицинская диагностика.
+- PulsePlate — wellness-продукт, не медицинская диагностика.
 - Медицинские обещания в маркетинговых/инвесторских текстах запрещены.
-- Social proof публикуется только при соблюдении consent и privacy требований.
+- Proof/data блоки публикуются только при соблюдении consent и source policy.
 
 ## Marketing & GTM
 
-- Пакет используется как operating system для внешней коммуникации.
-- Каждая гипотеза должна иметь KPI, owner и decision rule.
+- Пакет работает как operating system для внешней коммуникации.
+- Каждый GTM тезис должен иметь KPI, owner и decision rule.
 - Главный нарратив: "данные -> интерпретация -> ежедневное действие".
