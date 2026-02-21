@@ -157,6 +157,16 @@ query { repository(owner: "Katsiarynakavaleuskaya", name: "PulsePlate") {
 
 Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments under **### Fixed in Commit Mapping** in the PR body.
 
+**Loop until zero comments (canonical cycle):** Repeat until merge-readiness script exits 0 and CI is green:
+
+1. **Commit** (fixes for code/docs); **push** to PR branch.
+2. **Watch CI:** `gh run list --branch "$(git branch --show-current)" --limit 3` then `gh run watch <RUN_ID> --exit-status` (or wait for run completion).
+3. **Check comments:** `python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate`. If exit 1 → unmapped actionables and/or unresolved threads.
+4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to PR body under `### Fixed in Commit Mapping` as `- <url> -> <commit-sha>`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping.
+5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
+
+Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
+
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 
 Use this checklist when operating agent automation or closing a token/secrets incident.

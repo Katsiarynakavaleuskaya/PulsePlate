@@ -52,6 +52,8 @@ python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Kat
 3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Merge-readiness script passed: 0 unresolved threads, all actionables mapped."
 4. **After new bot activity:** If the user or system reports new bot comments (e.g. CodeRabbit, Sourcery), **re-run the script** before any merge decision; do not assume previous pass still holds.
 
+**Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` → "Loop until zero comments (canonical cycle)". Repeat until script exit 0 and CI green.
+
 ---
 
 ## 5. PR body requirements (reminder)
