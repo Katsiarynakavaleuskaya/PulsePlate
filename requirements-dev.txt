@@ -4,6 +4,20 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements-dev.txt requirements-dev.in
 #
+annotated-doc==0.0.4
+    # via
+    #   -c requirements.txt
+    #   typer
+annotated-types==0.7.0
+    # via
+    #   -c requirements.txt
+    #   pydantic
+anyio==4.12.0
+    # via
+    #   -c requirements.txt
+    #   httpx
+authlib==1.6.8
+    # via safety
 bandit==1.9.3
     # via -r requirements-dev.in
 black==26.1.0
@@ -19,6 +33,8 @@ cachecontrol[filecache]==0.14.4
 certifi==2026.1.4
     # via
     #   -c requirements.txt
+    #   httpcore
+    #   httpx
     #   requests
 cffi==2.0.0
     # via
@@ -36,7 +52,10 @@ click==8.3.1
     # via
     #   -c requirements.txt
     #   black
+    #   nltk
     #   pip-tools
+    #   safety
+    #   typer
 coverage[toml]==7.13.4
     # via
     #   -r requirements-dev.in
@@ -45,6 +64,7 @@ cryptography==46.0.5
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
+    #   authlib
 cyclonedx-python-lib==11.6.0
     # via pip-audit
 defusedxml==0.7.1
@@ -55,6 +75,10 @@ diff-cover==10.2.0
     # via -r requirements-dev.in
 distlib==0.4.0
     # via virtualenv
+dparse==0.6.4
+    # via
+    #   safety
+    #   safety-schemas
 execnet==2.1.2
     # via pytest-xdist
 faker==40.4.0
@@ -62,7 +86,20 @@ faker==40.4.0
 filelock==3.20.3
     # via
     #   cachecontrol
+    #   safety
     #   virtualenv
+h11==0.16.0
+    # via
+    #   -c requirements.txt
+    #   httpcore
+httpcore==1.0.9
+    # via
+    #   -c requirements.txt
+    #   httpx
+httpx==0.28.1
+    # via
+    #   -c requirements.txt
+    #   safety
 hypothesis==6.151.6
     # via -r requirements-dev.in
 identify==2.6.15
@@ -70,11 +107,17 @@ identify==2.6.15
 idna==3.11
     # via
     #   -c requirements.txt
+    #   anyio
+    #   httpx
     #   requests
 iniconfig==2.3.0
     # via pytest
 jinja2==3.1.6
-    # via diff-cover
+    # via
+    #   diff-cover
+    #   safety
+joblib==1.5.3
+    # via nltk
 librt==0.7.5
     # via mypy
 license-expression==30.4.4
@@ -85,6 +128,8 @@ markupsafe==3.0.3
     # via
     #   -c requirements.txt
     #   jinja2
+marshmallow==4.2.2
+    # via safety
 mdurl==0.1.2
     # via markdown-it-py
 msgpack==1.1.2
@@ -99,6 +144,8 @@ nh3==0.3.2
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
+nltk==3.9.2
+    # via safety
 nodeenv==1.10.0
     # via pre-commit
 packageurl-python==0.17.6
@@ -108,9 +155,12 @@ packaging==25.0
     #   -c requirements.txt
     #   black
     #   build
+    #   dparse
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
+    #   safety
+    #   safety-schemas
     #   wheel
 pathspec==1.0.3
     # via
@@ -143,6 +193,15 @@ pycparser==2.23
     # via
     #   -c requirements.txt
     #   cffi
+pydantic==2.12.5
+    # via
+    #   -c requirements.txt
+    #   safety
+    #   safety-schemas
+pydantic-core==2.41.5
+    # via
+    #   -c requirements.txt
+    #   pydantic
 pygments==2.19.2
     # via
     #   diff-cover
@@ -182,33 +241,68 @@ pyyaml==6.0.3
     #   detect-secrets
     #   pre-commit
     #   yamllint
+regex==2026.2.19
+    # via nltk
 requests==2.32.5
     # via
     #   cachecontrol
     #   detect-secrets
     #   pip-audit
+    #   safety
 rich==14.2.0
     # via
     #   bandit
     #   pip-audit
+    #   typer
+ruamel-yaml==0.19.1
+    # via
+    #   safety
+    #   safety-schemas
 ruff==0.15.1
     # via -r requirements-dev.in
+safety==3.7.0
+    # via -r requirements-dev.in
+safety-schemas==0.0.16
+    # via safety
+shellingham==1.5.4
+    # via typer
 sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
     #   hypothesis
 stevedore==5.6.0
     # via bandit
+tenacity==9.1.2
+    # via
+    #   -c requirements.txt
+    #   safety
 tomli==2.3.0
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
+tomlkit==0.14.0
+    # via safety
+tqdm==4.67.1
+    # via
+    #   -c requirements.txt
+    #   nltk
+typer==0.24.0
+    # via safety
 types-pyyaml==6.0.12.20250915
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via
     #   -c requirements.txt
     #   mypy
+    #   pydantic
+    #   pydantic-core
+    #   safety
+    #   safety-schemas
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via
+    #   -c requirements.txt
+    #   pydantic
 urllib3==2.6.3
     # via requests
 virtualenv==20.36.1
