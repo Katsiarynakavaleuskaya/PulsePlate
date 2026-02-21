@@ -19,6 +19,7 @@
 - **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - **Research brainstorming (brainstorm → research → decision → promotion):** `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- **Merge readiness / zero-comments (coordinator and any agent):** `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md` — canonical verification script and rules; never report "0 comments" or "ready to merge" without running the script.
 
 ---
 
