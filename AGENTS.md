@@ -557,7 +557,7 @@ Design token SoT for web is `frontend/src/styles/tokens.css` (single source).
 Token migrations must follow staged policy: PR-1 bridge aliases -> PR-2 palette switch -> PR-3 raw-hex guard.
 
 Raw hex values are forbidden in `frontend/src/**` runtime files.
-Allowlist only: `frontend/src/styles/tokens.css`, `**/*.test.*`, `**/*.spec.*`, `**/*.stories.*`.
+Allowlist only: `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`, `**/*.test.*`, `**/*.spec.*`, `**/*.stories.*`.
 
 ## Thin HTTP Adapter Policy (Hard Rule)
 
