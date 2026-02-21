@@ -42,7 +42,9 @@ Our project uses agents for: coordinator-first routing, CI/guards, security audi
 **Current state:**
 
 - We have deterministic gates: `make verify`, `test_repo_policy_guards`, `test_dependency_security_guard`, `test_analytics_docs_guards`, merge-readiness (PR body + bot mapping).
-- We lack a single **agent task evaluation protocol** that defines: (1) what “success” is per task type (e.g. “all guard files touched and tests pass”), (2) recall-style metrics (e.g. “all required checklist items addressed”), (3) programmatic pass/fail per task.
+- We lack a single **agent task evaluation protocol** that defines: (1) what "success" is per task type (e.g. "all guard files touched and tests pass"), (2) recall-style metrics (e.g. "all required checklist items addressed"), (3) programmatic pass/fail per task.
+
+**Evidence:** `AGENTS.md:8` (make verify), `tests/test_repo_policy_guards.py:39`, `tests/test_dependency_security_guard.py:135`, `scripts/ci/check_pr_merge_readiness.py:242`, `scripts/ci/check_pr_body_phase2_gates.py:72`.
 
 **Gaps:**
 
@@ -63,7 +65,9 @@ Our project uses agents for: coordinator-first routing, CI/guards, security audi
 **Current state:**
 
 - Guards enforce global invariants (e.g. no BMI math outside `core/bmi/`, no unmapped bot comments).
-- Single PRs often fix one failure cause; we do not always explicitly require “fix all related violations in this PR”.
+- Single PRs often fix one failure cause; we do not always explicitly require "fix all related violations in this PR".
+
+**Evidence:** `tests/test_no_bmi_math_outside_core.py:1`, `tests/test_no_bmi_logic_in_paywall.py:3`, `AGENTS.md:34` (unresolved threads), `RUNBOOK_AGENT.md:127` (zero comments).
 
 **Gaps:**
 
@@ -87,6 +91,8 @@ Our project uses agents for: coordinator-first routing, CI/guards, security audi
 - We use AGENTS.md, RUNBOOK_AGENT.md, module AGENTS, and PR templates as “hints”.
 - ci-watcher and loop-on-ci provide structured workflow (watch → inspect logs → fix → push).
 
+**Evidence:** `AGENTS.md:21` (coordinator-first), `RUNBOOK_AGENT.md:121` (pre-merge readiness), `docs/orchestration/workflow.md`.
+
 **Gaps:**
 
 - No explicit “hint levels” for agent tasks (e.g. “low: list of files; medium: list of invariants; high: exact checklist”).
@@ -107,6 +113,8 @@ Our project uses agents for: coordinator-first routing, CI/guards, security audi
 
 - Agent control plane MVP: deny-by-default, signed audit, scoped tokens (`app/security/agent_control_plane.py`).
 - Security hardening wave (rotation, release gates) and dependency CVE process (e.g. Dependabot #35, one PR per CVE).
+
+**Evidence:** `app/security/agent_control_plane.py:1`, `app/security/agent_control_plane.py:31` (PolicyDecision), `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
 
 **Gaps:**
 
