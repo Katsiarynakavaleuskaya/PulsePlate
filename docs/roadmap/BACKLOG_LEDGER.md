@@ -98,8 +98,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-GROWTH-TELEMETRY-CANON
-  - Status: Planned (Wave 1 / 0-30 days)
+  - Target PR: PR #845 (Phase 1); Phase 2 (eventRegistry.ts) after PR #825 merge
+  - Status: In progress (Phase 1 in PR #845; Phase 2 deferred)
   - Area: analytics / frontend / growth
   - Finding Type: product optimization
   - Locations:
@@ -109,10 +109,11 @@ If it is not recorded here — it does not exist.
   - Reason: establish canonical funnel semantics and events for onboarding -> paywall -> conversion -> retention.
   - Links:
     - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - [PR #845](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/845) (Phase 1 docs)
   - DoD:
-    - Core funnel metrics defined with owner and update cadence
-    - Event taxonomy anchored in docs and frontend registry
-    - Dashboard baseline requirements documented
+    - Core funnel metrics defined with owner and update cadence (Phase 1 in PR #845)
+    - Event taxonomy anchored in docs and frontend registry (docs in PR #845; frontend in Phase 2)
+    - Dashboard baseline requirements documented (Phase 1 in PR #845)
 
 - [x] P0: Import determinism for app-level tests (remove skip fallback)
   - Owner: @katsiaryna_kavaleuskaya

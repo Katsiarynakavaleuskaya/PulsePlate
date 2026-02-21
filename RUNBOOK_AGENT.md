@@ -131,6 +131,11 @@ Run before merge after latest commit and latest bot/review activity:
    - `## Merge Readiness`
 5. CI `Merge readiness gate` must be green on latest PR commit.
 
+**Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
+- In PR description, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
+- Under **### Fixed in Commit Mapping**: either list each bot comment as `- <comment-url> -> <commit-sha>`, or use exactly (no extra text): `- No actionable review comments`.
+- Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
+
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 
 Use this checklist when operating agent automation or closing a token/secrets incident.
