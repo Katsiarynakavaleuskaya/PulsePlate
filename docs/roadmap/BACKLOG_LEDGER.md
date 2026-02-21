@@ -1121,6 +1121,28 @@ If it is not recorded here — it does not exist.
     - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
     - Storybook build passes in local verification
 
+- [x] Web design-token hardening: Token SoT + palette switch + runtime raw-hex guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend stability / drift prevention)
+  - Target PR: #835, #837
+  - Status: ✅ Merged (2026-02-21)
+  - Area: frontend / design-system governance
+  - Finding Type: policy hardening + runtime guard
+  - Reason: Token drift risk and hardcoded runtime colors were allowing visual inconsistency. We fixed
+    source-of-truth ownership, activated canonical palette tokens, and added deterministic guardrails
+    to prevent future raw-hex regressions in runtime UI paths.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `tests/test_frontend_raw_hex_guard.py`
+    - PR #835, PR #837
+  - DoD:
+    - ✅ Token SoT documented and merged
+    - ✅ Canonical palette values active in web tokens
+    - ✅ Plate chart raw hex replaced with token variables
+    - ✅ Runtime raw-hex guard test merged with explicit allowlist
+
 - [ ] HPP Web visual workflow: Playwright deterministic smoke lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (frontend quality guardrail)
