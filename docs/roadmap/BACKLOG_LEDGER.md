@@ -889,21 +889,23 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Wave 2 experimentation framework and paywall optimization loop
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-W2-EXPERIMENTS
-  - Status: Planned (Wave 2 / day 31-90)
+  - Target PR: PR #852 (docs/wave2-experimentation-framework)
+  - Status: In review
   - Area: product / growth / analytics
   - Finding Type: growth optimization
   - Locations:
+    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
     - `docs/analytics/EXPERIMENT_REGISTRY.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
   - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
   - Links:
     - `docs/analytics/EXPERIMENT_REGISTRY.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
+    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
   - DoD:
-    - Experiment lifecycle states documented
-    - Initial prioritized growth experiments registered with owners and dates
-    - Guardrail metrics required for promotion decisions
+    - [x] Experiment lifecycle states documented
+    - [x] Initial prioritized growth experiments registered with owners and dates
+    - [x] Guardrail metrics required for promotion decisions
 
 - [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
   - Owner: @katsiaryna_kavaleuskaya
