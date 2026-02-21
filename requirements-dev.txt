@@ -129,7 +129,9 @@ markupsafe==3.0.3
     #   -c requirements.txt
     #   jinja2
 marshmallow==4.2.2
-    # via safety
+    # via
+    #   -r requirements-dev.in
+    #   safety
 mdurl==0.1.2
     # via markdown-it-py
 msgpack==1.1.2
