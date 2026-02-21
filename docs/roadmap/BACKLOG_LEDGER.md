@@ -115,6 +115,9 @@ If it is not recorded here — it does not exist.
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` (Wave 2 scope)
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md` ("Known limitation" note)
   - Reason: MVP scoped tokens are deterministic (HMAC without nonce); identical scope + timestamp produces identical tokens. Replay risk is bounded by short TTL but should be eliminated.
+  - Links:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
   - DoD:
     - Nonce/random component design approved in ADR-003 amendment or new ADR
     - Backward-compatible rollout plan documented (old tokens expire within TTL window)
