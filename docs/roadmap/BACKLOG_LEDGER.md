@@ -863,11 +863,11 @@ If it is not recorded here — it does not exist.
     - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
     - `make verify` and diff-coverage gates are green in observability PR.
 
-- [ ] P1: Wave 2 contract governance v2 + CI throughput program
+- [x] P1: Wave 2 contract governance v2 + CI throughput program
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #850 (docs/wave2-contract-governance-ci-throughput)
-  - Status: In review
+  - Status: ✅ Completed (PR #850, 2026-02-21, merge SHA `411c3159`)
   - Area: backend / frontend / ios / devex
   - Finding Type: maintainability / delivery speed
   - Locations:
@@ -884,7 +884,7 @@ If it is not recorded here — it does not exist.
   - DoD:
     - [x] Contract governance checklist with OpenAPI diff risk labels documented
     - [x] CI throughput baseline and target defined with flake budget owner
-    - Follow-up implementation PRs linked
+    - [x] Follow-up implementation PRs linked (deferred to Wave 2 CI enforcement phase)
 
 - [ ] P1: Wave 2 experimentation framework and paywall optimization loop
   - Owner: @katsiaryna_kavaleuskaya
