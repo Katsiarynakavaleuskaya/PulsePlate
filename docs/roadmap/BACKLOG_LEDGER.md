@@ -60,8 +60,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-AGENT-CP-MVP
-  - Status: Planned (Wave 1 / 0-30 days)
+  - Target PR: #846
+  - Status: 🟡 In review (Wave 1 / 0-30 days; slice 1 in PR #846 on 2026-02-21)
   - Area: architecture / backend / security
   - Finding Type: platform hardening / modernization
   - Locations:
@@ -71,11 +71,19 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `app/security/agent_control_plane.py`
+    - `tests/test_agent_control_plane_mvp.py`
+  - Evidence (2026-02-21, America/New_York):
+    - `app/security/agent_control_plane.py:1` — MVP primitives implemented:
+      deny-by-default policy gate, signed audit envelope, and short-lived scoped token issuing.
+    - `tests/test_agent_control_plane_mvp.py:1` — deterministic coverage for
+      allowlist parsing, fail-closed policy decisions, audit signature verification, and token TTL validation.
   - DoD:
-    - Control plane MVP contract documented and accepted
-    - Deny-by-default policy requirements and fail-closed semantics documented
-    - Signed audit trail requirements documented with verification checklist
-    - Follow-up implementation PRs opened and linked
+    - [x] Control plane MVP contract documented and accepted
+    - [x] Deny-by-default policy requirements and fail-closed semantics documented
+    - [x] Signed audit trail requirements documented with verification checklist
+    - [x] Initial runtime primitives implemented with deterministic tests
+    - [x] Follow-up implementation PRs opened and linked (PR #846)
 
 - [ ] P0: Security hardening wave for agent automation
   - Owner: @katsiaryna_kavaleuskaya
