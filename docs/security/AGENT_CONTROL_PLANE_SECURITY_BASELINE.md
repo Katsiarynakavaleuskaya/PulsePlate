@@ -113,13 +113,13 @@ contract (enforcement via policy/process), **Planned** = tracked in backlog.
 | Step | Action | Verification |
 |------|--------|-------------|
 | 1 | Generate new token via provider admin UI (GitHub Settings > Developer settings, BotFather, etc.) | New token received |
-| 2 | Revoke old token via provider admin UI | Provider confirms revocation |
-| 3 | Update token in CI secrets / deployment secret store | Secret updated in GitHub Actions / deployment |
-| 4 | Trigger a test workflow or API call using new token | API responds 200 (not 401/403) |
+| 2 | Update token in CI secrets / deployment secret store | Secret updated in GitHub Actions / deployment |
+| 3 | Trigger a test workflow or API call using new token | API responds 200 (not 401/403) |
+| 4 | Revoke old token via provider admin UI | Provider confirms revocation |
 | 5 | Verify old token is rejected: test API call with old token | Returns 401 or equivalent |
 | 6 | Record in ledger: date, operator, affected systems | `BACKLOG_LEDGER.md` entry updated |
 
-**Rollback:** If new token is invalid, regenerate via provider UI. Old token is already revoked (no revert possible for most providers).
+**Rollback:** If new token causes failures before old token is revoked (step 4), revert secret store to old token value. If old token is already revoked, regenerate via provider UI.
 
 ### Protocol R4: API Provider Keys (LLM, external services)
 
