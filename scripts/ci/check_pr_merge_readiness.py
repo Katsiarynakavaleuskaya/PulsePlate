@@ -280,9 +280,12 @@ def main() -> int:
             print(f"ERROR: failed to parse event payload: {exc}")
             return 1
     elif args.pr_number and args.repo:
+        pr_number = args.pr_number
+        repo = args.repo.strip()
+        if "/" not in repo or repo.count("/") != 1:
+            print("ERROR: --repo must be owner/name (e.g. Katsiarynakavaleuskaya/PulsePlate).")
+            return 1
         try:
-            pr_number = args.pr_number
-            repo = args.repo.strip()
             pr_number, repo, is_draft, pr_body = _fetch_pr_context(
                 pr_number=pr_number, repo=repo, token=token
             )

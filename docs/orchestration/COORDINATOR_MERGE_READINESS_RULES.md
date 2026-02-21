@@ -41,7 +41,7 @@ python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Kat
 - **Exit 0:** Zero unresolved threads and all actionable bot comments are mapped → PR satisfies "0 comments" policy.
 - **Exit 1:** Either unresolved threads exist or unmapped actionable comments exist → PR must **not** be merged until fixed; script prints what is missing (e.g. `UNMAPPED: ...`).
 
-**CI:** The same script runs in CI with `--event-path "$GITHUB_EVENT_PATH"`. Local/agent use uses `--pr-number` and `--repo` instead.
+**CI:** The same script runs in CI with `--event-path "$GITHUB_EVENT_PATH"`. For local/agent usage, use `--pr-number` and `--repo` instead.
 
 ---
 
