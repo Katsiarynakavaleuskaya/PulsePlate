@@ -103,6 +103,25 @@ If it is not recorded here — it does not exist.
     - [x] Security release gate conditions documented
     - [x] Mandatory controls mapped to owner and verification evidence
 
+- [ ] P2: Scoped token nonce — replace deterministic HMAC tokens with nonce-bearing tokens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-TOKEN-NONCE (Wave 2)
+  - Status: Planned
+  - Area: security / agent control plane
+  - Finding Type: security hardening
+  - Locations:
+    - `app/security/agent_control_plane.py:276` (`issue_scoped_token`)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` (Wave 2 scope)
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md` ("Known limitation" note)
+  - Reason: MVP scoped tokens are deterministic (HMAC without nonce); identical scope + timestamp produces identical tokens. Replay risk is bounded by short TTL but should be eliminated.
+  - DoD:
+    - Nonce/random component design approved in ADR-003 amendment or new ADR
+    - Backward-compatible rollout plan documented (old tokens expire within TTL window)
+    - Deterministic tests updated: same scope + timestamp produces distinct tokens
+    - No performance regression: token issuing latency under 1ms p99
+  - Blockers: None (deferred by priority, not blocked)
+
 - [x] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0

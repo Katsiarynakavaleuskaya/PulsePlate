@@ -61,16 +61,16 @@ the anchors below.
 
 | ID | Control | Owner | Status | Runtime Evidence (`file:line`) | Verification |
 |----|---------|-------|--------|-------------------------------|--------------|
-| C1-a | Short-lived scoped tokens | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:276` | See "Canonical Security Verification" |
-| C1-b | Fail-closed on missing/empty secrets | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:167`, `:178` | See "Canonical Security Verification" |
+| C1-a | Short-lived scoped tokens | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:276` | See "Canonical Security Verification" |
+| C1-b | Fail-closed on missing/empty secrets | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:167`, `:178` | See "Canonical Security Verification" |
 | C1-c | Rotation playbook adopted | @katsiaryna_kavaleuskaya | Doc | This document: "Credential Rotation Protocols" | Manual: follow per-class protocol below |
-| C2-a | Deny-by-default policy gate | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:113` | See "Canonical Security Verification" |
-| C2-b | Fail-closed on policy unavailable | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:151` | See "Canonical Security Verification" |
-| C3-a | Signed audit envelopes (HMAC-SHA256) | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:212` | See "Canonical Security Verification" |
-| C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:254` | See "Canonical Security Verification" |
+| C2-a | Deny-by-default policy gate | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:113` | See "Canonical Security Verification" |
+| C2-b | Fail-closed on policy unavailable | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:151` | See "Canonical Security Verification" |
+| C3-a | Signed audit envelopes (HMAC-SHA256) | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:212` | See "Canonical Security Verification" |
+| C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:254` | See "Canonical Security Verification" |
 | C3-c | Incident timeline within 15 min | @katsiaryna_kavaleuskaya | Doc | `RUNBOOK_AGENT.md:139` | Manual: follow containment checklist |
-| C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:106` | See "Canonical Security Verification" |
-| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
+| C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:106` | See "Canonical Security Verification" |
+| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
 | C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Doc | `AGENTS.md` (PR merge readiness, approval model) | Manual: policy review per ADR-003 |
 
 ### Canonical Security Verification
@@ -270,7 +270,15 @@ token = issue_scoped_token("agent.exec", ttl_seconds=60)
 # token.token, token.scope, token.issued_at_utc, token.expires_at_utc
 ```
 
-**Known limitation (MVP):** Scoped tokens are deterministic (HMAC-based without nonce). Identical scope + timestamp produces identical tokens. Adding a nonce/random component is tracked as P2 for Wave 2 in `docs/roadmap/BACKLOG_LEDGER.md`.
+**Known limitation (MVP — temporary seam):** Scoped tokens are deterministic (HMAC-based without nonce). Identical scope + timestamp produces identical tokens.
+
+- **ADR reference:** `docs/architecture/ADR-003-agent-control-plane-mvp.md` (Wave 2 scope, line 84).
+- **Backlog:** P2 in `docs/roadmap/BACKLOG_LEDGER.md`.
+- **Exit criteria (close this seam when all are met):**
+  1. Nonce/random component design approved in ADR-003 amendment or new ADR.
+  2. Backward-compatible rollout plan documented (old tokens expire naturally within TTL window).
+  3. Deterministic tests updated to cover nonce uniqueness (same scope + timestamp produces distinct tokens).
+  4. No performance regression: token issuing latency stays under 1ms p99.
 
 ### Fail-Closed Semantics
 
