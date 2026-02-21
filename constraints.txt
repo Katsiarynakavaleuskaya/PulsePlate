@@ -20,7 +20,7 @@ ruff>=0.14.7  # Primary linter (replaces flake8)
 
 # Security - allow patch updates for vulnerability fixes
 bandit>=1.8.6
-safety==3.7.0
+safety>=3.7.0
 
 # Dev tools - allow minor updates
 pre-commit>=4.3.0
