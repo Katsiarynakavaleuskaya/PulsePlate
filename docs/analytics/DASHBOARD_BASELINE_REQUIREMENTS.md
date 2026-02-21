@@ -1,6 +1,6 @@
 # Dashboard Baseline Requirements (Wave 1)
 
-**Purpose:** Define baseline requirements for Wave 1 analytics dashboards so that goals, segments, data sources, and KPI are explicit and reviewable.
+**Purpose:** Define baseline requirements for Wave 1 analytics dashboards so that goals, segments, data sources, and KPIs are explicit and reviewable.
 
 **Status:** Canonical (docs-only). Vendor-agnostic.
 
