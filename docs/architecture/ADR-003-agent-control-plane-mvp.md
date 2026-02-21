@@ -47,10 +47,16 @@ flowchart LR
   - `RUNBOOK_AGENT.md:121` — Security Ops checklist for containment/rotation/verification.
   - `docs/orchestration/workflow.md:97` — governance checkpoint for agent automation work.
   - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:9` — mandatory controls contract.
-- Intent-only architecture seams in this ADR (to be implemented in follow-up PRs):
-  - `PolicyGate`, `SecretsBroker`, `ExecutionSandbox`, `SignedAuditTrail` in the diagram are MVP target components, not already-landed runtime modules in this PR.
-  - Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
-  - Exit criteria: convert each seam from intent to implementation with code-level anchors in `app/`/`core/` and deterministic tests; then update this ADR evidence block with concrete `file:line` pointers.
+- Runtime primitives landed for Wave 1 (first implementation slice):
+  - `app/security/agent_control_plane.py:1` — `PolicyGate` (deny-by-default), `SignedAuditEnvelope`,
+    and `IssuedScopedToken` helpers with fail-closed secret requirements.
+  - `tests/test_agent_control_plane_mvp.py:1` — deterministic validation of policy decisions,
+    audit signature integrity, and scoped-token TTL/secret validation.
+- Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
+- Remaining scope for follow-up PRs:
+  - Wire primitives into execution path (policy gate before privileged actions).
+  - Add persistent signed audit trail sink and verification pipeline.
+  - Introduce execution sandbox boundary and approval-mode routing.
 
 ## Security Boundaries
 

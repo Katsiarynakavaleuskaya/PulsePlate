@@ -9,6 +9,9 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - `RUNBOOK_AGENT.md:121` — canonical Security Ops checklist for containment, rotation, and verification.
 - `docs/orchestration/workflow.md:97` — governance checkpoint that gates agent automation changes.
 - `docs/runbooks/README.md:26` — runbook index entry for this baseline.
+- `app/security/agent_control_plane.py:1` — runtime MVP primitives for policy gate, signed audit envelope,
+  and short-lived scoped token issuing.
+- `tests/test_agent_control_plane_mvp.py:1` — deterministic tests for fail-closed semantics and signature integrity.
 
 ## Mandatory Controls (P0)
 
@@ -17,18 +20,21 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - No long-lived secrets in local agent files
 - Use short-lived scoped credentials from a broker
 - Enforce rotation playbooks for bot/API/provider keys
+- Runtime anchor: `app/security/agent_control_plane.py:264` (`issue_scoped_token`)
 
 1. Policy-first execution
 
 - Every privileged action must pass policy evaluation
 - Default deny for unknown actions/tools/targets
 - Fail-closed when policy engine is unavailable
+- Runtime anchor: `app/security/agent_control_plane.py:113` (`evaluate_policy`, `require_policy_allow`)
 
 1. Auditability
 
 - Signed execution envelopes (request + decision + result hash)
 - Immutable/tamper-evident logs for privileged operations
 - Incident timeline reproducibility within 15 minutes
+- Runtime anchor: `app/security/agent_control_plane.py:212` (`sign_audit_envelope`, `verify_audit_envelope`)
 
 1. Isolation
 

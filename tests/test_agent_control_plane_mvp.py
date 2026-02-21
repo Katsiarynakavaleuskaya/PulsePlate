@@ -1,0 +1,137 @@
+"""Deterministic tests for Agent Control Plane MVP security primitives."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import datetime, timezone
+
+import pytest
+
+from app.security import agent_control_plane as cp
+
+
+def test_parse_allowlist_supports_commas_and_newlines() -> None:
+    raw = "tool.exec:https://api.example.com,\nagent.plan:internal://planner, malformed"
+    parsed = cp.parse_allowlist(raw)
+    assert ("tool.exec", "https://api.example.com") in parsed
+    assert ("agent.plan", "internal://planner") in parsed
+    assert len(parsed) == 2
+
+
+def test_evaluate_policy_is_deny_by_default() -> None:
+    decision = cp.evaluate_policy(
+        "tool.exec",
+        "https://not-allowlisted.example.com",
+        allowlist={("tool.exec", "https://api.example.com")},
+    )
+    assert decision.allowed is False
+    assert decision.reason == "deny_by_default"
+
+
+def test_evaluate_policy_rejects_invalid_action_or_target() -> None:
+    decision = cp.evaluate_policy(" ", "  ")
+    assert decision.allowed is False
+    assert decision.reason == "invalid_action_or_target"
+
+
+def test_require_policy_allow_returns_allowed_decision() -> None:
+    decision = cp.require_policy_allow(
+        "tool.exec",
+        "https://api.example.com",
+        allowlist={("tool.exec", "https://api.example.com")},
+    )
+    assert decision.allowed is True
+    assert decision.reason == "allowlist_match"
+
+
+def test_require_policy_allow_raises_for_denied() -> None:
+    with pytest.raises(PermissionError, match="Policy denied"):
+        cp.require_policy_allow(
+            "tool.exec",
+            "https://denied.example.com",
+            allowlist={("tool.exec", "https://api.example.com")},
+        )
+
+
+def test_require_audit_secret_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(cp.AUDIT_SIGNING_KEY_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=cp.AUDIT_SIGNING_KEY_ENV):
+        cp.require_audit_secret()
+
+
+def test_sign_and_verify_audit_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.AUDIT_SIGNING_KEY_ENV, "audit-key")
+    decision = cp.PolicyDecision(
+        action="tool.exec",
+        target="https://api.example.com",
+        allowed=True,
+        reason="allowlist_match",
+    )
+    ts = datetime(2026, 2, 21, 12, 0, tzinfo=timezone.utc)
+    envelope = cp.sign_audit_envelope(
+        decision,
+        metadata={"path": "/api/v1/insight", "method": "POST"},
+        timestamp=ts,
+    )
+
+    assert envelope.action == "tool.exec"
+    assert envelope.allowed is True
+    assert envelope.timestamp_utc == "2026-02-21T12:00:00+00:00"
+    assert cp.verify_audit_envelope(envelope) is True
+
+
+def test_verify_audit_envelope_fails_on_tamper(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.AUDIT_SIGNING_KEY_ENV, "audit-key")
+    decision = cp.PolicyDecision(
+        action="tool.exec",
+        target="https://api.example.com",
+        allowed=True,
+        reason="allowlist_match",
+    )
+    envelope = cp.sign_audit_envelope(decision)
+    tampered = replace(envelope, target="https://tampered.example.com")
+    assert cp.verify_audit_envelope(tampered) is False
+
+
+def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(cp.SCOPED_TTL_ENV, raising=False)
+    assert cp.require_scoped_token_ttl_seconds() == cp.DEFAULT_SCOPED_TOKEN_TTL_SECONDS
+
+
+def test_require_scoped_token_ttl_seconds_raises_on_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(cp.SCOPED_TTL_ENV, "0")
+    with pytest.raises(RuntimeError, match=cp.SCOPED_TTL_ENV):
+        cp.require_scoped_token_ttl_seconds()
+
+
+def test_issue_scoped_token_requires_hmac_key_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(cp.BROKER_HMAC_KEY_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=cp.BROKER_HMAC_KEY_ENV):
+        cp.issue_scoped_token("agent.exec")
+
+
+def test_issue_scoped_token_is_deterministic_with_fixed_inputs() -> None:
+    now = datetime(2026, 2, 21, 15, 30, tzinfo=timezone.utc)
+    first = cp.issue_scoped_token(
+        "agent.exec",
+        ttl_seconds=60,
+        now=now,
+        hmac_key="broker-key",
+    )
+    second = cp.issue_scoped_token(
+        "agent.exec",
+        ttl_seconds=60,
+        now=now,
+        hmac_key="broker-key",
+    )
+    assert first == second
+    assert first.expires_at_utc == "2026-02-21T15:31:00+00:00"
+
+
+def test_issue_scoped_token_rejects_empty_scope() -> None:
+    with pytest.raises(ValueError, match="scope must be non-empty"):
+        cp.issue_scoped_token(" ", hmac_key="broker-key")
