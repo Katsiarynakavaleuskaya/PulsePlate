@@ -70,6 +70,74 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - Alerts on outbound calls to non-allowlisted targets
 - Alerts on anomalous LLM cost bursts
 
+## Operational Guide (MVP Primitives)
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AGENT_CONTROL_ALLOWLIST` | Yes (if policy gate used) | `""` (deny all) | Comma or newline-separated `action:target` pairs |
+| `AGENT_CONTROL_AUDIT_SIGNING_KEY` | Yes (fail-closed) | None | HMAC key for signing audit envelopes |
+| `AGENT_CONTROL_BROKER_HMAC_KEY` | Yes (fail-closed) | None | HMAC key for scoped token issuing |
+| `AGENT_CONTROL_SCOPED_TTL_SECONDS` | No | `300` | TTL for scoped tokens (minimum 1 second) |
+
+### Policy Gate (deny-by-default)
+
+```python
+from app.security.agent_control_plane import evaluate_policy, require_policy_allow
+
+# Evaluate without raising (returns PolicyDecision)
+decision = evaluate_policy("agent.exec", "target-resource")
+if not decision.allowed:
+    log.warning(f"Denied: {decision.reason}")
+
+# Or fail-closed (raises PermissionError if denied)
+decision = require_policy_allow("agent.exec", "target-resource")
+```
+
+### Signed Audit Envelope
+
+```python
+from app.security.agent_control_plane import sign_audit_envelope, verify_audit_envelope
+
+# Sign a policy decision for tamper-evident audit trail
+envelope = sign_audit_envelope(decision, metadata={"user_id": "123"})
+
+# Verify integrity (returns bool)
+is_valid = verify_audit_envelope(envelope)
+```
+
+### Scoped Token Issuing
+
+```python
+from app.security.agent_control_plane import issue_scoped_token
+
+# Issue short-lived token (default 300s TTL)
+token = issue_scoped_token("agent.exec", ttl_seconds=60)
+# token.token, token.scope, token.issued_at_utc, token.expires_at_utc
+```
+
+### Secret Rotation Checklist
+
+1. Generate new secrets (use `secrets.token_hex(32)` minimum)
+2. Update environment variables in deployment config
+3. Restart services to pick up new secrets
+4. Verify new audit envelopes are signed correctly
+5. Old audit envelopes remain verifiable with old secret (archive separately)
+
+### Fail-Closed Semantics
+
+- **Empty secrets rejected**: Passing `secret=""` or `hmac_key=""` raises `RuntimeError`
+- **Missing env vars rejected**: Unset `AGENT_CONTROL_AUDIT_SIGNING_KEY` raises `RuntimeError`
+- **Invalid TTL rejected**: `ttl_seconds < 1` raises `ValueError`
+
+### Deterministic Test Coverage
+
+All fail-closed behaviors are covered in `tests/test_agent_control_plane_mvp.py`:
+- `test_sign_audit_envelope_rejects_empty_string_secret`
+- `test_verify_audit_envelope_rejects_empty_string_secret`
+- `test_issue_scoped_token_rejects_empty_string_hmac_key`
+
 ## Release Gate (Security)
 
 Release is blocked if any are true:
