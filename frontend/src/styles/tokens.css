@@ -12,6 +12,13 @@
      COLOR VARIABLES
      ============================================================================ */
 
+  /* Canonical PulsePlate brand tokens (bridge phase: no visual change) */
+  --pp-navy: #0f172a;
+  --pp-blue: #339fff;
+  --pp-green: #20c997;
+  --pp-red: #ff5d5d;
+  --pp-gold: #d4af37;
+
   /* Navy theme */
   --color-navy-50: #f0f4f8;
   --color-navy-100: #d9e2ec;
@@ -73,29 +80,27 @@
   --color-gray-900: #111827;
 
   /* Base UI semantic tokens */
-  --color-primary: var(--color-blue-600);
+  --color-primary: var(--pp-blue);
   --color-primary-foreground: #fff;
   --color-bg: #fff;
   --color-surface: var(--color-navy-50);
   --color-surface-muted: var(--color-navy-100);
   --color-border: var(--color-navy-200);
-  --color-text: var(--color-navy-900);
+  --color-text: var(--pp-navy);
   --color-text-muted: var(--color-navy-500);
 
   /* Status semantic colors */
-  --color-success: var(--color-green-500);
+  --color-success: var(--pp-green);
   --color-warning: #f59e0b;
-  --color-error: var(--color-heart-500);
-  --color-info: var(--color-blue-500);
-  --color-focus: var(--color-blue-500);
-  --color-focus-rgb: 59, 130, 246;
+  --color-error: var(--pp-red);
+  --color-info: var(--pp-blue);
+  --color-focus: var(--pp-blue);
+  --color-focus-rgb: 51, 159, 255;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
 
-  /* Legacy aliases (deprecated) */
-  --pp-navy: var(--color-navy-900);
-  --pp-primary: var(--color-primary);
-  --pp-gold: #D4AF37;
-  --pp-accent: #20C997;
+  /* Legacy aliases (deprecated, keep until PR-2 migration) */
+  --pp-primary: var(--pp-blue);
+  --pp-accent: var(--pp-green);
   --pp-text: var(--color-text);
   --pp-muted: var(--color-text-muted);
   --pp-radius-xl: 1.25rem;

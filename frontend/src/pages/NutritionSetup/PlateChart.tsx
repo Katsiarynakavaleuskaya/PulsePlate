@@ -55,7 +55,7 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
           cy="55"
           r={radius}
           fill="none"
-          stroke="#f3f4f6"
+          stroke="var(--color-gray-100)"
           strokeWidth="8"
         />
 
@@ -65,7 +65,7 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
           cy="55"
           r={radius}
           fill="none"
-          stroke="#3b82f6"
+          stroke="var(--pp-blue)"
           strokeWidth="8"
           strokeDasharray={`${carbsDash} ${circumference}`}
           strokeDashoffset={circumference * 0.25}
@@ -78,7 +78,7 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
           cy="55"
           r={radius}
           fill="none"
-          stroke="#10b981"
+          stroke="var(--pp-green)"
           strokeWidth="8"
           strokeDasharray={`${proteinDash} ${circumference}`}
           strokeDashoffset={circumference * 0.25 + carbsDash}
@@ -91,7 +91,7 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
           cy="55"
           r={radius}
           fill="none"
-          stroke="#ef4444"
+          stroke="var(--pp-red)"
           strokeWidth="8"
           strokeDasharray={`${fatDash} ${circumference}`}
           strokeDashoffset={circumference * 0.25 + carbsDash + proteinDash}
@@ -102,16 +102,16 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
       {/* Legend */}
       <div className="mt-4 space-y-2 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-text">{t('nutrition.macros.carbs')}: {Math.round(carbsPct)}%</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--pp-blue)' }}></div>
+          <span className="text-text">{t('nutrition.macros.carbs')}: {Math.round(safeCarbsPct)}%</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-text">{t('nutrition.macros.protein')}: {Math.round(proteinPct)}%</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--pp-green)' }}></div>
+          <span className="text-text">{t('nutrition.macros.protein')}: {Math.round(safeProteinPct)}%</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <span className="text-text">{t('nutrition.macros.fat')}: {Math.round(fatPct)}%</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--pp-red)' }}></div>
+          <span className="text-text">{t('nutrition.macros.fat')}: {Math.round(safeFatPct)}%</span>
         </div>
       </div>
     </div>
