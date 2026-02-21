@@ -71,7 +71,7 @@ the anchors below.
 | C3-c | Incident timeline within 15 min | @katsiaryna_kavaleuskaya | Doc | `RUNBOOK_AGENT.md:139` | Manual: follow containment checklist |
 | C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:106` | See "Canonical Security Verification" |
 | C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
-| C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Doc | `AGENTS.md` (PR merge readiness, approval model) | Manual: policy review per ADR-003 |
+| C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Doc | `AGENTS.md:31` (PR merge readiness, approval model) | Manual: policy review per ADR-003 |
 
 ### Canonical Security Verification
 
@@ -278,7 +278,7 @@ token = issue_scoped_token("agent.exec", ttl_seconds=60)
   1. Nonce/random component design approved in ADR-003 amendment or new ADR.
   2. Backward-compatible rollout plan documented (old tokens expire naturally within TTL window).
   3. Deterministic tests updated to cover nonce uniqueness (same scope + timestamp produces distinct tokens).
-  4. No performance regression: token issuing latency stays under 1ms p99.
+  4. No performance regression: token issuing latency stays under 1 ms p99.
 
 ### Fail-Closed Semantics
 

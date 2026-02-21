@@ -113,7 +113,7 @@ If it is not recorded here — it does not exist.
   - Locations:
     - `app/security/agent_control_plane.py:276` (`issue_scoped_token`)
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` (Wave 2 scope)
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md` ("Known limitation" note)
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:273` ("Known limitation" note)
   - Reason: MVP scoped tokens are deterministic (HMAC without nonce); identical scope + timestamp produces identical tokens. Replay risk is bounded by short TTL but should be eliminated.
   - Links:
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
@@ -122,8 +122,53 @@ If it is not recorded here — it does not exist.
     - Nonce/random component design approved in ADR-003 amendment or new ADR
     - Backward-compatible rollout plan documented (old tokens expire within TTL window)
     - Deterministic tests updated: same scope + timestamp produces distinct tokens
-    - No performance regression: token issuing latency under 1ms p99
+    - No performance regression: token issuing latency under 1 ms p99
   - Blockers: None (deferred by priority, not blocked)
+
+- [ ] P2: C4-b Sandboxed execution boundary for high-risk agent actions
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
+  - Status: Planned
+  - Area: security / agent control plane
+  - Finding Type: security hardening
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:73` (C4-b row)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:77` (`ExecutionSandbox` boundary)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
+  - Reason: MVP defers sandboxed execution to Wave 2. High-risk agent actions currently rely on policy gate only; bounded execution environment not yet implemented.
+  - Links:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+  - DoD:
+    - ADR-003 amendment or new ADR approved with sandbox design (isolation boundary, resource limits, timeout policy)
+    - Runtime sandbox enforcement implemented in `app/security/agent_control_plane.py`
+    - Deterministic tests: high-risk action blocked without sandbox, allowed within sandbox
+    - No performance regression: sandboxed action latency under 5 ms p99 overhead
+  - Blockers: None (deferred by Wave 2 scope, not blocked)
+
+- [ ] P2: C5-a Auto-safe / review-required action split — runtime enforcement
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
+  - Status: Planned
+  - Area: security / agent control plane
+  - Finding Type: security hardening
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:74` (C5-a row)
+    - `AGENTS.md:31` (PR merge readiness, approval model)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
+  - Reason: MVP documents auto-safe vs review-required classification as policy only (in AGENTS.md). Runtime enforcement (programmatic routing based on action classification) deferred to Wave 2.
+  - Links:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `AGENTS.md`
+  - DoD:
+    - Action classification taxonomy approved in ADR-003 amendment (auto-safe, review-required, admin-only)
+    - Runtime routing implemented: auto-safe actions proceed, review-required actions gate on human approval
+    - Deterministic tests: review-required action without approval returns 403/blocked
+    - Policy review sign-off documented (who approves classification changes)
+  - Blockers: None (deferred by Wave 2 scope, not blocked)
 
 - [x] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya
