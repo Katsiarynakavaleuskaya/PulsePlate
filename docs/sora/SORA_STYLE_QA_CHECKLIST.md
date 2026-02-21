@@ -5,6 +5,14 @@ Scope: PulsePlate HPP + Brand Core asset candidates (images + micro-motions)
 
 Use this checklist before approving any generated visual.
 
+## Web Token Governance
+
+- Token SoT for web: `frontend/src/styles/tokens.css` (single source).
+- Staged migration policy: PR-1 bridge aliases -> PR-2 palette switch -> PR-3 raw-hex guard.
+- Raw hex is forbidden in `frontend/src/**` runtime files.
+- Raw-hex allowlist: `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`,
+ `**/*.test.*`, `**/*.spec.*`, `**/*.stories.*`.
+
 ## Brand and Style
 
 - [ ] PASS if only canonical palette tokens are used

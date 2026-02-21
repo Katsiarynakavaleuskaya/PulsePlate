@@ -2,6 +2,8 @@
 
 This document defines the canonical rule for PulsePlate design tokens.
 
+Policy location: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` (section `Web Token Governance`).
+
 ### Canonical decision
 
 - `TOKEN_SOT`: `frontend/src/styles/tokens.css`
