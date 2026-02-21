@@ -222,7 +222,13 @@ def sign_audit_envelope(
     EN: Signs policy decision for tamper-evident audit trail.
     """
 
-    signing_secret = secret if secret is not None else require_audit_secret()
+    # Fail-closed: reject both None and empty-string secrets
+    if secret is not None:
+        signing_secret = secret.strip()
+        if not signing_secret:
+            raise RuntimeError("Explicit secret must be non-empty (fail-closed).")
+    else:
+        signing_secret = require_audit_secret()
     issued_at = _iso8601_utc(timestamp or datetime.now(timezone.utc))
     meta_hash = _metadata_hash(metadata)
     payload = (
@@ -248,7 +254,13 @@ def sign_audit_envelope(
 def verify_audit_envelope(envelope: SignedAuditEnvelope, *, secret: str | None = None) -> bool:
     """Verify signed audit envelope integrity."""
 
-    signing_secret = secret if secret is not None else require_audit_secret()
+    # Fail-closed: reject both None and empty-string secrets
+    if secret is not None:
+        signing_secret = secret.strip()
+        if not signing_secret:
+            raise RuntimeError("Explicit secret must be non-empty (fail-closed).")
+    else:
+        signing_secret = require_audit_secret()
     payload = (
         f"{envelope.action}|{envelope.target}|{int(envelope.allowed)}|"
         f"{envelope.reason}|{envelope.metadata_hash}|{envelope.timestamp_utc}"
@@ -282,7 +294,13 @@ def issue_scoped_token(
     if token_ttl < 1:
         raise ValueError("ttl_seconds must be >= 1")
 
-    key = hmac_key if hmac_key is not None else require_secrets_hmac_key()
+    # Fail-closed: reject both None and empty-string keys
+    if hmac_key is not None:
+        key = hmac_key.strip()
+        if not key:
+            raise RuntimeError("Explicit hmac_key must be non-empty (fail-closed).")
+    else:
+        key = require_secrets_hmac_key()
     issued_at_dt = _to_utc(now or datetime.now(timezone.utc))
     expires_at_dt = issued_at_dt + timedelta(seconds=token_ttl)
     issued_at = _iso8601_utc(issued_at_dt)

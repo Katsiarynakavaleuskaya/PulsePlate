@@ -176,3 +176,24 @@ def test_issue_scoped_token_rejects_empty_scope() -> None:
 def test_issue_scoped_token_rejects_non_positive_ttl() -> None:
     with pytest.raises(ValueError, match="ttl_seconds must be >= 1"):
         cp.issue_scoped_token("agent.exec", ttl_seconds=0, hmac_key="broker-key")
+
+
+def test_issue_scoped_token_rejects_empty_string_hmac_key() -> None:
+    """Fail-closed: explicitly passing empty-string hmac_key must raise."""
+    with pytest.raises(RuntimeError, match="non-empty"):
+        cp.issue_scoped_token("agent.exec", ttl_seconds=60, hmac_key="")
+
+
+def test_sign_audit_envelope_rejects_empty_string_secret() -> None:
+    """Fail-closed: explicitly passing empty-string secret must raise."""
+    decision = cp.PolicyDecision(action="agent.exec", target="*", allowed=True, reason="test")
+    with pytest.raises(RuntimeError, match="non-empty"):
+        cp.sign_audit_envelope(decision, secret="")
+
+
+def test_verify_audit_envelope_rejects_empty_string_secret() -> None:
+    """Fail-closed: explicitly passing empty-string secret must raise."""
+    decision = cp.PolicyDecision(action="agent.exec", target="*", allowed=True, reason="test")
+    envelope = cp.sign_audit_envelope(decision, secret="test-secret")
+    with pytest.raises(RuntimeError, match="non-empty"):
+        cp.verify_audit_envelope(envelope, secret="")

@@ -58,6 +58,18 @@ flowchart LR
   - Add persistent signed audit trail sink and verification pipeline.
   - Introduce execution sandbox boundary and approval-mode routing.
 
+### Exit Criteria (Temporary Seam)
+
+This ADR introduces a temporary seam for MVP primitives. Exit criteria to close the seam:
+
+1. **Policy gate integrated**: All privileged agent actions pass through `require_policy_allow()`.
+2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
+3. **Secrets boundary enforced**: No plaintext credentials outside SecretsBroker flow.
+4. **Test coverage**: Deterministic tests for all bypass scenarios (fail-closed behavior verified).
+5. **Backlog ledger closed**: `docs/roadmap/BACKLOG_LEDGER.md` P0 entry marked complete with DoD evidence.
+
+Until exit criteria are met, this is an **interim solution** with explicit tracking in backlog.
+
 ## Security Boundaries
 
 - `SecretsBroker`: single authority for credential vending

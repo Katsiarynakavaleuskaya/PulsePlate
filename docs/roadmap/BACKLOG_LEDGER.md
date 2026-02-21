@@ -60,8 +60,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-AGENT-CP-MVP
-  - Status: 🟡 In progress (Wave 1 / 0-30 days; slice 1 landed locally on 2026-02-21)
+  - Target PR: #846
+  - Status: 🟡 In review (Wave 1 / 0-30 days; slice 1 in PR #846 on 2026-02-21)
   - Area: architecture / backend / security
   - Finding Type: platform hardening / modernization
   - Locations:
@@ -83,7 +83,7 @@ If it is not recorded here — it does not exist.
     - [x] Deny-by-default policy requirements and fail-closed semantics documented
     - [x] Signed audit trail requirements documented with verification checklist
     - [x] Initial runtime primitives implemented with deterministic tests
-    - [ ] Follow-up implementation PRs opened and linked
+    - [x] Follow-up implementation PRs opened and linked (PR #846)
 
 - [ ] P0: Security hardening wave for agent automation
   - Owner: @katsiaryna_kavaleuskaya
