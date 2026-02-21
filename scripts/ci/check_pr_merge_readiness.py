@@ -238,6 +238,16 @@ def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
     return number, repo, is_draft, body
 
 
+def _fetch_pr_context(pr_number: int, repo: str, token: str) -> tuple[int, str, bool, str]:
+    """Fetch PR via REST API; return (pr_number, repo, is_draft, pr_body). For local/agent use."""
+    owner, name = repo.split("/", maxsplit=1)
+    url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+    data = _api_request(url, token=token)
+    body = str(data.get("body") or "")
+    is_draft = bool(data.get("draft", False))
+    return pr_number, repo, is_draft, body
+
+
 def main() -> int:
     """Entry point: parse args, run merge-readiness checks, exit 0 on pass and 1 on fail."""
     parser = argparse.ArgumentParser(
@@ -245,20 +255,52 @@ def main() -> int:
     )
     parser.add_argument(
         "--event-path",
-        required=True,
-        help="Path to GitHub event payload JSON (e.g. $GITHUB_EVENT_PATH).",
+        help="Path to GitHub event payload JSON (e.g. $GITHUB_EVENT_PATH). Required in CI.",
+    )
+    parser.add_argument(
+        "--pr-number",
+        type=int,
+        help="PR number for local/agent run (use with --repo; alternative to --event-path).",
+    )
+    parser.add_argument(
+        "--repo",
+        help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
     args = parser.parse_args()
+    # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
+    if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
+        parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
+    if (args.pr_number is not None) != bool((args.repo or "").strip()):
+        parser.error("For local/agent mode provide both --pr-number and --repo.")
 
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
         return 1
 
-    try:
-        pr_number, repo, is_draft, pr_body = _extract_pr_context(Path(args.event_path))
-    except Exception as exc:  # noqa: BLE001 - fail closed for CI gate script
-        print(f"ERROR: failed to parse event payload: {exc}")
+    if args.event_path:
+        try:
+            pr_number, repo, is_draft, pr_body = _extract_pr_context(Path(args.event_path))
+        except Exception as exc:  # noqa: BLE001 - fail closed for CI gate script
+            print(f"ERROR: failed to parse event payload: {exc}")
+            return 1
+    elif args.pr_number and args.repo:
+        repo = args.repo.strip()
+        if "/" not in repo or repo.count("/") != 1:
+            print("ERROR: --repo must be owner/name (e.g. Katsiarynakavaleuskaya/PulsePlate).")
+            return 1
+        try:
+            pr_number, repo, is_draft, pr_body = _fetch_pr_context(
+                pr_number=args.pr_number, repo=repo, token=token
+            )
+        except ValueError as exc:
+            print(f"ERROR: invalid repository format: {exc}")
+            return 1
+        except urllib.error.HTTPError as exc:
+            print(f"ERROR: failed to fetch PR: HTTP {exc.code}")
+            return 1
+    else:
+        print("ERROR: provide either --event-path (CI) or both --pr-number and --repo (local).")
         return 1
 
     if not pr_number or not repo:
@@ -313,6 +355,7 @@ def main() -> int:
         return 1
 
     print("merge-readiness-gate: passed.")
+    print("Zero comments: 0 unresolved threads, all actionable bot comments mapped in PR body.")
     return 0
 
 
