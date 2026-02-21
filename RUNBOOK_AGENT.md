@@ -118,6 +118,19 @@ Run from repo root before any push/PR:
 4. `pre-commit run --all-files`
 5. `make verify`
 
+## Pre-merge readiness pass (mandatory for non-draft PRs)
+
+Run before merge after latest commit and latest bot/review activity:
+
+1. `gh pr checks <PR_NUMBER>` -> no failed/pending required checks
+2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
+3. `gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments` -> no unresolved actionable bot comments
+4. Confirm PR body sections are complete:
+   - `## Discussion Thread Pass`
+   - `### Fixed in Commit Mapping`
+   - `## Merge Readiness`
+5. CI `Merge readiness gate` must be green on latest PR commit.
+
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 
 Use this checklist when operating agent automation or closing a token/secrets incident.

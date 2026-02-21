@@ -1102,11 +1102,11 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
 
-- [ ] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
+- [x] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (frontend delivery accelerator)
-  - Target PR: PR/HPP-Storybook-Bootstrap
-  - Status: 📋 Planned
+  - Target PR: #828, #839
+  - Status: ✅ Merged (2026-02-21)
   - Area: frontend / HPP / design-system tooling
   - Finding Type: execution foundation
   - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
@@ -1143,11 +1143,11 @@ If it is not recorded here — it does not exist.
     - ✅ Plate chart raw hex replaced with token variables
     - ✅ Runtime raw-hex guard test merged with explicit allowlist
 
-- [ ] HPP Web visual workflow: Playwright deterministic smoke lane
+- [x] HPP Web visual workflow: Playwright deterministic smoke lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (frontend quality guardrail)
-  - Target PR: PR/HPP-Playwright-Smoke-Lane
-  - Status: 📋 Planned
+  - Target PR: #828, #840
+  - Status: ✅ Merged (2026-02-21)
   - Area: frontend / HPP / e2e visual smoke
   - Finding Type: execution foundation
   - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
@@ -1161,6 +1161,33 @@ If it is not recorded here — it does not exist.
     - `npm run test:e2e` and headed variant are available in `frontend/package.json`
     - Smoke checks run with deterministic local web server settings
     - Runbook contains npm-first execution commands
+
+- [x] Retro-audit PR window #838-#842: merge/comment timing + tail closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (process reliability)
+  - Target PR: #842, #843, #844
+  - Status: ✅ Completed (2026-02-21)
+  - Area: CI/process governance + docs follow-up
+  - Finding Type: post-merge audit + governance hardening
+  - Reason: Multiple PRs were merged before full bot/comment cycle completion; we needed deterministic evidence,
+    explicit tail closure, and technical merge-blocking controls.
+  - Findings:
+    - PR #838: only post-merge Codecov report (no actionables).
+    - PR #839: post-merge cubic "No issues found" + Codecov (no actionables).
+    - PR #840: post-merge review events (no actionable inline findings to apply).
+    - PR #841: post-merge Sourcery actionable found; fixed and merged via PR #842.
+    - PR #842: held until full green + bot pass; merged only after final CI completion.
+    - PR #833 doc comment tail: no longer relevant on current `main` (already reflected in `AGENTS.md`).
+    - PR #835 doc comment tail: still relevant; addressed via docs follow-up PR #843.
+  - Links:
+    - PR #842: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/842`
+    - PR #843: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/843`
+    - PR #844: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/844`
+  - DoD:
+    - ✅ Retro-audit evidence recorded for each PR in scope
+    - ✅ Missed actionable from PR #841 remediated and merged
+    - ✅ Docs tail from PR #835 moved to follow-up PR (#843)
+    - ✅ Merge-readiness process hardened with CI policy gate PR (#844)
 
 - [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
