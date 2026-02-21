@@ -102,6 +102,8 @@ If it is not recorded here — it does not exist.
     - [x] Rotation protocol documented and adopted for bot/API/webhook credentials
     - [x] Security release gate conditions documented
     - [x] Mandatory controls mapped to owner and verification evidence
+  - Evidence (2026-02-21): PR #848 merged
+  - Blockers: None (closed)
 
 - [ ] P2: Scoped token nonce — replace deterministic HMAC tokens with nonce-bearing tokens
   - Owner: @katsiaryna_kavaleuskaya
@@ -642,6 +644,98 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+### EVMbench-inspired agent evaluation (2026-02-21)
+
+- [ ] P1: Agent task evaluation contract (success criteria per task class)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCS-AGENT-EVAL
+  - Status: Planned
+  - Area: orchestration / agents / quality
+  - Finding Type: process / evaluation
+  - Reason: EVMbench-style evaluation requires explicit success criteria and optional recall checklist per task class (CI fix, security remediation, docs-only). Define contract and link to existing gates.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+  - DoD:
+    - Doc defines success criteria for at least: "CI fix", "security remediation", "docs-only"
+    - Optional recall-style checklist per class; linked from RUNBOOK or AGENTS
+
+- [ ] P1: Runbook coverage step — full guard suite and no related violations
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RUNBOOK
+  - Status: Planned
+  - Area: runbooks / guards
+  - Finding Type: process
+  - Reason: EVMbench scores on comprehensive coverage. Before closing a guard/security PR, run full guard suite and ensure no related violations in changed modules.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - RUNBOOK step added: "Run full guard suite; confirm no related violations in changed modules"
+    - Referenced from PR template or merge checklist where applicable
+
+- [ ] P1: Hint levels for coordinator and fix-CI tasks
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-ORCHESTRATION
+  - Status: Planned
+  - Area: orchestration / agents
+  - Finding Type: process
+  - Reason: EVMbench shows hints (low/medium/high) materially improve outcomes. Document hint levels for "fix CI" and coordinator tasks (e.g. low = branch + run link; medium = failed job + log; high = exact assertion + location).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Orchestration doc or coordinator prompt template includes hint-level definitions
+    - ci-watcher / loop-on-ci prompts aligned where applicable
+
+- [ ] P1: Agent-as-attacker threat model section in security baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SECURITY-DOCS
+  - Status: Planned
+  - Area: security / agent control plane
+  - Finding Type: security documentation
+  - Reason: EVMbench measures exploit capability; we should document abuse scenarios (what would an agent need to do to violate policy?) and map to controls (allowlist, audit trail, token TTL).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+  - DoD:
+    - New section in AGENT_CONTROL_PLANE_SECURITY_BASELINE: "Agent-as-attacker scenarios" with mapping to existing controls
+    - No new runtime code required; doc only
+
+- [ ] P1: Oracle / known-good gate behavior documentation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RUNBOOK
+  - Status: Planned
+  - Area: runbooks / CI gates
+  - Finding Type: process
+  - Reason: EVMbench validates graders on oracle solutions. Document expected behavior of merge_readiness_gate and dependency_security_guard on known-good input (e.g. PR with all checkboxes and mapping → pass).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `tests/test_dependency_security_guard.py`
+  - DoD:
+    - RUNBOOK or test doc: "Expected: PR body with [x] and mapping → merge_readiness passes"
+    - Optional: deterministic test that applies known-good PR body and asserts gate pass
+
+- [ ] P1: Minimal agent metrics (fix rate / first-run pass)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCS
+  - Status: Planned
+  - Area: orchestration / quality
+  - Finding Type: metrics
+  - Reason: Define minimal agent metrics (e.g. "CI fix: pass within N iterations"; "merge readiness: first run vs after edits") and record in ledger or audit when relevant.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Doc or ledger section defines at least 2 agent task metrics and when to record them
+    - No dashboard required; manual or opportunistic recording is acceptable
 
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya
@@ -2069,6 +2163,76 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P2 — Future (Low priority / research)
+
+### EVMbench-inspired agent evaluation (2026-02-21)
+
+- [ ] P2: Violations-addressed list in security/guard remediation PRs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (optional per-PR)
+  - Status: Planned
+  - Area: process / PR template
+  - Finding Type: auditability
+  - Reason: Optional "violations addressed" list in PR description for guard/security remediation makes coverage auditable (EVMbench-style).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - PR template or runbook suggests optional "Violations addressed" section for guard/security remediation PRs
+    - Not mandatory; adopt when useful
+
+- [ ] P2: Agent run summary artifact (checklist or JSON)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ORCHESTRATION
+  - Status: Planned
+  - Area: orchestration / agents
+  - Finding Type: observability
+  - Reason: Lightweight artifact (checklist/JSON) produced by coordinator or runner for high-value tasks to support future metrics.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Design doc or ADR: format and when to produce; no implementation required in this item
+
+- [ ] P2: RAG for agent context (explore)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-RAG
+  - Status: Research
+  - Area: orchestration / RAG
+  - Finding Type: exploration
+  - Reason: Explore retrieval-augmented context for coordinator/specialist agents (e.g. retrieve AGENTS.md sections by path); keep full SoT as baseline.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
+
+- [ ] P2: Invariant-only prompt for fix-CI / fix-guard tasks
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ORCHESTRATION
+  - Status: Planned
+  - Area: orchestration / agents
+  - Finding Type: process
+  - Reason: In agent prompts for "fix CI" or "fix guard", explicitly add "do not change invariants; only fix the failing check".
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Coordinator or ci-watcher prompt template updated with invariant-preservation instruction
+    - No code change to guards themselves
+
+- [ ] P2: Canary / disclaimer for published agent evals
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (if we publish)
+  - Status: Planned
+  - Area: docs / compliance
+  - Finding Type: process
+  - Reason: If we ever publish agent prompts or evaluation snippets, add canary or disclaimer per EVMbench ("Internal evaluation artifact; do not use for training").
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Policy or template added; apply only when publishing evals
 
 ### Home+Plate+Progress design execution follow-up
 
