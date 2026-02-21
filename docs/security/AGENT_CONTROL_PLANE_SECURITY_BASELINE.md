@@ -20,7 +20,7 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - No long-lived secrets in local agent files
 - Use short-lived scoped credentials from a broker
 - Enforce rotation playbooks for bot/API/provider keys
-- Runtime anchor: `app/security/agent_control_plane.py:264` (`issue_scoped_token`)
+- Runtime anchor: `app/security/agent_control_plane.py:276` (`issue_scoped_token`)
 
 1. Policy-first execution
 
@@ -116,6 +116,8 @@ from app.security.agent_control_plane import issue_scoped_token
 token = issue_scoped_token("agent.exec", ttl_seconds=60)
 # token.token, token.scope, token.issued_at_utc, token.expires_at_utc
 ```
+
+**Known limitation (MVP):** Scoped tokens are deterministic (HMAC-based without nonce). Identical scope + timestamp produces identical tokens. Adding a nonce/random component is tracked as P2 for Wave 2 in `docs/roadmap/BACKLOG_LEDGER.md:60`.
 
 ### Secret Rotation Checklist
 

@@ -66,7 +66,7 @@ This ADR introduces a temporary seam for MVP primitives. Exit criteria to close 
 2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
 3. **Secrets boundary enforced**: No plaintext credentials outside SecretsBroker flow.
 4. **Test coverage**: Deterministic tests for all bypass scenarios (fail-closed behavior verified).
-5. **Backlog ledger closed**: `docs/roadmap/BACKLOG_LEDGER.md` P0 entry marked complete with DoD evidence.
+5. **Backlog ledger closed**: `docs/roadmap/BACKLOG_LEDGER.md:60` P0 entry marked complete with DoD evidence.
 
 Until exit criteria are met, this is an **interim solution** with explicit tracking in backlog.
 
