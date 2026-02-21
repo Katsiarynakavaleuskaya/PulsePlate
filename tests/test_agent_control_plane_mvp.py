@@ -18,6 +18,22 @@ def test_parse_allowlist_supports_commas_and_newlines() -> None:
     assert len(parsed) == 2
 
 
+def test_parse_allowlist_skips_empty_action_or_target() -> None:
+    raw = ":https://api.example.com,tool.exec:,tool.exec:https://api.example.com"
+    assert cp.parse_allowlist(raw) == {("tool.exec", "https://api.example.com")}
+
+
+def test_load_allowlist_from_env_parses_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.ALLOWLIST_ENV, "tool.exec:https://api.example.com")
+    assert cp.load_allowlist_from_env() == {("tool.exec", "https://api.example.com")}
+
+
+def test_to_utc_treats_naive_datetime_as_utc() -> None:
+    normalized = cp._to_utc(datetime(2026, 2, 21, 12, 34, 56))
+    assert normalized.tzinfo == timezone.utc
+    assert normalized.isoformat() == "2026-02-21T12:34:56+00:00"
+
+
 def test_evaluate_policy_is_deny_by_default() -> None:
     decision = cp.evaluate_policy(
         "tool.exec",
@@ -106,6 +122,26 @@ def test_require_scoped_token_ttl_seconds_raises_on_invalid(
         cp.require_scoped_token_ttl_seconds()
 
 
+def test_require_scoped_token_ttl_seconds_raises_on_non_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(cp.SCOPED_TTL_ENV, "not-an-int")
+    with pytest.raises(RuntimeError, match=cp.SCOPED_TTL_ENV):
+        cp.require_scoped_token_ttl_seconds()
+
+
+def test_require_scoped_token_ttl_seconds_accepts_positive_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(cp.SCOPED_TTL_ENV, "120")
+    assert cp.require_scoped_token_ttl_seconds() == 120
+
+
+def test_require_secrets_hmac_key_returns_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.BROKER_HMAC_KEY_ENV, "broker-key")
+    assert cp.require_secrets_hmac_key() == "broker-key"
+
+
 def test_issue_scoped_token_requires_hmac_key_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -135,3 +171,8 @@ def test_issue_scoped_token_is_deterministic_with_fixed_inputs() -> None:
 def test_issue_scoped_token_rejects_empty_scope() -> None:
     with pytest.raises(ValueError, match="scope must be non-empty"):
         cp.issue_scoped_token(" ", hmac_key="broker-key")
+
+
+def test_issue_scoped_token_rejects_non_positive_ttl() -> None:
+    with pytest.raises(ValueError, match="ttl_seconds must be >= 1"):
+        cp.issue_scoped_token("agent.exec", ttl_seconds=0, hmac_key="broker-key")
