@@ -267,6 +267,11 @@ def main() -> int:
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
     args = parser.parse_args()
+    # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
+    if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
+        parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
+    if (args.pr_number is not None) != bool((args.repo or "").strip()):
+        parser.error("For local/agent mode provide both --pr-number and --repo.")
 
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
@@ -280,15 +285,17 @@ def main() -> int:
             print(f"ERROR: failed to parse event payload: {exc}")
             return 1
     elif args.pr_number and args.repo:
-        pr_number = args.pr_number
         repo = args.repo.strip()
         if "/" not in repo or repo.count("/") != 1:
             print("ERROR: --repo must be owner/name (e.g. Katsiarynakavaleuskaya/PulsePlate).")
             return 1
         try:
             pr_number, repo, is_draft, pr_body = _fetch_pr_context(
-                pr_number=pr_number, repo=repo, token=token
+                pr_number=args.pr_number, repo=repo, token=token
             )
+        except ValueError as exc:
+            print(f"ERROR: invalid repository format: {exc}")
+            return 1
         except urllib.error.HTTPError as exc:
             print(f"ERROR: failed to fetch PR: HTTP {exc.code}")
             return 1

@@ -2,7 +2,7 @@
 
 **Purpose:** Canonical rules for agents (including coordinator) so that "0 comments" and "ready to merge" are never reported incorrectly. Merge is allowed **only** when both conditions below are satisfied.
 
-**Source of truth (policy):** `AGENTS.md` → "PR merge readiness (hard rule)". This doc is the **operational** checklist and script reference for the coordinator and any agent performing merge-readiness verification.
+**Source of truth (policy):** `AGENTS.md` (section "PR merge readiness (hard rule)", ~line 31). This doc is the **operational** checklist and script reference for the coordinator and any agent performing merge-readiness verification.
 
 ---
 
@@ -52,7 +52,7 @@ python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Kat
 3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Merge-readiness script passed: 0 unresolved threads, all actionables mapped."
 4. **After new bot activity:** If the user or system reports new bot comments (e.g. CodeRabbit, Sourcery), **re-run the script** before any merge decision; do not assume previous pass still holds.
 
-**Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` → "Loop until zero comments (canonical cycle)". Repeat until script exit 0 and CI green.
+**Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` (sections "Pre-merge readiness pass" ~line 121, "Loop until zero comments (canonical cycle)" ~line 160). Repeat until script exit 0 and CI green.
 
 ---
 
@@ -64,13 +64,13 @@ python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Kat
   - Exactly: `- No actionable review comments` (when there are no actionable bot comments).
 - `## Merge Readiness` section.
 
-See `RUNBOOK_AGENT.md` → "Pre-merge readiness pass" and "Phase2 PR body gates".
+See `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Phase2 PR body gates).
 
 ---
 
 ## 6. References
 
-- **Policy:** `AGENTS.md` → "PR merge readiness (hard rule)".
-- **Procedure:** `RUNBOOK_AGENT.md` → "Pre-merge readiness pass", "Verify zero unresolved review threads".
-- **CI gate:** `scripts/ci/check_pr_merge_readiness.py` (same logic for CI and local/agent).
+- **Policy:** `AGENTS.md` (PR merge readiness hard rule, ~line 31).
+- **Procedure:** `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Loop until zero ~line 160, Verify zero unresolved review threads).
+- **CI gate:** `scripts/ci/check_pr_merge_readiness.py` (exit 0/1: main() return and merge-readiness checks; same logic for CI and local/agent).
 - **Phase2 body check:** `scripts/ci/check_pr_body_phase2_gates.py`.
