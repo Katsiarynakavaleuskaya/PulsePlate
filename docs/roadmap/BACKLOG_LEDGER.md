@@ -85,11 +85,11 @@ If it is not recorded here — it does not exist.
     - [x] Initial runtime primitives implemented with deterministic tests
     - [x] Follow-up implementation PRs opened and linked (PR #846)
 
-- [ ] P0: Security hardening wave for agent automation
+- [x] P0: Security hardening wave for agent automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR #848 (docs/agent-sec-hardening-wave)
-  - Status: In review
+  - Status: ✅ Completed (PR #848, 2026-02-21, merge SHA `e7a58fb2`)
   - Area: security / runbooks / operations
   - Finding Type: incident prevention
   - Locations:
