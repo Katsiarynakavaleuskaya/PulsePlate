@@ -81,8 +81,8 @@ npm run storybook
 | ID | Flow | Start URL | Expected outcome | Artifacts |
 | --- | --- | --- | --- | --- |
 | `E2E-01` | Home smoke | `http://127.0.0.1:4173/` | App shell renders without fatal UI errors | Screenshot + snapshot log |
-| `E2E-02` | BMI route smoke | `http://127.0.0.1:4173/bmi` | BMI page opens and controls are interactable | Screenshot + step log |
-| `E2E-03` | Setup route smoke | `http://127.0.0.1:4173/setup` | Setup screen renders expected form flow | Screenshot + snapshot log |
+| `E2E-02` | Plate route smoke | `http://127.0.0.1:4173/plate` | Plate screen (or auth prompt) renders with deterministic shell checks | Screenshot + step log |
+| `E2E-03` | Progress route smoke | `http://127.0.0.1:4173/progress` | Progress screen (or auth prompt) renders with deterministic shell checks | Screenshot + snapshot log |
 | `E2E-04` | Pro paywall route smoke | `http://127.0.0.1:4173/pro` | Paywall page renders and primary CTA is visible | Screenshot + step log |
 
 ## Command pattern (CLI-first)
@@ -90,7 +90,7 @@ npm run storybook
 Use element references from the latest snapshot only. Do not hardcode `e*` ids.
 
 ```bash
-"$PWCLI" open http://127.0.0.1:4173/bmi --headed
+"$PWCLI" open http://127.0.0.1:4173/plate --headed
 "$PWCLI" snapshot
 "$PWCLI" click eX
 "$PWCLI" snapshot
