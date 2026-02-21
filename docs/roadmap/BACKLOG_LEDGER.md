@@ -866,20 +866,24 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Wave 2 contract governance v2 + CI throughput program
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-W2-CONTRACT-CI
-  - Status: Planned (Wave 2 / day 31-90)
+  - Target PR: PR #850 (docs/wave2-contract-governance-ci-throughput)
+  - Status: In review
   - Area: backend / frontend / ios / devex
   - Finding Type: maintainability / delivery speed
   - Locations:
+    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
+    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
   - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
   - Links:
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
+    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
   - DoD:
-    - Contract governance checklist with OpenAPI diff risk labels documented
-    - CI throughput baseline and target defined with flake budget owner
+    - [x] Contract governance checklist with OpenAPI diff risk labels documented
+    - [x] CI throughput baseline and target defined with flake budget owner
     - Follow-up implementation PRs linked
 
 - [ ] P1: Wave 2 experimentation framework and paywall optimization loop
