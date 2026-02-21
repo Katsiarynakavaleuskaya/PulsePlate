@@ -35,6 +35,8 @@ Or individually:
 - PR MUST NOT be merged while any bot comment contains actionable items.
 - Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
 - Required checks must be PASS with no pending required jobs.
+- Mandatory wait-window: after the latest bot/review activity, do one final check pass and wait at least one review cycle before merge (never merge on the first green tick).
+- Merge checklist is mandatory in PR body (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
 
 **Pre-commit hook policy (mandatory before push):**
