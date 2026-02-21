@@ -2,6 +2,7 @@
 
 **Date:** 2026-02-21
 **Status:** Active policy (Wave 2)
+**Exit Criteria:** This policy becomes permanent when: (1) contract label CI gate is enforced for all PRs, (2) zero contract-related rollbacks for 4 consecutive weeks
 **Purpose:** Prevent contract drift and breaking changes across backend/web/iOS surfaces
 
 ---
@@ -122,9 +123,9 @@ PR Created --> OpenAPI Sync CI --> Schema Diff Gate
 
 ### CI Gates
 
-- `openapi-sync` job: Ensures `frontend/src/api/openapi.json` matches backend
-- `test_openapi_determinism.py`: Ensures schema generation is reproducible
-- PR Body Phase2 gates: Enforces contract label presence for schema-touching PRs
+- `openapi-sync` job: Ensures `frontend/src/api/openapi.json` matches backend (`scripts/generate_openapi.py:1`)
+- `test_openapi_determinism.py`: Ensures schema generation is reproducible (`tests/test_openapi_determinism.py:1`)
+- PR Body Phase2 gates: Enforces contract label presence for schema-touching PRs (`scripts/ci/check_pr_body_phase2_gates.py:1`)
 
 ### Manual Verification Commands
 

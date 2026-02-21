@@ -2,6 +2,7 @@
 
 **Date:** 2026-02-21
 **Status:** Active policy (Wave 2)
+**Exit Criteria:** This policy becomes permanent when: (1) median CI time reaches target (<=6 min), (2) flake budget tracking is automated in CI
 **Purpose:** Reduce CI critical-path latency and manage test flakiness systematically
 
 ---
