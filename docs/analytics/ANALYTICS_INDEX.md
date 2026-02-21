@@ -6,6 +6,21 @@
 
 ---
 
+## Core funnel semantics
+
+Canonical funnel: **onboarding → paywall → conversion → retention**.
+
+| Stage | Owner | Update cadence | SoT |
+|-------|-------|-----------------|-----|
+| Onboarding | Product + Growth | Daily | `METRICS_CATALOG.md` (Onboarding completion rate) |
+| Paywall | Growth | Daily | `METRICS_CATALOG.md` (Soft paywall view rate, Trial start rate) |
+| Conversion | Growth + Finance | Daily | `METRICS_CATALOG.md` (Trial → Paid conversion) |
+| Retention | Product + Data | Daily / Weekly | `METRICS_CATALOG.md` (Retention D7, Retention D30) |
+
+Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel)".
+
+---
+
 ## Tracked Metrics
 
 | Metric | Definition (short) | Owner | Source of truth | Update frequency |
@@ -42,6 +57,8 @@ Notes:
 | Funnel dashboard | Vendor-agnostic BI | Product + Growth | Daily | onboarding -> paywall -> trial -> paid |
 | Retention dashboard | Vendor-agnostic BI | Product + Data | Daily | D1/D7/D30 by cohort |
 | Cost dashboard | Vendor-agnostic BI | Platform + Finance | Daily | LLM/API spend anomalies |
+
+Dashboard baseline requirements (goals, segments, data sources, KPI): `DASHBOARD_BASELINE_REQUIREMENTS.md`.
 
 ## Event Taxonomy Anchor (Wave 1)
 

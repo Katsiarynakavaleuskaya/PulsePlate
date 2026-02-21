@@ -170,3 +170,128 @@ Daily
 #### Change history
 
 - 2026-02-20: initial Wave 1 definition
+
+---
+
+## Soft paywall view rate
+
+#### Definition
+
+Percent of active users (within attribution window) who see the soft paywall trigger at least once.
+
+#### Formula
+
+```text
+soft_paywall_view_rate =
+  users_who_saw_soft_paywall / active_users_window
+```
+
+#### Owner
+
+Growth
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-21: initial Wave 1 definition (P0 Growth telemetry canon)
+
+---
+
+## Trial start rate
+
+#### Definition
+
+Percent of users eligible for trial (e.g. saw paywall, not already subscribed) who start a trial within the attribution window.
+
+#### Formula
+
+```text
+trial_start_rate =
+  users_started_trial / users_eligible_for_trial
+```
+
+#### Owner
+
+Growth
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-21: initial Wave 1 definition (P0 Growth telemetry canon)
+
+---
+
+## Retention D7
+
+#### Definition
+
+Percent of activated users who are active on day 7 after activation.
+
+#### Formula
+
+```text
+retention_d7 =
+  activated_users_active_on_day_7 / activated_users
+```
+
+#### Owner
+
+Product + Data
+
+#### Update frequency
+
+Daily
+
+#### Change history
+
+- 2026-02-21: initial Wave 1 definition (P0 Growth telemetry canon)
+
+---
+
+## Event taxonomy (growth funnel)
+
+Canonical event families and payload contracts for the growth funnel (onboarding → paywall → conversion → retention). Runtime implementation: `frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for semantics; code must stay aligned.
+
+### Funnel stages and owners
+
+| Stage | Owner | Cadence | Key events |
+|-------|-------|---------|------------|
+| Onboarding | Product + Growth | Daily | onboarding_started, onboarding_completed |
+| Paywall | Growth | Daily | paywall_viewed, paywall_cta_clicked, vip_paywall_* |
+| Conversion (trial) | Growth + Finance | Daily | trial_started |
+| Retention | Product + Data | Daily / Weekly | retention_heartbeat (d1/d7/d30) |
+
+### Growth funnel events (required fields)
+
+| Event | Required fields | Context |
+|-------|------------------|---------|
+| onboarding_started | source, variant | First-run entry |
+| onboarding_completed | source; optional: durationSec | Completion within session |
+| paywall_viewed | source, placement, tierContext (free/pro/vip) | Soft/hard paywall impression |
+| paywall_cta_clicked | source, ctaId, tierContext | CTA click for upgrade/trial |
+| trial_started | source, planType | User started trial |
+| retention_heartbeat | dayBucket (d1/d7/d30), source | Cohort activity signal |
+
+### VIP / paywall UX events (required fields)
+
+| Event | Required fields | Context |
+|-------|------------------|---------|
+| vip_module_viewed | source, vipEnabled | VIP module impression |
+| vip_feature_clicked | featureName, source, isVip | Feature click behind gate |
+| vip_paywall_viewed | source, context; optional: isRetry | VIP paywall view |
+| vip_paywall_dismissed | source, dismissMethod; optional: viewDuration | Dismiss without converting |
+| vip_upgrade_clicked | source, context; optional: isRetry | Upgrade CTA click |
+| vip_gate_interacted | featureName, interactionType, isVip | Gate interaction |
+| vip_badge_viewed | component, variant, isVip | Badge/upsell component view |
+
+### Base payload (optional on all events)
+
+- timestamp (number)
+- sessionId (string)
+- featureFlags (Record<string, boolean>)
