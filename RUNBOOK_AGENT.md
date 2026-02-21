@@ -156,7 +156,7 @@ Use this checklist when operating agent automation or closing a token/secrets in
 3. **Verification**
    - Ensure no active runtime process/socket remains for disabled agent service.
    - Confirm privileged automation path is routed through policy gate only.
-   - Run `pytest tests/test_agent_control_plane_mvp.py -v` to confirm fail-closed semantics intact.
+   - Run canonical security verification (see baseline doc, section "Canonical Security Verification").
 4. **Documentation**
    - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
    - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.

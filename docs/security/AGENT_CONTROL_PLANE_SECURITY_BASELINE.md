@@ -53,19 +53,48 @@ Each mandatory control is mapped to an owner, runtime enforcement point, and
 verification evidence. Status: **Impl** = implemented in code, **Doc** = documented
 contract (enforcement via policy/process), **Planned** = tracked in backlog.
 
+**Anchor maintenance:** `file:line` references point to function definitions in
+`app/security/agent_control_plane.py`. When functions move (refactor, reorder),
+update this table in the same PR. Canonical verification:
+`grep -n "^def " app/security/agent_control_plane.py` — compare output with
+the anchors below.
+
 | ID | Control | Owner | Status | Runtime Evidence (`file:line`) | Verification |
 |----|---------|-------|--------|-------------------------------|--------------|
-| C1-a | Short-lived scoped tokens | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:276` | `pytest -k scoped_token tests/test_agent_control_plane_mvp.py` |
-| C1-b | Fail-closed on missing/empty secrets | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:167`, `:178` | `pytest -k empty_string tests/test_agent_control_plane_mvp.py` |
+| C1-a | Short-lived scoped tokens | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:276` | See "Canonical Security Verification" |
+| C1-b | Fail-closed on missing/empty secrets | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:167`, `:178` | See "Canonical Security Verification" |
 | C1-c | Rotation playbook adopted | @katsiaryna_kavaleuskaya | Doc | This document: "Credential Rotation Protocols" | Manual: follow per-class protocol below |
-| C2-a | Deny-by-default policy gate | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:113` | `pytest -k deny_by_default tests/test_agent_control_plane_mvp.py` |
-| C2-b | Fail-closed on policy unavailable | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:151` | `pytest -k require_policy tests/test_agent_control_plane_mvp.py` |
-| C3-a | Signed audit envelopes (HMAC-SHA256) | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:212` | `pytest -k sign_audit tests/test_agent_control_plane_mvp.py` |
-| C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:254` | `pytest -k verify_audit tests/test_agent_control_plane_mvp.py` |
+| C2-a | Deny-by-default policy gate | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:113` | See "Canonical Security Verification" |
+| C2-b | Fail-closed on policy unavailable | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:151` | See "Canonical Security Verification" |
+| C3-a | Signed audit envelopes (HMAC-SHA256) | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:212` | See "Canonical Security Verification" |
+| C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:254` | See "Canonical Security Verification" |
 | C3-c | Incident timeline within 15 min | @katsiaryna_kavaleuskaya | Doc | `RUNBOOK_AGENT.md:139` | Manual: follow containment checklist |
-| C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:106` | `pytest -k allowlist tests/test_agent_control_plane_mvp.py` |
-| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
+| C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `agent_control_plane.py:106` | See "Canonical Security Verification" |
+| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
 | C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Doc | `AGENTS.md` (PR merge readiness, approval model) | Manual: policy review per ADR-003 |
+
+### Canonical Security Verification
+
+Single source of truth for security-related verification commands. Referenced by
+the controls ownership table, release gate, and RUNBOOK Security Ops checklist.
+
+```bash
+# Full agent control plane test suite (all controls)
+pytest tests/test_agent_control_plane_mvp.py -v
+
+# Anchor drift check (compare with ownership table above)
+grep -n "^def " app/security/agent_control_plane.py
+```
+
+Individual control checks (use `-k` filter):
+
+| Scope | Command |
+|-------|---------|
+| Policy gate (C2-a, C2-b) | `pytest -k "deny_by_default or require_policy" tests/test_agent_control_plane_mvp.py` |
+| Audit signing (C3-a, C3-b) | `pytest -k "sign_audit or verify_audit" tests/test_agent_control_plane_mvp.py` |
+| Fail-closed (C1-b, G5) | `pytest -k empty_string tests/test_agent_control_plane_mvp.py` |
+| Scoped tokens (C1-a) | `pytest -k scoped_token tests/test_agent_control_plane_mvp.py` |
+| Allowlist (C4-a) | `pytest -k allowlist tests/test_agent_control_plane_mvp.py` |
 
 ## Credential Rotation Protocols
 
@@ -157,22 +186,23 @@ contract (enforcement via policy/process), **Planned** = tracked in backlog.
 
 Release is **blocked** if any of the following conditions are true.
 Each condition has a verification method and required evidence.
+Individual verification commands are defined in "Canonical Security Verification" above.
 
 | # | Blocking Condition | Severity | Verification Command / Check | Evidence Required |
 |---|-------------------|----------|------------------------------|-------------------|
 | G1 | Unresolved critical secret exposure | P0-STOP | `git log --all --diff-filter=A -- '*.env' '*.pem' '*.key'` returns no new secrets; check `detect-secrets scan` output | Clean `detect-secrets` baseline (`.secrets.baseline`) |
-| G2 | Policy gate not enforced for privileged actions | P0-STOP | `pytest -k "deny_by_default or require_policy" tests/test_agent_control_plane_mvp.py` passes | Green test output |
-| G3 | Audit signing disabled or bypassed | P0-STOP | `pytest -k "sign_audit and verify_audit" tests/test_agent_control_plane_mvp.py` passes | Green test output |
+| G2 | Policy gate not enforced for privileged actions | P0-STOP | See Canonical Security Verification: Policy gate (C2-a, C2-b) | Green test output |
+| G3 | Audit signing disabled or bypassed | P0-STOP | See Canonical Security Verification: Audit signing (C3-a, C3-b) | Green test output |
 | G4 | Token rotation incomplete after incident | P0-STOP | Manual: check `BACKLOG_LEDGER.md` for open rotation items with P0 priority | No open P0 rotation entries |
-| G5 | Fail-closed semantics broken (empty secrets accepted) | P0-STOP | `pytest -k empty_string tests/test_agent_control_plane_mvp.py` passes | Green test output |
+| G5 | Fail-closed semantics broken (empty secrets accepted) | P0-STOP | See Canonical Security Verification: Fail-closed (C1-b, G5) | Green test output |
 | G6 | `make verify` fails | P0-STOP | `make verify` (lint + typecheck + test-fast + diff-cov >= 97%) | Green output, exit code 0 |
 | G7 | Pre-commit hooks produce uncommitted changes | P1-BLOCK | `pre-commit run --all-files` exits 0 with no file modifications | Clean `git status` after run |
 
 ### Gate sign-off process
 
 1. Run `make verify` locally and confirm exit code 0.
-2. Run `pre-commit run --all-files` and confirm no file modifications.
-3. Run `pytest tests/test_agent_control_plane_mvp.py -v` and confirm all tests pass.
+2. Execute `pre-commit run --all-files` and confirm no file modifications.
+3. Verify all agent control plane tests pass: `pytest tests/test_agent_control_plane_mvp.py -v`.
 4. Check `BACKLOG_LEDGER.md` for open P0 security items — must be zero.
 5. Confirm CI is green on the PR (no required check failures).
 6. Record sign-off in PR body under `## Merge Readiness`.
