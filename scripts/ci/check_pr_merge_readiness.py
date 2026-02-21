@@ -1,3 +1,5 @@
+"""Merge-readiness CI gate: fail when non-draft PR has unresolved threads or unmapped bot comments."""
+
 from __future__ import annotations
 
 import argparse
@@ -5,7 +7,6 @@ import http.client
 import json
 import os
 import re
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,6 +37,8 @@ MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review commen
 
 @dataclass
 class ActionableItem:
+    """A single bot comment/review deemed actionable (needs mapping in PR body)."""
+
     author: str
     url: str
     created_at: str
@@ -43,11 +46,13 @@ class ActionableItem:
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
+    """Remove ``` and ~~~ fenced code blocks from text so regex does not match inside them."""
     no_ticks = re.sub(r"(?s)```.*?```", "", text)
     return re.sub(r"(?s)~~~.*?~~~", "", no_ticks)
 
 
 def _extract_mapping_section(pr_body: str) -> str:
+    """Return the content of the last ### Fixed in Commit Mapping section in pr_body."""
     cleaned = _strip_fenced_code_blocks(pr_body)
     matches = list(MAPPING_HEADING_RE.finditer(cleaned))
     if not matches:
@@ -59,22 +64,27 @@ def _extract_mapping_section(pr_body: str) -> str:
 
 
 def _mapped_urls(pr_body: str) -> tuple[set[str], bool]:
+    """Parse PR body mapping section; return (set of mapped comment URLs, has_no_actionable_marker)."""
     section = _extract_mapping_section(pr_body)
     urls = {m.group(1).strip() for m in MAPPING_ENTRY_RE.finditer(section)}
     return urls, bool(MAPPING_NO_ACTIONABLE_RE.search(section))
 
 
 def _is_actionable(body: str) -> bool:
+    """True if body contains an actionable marker; False if non-actionable marker or neither."""
     if not body:
         return False
+    if any(marker.lower() in body.lower() for marker in ACTIONABLE_MARKERS):
+        return True
     if any(marker.lower() in body.lower() for marker in NON_ACTIONABLE_MARKERS):
         return False
-    return any(marker.lower() in body.lower() for marker in ACTIONABLE_MARKERS)
+    return False
 
 
 def _api_request(
     url: str, token: str, method: str = "GET", payload: dict[str, Any] | None = None
 ) -> Any:
+    """Perform a single GitHub API request (REST or GraphQL); raise HTTPError on 4xx/5xx."""
     data = None
     headers = {
         "Authorization": f"Bearer {token}",
@@ -111,12 +121,17 @@ def _api_request(
 
 
 def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
+    """Return count of unresolved review threads for the PR (paginated via GraphQL)."""
     owner, name = repo.split("/", maxsplit=1)
     query = """
-    query($owner: String!, $name: String!, $number: Int!) {
+    query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
-          reviewThreads(first: 100) {
+          reviewThreads(first: 100, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
             nodes {
               isResolved
             }
@@ -125,27 +140,61 @@ def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
       }
     }
     """
-    payload = {"query": query, "variables": {"owner": owner, "name": name, "number": pr_number}}
-    resp = _api_request(
-        "https://api.github.com/graphql", token=token, method="POST", payload=payload
-    )
-    nodes = (
-        resp.get("data", {})
-        .get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
-    )
-    return sum(1 for item in nodes if item and not item.get("isResolved", False))
+    total = 0
+    cursor: str | None = None
+    while True:
+        payload = {
+            "query": query,
+            "variables": {"owner": owner, "name": name, "number": pr_number, "cursor": cursor},
+        }
+        resp = _api_request(
+            "https://api.github.com/graphql", token=token, method="POST", payload=payload
+        )
+        threads = (
+            resp.get("data", {})
+            .get("repository", {})
+            .get("pullRequest", {})
+            .get("reviewThreads", {})
+        )
+        nodes = threads.get("nodes", [])
+        total += sum(1 for item in nodes if item and not item.get("isResolved", False))
+        page_info = threads.get("pageInfo", {})
+        if not page_info.get("hasNextPage", False):
+            break
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            break
+    return total
+
+
+def _api_request_paginated_list(base_url: str, token: str) -> list[Any]:
+    """Fetch all pages of a GitHub REST list endpoint (per_page=100)."""
+    out: list[Any] = []
+    page = 1
+    while True:
+        sep = "&" if "?" in base_url else "?"
+        url = f"{base_url}{sep}page={page}" if page > 1 else base_url
+        data = _api_request(url, token=token)
+        if not isinstance(data, list):
+            return out
+        out.extend(data)
+        if len(data) < 100:
+            break
+        page += 1
+    return out
 
 
 def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[ActionableItem]:
+    """Fetch all issue comments, reviews, and review comments (paginated); return actionable bot items."""
     base = f"https://api.github.com/repos/{repo}"
     encoded = urllib.parse.quote(str(pr_number), safe="")
+    comments_url = f"{base}/issues/{encoded}/comments?per_page=100"
+    reviews_url = f"{base}/pulls/{encoded}/reviews?per_page=100"
+    review_comments_url = f"{base}/pulls/{encoded}/comments?per_page=100"
 
-    issue_comments = _api_request(f"{base}/issues/{encoded}/comments?per_page=100", token=token)
-    reviews = _api_request(f"{base}/pulls/{encoded}/reviews?per_page=100", token=token)
-    review_comments = _api_request(f"{base}/pulls/{encoded}/comments?per_page=100", token=token)
+    issue_comments = _api_request_paginated_list(comments_url, token=token)
+    reviews = _api_request_paginated_list(reviews_url, token=token)
+    review_comments = _api_request_paginated_list(review_comments_url, token=token)
 
     items: list[ActionableItem] = []
 
@@ -174,13 +223,12 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
                 )
             )
 
-    unique: dict[str, ActionableItem] = {}
-    for item in items:
-        unique[item.url] = item
+    unique = {item.url: item for item in items}
     return sorted(unique.values(), key=lambda it: it.created_at)
 
 
 def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
+    """Read GitHub event JSON; return (pr_number, repo, is_draft, pr_body)."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
     pr = payload.get("pull_request") or {}
     number = int(pr.get("number", 0))
@@ -191,6 +239,7 @@ def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
 
 
 def main() -> int:
+    """Entry point: parse args, run merge-readiness checks, exit 0 on pass and 1 on fail."""
     parser = argparse.ArgumentParser(
         description="Fail CI when non-draft PR has unresolved review threads or unmapped actionable bot comments."
     )
