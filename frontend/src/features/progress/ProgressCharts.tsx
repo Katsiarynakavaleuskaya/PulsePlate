@@ -144,7 +144,7 @@ export default function ProgressCharts({ windowRange = 'MONTH' }: ProgressCharts
         <button
           onClick={handleExportToPdf}
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:opacity-90"
-          style={{ backgroundColor: chartTokens.primary, color: '#fff' }}
+          style={{ backgroundColor: chartTokens.primary, color: chartTokens.surface }}
           aria-label="Export progress report as PDF"
         >
           <Download className="w-4 h-4" />

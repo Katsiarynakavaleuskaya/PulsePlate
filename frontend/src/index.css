@@ -16,7 +16,7 @@ body {
 
 /* Utilities */
 .bg-pp-primary { background: var(--pp-primary); }
-.text-white { color: #fff; }
+.text-white { color: var(--color-surface); }
 .sr-only {
   position: absolute;
   width: 1px;

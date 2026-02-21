@@ -45,8 +45,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
-          # Nightly security step relies on Safety CLI; install explicitly to avoid runner drift.
-          python -m pip install safety
           pip list
 
       - name: Run linting

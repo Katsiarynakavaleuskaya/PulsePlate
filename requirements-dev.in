@@ -14,7 +14,9 @@ coverage~=7.13.4
 diff-cover~=10.2.0
 # Code quality tools: use compatible release for stability
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
+safety>=3.6.2  # Security tool - keep >= for vulnerability updates
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
+marshmallow>=4.1.2  # Explicit floor to keep CVE fix independent of transitive deps
 cryptography>=46.0.5  # Keep explicit dependency floor for dependency-security guard
 pre-commit~=4.5.1
 pip-tools~=7.5.3
