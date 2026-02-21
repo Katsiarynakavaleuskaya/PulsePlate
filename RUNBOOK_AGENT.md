@@ -129,6 +129,7 @@ Run before merge after latest commit and latest bot/review activity:
    - `## Discussion Thread Pass`
    - `### Fixed in Commit Mapping`
    - `## Merge Readiness`
+5. CI `Merge readiness gate` must be green on latest PR commit.
 
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 
