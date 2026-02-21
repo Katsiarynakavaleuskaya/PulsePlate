@@ -88,8 +88,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Security hardening wave for agent automation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-AGENT-SEC-HARDENING
-  - Status: Planned (Wave 1 / 0-30 days)
+  - Target PR: PR #848 (docs/agent-sec-hardening-wave)
+  - Status: In review
   - Area: security / runbooks / operations
   - Finding Type: incident prevention
   - Locations:
@@ -99,9 +99,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/runbooks/README.md`
   - DoD:
-    - Rotation protocol documented and adopted for bot/API/webhook credentials
-    - Security release gate conditions documented
-    - Mandatory controls mapped to owner and verification evidence
+    - [x] Rotation protocol documented and adopted for bot/API/webhook credentials
+    - [x] Security release gate conditions documented
+    - [x] Mandatory controls mapped to owner and verification evidence
 
 - [x] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya

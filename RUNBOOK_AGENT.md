@@ -140,18 +140,27 @@ Run before merge after latest commit and latest bot/review activity:
 
 Use this checklist when operating agent automation or closing a token/secrets incident.
 
+**Detailed per-credential rotation protocols:** `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md` section "Credential Rotation Protocols" (R1-R5).
+
 1. **Containment**
    - Stop agent runtime and disable auto-start service.
    - Quarantine local runtime state for forensics.
-2. **Secrets rotation**
-   - Revoke old tokens/keys first, then issue new scoped credentials.
+2. **Secrets rotation** (follow protocol R1-R5 per credential class)
+   - R1: HMAC Audit Signing Key (`AGENT_CONTROL_AUDIT_SIGNING_KEY`)
+   - R2: HMAC Broker Key (`AGENT_CONTROL_BROKER_HMAC_KEY`)
+   - R3: Bot Tokens (GitHub App, Telegram, CI bots)
+   - R4: API Provider Keys (LLM, external services)
+   - R5: Webhook Secrets
+   - For each: generate new → update secret store → restart → verify → revoke old → confirm revoked.
    - Reset webhook endpoints and confirm `getWebhookInfo` reports empty/expected URL.
 3. **Verification**
    - Ensure no active runtime process/socket remains for disabled agent service.
    - Confirm privileged automation path is routed through policy gate only.
+   - Run `pytest tests/test_agent_control_plane_mvp.py -v` to confirm fail-closed semantics intact.
 4. **Documentation**
    - Record evidence and follow-ups in `docs/roadmap/BACKLOG_LEDGER.md`.
    - Keep controls aligned with `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`.
+   - Verify security release gate conditions pass (see baseline doc, section "Security Release Gate").
 ## 0.1) CI: `actions/upload-artifact` fails with `FinalizeArtifact 403 Forbidden`
 
 **Reference:** Documentation: [PR #712](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/712). Fix required a
