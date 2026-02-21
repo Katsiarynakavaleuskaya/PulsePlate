@@ -103,11 +103,11 @@ If it is not recorded here — it does not exist.
     - Security release gate conditions documented
     - Mandatory controls mapped to owner and verification evidence
 
-- [ ] P0: Growth telemetry canon and KPI dashboard baseline
+- [x] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #845 (Phase 1); Phase 2 (eventRegistry.ts) after PR #825 merge
-  - Status: In progress (Phase 1 in PR #845; Phase 2 deferred)
+  - Target PR: PR #845 (Phase 1 merged); Phase 2 (eventRegistry.ts) after PR #825 merge
+  - Status: Phase 1 ✅ Merged (PR #845, 2026-02-21); Phase 2 deferred
   - Area: analytics / frontend / growth
   - Finding Type: product optimization
   - Locations:
