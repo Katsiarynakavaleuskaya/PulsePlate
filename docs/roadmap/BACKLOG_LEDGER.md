@@ -855,11 +855,11 @@ If it is not recorded here — it does not exist.
     - Tests updated for both legacy and new entrypoints
     - `make verify` and required CI checks pass
 
-- [ ] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: In progress (branch complete, pending merge)
+  - Status: ✅ Merged (PR #825, 2026-02-20)
   - Area: docs / frontend / ci / review-ops
   - Finding Type: review remediation / quality-gate closure
   - Locations:
