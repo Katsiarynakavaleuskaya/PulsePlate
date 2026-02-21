@@ -57,11 +57,11 @@ If it is not recorded here — it does not exist.
     - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
     - ✅ CI checks for touched surfaces pass; no unresolved review threads
 
-- [ ] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
+- [x] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: #846
-  - Status: 🟡 In review (Wave 1 / 0-30 days; slice 1 in PR #846 on 2026-02-21)
+  - Status: ✅ Completed (Merged PR #846 on 2026-02-21)
   - Area: architecture / backend / security
   - Finding Type: platform hardening / modernization
   - Locations:
