@@ -864,7 +864,7 @@ Figma Component: `PP/Web/State/Offline`
 ### 6.1 iOS: Launch Screen
 
 **Figma Page:** `02_iOS_Launch`
-**Source:** `ios/PulsePlate/Views/LaunchScreenView.swift`, `ios/PulsePlate/LaunchScreen.storyboard`
+**Source:** `ios/PulsePlate/Views/LaunchScreenView.swift:3-20` (SwiftUI view struct), `ios/PulsePlate/LaunchScreen.storyboard:16-26` (UIKit storyboard scene)
 
 **Layers (bottom to top):**
 1. Background: solid `#0F172A` (Navy), full screen
