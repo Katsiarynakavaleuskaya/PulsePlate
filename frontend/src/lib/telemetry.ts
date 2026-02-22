@@ -1,10 +1,14 @@
 /**
  * Telemetry Foundation
  *
- * Centralized telemetry system for VIP events and user analytics.
+ * Centralized telemetry system for application events and user analytics.
  * Provides type-safe event tracking with automatic feature flag integration.
  *
  * Uses centralized event registry to prevent event definition divergence.
+ *
+ * API Surface:
+ * - trackEvent: Generic telemetry entrypoint (recommended)
+ * - trackVipEvent: Deprecated alias for backward compatibility
  */
 
 import { log } from './analytics';
@@ -71,9 +75,12 @@ export type VipEventPayload =
   | RetentionHeartbeatPayload;
 
 /**
- * Core telemetry tracking function
+ * Core telemetry tracking function (generic entrypoint)
+ *
+ * This is the recommended API for all telemetry tracking.
+ * All event types from the centralized registry are supported.
  */
-export function trackVipEvent<T extends EventType>(
+export function trackEvent<T extends EventType>(
   eventType: T,
   payload: EventPayloadMap[T]
 ): void {
@@ -99,6 +106,19 @@ export function trackVipEvent<T extends EventType>(
 }
 
 /**
+ * Core telemetry tracking function (deprecated alias)
+ *
+ * @deprecated Use `trackEvent` instead. This alias exists for backward compatibility
+ * and will be removed in a future release.
+ */
+export function trackVipEvent<T extends EventType>(
+  eventType: T,
+  payload: EventPayloadMap[T]
+): void {
+  trackEvent(eventType, payload);
+}
+
+/**
  * VIP telemetry tracking functions
  */
 export const vipTelemetry = {
@@ -106,7 +126,7 @@ export const vipTelemetry = {
    * Track VIP module view
    */
   moduleViewed: (source: string, vipEnabled: boolean) => {
-    trackVipEvent(EventType.VIP_MODULE_VIEWED, {
+    trackEvent(EventType.VIP_MODULE_VIEWED, {
       source,
       vipEnabled,
     });
@@ -116,7 +136,7 @@ export const vipTelemetry = {
    * Track VIP feature click
    */
   featureClicked: (featureName: string, source: string, isVip: boolean) => {
-    trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
+    trackEvent(EventType.VIP_FEATURE_CLICKED, {
       featureName,
       source,
       isVip,
@@ -127,7 +147,7 @@ export const vipTelemetry = {
    * Track VIP paywall view
    */
   paywallViewed: (source: string, context: string, isRetry?: boolean) => {
-    trackVipEvent(EventType.VIP_PAYWALL_VIEWED, {
+    trackEvent(EventType.VIP_PAYWALL_VIEWED, {
       source,
       context,
       isRetry,
@@ -138,7 +158,7 @@ export const vipTelemetry = {
    * Track VIP paywall dismissal
    */
   paywallDismissed: (source: string, dismissMethod: string, viewDuration?: number) => {
-    trackVipEvent(EventType.VIP_PAYWALL_DISMISSED, {
+    trackEvent(EventType.VIP_PAYWALL_DISMISSED, {
       source,
       dismissMethod,
       viewDuration,
@@ -149,7 +169,7 @@ export const vipTelemetry = {
    * Track VIP upgrade click
    */
   upgradeClicked: (source: string, context: string, isRetry?: boolean) => {
-    trackVipEvent(EventType.VIP_UPGRADE_CLICKED, {
+    trackEvent(EventType.VIP_UPGRADE_CLICKED, {
       source,
       context,
       isRetry,
@@ -160,7 +180,7 @@ export const vipTelemetry = {
    * Track VIP gate interaction
    */
   gateInteracted: (featureName: string, interactionType: string, isVip: boolean) => {
-    trackVipEvent(EventType.VIP_GATE_INTERACTED, {
+    trackEvent(EventType.VIP_GATE_INTERACTED, {
       featureName,
       interactionType,
       isVip,
@@ -171,7 +191,7 @@ export const vipTelemetry = {
    * Track VIP badge view
    */
   badgeViewed: (component: string, variant: string, isVip: boolean) => {
-    trackVipEvent(EventType.VIP_BADGE_VIEWED, {
+    trackEvent(EventType.VIP_BADGE_VIEWED, {
       component,
       variant,
       isVip,
@@ -185,22 +205,22 @@ export const vipTelemetry = {
  */
 export const growthTelemetry = {
   onboardingStarted: (source: string, variant: string) => {
-    trackVipEvent(EventType.ONBOARDING_STARTED, { source, variant });
+    trackEvent(EventType.ONBOARDING_STARTED, { source, variant });
   },
   onboardingCompleted: (source: string, durationSec?: number) => {
-    trackVipEvent(EventType.ONBOARDING_COMPLETED, { source, durationSec });
+    trackEvent(EventType.ONBOARDING_COMPLETED, { source, durationSec });
   },
   paywallViewed: (source: string, placement: string, tierContext: 'free' | 'pro' | 'vip') => {
-    trackVipEvent(EventType.PAYWALL_VIEWED, { source, placement, tierContext });
+    trackEvent(EventType.PAYWALL_VIEWED, { source, placement, tierContext });
   },
   paywallCtaClicked: (source: string, ctaId: string, tierContext: 'free' | 'pro' | 'vip') => {
-    trackVipEvent(EventType.PAYWALL_CTA_CLICKED, { source, ctaId, tierContext });
+    trackEvent(EventType.PAYWALL_CTA_CLICKED, { source, ctaId, tierContext });
   },
   trialStarted: (source: string, planType: string) => {
-    trackVipEvent(EventType.TRIAL_STARTED, { source, planType });
+    trackEvent(EventType.TRIAL_STARTED, { source, planType });
   },
   retentionHeartbeat: (dayBucket: 'd1' | 'd7' | 'd30', source: string) => {
-    trackVipEvent(EventType.RETENTION_HEARTBEAT, { dayBucket, source });
+    trackEvent(EventType.RETENTION_HEARTBEAT, { dayBucket, source });
   },
 };
 

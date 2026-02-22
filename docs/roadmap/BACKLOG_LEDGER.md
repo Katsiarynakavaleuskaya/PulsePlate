@@ -1004,8 +1004,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TELEMETRY-API-NORMALIZATION
-  - Status: Planned (Wave 2 / day 31-90)
+  - Target PR: PR #863 (feat/telemetry-api-normalization)
+  - Status: In review
   - Area: frontend / analytics / architecture
   - Finding Type: naming/abstraction hygiene
   - Locations:
@@ -1016,11 +1016,11 @@ If it is not recorded here — it does not exist.
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
   - DoD:
-    - Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
-    - Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
-    - Enum constraints documented for shared growth fields where runtime validation is required
-    - Tests updated for both legacy and new entrypoints
-    - `make verify` and required CI checks pass
+    - [x] Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
+    - [x] Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
+    - [x] Enum constraints documented for shared growth fields where runtime validation is required
+    - [x] Tests updated for both legacy and new entrypoints
+    - [ ] `make verify` and required CI checks pass
 
 - [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya

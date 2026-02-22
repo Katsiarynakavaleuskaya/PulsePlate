@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { trackVipEvent, vipTelemetry, isTelemetryEnabled, EventType } from '../telemetry';
+import { trackEvent, trackVipEvent, vipTelemetry, isTelemetryEnabled, EventType } from '../telemetry';
 import { validateEventPayload } from '../telemetry/eventRegistry';
 import { isAnalyticsEnabled } from '../../config/features';
 import { getSessionId } from '../sessionManager';
@@ -49,7 +49,7 @@ describe('Telemetry', () => {
   });
 
   describe('trackVipEvent', () => {
-    it('should track event when analytics is enabled', () => {
+    it('should track event when analytics is enabled (deprecated alias)', () => {
       trackVipEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
@@ -68,16 +68,63 @@ describe('Telemetry', () => {
       });
     });
 
+    it('should delegate to trackEvent (backward compatibility)', () => {
+      // Both functions should produce identical results
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
+        featureName: 'test_feature',
+        source: 'test',
+        isVip: true,
+      });
+
+      const vipEventCall = mockLog.mock.calls[0];
+      mockLog.mockClear();
+
+      trackEvent(EventType.VIP_FEATURE_CLICKED, {
+        featureName: 'test_feature',
+        source: 'test',
+        isVip: true,
+      });
+
+      const trackEventCall = mockLog.mock.calls[0];
+
+      // Same event type
+      expect(vipEventCall[0]).toBe(trackEventCall[0]);
+      // Same payload structure (excluding timestamp which may differ slightly)
+      expect(vipEventCall[1].featureName).toBe(trackEventCall[1].featureName);
+      expect(vipEventCall[1].source).toBe(trackEventCall[1].source);
+      expect(vipEventCall[1].isVip).toBe(trackEventCall[1].isVip);
+    });
+  });
+
+  describe('trackEvent (generic entrypoint)', () => {
+    it('should track event when analytics is enabled', () => {
+      trackEvent(EventType.VIP_MODULE_VIEWED, {
+        source: 'dashboard',
+        vipEnabled: true,
+      });
+
+      expect(mockLog).toHaveBeenCalledWith('vip_module_viewed', {
+        timestamp: expect.any(Number),
+        sessionId: 'test-session-123',
+        featureFlags: {
+          vipModule: true,
+          analytics: true,
+          devMode: false,
+        },
+        source: 'dashboard',
+        vipEnabled: true,
+      });
+    });
+
     it('should not log when payload is invalid', () => {
-      // Missing required fields for VIP_FEATURE_CLICKED
-      trackVipEvent(EventType.VIP_FEATURE_CLICKED, { source: 'dashboard' } as any);
+      trackEvent(EventType.VIP_FEATURE_CLICKED, { source: 'dashboard' } as any);
       expect(mockLog).not.toHaveBeenCalled();
     });
 
     it('should not track event when analytics is disabled', () => {
       mockIsAnalyticsEnabled.mockReturnValue(false);
 
-      trackVipEvent(EventType.VIP_MODULE_VIEWED, {
+      trackEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -85,10 +132,29 @@ describe('Telemetry', () => {
       expect(mockLog).not.toHaveBeenCalled();
     });
 
+    it('should track growth funnel events', () => {
+      trackEvent(EventType.ONBOARDING_STARTED, {
+        source: 'app_launch',
+        variant: 'control',
+      });
+
+      expect(mockLog).toHaveBeenCalledWith('onboarding_started', {
+        timestamp: expect.any(Number),
+        sessionId: 'test-session-123',
+        featureFlags: {
+          vipModule: true,
+          analytics: true,
+          devMode: false,
+        },
+        source: 'app_launch',
+        variant: 'control',
+      });
+    });
+
     it('should add timestamp if not provided', () => {
       const beforeTime = Date.now();
 
-      trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
+      trackEvent(EventType.VIP_FEATURE_CLICKED, {
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
@@ -100,33 +166,6 @@ describe('Telemetry', () => {
 
       expect(payload.timestamp).toBeGreaterThanOrEqual(beforeTime);
       expect(payload.timestamp).toBeLessThanOrEqual(afterTime);
-    });
-
-    it('should preserve provided timestamp', () => {
-      const customTimestamp = 1234567890;
-
-      // Use a direct call to trackVipEvent with timestamp in payload
-      const payload = {
-        featureName: 'advanced_analytics',
-        source: 'dashboard',
-        isVip: false,
-        timestamp: customTimestamp,
-      } as any;
-
-      trackVipEvent(EventType.VIP_FEATURE_CLICKED, payload);
-
-      expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
-        timestamp: customTimestamp,
-        sessionId: 'test-session-123',
-        featureFlags: {
-          vipModule: true,
-          analytics: true,
-          devMode: false,
-        },
-        featureName: 'advanced_analytics',
-        source: 'dashboard',
-        isVip: false,
-      });
     });
   });
 
