@@ -65,7 +65,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "targets_fixture_data",
         "utils_pack",
         "weekly_plan_helpers",
-        "shoplist_helpers",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",
         "legacy_bmi_removed",

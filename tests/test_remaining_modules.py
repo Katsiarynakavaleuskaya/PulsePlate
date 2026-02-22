@@ -20,77 +20,65 @@ class TestShoplistModule:
 
     def test_packaging_rule_class(self):
         """Test PackagingRule dataclass."""
-        try:
-            from core.shoplist import PackagingRule
+        from core.shoplist import PackagingRule
 
-            # Test creating packaging rule
-            rule = PackagingRule(
-                category="grains",
-                unit="g",
-                typical_packages=[100, 250, 500, 1000],
-                rounding_strategy="up",
-            )
+        # Test creating packaging rule
+        rule = PackagingRule(
+            category="grains",
+            unit="g",
+            typical_packages=[100, 250, 500, 1000],
+            rounding_strategy="up",
+        )
 
-            assert rule.category == "grains"
-            assert rule.unit == "g"
-            assert rule.typical_packages == [100, 250, 500, 1000]
-            assert rule.rounding_strategy == "up"
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
+        assert rule.category == "grains"
+        assert rule.unit == "g"
+        assert rule.typical_packages == [100, 250, 500, 1000]
+        assert rule.rounding_strategy == "up"
 
     def test_shopping_item_class(self):
         """Test ShoppingItem dataclass."""
-        try:
-            from core.shoplist import ShoppingItem
+        from core.shoplist import ShoppingItem
 
-            # Test creating shopping item
-            item = ShoppingItem(name="chicken breast", quantity=500.0, unit="g", category="meat")
+        # Test creating shopping item
+        item = ShoppingItem(name="chicken breast", quantity=500.0, unit="g", category="meat")
 
-            assert item.name == "chicken breast"
-            assert item.quantity == 500.0
-            assert item.unit == "g"
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
+        assert item.name == "chicken breast"
+        assert item.quantity == 500.0
+        assert item.unit == "g"
 
     def test_shoplist_functions(self):
         """Test shoplist utility functions."""
-        try:
-            from core.shoplist import (
-                create_shopping_list,
-                group_by_category,
-                optimize_packaging,
-            )
+        from core.shoplist import (
+            create_shopping_list,
+            group_by_category,
+            optimize_packaging,
+        )
 
-            # Test with mock meal plan
-            meal_plan = {
-                "day1": {
-                    "breakfast": [{"name": "oats", "amount": 50, "unit": "g"}],
-                    "lunch": [{"name": "chicken", "amount": 150, "unit": "g"}],
-                    "dinner": [{"name": "rice", "amount": 100, "unit": "g"}],
-                }
+        # Test with mock meal plan
+        meal_plan = {
+            "day1": {
+                "breakfast": [{"name": "oats", "amount": 50, "unit": "g"}],
+                "lunch": [{"name": "chicken", "amount": 150, "unit": "g"}],
+                "dinner": [{"name": "rice", "amount": 100, "unit": "g"}],
             }
+        }
 
-            # Test shopping list creation
-            shopping_list = create_shopping_list(meal_plan)
-            assert isinstance(shopping_list, (list, dict, type(None)))
+        # Test shopping list creation
+        shopping_list = create_shopping_list(meal_plan)
+        assert isinstance(shopping_list, (list, dict, type(None)))
 
-            # Test packaging optimization
-            items = [
-                {"name": "flour", "quantity": 350, "unit": "g"},
-                {"name": "sugar", "quantity": 150, "unit": "g"},
-            ]
+        # Test packaging optimization
+        items = [
+            {"name": "flour", "quantity": 350, "unit": "g"},
+            {"name": "sugar", "quantity": 150, "unit": "g"},
+        ]
 
-            optimized = optimize_packaging(items)
-            assert isinstance(optimized, (list, dict, type(None)))
+        optimized = optimize_packaging(items)
+        assert isinstance(optimized, (list, dict, type(None)))
 
-            # Test category grouping
-            grouped = group_by_category(items)
-            assert isinstance(grouped, (dict, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "shoplist_helpers", reason=FEATURE_REASON)
+        # Test category grouping
+        grouped = group_by_category(items)
+        assert isinstance(grouped, (dict, type(None)))
 
 
 class TestWeeklyPlanModule:
