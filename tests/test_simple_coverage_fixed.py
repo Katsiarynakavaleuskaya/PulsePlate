@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
+
 
 class TestSimpleCoverageBoost:
     """Простые тесты для увеличения покрытия модулей"""
@@ -63,8 +65,8 @@ class TestSimpleCoverageBoost:
             )
             assert coverage.nutrient_name == "protein"
 
-        except ImportError:
-            pytest.skip("targets module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "targets_fixture_data", reason=FEATURE_REASON)
 
     def test_i18n_module_coverage(self):
         """Покрытие core/i18n.py (83% -> 95%+)"""
@@ -102,8 +104,8 @@ class TestSimpleCoverageBoost:
                 normalized = i18n_module.normalize_lang(None)
                 assert normalized in ["en", "ru", "es"]
 
-        except ImportError:
-            pytest.skip("i18n module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
 
     def test_rag_simple_module_coverage(self):
         """Покрытие core/rag/simple_rag.py (77% -> 90%+)"""
@@ -182,8 +184,8 @@ class TestSimpleCoverageBoost:
                 index = rag_module._get_index()
                 assert isinstance(index, list)
 
-        except ImportError:
-            pytest.skip("rag.simple_rag module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
 
     def test_food_sources_coverage(self):
         """Покрытие core/food_sources/ модулей"""
@@ -251,8 +253,8 @@ class TestSimpleCoverageBoost:
             if hasattr(base_module, "FoodRecord"):
                 assert base_module.FoodRecord is not None
 
-        except ImportError:
-            pytest.skip("food_sources modules not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
     def test_other_core_modules(self):
         """Покрытие остальных core модулей"""
@@ -466,8 +468,8 @@ class TestSimpleCoverageBoost:
 
             assert region_catalog_module is not None
 
-        except ImportError:
-            pytest.skip("Some core modules not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_unified_db_module_coverage(self) -> None:
@@ -489,8 +491,8 @@ class TestSimpleCoverageBoost:
                 result = await unified_db_module.get_unified_food_db()
                 assert result is mock_db
 
-        except ImportError:
-            pytest.skip("unified_db module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
 
     def test_update_manager_module_coverage(self):
         """Покрытие core/food_apis/update_manager.py (95% -> 97%+)"""
@@ -504,5 +506,5 @@ class TestSimpleCoverageBoost:
             manager = update_manager_module.DatabaseUpdateManager(update_interval_hours=1)
             assert manager is not None
 
-        except ImportError:
-            pytest.skip("update_manager module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)

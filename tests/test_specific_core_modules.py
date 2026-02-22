@@ -13,6 +13,8 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
+
 
 class TestAliasesModule:
     """Test core.aliases module specifically."""
@@ -27,8 +29,8 @@ class TestAliasesModule:
             assert isinstance(result, dict)
             assert len(result) == 0
 
-        except ImportError:
-            pytest.skip("aliases module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "aliases_module", reason=FEATURE_REASON)
 
     def test_aliases_load_with_data(self):
         """Test loading aliases with mock CSV data."""
@@ -43,8 +45,8 @@ class TestAliasesModule:
                 assert isinstance(result, dict)
                 assert "apple" in result or len(result) >= 0
 
-        except ImportError:
-            pytest.skip("aliases module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "aliases_module", reason=FEATURE_REASON)
 
     def test_map_to_canonical(self):
         """Test canonical name mapping."""
@@ -72,8 +74,8 @@ class TestAliasesModule:
             result = map_to_canonical("Green-Apple Fruit")
             assert isinstance(result, str)
 
-        except ImportError:
-            pytest.skip("aliases module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "aliases_module", reason=FEATURE_REASON)
 
     def test_add_alias(self):
         """Test adding new aliases."""
@@ -99,8 +101,8 @@ class TestAliasesModule:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
 
-        except ImportError:
-            pytest.skip("aliases module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "aliases_module", reason=FEATURE_REASON)
 
 
 class TestTargetsModule:
@@ -248,8 +250,8 @@ class TestMenuEngineModule:
 
             assert isinstance(result, WeekMenu)
 
-        except ImportError:
-            pytest.skip("menu_engine module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_nutrition_totals(self):
         """Test nutrition totals calculation."""
