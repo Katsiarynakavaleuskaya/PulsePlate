@@ -1270,7 +1270,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 📋 Planned (seeded by PR-747 protocol cleanup)
+  - Status: 🔄 In progress (PR-748 audit pass: 2 keys enabled, 22 ad-hoc skips migrated)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1288,7 +1288,17 @@ If it is not recorded here — it does not exist.
     - Runtime `feature_disabled:<key>` skip count decreases as features land.
     - Ledger item is updated with merged PR references per implemented key.
   - Implemented keys (latest):
-    - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`)
+    - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`); gate removed in PR-748
+    - `aliases_module` -> ✅ Enabled (PR-748); core/aliases.py fully implemented
+  - Keys still gated (module exists but tested API surface incomplete):
+    - `utils_pack`: core/utils.py exists but safe_float/safe_int/slugify not implemented
+    - `weekly_plan_helpers`: core/weekly_plan.py exists but calculate_weekly_nutrition/optimize_weekly_variety/validate_weekly_plan not implemented
+    - `core_db`: core/db.py exists but get_db not exported
+    - `food_apis`: core/food_apis/ exists but search_food/get_food_details not implemented
+    - `unified_db`: core/food_apis/unified_db.py exists but import chain issues
+  - Ad-hoc skip migration (PR-748):
+    - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
+    - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
 
 - [x] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
   - Owner: @katsiaryna_kavaleuskaya

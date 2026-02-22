@@ -13,94 +13,80 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
+
 
 class TestAliasesModule:
     """Test core.aliases module specifically."""
 
     def test_aliases_load_empty(self):
         """Test loading aliases with non-existent file."""
-        try:
-            from core.aliases import _load_aliases
+        from core.aliases import _load_aliases
 
-            # Test with non-existent file
-            result = _load_aliases("/non/existent/path.csv")
-            assert isinstance(result, dict)
-            assert len(result) == 0
-
-        except ImportError:
-            pytest.skip("aliases module not available")
+        # Test with non-existent file
+        result = _load_aliases("/non/existent/path.csv")
+        assert isinstance(result, dict)
+        assert len(result) == 0
 
     def test_aliases_load_with_data(self):
         """Test loading aliases with mock CSV data."""
-        try:
-            from core.aliases import _load_aliases
+        from core.aliases import _load_aliases
 
-            # Mock CSV data
-            csv_content = "alias,canonical\napple,fruit_apple\nbanana,fruit_banana\n"
+        # Mock CSV data
+        csv_content = "alias,canonical\napple,fruit_apple\nbanana,fruit_banana\n"
 
-            with patch("builtins.open", mock_open(read_data=csv_content)):
-                result = _load_aliases("mock_path.csv")
-                assert isinstance(result, dict)
-                assert "apple" in result or len(result) >= 0
-
-        except ImportError:
-            pytest.skip("aliases module not available")
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            result = _load_aliases("mock_path.csv")
+            assert isinstance(result, dict)
+            assert "apple" in result
 
     def test_map_to_canonical(self):
         """Test canonical name mapping."""
-        try:
-            from core.aliases import map_to_canonical
+        from core.aliases import map_to_canonical
 
-            # Test empty input
-            result = map_to_canonical("")
-            assert result == "unknown"
+        # Test empty input
+        result = map_to_canonical("")
+        assert result == "unknown"
 
-            # Test None input
-            result = map_to_canonical(cast(Any, None))
-            assert result == "unknown"
+        # Test None input
+        result = map_to_canonical(cast(Any, None))
+        assert result == "unknown"
 
-            # Test normal input
-            result = map_to_canonical("Apple Fruit")
-            assert isinstance(result, str)
-            assert len(result) > 0
+        # Test normal input
+        result = map_to_canonical("Apple Fruit")
+        assert isinstance(result, str)
+        assert len(result) > 0
 
-            # Test special characters
-            result = map_to_canonical("Apple & Banana!")
-            assert isinstance(result, str)
+        # Test special characters
+        result = map_to_canonical("Apple & Banana!")
+        assert isinstance(result, str)
 
-            # Test spaces and hyphens
-            result = map_to_canonical("Green-Apple Fruit")
-            assert isinstance(result, str)
-
-        except ImportError:
-            pytest.skip("aliases module not available")
+        # Test spaces and hyphens
+        result = map_to_canonical("Green-Apple Fruit")
+        assert isinstance(result, str)
 
     def test_add_alias(self):
         """Test adding new aliases."""
+        from core.aliases import add_alias
+
+        # Test with temporary file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            temp_path = f.name
+
         try:
-            from core.aliases import add_alias
+            # Add alias to new file
+            add_alias("test_alias", "test_canonical", temp_path)
 
-            # Test with temporary file
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-                temp_path = f.name
+            # Verify file was created and contains data
+            assert os.path.exists(temp_path)
 
-            try:
-                # Add alias to new file
-                add_alias("test_alias", "test_canonical", temp_path)
+            with open(temp_path, "r") as f:
+                content = f.read()
+                assert "test_alias" in content
 
-                # Verify file was created and contains data
-                assert os.path.exists(temp_path)
-
-                with open(temp_path, "r") as f:
-                    content = f.read()
-                    assert "test_alias" in content or len(content) >= 0
-
-            finally:
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
-
-        except ImportError:
-            pytest.skip("aliases module not available")
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
 
 class TestTargetsModule:
@@ -248,8 +234,8 @@ class TestMenuEngineModule:
 
             assert isinstance(result, WeekMenu)
 
-        except ImportError:
-            pytest.skip("menu_engine module not available")
+        except ImportError as exc:
+            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
 
     def test_nutrition_totals(self):
         """Test nutrition totals calculation."""
