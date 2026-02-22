@@ -1377,23 +1377,38 @@ If it is not recorded here — it does not exist.
     - ✅ Docs tail from PR #835 moved to follow-up PR (#843)
     - ✅ Merge-readiness process hardened with CI policy gate PR (#844)
 
-- [ ] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
+- [x] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design consistency / velocity)
-  - Target PR: PR/HPP-Token-Parity-Web-iOS
-  - Status: 📋 Planned
+  - Target PR: PR #870 (`feat/cross-platform-design-system-tokens-primitives`)
+  - Status: ✅ Merged (PR #870, 2026-02-22)
+  - Merge SHA: 3f5481d8
+  - Area: ios / frontend / design-system
   - Reason: Web has initial brand colors in `frontend/src/styles/tokens.ts`, but iOS lacks a centralized token mirror
     (colors/spacing/typography/motion). Without a minimal design system, UI work drifts, is slower to delegate, and is
     harder to review consistently across platforms.
   - Links:
+    - [PR #870](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/870)
     - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (design canon + agent roster + checklists)
-    - `frontend/src/styles/tokens.ts` (current Web token starting point)
+    - `frontend/src/styles/tokens.ts` (Web token SoT)
+    - `ios/PulsePlate/DesignSystem/DesignTokens.swift` (iOS token SoT)
+    - `ios/PulsePlate/DesignSystem/PPButton.swift`
+    - `ios/PulsePlate/DesignSystem/PPCard.swift`
+    - `ios/PulsePlate/DesignSystem/PPInput.swift`
+    - `ios/PulsePlate/DesignSystem/PPTypography.swift`
     - `frontend/AGENTS.md`, `ios/AGENTS.md` (thin-client + CI invariants)
+  - Review remediations:
+    - Cubic P2: sync `textValue` when bound value changes externally (commit `90f8c181`)
+    - CodeRabbit Major: use `NumberFormatter` for locale-aware parsing (commit `0a720f78`)
+    - CodeRabbit Nitpick: reduce duplicated card styling via `.ppCardStyle()` (commit `0a720f78`)
   - DoD:
-    - Token canon defined (colors + spacing + typography + motion + elevation) with explicit names
-    - iOS has a single source for tokens (SwiftUI-friendly) and uses it in new components
-    - Web components consume tokens (no hardcoded brand colors/spacing in new primitives)
-    - Minimal primitives exist on both platforms: Button, Card, Input, Typography
+    - ✅ Token canon defined (colors + spacing + typography + motion + elevation) with explicit names
+    - ✅ iOS has a single source for tokens (`DesignTokens.swift`, SwiftUI-friendly) and uses it in new components
+    - ✅ Web components consume tokens (no hardcoded brand colors/spacing in new primitives)
+    - ✅ Minimal primitives exist on both platforms: Button, Card, Input, Typography
+    - ✅ Locale-aware numeric input via `NumberFormatter` (iOS PPInput)
+    - ✅ All bot review comments addressed and mapped in PR body
+    - ✅ CI checks green; merge readiness gate passed
 
 - [ ] Accessibility: ship-blocking UI checklist + enforcement for Web+iOS
   - Owner: @katsiaryna_kavaleuskaya
