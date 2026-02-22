@@ -115,7 +115,7 @@ export function trackVipEvent<T extends EventType>(
   eventType: T,
   payload: EventPayloadMap[T]
 ): void {
-  return trackEvent(eventType, payload);
+  trackEvent(eventType, payload);
 }
 
 /**
