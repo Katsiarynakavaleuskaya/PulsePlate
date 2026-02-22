@@ -232,8 +232,6 @@ class TestDirectCoreFunctions:
             locale_info = get_locale_info("en")
             assert isinstance(locale_info, (dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -318,8 +316,6 @@ class TestDirectCoreFunctions:
             # Test adding knowledge
             add_knowledge("Protein is essential for muscle building and repair.")
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 

@@ -1,7 +1,6 @@
 """Tests to boost coverage for core/targets.py to 97%."""
 
 import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature
 
 from core.targets import MicronutrientTargets
 
@@ -48,68 +47,28 @@ class TestTargetsCoverage97:
 
     def test_get_target_valid_nutrient(self) -> None:
         """Test get_target with valid nutrient."""
-        # Test with a nutrient that should exist
-        try:
-            result = self.targets.get_target("calcium")
-            assert isinstance(result, float)
-        except ValueError:
-            # If calcium doesn't exist, try another nutrient
-            try:
-                result = self.targets.get_target("iron")
-                assert isinstance(result, float)
-            except ValueError:
-                # If no nutrients exist, skip this test
-                require_feature("targets_fixture_data", reason=FEATURE_REASON)
+        result = self.targets.get_target("calcium_mg")
+        assert isinstance(result, float)
 
     def test_get_minimum_valid_nutrient(self) -> None:
         """Test get_minimum with valid nutrient."""
-        try:
-            result = self.targets.get_minimum("calcium")
-            assert isinstance(result, float)
-        except ValueError:
-            try:
-                result = self.targets.get_minimum("iron")
-                assert isinstance(result, float)
-            except ValueError:
-                require_feature("targets_fixture_data", reason=FEATURE_REASON)
+        result = self.targets.get_minimum("calcium_mg")
+        assert isinstance(result, float)
 
     def test_get_maximum_valid_nutrient(self) -> None:
         """Test get_maximum with valid nutrient."""
-        try:
-            result = self.targets.get_maximum("calcium")
-            assert isinstance(result, float)
-        except ValueError:
-            try:
-                result = self.targets.get_maximum("iron")
-                assert isinstance(result, float)
-            except ValueError:
-                require_feature("targets_fixture_data", reason=FEATURE_REASON)
+        result = self.targets.get_maximum("calcium_mg")
+        assert isinstance(result, float)
 
     def test_is_deficient_true(self) -> None:
         """Test is_deficient with deficient value."""
-        try:
-            # Test with a very low value that should be deficient
-            result = self.targets.is_deficient("calcium", 0.1)
-            assert isinstance(result, bool)
-        except ValueError:
-            try:
-                result = self.targets.is_deficient("iron", 0.1)
-                assert isinstance(result, bool)
-            except ValueError:
-                require_feature("targets_fixture_data", reason=FEATURE_REASON)
+        result = self.targets.is_deficient("calcium_mg", 0.1)
+        assert isinstance(result, bool)
 
     def test_is_deficient_false(self) -> None:
         """Test is_deficient with sufficient value."""
-        try:
-            # Test with a high value that should not be deficient
-            result = self.targets.is_deficient("calcium", 1000.0)
-            assert isinstance(result, bool)
-        except ValueError:
-            try:
-                result = self.targets.is_deficient("iron", 100.0)
-                assert isinstance(result, bool)
-            except ValueError:
-                require_feature("targets_fixture_data", reason=FEATURE_REASON)
+        result = self.targets.is_deficient("calcium_mg", 1000.0)
+        assert isinstance(result, bool)
 
     def test_priority_nutrients_structure(self):
         """Test priority_nutrients structure."""
