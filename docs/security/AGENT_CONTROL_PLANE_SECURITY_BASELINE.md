@@ -89,7 +89,7 @@ Define the minimum security controls required to operate PulsePlate agent automa
 |------|-------------|-------------------|---------------|
 | R1 | Deterministic tokens (no nonce) enable prediction | P2 backlog: nonce-bearing tokens | Tests show distinct tokens for same scope+timestamp |
 | R2 | Sandbox not yet implemented for high-risk actions | P2 backlog: C4-b sandboxed execution | ADR-003 amendment approved, runtime enforcement green |
-| R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota | Hard quota test at `test_llm_monthly_quota.py` passes |
+| R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota | Hard quota test at `tests/test_insight_vip_monthly_quota_api.py` passes |
 | R4 | Prompt injection defense is policy-only (no content filtering) | Accepted risk: policy gate sufficient for MVP | N/A (accepted) |
 
 ### Detection Indicators
