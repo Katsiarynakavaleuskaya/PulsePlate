@@ -1276,7 +1276,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 🔄 In progress (PR-877: 3 more keys enabled — targets_fixture_data, i18n_advanced, rag; 5 total enabled, 13 remaining)
+  - Status: 🔄 In progress (PR-879: 3 more keys enabled — core_db, food_apis, unified_db; 8 total enabled, 10 remaining)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1299,12 +1299,13 @@ If it is not recorded here — it does not exist.
     - `targets_fixture_data` -> ✅ Enabled (PR-877); gates removed from 3 test files (test_targets_coverage_97.py, test_core_coverage_97_final.py, test_simple_coverage_fixed.py)
     - `i18n_advanced` -> ✅ Enabled (PR-877); thin facades added to core/i18n.py (TranslationManager + 8 functions); gates removed from 4 test files
     - `rag` -> ✅ Enabled (PR-877); thin facades added to core/rag/simple_rag.py (RAGEngine/SimpleRAG + 6 functions); gates removed from 4 test files
+    - `core_db` -> ✅ Enabled (PR-879); thin facades added to core/db.py (get_db, create_tables, init_database, get_unified_food_db); gates removed from 9 test files
+    - `food_apis` -> ✅ Enabled (PR-879); thin facades added to core/food_apis/ (base.py, usda.py, openfoodfacts.py, scheduler.py); gates removed from 9 test files
+    - `unified_db` -> ✅ Enabled (PR-879); thin facades added to core/food_apis/unified_db.py (UnifiedFoodDB, FoodSource, merge_food_sources, update_unified_db); gates removed from 9 test files
   - Keys still gated (module exists but tested API surface incomplete):
     - `utils_pack`: core/utils.py exists but safe_float/safe_int/slugify not implemented
     - `weekly_plan_helpers`: core/weekly_plan.py exists but calculate_weekly_nutrition/optimize_weekly_variety/validate_weekly_plan not implemented
-    - `core_db`: core/db.py exists but get_db not exported
-    - `food_apis`: core/food_apis/ exists but search_food/get_food_details not implemented
-    - `unified_db`: core/food_apis/unified_db.py exists but import chain issues
+    - `food_apis_error_injection`: error injection paths in food_apis — tests expect different API signatures than implementation provides
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
