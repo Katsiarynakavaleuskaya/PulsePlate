@@ -98,7 +98,7 @@ psycopg[binary]==3.3.3
     # via -r requirements.in
 psycopg-binary==3.3.3
     # via psycopg
-pyarrow==23.0.0
+pyarrow==23.0.1
     # via -r requirements.in
 pycparser==2.23
     # via cffi
