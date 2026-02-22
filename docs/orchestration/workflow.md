@@ -109,6 +109,55 @@ For tasks that introduce or modify agent automation:
 
 ---
 
+## Hint Levels for Agent Tasks (EVMbench-inspired)
+
+**Purpose:** Define hint levels that improve agent task success rates.
+
+**Rationale:** EVMbench research shows hints (low/medium/high) materially improve PATCH/EXPLOIT success. Discovery is often the bottleneck, not repair.
+
+### Hint Level Definitions
+
+| Level | Context Provided | When to Use |
+|-------|------------------|-------------|
+| **Low** | Branch name + link to CI run | Simple tasks, experienced agent |
+| **Medium** | Failed job name + log snippet | Standard CI fix tasks |
+| **High** | Exact failing assertion + suggested fix location | Complex failures, new patterns |
+
+### Fix-CI Task Hints
+
+| Level | Example Hint |
+|-------|--------------|
+| **Low** | "Branch `fix/nightly` CI is red. Run link: <url>" |
+| **Medium** | "Job `test-pr (3.13.6)` failed. Error: `AssertionError` in `test_bmi_calculation`. Log: `Expected 25.0, got 24.99`" |
+| **High** | "Test `tests/test_bmi.py::test_bmi_calculation` line 42 fails. Root cause: rounding precision. Fix in `core/bmi/engine.py:compute_bmi()` — use `round(result, 2)`" |
+
+### Coordinator Task Hints
+
+| Level | Example Hint |
+|-------|--------------|
+| **Low** | "Implement feature X per backlog item Y" |
+| **Medium** | "Feature X should use pattern from `app/routers/bmi.py`. Tests needed in `tests/test_feature_x.py`" |
+| **High** | "Feature X: (1) Add schema in `app/schemas/x.py` like `BmiRequest`, (2) Add router in `app/routers/x.py` with `require_pro_tier`, (3) Add tests covering 200/422/403 cases" |
+
+### Security Remediation Hints
+
+| Level | Example Hint |
+|-------|--------------|
+| **Low** | "CVE-2026-1234 affects package X. Fix it." |
+| **Medium** | "CVE-2026-1234: package X < 2.0.0 is vulnerable. Bump to ≥2.0.0 in requirements.txt" |
+| **High** | "CVE-2026-1234: (1) Update `requirements.in` line 15, (2) Run `pip-compile`, (3) Update `constraints.txt`, (4) Create `docs/security/CVE-2026-1234-x.md`, (5) Run `pytest tests/test_dependency_security_guard.py`" |
+
+### Usage in Prompts
+
+When routing tasks, coordinator should include appropriate hint level based on:
+- Agent experience with this task type
+- Complexity of the failure/feature
+- Time constraints
+
+**Default:** Start with **Medium** hints. Escalate to **High** if agent struggles or task is novel.
+
+---
+
 ## Step 2: Agent Assignment
 
 **When:** After Task Analysis

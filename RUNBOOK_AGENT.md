@@ -68,6 +68,7 @@ The coordinator will automatically delegate to specialized agents and synthesize
 
 | Protocol | Purpose | When to Use |
 |----------|---------|-------------|
+| [Task Evaluation Contract](docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md) | Success criteria per task class | Every task (pass/fail criteria) |
 | [Context Map](docs/orchestration/AGENT_CONTEXT_MAP.md) | Define which files each agent must load | Every task (Pre-flight Checklist) |
 | [Capability Matrix](docs/orchestration/AGENT_CAPABILITY_MATRIX.md) | Agent routing guide (advisory) | Task assignment |
 | [Handoff Protocol](docs/orchestration/AGENT_HANDOFF_PROTOCOL.md) | Sequential agent delegation | Multi-agent tasks (A → B → C) |
@@ -107,6 +108,30 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 - Security scans pass when applicable (see `AGENTS.md` for policy and tools)
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
+
+## Guard Coverage Step (EVMbench-inspired)
+
+**Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.
+
+**When:** Before closing any guard/security PR.
+
+**Steps:**
+
+1. **Run full guard suite:**
+   ```bash
+   pytest -q tests/test_repo_policy_guards.py
+   ```
+
+2. **Confirm no related violations in changed modules:**
+   - If PR touches `app/routers/`, verify no BMI math violations
+   - If PR touches `core/`, verify no duplicate module patterns
+   - If PR touches security config, verify Trivy/bandit pass
+
+3. **Scope check:**
+   - All violations of the same class should be fixed in this PR
+   - If additional violations exist, either fix them or track in `BACKLOG_LEDGER.md`
+
+**Rationale:** EVMbench scores on comprehensive coverage. Partial fixes (fix one, leave others) result in low scores and technical debt.
 
 ## Pre-push hygiene checklist (mandatory)
 
