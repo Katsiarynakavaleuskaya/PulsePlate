@@ -1668,8 +1668,8 @@ If it is not recorded here — it does not exist.
 - [x] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (drift prevention)
-  - Target PR: PR #633
-  - Status: ✅ Completed (PR #633)
+  - Target PR: PR #633 (merged `29546992`, 2026-02-03)
+  - Status: ✅ Merged (PR #633, 2026-02-03)
   - Resolution: PR-633 unified TargetsIn by making `legacy_app.TargetsIn` a thin alias to canonical
     `app.schemas.nutrition_targets.TargetsIn`. Guard test `test_legacy_targets_in_is_canonical_alias()`
     in `tests/test_targets_in_parity.py` prevents future drift.
