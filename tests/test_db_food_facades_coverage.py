@@ -5,7 +5,10 @@ Exercises every thin facade added to satisfy feature-key imports.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass  # reserved for future type imports
 
 
 class TestCoreDbFacades:
@@ -147,7 +150,7 @@ class TestFoodSourcesFacades:
     def test_normalize_food_data(self) -> None:
         from core.food_sources.base import normalize_food_data
 
-        data: dict[str, Any] = {"name": "apple"}
+        data: dict[str, str] = {"name": "apple"}
         assert normalize_food_data(data) == data
 
     def test_validate_food_entry(self) -> None:
@@ -206,14 +209,14 @@ class TestSchedulerInstancePath:
         """Cover line 338: when _scheduler_instance is not None."""
         from unittest.mock import MagicMock, patch
 
-        import core.food_apis.scheduler as sched_module
+        import core.food_apis.scheduler as schedModule
 
-        mock_scheduler = MagicMock()
-        mock_scheduler.get_status.return_value = {"status": "running"}
+        mockScheduler = MagicMock()
+        mockScheduler.get_status.return_value = {"status": "running"}
 
-        with patch.object(sched_module, "_scheduler_instance", mock_scheduler):
+        with patch.object(schedModule, "_scheduler_instance", mockScheduler):
             from core.food_apis.scheduler import check_update_status
 
             result = check_update_status()
             assert result == {"status": "running"}
-            mock_scheduler.get_status.assert_called_once()
+            mockScheduler.get_status.assert_called_once()

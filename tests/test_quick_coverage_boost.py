@@ -267,18 +267,18 @@ class TestQuickCoverageBoost:
         from core.food_apis.unified_db import UnifiedFoodDB
 
         # Тест UnifiedFoodDB напрямую (sync facade)
-        unified_db = UnifiedFoodDB()
+        unifiedDb = UnifiedFoodDB()
 
         # Тест с некорректными поисковыми запросами
-        result = unified_db.search_foods("")
+        result = unifiedDb.search_foods("")
         assert isinstance(result, list)
 
-        result = unified_db.search_foods(None)
+        result = unifiedDb.search_foods(None)
         assert isinstance(result, list)
 
         # Тест с экстремально длинным запросом
         long_query = "x" * 1000
-        result = unified_db.search_foods(long_query)
+        result = unifiedDb.search_foods(long_query)
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
