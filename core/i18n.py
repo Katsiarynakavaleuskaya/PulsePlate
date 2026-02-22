@@ -534,7 +534,7 @@ class TranslationManager:
     def __init__(self) -> None:
         self._translations = TRANSLATIONS
 
-    def get(self, lang: Language, key: str, **kwargs: Any) -> str:  # noqa: ANN003
+    def get(self, lang: Language, key: str, **kwargs: object) -> str:
         return t(lang, key, **kwargs)
 
     def load(self, lang: str) -> dict[str, str]:
@@ -577,6 +577,6 @@ def set_default_language(lang: str) -> None:
     """Set default language (no-op stub)."""
 
 
-def translate(lang: Language, key: str, **kwargs: Any) -> str:  # noqa: ANN003
+def translate(lang: Language, key: str, **kwargs: object) -> str:
     """Alias for t()."""
     return t(lang, key, **kwargs)

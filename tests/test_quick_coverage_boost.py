@@ -233,7 +233,7 @@ class TestQuickCoverageBoost:
         result = catalog.get_products_by_category("test_category", "XX")
         assert isinstance(result, list)
 
-    def test_rag_simple_missing_paths(self):
+    def test_rag_simple_missing_paths(self) -> None:
         """Покрытие core/rag/simple_rag.py missing paths (77% -> 90%+)"""
         from core.rag.simple_rag import SimpleRAG, query_knowledge_base
 

@@ -14,7 +14,7 @@ from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 class TestSimpleCoverageBoost:
     """Простые тесты для увеличения покрытия модулей"""
 
-    def test_targets_module_coverage(self):
+    def test_targets_module_coverage(self) -> None:
         """Покрытие core/targets.py (93% -> 97%+)"""
         import core.targets as targets_module
 
@@ -63,7 +63,7 @@ class TestSimpleCoverageBoost:
         )
         assert coverage.nutrient_name == "protein"
 
-    def test_i18n_module_coverage(self):
+    def test_i18n_module_coverage(self) -> None:
         """Покрытие core/i18n.py (83% -> 95%+)"""
         import core.i18n as i18n_module
 
@@ -98,7 +98,7 @@ class TestSimpleCoverageBoost:
             normalized = i18n_module.normalize_lang(None)
             assert normalized in ["en", "ru", "es"]
 
-    def test_rag_simple_module_coverage(self):
+    def test_rag_simple_module_coverage(self) -> None:
         """Покрытие core/rag/simple_rag.py (77% -> 90%+)"""
         import core.rag.simple_rag as rag_module
 
@@ -243,7 +243,7 @@ class TestSimpleCoverageBoost:
         except ImportError as exc:
             require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
-    def test_i18n_facades_coverage(self):
+    def test_i18n_facades_coverage(self) -> None:
         """Cover thin i18n facades added for feature key enablement."""
         from core.i18n import (
             TranslationManager,
@@ -287,7 +287,7 @@ class TestSimpleCoverageBoost:
 
         set_default_language("en")
 
-    def test_rag_facades_coverage(self):
+    def test_rag_facades_coverage(self) -> None:
         """Cover thin RAG facades added for feature key enablement."""
         from core.rag.simple_rag import (
             RAGEngine,

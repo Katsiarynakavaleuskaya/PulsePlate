@@ -108,7 +108,7 @@ class TestCoreCoverage97Final:
         except ImportError as exc:
             require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
 
-    def test_core_targets_functions(self):
+    def test_core_targets_functions(self) -> None:
         """Test core.targets functions."""
         import core.targets as targets
 
@@ -147,7 +147,7 @@ class TestCoreCoverage97Final:
         except ImportError as exc:
             require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
 
-    def test_core_rag_simple_rag_classes(self):
+    def test_core_rag_simple_rag_classes(self) -> None:
         """Test core.rag.simple_rag classes."""
         import core.rag.simple_rag as rag
 
