@@ -1116,7 +1116,7 @@ Figma Component: `PP/Web/State/Offline`
 **Figma Page:** `13_Web_NutritionSetup`
 **Source:** `frontend/src/pages/NutritionSetup/index.tsx:11`
 
-**Two States: Form and Result**
+#### Two States: Form and Result
 
 **Form State (SetupForm):**
 - Nutrition parameter inputs (activity level, goal, dietary preferences)
@@ -1215,21 +1215,24 @@ Thin wrapper around BeforeAfter component (see section 5.13).
 
 3-4 screen onboarding flow, similar to iOS but adapted for web.
 
-**Screen 1: Welcome**
+#### Screen 1: Welcome
+
 - FitChef Large centered
 - Brand slogan: "Always on your Pulse"
 - Subtitle: "Nutrition - Body - Lifestyle"
 - ECG line accent (decorative)
 - CTA: "Get Started"
 
-**Screen 2: Features**
+#### Screen 2: Features
+
 - Three feature cards in horizontal row (responsive to vertical on mobile):
   - BMI Calculator: scale icon + description
   - Nutrition Plate: plate icon + description
   - Progress Tracking: chart icon + description
 - CTA: "Continue"
 
-**Screen 3: Setup**
+#### Screen 3: Setup
+
 - Enter API key form (integrated from EnterKey page)
 - "Connect" primary button
 - "Skip for now" ghost button
@@ -1416,20 +1419,20 @@ All text in iOS must support Dynamic Type scaling:
 | File | Size | Usage |
 |------|------|-------|
 | AppIcon-1024.png | 1024x1024 | App Store |
-| AppIcon-20@1x.png | 20x20 | iPad notifications |
-| AppIcon-20@2x.png | 40x40 | iPhone notifications |
-| AppIcon-20@3x.png | 60x60 | iPhone notifications |
-| AppIcon-29@1x.png | 29x29 | iPad settings |
-| AppIcon-29@2x.png | 58x58 | iPhone settings |
-| AppIcon-29@3x.png | 87x87 | iPhone settings |
-| AppIcon-40@1x.png | 40x40 | iPad spotlight |
-| AppIcon-40@2x.png | 80x80 | iPhone spotlight |
-| AppIcon-40@3x.png | 120x120 | iPhone spotlight |
-| AppIcon-60@2x.png | 120x120 | iPhone app |
-| AppIcon-60@3x.png | 180x180 | iPhone app |
-| AppIcon-76@1x.png | 76x76 | iPad app |
-| AppIcon-76@2x.png | 152x152 | iPad app |
-| AppIcon-83.5@2x.png | 167x167 | iPad Pro app |
+| `AppIcon-20@1x.png` | 20x20 | iPad notifications |
+| `AppIcon-20@2x.png` | 40x40 | iPhone notifications |
+| `AppIcon-20@3x.png` | 60x60 | iPhone notifications |
+| `AppIcon-29@1x.png` | 29x29 | iPad settings |
+| `AppIcon-29@2x.png` | 58x58 | iPhone settings |
+| `AppIcon-29@3x.png` | 87x87 | iPhone settings |
+| `AppIcon-40@1x.png` | 40x40 | iPad spotlight |
+| `AppIcon-40@2x.png` | 80x80 | iPhone spotlight |
+| `AppIcon-40@3x.png` | 120x120 | iPhone spotlight |
+| `AppIcon-60@2x.png` | 120x120 | iPhone app |
+| `AppIcon-60@3x.png` | 180x180 | iPhone app |
+| `AppIcon-76@1x.png` | 76x76 | iPad app |
+| `AppIcon-76@2x.png` | 152x152 | iPad app |
+| `AppIcon-83.5@2x.png` | 167x167 | iPad Pro app |
 
 ### 10.2 Screenshots (NEW DESIGN)
 
