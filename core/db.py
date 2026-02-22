@@ -39,6 +39,8 @@ if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
+    from core.food_apis.unified_db import UnifiedFoodDatabase
+
 sa_asyncio: ModuleType | None
 try:  # Optional async support
     sa_asyncio = importlib.import_module("sqlalchemy.ext.asyncio")
@@ -955,7 +957,7 @@ def init_database(database_url: str | None = None) -> "Engine":
     return init_db(database_url)
 
 
-def get_unified_food_db() -> object | None:
+def get_unified_food_db() -> "UnifiedFoodDatabase | None":
     """Lazy-import and return a :class:`UnifiedFoodDatabase` instance, or *None*."""
     try:
         from core.food_apis.unified_db import UnifiedFoodDatabase  # noqa: PLC0415

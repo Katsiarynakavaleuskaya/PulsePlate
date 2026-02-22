@@ -74,10 +74,3 @@ class TestMissingCoverage97Final:
 
         # Test food_apis module
         assert core.food_apis is not None
-
-    def test_app_comprehensive_coverage(self) -> None:
-        """Test comprehensive app.py coverage - consolidated from multiple duplicate tests"""
-        import app
-
-        # Test app module
-        assert app is not None

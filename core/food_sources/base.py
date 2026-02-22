@@ -8,7 +8,7 @@ EN: Base adapter interface.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable
+from typing import Dict, Iterable
 
 
 @dataclass
@@ -73,16 +73,16 @@ class FoodSourceBase:
         pass
 
 
-def merge_food_entries(entries: list[dict[str, Any]], **kwargs: object) -> dict[str, Any]:
+def merge_food_entries(entries: list[dict[str, object]], **kwargs: object) -> dict[str, object]:
     """Return first entry or empty dict."""
     return entries[0] if entries else {}
 
 
-def normalize_food_data(data: dict[str, Any], **kwargs: object) -> dict[str, Any]:
+def normalize_food_data(data: dict[str, object], **kwargs: object) -> dict[str, object]:
     """Return data unchanged."""
     return data
 
 
-def validate_food_entry(entry: dict[str, Any], **kwargs: object) -> bool:
+def validate_food_entry(entry: dict[str, object], **kwargs: object) -> bool:
     """Accept all entries."""
     return True

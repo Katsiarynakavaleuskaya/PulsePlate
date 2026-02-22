@@ -33,32 +33,37 @@ def test_feature_manifest_keys_are_used_in_tests() -> None:
 
 def test_require_feature_skip_reason_uses_canonical_prefix() -> None:
     """Require canonical feature_disabled:<key> skip reason prefix."""
+    if not FEATURE_TODO_KEYS:
+        pytest.skip("No gated features remain")
+    test_key = sorted(FEATURE_TODO_KEYS)[0]
     manifest = FeatureManifest(enabled=frozenset())
     with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
-        require_feature("planner_engines", reason="CP3 guard check", manifest=manifest)
+        require_feature(test_key, reason="CP3 guard check", manifest=manifest)
 
-    assert str(exc_info.value).startswith("feature_disabled:planner_engines")
+    assert str(exc_info.value).startswith(f"feature_disabled:{test_key}")
 
 
 def test_require_feature_or_raise_reraises_when_feature_enabled() -> None:
     """Enabled feature must re-raise ImportError (never skip silently)."""
-    manifest = FeatureManifest(enabled=frozenset({"planner_engines"}))
-    sentinel = ImportError("planner_engines import failed")
+    if not FEATURE_TODO_KEYS:
+        pytest.skip("No gated features remain")
+    test_key = sorted(FEATURE_TODO_KEYS)[0]
+    manifest = FeatureManifest(enabled=frozenset({test_key}))
+    sentinel = ImportError(f"{test_key} import failed")
 
-    with pytest.raises(ImportError, match="planner_engines import failed"):
-        require_feature_or_raise(
-            sentinel, "planner_engines", reason="CP3 guard check", manifest=manifest
-        )
+    with pytest.raises(ImportError, match=f"{test_key} import failed"):
+        require_feature_or_raise(sentinel, test_key, reason="CP3 guard check", manifest=manifest)
 
 
 def test_require_feature_or_raise_skips_when_feature_disabled() -> None:
     """Disabled feature may skip with canonical reason."""
+    if not FEATURE_TODO_KEYS:
+        pytest.skip("No gated features remain")
+    test_key = sorted(FEATURE_TODO_KEYS)[0]
     manifest = FeatureManifest(enabled=frozenset())
-    sentinel = ImportError("planner_engines import failed")
+    sentinel = ImportError(f"{test_key} import failed")
 
     with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
-        require_feature_or_raise(
-            sentinel, "planner_engines", reason="CP3 guard check", manifest=manifest
-        )
+        require_feature_or_raise(sentinel, test_key, reason="CP3 guard check", manifest=manifest)
 
-    assert str(exc_info.value).startswith("feature_disabled:planner_engines")
+    assert str(exc_info.value).startswith(f"feature_disabled:{test_key}")

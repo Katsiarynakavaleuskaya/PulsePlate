@@ -6,8 +6,6 @@ EN: Thin facade consumed by coverage tests.
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class OpenFoodSource:
     """Minimal OpenFoodFacts source wrapper."""
@@ -15,6 +13,6 @@ class OpenFoodSource:
     def __init__(self, **kwargs: object) -> None:
         pass
 
-    def search(self, query: str, **kwargs: object) -> list[dict[str, Any]]:
+    def search(self, query: str, **kwargs: object) -> list[dict[str, object]]:
         """Return empty result set."""
         return []
