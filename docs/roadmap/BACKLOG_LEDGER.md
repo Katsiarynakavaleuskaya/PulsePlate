@@ -980,11 +980,11 @@ If it is not recorded here — it does not exist.
     - [x] CI throughput baseline and target defined with flake budget owner
     - [x] Follow-up implementation PRs linked (deferred to Wave 2 CI enforcement phase)
 
-- [ ] P1: Wave 2 experimentation framework and paywall optimization loop
+- [x] P1: Wave 2 experimentation framework and paywall optimization loop
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #852 (docs/wave2-experimentation-framework)
-  - Status: In review
+  - Status: ✅ Completed (PR #852, 2026-02-21, merge SHA `851f1728`)
   - Area: product / growth / analytics
   - Finding Type: growth optimization
   - Locations:
@@ -996,16 +996,17 @@ If it is not recorded here — it does not exist.
     - `docs/analytics/EXPERIMENT_REGISTRY.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
     - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
+    - [PR #852](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/852)
   - DoD:
     - [x] Experiment lifecycle states documented
     - [x] Initial prioritized growth experiments registered with owners and dates
     - [x] Guardrail metrics required for promotion decisions
 
-- [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
+- [x] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #863 (feat/telemetry-api-normalization)
-  - Status: In review
+  - Status: ✅ Completed (PR #863, 2026-02-22, merge SHA `f5b7d299`)
   - Area: frontend / analytics / architecture
   - Finding Type: naming/abstraction hygiene
   - Locations:
@@ -1015,12 +1016,13 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
     - `docs/analytics/ANALYTICS_INDEX.md`
+    - [PR #863](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/863)
   - DoD:
     - [x] Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
     - [x] Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
     - [x] Enum constraints documented for shared growth fields where runtime validation is required
     - [x] Tests updated for both legacy and new entrypoints
-    - [ ] `make verify` and required CI checks pass
+    - [x] `make verify` and required CI checks pass
 
 - [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
   - Owner: @katsiaryna_kavaleuskaya
