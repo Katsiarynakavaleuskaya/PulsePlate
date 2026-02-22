@@ -1276,7 +1276,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 🔄 In progress (PR-876: 3 more keys enabled — targets_fixture_data, i18n_advanced, rag; 5 total enabled, 13 remaining)
+  - Status: 🔄 In progress (PR-877: 3 more keys enabled — targets_fixture_data, i18n_advanced, rag; 5 total enabled, 13 remaining)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1296,9 +1296,9 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`); gate removed in PR-748
     - `aliases_module` -> ✅ Enabled (PR-748); core/aliases.py fully implemented
-    - `targets_fixture_data` -> ✅ Enabled (PR-876); gates removed from 3 test files (test_targets_coverage_97.py, test_core_coverage_97_final.py, test_simple_coverage_fixed.py)
-    - `i18n_advanced` -> ✅ Enabled (PR-876); thin facades added to core/i18n.py (TranslationManager + 8 functions); gates removed from 4 test files
-    - `rag` -> ✅ Enabled (PR-876); thin facades added to core/rag/simple_rag.py (RAGEngine/SimpleRAG + 6 functions); gates removed from 4 test files
+    - `targets_fixture_data` -> ✅ Enabled (PR-877); gates removed from 3 test files (test_targets_coverage_97.py, test_core_coverage_97_final.py, test_simple_coverage_fixed.py)
+    - `i18n_advanced` -> ✅ Enabled (PR-877); thin facades added to core/i18n.py (TranslationManager + 8 functions); gates removed from 4 test files
+    - `rag` -> ✅ Enabled (PR-877); thin facades added to core/rag/simple_rag.py (RAGEngine/SimpleRAG + 6 functions); gates removed from 4 test files
   - Keys still gated (module exists but tested API surface incomplete):
     - `utils_pack`: core/utils.py exists but safe_float/safe_int/slugify not implemented
     - `weekly_plan_helpers`: core/weekly_plan.py exists but calculate_weekly_nutrition/optimize_weekly_variety/validate_weekly_plan not implemented
