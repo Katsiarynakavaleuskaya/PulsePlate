@@ -266,12 +266,14 @@ Base unit: 4px. Source: `frontend/src/styles/tokens.css:114`
 | `--spacing-24` | 6rem | 96px | Page header |
 
 **Touch Targets:**
+
 | Token | Value | Usage |
 |-------|-------|-------|
 | `--spacing-touch` | 44px / 2.75rem | Minimum interactive element size (Apple HIG) |
 | `--spacing-touch-large` | 56px / 3.5rem | Large touch target |
 
 **Button Padding:**
+
 | Size | Padding (v h) | Figma |
 |------|---------------|-------|
 | sm | 8px 16px | `0.5rem 1rem` |
@@ -279,6 +281,7 @@ Base unit: 4px. Source: `frontend/src/styles/tokens.css:114`
 | lg | 16px 32px | `1rem 2rem` |
 
 **Input Padding:**
+
 | Size | Padding (v h) | Figma |
 |------|---------------|-------|
 | sm | 8px 12px | `0.5rem 0.75rem` |
@@ -375,7 +378,7 @@ Base unit: 4px. Source: `frontend/src/styles/tokens.css:114`
 
 ### 4.1 Page Structure
 
-```
+```text
 00_Foundation_Tokens      Colors, typography, spacing, shadows, icons
 01_Components             All reusable component sets
 02_iOS_Launch             Launch screen + splash
@@ -437,6 +440,7 @@ Glass-morphism container used as the primary card surface throughout the app.
 - Shadow: `0 8px 30px rgba(0,0,0,0.12)`
 
 **Variants:**
+
 | Variant | Background | Border | Text Color |
 |---------|------------|--------|------------|
 | Neutral | `white/10%` | `white/15%` | `#FFFFFF` |
@@ -588,6 +592,7 @@ Circular (donut) chart showing macronutrient distribution.
 - Background ring: `#E5E7EB` (gray-200)
 
 **Segment Colors:**
+
 | Macro | Color | Figma |
 |-------|-------|-------|
 | Carbohydrates | `#339FFF` (Blue) | `PP/Brand/Blue` |
@@ -728,6 +733,7 @@ Figma Component Set: `PP/Shared/Branding/FitChef`
 Animated wellness mascot character.
 
 **Variants:**
+
 | Variant | Description | Usage |
 |---------|-------------|-------|
 | Static | Single frame, standing pose | Fallback, small sizes |
@@ -737,6 +743,7 @@ Animated wellness mascot character.
 | Idle | Gentle breathing/sway | Background presence |
 
 **Sizes:**
+
 | Size | Dimensions | Usage |
 |------|------------|-------|
 | Small | 60x60px | Inline hints, badges |
@@ -772,6 +779,7 @@ Brand signature visual element reinforcing the "pulse" concept. Currently not im
 - Wellness-safe: abstract/artistic interpretation, not clinical monitor
 
 **Variants:**
+
 | Variant | Description | Usage |
 |---------|-------------|-------|
 | Static | Single waveform line | Dividers, card accents |
@@ -876,31 +884,35 @@ Figma Component: `PP/Web/State/Offline`
 
 3-4 screen onboarding flow accessed via `WelcomeGateView`.
 
-**Screen 1: Brand Introduction**
+#### Screen 1: Brand Introduction
+
 - Layers: Navy background, FitChef Large (180px) centered, Brand slogan, ECG line accent
 - CTA: "Get Started" primary button, full width
 
-**Screen 2: Value Proposition**
+#### Screen 2: Value Proposition
+
 - Layers: Navy background, Three feature cards (GlassCard neutral):
   - "Smart Balance" (scale icon, brief text)
   - "Nutrition Tracking" (plate icon, brief text)
   - "Progress Insights" (chart icon, brief text)
 - CTA: "Continue" primary button
 
-**Screen 3: Feature Highlights**
+#### Screen 3: Feature Highlights
+
 - Layers: Navy background, interactive preview mockups:
   - BMI Calculator preview
   - Nutrition Plate preview
   - Weekly Plan preview
 - CTA: "Let's Go" primary button
 
-**Screen 4: Permissions (Optional)**
+#### Screen 4: Permissions (Optional)
+
 - Layers: Navy background, Permission request cards:
   - HealthKit access (heart icon)
   - Notifications (bell icon)
 - CTAs: "Allow" primary button, "Skip" ghost button
 
-**Shared Navigation:**
+#### Shared Navigation
 - Page indicator dots at bottom (8px circles, active: white, inactive: white 30%)
 - Skip button: top-right, ghost style, "Skip"
 - Swipe gesture between screens
