@@ -35,26 +35,30 @@ def test_require_feature_skip_reason_uses_canonical_prefix() -> None:
     """Require canonical feature_disabled:<key> skip reason prefix."""
     manifest = FeatureManifest(enabled=frozenset())
     with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
-        require_feature("core_db", reason="CP3 guard check", manifest=manifest)
+        require_feature("planner_engines", reason="CP3 guard check", manifest=manifest)
 
-    assert str(exc_info.value).startswith("feature_disabled:core_db")
+    assert str(exc_info.value).startswith("feature_disabled:planner_engines")
 
 
 def test_require_feature_or_raise_reraises_when_feature_enabled() -> None:
     """Enabled feature must re-raise ImportError (never skip silently)."""
-    manifest = FeatureManifest(enabled=frozenset({"core_db"}))
-    sentinel = ImportError("core_db import failed")
+    manifest = FeatureManifest(enabled=frozenset({"planner_engines"}))
+    sentinel = ImportError("planner_engines import failed")
 
-    with pytest.raises(ImportError, match="core_db import failed"):
-        require_feature_or_raise(sentinel, "core_db", reason="CP3 guard check", manifest=manifest)
+    with pytest.raises(ImportError, match="planner_engines import failed"):
+        require_feature_or_raise(
+            sentinel, "planner_engines", reason="CP3 guard check", manifest=manifest
+        )
 
 
 def test_require_feature_or_raise_skips_when_feature_disabled() -> None:
     """Disabled feature may skip with canonical reason."""
     manifest = FeatureManifest(enabled=frozenset())
-    sentinel = ImportError("core_db import failed")
+    sentinel = ImportError("planner_engines import failed")
 
     with pytest.raises(pytest.skip.Exception, match=SKIP_REASON_RE.pattern) as exc_info:
-        require_feature_or_raise(sentinel, "core_db", reason="CP3 guard check", manifest=manifest)
+        require_feature_or_raise(
+            sentinel, "planner_engines", reason="CP3 guard check", manifest=manifest
+        )
 
-    assert str(exc_info.value).startswith("feature_disabled:core_db")
+    assert str(exc_info.value).startswith("feature_disabled:planner_engines")

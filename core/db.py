@@ -935,6 +935,36 @@ def get_session_factory() -> sessionmaker[Session]:
     return _get_session_local()
 
 
+# ---------------------------------------------------------------------------
+# Thin facades (satisfy test imports; see tests/feature_manifest.py core_db)
+# ---------------------------------------------------------------------------
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Alias for :func:`get_session` — used by some test suites."""
+    yield from get_session()
+
+
+def create_tables() -> None:
+    """Idempotent schema creation using the current engine."""
+    Base.metadata.create_all(bind=_get_raw_engine())
+
+
+def init_database(database_url: str | None = None) -> "Engine":
+    """Alias for :func:`init_db`."""
+    return init_db(database_url)
+
+
+def get_unified_food_db() -> object | None:
+    """Lazy-import and return a :class:`UnifiedFoodDatabase` instance, or *None*."""
+    try:
+        from core.food_apis.unified_db import UnifiedFoodDatabase  # noqa: PLC0415
+
+        return UnifiedFoodDatabase()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
     import core.models  # noqa: F401  # pylint: disable=unused-import

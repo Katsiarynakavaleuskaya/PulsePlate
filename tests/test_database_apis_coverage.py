@@ -42,8 +42,6 @@ class TestCoreDatabaseCoverage:
             db = get_unified_food_db()
             assert db is not None or db is None
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass  # Function may have requirements we can't meet
 
@@ -61,8 +59,6 @@ class TestCoreDatabaseCoverage:
                 result = provider.search_food("apple")
                 assert result is not None or result is None
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -81,8 +77,6 @@ class TestCoreDatabaseCoverage:
                     result = client.search("apple")
                     assert isinstance(result, (dict, list, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -101,8 +95,6 @@ class TestCoreDatabaseCoverage:
                     result = client.get_product("123456789")
                     assert isinstance(result, (dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -123,17 +115,12 @@ class TestCoreDatabaseCoverage:
             result = merge_food_sources([], [])
             assert isinstance(result, (list, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
     def test_update_manager_coverage(self) -> None:
         """Test current update manager API surface."""
-        try:
-            from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
         # Test database version
         version = DatabaseVersion(

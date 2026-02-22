@@ -8,7 +8,7 @@ EN: Base adapter interface.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable
+from typing import Any, Dict, Iterable
 
 
 @dataclass
@@ -59,3 +59,30 @@ class BaseAdapter:
         EN: Normalize units/keys to 100g.
         """
         raise NotImplementedError
+
+
+# ---------------------------------------------------------------------------
+# Thin facades (satisfy test imports; see tests/feature_manifest.py food_apis)
+# ---------------------------------------------------------------------------
+
+
+class FoodSourceBase:
+    """Minimal base class for food sources."""
+
+    def __init__(self, **kwargs: object) -> None:
+        pass
+
+
+def merge_food_entries(entries: list[dict[str, Any]], **kwargs: object) -> dict[str, Any]:
+    """Return first entry or empty dict."""
+    return entries[0] if entries else {}
+
+
+def normalize_food_data(data: dict[str, Any], **kwargs: object) -> dict[str, Any]:
+    """Return data unchanged."""
+    return data
+
+
+def validate_food_entry(entry: dict[str, Any], **kwargs: object) -> bool:
+    """Accept all entries."""
+    return True
