@@ -144,13 +144,20 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 ### Known-Good Gate Specifications
 
-| Gate | Known-Good Input | Expected Behavior | Verification Command |
-|------|------------------|-------------------|---------------------|
-| `make verify` | Clean repo, all tests passing | Exit 0, no warnings | `make verify && echo "PASS"` |
-| `merge_readiness_gate` | PR with all checkboxes checked + valid commit mapping | Exit 0 | `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>` |
-| `dependency_security_guard` | `requirements.txt` with all deps at floor versions, no blocked packages | Test passes | `pytest -k dependency_security_guard -q` |
-| `pr_body_phase2_gates` | PR body with `[x]` checkboxes + `- No actionable review comments` | Exit 0 | `python scripts/ci/check_pr_body_phase2_gates.py --body "..."` |
-| `guard_tests` | Codebase with no policy violations | All guards pass | `pytest -q tests/test_repo_policy_guards.py` |
+| Gate | Known-Good Input | Expected Behavior | Evidence Anchor |
+|------|------------------|-------------------|-----------------|
+| `make verify` | Clean repo, all tests passing | Exit 0, no warnings | `Makefile:134` |
+| `merge_readiness_gate` | PR with all checkboxes checked + valid commit mapping | Exit 0 | `scripts/ci/check_pr_merge_readiness.py:251` |
+| `dependency_security_guard` | `requirements.txt` with all deps at floor versions, no blocked packages | Test passes | `tests/test_dependency_security_guard.py:1` |
+| `pr_body_phase2_gates` | PR body with `[x]` checkboxes + `- No actionable review comments` | Exit 0 | `scripts/ci/check_pr_body_phase2_gates.py:107` |
+| `guard_tests` | Codebase with no policy violations | All guards pass | `tests/test_repo_policy_guards.py:1` |
+
+**Verification commands:**
+- `make verify`: `make verify && echo "PASS"`
+- `merge_readiness_gate`: `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>`
+- `dependency_security_guard`: `pytest -k dependency_security_guard -q`
+- `pr_body_phase2_gates`: `python scripts/ci/check_pr_body_phase2_gates.py --body "..."`
+- `guard_tests`: `pytest -q tests/test_repo_policy_guards.py`
 
 ### Gate Validation Protocol
 
@@ -177,12 +184,12 @@ When modifying a gate or its inputs:
 
 ### Core Metrics
 
-| Metric | Definition | Target | Evidence |
-|--------|------------|--------|----------|
-| **CI Fix: First-Run Pass** | PR passes `make verify` on first push | ≥70% | CI logs: first commit → green |
+| Metric | Definition | Target | Evidence Anchor |
+|--------|------------|--------|-----------------|
+| **CI Fix: First-Run Pass** | PR passes `make verify` on first push | ≥70% | CI logs: first commit → green (`Makefile:134`) |
 | **CI Fix: Iteration Limit** | Maximum pushes to achieve green CI | ≤3 | Git log: commit count on PR branch |
-| **Merge Readiness: First-Run** | PR passes merge-readiness gate on first attempt | ≥50% | `check_pr_merge_readiness.py` exit 0 on first run |
-| **Guard Coverage** | All violations of same class fixed in one PR | 100% | `pytest tests/test_repo_policy_guards.py` after PR |
+| **Merge Readiness: First-Run** | PR passes merge-readiness gate on first attempt | ≥50% | `scripts/ci/check_pr_merge_readiness.py:251` exit 0 |
+| **Guard Coverage** | All violations of same class fixed in one PR | 100% | `tests/test_repo_policy_guards.py` after PR |
 | **Docs Accuracy** | Documentation updates match code changes | 100% | Manual review + file anchors present |
 
 ### Metric Collection (Operational)

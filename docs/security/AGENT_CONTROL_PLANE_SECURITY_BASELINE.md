@@ -53,52 +53,54 @@ Define the minimum security controls required to operate PulsePlate agent automa
 
 **Rationale:** EVMbench research demonstrates that AI agents can execute end-to-end exploits against vulnerable systems. Understanding "what would an agent need to do to cause harm" helps validate our controls.
 
+**Evidence anchors:** Control implementations at `app/security/agent_control_plane.py`; tests at `tests/test_agent_control_plane_mvp.py`.
+
 ### Threat Scenarios
 
-| ID | Scenario | Attack Vector | Impact | Mitigating Control |
-|----|----------|---------------|--------|-------------------|
-| T1 | **Secret exfiltration** | Agent extracts credentials from env vars or files and sends to external endpoint | Full credential compromise | C4-a (allowlist), C2-a (policy gate) |
-| T2 | **Privilege escalation** | Agent bypasses policy gate to execute privileged action | Unauthorized system access | C2-a (deny-by-default), C2-b (fail-closed) |
-| T3 | **Audit tampering** | Agent modifies or deletes audit logs to hide malicious activity | Loss of forensic evidence | C3-a (signed envelopes), C3-b (verification) |
-| T4 | **Token theft/replay** | Agent steals or replays scoped tokens beyond intended scope | Extended unauthorized access | C1-a (short TTL), token expiry enforcement |
-| T5 | **Prompt injection** | Malicious content in retrieved data causes agent to execute harmful actions | Arbitrary action execution | C2-a (policy gate), external content untrusted |
-| T6 | **Resource exhaustion** | Agent triggers expensive operations (LLM calls, exports) repeatedly | Financial/operational DoS | Rate limiting, cost alerts (monitoring) |
-| T7 | **Data poisoning** | Agent writes malicious data to config/code files | Persistent backdoor | C4 (isolation), code review, guard tests |
+| ID | Scenario | Attack Vector | Impact | Mitigating Control (with evidence) |
+|----|----------|---------------|--------|-----------------------------------|
+| T1 | **Secret exfiltration** | Agent extracts credentials from env vars or files and sends to external endpoint | Full credential compromise | C4-a (`agent_control_plane.py:106`), C2-a (`agent_control_plane.py:113`) |
+| T2 | **Privilege escalation** | Agent bypasses policy gate to execute privileged action | Unauthorized system access | C2-a (`agent_control_plane.py:113`), C2-b (`agent_control_plane.py:151`) |
+| T3 | **Audit tampering** | Agent modifies or deletes audit logs to hide malicious activity | Loss of forensic evidence | C3-a (`agent_control_plane.py:212`), C3-b (`agent_control_plane.py:254`) |
+| T4 | **Token theft/replay** | Agent steals or replays scoped tokens beyond intended scope | Extended unauthorized access | C1-a (`agent_control_plane.py:276`), TTL enforcement (`test_agent_control_plane_mvp.py:112`) |
+| T5 | **Prompt injection** | Malicious content in retrieved data causes agent to execute harmful actions | Arbitrary action execution | C2-a (`agent_control_plane.py:113`), external content untrusted (policy) |
+| T6 | **Resource exhaustion** | Agent triggers expensive operations (LLM calls, exports) repeatedly | Financial/operational DoS | Rate limiting (`app/security/rate_limit.py`), cost alerts (monitoring) |
+| T7 | **Data poisoning** | Agent writes malicious data to config/code files | Persistent backdoor | C4 (isolation, planned), code review, guard tests (`test_repo_policy_guards.py`) |
 
 ### Control Effectiveness Matrix
 
-| Control | T1 | T2 | T3 | T4 | T5 | T6 | T7 |
-|---------|----|----|----|----|----|----|----|----|
-| C1-a Short-lived tokens | ○ | ○ | - | ● | - | - | - |
-| C1-b Fail-closed secrets | ● | ○ | - | ○ | - | - | - |
-| C2-a Deny-by-default | ● | ● | - | - | ● | ○ | ○ |
-| C2-b Fail-closed policy | ● | ● | - | - | ● | - | - |
-| C3-a Signed audit | - | - | ● | - | - | - | - |
-| C3-b Audit verification | - | - | ● | - | - | - | - |
-| C4-a Outbound allowlist | ● | - | - | - | - | - | - |
-| C4-b Sandboxed execution | ○ | ○ | - | - | ○ | ○ | ● |
-| C5-a Approval model | - | ● | - | - | - | ○ | ○ |
+| Control | Evidence | T1 | T2 | T3 | T4 | T5 | T6 | T7 |
+|---------|----------|----|----|----|----|----|----|----|----|
+| C1-a Short-lived tokens | `agent_control_plane.py:276` | ○ | ○ | - | ● | - | - | - |
+| C1-b Fail-closed secrets | `agent_control_plane.py:167` | ● | ○ | - | ○ | - | - | - |
+| C2-a Deny-by-default | `agent_control_plane.py:113` | ● | ● | - | - | ● | ○ | ○ |
+| C2-b Fail-closed policy | `agent_control_plane.py:151` | ● | ● | - | - | ● | - | - |
+| C3-a Signed audit | `agent_control_plane.py:212` | - | - | ● | - | - | - | - |
+| C3-b Audit verification | `agent_control_plane.py:254` | - | - | ● | - | - | - | - |
+| C4-a Outbound allowlist | `agent_control_plane.py:106` | ● | - | - | - | - | - | - |
+| C4-b Sandboxed execution | ADR-003 Wave 2 (planned) | ○ | ○ | - | - | ○ | ○ | ● |
+| C5-a Approval model | `AGENTS.md:31` (policy) | - | ● | - | - | - | ○ | ○ |
 
 **Legend:** ● = Primary mitigation, ○ = Secondary/partial mitigation, - = Not applicable
 
 ### Residual Risks
 
-| Risk | Description | Mitigation Status |
-|------|-------------|-------------------|
-| R1 | Deterministic tokens (no nonce) enable prediction | P2 backlog: nonce-bearing tokens |
-| R2 | Sandbox not yet implemented for high-risk actions | P2 backlog: C4-b sandboxed execution |
-| R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota |
-| R4 | Prompt injection defense is policy-only (no content filtering) | Accepted risk: policy gate sufficient for MVP |
+| Risk | Description | Mitigation Status | Exit Criteria |
+|------|-------------|-------------------|---------------|
+| R1 | Deterministic tokens (no nonce) enable prediction | P2 backlog: nonce-bearing tokens | Tests show distinct tokens for same scope+timestamp |
+| R2 | Sandbox not yet implemented for high-risk actions | P2 backlog: C4-b sandboxed execution | ADR-003 amendment approved, runtime enforcement green |
+| R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota | Hard quota test at `test_llm_monthly_quota.py` passes |
+| R4 | Prompt injection defense is policy-only (no content filtering) | Accepted risk: policy gate sufficient for MVP | N/A (accepted) |
 
 ### Detection Indicators
 
 Signs that an agent may be attempting malicious activity:
 
-- Repeated policy denials for same action/target pattern
-- Outbound requests to non-allowlisted targets
-- Token issuance rate spike
-- Audit envelope verification failures
-- Unusual error patterns in agent logs
+- Repeated policy denials for same action/target pattern — logged at `evaluate_policy()` (`agent_control_plane.py:113`)
+- Outbound requests to non-allowlisted targets — blocked at `load_allowlist_from_env()` (`agent_control_plane.py:106`)
+- Token issuance rate spike — monitored via `issue_scoped_token()` (`agent_control_plane.py:276`)
+- Audit envelope verification failures — detected at `verify_audit_envelope()` (`agent_control_plane.py:254`)
+- Unusual error patterns in agent logs — application telemetry
 
 ## Controls Ownership and Verification Evidence
 
