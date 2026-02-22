@@ -1004,7 +1004,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #853 (feat/telemetry-api-normalization)
+  - Target PR: PR #863 (feat/telemetry-api-normalization)
   - Status: In review
   - Area: frontend / analytics / architecture
   - Finding Type: naming/abstraction hygiene
