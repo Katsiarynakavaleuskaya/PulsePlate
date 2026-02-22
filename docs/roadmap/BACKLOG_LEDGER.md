@@ -1197,15 +1197,16 @@ If it is not recorded here — it does not exist.
     - No ad-hoc skip reasons are introduced; skip protocol remains `feature_disabled:<key>`.
     - `make verify` passes in the CP3 execution PR.
 
-- [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
+- [x] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-738
-  - Reason for deferral: Runtime test suites currently surface optional-module skips with
-    ad-hoc strings; defer execution until PR-738 introduces `tests/feature_manifest.py` and
-    `require_feature(...)` to standardize skip reasons and keep ledger↔tests keys one-to-one.
-  - Status: 📋 Planned (created in PR-736 docs-only; promoted from runtime snapshot on
-    13 February 2026)
+  - Target PR: PR #873 (merged `ab0b7cc1`)
+  - Status: ✅ Completed (PR #873)
+  - Resolution: PR-873 delivered `tests/feature_manifest.py` with `FEATURE_TODO_KEYS` frozenset,
+    `require_feature()` and `require_feature_or_raise()` helpers, and migrated 22 ad-hoc
+    `pytest.skip()` calls to standardized `feature_disabled:<key>` format across 3 test files.
+    Two modules (`shoplist_helpers`, `aliases_module`) were enabled and removed from gated keys.
+    Remaining 16 gated keys are tracked in the "Unimplemented feature keys backlog" item below.
   - Area: backend / tests / feature debt management
   - Finding Type: technical debt / optional-feature protocol
   - Source of truth command:
@@ -1260,11 +1261,16 @@ If it is not recorded here — it does not exist.
     - `tests/test_quick_coverage_boost.py`
     - `tests/test_zero_coverage_modules.py`
   - DoD:
-    - `tests/feature_manifest.py` exists with SoT feature keys and env opt-in
+    - [x] `tests/feature_manifest.py` exists with SoT feature keys and env opt-in
       (`PULSEPLATE_FEATURES=all` or CSV list).
-    - High-noise suites use shared helper instead of custom ad-hoc skip strings.
-    - Runtime `pytest -q -rs` output shows standardized skip reasons with feature keys.
-    - Feature keys in tests and ledger remain one-to-one mapped.
+    - [x] High-noise suites use shared helper instead of custom ad-hoc skip strings.
+    - [x] Runtime `pytest -q -rs` output shows standardized skip reasons with feature keys.
+    - [x] Feature keys in tests and ledger remain one-to-one mapped.
+  - Evidence:
+    - `tests/feature_manifest.py` — `FEATURE_TODO_KEYS` frozenset + `require_feature()` + `require_feature_or_raise()`
+    - `tests/test_simple_coverage_fixed.py` — 8 calls migrated to `require_feature_or_raise()`
+    - `tests/test_specific_core_modules.py` — 2 calls migrated; `aliases_module` gates removed
+    - `tests/test_plate_targets_micro_coverage.py` — 11 calls migrated (`plate_day_micros` key)
 
 - [ ] P1: Unimplemented feature keys backlog (SoT = tests/feature_manifest.py)
   - Owner: @katsiaryna_kavaleuskaya
@@ -1682,22 +1688,25 @@ If it is not recorded here — it does not exist.
     - Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
     - No contract break for legacy endpoints (explicitly verified in tests)
 
-- [ ] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
+- [x] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (maintainability / import hygiene)
-  - Target PR: TBD (follow-up after PR-631)
-  - Status: 📋 Ready to start
-  - Reason: `app.routers.nutrition_log` uses repeated lazy-import of `NutritionEvent` model to avoid import-time ORM side effects. A tiny helper (import-safe) would reduce duplication and make future additions safer.
-  - Links:
-    - PR #631 (remediation): moved ORM model import from module-level to lazy-import inside handlers
+  - Target PR: PR #746 (merged `5ccf83f5`)
+  - Status: ✅ Completed (PR #746)
+  - Resolution: PR-746 extracted `app/openapi/orm_imports.py` with `get_nutrition_event_model()`,
+    `_lazy_import_attr()` helper, and `_ORM_IMPORT_CACHE` (idempotent, lock-free).
+    `nutrition_log.py` now uses a single `_nutrition_event_model()` wrapper that delegates to
+    the centralized helper. Guard test `test_openapi_import_safe_orm_guard.py` validates
+    import-safety and caching behavior.
   - Evidence:
-    - `app/routers/nutrition_log.py:L68-L84` (lazy-import inside `_fetch_existing_event`)
-    - `app/routers/nutrition_log.py:L172-L176` (lazy-import inside `log_meal`)
-    - `app/routers/nutrition_log.py:L241-L245` (lazy-import inside `close_day`)
+    - `app/openapi/orm_imports.py:43-60` — `get_nutrition_event_model()` with lazy cache
+    - `app/routers/nutrition_log.py:19` — `from app.openapi.orm_imports import get_nutrition_event_model`
+    - `app/routers/nutrition_log.py:41-47` — `_nutrition_event_model()` typed wrapper
+    - `tests/test_openapi_import_safe_orm_guard.py` — guard test for import-safety + cache
   - DoD:
-    - Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
-    - Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
-    - No runtime behavior change (pure refactor)
+    - [x] Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
+    - [x] Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
+    - [x] No runtime behavior change (pure refactor)
 
 - [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya
