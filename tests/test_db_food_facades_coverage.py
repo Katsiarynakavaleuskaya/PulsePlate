@@ -187,15 +187,15 @@ class TestCoreDbExceptionPaths:
         """Cover lines 964-965: exception path returns None."""
         from unittest.mock import patch
 
-        # Mock UnifiedFoodDatabase to raise on instantiation
+        # Mock UnifiedFoodDatabase to raise on import
         with patch(
             "core.food_apis.unified_db.UnifiedFoodDatabase",
-            side_effect=RuntimeError("Test exception"),
+            side_effect=ImportError("Module not available"),
         ):
             from core.db import get_unified_food_db
 
             result = get_unified_food_db()
-            # When exception is raised, should return None
+            # When ImportError is raised, should return None
             assert result is None
 
 

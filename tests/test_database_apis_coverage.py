@@ -24,7 +24,7 @@ pytestmark = pytest.mark.serial
 class TestCoreDatabaseCoverage:
     """Test core database modules for better coverage."""
 
-    def test_database_models_coverage(self):
+    def test_database_models_coverage(self) -> None:
         """Test database models functionality."""
         try:
             from core.db import (
@@ -45,7 +45,7 @@ class TestCoreDatabaseCoverage:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass  # Function may have requirements we can't meet
 
-    def test_food_apis_base_coverage(self):
+    def test_food_apis_base_coverage(self) -> None:
         """Test food APIs base functionality."""
         try:
             from core.food_apis.base import FoodAPIBase, FoodDataProvider
@@ -62,7 +62,7 @@ class TestCoreDatabaseCoverage:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_usda_api_coverage(self):
+    def test_usda_api_coverage(self) -> None:
         """Test USDA API functionality."""
         try:
             from core.food_apis.usda import USDAClient
@@ -80,7 +80,7 @@ class TestCoreDatabaseCoverage:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_openfoodfacts_api_coverage(self):
+    def test_openfoodfacts_api_coverage(self) -> None:
         """Test OpenFoodFacts API functionality."""
         try:
             from core.food_apis.openfoodfacts import OpenFoodFactsClient
@@ -98,7 +98,7 @@ class TestCoreDatabaseCoverage:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_unified_db_coverage(self):
+    def test_unified_db_coverage(self) -> None:
         """Test unified database functionality."""
         try:
             from core.food_apis.unified_db import (
@@ -143,7 +143,7 @@ class TestCoreDatabaseCoverage:
 class TestCoreModulesAdvanced:
     """Advanced tests for core modules."""
 
-    def test_auto_repair_advanced_coverage(self):
+    def test_auto_repair_advanced_coverage(self) -> None:
         """Test advanced auto_repair functionality."""
         try:
             from core.auto_repair import (
@@ -174,7 +174,7 @@ class TestCoreModulesAdvanced:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_menu_engine_advanced_coverage(self):
+    def test_menu_engine_advanced_coverage(self) -> None:
         """Test advanced menu_engine functionality."""
         try:
             from core.menu_engine import (
@@ -205,7 +205,7 @@ class TestCoreModulesAdvanced:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_plate_advanced_coverage(self):
+    def test_plate_advanced_coverage(self) -> None:
         """Test advanced plate functionality."""
         try:
             from core.plate import (
@@ -232,7 +232,7 @@ class TestCoreModulesAdvanced:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_targets_advanced_coverage(self):
+    def test_targets_advanced_coverage(self) -> None:
         """Test advanced targets functionality."""
         try:
             from core.targets import (
@@ -263,7 +263,7 @@ class TestCoreModulesAdvanced:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_i18n_advanced_coverage(self):
+    def test_i18n_advanced_coverage(self) -> None:
         """Test advanced i18n functionality."""
         try:
             from core.i18n import (
@@ -292,7 +292,7 @@ class TestCoreModulesAdvanced:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_rag_advanced_coverage(self):
+    def test_rag_advanced_coverage(self) -> None:
         """Test advanced RAG functionality."""
         try:
             from core.rag.simple_rag import (

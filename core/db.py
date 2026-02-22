@@ -963,7 +963,7 @@ def get_unified_food_db() -> "UnifiedFoodDatabase | None":
         from core.food_apis.unified_db import UnifiedFoodDatabase  # noqa: PLC0415
 
         return UnifiedFoodDatabase()
-    except Exception:  # noqa: BLE001
+    except (ImportError, ModuleNotFoundError):
         return None
 
 
