@@ -34,7 +34,8 @@ class TestCoreDbFacades:
         from core.db import get_unified_food_db
 
         result = get_unified_food_db()
-        assert result is None or result is not None
+        # Facade may return UnifiedFoodDatabase or None depending on import success
+        assert result is None or hasattr(result, "search_food")
 
 
 class TestFoodApisBaseFacades:
@@ -195,7 +196,7 @@ class TestCoreDbExceptionPaths:
 
             result = get_unified_food_db()
             # When exception is raised, should return None
-            assert result is None or result is not None  # Either path is valid
+            assert result is None
 
 
 class TestSchedulerInstancePath:

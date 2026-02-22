@@ -262,18 +262,11 @@ class TestQuickCoverageBoost:
         result = rag.query(special_query)
         assert isinstance(result, str) or result is None
 
-    def test_unified_db_error_paths(self):
+    def test_unified_db_error_paths(self) -> None:
         """Покрытие core/food_apis/unified_db.py error paths (94% -> 97%+)"""
-        from core.food_apis.unified_db import UnifiedFoodDB, get_unified_food_db
+        from core.food_apis.unified_db import UnifiedFoodDB
 
-        # Тест с моксом для вызова ошибок
-        with patch("sqlite3.connect") as mock_connect:
-            mock_connect.side_effect = Exception("Database error")
-            db = get_unified_food_db()
-            # Должен обработать ошибку gracefully
-            assert db is not None or db is None
-
-        # Тест UnifiedFoodDB напрямую
+        # Тест UnifiedFoodDB напрямую (sync facade)
         unified_db = UnifiedFoodDB()
 
         # Тест с некорректными поисковыми запросами

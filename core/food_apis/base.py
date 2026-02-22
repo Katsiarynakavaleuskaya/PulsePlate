@@ -6,8 +6,6 @@ EN: Thin base-class facades consumed by coverage tests.
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class FoodAPIBase:
     """Minimal base class for food API clients."""
@@ -22,6 +20,6 @@ class FoodDataProvider:
     def __init__(self, **kwargs: object) -> None:
         pass
 
-    def search_food(self, query: str, **kwargs: object) -> list[dict[str, Any]]:
+    def search_food(self, query: str, **kwargs: object) -> list[dict[str, object]]:
         """Return empty result set."""
         return []
