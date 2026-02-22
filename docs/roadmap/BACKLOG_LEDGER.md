@@ -701,6 +701,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
   - Area: security / agent control plane
   - Finding Type: security documentation
   - Reason: EVMbench measures exploit capability; we should document abuse scenarios (what would an agent need to do to violate policy?) and map to controls (allowlist, audit trail, token TTL).
@@ -717,6 +718,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
   - Area: runbooks / CI gates
   - Finding Type: process
   - Reason: EVMbench validates graders on oracle solutions. Document expected behavior of merge_readiness_gate and dependency_security_guard on known-good input (e.g. PR with all checkboxes and mapping → pass).
@@ -734,6 +736,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
   - Area: orchestration / quality
   - Finding Type: metrics
   - Reason: Define minimal agent metrics (e.g. "CI fix: pass within N iterations"; "merge readiness: first run vs after edits") and record in ledger or audit when relevant.
