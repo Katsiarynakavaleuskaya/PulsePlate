@@ -449,7 +449,7 @@ Glass-morphism container used as the primary card surface throughout the app.
 
 **Padding options:** none (0), sm (12px), md (16px), lg (24px)
 
-**iOS variant:** Uses system `.ultraThinMaterial` on iOS 17-25, Liquid Glass API on iOS 26+. Includes `reduceTransparency` fallback (solid navy-800 with 0.95 opacity).
+**iOS variant (current implementation):** Uses system `.ultraThinMaterial` on iOS 17-18. **Target (iOS 26+):** Liquid Glass API when available. Includes `reduceTransparency` fallback (solid navy-800 with 0.95 opacity).
 
 **Implementation evidence:** `frontend/src/components/GlassCard.tsx:35`, `ios/PulsePlate/Views/Components/GlassCard.swift:1`
 
