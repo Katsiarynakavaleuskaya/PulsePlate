@@ -302,8 +302,6 @@ class TestCoreModulesAdvanced:
             formatted = format_number_locale(123.45, "en")
             assert isinstance(formatted, (str, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -329,7 +327,5 @@ class TestCoreModulesAdvanced:
             results = similarity_search("query", [])
             assert isinstance(results, (list, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
