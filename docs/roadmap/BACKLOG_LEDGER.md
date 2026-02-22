@@ -647,50 +647,54 @@ If it is not recorded here — it does not exist.
 
 ### EVMbench-inspired agent evaluation (2026-02-21)
 
-- [ ] P1: Agent task evaluation contract (success criteria per task class)
+- [x] P1: Agent task evaluation contract (success criteria per task class)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCS-AGENT-EVAL
-  - Status: Planned
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
   - Area: orchestration / agents / quality
   - Finding Type: process / evaluation
   - Reason: EVMbench-style evaluation requires explicit success criteria and optional recall checklist per task class (CI fix, security remediation, docs-only). Define contract and link to existing gates.
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
   - DoD:
-    - Doc defines success criteria for at least: "CI fix", "security remediation", "docs-only"
-    - Optional recall-style checklist per class; linked from RUNBOOK or AGENTS
+    - [x] Doc defines success criteria for at least: "CI fix", "security remediation", "docs-only"
+    - [x] Optional recall-style checklist per class; linked from RUNBOOK or AGENTS
 
-- [ ] P1: Runbook coverage step — full guard suite and no related violations
+- [x] P1: Runbook coverage step — full guard suite and no related violations
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RUNBOOK
-  - Status: Planned
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
   - Area: runbooks / guards
   - Finding Type: process
   - Reason: EVMbench scores on comprehensive coverage. Before closing a guard/security PR, run full guard suite and ensure no related violations in changed modules.
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `RUNBOOK_AGENT.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
   - DoD:
-    - RUNBOOK step added: "Run full guard suite; confirm no related violations in changed modules"
-    - Referenced from PR template or merge checklist where applicable
+    - [x] RUNBOOK step added: "Run full guard suite; confirm no related violations in changed modules"
+    - [x] Referenced from PR template or merge checklist where applicable
 
-- [ ] P1: Hint levels for coordinator and fix-CI tasks
+- [x] P1: Hint levels for coordinator and fix-CI tasks
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-ORCHESTRATION
-  - Status: Planned
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
   - Area: orchestration / agents
   - Finding Type: process
   - Reason: EVMbench shows hints (low/medium/high) materially improve outcomes. Document hint levels for "fix CI" and coordinator tasks (e.g. low = branch + run link; medium = failed job + log; high = exact assertion + location).
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `docs/orchestration/workflow.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
   - DoD:
-    - Orchestration doc or coordinator prompt template includes hint-level definitions
-    - ci-watcher / loop-on-ci prompts aligned where applicable
+    - [x] Orchestration doc or coordinator prompt template includes hint-level definitions
+    - [x] ci-watcher / loop-on-ci prompts aligned where applicable
 
 - [ ] P1: Agent-as-attacker threat model section in security baseline
   - Owner: @katsiaryna_kavaleuskaya
