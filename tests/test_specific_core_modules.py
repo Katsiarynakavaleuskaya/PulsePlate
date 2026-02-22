@@ -38,7 +38,7 @@ class TestAliasesModule:
         with patch("builtins.open", mock_open(read_data=csv_content)):
             result = _load_aliases("mock_path.csv")
             assert isinstance(result, dict)
-            assert "apple" in result or len(result) >= 0
+            assert "apple" in result
 
     def test_map_to_canonical(self):
         """Test canonical name mapping."""
@@ -82,7 +82,7 @@ class TestAliasesModule:
 
             with open(temp_path, "r") as f:
                 content = f.read()
-                assert "test_alias" in content or len(content) >= 0
+                assert "test_alias" in content
 
         finally:
             if os.path.exists(temp_path):
