@@ -68,6 +68,7 @@ The coordinator will automatically delegate to specialized agents and synthesize
 
 | Protocol | Purpose | When to Use |
 |----------|---------|-------------|
+| [Task Evaluation Contract](docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md) | Success criteria per task class | Every task (pass/fail criteria) |
 | [Context Map](docs/orchestration/AGENT_CONTEXT_MAP.md) | Define which files each agent must load | Every task (Pre-flight Checklist) |
 | [Capability Matrix](docs/orchestration/AGENT_CAPABILITY_MATRIX.md) | Agent routing guide (advisory) | Task assignment |
 | [Handoff Protocol](docs/orchestration/AGENT_HANDOFF_PROTOCOL.md) | Sequential agent delegation | Multi-agent tasks (A → B → C) |
