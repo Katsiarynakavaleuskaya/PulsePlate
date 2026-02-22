@@ -109,6 +109,30 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+## Guard Coverage Step (EVMbench-inspired)
+
+**Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.
+
+**When:** Before closing any guard/security PR.
+
+**Steps:**
+
+1. **Run full guard suite:**
+   ```bash
+   pytest -q tests/test_repo_policy_guards.py
+   ```
+
+2. **Confirm no related violations in changed modules:**
+   - If PR touches `app/routers/`, verify no BMI math violations
+   - If PR touches `core/`, verify no duplicate module patterns
+   - If PR touches security config, verify Trivy/bandit pass
+
+3. **Scope check:**
+   - All violations of the same class should be fixed in this PR
+   - If additional violations exist, either fix them or track in `BACKLOG_LEDGER.md`
+
+**Rationale:** EVMbench scores on comprehensive coverage. Partial fixes (fix one, leave others) result in low scores and technical debt.
+
 ## Pre-push hygiene checklist (mandatory)
 
 Run from repo root before any push/PR:
