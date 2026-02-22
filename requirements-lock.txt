@@ -133,7 +133,7 @@ starlette==0.52.1
     # via
     #   -r requirements.in
     #   fastapi
-tenacity==9.1.2
+tenacity==9.1.4
     # via -r requirements.in
 tqdm==4.67.1
     # via openai
