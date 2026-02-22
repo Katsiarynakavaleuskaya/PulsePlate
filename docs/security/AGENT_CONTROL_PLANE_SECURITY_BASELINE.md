@@ -47,6 +47,59 @@ Define the minimum security controls required to operate PulsePlate agent automa
 - Auto-safe actions can run autonomously
 - High-impact actions require human approval (review-required mode)
 
+## Agent-as-Attacker Threat Model (EVMbench-inspired)
+
+**Purpose:** Document abuse scenarios where an agent could violate policy, and map them to existing controls.
+
+**Rationale:** EVMbench research demonstrates that AI agents can execute end-to-end exploits against vulnerable systems. Understanding "what would an agent need to do to cause harm" helps validate our controls.
+
+### Threat Scenarios
+
+| ID | Scenario | Attack Vector | Impact | Mitigating Control |
+|----|----------|---------------|--------|-------------------|
+| T1 | **Secret exfiltration** | Agent extracts credentials from env vars or files and sends to external endpoint | Full credential compromise | C4-a (allowlist), C2-a (policy gate) |
+| T2 | **Privilege escalation** | Agent bypasses policy gate to execute privileged action | Unauthorized system access | C2-a (deny-by-default), C2-b (fail-closed) |
+| T3 | **Audit tampering** | Agent modifies or deletes audit logs to hide malicious activity | Loss of forensic evidence | C3-a (signed envelopes), C3-b (verification) |
+| T4 | **Token theft/replay** | Agent steals or replays scoped tokens beyond intended scope | Extended unauthorized access | C1-a (short TTL), token expiry enforcement |
+| T5 | **Prompt injection** | Malicious content in retrieved data causes agent to execute harmful actions | Arbitrary action execution | C2-a (policy gate), external content untrusted |
+| T6 | **Resource exhaustion** | Agent triggers expensive operations (LLM calls, exports) repeatedly | Financial/operational DoS | Rate limiting, cost alerts (monitoring) |
+| T7 | **Data poisoning** | Agent writes malicious data to config/code files | Persistent backdoor | C4 (isolation), code review, guard tests |
+
+### Control Effectiveness Matrix
+
+| Control | T1 | T2 | T3 | T4 | T5 | T6 | T7 |
+|---------|----|----|----|----|----|----|----|----|
+| C1-a Short-lived tokens | ○ | ○ | - | ● | - | - | - |
+| C1-b Fail-closed secrets | ● | ○ | - | ○ | - | - | - |
+| C2-a Deny-by-default | ● | ● | - | - | ● | ○ | ○ |
+| C2-b Fail-closed policy | ● | ● | - | - | ● | - | - |
+| C3-a Signed audit | - | - | ● | - | - | - | - |
+| C3-b Audit verification | - | - | ● | - | - | - | - |
+| C4-a Outbound allowlist | ● | - | - | - | - | - | - |
+| C4-b Sandboxed execution | ○ | ○ | - | - | ○ | ○ | ● |
+| C5-a Approval model | - | ● | - | - | - | ○ | ○ |
+
+**Legend:** ● = Primary mitigation, ○ = Secondary/partial mitigation, - = Not applicable
+
+### Residual Risks
+
+| Risk | Description | Mitigation Status |
+|------|-------------|-------------------|
+| R1 | Deterministic tokens (no nonce) enable prediction | P2 backlog: nonce-bearing tokens |
+| R2 | Sandbox not yet implemented for high-risk actions | P2 backlog: C4-b sandboxed execution |
+| R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota |
+| R4 | Prompt injection defense is policy-only (no content filtering) | Accepted risk: policy gate sufficient for MVP |
+
+### Detection Indicators
+
+Signs that an agent may be attempting malicious activity:
+
+- Repeated policy denials for same action/target pattern
+- Outbound requests to non-allowlisted targets
+- Token issuance rate spike
+- Audit envelope verification failures
+- Unusual error patterns in agent logs
+
 ## Controls Ownership and Verification Evidence
 
 Each mandatory control is mapped to an owner, runtime enforcement point, and
