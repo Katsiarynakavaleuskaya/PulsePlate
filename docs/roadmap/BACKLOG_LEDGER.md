@@ -1197,15 +1197,13 @@ If it is not recorded here — it does not exist.
     - No ad-hoc skip reasons are introduced; skip protocol remains `feature_disabled:<key>`.
     - `make verify` passes in the CP3 execution PR.
 
-- [ ] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
+- [x] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-738
-  - Reason for deferral: Runtime test suites currently surface optional-module skips with
-    ad-hoc strings; defer execution until PR-738 introduces `tests/feature_manifest.py` and
-    `require_feature(...)` to standardize skip reasons and keep ledger↔tests keys one-to-one.
-  - Status: 📋 Planned (created in PR-736 docs-only; promoted from runtime snapshot on
-    13 February 2026)
+  - Target PR: PR #791 (CP3 skip drift execution)
+  - Status: ✅ Completed (PR #791, 2026-02-18, merge SHA `2ea565dd`)
+  - Resolution: `tests/feature_manifest.py` implemented with SoT feature keys, `require_feature()`
+    helper, and standardized `feature_disabled:<key>` skip format. All CP3 target suites migrated.
   - Area: backend / tests / feature debt management
   - Finding Type: technical debt / optional-feature protocol
   - Source of truth command:
