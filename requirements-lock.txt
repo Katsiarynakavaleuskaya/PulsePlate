@@ -45,7 +45,7 @@ fastapi==0.129.2
     # via -r requirements.in
 fonttools==4.61.1
     # via matplotlib
-greenlet==3.3.1
+greenlet==3.3.2
     # via
     #   -r requirements.in
     #   sqlalchemy
