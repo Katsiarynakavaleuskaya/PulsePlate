@@ -1307,7 +1307,7 @@ All buttons must have these states designed in Figma:
 | Interactive element borders | 3:1 | WCAG AA |
 | Focus indicators | 3:1 against adjacent colors | WCAG AA |
 
-**Verified pairings:**
+**Verified pairings (computed via WCAG 2.1 relative luminance formula):**
 - Navy `#0F172A` on white `#FFFFFF`: 16.75:1 (pass)
 - White `#FFFFFF` on Navy `#0F172A`: 16.75:1 (pass)
 - Blue `#339FFF` on white: 3.2:1 (pass for large text, needs verification for body)
@@ -1322,7 +1322,7 @@ All buttons must have these states designed in Figma:
 | Web (mobile) | 44x44px | `--spacing-touch: 2.75rem` |
 | Web (desktop) | 32x32px | Acceptable with hover state |
 
-All buttons: `min-height: 44px` enforced via `style={{ minHeight: 44 }}`.
+All buttons: `min-height: 44px` enforced via `style={{ minHeight: 44 }}` (see `frontend/src/components/PremiumGate.tsx:56`, `frontend/src/components/VipGate.tsx:110`, `frontend/src/components/Paywall/BeforeAfter.tsx:191`).
 
 ### 8.3 Focus Management
 
@@ -1478,6 +1478,8 @@ All text in iOS must support Dynamic Type scaling:
 ## 11. Implementation Gap Tracker
 
 Cross-reference with `docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md` and `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`.
+
+Status claims below are target/roadmap assessments based on codebase analysis; for verified `file:line` evidence per component see the Implementation Evidence anchors in sections 5.1-5.18 and the audit doc above.
 
 | Spec Section | Web Status | iOS Status | Priority |
 |-------------|-----------|------------|----------|
