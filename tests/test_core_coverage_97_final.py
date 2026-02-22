@@ -110,17 +110,14 @@ class TestCoreCoverage97Final:
 
     def test_core_targets_functions(self):
         """Test core.targets functions."""
-        try:
-            import core.targets as targets
+        import core.targets as targets
 
-            assert targets is not None
-            # Test if module has expected functions
-            if hasattr(targets, "validate_targets"):
-                assert callable(getattr(targets, "validate_targets"))
-            if hasattr(targets, "calculate_targets"):
-                assert callable(getattr(targets, "calculate_targets"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "targets_fixture_data", reason=FEATURE_REASON)
+        assert targets is not None
+        # Test if module has expected functions
+        if hasattr(targets, "validate_targets"):
+            assert callable(getattr(targets, "validate_targets"))
+        if hasattr(targets, "calculate_targets"):
+            assert callable(getattr(targets, "calculate_targets"))
 
     def test_core_time_utils_functions(self):
         """Test core.time_utils functions."""
@@ -152,19 +149,16 @@ class TestCoreCoverage97Final:
 
     def test_core_rag_simple_rag_classes(self):
         """Test core.rag.simple_rag classes."""
-        try:
-            import core.rag.simple_rag as rag
+        import core.rag.simple_rag as rag
 
-            assert rag is not None
-            # Access attributes safely to satisfy static type checkers
-            SimpleRAG = getattr(rag, "SimpleRAG", None)
-            RAGEngine = getattr(rag, "RAGEngine", None)
-            if SimpleRAG is not None:
-                assert SimpleRAG is not None
-            if RAGEngine is not None:
-                assert RAGEngine is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
+        assert rag is not None
+        # Access attributes safely to satisfy static type checkers
+        SimpleRAG = getattr(rag, "SimpleRAG", None)
+        RAGEngine = getattr(rag, "RAGEngine", None)
+        if SimpleRAG is not None:
+            assert SimpleRAG is not None
+        if RAGEngine is not None:
+            assert RAGEngine is not None
 
     def test_core_recipe_db_functions(self):
         """Test core.recipe_db functions."""

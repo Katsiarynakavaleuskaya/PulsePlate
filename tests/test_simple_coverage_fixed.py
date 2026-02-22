@@ -16,176 +16,163 @@ class TestSimpleCoverageBoost:
 
     def test_targets_module_coverage(self):
         """Покрытие core/targets.py (93% -> 97%+)"""
-        try:
-            import core.targets as targets_module
+        import core.targets as targets_module
 
-            # Проверяем доступность классов
-            assert hasattr(targets_module, "UserProfile")
-            assert hasattr(targets_module, "MacroTargets")
-            assert hasattr(targets_module, "MicronutrientTargets")
-            assert hasattr(targets_module, "NutrientCoverage")
+        # Проверяем доступность классов
+        assert hasattr(targets_module, "UserProfile")
+        assert hasattr(targets_module, "MacroTargets")
+        assert hasattr(targets_module, "MicronutrientTargets")
+        assert hasattr(targets_module, "NutrientCoverage")
 
-            # Создаем и тестируем UserProfile
-            profile = targets_module.UserProfile(
-                sex="male",
-                age=30,
-                height_cm=175,
-                weight_kg=70,
-                activity="moderate",
-                goal="maintain",
-            )
-            assert profile.sex == "male"
-            assert profile.age == 30
+        # Создаем и тестируем UserProfile
+        profile = targets_module.UserProfile(
+            sex="male",
+            age=30,
+            height_cm=175,
+            weight_kg=70,
+            activity="moderate",
+            goal="maintain",
+        )
+        assert profile.sex == "male"
+        assert profile.age == 30
 
-            # Создаем и тестируем MacroTargets
-            macros = targets_module.MacroTargets(protein_g=100, carbs_g=250, fat_g=80, fiber_g=25)
-            assert macros.protein_g == 100
+        # Создаем и тестируем MacroTargets
+        macros = targets_module.MacroTargets(protein_g=100, carbs_g=250, fat_g=80, fiber_g=25)
+        assert macros.protein_g == 100
 
-            # Создаем и тестируем MicronutrientTargets
-            # Создаем и тестируем MicronutrientTargets
-            micros = targets_module.MicronutrientTargets(
-                vitamin_a_ug=(600, 900, 3000),
-                vitamin_c_mg=(75, 90, 2000),
-                calcium_mg=(800, 1000, 2500),
-                iron_mg=(6, 8, 45),
-                magnesium_mg=(300, 400, 350),
-                zinc_mg=(8, 11, 40),
-                potassium_mg=(3500, 4700, 5000),
-                iodine_ug=(130, 150, 1100),
-                selenium_ug=(45, 55, 400),
-                folate_ug=(320, 400, 1000),
-                b12_ug=(2, 2.4, 100),
-                vitamin_d_iu=(400, 600, 4000),
-            )
-            assert micros.vitamin_a_ug == (600, 900, 3000)
+        # Создаем и тестируем MicronutrientTargets
+        micros = targets_module.MicronutrientTargets(
+            vitamin_a_ug=(600, 900, 3000),
+            vitamin_c_mg=(75, 90, 2000),
+            calcium_mg=(800, 1000, 2500),
+            iron_mg=(6, 8, 45),
+            magnesium_mg=(300, 400, 350),
+            zinc_mg=(8, 11, 40),
+            potassium_mg=(3500, 4700, 5000),
+            iodine_ug=(130, 150, 1100),
+            selenium_ug=(45, 55, 400),
+            folate_ug=(320, 400, 1000),
+            b12_ug=(2, 2.4, 100),
+            vitamin_d_iu=(400, 600, 4000),
+        )
+        assert micros.vitamin_a_ug == (600, 900, 3000)
 
-            # Создаем и тестируем NutrientCoverage
-            coverage = targets_module.NutrientCoverage(
-                nutrient_name="protein", target_amount=100, consumed_amount=80, unit="g"
-            )
-            assert coverage.nutrient_name == "protein"
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "targets_fixture_data", reason=FEATURE_REASON)
+        # Создаем и тестируем NutrientCoverage
+        coverage = targets_module.NutrientCoverage(
+            nutrient_name="protein", target_amount=100, consumed_amount=80, unit="g"
+        )
+        assert coverage.nutrient_name == "protein"
 
     def test_i18n_module_coverage(self):
         """Покрытие core/i18n.py (83% -> 95%+)"""
+        import core.i18n as i18n_module
+
+        # Импортируем модуль для покрытия
+        assert hasattr(i18n_module, "t")
+
+        # Тест функции t с различными входными данными
+        result = i18n_module.t("ru", "bmi_underweight")
+        assert isinstance(result, str)
+
+        result = i18n_module.t("en", "bmi_normal")
+        assert isinstance(result, str)
+
+        result = i18n_module.t("es", "bmi_overweight")
+        assert isinstance(result, str)
+
+        # Тест с несуществующим ключом
         try:
-            import core.i18n as i18n_module
+            result = i18n_module.t("ru", "non_existent_key_xyz123")
+            assert False, "Should have raised KeyError for non-existent key"
+        except KeyError:
+            pass  # Expected behavior
 
-            # Импортируем модуль для покрытия
-            assert hasattr(i18n_module, "t")
+        # Тест функции normalize_lang
+        if hasattr(i18n_module, "normalize_lang"):
+            normalized = i18n_module.normalize_lang("ru")
+            assert normalized == "ru"
 
-            # Тест функции t с различными входными данными
-            result = i18n_module.t("ru", "bmi_underweight")
-            assert isinstance(result, str)
+            normalized = i18n_module.normalize_lang("en-US")
+            assert normalized in ["en", "ru", "es"]
 
-            result = i18n_module.t("en", "bmi_normal")
-            assert isinstance(result, str)
-
-            result = i18n_module.t("es", "bmi_overweight")
-            assert isinstance(result, str)
-
-            # Тест с несуществующим ключом
-            try:
-                result = i18n_module.t("ru", "non_existent_key_xyz123")
-                assert False, "Should have raised KeyError for non-existent key"
-            except KeyError:
-                pass  # Expected behavior
-
-            # Тест функции normalize_lang
-            if hasattr(i18n_module, "normalize_lang"):
-                normalized = i18n_module.normalize_lang("ru")
-                assert normalized == "ru"
-
-                normalized = i18n_module.normalize_lang("en-US")
-                assert normalized in ["en", "ru", "es"]
-
-                normalized = i18n_module.normalize_lang(None)
-                assert normalized in ["en", "ru", "es"]
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "i18n_advanced", reason=FEATURE_REASON)
+            normalized = i18n_module.normalize_lang(None)
+            assert normalized in ["en", "ru", "es"]
 
     def test_rag_simple_module_coverage(self):
         """Покрытие core/rag/simple_rag.py (77% -> 90%+)"""
-        try:
-            import core.rag.simple_rag as rag_module
+        import core.rag.simple_rag as rag_module
 
-            # Тест основных функций
-            assert hasattr(rag_module, "retrieve_context")
-            assert hasattr(rag_module, "invalidate_index")
+        # Тест основных функций
+        assert hasattr(rag_module, "retrieve_context")
+        assert hasattr(rag_module, "invalidate_index")
 
-            # Тест функции retrieve_context с различными запросами
-            result = rag_module.retrieve_context("test query")
-            assert isinstance(result, str)
+        # Тест функции retrieve_context с различными запросами
+        result = rag_module.retrieve_context("test query")
+        assert isinstance(result, str)
 
-            result = rag_module.retrieve_context("test query", max_chunks=1)
-            assert isinstance(result, str)
+        result = rag_module.retrieve_context("test query", max_chunks=1)
+        assert isinstance(result, str)
 
-            result = rag_module.retrieve_context("", max_chunks=0)
-            assert isinstance(result, str)
+        result = rag_module.retrieve_context("", max_chunks=0)
+        assert isinstance(result, str)
 
-            # Тест с очень длинным запросом
-            long_query = "test " * 100
-            result = rag_module.retrieve_context(long_query, max_chunks=2)
-            assert isinstance(result, str)
+        # Тест с очень длинным запросом
+        long_query = "test " * 100
+        result = rag_module.retrieve_context(long_query, max_chunks=2)
+        assert isinstance(result, str)
 
-            # Тест invalidate_index
-            rag_module.invalidate_index()
+        # Тест invalidate_index
+        rag_module.invalidate_index()
 
-            # Тест приватных функций для покрытия edge cases
-            if hasattr(rag_module, "_tokenize"):
-                # Тест с пустой строкой
-                tokens = rag_module._tokenize("")
-                assert isinstance(tokens, list)
+        # Тест приватных функций для покрытия edge cases
+        if hasattr(rag_module, "_tokenize"):
+            # Тест с пустой строкой
+            tokens = rag_module._tokenize("")
+            assert isinstance(tokens, list)
 
-                # Тест с Unicode символами
-                tokens = rag_module._tokenize("тест текст")
-                assert isinstance(tokens, list)
+            # Тест с Unicode символами
+            tokens = rag_module._tokenize("тест текст")
+            assert isinstance(tokens, list)
 
-                # Тест с числами и знаками препинания
-                tokens = rag_module._tokenize("test123 text-with-dashes!")
-                assert isinstance(tokens, list)
+            # Тест с числами и знаками препинания
+            tokens = rag_module._tokenize("test123 text-with-dashes!")
+            assert isinstance(tokens, list)
 
-            if hasattr(rag_module, "_chunk"):
-                # Тест с очень маленьким max_chars
-                chunks = rag_module._chunk("test text", max_chars=5)
-                assert isinstance(chunks, list)
+        if hasattr(rag_module, "_chunk"):
+            # Тест с очень маленьким max_chars
+            chunks = rag_module._chunk("test text", max_chars=5)
+            assert isinstance(chunks, list)
 
-                # Тест с пустой строкой
-                chunks = rag_module._chunk("", max_chars=100)
-                assert isinstance(chunks, list)
+            # Тест с пустой строкой
+            chunks = rag_module._chunk("", max_chars=100)
+            assert isinstance(chunks, list)
 
-                # Тест с очень длинным текстом
-                long_text = "word " * 200
-                chunks = rag_module._chunk(long_text, max_chars=50)
-                assert isinstance(chunks, list)
+            # Тест с очень длинным текстом
+            long_text = "word " * 200
+            chunks = rag_module._chunk(long_text, max_chars=50)
+            assert isinstance(chunks, list)
 
-            if hasattr(rag_module, "_score"):
-                # Тест с пустыми строками
-                score = rag_module._score("", "")
-                assert isinstance(score, (int, float))
+        if hasattr(rag_module, "_score"):
+            # Тест с пустыми строками
+            score = rag_module._score("", "")
+            assert isinstance(score, (int, float))
 
-                # Тест с одинаковыми строками
-                score = rag_module._score("test", "test")
-                assert isinstance(score, (int, float))
+            # Тест с одинаковыми строками
+            score = rag_module._score("test", "test")
+            assert isinstance(score, (int, float))
 
-                # Тест с частичным совпадением
-                score = rag_module._score("test query", "test text query")
-                assert isinstance(score, (int, float))
+            # Тест с частичным совпадением
+            score = rag_module._score("test query", "test text query")
+            assert isinstance(score, (int, float))
 
-                # Тест substring bonus
-                score = rag_module._score("test", "this is a test text")
-                assert isinstance(score, (int, float))
+            # Тест substring bonus
+            score = rag_module._score("test", "this is a test text")
+            assert isinstance(score, (int, float))
 
-            # Тест _get_index для покрытия
-            if hasattr(rag_module, "_get_index"):
-                index = rag_module._get_index()
-                assert isinstance(index, list)
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "rag", reason=FEATURE_REASON)
+        # Тест _get_index для покрытия
+        if hasattr(rag_module, "_get_index"):
+            index = rag_module._get_index()
+            assert isinstance(index, list)
 
     def test_food_sources_coverage(self):
         """Покрытие core/food_sources/ модулей"""
@@ -255,6 +242,106 @@ class TestSimpleCoverageBoost:
 
         except ImportError as exc:
             require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+
+    def test_i18n_facades_coverage(self):
+        """Cover thin i18n facades added for feature key enablement."""
+        from core.i18n import (
+            TranslationManager,
+            detect_language,
+            format_number_locale,
+            get_available_languages,
+            get_locale_info,
+            get_supported_languages,
+            load_translations,
+            set_default_language,
+            translate,
+        )
+
+        mgr = TranslationManager()
+        result = mgr.get("en", "bmi_normal")
+        assert isinstance(result, str)
+
+        loaded = mgr.load("en")
+        assert isinstance(loaded, dict)
+
+        lang = detect_language("hello world")
+        assert lang == "en"
+
+        langs = get_supported_languages()
+        assert "en" in langs
+
+        langs2 = get_available_languages()
+        assert langs == langs2
+
+        translated = translate("en", "bmi_normal")
+        assert isinstance(translated, str)
+
+        formatted = format_number_locale(123.45, "en")
+        assert isinstance(formatted, str)
+
+        locale_info = get_locale_info("en")
+        assert isinstance(locale_info, dict) and "code" in locale_info
+
+        translations = load_translations("en")
+        assert isinstance(translations, dict)
+
+        set_default_language("en")
+
+    def test_rag_facades_coverage(self):
+        """Cover thin RAG facades added for feature key enablement."""
+        from core.rag.simple_rag import (
+            RAGEngine,
+            SimpleRAG,
+            _score_chunk,
+            add_knowledge,
+            create_embeddings,
+            query_knowledge_base,
+            search_knowledge,
+            similarity_search,
+            update_knowledge_base,
+        )
+
+        engine = RAGEngine()
+        result = engine.query("test")
+        assert isinstance(result, str)
+
+        srag = SimpleRAG()
+        result2 = srag.query("test")
+        assert isinstance(result2, str)
+        # None-safe query
+        result3 = srag.query("", max_chunks=1)
+        assert isinstance(result3, str)
+
+        # _score_chunk with empty tokens
+        assert _score_chunk([], ["a"]) == 0.0
+        assert _score_chunk(["a"], []) == 0.0
+
+        # _score_chunk with overlap
+        score = _score_chunk(["a", "b"], ["b", "c"])
+        assert 0.0 < score <= 1.0
+
+        # create_embeddings
+        embeddings = create_embeddings(["hello world", "test"])
+        assert isinstance(embeddings, list) and len(embeddings) == 2
+
+        # similarity_search with non-empty docs
+        results = similarity_search("hello", ["hello world", "goodbye"])
+        assert isinstance(results, list)
+
+        # similarity_search with empty docs
+        assert similarity_search("hello", []) == []
+
+        update_knowledge_base("test")
+        add_knowledge("test")
+
+        # query_knowledge_base
+        qkb = query_knowledge_base("test")
+        assert isinstance(qkb, str)
+        qkb_none = query_knowledge_base(None)
+        assert isinstance(qkb_none, str)
+
+        chunks = search_knowledge("test")
+        assert isinstance(chunks, list)
 
     def test_other_core_modules(self):
         """Покрытие остальных core модулей"""
