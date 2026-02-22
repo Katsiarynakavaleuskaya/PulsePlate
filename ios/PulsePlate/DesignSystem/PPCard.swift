@@ -10,13 +10,8 @@ struct PPCard<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .background(PPDesignTokens.ColorToken.surface)
-            .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.large, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: PPDesignTokens.Radius.large, style: .continuous)
-                    .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: 1)
-            )
+        // Use ppCardStyle() modifier to avoid duplication (CodeRabbit nitpick)
+        content.ppCardStyle()
     }
 }
 

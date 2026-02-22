@@ -51,6 +51,7 @@ struct PPInput: View {
 }
 
 /// Number input variant for numeric values with locale support
+/// Uses NumberFormatter for proper locale-aware decimal parsing (CodeRabbit review)
 struct PPNumberInput: View {
     @Binding var value: Double?
     let placeholder: String
@@ -58,6 +59,16 @@ struct PPNumberInput: View {
 
     @State private var textValue: String = ""
     @FocusState private var isFocused: Bool
+
+    /// Locale-aware number formatter for parsing and display
+    private let formatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 1
+        formatter.minimumFractionDigits = 0
+        return formatter
+    }()
 
     init(
         value: Binding<Double?>,
@@ -76,10 +87,9 @@ struct PPNumberInput: View {
                 .focused($isFocused)
                 .font(PPDesignTokens.Typography.body)
                 .foregroundColor(PPDesignTokens.ColorToken.textPrimary)
-                .onChange(of: textValue) { _, newValue in
-                    // Parse locale-aware (support comma as decimal separator for RU)
-                    let normalized = newValue.replacingOccurrences(of: ",", with: ".")
-                    value = Double(normalized)
+                .onChange(of: textValue) { newValue in
+                    // Parse using locale-aware NumberFormatter (handles comma/period based on locale)
+                    value = newValue.isEmpty ? nil : formatter.number(from: newValue)?.doubleValue
                 }
 
             if let suffix = suffix {
@@ -103,12 +113,12 @@ struct PPNumberInput: View {
         .animation(.easeInOut(duration: PPDesignTokens.Motion.fast), value: isFocused)
         .onAppear {
             if let value = value {
-                textValue = String(format: "%.1f", value)
+                textValue = formatter.string(from: NSNumber(value: value)) ?? ""
             }
         }
-        // Sync textValue when bound value changes externally (fixes Cubic P2 review)
-        .onChange(of: value) { _, newValue in
-            let newText = newValue.map { String(format: "%.1f", $0) } ?? ""
+        // Sync textValue when bound value changes externally (Cubic P2 review)
+        .onChange(of: value) { newValue in
+            let newText = newValue.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? ""
             // Only update if different to avoid cursor jump during user typing
             if newText != textValue && !isFocused {
                 textValue = newText
