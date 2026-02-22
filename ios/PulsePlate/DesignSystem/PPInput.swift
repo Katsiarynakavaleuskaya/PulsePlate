@@ -106,5 +106,13 @@ struct PPNumberInput: View {
                 textValue = String(format: "%.1f", value)
             }
         }
+        // Sync textValue when bound value changes externally (fixes Cubic P2 review)
+        .onChange(of: value) { _, newValue in
+            let newText = newValue.map { String(format: "%.1f", $0) } ?? ""
+            // Only update if different to avoid cursor jump during user typing
+            if newText != textValue && !isFocused {
+                textValue = newText
+            }
+        }
     }
 }
