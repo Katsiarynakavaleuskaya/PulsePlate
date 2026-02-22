@@ -193,7 +193,7 @@ rich==14.2.0
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.1
+ruff==0.15.2
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
