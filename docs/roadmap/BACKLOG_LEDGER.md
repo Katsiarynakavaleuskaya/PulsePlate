@@ -1671,22 +1671,25 @@ If it is not recorded here — it does not exist.
     - OpenAPI generation works with routers enabled
     - Determinism test stays green
 
-- [ ] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
+- [x] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (drift prevention)
-  - Target PR: TBD (follow-up after PR-631)
-  - Status: 📋 Ready to start
-  - Reason: There are currently two `TargetsIn` schemas (`legacy_app.TargetsIn` and `app.schemas.nutrition_targets.TargetsIn`). This is a potential source of drift over time, even though PR-631 intentionally kept them separate to stay scope-minimal (remediation only).
+  - Target PR: PR #633 (merged `29546992`, 2026-02-03)
+  - Status: ✅ Merged (PR #633, 2026-02-03)
+  - Resolution: PR-633 unified TargetsIn by making `legacy_app.TargetsIn` a thin alias to canonical
+    `app.schemas.nutrition_targets.TargetsIn`. Guard test `test_legacy_targets_in_is_canonical_alias()`
+    in `tests/test_targets_in_parity.py` prevents future drift.
   - Links:
     - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
+    - PR #633 (unification): thin alias + parity tests
   - Evidence:
-    - `app/schemas/nutrition_targets.py:L1-L58` (import-safe schema + `TargetsIn` validators)
-    - `legacy_app.py:L2879-L2919` (`legacy_app.TargetsIn` definition)
-    - `legacy_app.py:L2939-L2954` (`TargetsIn.model_validate(...)` use in legacy request validator)
+    - `app/schemas/nutrition_targets.py:37-58` (canonical TargetsIn, import-safe)
+    - `legacy_app.py:126-127` (`TargetsIn = CanonicalTargetsIn`, PR-633 alias)
+    - `tests/test_targets_in_parity.py:28-32` (`assert legacy_app.TargetsIn is CanonicalTargetsIn`)
   - DoD:
-    - One canonical schema (single source of truth) with a thin wrapper/alias where needed
-    - Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
-    - No contract break for legacy endpoints (explicitly verified in tests)
+    - ✅ One canonical schema (single source of truth) with a thin wrapper/alias where needed
+    - ✅ Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
+    - ✅ No contract break for legacy endpoints (explicitly verified in tests)
 
 - [x] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
   - Owner: @katsiaryna_kavaleuskaya
