@@ -418,7 +418,7 @@ class TestUnifiedFoodDatabase:
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id with cache load error (line 190-224)."""
-        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
+        require_feature("food_apis_error_injection", FEATURE_REASON)
         # Create invalid cache file
         cache_file = unified_db.cache_dir / "food_cache.json"
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -439,7 +439,7 @@ class TestUnifiedFoodDatabase:
     @pytest.mark.asyncio
     async def test_get_food_by_id_all_sources_fail(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id when all sources fail."""
-        require_feature("food_apis_error_injection", reason=FEATURE_REASON)
+        require_feature("food_apis_error_injection", FEATURE_REASON)
         # Mock all clients to return None/raise exceptions
         with patch.object(unified_db.usda_client, "get_food_details", return_value=None):
             with patch("core.food_apis.unified_db.OFF_AVAILABLE", True):

@@ -22,19 +22,16 @@ class TestCoreCoverage97Final:
 
     def test_core_food_apis_unified_db_classes(self):
         """Test core.food_apis.unified_db classes."""
-        try:
-            import core.food_apis.unified_db as udb
+        import core.food_apis.unified_db as udb
 
-            assert udb is not None
-            # Access attributes safely to satisfy static type checkers
-            UnifiedFoodDB = getattr(udb, "UnifiedFoodDB", None)
-            FoodSource = getattr(udb, "FoodSource", None)
-            if UnifiedFoodDB is not None:
-                assert UnifiedFoodDB is not None
-            if FoodSource is not None:
-                assert FoodSource is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
+        assert udb is not None
+        # Access attributes safely to satisfy static type checkers
+        UnifiedFoodDB = getattr(udb, "UnifiedFoodDB", None)
+        FoodSource = getattr(udb, "FoodSource", None)
+        if UnifiedFoodDB is not None:
+            assert UnifiedFoodDB is not None
+        if FoodSource is not None:
+            assert FoodSource is not None
 
     def test_core_menu_engine_functions(self):
         """Test core.menu_engine functions."""
@@ -135,17 +132,14 @@ class TestCoreCoverage97Final:
 
     def test_core_region_catalog_functions(self):
         """Test core.region_catalog functions."""
-        try:
-            import core.region_catalog as rc
+        import core.region_catalog as rc
 
-            assert rc is not None
-            # Test if module has expected functions
-            if hasattr(rc, "get_region_products"):
-                assert callable(getattr(rc, "get_region_products"))
-            if hasattr(rc, "search_products"):
-                assert callable(getattr(rc, "search_products"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert rc is not None
+        # Test if module has expected functions
+        if hasattr(rc, "get_region_products"):
+            assert callable(getattr(rc, "get_region_products"))
+        if hasattr(rc, "search_products"):
+            assert callable(getattr(rc, "search_products"))
 
     def test_core_rag_simple_rag_classes(self) -> None:
         """Test core.rag.simple_rag classes."""
@@ -162,59 +156,47 @@ class TestCoreCoverage97Final:
 
     def test_core_recipe_db_functions(self):
         """Test core.recipe_db functions."""
-        try:
-            import core.recipe_db as rdb
+        import core.recipe_db as rdb
 
-            assert rdb is not None
-            # Test if module has expected functions
-            if hasattr(rdb, "search"):
-                assert callable(getattr(rdb, "search"))
-            if hasattr(rdb, "get_recipe"):
-                assert callable(getattr(rdb, "get_recipe"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert rdb is not None
+        # Test if module has expected functions
+        if hasattr(rdb, "search"):
+            assert callable(getattr(rdb, "search"))
+        if hasattr(rdb, "get_recipe"):
+            assert callable(getattr(rdb, "get_recipe"))
 
     def test_core_recipe_db_new_functions(self):
         """Test core.recipe_db_new functions."""
-        try:
-            import core.recipe_db_new as rdbn
+        import core.recipe_db_new as rdbn
 
-            assert rdbn is not None
-            # Test if module has expected functions
-            if hasattr(rdbn, "search"):
-                assert callable(getattr(rdbn, "search"))
-            if hasattr(rdbn, "get_recipe"):
-                assert callable(getattr(rdbn, "get_recipe"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert rdbn is not None
+        # Test if module has expected functions
+        if hasattr(rdbn, "search"):
+            assert callable(getattr(rdbn, "search"))
+        if hasattr(rdbn, "get_recipe"):
+            assert callable(getattr(rdbn, "get_recipe"))
 
     def test_core_food_db_functions(self):
         """Test core.food_db functions."""
-        try:
-            import core.food_db as fdb
+        import core.food_db as fdb
 
-            assert fdb is not None
-            # Test if module has expected functions
-            if hasattr(fdb, "search"):
-                assert callable(getattr(fdb, "search"))
-            if hasattr(fdb, "get_food"):
-                assert callable(getattr(fdb, "get_food"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert fdb is not None
+        # Test if module has expected functions
+        if hasattr(fdb, "search"):
+            assert callable(getattr(fdb, "search"))
+        if hasattr(fdb, "get_food"):
+            assert callable(getattr(fdb, "get_food"))
 
     def test_core_food_merge_functions(self):
         """Test core.food_merge functions."""
-        try:
-            import core.food_merge as fm
+        import core.food_merge as fm
 
-            assert fm is not None
-            # Test if module has expected functions
-            if hasattr(fm, "merge_foods"):
-                assert callable(getattr(fm, "merge_foods"))
-            if hasattr(fm, "deduplicate"):
-                assert callable(getattr(fm, "deduplicate"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert fm is not None
+        # Test if module has expected functions
+        if hasattr(fm, "merge_foods"):
+            assert callable(getattr(fm, "merge_foods"))
+        if hasattr(fm, "deduplicate"):
+            assert callable(getattr(fm, "deduplicate"))
 
     def test_core_menu_engine_new_functions(self):
         """Test core.menu_engine_new functions."""
@@ -260,28 +242,22 @@ class TestCoreCoverage97Final:
 
     def test_core_food_apis_update_manager_functions(self):
         """Test core.food_apis.update_manager functions."""
-        try:
-            import core.food_apis.update_manager as um
+        import core.food_apis.update_manager as um
 
-            assert um is not None
-            # Test if module has expected functions
-            if hasattr(um, "update_data"):
-                assert callable(getattr(um, "update_data"))
-            if hasattr(um, "sync_data"):
-                assert callable(getattr(um, "sync_data"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert um is not None
+        # Test if module has expected functions
+        if hasattr(um, "update_data"):
+            assert callable(getattr(um, "update_data"))
+        if hasattr(um, "sync_data"):
+            assert callable(getattr(um, "sync_data"))
 
     def test_core_food_apis_scheduler_functions(self):
         """Test core.food_apis.scheduler functions."""
-        try:
-            import core.food_apis.scheduler as sched
+        import core.food_apis.scheduler as sched
 
-            assert sched is not None
-            # Test if module has expected functions
-            if hasattr(sched, "get_update_scheduler"):
-                assert callable(getattr(sched, "get_update_scheduler"))
-            if hasattr(sched, "schedule_update"):
-                assert callable(getattr(sched, "schedule_update"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        assert sched is not None
+        # Test if module has expected functions
+        if hasattr(sched, "get_update_scheduler"):
+            assert callable(getattr(sched, "get_update_scheduler"))
+        if hasattr(sched, "schedule_update"):
+            assert callable(getattr(sched, "schedule_update"))

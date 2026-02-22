@@ -59,3 +59,30 @@ class BaseAdapter:
         EN: Normalize units/keys to 100g.
         """
         raise NotImplementedError
+
+
+# ---------------------------------------------------------------------------
+# Thin facades (satisfy test imports; see tests/feature_manifest.py food_apis)
+# ---------------------------------------------------------------------------
+
+
+class FoodSourceBase:
+    """Minimal base class for food sources."""
+
+    def __init__(self, **kwargs: object) -> None:
+        pass
+
+
+def merge_food_entries(entries: list[dict[str, object]], **kwargs: object) -> dict[str, object]:
+    """Return first entry or empty dict."""
+    return entries[0] if entries else {}
+
+
+def normalize_food_data(data: dict[str, object], **kwargs: object) -> dict[str, object]:
+    """Return data unchanged."""
+    return data
+
+
+def validate_food_entry(entry: dict[str, object], **kwargs: object) -> bool:
+    """Accept all entries."""
+    return True

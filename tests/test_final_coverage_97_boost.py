@@ -128,26 +128,20 @@ class TestUnifiedDbCoverage:
     @pytest.mark.asyncio
     async def test_unified_db_search_edge_cases(self) -> None:
         """Test unified_db search with edge cases."""
-        try:
-            from core.food_apis.unified_db import search_unified_food
+        from core.food_apis.unified_db import search_unified_food
 
-            # Test with empty query
-            result = await search_unified_food("")
-            assert result is not None
+        # Test with empty query
+        result = await search_unified_food("")
+        assert result is not None
 
-            # Test with special characters
-            result = await search_unified_food("тест !@#")
-            assert result is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
+        # Test with special characters
+        result = await search_unified_food("тест !@#")
+        assert result is not None
 
     @pytest.mark.asyncio
     async def test_unified_db_language_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test unified_db language normalization contract."""
-        try:
-            from core.food_apis import unified_db as unified_db_mod
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
+        from core.food_apis import unified_db as unified_db_mod
 
         async def _fake_search(
             query: str, max_results: int = 5

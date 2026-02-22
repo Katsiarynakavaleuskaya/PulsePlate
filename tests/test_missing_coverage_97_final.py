@@ -49,49 +49,28 @@ class TestMissingCoverage97Final:
 
     def test_app_import_coverage(self) -> None:
         """Test app/__init__.py coverage"""
-        try:
-            import app
+        import app
 
-            # Test app module
-            assert app is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test app module
+        assert app is not None
 
     def test_providers_init_coverage(self) -> None:
         """Test providers/__init__.py coverage"""
-        try:
-            import providers
+        import providers
 
-            # Test providers module
-            assert providers is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test providers module
+        assert providers is not None
 
     def test_app_router_init_coverage(self) -> None:
         """Test app/routers/__init__.py coverage"""
         try:
             import app.routers
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
         except IndexError as exc:
             pytest.fail(f"Unexpected router index error: {exc!r}")
 
     def test_food_apis_init_coverage(self) -> None:
         """Test core/food_apis/__init__.py coverage"""
-        try:
-            import core.food_apis
+        import core.food_apis
 
-            # Test food_apis module
-            assert core.food_apis is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
-
-    def test_app_comprehensive_coverage(self) -> None:
-        """Test comprehensive app.py coverage - consolidated from multiple duplicate tests"""
-        try:
-            import app
-
-            # Test app module
-            assert app is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test food_apis module
+        assert core.food_apis is not None

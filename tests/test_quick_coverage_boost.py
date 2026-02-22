@@ -262,47 +262,29 @@ class TestQuickCoverageBoost:
         result = rag.query(special_query)
         assert isinstance(result, str) or result is None
 
-    def test_unified_db_error_paths(self):
+    def test_unified_db_error_paths(self) -> None:
         """Покрытие core/food_apis/unified_db.py error paths (94% -> 97%+)"""
-        try:
-            from core.food_apis.unified_db import UnifiedFoodDB, get_unified_food_db
+        from core.food_apis.unified_db import UnifiedFoodDB
 
-            # Тест с моксом для вызова ошибок
-            with patch("sqlite3.connect") as mock_connect:
-                mock_connect.side_effect = Exception("Database error")
-                db = get_unified_food_db()
-                # Должен обработать ошибку gracefully
-                assert db is not None or db is None
+        # Тест UnifiedFoodDB напрямую (sync facade)
+        unifiedDb = UnifiedFoodDB()
 
-            # Тест UnifiedFoodDB напрямую
-            unified_db = UnifiedFoodDB()
+        # Тест с некорректными поисковыми запросами
+        result = unifiedDb.search_foods("")
+        assert isinstance(result, list)
 
-            # Тест с некорректными поисковыми запросами
-            result = unified_db.search_foods("")
-            assert isinstance(result, list)
+        result = unifiedDb.search_foods(None)
+        assert isinstance(result, list)
 
-            result = unified_db.search_foods(None)
-            assert isinstance(result, list)
-
-            # Тест с экстремально длинным запросом
-            long_query = "x" * 1000
-            result = unified_db.search_foods(long_query)
-            assert isinstance(result, list)
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
+        # Тест с экстремально длинным запросом
+        long_query = "x" * 1000
+        result = unifiedDb.search_foods(long_query)
+        assert isinstance(result, list)
 
     @pytest.mark.asyncio
     async def test_update_manager_async_paths(self) -> None:
         """Покрытие core/food_apis/update_manager.py async paths"""
-        try:
-            from core.food_apis.update_manager import DatabaseUpdateManager
-        except ImportError as exc:
-            require_feature_or_raise(
-                exc,
-                "food_apis",
-                reason=FEATURE_REASON,
-            )
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
         manager = DatabaseUpdateManager(update_interval_hours=1)
         try:

@@ -272,8 +272,6 @@ class TestDirectCoreFunctions:
             merged = merge_food_entries(food_data, food_data2)
             assert isinstance(merged, (dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -347,8 +345,6 @@ class TestDirectCoreFunctions:
             db = get_unified_food_db()
             assert db is not None or db is None
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
