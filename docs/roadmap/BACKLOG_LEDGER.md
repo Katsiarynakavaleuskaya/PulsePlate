@@ -696,26 +696,27 @@ If it is not recorded here — it does not exist.
     - [x] Orchestration doc or coordinator prompt template includes hint-level definitions
     - [x] ci-watcher / loop-on-ci prompts aligned where applicable
 
-- [ ] P1: Agent-as-attacker threat model section in security baseline
+- [x] P1: Agent-as-attacker threat model section in security baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-SECURITY-DOCS
-  - Status: Planned
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
   - Area: security / agent control plane
   - Finding Type: security documentation
   - Reason: EVMbench measures exploit capability; we should document abuse scenarios (what would an agent need to do to violate policy?) and map to controls (allowlist, audit trail, token TTL).
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - DoD:
-    - New section in AGENT_CONTROL_PLANE_SECURITY_BASELINE: "Agent-as-attacker scenarios" with mapping to existing controls
-    - No new runtime code required; doc only
+    - [x] New section in AGENT_CONTROL_PLANE_SECURITY_BASELINE: "Agent-as-attacker scenarios" with mapping to existing controls
+    - [x] No new runtime code required; doc only
 
-- [ ] P1: Oracle / known-good gate behavior documentation
+- [x] P1: Oracle / known-good gate behavior documentation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RUNBOOK
-  - Status: Planned
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
   - Area: runbooks / CI gates
   - Finding Type: process
   - Reason: EVMbench validates graders on oracle solutions. Document expected behavior of merge_readiness_gate and dependency_security_guard on known-good input (e.g. PR with all checkboxes and mapping → pass).
@@ -723,23 +724,25 @@ If it is not recorded here — it does not exist.
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `scripts/ci/check_pr_merge_readiness.py`
     - `tests/test_dependency_security_guard.py`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - DoD:
-    - RUNBOOK or test doc: "Expected: PR body with [x] and mapping → merge_readiness passes"
-    - Optional: deterministic test that applies known-good PR body and asserts gate pass
+    - [x] RUNBOOK or test doc: "Expected: PR body with [x] and mapping → merge_readiness passes"
+    - [x] Optional: deterministic test that applies known-good PR body and asserts gate pass
 
-- [ ] P1: Minimal agent metrics (fix rate / first-run pass)
+- [x] P1: Minimal agent metrics (fix rate / first-run pass)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCS
-  - Status: Planned
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
   - Area: orchestration / quality
   - Finding Type: metrics
   - Reason: Define minimal agent metrics (e.g. "CI fix: pass within N iterations"; "merge readiness: first run vs after edits") and record in ledger or audit when relevant.
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - DoD:
-    - Doc or ledger section defines at least 2 agent task metrics and when to record them
-    - No dashboard required; manual or opportunistic recording is acceptable
+    - [x] Doc or ledger section defines at least 2 agent task metrics and when to record them
+    - [x] No dashboard required; manual or opportunistic recording is acceptable
 
 - [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
   - Owner: @katsiaryna_kavaleuskaya

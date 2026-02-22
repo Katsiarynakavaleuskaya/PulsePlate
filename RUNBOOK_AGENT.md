@@ -133,6 +133,82 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 **Rationale:** EVMbench scores on comprehensive coverage. Partial fixes (fix one, leave others) result in low scores and technical debt.
 
+## Oracle / Known-Good Gate Behavior (EVMbench-inspired)
+
+**Purpose:** Define expected behavior of quality gates on known-good input for deterministic validation.
+
+**Rationale:** EVMbench uses logic/grading oracles to objectively evaluate agent success. For PulsePlate, our quality gates (`make verify`, guard tests, merge-readiness checks) serve as oracles. Documenting known-good behavior allows us to:
+1. Validate gate implementations (gate passes on valid input)
+2. Detect gate drift (gate fails on previously-passing input)
+3. Establish baseline for agent evaluation (agent achieves "first-run pass" if gate passes without iteration)
+
+### Known-Good Gate Specifications
+
+| Gate | Known-Good Input | Expected Behavior | Evidence Anchor |
+|------|------------------|-------------------|-----------------|
+| `make verify` | Clean repo, all tests passing | Exit 0, no warnings | `Makefile:134` |
+| `merge_readiness_gate` | PR with all checkboxes checked + valid commit mapping | Exit 0 | `scripts/ci/check_pr_merge_readiness.py:251` |
+| `dependency_security_guard` | `requirements.txt` with all deps at floor versions, no blocked packages | Test passes | `tests/test_dependency_security_guard.py:1` |
+| `pr_body_phase2_gates` | PR body with `[x]` checkboxes + `- No actionable review comments` | Exit 0 | `scripts/ci/check_pr_body_phase2_gates.py:107` |
+| `guard_tests` | Codebase with no policy violations | All guards pass | `tests/test_repo_policy_guards.py:1` |
+
+**Verification commands:**
+- `make verify`: `make verify && echo "PASS"`
+- `merge_readiness_gate`: `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>`
+- `dependency_security_guard`: `pytest -k dependency_security_guard -q`
+- `pr_body_phase2_gates`: `python scripts/ci/check_pr_body_phase2_gates.py --body "..."`
+- `guard_tests`: `pytest -q tests/test_repo_policy_guards.py`
+
+### Gate Validation Protocol
+
+When modifying a gate or its inputs:
+
+1. **Baseline capture:** Run gate on known-good input, record exit code + output.
+2. **Change implementation:** Make modification.
+3. **Re-validate:** Run gate on same known-good input; must produce same result.
+4. **Negative test:** Run gate on known-bad input; must produce expected failure.
+
+**Known-bad input examples:**
+- `merge_readiness_gate`: PR with unchecked boxes, unmapped bot comments
+- `dependency_security_guard`: `requirements.txt` with blocked package (`cryptography==41.0.0`)
+- `guard_tests`: Code with BMI math outside `core/bmi/`
+
+## Minimal Agent Metrics (EVMbench-inspired)
+
+**Purpose:** Define minimal metrics to evaluate agent task performance objectively.
+
+**Rationale:** EVMbench evaluates agents on objective success rates. For PulsePlate agent workflows, we track:
+1. **First-run pass rate** — did the agent get it right on the first attempt?
+2. **Iteration count** — how many cycles to achieve green CI?
+3. **Gate coverage** — did the agent address all violations or just one?
+
+### Core Metrics
+
+| Metric | Definition | Target | Evidence Anchor |
+|--------|------------|--------|-----------------|
+| **CI Fix: First-Run Pass** | PR passes `make verify` on first push | ≥70% | CI logs: first commit → green (`Makefile:134`) |
+| **CI Fix: Iteration Limit** | Maximum pushes to achieve green CI | ≤3 | Git log: commit count on PR branch |
+| **Merge Readiness: First-Run** | PR passes merge-readiness gate on first attempt | ≥50% | `scripts/ci/check_pr_merge_readiness.py:251` exit 0 |
+| **Guard Coverage** | All violations of same class fixed in one PR | 100% | `tests/test_repo_policy_guards.py` after PR |
+| **Docs Accuracy** | Documentation updates match code changes | 100% | Manual review + file anchors present |
+
+### Metric Collection (Operational)
+
+Metrics are captured from existing CI artifacts:
+
+1. **First-run pass:** Compare first CI run status vs final merge status
+2. **Iteration count:** Count commits on PR branch from open to merge
+3. **Guard coverage:** Run guard suite before/after PR; compare violation counts
+
+**Current tracking:** Manual (ledger notes). Future: automated dashboard (P2 backlog).
+
+### Success Criteria per Task Class (Reference)
+
+Full success criteria per task class are defined in:
+`docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md`
+
+This metrics section provides **quantitative targets**; the evaluation contract provides **qualitative gates**.
+
 ## Pre-push hygiene checklist (mandatory)
 
 Run from repo root before any push/PR:
