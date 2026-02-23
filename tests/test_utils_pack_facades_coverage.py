@@ -279,3 +279,111 @@ class TestCoreTimeUtilsFacades:
 
         assert human_delta("invalid") == "0 seconds"
         assert human_delta(None) == "0 seconds"
+
+
+class TestTimeUtilsEdgeCases:
+    """Additional edge case tests for time_utils to reach 97% coverage."""
+
+    def test_format_datetime_exception_path(self) -> None:
+        """Test format_datetime exception handling with datetime subclass."""
+        from datetime import datetime
+
+        from core.time_utils import format_datetime
+
+        # Subclass of datetime that raises on strftime
+        class BadDatetime(datetime):
+            def strftime(self, fmt: str) -> str:
+                raise ValueError("bad format")
+
+        # Create instance that will pass isinstance check but raise on strftime
+        bad_dt = BadDatetime(2024, 1, 1, 12, 0, 0)
+        result = format_datetime(bad_dt)
+        assert result is None
+
+    def test_get_timezone_offset_zoneinfo_none(self) -> None:
+        """Test get_timezone_offset when ZoneInfo unavailable."""
+        from unittest.mock import patch
+
+        import core.time_utils as tu
+
+        # Temporarily set ZoneInfo to None
+        originalZoneInfo = tu.ZoneInfo
+        try:
+            tu.ZoneInfo = None  # type: ignore[assignment]
+            result = tu.get_timezone_offset("America/New_York")
+            assert result is None
+        finally:
+            tu.ZoneInfo = originalZoneInfo
+
+    def test_get_timezone_offset_invalid_timezone(self) -> None:
+        """Test get_timezone_offset with invalid timezone names."""
+        from core.time_utils import get_timezone_offset
+
+        # Invalid timezone names trigger KeyError path
+        assert get_timezone_offset("Invalid/Timezone") is None
+        assert get_timezone_offset("NotATimezone") is None
+        assert get_timezone_offset("Fake/Zone/Name") is None
+
+    def test_get_timezone_offset_utcoffset_returns_none(self) -> None:
+        """Test get_timezone_offset when utcoffset returns None."""
+        from unittest.mock import MagicMock, patch
+
+        import core.time_utils as tu
+
+        # Create a mock datetime that returns None for utcoffset
+        mock_dt = MagicMock()
+        mock_dt.utcoffset.return_value = None
+
+        # Patch the datetime class in the time_utils module
+        with patch.object(tu, "datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_dt
+            result = tu.get_timezone_offset("America/New_York")
+            assert result is None
+
+    def test_format_time_with_time_object(self) -> None:
+        """Test format_time with time object that has strftime."""
+        from datetime import time
+
+        from core.time_utils import format_time
+
+        t = time(10, 30, 45)
+        result = format_time(t)
+        assert result == "10:30:45"
+
+    def test_format_time_strftime_returns_none(self) -> None:
+        """Test format_time when strftime returns None."""
+        from core.time_utils import format_time
+
+        class WeirdTime:
+            def strftime(self, fmt: str) -> None:
+                return None
+
+        result = format_time(WeirdTime())
+        assert result is None
+
+    def test_format_time_strftime_raises(self) -> None:
+        """Test format_time when strftime raises."""
+        from core.time_utils import format_time
+
+        class BadTime:
+            def strftime(self, fmt: str) -> str:
+                raise TypeError("bad")
+
+        result = format_time(BadTime())
+        assert result is None
+
+    def test_human_delta_exception_in_total_seconds(self) -> None:
+        """Test human_delta exception path with timedelta subclass."""
+        from datetime import timedelta
+
+        from core.time_utils import human_delta
+
+        # Subclass of timedelta that raises on total_seconds
+        class BadDelta(timedelta):
+            def total_seconds(self) -> float:
+                raise ValueError("cannot compute total_seconds")
+
+        # Create instance that will pass isinstance check but raise on total_seconds
+        bad_delta = BadDelta(seconds=100)
+        result = human_delta(bad_delta)
+        assert result == "0 seconds"
