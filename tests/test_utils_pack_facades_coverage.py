@@ -176,7 +176,7 @@ class TestCoreTimeUtilsFacades:
         """Test format_datetime with invalid type returns None."""
         from core.time_utils import format_datetime
 
-        assert format_datetime(12345) is None  # type: ignore[arg-type]
+        assert format_datetime(12345) is None
 
     def test_get_timezone_offset_utc(self) -> None:
         """Test get_timezone_offset with UTC."""

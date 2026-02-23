@@ -251,8 +251,13 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 def sanitize_html(html: object) -> str:
     """Remove HTML tags from input string.
 
+    Note: This is a simple tag-stripping utility, not a security-grade
+    sanitizer. For untrusted user input, use a dedicated library like
+    bleach or html-sanitizer.
+
     Args:
-        html: HTML string to sanitize.
+        html: HTML string to sanitize. Non-string inputs are coerced via str().
+              None returns empty string.
 
     Returns:
         Plain text with HTML tags removed.

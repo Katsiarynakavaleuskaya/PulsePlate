@@ -2,8 +2,6 @@
 Final test coverage boost to reach 97%
 """
 
-from contextlib import suppress
-
 import pytest
 
 

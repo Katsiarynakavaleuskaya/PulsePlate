@@ -6,7 +6,7 @@ EN: Utilities for working with timezones and UTC-aware datetimes.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 try:  # Python 3.9+
@@ -190,8 +190,6 @@ def human_delta(delta: object) -> str:
     Returns:
         Human-readable duration string.
     """
-    from datetime import timedelta
-
     try:
         if isinstance(delta, (int, float)):
             delta = timedelta(seconds=delta)
