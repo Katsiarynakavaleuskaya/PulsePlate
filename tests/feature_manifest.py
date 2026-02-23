@@ -56,7 +56,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "planner_engines",
         "plate_day_micros",
         "premium_week_router_mocking",
-        "utils_pack",
         "weekly_plan_helpers",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",

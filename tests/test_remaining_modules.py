@@ -165,130 +165,112 @@ class TestWeeklyPlanModule:
 class TestUtilsModule:
     """Test core.utils module."""
 
-    def test_utils_comprehensive(self):
+    def test_utils_comprehensive(self) -> None:
         """Test utils functions comprehensively."""
-        try:
-            from core.utils import (
-                safe_float,
-                safe_int,
-                slugify,
-            )
+        from core.utils import (
+            safe_float,
+            safe_int,
+            slugify,
+        )
 
-            # Test safe_float with various inputs
-            assert safe_float("123.45") == 123.45 or safe_float("123.45") is None
-            assert safe_float("invalid") is None or isinstance(safe_float("invalid"), (int, float))
-            assert safe_float(None) is None or isinstance(safe_float(None), (int, float))
-            assert safe_float("") is None or isinstance(safe_float(""), (int, float))
-            assert safe_float("0") == 0.0 or safe_float("0") is None
-            assert safe_float("-123.45") == -123.45 or safe_float("-123.45") is None
+        # Test safe_float with various inputs
+        assert safe_float("123.45") == 123.45
+        assert safe_float("invalid") is None
+        assert safe_float(None) is None
+        assert safe_float("") is None
+        assert safe_float("0") == 0.0
+        assert safe_float("-123.45") == -123.45
 
-            # Test safe_int with various inputs
-            assert safe_int("123") == 123 or safe_int("123") is None
-            assert safe_int("invalid") is None or isinstance(safe_int("invalid"), int)
-            assert safe_int(None) is None or isinstance(safe_int(None), int)
-            assert safe_int("") is None or isinstance(safe_int(""), int)
-            assert safe_int("0") == 0 or safe_int("0") is None
-            assert safe_int("-123") == -123 or safe_int("-123") is None
+        # Test safe_int with various inputs
+        assert safe_int("123") == 123
+        assert safe_int("invalid") is None
+        assert safe_int(None) is None
+        assert safe_int("") is None
+        assert safe_int("0") == 0
+        assert safe_int("-123") == -123
 
-            # Test slugify with various inputs
-            slug = slugify("Test String With Spaces")
-            assert isinstance(slug, (str, type(None)))
+        # Test slugify with various inputs
+        slug = slugify("Test String With Spaces")
+        assert isinstance(slug, str)
 
-            slug = slugify("Special!@#$%Characters")
-            assert isinstance(slug, (str, type(None)))
+        slug = slugify("Special!@#$%Characters")
+        assert isinstance(slug, str)
 
-            slug = slugify("")
-            assert isinstance(slug, (str, type(None)))
+        slug = slugify("")
+        assert slug == ""
 
-            slug = slugify(None)
-            assert isinstance(slug, (str, type(None)))
+        slug = slugify(None)
+        assert slug == ""
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
-
-    def test_additional_utils(self):
+    def test_additional_utils(self) -> None:
         """Test additional utility functions."""
-        try:
-            from core.utils import (
-                format_number,
-                generate_id,
-                sanitize_html,
-                validate_email,
-            )
+        from core.utils import (
+            format_number,
+            generate_id,
+            sanitize_html,
+            validate_email,
+        )
 
-            # Test email validation
-            assert (
-                validate_email("test@example.com") is True
-                or validate_email("test@example.com") is None
-            )
-            assert (
-                validate_email("invalid-email") is False or validate_email("invalid-email") is None
-            )
-            assert validate_email("") is False or validate_email("") is None
-            assert validate_email(None) is False or validate_email(None) is None
+        # Test email validation
+        assert validate_email("test@example.com") is True
+        assert validate_email("invalid-email") is False
+        assert validate_email("") is False
+        assert validate_email(None) is False
 
-            # Test HTML sanitization
-            sanitized = sanitize_html("<script>alert('xss')</script>")
-            assert isinstance(sanitized, (str, type(None)))
+        # Test HTML sanitization
+        sanitized = sanitize_html("<script>alert('xss')</script>")
+        assert isinstance(sanitized, str)
+        assert "<script>" not in sanitized
 
-            sanitized = sanitize_html("<p>Valid HTML</p>")
-            assert isinstance(sanitized, (str, type(None)))
+        sanitized = sanitize_html("<p>Valid HTML</p>")
+        assert isinstance(sanitized, str)
 
-            # Test ID generation
-            id_val = generate_id()
-            assert isinstance(id_val, (str, type(None)))
+        # Test ID generation
+        idVal = generate_id()
+        assert isinstance(idVal, str)
+        assert len(idVal) == 32  # UUID hex without hyphens
 
-            # Test number formatting
-            formatted = format_number(1234.567)
-            assert isinstance(formatted, (str, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        # Test number formatting
+        formatted = format_number(1234.567)
+        assert isinstance(formatted, str)
 
 
 class TestTimeUtilsModule:
     """Test core.time_utils module for better coverage."""
 
-    def test_time_utils_comprehensive(self):
+    def test_time_utils_comprehensive(self) -> None:
         """Test time utilities comprehensively."""
-        try:
-            from core.time_utils import (
-                format_datetime,
-                get_timezone_offset,
-                is_valid_date,
-                parse_datetime,
-            )
+        from core.time_utils import (
+            format_datetime,
+            get_timezone_offset,
+            is_valid_date,
+            parse_datetime,
+        )
 
-            # Test datetime parsing
-            result = parse_datetime("2024-01-01T00:00:00")
-            assert result is not None or result is None
+        # Test datetime parsing
+        result = parse_datetime("2024-01-01T00:00:00")
+        assert result is not None
 
-            result = parse_datetime("2024-01-01")
-            assert result is not None or result is None
+        result = parse_datetime("2024-01-01")
+        assert result is not None
 
-            result = parse_datetime("invalid")
-            assert result is None or result is not None
+        result = parse_datetime("invalid")
+        assert result is None
 
-            result = parse_datetime("")
-            assert result is None or result is not None
+        result = parse_datetime("")
+        assert result is None
 
-            # Test datetime formatting
-            formatted = format_datetime("2024-01-01T00:00:00")
-            assert isinstance(formatted, (str, type(None)))
+        # Test datetime formatting
+        formatted = format_datetime("2024-01-01T00:00:00")
+        assert isinstance(formatted, str)
 
-            # Test timezone offset
-            offset = get_timezone_offset("UTC")
-            assert isinstance(offset, (int, float, type(None)))
+        # Test timezone offset
+        offset = get_timezone_offset("UTC")
+        assert offset == 0.0
 
-            offset = get_timezone_offset("US/Eastern")
-            assert isinstance(offset, (int, float, type(None)))
+        offset = get_timezone_offset("US/Eastern")
+        assert isinstance(offset, (int, float, type(None)))
 
-            # Test date validation
-            is_valid = is_valid_date("2024-01-01")
-            assert isinstance(is_valid, (bool, type(None)))
-
-            is_valid = is_valid_date("invalid")
-            assert isinstance(is_valid, (bool, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        # Test date validation
+        assert is_valid_date("2024-01-01") is True
+        assert is_valid_date("invalid") is False

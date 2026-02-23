@@ -5,7 +5,6 @@ Final test coverage boost to reach 97%
 from contextlib import suppress
 
 import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestMissingCoverage97Final:
@@ -13,39 +12,27 @@ class TestMissingCoverage97Final:
 
     def test_fix_failing_tests_coverage(self) -> None:
         """Test fix_failing_tests.py coverage"""
-        try:
-            import fix_failing_tests
+        import fix_failing_tests
 
-            assert fix_failing_tests is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert fix_failing_tests is not None
 
     def test_mcp_pulseplate_server_coverage(self) -> None:
         """Test mcp_pulseplate_server.py coverage"""
-        try:
-            import mcp_pulseplate_server
+        import mcp_pulseplate_server
 
-            assert mcp_pulseplate_server is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert mcp_pulseplate_server is not None
 
     def test_setup_custom_mcp_coverage(self) -> None:
         """Test setup_custom_mcp.py coverage"""
-        try:
-            import setup_custom_mcp
+        import setup_custom_mcp
 
-            assert setup_custom_mcp is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert setup_custom_mcp is not None
 
     def test_test_pro_access_coverage(self) -> None:
         """Test test_pro_access.py coverage"""
-        try:
-            import test_pro_access
+        import test_pro_access
 
-            assert test_pro_access is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert test_pro_access is not None
 
     def test_app_import_coverage(self) -> None:
         """Test app/__init__.py coverage"""
