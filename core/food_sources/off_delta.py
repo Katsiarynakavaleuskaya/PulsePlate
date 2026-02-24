@@ -37,7 +37,7 @@ class HttpxOFFTransport:
 
     def fetch(self, url: str, timeout_seconds: int) -> bytes | None:
         response = httpx.get(url, timeout=timeout_seconds, follow_redirects=True)
-        if response.status_code == 200:
+        if 200 <= response.status_code < 300:
             return response.content
         if response.status_code == 404:
             return None

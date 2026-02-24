@@ -173,6 +173,16 @@ def test_httpx_transport_fetch_and_stream(monkeypatch: pytest.MonkeyPatch) -> No
     )
     assert transport.fetch("https://example.com", timeout_seconds=1) == b"ok"
 
+    def _httpx_get_created(url: str, timeout: int, follow_redirects: bool) -> _FakeResponse:
+        _ = (url, timeout, follow_redirects)
+        return _FakeResponse(201, b"created")
+
+    monkeypatch.setattr(
+        "core.food_sources.off_delta.httpx.get",
+        _httpx_get_created,
+    )
+    assert transport.fetch("https://example.com", timeout_seconds=1) == b"created"
+
     def _httpx_get_404(url: str, timeout: int, follow_redirects: bool) -> _FakeResponse:
         _ = (url, timeout, follow_redirects)
         return _FakeResponse(404)
