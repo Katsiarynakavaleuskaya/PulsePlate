@@ -136,7 +136,7 @@ ls -la docs/figma/execution_logs/
 
 ### Instruction Templates
 
-```
+```text
 scripts/design/instructions/
 ├── ios_home.json
 ├── ios_plate.json
@@ -148,7 +148,7 @@ scripts/design/instructions/
 
 ### Execution Scripts
 
-```
+```text
 scripts/design/
 ├── generate_figma_instructions.py  # Generate instructions from docs
 ├── execute_design.py               # Execute via MCP
@@ -157,7 +157,7 @@ scripts/design/
 
 ### Documentation
 
-```
+```text
 docs/figma/
 ├── FIGMA_AI_INSTRUCTION_FORMAT.md  # Instruction format spec
 ├── MCP_SETUP_GUIDE.md              # MCP setup instructions
@@ -177,7 +177,7 @@ Each instruction includes these governance checks:
 
 Target Figma file must have these pages (per governance index):
 
-```
+```text
 00_Foundation_Tokens
 01_Components
 10_iOS_Home

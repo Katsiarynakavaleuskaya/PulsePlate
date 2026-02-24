@@ -52,7 +52,7 @@ After connecting, verify the MCP is working:
 
 Your Figma file should have the following page structure (per governance index):
 
-```
+```text
 00_Foundation_Tokens
 01_Components
 10_iOS_Home
@@ -154,6 +154,6 @@ python scripts/design/verify_design.py --screen ios.home
 If you encounter issues:
 
 1. Check this guide's troubleshooting section
-2. Review Figma MCP documentation: https://help.figma.com/hc/en-us/articles/35281350665623
+2. Review [Figma MCP documentation](https://help.figma.com/hc/en-us/articles/35281350665623)
 3. Check `.cursor/mcp.json.example` for configuration reference
 <!-- markdownlint-enable MD013 -->

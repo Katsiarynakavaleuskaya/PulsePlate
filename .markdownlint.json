@@ -10,6 +10,9 @@
   "MD033": false,
   "MD060": false,
   "ignores": [
-    "docs/roadmap/BACKLOG_LEDGER.md"
+    "docs/roadmap/BACKLOG_LEDGER.md",
+    ".agents/**",
+    ".cursor/**",
+    ".qoder/**"
   ]
 }

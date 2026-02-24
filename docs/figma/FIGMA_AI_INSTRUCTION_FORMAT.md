@@ -155,7 +155,7 @@ Creates an image/asset placeholder.
 
 All Figma nodes must follow this naming pattern:
 
-```
+```text
 PP/<Platform>/<Screen>/<Component>/<State>
 ```
 
