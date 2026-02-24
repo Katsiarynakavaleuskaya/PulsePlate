@@ -1,6 +1,6 @@
 import statistics
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, TypedDict
+from typing import Dict, List, Optional, Set, TypedDict, Union
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -130,7 +130,7 @@ def generate_weekly_plan(
 
 def calculate_weekly_nutrition(
     weekly_plan: Dict[str, object],
-) -> Optional[Dict[str, float | int]]:
+) -> Optional[Dict[str, Union[float, int]]]:
     """
     RU: Агрегирует нутриентные показатели по недельному плану.
     EN: Aggregates nutrition stats across a weekly plan.
