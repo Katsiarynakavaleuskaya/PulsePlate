@@ -1,0 +1,38 @@
+{
+  "screen_id": "web.progress",
+  "page": "20_Web_Parity",
+  "platform": "Web",
+  "dimensions": {
+    "width": 1440,
+    "height": 900
+  },
+  "background_token": "--pp-navy",
+  "governance_checks": [
+    "verify_token_usage",
+    "verify_hpp_compliance",
+    "verify_cta_registry_match"
+  ],
+  "context_version": "",
+  "instructions": [
+    {
+      "type": "create_frame",
+      "name": "Web Progress Screen",
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_button",
+      "name": "Export PDF",
+      "cta_key": "web.progress.export_pdf",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "W_PROGRESS_HEADER_UTIL",
+      "figma_node_id": "PP/Web/Progress/Header/ExportPDF/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/utility/export-pdf",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    }
+  ]
+}

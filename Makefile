@@ -169,6 +169,43 @@ icon-silhouette-check:
 		--baseline-white-ratio "$(ICON_BASELINE_WHITE)" \
 		--baseline-black-ratio "$(ICON_BASELINE_BLACK)"
 
+## Figma Design Execution Targets
+## Usage: make design-validate SCREEN=ios.home
+##        make design-execute SCREEN=ios.home
+##        make design-verify
+
+.PHONY: design-validate design-execute design-verify design-list
+
+## List available screens for design execution
+design-list:
+	@echo "$(BLUE)📋 Available screens for design execution:$(NC)"
+	python3 scripts/design/generate_figma_instructions.py --list-screens
+
+## Validate design instruction for a screen (dry-run)
+design-validate:
+ifndef SCREEN
+	@echo "$(RED)❌ Error: SCREEN not specified$(NC)"
+	@echo "Usage: make design-validate SCREEN=ios.home"
+	@exit 1
+endif
+	@echo "$(YELLOW)🔍 Validating design instruction for $(SCREEN)...$(NC)"
+	python3 scripts/design/execute_design.py --screen $(SCREEN) --validate-only
+
+## Execute design instruction for a screen via MCP
+design-execute:
+ifndef SCREEN
+	@echo "$(RED)❌ Error: SCREEN not specified$(NC)"
+	@echo "Usage: make design-execute SCREEN=ios.home"
+	@exit 1
+endif
+	@echo "$(YELLOW)🎨 Executing design for $(SCREEN)...$(NC)"
+	python3 scripts/design/execute_design.py --screen $(SCREEN) --execute
+
+## Verify all designs against instructions
+design-verify:
+	@echo "$(YELLOW)✅ Verifying all designs...$(NC)"
+	python3 scripts/design/verify_design.py --all
+
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
@@ -387,4 +424,4 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard design-validate design-execute design-verify design-list

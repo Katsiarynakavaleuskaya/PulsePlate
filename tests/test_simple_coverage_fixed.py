@@ -176,72 +176,68 @@ class TestSimpleCoverageBoost:
 
     def test_food_sources_coverage(self):
         """Покрытие core/food_sources/ модулей"""
-        try:
-            # USDA client coverage - простое тестирование импорта и создания
-            import core.food_sources.usda as usda_module
+        # USDA client coverage - простое тестирование импорта и создания
+        import core.food_sources.usda as usda_module
 
-            assert usda_module is not None
+        assert usda_module is not None
 
-            if hasattr(usda_module, "USDAAdapter"):
-                adapter = usda_module.USDAAdapter()
-                assert adapter is not None
+        if hasattr(usda_module, "USDAAdapter"):
+            adapter = usda_module.USDAAdapter()
+            assert adapter is not None
 
-                # Тест методов если доступны
-                if hasattr(adapter, "fetch"):
-                    try:
-                        result = list(adapter.fetch())
-                        assert isinstance(result, list)
-                    except Exception as e:
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-                        pass  # Может не работать без данных
+            # Тест методов если доступны
+            if hasattr(adapter, "fetch"):
+                try:
+                    result = list(adapter.fetch())
+                    assert isinstance(result, list)
+                except Exception as e:
+                    logging.exception(
+                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
+                    )
+                    pass  # Может не работать без данных
 
-                if hasattr(adapter, "normalize"):
-                    try:
-                        result = list(adapter.normalize())
-                        assert isinstance(result, list)
-                    except Exception as e:
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-                        pass  # Может не работать без данных
+            if hasattr(adapter, "normalize"):
+                try:
+                    result = list(adapter.normalize())
+                    assert isinstance(result, list)
+                except Exception as e:
+                    logging.exception(
+                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
+                    )
+                    pass  # Может не работать без данных
 
-            # OFF client coverage - простое тестирование импорта и создания
-            import core.food_sources.off as off_module
+        # OFF client coverage - простое тестирование импорта и создания
+        import core.food_sources.off as off_module
 
-            assert off_module is not None
+        assert off_module is not None
 
-            if hasattr(off_module, "OFFAdapter"):
-                adapter = off_module.OFFAdapter()
-                assert adapter is not None
+        if hasattr(off_module, "OFFAdapter"):
+            adapter = off_module.OFFAdapter()
+            assert adapter is not None
 
-                # Тест методов если доступны
-                if hasattr(adapter, "fetch"):
-                    try:
-                        result = list(adapter.fetch())
-                        assert isinstance(result, list)
-                    except Exception as e:
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-                        pass  # Может не работать без данных
+            # Тест методов если доступны
+            if hasattr(adapter, "fetch"):
+                try:
+                    result = list(adapter.fetch())
+                    assert isinstance(result, list)
+                except Exception as e:
+                    logging.exception(
+                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
+                    )
+                    pass  # Может не работать без данных
 
-            # Base client coverage - тестируем базовый класс
-            import core.food_sources.base as base_module
+        # Base client coverage - тестируем базовый класс
+        import core.food_sources.base as base_module
 
-            assert base_module is not None
+        assert base_module is not None
 
-            # Проверяем что базовые классы доступны
-            if hasattr(base_module, "BaseAdapter"):
-                # Не создаем экземпляр, так как это абстрактный класс
-                assert base_module.BaseAdapter is not None
+        # Проверяем что базовые классы доступны
+        if hasattr(base_module, "BaseAdapter"):
+            # Не создаем экземпляр, так как это абстрактный класс
+            assert base_module.BaseAdapter is not None
 
-            if hasattr(base_module, "FoodRecord"):
-                assert base_module.FoodRecord is not None
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        if hasattr(base_module, "FoodRecord"):
+            assert base_module.FoodRecord is not None
 
     def test_i18n_facades_coverage(self) -> None:
         """Cover thin i18n facades added for feature key enablement."""
@@ -561,37 +557,29 @@ class TestSimpleCoverageBoost:
     @pytest.mark.asyncio
     async def test_unified_db_module_coverage(self) -> None:
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
-        try:
-            import core.food_apis.unified_db as unified_db_module
+        import core.food_apis.unified_db as unified_db_module
 
-            # Импортируем модуль для покрытия
-            assert hasattr(unified_db_module, "get_unified_food_db")
+        # Импортируем модуль для покрытия
+        assert hasattr(unified_db_module, "get_unified_food_db")
 
-            # Тест функции с моком, чтобы избежать реальных файловых операций
-            # Проверяем наличие UnifiedFoodDatabase перед созданием spec
-            if hasattr(unified_db_module, "UnifiedFoodDatabase"):
-                mock_db = MagicMock(spec=unified_db_module.UnifiedFoodDatabase)
-            else:
-                # Fallback: используем spec=None если класс отсутствует
-                mock_db = MagicMock(spec=None)
-            with patch.object(unified_db_module, "_unified_db_instance", mock_db):
-                result = await unified_db_module.get_unified_food_db()
-                assert result is mock_db
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "unified_db", reason=FEATURE_REASON)
+        # Тест функции с моком, чтобы избежать реальных файловых операций
+        # Проверяем наличие UnifiedFoodDatabase перед созданием spec
+        if hasattr(unified_db_module, "UnifiedFoodDatabase"):
+            mock_db = MagicMock(spec=unified_db_module.UnifiedFoodDatabase)
+        else:
+            # Fallback: используем spec=None если класс отсутствует
+            mock_db = MagicMock(spec=None)
+        with patch.object(unified_db_module, "_unified_db_instance", mock_db):
+            result = await unified_db_module.get_unified_food_db()
+            assert result is mock_db
 
     def test_update_manager_module_coverage(self):
         """Покрытие core/food_apis/update_manager.py (95% -> 97%+)"""
-        try:
-            import core.food_apis.update_manager as update_manager_module
+        import core.food_apis.update_manager as update_manager_module
 
-            # Импортируем модуль для покрытия
-            assert hasattr(update_manager_module, "DatabaseUpdateManager")
+        # Импортируем модуль для покрытия
+        assert hasattr(update_manager_module, "DatabaseUpdateManager")
 
-            # Создаем manager с минимальными настройками
-            manager = update_manager_module.DatabaseUpdateManager(update_interval_hours=1)
-            assert manager is not None
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
+        # Создаем manager с минимальными настройками
+        manager = update_manager_module.DatabaseUpdateManager(update_interval_hours=1)
+        assert manager is not None

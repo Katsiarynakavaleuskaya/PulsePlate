@@ -1,0 +1,71 @@
+{
+  "screen_id": "web.home",
+  "page": "20_Web_Parity",
+  "platform": "Web",
+  "dimensions": {
+    "width": 1440,
+    "height": 900
+  },
+  "background_token": "--pp-navy",
+  "governance_checks": [
+    "verify_token_usage",
+    "verify_hpp_compliance",
+    "verify_cta_registry_match"
+  ],
+  "context_version": "",
+  "instructions": [
+    {
+      "type": "create_frame",
+      "name": "Web Home Screen",
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_button",
+      "name": "Open setup",
+      "cta_key": "web.home.open_setup",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "W_HOME_QA_GRID",
+      "figma_node_id": "PP/Web/Home/QuickActions/OpenSetup/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/primary/setup",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Open plate",
+      "cta_key": "web.home.open_plate",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "W_HOME_QA_GRID",
+      "figma_node_id": "PP/Web/Home/QuickActions/OpenPlate/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/secondary/open-plate",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Open progress",
+      "cta_key": "web.home.open_progress",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "W_HOME_QA_GRID",
+      "figma_node_id": "PP/Web/Home/QuickActions/OpenProgress/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/secondary/open-progress",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Open Pro",
+      "cta_key": "web.home.open_pro",
+      "style": "secondary",
+      "variant": "V2",
+      "placement_zone": "W_HOME_QA_GRID",
+      "figma_node_id": "PP/Web/Home/QuickActions/OpenPro/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/secondary/open-pro",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    }
+  ]
+}

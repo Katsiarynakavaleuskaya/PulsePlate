@@ -1,0 +1,60 @@
+{
+  "screen_id": "web.plate",
+  "page": "20_Web_Parity",
+  "platform": "Web",
+  "dimensions": {
+    "width": 1440,
+    "height": 900
+  },
+  "background_token": "--pp-navy",
+  "governance_checks": [
+    "verify_token_usage",
+    "verify_hpp_compliance",
+    "verify_cta_registry_match"
+  ],
+  "context_version": "",
+  "instructions": [
+    {
+      "type": "create_frame",
+      "name": "Web Plate Screen",
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_button",
+      "name": "Open setup",
+      "cta_key": "web.plate.open_setup",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "W_PLATE_GATE_ACTIONS",
+      "figma_node_id": "PP/Web/Plate/ProControls/OpenSetup/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/primary/pro-open-setup",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Open progress",
+      "cta_key": "web.plate.open_progress",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "W_PLATE_GATE_ACTIONS",
+      "figma_node_id": "PP/Web/Plate/ProControls/OpenProgress/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/secondary/pro-open-progress",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Unlock Premium",
+      "cta_key": "web.plate.premium_gate_cta",
+      "style": "secondary",
+      "variant": "V2",
+      "placement_zone": "W_PLATE_GATE_ACTIONS",
+      "figma_node_id": "PP/Web/Plate/PremiumGate/UnlockCTA/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/paywall-unlock",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    }
+  ]
+}

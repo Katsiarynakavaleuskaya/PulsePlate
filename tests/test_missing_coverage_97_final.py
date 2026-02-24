@@ -2,10 +2,7 @@
 Final test coverage boost to reach 97%
 """
 
-from contextlib import suppress
-
 import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestMissingCoverage97Final:
@@ -13,85 +10,52 @@ class TestMissingCoverage97Final:
 
     def test_fix_failing_tests_coverage(self) -> None:
         """Test fix_failing_tests.py coverage"""
-        try:
-            import fix_failing_tests
+        import fix_failing_tests
 
-            assert fix_failing_tests is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert fix_failing_tests is not None
 
     def test_mcp_pulseplate_server_coverage(self) -> None:
         """Test mcp_pulseplate_server.py coverage"""
-        try:
-            import mcp_pulseplate_server
+        import mcp_pulseplate_server
 
-            assert mcp_pulseplate_server is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert mcp_pulseplate_server is not None
 
     def test_setup_custom_mcp_coverage(self) -> None:
         """Test setup_custom_mcp.py coverage"""
-        try:
-            import setup_custom_mcp
+        import setup_custom_mcp
 
-            assert setup_custom_mcp is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert setup_custom_mcp is not None
 
     def test_test_pro_access_coverage(self) -> None:
         """Test test_pro_access.py coverage"""
-        try:
-            import test_pro_access
+        import test_pro_access
 
-            assert test_pro_access is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert test_pro_access is not None
 
     def test_app_import_coverage(self) -> None:
         """Test app/__init__.py coverage"""
-        try:
-            import app
+        import app
 
-            # Test app module
-            assert app is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test app module
+        assert app is not None
 
     def test_providers_init_coverage(self) -> None:
         """Test providers/__init__.py coverage"""
-        try:
-            import providers
+        import providers
 
-            # Test providers module
-            assert providers is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test providers module
+        assert providers is not None
 
     def test_app_router_init_coverage(self) -> None:
         """Test app/routers/__init__.py coverage"""
         try:
             import app.routers
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
         except IndexError as exc:
             pytest.fail(f"Unexpected router index error: {exc!r}")
 
     def test_food_apis_init_coverage(self) -> None:
         """Test core/food_apis/__init__.py coverage"""
-        try:
-            import core.food_apis
+        import core.food_apis
 
-            # Test food_apis module
-            assert core.food_apis is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
-
-    def test_app_comprehensive_coverage(self) -> None:
-        """Test comprehensive app.py coverage - consolidated from multiple duplicate tests"""
-        try:
-            import app
-
-            # Test app module
-            assert app is not None
-        except ImportError as exc:
-            require_feature_or_raise(exc, "core_db", reason=FEATURE_REASON)
+        # Test food_apis module
+        assert core.food_apis is not None

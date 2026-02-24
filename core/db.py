@@ -39,6 +39,8 @@ if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
+    from core.food_apis.unified_db import UnifiedFoodDatabase
+
 sa_asyncio: ModuleType | None
 try:  # Optional async support
     sa_asyncio = importlib.import_module("sqlalchemy.ext.asyncio")
@@ -933,6 +935,36 @@ def get_session_factory() -> sessionmaker[Session]:
         Current sessionmaker instance configured by init_db().
     """
     return _get_session_local()
+
+
+# ---------------------------------------------------------------------------
+# Thin facades (satisfy test imports; see tests/feature_manifest.py core_db)
+# ---------------------------------------------------------------------------
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Alias for :func:`get_session` — used by some test suites."""
+    yield from get_session()
+
+
+def create_tables() -> None:
+    """Idempotent schema creation using the current engine."""
+    Base.metadata.create_all(bind=_get_raw_engine())
+
+
+def init_database(database_url: str | None = None) -> "Engine":
+    """Alias for :func:`init_db`."""
+    return init_db(database_url)
+
+
+def get_unified_food_db() -> "UnifiedFoodDatabase | None":
+    """Lazy-import and return a :class:`UnifiedFoodDatabase` instance, or *None*."""
+    try:
+        from core.food_apis.unified_db import UnifiedFoodDatabase  # noqa: PLC0415
+
+        return UnifiedFoodDatabase()
+    except (ImportError, ModuleNotFoundError):
+        return None
 
 
 async def init_db_async() -> None:

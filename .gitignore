@@ -158,6 +158,9 @@ dmypy.json
 *.swo
 *~
 
+# Cursor MCP config (contains authentication tokens)
+.cursor/mcp.json
+
 # OS
 .DS_Store
 .DS_Store?

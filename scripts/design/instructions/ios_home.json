@@ -1,0 +1,82 @@
+{
+  "screen_id": "ios.home",
+  "page": "10_iOS_Home",
+  "platform": "iOS",
+  "dimensions": {
+    "width": 390,
+    "height": 844
+  },
+  "background_token": "Color.navy",
+  "governance_checks": [
+    "verify_token_usage",
+    "verify_hpp_compliance",
+    "verify_cta_registry_match"
+  ],
+  "context_version": "",
+  "instructions": [
+    {
+      "type": "create_frame",
+      "name": "iOS Home Screen",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "background": "Color.navy"
+    },
+    {
+      "type": "create_button",
+      "name": "BMI Calculator",
+      "cta_key": "ios.home.bmi_calculator",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "I_HOME_QUICK_ACTIONS",
+      "figma_node_id": "PP/iOS/Home/QuickActions/BMI/Row/Default (TBD)",
+      "prompt_stub": "stub://icon-nav/bmi",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Profile Setup",
+      "cta_key": "ios.home.profile_setup",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "I_HOME_QUICK_ACTIONS",
+      "figma_node_id": "PP/iOS/Home/QuickActions/ProfileSetup/Row/Default (TBD)",
+      "prompt_stub": "stub://icon-nav/profile-setup",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Open Plate",
+      "cta_key": "ios.home.open_plate",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "I_HOME_QUICK_ACTIONS",
+      "figma_node_id": "PP/iOS/Home/QuickActions/OpenPlate/Row/Default (TBD)",
+      "prompt_stub": "stub://icon-nav/open-plate",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Weekly Plan Reader",
+      "cta_key": "ios.home.weekly_plan_reader",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "I_HOME_PRO_TOOLS",
+      "figma_node_id": "PP/iOS/Home/ProTools/WeeklyPlanReader/Row/Flagged (TBD)",
+      "prompt_stub": "stub://cta/pro-tool/weekly-plan",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Shopping List Generator",
+      "cta_key": "ios.home.shopping_list_generator",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "I_HOME_PRO_TOOLS",
+      "figma_node_id": "PP/iOS/Home/ProTools/ShoppingList/Row/Flagged (TBD)",
+      "prompt_stub": "stub://cta/pro-tool/shopping-list",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    }
+  ]
+}

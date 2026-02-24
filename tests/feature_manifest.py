@@ -52,14 +52,10 @@ class FeatureManifest:
 # Canonical feature TODO keys (must match BACKLOG_LEDGER item; one-to-one mapping).
 FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
     {
-        "core_db",
-        "food_apis",
         "food_apis_error_injection",
-        "unified_db",
         "planner_engines",
         "plate_day_micros",
         "premium_week_router_mocking",
-        "utils_pack",
         "weekly_plan_helpers",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",

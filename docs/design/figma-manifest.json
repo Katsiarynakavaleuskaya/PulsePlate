@@ -17,5 +17,50 @@
     "figma_url": "",
     "node_id": ""
   },
-  "exports": []
+  "exports": [
+    {
+      "screen_id": "ios.home",
+      "executed_at": "2026-02-24T10:31:08.306152Z",
+      "status": "simulated",
+      "node_count": 6,
+      "nodes": [
+        {
+          "type": "create_frame",
+          "name": "iOS Home Screen",
+          "node_id": "simulated:ios.home:0",
+          "status": "pending_real_execution"
+        },
+        {
+          "type": "create_button",
+          "name": "BMI Calculator",
+          "node_id": "simulated:ios.home:1",
+          "status": "pending_real_execution"
+        },
+        {
+          "type": "create_button",
+          "name": "Profile Setup",
+          "node_id": "simulated:ios.home:2",
+          "status": "pending_real_execution"
+        },
+        {
+          "type": "create_button",
+          "name": "Open Plate",
+          "node_id": "simulated:ios.home:3",
+          "status": "pending_real_execution"
+        },
+        {
+          "type": "create_button",
+          "name": "Weekly Plan Reader",
+          "node_id": "simulated:ios.home:4",
+          "status": "pending_real_execution"
+        },
+        {
+          "type": "create_button",
+          "name": "Shopping List Generator",
+          "node_id": "simulated:ios.home:5",
+          "status": "pending_real_execution"
+        }
+      ]
+    }
+  ]
 }

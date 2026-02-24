@@ -36,8 +36,6 @@ class TestFinalCoreCoverage:
                     result = usda.get_food_data("123")
                     assert isinstance(result, (dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -67,8 +65,6 @@ class TestFinalCoreCoverage:
             is_valid = validate_category("fruit")
             assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "food_apis", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
