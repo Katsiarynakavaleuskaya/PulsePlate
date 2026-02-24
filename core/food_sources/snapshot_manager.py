@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable, Protocol, TypedDict
 
@@ -98,12 +98,17 @@ class SnapshotManager:
 
     MANIFEST_FILE = "manifest.json"
 
+    @staticmethod
+    def _utc_today() -> date:
+        """Return UTC calendar date to avoid local-time drift."""
+        return datetime.now(timezone.utc).date()
+
     def __init__(
         self, base_path: Path | str, *, today_provider: Callable[[], date] | None = None
     ) -> None:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
-        self._today_provider = today_provider or date.today
+        self._today_provider = today_provider or self._utc_today
 
     def _today(self) -> date:
         return self._today_provider()
@@ -242,12 +247,14 @@ class SnapshotManager:
         Subsequent runs pull delta only when updates are available or force=True.
         """
         last_snapshot = self.get_last_snapshot_date(source.name)
-        destination = self.base_path / source.name / self._today().isoformat()
-        destination.mkdir(parents=True, exist_ok=True)
 
         if last_snapshot is None:
+            destination = self.base_path / source.name / self._today().isoformat()
+            destination.mkdir(parents=True, exist_ok=True)
             meta = source.download_full(destination)
         elif force or source.has_updates_since(last_snapshot):
+            destination = self.base_path / source.name / self._today().isoformat()
+            destination.mkdir(parents=True, exist_ok=True)
             meta = source.download_delta(last_snapshot, destination)
         else:
             return None

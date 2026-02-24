@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import gzip
 import io
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Protocol
 
@@ -55,6 +55,11 @@ class OpenFoodFactsDeltaSource:
 
     name = "off"
 
+    @staticmethod
+    def _utc_today() -> date:
+        """Return UTC calendar date to avoid local-time drift."""
+        return datetime.now(timezone.utc).date()
+
     def __init__(
         self,
         *,
@@ -64,7 +69,7 @@ class OpenFoodFactsDeltaSource:
         delta_url_template: str = OFF_DELTA_URL,
     ) -> None:
         self.transport = transport or HttpxOFFTransport()
-        self._today_provider = today_provider or date.today
+        self._today_provider = today_provider or self._utc_today
         self.full_url = full_url
         self.delta_url_template = delta_url_template
 

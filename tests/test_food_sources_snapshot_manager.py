@@ -57,6 +57,19 @@ class _DummySource:
 
 
 @dataclass
+class _AdvancingToday:
+    first: date
+    second: date
+    calls: int = 0
+
+    def __call__(self) -> date:
+        self.calls += 1
+        if self.calls == 1:
+            return self.first
+        return self.second
+
+
+@dataclass
 class _EmptyDeltaSource:
     name: str
     updates_available: bool = True
@@ -117,6 +130,17 @@ def test_snapshot_manager_skips_when_no_updates(tmp_path: Path) -> None:
 
     source.updates_available = False
     assert manager.sync_if_needed(source) is None
+
+
+def test_snapshot_manager_noop_sync_does_not_create_empty_date_dir(tmp_path: Path) -> None:
+    today_provider = _AdvancingToday(first=date(2026, 2, 23), second=date(2026, 2, 24))
+    manager = SnapshotManager(tmp_path, today_provider=today_provider)
+    source = _DummySource(name="dummy", full_payload=b"full", delta_payload=b"delta")
+    assert manager.sync_if_needed(source) is not None
+
+    source.updates_available = False
+    assert manager.sync_if_needed(source) is None
+    assert not (tmp_path / "dummy" / "2026-02-24").exists()
 
 
 def test_snapshot_manager_syncs_delta_after_initial_snapshot(tmp_path: Path) -> None:
