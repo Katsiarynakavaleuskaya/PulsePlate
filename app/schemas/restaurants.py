@@ -21,6 +21,13 @@ class SubmissionStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class SubmissionReviewStatus(str, Enum):
+    """Allowed status values for moderation PATCH endpoint."""
+
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class RestaurantHit(BaseModel):
     """Restaurant chain search hit."""
 
@@ -86,5 +93,5 @@ class RestaurantSubmission(BaseModel):
 class SubmissionReviewRequest(BaseModel):
     """Request payload for moderation status update."""
 
-    status: SubmissionStatus
+    status: SubmissionReviewStatus
     reviewer_notes: str | None = Field(default=None, max_length=1024)

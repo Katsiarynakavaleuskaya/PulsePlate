@@ -4895,8 +4895,14 @@ export interface components {
         SubmissionReviewRequest: {
             /** Reviewer Notes */
             reviewer_notes?: string | null;
-            status: components["schemas"]["SubmissionStatus"];
+            status: components["schemas"]["SubmissionReviewStatus"];
         };
+        /**
+         * SubmissionReviewStatus
+         * @description Allowed status values for moderation PATCH endpoint.
+         * @enum {string}
+         */
+        SubmissionReviewStatus: "approved" | "rejected";
         /**
          * SubmissionStatus
          * @description Moderation states for controlled submissions.

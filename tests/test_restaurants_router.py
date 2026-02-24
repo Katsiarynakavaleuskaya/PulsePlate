@@ -5,11 +5,13 @@ from typing import Any, Dict, Mapping, Sequence
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.routers import restaurants
 from app.schemas.restaurants import (
     RestaurantSubmissionCreate,
     SubmissionReviewRequest,
+    SubmissionReviewStatus,
     SubmissionStatus,
 )
 
@@ -223,7 +225,7 @@ def test_review_submission_maps_response() -> None:
             "audit": [],
         }
     )
-    payload = SubmissionReviewRequest(status=SubmissionStatus.APPROVED, reviewer_notes="ok")
+    payload = SubmissionReviewRequest(status=SubmissionReviewStatus.APPROVED, reviewer_notes="ok")
     result = restaurants.review_restaurant_submission("s1", payload, store=store)
     assert result.id == "s1"
     assert result.status == SubmissionStatus.APPROVED
@@ -231,14 +233,14 @@ def test_review_submission_maps_response() -> None:
 
 def test_review_submission_validation_error_maps_422() -> None:
     store = _StubStore(review_error=ValueError("status must be one of: approved, rejected"))
-    payload = SubmissionReviewRequest(status=SubmissionStatus.REJECTED)
+    payload = SubmissionReviewRequest(status=SubmissionReviewStatus.REJECTED)
     with pytest.raises(HTTPException) as exc:
         restaurants.review_restaurant_submission("s1", payload, store=store)
     assert exc.value.status_code == 422
 
 
 def test_review_submission_not_found_maps_404() -> None:
-    payload = SubmissionReviewRequest(status=SubmissionStatus.REJECTED)
+    payload = SubmissionReviewRequest(status=SubmissionReviewStatus.REJECTED)
     with pytest.raises(HTTPException) as exc:
         restaurants.review_restaurant_submission(
             "s1",
@@ -247,3 +249,8 @@ def test_review_submission_not_found_maps_404() -> None:
         )
     assert exc.value.status_code == 404
     assert exc.value.detail == "Submission not found"
+
+
+def test_review_payload_rejects_pending_status() -> None:
+    with pytest.raises(ValidationError):
+        SubmissionReviewRequest(status=SubmissionStatus.PENDING)

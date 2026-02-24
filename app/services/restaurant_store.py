@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -35,9 +36,19 @@ def _utc_now_iso() -> str:
 
 
 def _slugify(value: str) -> str:
-    """Build deterministic IDs from external strings."""
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    return slug or "unknown"
+    """Build deterministic IDs from external strings.
+
+    RU: Для строк без ASCII-символов используем hash fallback вместо `unknown`,
+    чтобы избежать коллизий при upsert.
+    EN: For non-ASCII-only strings, use hash fallback instead of `unknown`
+    to prevent upsert collisions.
+    """
+    normalized = value.strip().casefold()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
+    if slug:
+        return slug
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"id-{digest}"
 
 
 def _as_float(value: Any) -> float | None:

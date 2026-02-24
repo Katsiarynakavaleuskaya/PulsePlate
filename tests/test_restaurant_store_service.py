@@ -159,3 +159,23 @@ def test_get_submission_missing_returns_none(
 ) -> None:
     _set_test_db(monkeypatch, tmp_path)
     assert restaurant_store.get_submission("no-such-submission") is None
+
+
+def test_import_menustat_rows_non_ascii_ids_do_not_collapse(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    stats = restaurant_store.import_menustat_rows(
+        [
+            {"chain_name": "Пицца Дом", "item_name": "Маргарита"},
+            {"chain_name": "Роллы Плюс", "item_name": "Филадельфия"},
+        ]
+    )
+    assert stats == {"chains_upserted": 2, "menu_items_upserted": 2}
+
+    with restaurant_store._connect() as con:
+        chain_rows = con.execute("SELECT id, name FROM restaurant_chains ORDER BY name").fetchall()
+    assert len(chain_rows) == 2
+    chain_ids = [row["id"] for row in chain_rows]
+    assert chain_ids[0] != chain_ids[1]
+    assert all(chain_id.startswith("id-") for chain_id in chain_ids)

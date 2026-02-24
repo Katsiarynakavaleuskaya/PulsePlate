@@ -5224,7 +5224,7 @@
             "title": "Reviewer Notes"
           },
           "status": {
-            "$ref": "#/components/schemas/SubmissionStatus"
+            "$ref": "#/components/schemas/SubmissionReviewStatus"
           }
         },
         "required": [
@@ -5232,6 +5232,15 @@
         ],
         "title": "SubmissionReviewRequest",
         "type": "object"
+      },
+      "SubmissionReviewStatus": {
+        "description": "Allowed status values for moderation PATCH endpoint.",
+        "enum": [
+          "approved",
+          "rejected"
+        ],
+        "title": "SubmissionReviewStatus",
+        "type": "string"
       },
       "SubmissionStatus": {
         "description": "Moderation states for controlled submissions.",
