@@ -299,6 +299,22 @@ _COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
+class FoodRepository:
+    """Repository wrapper for food lookups against the local SQLite store."""
+
+    @staticmethod
+    def get_by_id(food_id: str) -> Optional[Dict[str, Any]]:
+        with _connect() as con:
+            row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_gtin(gtin: str) -> Optional[Dict[str, Any]]:
+        with _connect() as con:
+            row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (gtin,)).fetchone()
+        return dict(row) if row else None
+
+
 def _is_truthy_env(value: str | None) -> bool:
     """Parse common truthy env representations."""
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -494,9 +510,7 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
 
 def get_food(food_id: str) -> Optional[Dict[str, Any]]:
     """Return a single food by id or None if not found."""
-    with _connect() as con:
-        row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-    return dict(row) if row else None
+    return FoodRepository.get_by_id(food_id)
 
 
 def _normalize_barcode(barcode: str) -> str:
@@ -522,18 +536,17 @@ def get_food_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
     EN: Returns a food by barcode (GTIN/EAN/UPC) or None if not found.
     """
     normalized = _normalize_barcode(barcode)
-    with _connect() as con:
-        row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (normalized,)).fetchone()
-        if row:
-            return dict(row)
+    row = FoodRepository.get_by_gtin(normalized)
+    if row:
+        return row
 
-        # Some sources store GTIN without a single left-pad zero.
-        # Drop only one leading zero to avoid changing significant digits.
-        fallback = normalized[1:] if normalized.startswith("0") else ""
-        if fallback:
-            row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (fallback,)).fetchone()
-            if row:
-                return dict(row)
+    # Some sources store GTIN without a single left-pad zero.
+    # Drop only one leading zero to avoid changing significant digits.
+    fallback = normalized[1:] if normalized.startswith("0") else ""
+    if fallback:
+        row = FoodRepository.get_by_gtin(fallback)
+        if row:
+            return row
     return None
 
 

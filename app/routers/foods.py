@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.schemas.food import FoodHit, FoodItem
 from app.services import food_store
@@ -81,7 +81,7 @@ def list_foods_search(
 def get_food(food_id: str, store: FoodStore = Depends(get_food_store)) -> FoodItem:
     row = store.get_food(food_id)
     if not row:
-        raise HTTPException(status_code=404, detail="Food not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")
     return FoodItem(**row)
 
 
@@ -96,7 +96,9 @@ def get_food_by_barcode(barcode: str, store: FoodStore = Depends(get_food_store)
     try:
         row = store.get_food_by_barcode(barcode)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
     if not row:
-        raise HTTPException(status_code=404, detail="Food not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")
     return FoodItem(**row)
