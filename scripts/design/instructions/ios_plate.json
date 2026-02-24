@@ -1,0 +1,60 @@
+{
+  "screen_id": "ios.plate",
+  "page": "11_iOS_Plate",
+  "platform": "iOS",
+  "dimensions": {
+    "width": 390,
+    "height": 844
+  },
+  "background_token": "Color.navy",
+  "governance_checks": [
+    "verify_token_usage",
+    "verify_hpp_compliance",
+    "verify_cta_registry_match"
+  ],
+  "context_version": "",
+  "instructions": [
+    {
+      "type": "create_frame",
+      "name": "iOS Plate Screen",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "background": "Color.navy"
+    },
+    {
+      "type": "create_button",
+      "name": "Add Meal",
+      "cta_key": "ios.plate.add_meal",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "I_PLATE_BOTTOMBAR_PRIMARY",
+      "figma_node_id": "PP/iOS/Plate/BottomBar/AddMeal/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/primary/add-meal",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "View Details",
+      "cta_key": "ios.plate.view_details",
+      "style": "secondary",
+      "variant": "V3",
+      "placement_zone": "I_PLATE_BOTTOMBAR_PRIMARY",
+      "figma_node_id": "PP/iOS/Plate/BottomBar/ViewDetails/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/secondary/view-details",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    },
+    {
+      "type": "create_button",
+      "name": "Retry / Open Profile / PRO Settings",
+      "cta_key": "ios.plate.issue_action_dynamic",
+      "style": "primary",
+      "variant": "V1",
+      "placement_zone": "I_PLATE_ISSUE_RECOVERY",
+      "figma_node_id": "PP/iOS/Plate/IssueState/PrimaryAction/Button/Stateful (TBD)",
+      "prompt_stub": "stub://cta/error-state/dynamic-issue-action",
+      "states": ["default", "hover", "disabled", "loading", "error"]
+    }
+  ]
+}
