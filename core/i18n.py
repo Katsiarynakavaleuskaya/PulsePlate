@@ -121,6 +121,14 @@ TRANSLATIONS = {
         ),
         # Rate Limiting
         "rate_limit.exceeded": "Превышен лимит запросов. Пожалуйста, попробуйте позже.",
+        # PRO BMI Plan: Action Tips
+        "action_maintain_tip": "Поддерживайте текущий баланс.",
+        "action_lose_tip": "Сократите ~300–500 ккал/день; белок и овощи в приоритете.",
+        "action_gain_tip": "Добавьте ~300–500 ккал/день; 1.6–2.2 г белка/кг.",
+        # PRO BMI Plan: Activity Tips
+        "activity_maintain_tip": "2–3 силовых тренировки/нед.",
+        "activity_lose_tip": "6–10 тыс. шагов/день, +2–3 силовые трен./нед.",
+        "activity_gain_tip": "2–3 силовых/нед; прогрессия нагрузок.",
     },
     "en": {
         # BMI Categories
@@ -233,6 +241,14 @@ TRANSLATIONS = {
         "business_analysis_failed": "Business analysis failed. Please try again or contact support",
         # Rate Limiting
         "rate_limit.exceeded": "Rate limit exceeded. Please try again later.",
+        # PRO BMI Plan: Action Tips
+        "action_maintain_tip": "Maintain current balance.",
+        "action_lose_tip": "Reduce ~300–500 kcal/day; focus on protein & veggies.",
+        "action_gain_tip": "Add ~300–500 kcal/day; 1.6–2.2 g protein/kg.",
+        # PRO BMI Plan: Activity Tips
+        "activity_maintain_tip": "2–3 strength sessions/week.",
+        "activity_lose_tip": "6–10k steps/day, +2–3 strength sessions/wk.",
+        "activity_gain_tip": "2–3 strength sessions/wk; progressive overload.",
     },
     "es": {
         # BMI Categories
@@ -348,6 +364,14 @@ TRANSLATIONS = {
         ),
         # Rate Limiting
         "rate_limit.exceeded": "Límite de solicitudes excedido. Por favor, inténtelo más tarde.",
+        # PRO BMI Plan: Action Tips
+        "action_maintain_tip": "Mantén el equilibrio actual.",
+        "action_lose_tip": "Reduce ~300–500 kcal/día; enfócate en proteínas y verduras.",
+        "action_gain_tip": "Agrega ~300–500 kcal/día; 1.6–2.2 g proteína/kg.",
+        # PRO BMI Plan: Activity Tips
+        "activity_maintain_tip": "2–3 sesiones de fuerza/semana.",
+        "activity_lose_tip": "6–10k pasos/día, +2–3 sesiones de fuerza/sem.",
+        "activity_gain_tip": "2–3 sesiones de fuerza/sem; sobrecarga progresiva.",
     },
 }
 
