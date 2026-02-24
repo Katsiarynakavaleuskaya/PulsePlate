@@ -4217,7 +4217,10 @@ export interface components {
             barcode?: string | null;
             /** Canonical Name */
             canonical_name: string;
-            /** Created At */
+            /**
+             * Created At
+             * Format: date-time
+             */
             created_at: string;
             /** Entity Type */
             entity_type: string;
@@ -4232,7 +4235,10 @@ export interface components {
             /** Reviewer Notes */
             reviewer_notes?: string | null;
             status: components["schemas"]["SubmissionStatus"];
-            /** Updated At */
+            /**
+             * Updated At
+             * Format: date-time
+             */
             updated_at: string;
         };
         /**
@@ -4877,7 +4883,10 @@ export interface components {
          * @description Single status transition for a submission.
          */
         SubmissionAuditEntry: {
-            /** Changed At */
+            /**
+             * Changed At
+             * Format: date-time
+             */
             changed_at: string;
             from_status?: components["schemas"]["SubmissionStatus"] | null;
             /** Id */

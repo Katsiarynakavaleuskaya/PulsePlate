@@ -93,8 +93,8 @@ def get_restaurant_store() -> RestaurantStore:
 @router.get("/api/v1/restaurants/search", response_model=list[RestaurantHit])
 def search_restaurants(
     query: str = Query("", max_length=128),
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=10000),
     store: RestaurantStore = Depends(get_restaurant_store),
 ) -> list[RestaurantHit]:
     if limit > 100 or limit < 1:

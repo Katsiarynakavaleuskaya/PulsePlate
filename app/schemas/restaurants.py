@@ -7,6 +7,7 @@ EN: Schemas for restaurants/menus and moderated user submissions.
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -71,7 +72,7 @@ class SubmissionAuditEntry(BaseModel):
     from_status: SubmissionStatus | None = None
     to_status: SubmissionStatus
     reviewer_notes: str | None = None
-    changed_at: str
+    changed_at: datetime
 
 
 class RestaurantSubmission(BaseModel):
@@ -85,8 +86,8 @@ class RestaurantSubmission(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     status: SubmissionStatus
     reviewer_notes: str | None = None
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
     audit: list[SubmissionAuditEntry] = Field(default_factory=list)
 
 
