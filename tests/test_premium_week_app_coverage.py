@@ -48,11 +48,12 @@ class TestPremiumWeekAppCoverage:
         The endpoint checks both app.make_weekly_menu (via PEP 562 __getattr__) and
         legacy_app globals(), so we need to ensure both return None.
 
-        We mock app._LOCAL_EXPORTS to remove 'make_weekly_menu' and delete from legacy_app.
+        We remove 'make_weekly_menu' from app._LOCAL_EXPORTS and set
+        legacy_app.make_weekly_menu to None directly.
         """
         import app as app_module
 
-        # Remove 'make_weekly_menu' from app's lazy exports so __getattr__ won't find it
+        # Remove 'make_weekly_menu' from app's lazy exports so __getattr__ falls back to legacy_app
         original_exports = app_module._LOCAL_EXPORTS.copy()
         monkeypatch.setattr(
             app_module,
@@ -60,12 +61,9 @@ class TestPremiumWeekAppCoverage:
             {k: v for k, v in original_exports.items() if k != "make_weekly_menu"},
         )
 
-        # Also need to handle the fallback to legacy_app in __getattr__
-        # And delete from legacy_app globals
-        try:
-            monkeypatch.delattr(legacy_app, "make_weekly_menu")
-        except AttributeError:
-            pass
+        # Set make_weekly_menu to None in legacy_app so getattr returns None
+        # and globals().get() also returns None
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
         response = self.client.post(
             "/api/v1/premium/plan/week",
