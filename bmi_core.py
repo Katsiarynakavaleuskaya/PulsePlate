@@ -292,15 +292,20 @@ def build_premium_plan(
     Returns:
         Dict with plan details (legacy format)
     """
+    from typing import cast
+
+    from core.bmi.engine import BMIGroup
     from core.bmi.engine import build_premium_plan as _canonical_build_premium_plan
 
+    # Cast string to BMIGroup (legacy API accepts str, canonical uses Literal)
+    normalized_group = cast(BMIGroup, group if group else "general")
     result = _canonical_build_premium_plan(
         age=age,
         weight_kg=weight_kg,
         height_m=height_m,
         bmi=bmi,
         lang=lang,
-        group=group,  # type: ignore[arg-type]
+        group=normalized_group,
         premium=premium,
     )
 

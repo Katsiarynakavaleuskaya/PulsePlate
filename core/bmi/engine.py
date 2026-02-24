@@ -452,6 +452,8 @@ def build_premium_plan(
     Raises:
         ValueError: If input validation fails
     """
+    import math
+
     from core.i18n import t
 
     # Input validation
@@ -487,12 +489,12 @@ def build_premium_plan(
         est_weeks = (None, None)
     elif action == "lose":
         delta = round(weight_kg - wmax, 1)
-        # 0.25-0.5 kg/week safe loss rate
-        est_weeks = (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+        # 0.25-0.5 kg/week safe loss rate; use ceil to avoid underestimating duration
+        est_weeks = (max(1, math.ceil(delta / 0.5)), max(1, math.ceil(delta / 0.25)))
     else:  # gain
         delta = round(wmin - weight_kg, 1)
-        # 0.25-0.5 kg/week safe gain rate
-        est_weeks = (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+        # 0.25-0.5 kg/week safe gain rate; use ceil to avoid underestimating duration
+        est_weeks = (max(1, math.ceil(delta / 0.5)), max(1, math.ceil(delta / 0.25)))
 
     # Get localized tips
     nutrition_tip = t(lang_norm, f"action_{action}_tip")
