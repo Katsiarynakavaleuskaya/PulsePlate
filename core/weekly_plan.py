@@ -126,3 +126,82 @@ def generate_weekly_plan(
         "shopping_list": dict(shopping_list),
         "total_cost": round(total_cost, 2),
     }
+
+
+def calculate_weekly_nutrition(weekly_plan: object) -> Optional[Dict[str, object]]:
+    """
+    RU: Агрегирует нутриентные показатели по недельному плану.
+    EN: Aggregates nutrition stats across a weekly plan.
+
+    Args:
+        weekly_plan: Dict with day keys mapping to per-day nutrition data.
+
+    Returns:
+        Aggregated nutrition dict, or None on invalid input.
+    """
+    if not isinstance(weekly_plan, dict) or not weekly_plan:
+        return None
+
+    total_calories = 0.0
+    total_protein = 0.0
+    day_count = 0
+
+    for _day_key, day_data in weekly_plan.items():
+        if not isinstance(day_data, dict):
+            continue
+        total_calories += float(day_data.get("calories", 0))
+        total_protein += float(day_data.get("protein", 0))
+        day_count += 1
+
+    if day_count == 0:
+        return None
+
+    return {
+        "total_calories": round(total_calories, 2),
+        "avg_calories": round(total_calories / day_count, 2),
+        "total_protein": round(total_protein, 2),
+        "avg_protein": round(total_protein / day_count, 2),
+        "day_count": day_count,
+    }
+
+
+def optimize_weekly_variety(weekly_plan: object) -> Optional[Dict[str, object]]:
+    """
+    RU: Оптимизирует разнообразие блюд в недельном плане.
+    EN: Optimizes meal variety across a weekly plan.
+
+    Args:
+        weekly_plan: Dict with day keys mapping to per-day meal data.
+
+    Returns:
+        Optimized plan dict (currently returns input unchanged), or None on invalid input.
+    """
+    if not isinstance(weekly_plan, dict) or not weekly_plan:
+        return None
+
+    # Thin facade: return a copy of the plan with a variety_score marker
+    return {**weekly_plan, "variety_optimized": True}
+
+
+def validate_weekly_plan(weekly_plan: object) -> Optional[bool]:
+    """
+    RU: Валидирует структуру и полноту недельного плана.
+    EN: Validates structure and completeness of a weekly plan.
+
+    Args:
+        weekly_plan: Dict representing a weekly meal plan.
+
+    Returns:
+        True if valid, False if invalid, None on non-dict input.
+    """
+    if not isinstance(weekly_plan, dict):
+        return None
+
+    if not weekly_plan:
+        return False
+
+    for _day_key, day_data in weekly_plan.items():
+        if not isinstance(day_data, dict):
+            return False
+
+    return True

@@ -6,13 +6,7 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
-import logging
 from unittest.mock import patch
-
-import pytest
-from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
-
-logger = logging.getLogger(__name__)
 
 
 class TestShoplistModule:
@@ -86,80 +80,69 @@ class TestWeeklyPlanModule:
 
     def test_weekly_plan_generation(self):
         """Test weekly plan generation."""
-        try:
-            from core.targets import NutritionTargets
-            from core.weekly_plan import generate_weekly_plan
+        from unittest.mock import MagicMock
 
-            # Create mock targets
-            targets = NutritionTargets(calories=2000, protein=150, carbs=250, fat=70)
+        from core.weekly_plan import generate_weekly_plan
 
-            # Test with empty diet flags
-            with patch("core.weekly_plan.parse_food_db", return_value={}):
-                with patch("core.weekly_plan.parse_recipe_db", return_value={}):
-                    with patch("core.weekly_plan.create_daily_plate", return_value={}):
-                        plan = generate_weekly_plan(targets, set())
-                        assert isinstance(plan, (dict, type(None)))
+        targets = MagicMock()
+        targets.kcal_daily = 2000
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
-        except Exception as exc:
-            logger.warning("generate_weekly_plan raised during test: %s", exc)
+        with patch("core.weekly_plan.parse_food_db", return_value={}):
+            with patch("core.weekly_plan.parse_recipe_db", return_value={}):
+                with patch("core.weekly_plan.create_daily_plate", return_value={}):
+                    plan = generate_weekly_plan(targets, set())
+                    assert isinstance(plan, dict)
+                    assert "days" in plan
+                    assert len(plan["days"]) == 7
 
     def test_weekly_plan_with_diet_flags(self):
         """Test weekly plan with dietary restrictions."""
-        try:
-            from core.targets import NutritionTargets
-            from core.weekly_plan import generate_weekly_plan
+        from unittest.mock import MagicMock
 
-            # Mock targets
-            targets = NutritionTargets(calories=1800, protein=120, carbs=200, fat=60)
+        from core.weekly_plan import generate_weekly_plan
 
-            # Test with diet flags
-            diet_flags = {"vegetarian", "gluten_free"}
+        targets = MagicMock()
+        targets.kcal_daily = 1800
 
-            with patch("core.weekly_plan.parse_food_db", return_value={}):
-                with patch("core.weekly_plan.parse_recipe_db", return_value={}):
-                    with patch("core.weekly_plan.create_daily_plate", return_value={}):
-                        plan = generate_weekly_plan(targets, diet_flags)
-                        assert isinstance(plan, (dict, type(None)))
+        diet_flags = {"vegetarian", "gluten_free"}
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
-        except Exception as exc:
-            logger.warning("generate_weekly_plan with diet flags raised: %s", exc)
+        with patch("core.weekly_plan.parse_food_db", return_value={}):
+            with patch("core.weekly_plan.parse_recipe_db", return_value={}):
+                with patch("core.weekly_plan.create_daily_plate", return_value={}):
+                    plan = generate_weekly_plan(targets, diet_flags)
+                    assert isinstance(plan, dict)
+                    assert "days" in plan
+                    assert len(plan["days"]) == 7
 
     def test_daily_plan_functions(self):
         """Test daily plan helper functions."""
-        try:
-            from core.weekly_plan import (
-                calculate_weekly_nutrition,
-                optimize_weekly_variety,
-                validate_weekly_plan,
-            )
+        from core.weekly_plan import (
+            calculate_weekly_nutrition,
+            optimize_weekly_variety,
+            validate_weekly_plan,
+        )
 
-            # Mock weekly plan data
-            weekly_plan = {
-                "day1": {"calories": 2000, "protein": 150},
-                "day2": {"calories": 1900, "protein": 140},
-                "day3": {"calories": 2100, "protein": 160},
-            }
+        # Mock weekly plan data
+        weekly_plan = {
+            "day1": {"calories": 2000, "protein": 150},
+            "day2": {"calories": 1900, "protein": 140},
+            "day3": {"calories": 2100, "protein": 160},
+        }
 
-            # Test nutrition calculation
-            nutrition = calculate_weekly_nutrition(weekly_plan)
-            assert isinstance(nutrition, (dict, type(None)))
+        # Test nutrition calculation
+        nutrition = calculate_weekly_nutrition(weekly_plan)
+        assert isinstance(nutrition, dict)
+        assert "total_calories" in nutrition
+        assert "avg_calories" in nutrition
 
-            # Test variety optimization
-            optimized = optimize_weekly_variety(weekly_plan)
-            assert isinstance(optimized, (dict, type(None)))
+        # Test variety optimization
+        optimized = optimize_weekly_variety(weekly_plan)
+        assert isinstance(optimized, dict)
+        assert optimized.get("variety_optimized") is True
 
-            # Test plan validation
-            is_valid = validate_weekly_plan(weekly_plan)
-            assert isinstance(is_valid, (bool, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "weekly_plan_helpers", reason=FEATURE_REASON)
-        except Exception as exc:
-            logger.warning("weekly_plan helper functions raised: %s", exc)
+        # Test plan validation
+        is_valid = validate_weekly_plan(weekly_plan)
+        assert is_valid is True
 
 
 class TestUtilsModule:
