@@ -484,8 +484,8 @@ class TestUnifiedFoodDatabase:
         """Test get_food_by_id when all sources fail."""
         # Mock USDA client to return None
         with patch.object(unified_db.usda_client, "get_food_details", return_value=None):
-            # get_food_by_id requires source and food_id
-            result = await unified_db.get_food_by_id("usda", "nonexistent")
+            # get_food_by_id requires source and food_id (use valid int to avoid ValueError)
+            result = await unified_db.get_food_by_id("usda", "99999")
 
-            # Should return None when source fails
+            # Should return None when source returns no data
             assert result is None
