@@ -1368,7 +1368,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 🔄 In progress (PR-879: 3 more keys enabled — core_db, food_apis, unified_db; 8 total enabled, 10 remaining)
+  - Status: 🔄 In progress (PR-888: premium_week_router_mocking enabled; 14 total enabled, 6 remaining)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1388,6 +1388,8 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`); gate removed in PR-748
     - `aliases_module` -> ✅ Enabled (PR-748); core/aliases.py fully implemented
+    - `update_manager` -> ✅ Enabled (PR-761, `0aa3c51b`); Path wrapper .path exposed in core/food_apis/update_manager.py; gates removed from 4 test locations (test_database_apis_coverage.py, test_final_coverage_97_boost.py, test_update_manager_fixed.py); key removed from FEATURE_TODO_KEYS
+    - `region_catalog` -> ✅ Enabled (PR-762, `abed9a48`); stale feature gate removed from test_direct_core_functions.py; 1 test location cleaned; key removed from FEATURE_TODO_KEYS
     - `targets_fixture_data` -> ✅ Enabled (PR-877); gates removed from 3 test files (test_targets_coverage_97.py, test_core_coverage_97_final.py, test_simple_coverage_fixed.py)
     - `i18n_advanced` -> ✅ Enabled (PR-877); thin facades added to core/i18n.py (TranslationManager + 8 functions); gates removed from 4 test files
     - `rag` -> ✅ Enabled (PR-877); thin facades added to core/rag/simple_rag.py (RAGEngine/SimpleRAG + 6 functions); gates removed from 4 test files
