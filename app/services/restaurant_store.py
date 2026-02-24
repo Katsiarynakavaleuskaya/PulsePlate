@@ -28,6 +28,8 @@ STATUS_PENDING = "pending"
 STATUS_APPROVED = "approved"
 STATUS_REJECTED = "rejected"
 _ALLOWED_REVIEW_STATUSES = {STATUS_APPROVED, STATUS_REJECTED}
+MAX_RESTAURANT_SEARCH_LIMIT = 100
+MAX_RESTAURANT_MENU_LIMIT = 500
 
 
 def _utc_now_iso() -> str:
@@ -70,9 +72,21 @@ def _as_float(value: Any) -> float | None:
     return None
 
 
+def _validate_pagination(limit: int, offset: int, *, max_limit: int) -> tuple[int, int]:
+    """Validate pagination bounds for service-layer callers."""
+    if limit < 1:
+        raise ValueError("limit must be >= 1")
+    if limit > max_limit:
+        raise ValueError(f"limit must be <= {max_limit}")
+    if offset < 0:
+        raise ValueError("offset must be >= 0")
+    return limit, offset
+
+
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
     con = sqlite3.connect(DB_PATH)
+    con.execute("PRAGMA foreign_keys = ON")
     con.row_factory = sqlite3.Row
     try:
         _ensure_schema(con)
@@ -268,6 +282,11 @@ def import_menustat_rows(
 
 def search_restaurants(query: str, limit: int = 20, offset: int = 0) -> list[Dict[str, Any]]:
     """Search restaurant chains from local canonical DB."""
+    limit, offset = _validate_pagination(
+        limit=limit,
+        offset=offset,
+        max_limit=MAX_RESTAURANT_SEARCH_LIMIT,
+    )
     pattern = f"%{(query or '').strip().lower()}%"
     with _connect() as con:
         rows = con.execute(
@@ -285,6 +304,11 @@ def search_restaurants(query: str, limit: int = 20, offset: int = 0) -> list[Dic
 
 def get_restaurant_menu(chain_id: str, limit: int = 200) -> list[Dict[str, Any]]:
     """Return active menu rows for a restaurant chain."""
+    limit, _ = _validate_pagination(
+        limit=limit,
+        offset=0,
+        max_limit=MAX_RESTAURANT_MENU_LIMIT,
+    )
     with _connect() as con:
         rows = con.execute(
             """

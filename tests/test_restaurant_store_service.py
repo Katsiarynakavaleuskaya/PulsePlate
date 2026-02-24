@@ -181,3 +181,29 @@ def test_import_menustat_rows_non_ascii_ids_do_not_collapse(
     chain_ids = [row["id"] for row in chain_rows]
     assert chain_ids[0] != chain_ids[1]
     assert all(chain_id.startswith("id-") for chain_id in chain_ids)
+
+
+def test_connect_enables_foreign_keys(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    with restaurant_store._connect() as con:
+        row = con.execute("PRAGMA foreign_keys").fetchone()
+    assert row is not None
+    assert row[0] == 1
+
+
+def test_search_restaurants_rejects_invalid_pagination(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="offset must be >= 0"):
+        restaurant_store.search_restaurants("x", limit=10, offset=-1)
+    with pytest.raises(ValueError, match="limit must be <= 100"):
+        restaurant_store.search_restaurants("x", limit=101, offset=0)
+
+
+def test_get_restaurant_menu_rejects_invalid_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="limit must be <= 500"):
+        restaurant_store.get_restaurant_menu("any", limit=501)
