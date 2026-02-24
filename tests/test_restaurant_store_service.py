@@ -84,3 +84,78 @@ def test_review_submission_missing_returns_none(
 ) -> None:
     _set_test_db(monkeypatch, tmp_path)
     assert restaurant_store.review_submission("missing-id", status="approved") is None
+
+
+def test_as_float_conversion_branches() -> None:
+    assert restaurant_store._as_float(12) == 12.0
+    assert restaurant_store._as_float("") is None
+    assert restaurant_store._as_float("abc") is None
+    assert restaurant_store._as_float(object()) is None
+
+
+def test_import_menustat_rows_skips_invalid_entries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    stats = restaurant_store.import_menustat_rows(
+        [
+            {"chain_name": "", "item_name": "A"},
+            {"chain_name": "Chain", "item_name": ""},
+        ]
+    )
+    assert stats == {"chains_upserted": 0, "menu_items_upserted": 0}
+
+
+def test_get_submission_handles_invalid_payload_json(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    with restaurant_store._connect() as con:
+        con.execute(
+            """
+            INSERT INTO user_submissions (
+                id, entity_type, canonical_name, barcode, off_url, payload_json,
+                status, reviewer_notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            """,
+            (
+                "s-bad-json",
+                "restaurant_menu",
+                "Bad payload",
+                None,
+                None,
+                "{bad",
+                "pending",
+                "a",
+                "b",
+            ),
+        )
+        con.commit()
+
+    row = restaurant_store.get_submission("s-bad-json")
+    assert row is not None
+    assert row["payload"] == {}
+
+
+def test_create_submission_requires_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="canonical_name is required"):
+        restaurant_store.create_submission(canonical_name="  ")
+
+
+def test_create_submission_runtime_error_when_lookup_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    original_get_submission = restaurant_store.get_submission
+    monkeypatch.setattr(restaurant_store, "get_submission", lambda _: None)
+    with pytest.raises(RuntimeError, match="failed to persist submission"):
+        restaurant_store.create_submission(canonical_name="X")
+    monkeypatch.setattr(restaurant_store, "get_submission", original_get_submission)
+
+
+def test_get_submission_missing_returns_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    assert restaurant_store.get_submission("no-such-submission") is None
