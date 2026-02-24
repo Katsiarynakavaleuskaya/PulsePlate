@@ -78,7 +78,7 @@ class TestShoplistModule:
 class TestWeeklyPlanModule:
     """Test core.weekly_plan module."""
 
-    def test_weekly_plan_generation(self):
+    def test_weekly_plan_generation(self) -> None:
         """Test weekly plan generation."""
         from unittest.mock import MagicMock
 
@@ -95,7 +95,7 @@ class TestWeeklyPlanModule:
                     assert "days" in plan
                     assert len(plan["days"]) == 7
 
-    def test_weekly_plan_with_diet_flags(self):
+    def test_weekly_plan_with_diet_flags(self) -> None:
         """Test weekly plan with dietary restrictions."""
         from unittest.mock import MagicMock
 
@@ -114,7 +114,7 @@ class TestWeeklyPlanModule:
                     assert "days" in plan
                     assert len(plan["days"]) == 7
 
-    def test_daily_plan_functions(self):
+    def test_daily_plan_functions(self) -> None:
         """Test daily plan helper functions."""
         from core.weekly_plan import (
             calculate_weekly_nutrition,

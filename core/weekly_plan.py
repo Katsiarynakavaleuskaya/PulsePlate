@@ -1,6 +1,6 @@
 import statistics
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, TypedDict
+from typing import Dict, List, Optional, Set, TypedDict
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -129,7 +129,7 @@ def generate_weekly_plan(
 
 
 def calculate_weekly_nutrition(
-    weekly_plan: Dict[str, Any],
+    weekly_plan: Dict[str, object],
 ) -> Optional[Dict[str, float | int]]:
     """
     RU: Агрегирует нутриентные показатели по недельному плану.
@@ -173,7 +173,7 @@ def calculate_weekly_nutrition(
     }
 
 
-def optimize_weekly_variety(weekly_plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def optimize_weekly_variety(weekly_plan: Dict[str, object]) -> Optional[Dict[str, object]]:
     """
     RU: Оптимизирует разнообразие блюд в недельном плане.
     EN: Optimizes meal variety across a weekly plan.
@@ -191,7 +191,7 @@ def optimize_weekly_variety(weekly_plan: Dict[str, Any]) -> Optional[Dict[str, A
     return {**weekly_plan, "variety_optimized": True}
 
 
-def validate_weekly_plan(weekly_plan: Dict[str, Any]) -> Optional[bool]:
+def validate_weekly_plan(weekly_plan: Dict[str, object]) -> Optional[bool]:
     """
     RU: Валидирует структуру и полноту недельного плана-черновика.
     EN: Validates structure and completeness of a weekly plan sketch.
