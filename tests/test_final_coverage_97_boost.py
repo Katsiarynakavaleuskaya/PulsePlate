@@ -98,7 +98,7 @@ class TestRecommendationsCoverage:
         from core.recommendations import get_nutrient_recommendations
 
         recommendations = get_nutrient_recommendations(
-            age=25, gender="female", weight=60, height=165, activity_level="low"
+            age=25, gender="female", weight_kg=60, height_cm=165, activity_level="low"
         )
         assert recommendations is not None
         assert isinstance(recommendations, dict)
@@ -112,13 +112,16 @@ class TestRecommendationsCoverage:
         """Test recommendations for all activity levels."""
         from core.recommendations import get_nutrient_recommendations
 
-        activity_levels = ["low", "moderate", "high", "very_high"]
+        activity_levels = ["low", "light", "moderate", "high", "very_high"]
+        prev_kcal = 0
         for level in activity_levels:
             recommendations = get_nutrient_recommendations(
-                age=30, gender="male", weight=75, height=180, activity_level=level
+                age=30, gender="male", weight_kg=75, height_cm=180, activity_level=level
             )
             assert recommendations is not None
             assert isinstance(recommendations, dict)
+            assert recommendations["kcal_daily"] >= prev_kcal
+            prev_kcal = recommendations["kcal_daily"]
 
     def test_recommendations_invalid_activity_raises(self) -> None:
         """Test that invalid activity_level raises ValueError."""
@@ -126,7 +129,7 @@ class TestRecommendationsCoverage:
 
         with pytest.raises(ValueError, match="Unknown activity_level"):
             get_nutrient_recommendations(
-                age=30, gender="male", weight=75, height=180, activity_level="extreme"
+                age=30, gender="male", weight_kg=75, height_cm=180, activity_level="extreme"
             )
 
 

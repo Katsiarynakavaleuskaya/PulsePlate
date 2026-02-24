@@ -507,6 +507,7 @@ def _get_age_factor(age: int, life_stage: str) -> float:
 
 _ACTIVITY_LEVEL_MAP: Dict[str, Activity] = {
     "low": "sedentary",
+    "light": "light",
     "moderate": "moderate",
     "high": "active",
     "very_high": "very_active",
@@ -516,9 +517,9 @@ _ACTIVITY_LEVEL_MAP: Dict[str, Activity] = {
 def get_nutrient_recommendations(
     age: int,
     gender: Literal["female", "male"],
-    weight: float,
-    height: float,
-    activity_level: str,
+    weight_kg: float,
+    height_cm: float,
+    activity_level: Literal["low", "light", "moderate", "high", "very_high"],
 ) -> Dict[str, Any]:
     """
     RU: Получает персональные рекомендации по питанию (упрощённый API).
@@ -530,9 +531,9 @@ def get_nutrient_recommendations(
     Args:
         age: Age in years (1-120).
         gender: "female" or "male".
-        weight: Body weight in kg.
-        height: Height in cm.
-        activity_level: One of "low", "moderate", "high", "very_high".
+        weight_kg: Body weight in kg.
+        height_cm: Height in cm.
+        activity_level: One of "low", "light", "moderate", "high", "very_high".
 
     Returns:
         Dict with keys: kcal_daily, macros, water_ml_daily, micros, activity.
@@ -548,8 +549,8 @@ def get_nutrient_recommendations(
     profile = UserProfile(
         sex=gender,
         age=age,
-        weight_kg=weight,
-        height_cm=height,
+        weight_kg=weight_kg,
+        height_cm=height_cm,
         activity=mapped_activity,
         goal="maintain",
     )
