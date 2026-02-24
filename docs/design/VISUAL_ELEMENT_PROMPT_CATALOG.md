@@ -57,15 +57,15 @@ Primary implementation anchors:
 
 ### P1: Medium effort / modern polish
 
-5. Setup Completion Step Rail (Nutrition Setup)
-6. BMI Result Confidence Card
-7. Smart Empty States (Plate/Progress)
+1. Setup Completion Step Rail (Nutrition Setup)
+2. BMI Result Confidence Card
+3. Smart Empty States (Plate/Progress)
 
 ### P2: Optional expressive layer
 
-8. Tab Bar Active Trail Micro-Motion
-9. Export Success Celebration Chip (Progress PDF)
-10. Seasonal Theme Accent Pack (token-safe)
+1. Tab Bar Active Trail Micro-Motion
+2. Export Success Celebration Chip (Progress PDF)
+3. Seasonal Theme Accent Pack (token-safe)
 
 ## 4) Prompt Packs by Visual Element
 
@@ -514,23 +514,23 @@ QA:
 ## 5) Execution Sequence
 
 1. Implement P0 prompts first (Elements 01-04).
-Prompt files:
-- `docs/sora/prompts/hpp/p0_visibility/home_hero_ambient__home__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/progress_momentum_ring__progress__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/onboarding_trust_canvas__enter_key__v1.0.md`
+   Prompt files:
+   - `docs/sora/prompts/hpp/p0_visibility/home_hero_ambient__home__v1.0.md`
+   - `docs/sora/prompts/hpp/p0_visibility/progress_momentum_ring__progress__v1.0.md`
+   - `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md`
+   - `docs/sora/prompts/hpp/p0_visibility/onboarding_trust_canvas__enter_key__v1.0.md`
 2. Validate with `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
 3. Map approved assets to relevant frontend component PRs.
 4. Add P1 only after P0 visual consistency pass.
-P1 prompt files:
-- `docs/sora/prompts/hpp/p1_polish/setup_completion_step_rail__setup__v1.0.md`
-- `docs/sora/prompts/hpp/p1_polish/bmi_result_confidence_card__bmi__v1.0.md`
-- `docs/sora/prompts/hpp/p1_polish/smart_empty_states_pack__plate_progress__v1.0.md`
+   P1 prompt files:
+   - `docs/sora/prompts/hpp/p1_polish/setup_completion_step_rail__setup__v1.0.md`
+   - `docs/sora/prompts/hpp/p1_polish/bmi_result_confidence_card__bmi__v1.0.md`
+   - `docs/sora/prompts/hpp/p1_polish/smart_empty_states_pack__plate_progress__v1.0.md`
 5. Keep P2 behind feature/campaign toggles.
-P2 prompt files:
-- `docs/sora/prompts/hpp/p2_expressive/tab_bar_active_trail_micro_motion__tabbar__v1.0.md`
-- `docs/sora/prompts/hpp/p2_expressive/export_success_celebration_chip__progress__v1.0.md`
-- `docs/sora/prompts/hpp/p2_expressive/seasonal_theme_accent_pack__home_progress__v1.0.md`
+   P2 prompt files:
+   - `docs/sora/prompts/hpp/p2_expressive/tab_bar_active_trail_micro_motion__tabbar__v1.0.md`
+   - `docs/sora/prompts/hpp/p2_expressive/export_success_celebration_chip__progress__v1.0.md`
+   - `docs/sora/prompts/hpp/p2_expressive/seasonal_theme_accent_pack__home_progress__v1.0.md`
 
 ## 6) Security Notes
 
