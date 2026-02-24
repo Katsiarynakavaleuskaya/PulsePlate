@@ -18,7 +18,7 @@ Add a modern momentum signal that reinforces progress without clinical tone.
 Create a premium flat-style progress ring visual pack for wellness app UI.
 Mood: calm confidence, trustworthy analytics, not medical.
 Palette lock: navy/blue/green with tiny red accent only when needed.
-Generate 4 variants for progress states with identical geometry base.
+Generate 3 variants for progress states with identical geometry base.
 Output transparent PNG sprites and one subtle ring pulse animation idea.
 ```
 
