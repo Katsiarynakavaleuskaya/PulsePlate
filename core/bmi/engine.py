@@ -395,6 +395,119 @@ def interpret_group(
     return base_text
 
 
+# --- PRO tier: Premium plan builder ---
+
+# Action type for weight management
+ActionType: TypeAlias = Literal["maintain", "lose", "gain"]
+
+
+@dataclass
+class PremiumPlanResult:
+    """
+    RU: Результат построения премиум плана.
+    EN: Result of building a premium plan.
+    """
+
+    healthy_bmi: tuple[float, float]
+    healthy_weight: tuple[float, float]
+    current_weight: float
+    current_bmi: float
+    action: ActionType
+    delta_kg: float
+    est_weeks: tuple[int, int] | tuple[None, None]
+    nutrition_tip: str
+    activity_tip: str
+
+
+def build_premium_plan(
+    age: int,
+    weight_kg: float,
+    height_m: float,
+    bmi: float,
+    lang: str | None = None,
+    group: BMIGroup = "general",
+    premium: bool = True,
+) -> PremiumPlanResult:
+    """
+    RU: Построение премиум плана с рекомендациями по питанию и активности.
+    EN: Build premium plan with nutrition and activity recommendations.
+
+    PRO tier feature for personalized weight management plan.
+
+    Args:
+        age: Age in years (1-150)
+        weight_kg: Weight in kilograms
+        height_m: Height in meters
+        bmi: Pre-calculated BMI value
+        lang: Language code ("ru", "en", "es")
+        group: BMI group (default "general")
+        premium: Premium flag (legacy parameter, ignored)
+
+    Returns:
+        PremiumPlanResult with plan details and localized tips
+
+    Raises:
+        ValueError: If input validation fails
+    """
+    from core.i18n import t
+
+    # Input validation
+    if age < 1 or age > 150:
+        raise ValueError("Invalid age: must be between 1 and 150")
+    if weight_kg <= 0:
+        raise ValueError("Invalid weight: must be positive")
+    if height_m <= 0:
+        raise ValueError("Invalid height: must be positive")
+
+    lang_norm = _normalize_lang(lang)
+
+    # Calculate healthy weight range using canonical BMI range
+    bmin, bmax = HEALTHY_BMI_RANGE.min, HEALTHY_BMI_RANGE.max
+    wmin = round(bmin * height_m * height_m, 1)
+    wmax = round(bmax * height_m * height_m, 1)
+
+    # Determine action
+    action: ActionType
+    if wmin <= weight_kg <= wmax:
+        action = "maintain"
+    elif weight_kg > wmax:
+        action = "lose"
+    else:
+        action = "gain"
+
+    # Calculate delta and estimated weeks
+    delta: float
+    est_weeks: tuple[int, int] | tuple[None, None]
+
+    if action == "maintain":
+        delta = 0.0
+        est_weeks = (None, None)
+    elif action == "lose":
+        delta = round(weight_kg - wmax, 1)
+        # 0.25-0.5 kg/week safe loss rate
+        est_weeks = (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+    else:  # gain
+        delta = round(wmin - weight_kg, 1)
+        # 0.25-0.5 kg/week safe gain rate
+        est_weeks = (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+
+    # Get localized tips
+    nutrition_tip = t(lang_norm, f"action_{action}_tip")
+    activity_tip = t(lang_norm, f"activity_{action}_tip")
+
+    return PremiumPlanResult(
+        healthy_bmi=(bmin, bmax),
+        healthy_weight=(wmin, wmax),
+        current_weight=round(weight_kg, 1),
+        current_bmi=bmi,
+        action=action,
+        delta_kg=delta,
+        est_weeks=est_weeks,
+        nutrition_tip=nutrition_tip,
+        activity_tip=activity_tip,
+    )
+
+
 # Athlete string detection (legacy parity) — strict, NOT including "спорт".
 _ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
 
