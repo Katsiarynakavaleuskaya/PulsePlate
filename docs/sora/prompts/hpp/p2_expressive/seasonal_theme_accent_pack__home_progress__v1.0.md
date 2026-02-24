@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD013 -->
-# Seasonal Theme Accent Pack Prompt Pack
+# Seasonal Theme Accent Prompt Pack
 
 Version: v1.0
 Priority: P2
@@ -61,6 +61,7 @@ Two low-intensity depth variants with identical component spacing behavior.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Base UI remains clearly recognizable as PulsePlate
 - Accents are feature-toggle friendly and removable with zero layout shift
 - No token drift beyond approved SoT semantics

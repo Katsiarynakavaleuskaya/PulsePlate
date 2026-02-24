@@ -60,6 +60,7 @@ No motion, static composition optimized for reduced-motion mode.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Form field remains first focal object
 - Validation states remain clear without flashing/motion stress
 - No security fear framing in artwork

@@ -62,6 +62,7 @@ Lower contrast accents, stronger whitespace around CTA area.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Primary CTA remains dominant and readable
 - Emotional tone remains supportive (no pressure/fear)
 - No manipulative language in paired UI copy

@@ -59,6 +59,7 @@ A compact active dot movement with static label/icon clarity.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Reduced-motion fallback must be explicitly defined
 - Active state remains clear in static mode
 - Motion must not compete with primary content reading

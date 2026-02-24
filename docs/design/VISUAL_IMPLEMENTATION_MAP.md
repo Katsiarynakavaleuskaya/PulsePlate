@@ -1,106 +1,53 @@
 <!-- markdownlint-disable MD013 -->
 # PulsePlate Visual Implementation Map
 
-**Date:** February 24, 2026 (America/New_York)
-**Status:** Active planning map
-**Scope:** Web frontend visual uplift linked to concrete implementation points
+Date created: February 24, 2026 (America/New_York)
+Status: Working map
+Scope: Visual element -> frontend ownership mapping
 
 ## 1) Purpose
 
-This map links proposed visuals to concrete frontend integration points and PR checklists.
-Use it to execute visual updates without scope drift.
+This document is an implementation map only.
+It does not define new visual policy.
 
-Primary design source:
+Canonical governance references:
 
-- `docs/design/VISUAL_ELEMENT_PROMPT_CATALOG.md`
+- `docs/sora/VISUAL_GOVERNANCE_INDEX.md`
+- `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+- `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 
-Prompt source for P0 execution:
+## 2) Mapping Table (with Evidence Anchors)
 
-- `docs/sora/prompts/hpp/p0_visibility/home_hero_ambient__home__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/progress_momentum_ring__progress__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md`
-- `docs/sora/prompts/hpp/p0_visibility/onboarding_trust_canvas__enter_key__v1.0.md`
+| Visual Element | Priority | Frontend Paths | Evidence (file:line) | Prompt Pack | Exit Criteria |
+| --- | --- | --- | --- | --- | --- |
+| Home Hero Ambient Layer | P0 | `frontend/src/pages/Home.tsx` | `frontend/src/pages/Home.tsx:7` | `docs/sora/prompts/hpp/p0_visibility/home_hero_ambient__home__v1.0.md` | Update when Home hero layout ownership changes. |
+| Progress Momentum Ring + Weekly Streak Badge | P0 | `frontend/src/pages/Progress.tsx`, `frontend/src/features/progress/LiveProgressIndicator.tsx` | `frontend/src/pages/Progress.tsx:9`, `frontend/src/features/progress/LiveProgressIndicator.tsx:18` | `docs/sora/prompts/hpp/p0_visibility/progress_momentum_ring__progress__v1.0.md` | Update when progress indicator implementation moves. |
+| Premium Gate Value Frame | P0 | `frontend/src/components/PremiumGate.tsx`, `frontend/src/components/Paywall/BeforeAfter.tsx` | `frontend/src/components/PremiumGate.tsx:24`, `frontend/src/components/Paywall/BeforeAfter.tsx:47` | `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md` | Update when paywall component ownership changes. |
+| Onboarding Trust Canvas | P0 | `frontend/src/pages/Onboarding/EnterKey.tsx` | `frontend/src/pages/Onboarding/EnterKey.tsx:64` | `docs/sora/prompts/hpp/p0_visibility/onboarding_trust_canvas__enter_key__v1.0.md` | Update when key-entry flow is replaced. |
+| Setup Completion Step Rail | P1 | `frontend/src/pages/NutritionSetup/SetupForm.tsx`, `frontend/src/pages/NutritionSetup/ResultView.tsx` | `frontend/src/pages/NutritionSetup/SetupForm.tsx:14`, `frontend/src/pages/NutritionSetup/ResultView.tsx:18` | `docs/sora/prompts/hpp/p1_polish/setup_completion_step_rail__setup__v1.0.md` | Apply after P0 consistency pass. |
+| BMI Result Confidence Card | P1 | `frontend/src/pages/BMI/BMICalculatePage.tsx` | `frontend/src/pages/BMI/BMICalculatePage.tsx:21` | `docs/sora/prompts/hpp/p1_polish/bmi_result_confidence_card__bmi__v1.0.md` | Apply after P0 consistency pass. |
+| Smart Empty States Pack | P1 | `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Progress.tsx`, `frontend/src/components/ui/EmptyState.tsx` | `frontend/src/pages/Plate.tsx:8`, `frontend/src/pages/Progress.tsx:9`, `frontend/src/components/ui/EmptyState.tsx:11` | `docs/sora/prompts/hpp/p1_polish/smart_empty_states_pack__plate_progress__v1.0.md` | Apply after P0 consistency pass. |
+| Tab Bar Active Trail Micro-Motion | P2 | `frontend/src/components/TabBar.tsx` | `frontend/src/components/TabBar.tsx:9` | `docs/sora/prompts/hpp/p2_expressive/tab_bar_active_trail_micro_motion__tabbar__v1.0.md` | Keep behind feature/campaign toggle strategy. |
+| Export Success Celebration Chip | P2 | `frontend/src/features/progress/ProgressCharts.tsx` | `frontend/src/features/progress/ProgressCharts.tsx:1` | `docs/sora/prompts/hpp/p2_expressive/export_success_celebration_chip__progress__v1.0.md` | Keep behind feature/campaign toggle strategy. |
+| Seasonal Theme Accent Pack | P2 | `frontend/src/pages/Home.tsx`, `frontend/src/pages/Progress.tsx` | `frontend/src/pages/Home.tsx:7`, `frontend/src/pages/Progress.tsx:9` | `docs/sora/prompts/hpp/p2_expressive/seasonal_theme_accent_pack__home_progress__v1.0.md` | Keep behind feature/campaign toggle strategy. |
 
-Prompt source for P1 execution:
+## 3) PR Authoring References
 
-- `docs/sora/prompts/hpp/p1_polish/setup_completion_step_rail__setup__v1.0.md`
-- `docs/sora/prompts/hpp/p1_polish/bmi_result_confidence_card__bmi__v1.0.md`
-- `docs/sora/prompts/hpp/p1_polish/smart_empty_states_pack__plate_progress__v1.0.md`
-
-Prompt source for P2 execution:
-
-- `docs/sora/prompts/hpp/p2_expressive/tab_bar_active_trail_micro_motion__tabbar__v1.0.md`
-- `docs/sora/prompts/hpp/p2_expressive/export_success_celebration_chip__progress__v1.0.md`
-- `docs/sora/prompts/hpp/p2_expressive/seasonal_theme_accent_pack__home_progress__v1.0.md`
-
-## 2) Visual -> Component Mapping
-
-| Visual Element | Priority | Frontend Paths | Design Output | Engineering Output |
-| --- | --- | --- | --- | --- |
-| Home Hero Ambient Layer | P0 | `frontend/src/pages/Home.tsx` | Background asset variants + layout spec | Integrate asset layer with reduced-motion fallback |
-| Progress Momentum Ring + Weekly Streak Badge | P0 | `frontend/src/pages/Progress.tsx`, `frontend/src/features/progress/LiveProgressIndicator.tsx` | Ring + badge component visuals, state variants | Render state-driven visuals and preserve contrast |
-| Premium Gate Value Frame | P0 | `frontend/src/components/PremiumGate.tsx`, `frontend/src/components/Paywall/BeforeAfter.tsx` | Value frame and modal hero variants | Apply frame in locked states and paywall surface |
-| Onboarding Trust Canvas | P0 | `frontend/src/pages/Onboarding/EnterKey.tsx` | Trust canvas backgrounds, state-aware variants | Mount canvas by state (`initial`, `loading`, `success`, `invalid`) |
-| Setup Completion Step Rail | P1 | `frontend/src/pages/NutritionSetup/SetupForm.tsx`, `frontend/src/pages/NutritionSetup/ResultView.tsx` | Step rail spec and mobile variant | Add step state UI across form/result |
-| BMI Result Confidence Card | P1 | `frontend/src/pages/BMI/BMICalculatePage.tsx` | Confidence card visual system | Update BMI result container layout and states |
-| Smart Empty States Pack | P1 | `frontend/src/pages/Plate.tsx`, `frontend/src/pages/Progress.tsx`, `frontend/src/components/ui/EmptyState.tsx` | Empty-state family A/B/C | Replace fragmented empty-state visuals with unified family |
-| Tab Bar Active Trail Micro-Motion | P2 | `frontend/src/components/TabBar.tsx` | Micro-motion spec | Implement subtle transition with reduced-motion support |
-| Export Success Celebration Chip | P2 | `frontend/src/features/progress/ProgressCharts.tsx` | Compact success chip visuals | Show post-export success feedback |
-| Seasonal Theme Accent Pack | P2 | `frontend/src/pages/Home.tsx`, `frontend/src/pages/Progress.tsx` | Optional seasonal accents | Feature-flagged accent overlays |
-
-## 3) PR Checklist Template (Per Visual)
-
-For every implementation PR, copy this checklist and keep all items explicit.
-Optional PR body template:
+Use these canonical templates/checklists instead of defining local rule copies here:
 
 - `.github/PULL_REQUEST_TEMPLATE/visuals.md`
 - `docs/design/VISUAL_PR_DESCRIPTION_TEMPLATES.md`
-- `.github/pr_body_visual_p2_tab_bar_active_trail.md` (ready-first example)
+- `.github/pr_body_visual_p2_tab_bar_active_trail.md`
 
-### Design and Prompt Checklist
+## 4) Execution Order
 
-- [ ] Prompt source file is referenced in PR description
-- [ ] Output variants are version-tagged (`v1.0`, `v1.1`)
-- [ ] Negative prompt constraints are preserved
-- [ ] Visual matches `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-- [ ] Token policy matches `docs/design/TOKENS_SOT.md`
+1. P0 bundle first.
+2. P1 bundle only after P0 consistency pass.
+3. P2 bundle only as optional toggle/campaign layer.
 
-### Frontend Integration Checklist
+## 5) Security and GTM References
 
-- [ ] Component path(s) listed explicitly
-- [ ] Reduced-motion fallback is implemented (if motion exists)
-- [ ] Contrast/readability validated on mobile and desktop
-- [ ] No raw-hex drift outside token SoT allowlist
-- [ ] No direct API/client policy regressions in touched components
-
-### QA and Safety Checklist
-
-- [ ] `docs/sora/SORA_STYLE_QA_CHECKLIST.md` pass documented
-- [ ] Wellness-safe semantics confirmed (non-clinical)
-- [ ] No manipulative urgency/fear visuals
-- [ ] Small-size readability check passed (24/32 px where relevant)
-
-## 4) Recommended Execution Order
-
-1. P0 bundle A: Home Hero Ambient Layer + Onboarding Trust Canvas.
-2. P0 bundle B: Progress Momentum Ring + Premium Gate Value Frame.
-3. P1 bundle: Setup Step Rail + BMI Confidence Card + Smart Empty States.
-4. P2 bundle under feature/campaign toggles.
-
-## 5) Security Notes
-
-- Prompts and assets must never include secrets, keys, private URLs, or sensitive metadata.
-- Visuals must remain wellness-lifestyle oriented and avoid medical diagnosis implication.
-- Any campaign variant still follows the same anti-drift and safety gates.
-
-## 6) Marketing and GTM Notes
-
-- ASO-first: deploy P0 visuals for first-impression screenshots and app-preview frames.
-- Product Hunt: showcase before/after from P0 and P1 upgrades.
-- Social loops: reuse low-motion assets from Home ambient and Progress ring.
-
-## 7) Decision Log
-
-- Map built from current web route structure and existing component ownership.
-- Priority order is optimized for visibility impact first, then polish layers.
-- Checklist format is designed to reduce design-dev handoff ambiguity.
+- Security/QA: `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- UX quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+- GTM: `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`

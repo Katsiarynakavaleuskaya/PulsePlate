@@ -9,6 +9,10 @@ Target components:
 - `frontend/src/pages/Progress.tsx`
 - `frontend/src/components/ui/EmptyState.tsx`
 
+Execution dependency:
+
+- Run this P1 pack after P0 consistency pass.
+
 ## 1) Purpose
 
 Unify empty/locked/retry visuals into one consistent family to improve perceived quality.
@@ -61,6 +65,7 @@ Recovery-focused retry visual with clear primary/secondary action hierarchy.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - State intent understandable within first glance
 - Visual continuity preserved across all three variants
 - No fear/shame manipulation tone

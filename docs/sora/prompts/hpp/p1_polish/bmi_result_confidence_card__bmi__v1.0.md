@@ -59,6 +59,7 @@ Use geometric confidence frame around result value with low-intensity accents.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - No medical diagnosis implication in visuals
 - Long localized strings remain readable
 - CTA to next action remains visually clear

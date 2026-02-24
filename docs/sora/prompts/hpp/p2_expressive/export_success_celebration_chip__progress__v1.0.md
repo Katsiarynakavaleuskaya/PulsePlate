@@ -15,6 +15,9 @@ without celebratory noise.
 ## 2) Master Prompt (Sora)
 
 ```text
+{NANO_PREFIX}
+Target: Web Progress export success feedback
+Ratio: 16:9 primary, 1:1 fallback
 Create a tiny celebratory success accent pack for PDF export completion.
 Mood: calm achievement, not confetti party.
 Generate 2 icon accents and 1 subtle background swash,
@@ -34,7 +37,8 @@ Keep mobile-safe width and avoid overlap with key charts.
 
 ```text
 no fireworks/confetti overload, no loud gradients,
-no intrusive full-screen celebration
+no intrusive full-screen celebration,
+no manipulative urgency, no fear framing, no shame framing
 ```
 
 ## 5) Controlled Variations
@@ -60,6 +64,7 @@ Inline compact success badge aligned near export control.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Legible in narrow mobile viewport
 - No overlap with chart critical content
 - Tone remains professional and unobtrusive

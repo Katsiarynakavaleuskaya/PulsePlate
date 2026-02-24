@@ -62,6 +62,7 @@ Keep ring identical, add compact streak badge with non-color status marker.
 ## 6) QA Gate
 
 - Pass `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+- Pass `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Ring readable at 24/32 px preview
 - State meaning distinguishable without color-only encoding
 - No medical or diagnostic visual cues
