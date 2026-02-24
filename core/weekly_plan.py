@@ -1,6 +1,6 @@
 import statistics
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, TypedDict
+from typing import Any, Dict, List, Optional, Set, TypedDict
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -128,7 +128,9 @@ def generate_weekly_plan(
     }
 
 
-def calculate_weekly_nutrition(weekly_plan: object) -> Optional[Dict[str, object]]:
+def calculate_weekly_nutrition(
+    weekly_plan: Dict[str, Any],
+) -> Optional[Dict[str, float | int]]:
     """
     RU: Агрегирует нутриентные показатели по недельному плану.
     EN: Aggregates nutrition stats across a weekly plan.
@@ -149,8 +151,14 @@ def calculate_weekly_nutrition(weekly_plan: object) -> Optional[Dict[str, object
     for _day_key, day_data in weekly_plan.items():
         if not isinstance(day_data, dict):
             continue
-        total_calories += float(day_data.get("calories", 0))
-        total_protein += float(day_data.get("protein", 0))
+        try:
+            total_calories += float(day_data.get("calories", 0))
+        except (ValueError, TypeError):
+            pass
+        try:
+            total_protein += float(day_data.get("protein", 0))
+        except (ValueError, TypeError):
+            pass
         day_count += 1
 
     if day_count == 0:
@@ -165,7 +173,7 @@ def calculate_weekly_nutrition(weekly_plan: object) -> Optional[Dict[str, object
     }
 
 
-def optimize_weekly_variety(weekly_plan: object) -> Optional[Dict[str, object]]:
+def optimize_weekly_variety(weekly_plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     RU: Оптимизирует разнообразие блюд в недельном плане.
     EN: Optimizes meal variety across a weekly plan.
@@ -183,13 +191,16 @@ def optimize_weekly_variety(weekly_plan: object) -> Optional[Dict[str, object]]:
     return {**weekly_plan, "variety_optimized": True}
 
 
-def validate_weekly_plan(weekly_plan: object) -> Optional[bool]:
+def validate_weekly_plan(weekly_plan: Dict[str, Any]) -> Optional[bool]:
     """
-    RU: Валидирует структуру и полноту недельного плана.
-    EN: Validates structure and completeness of a weekly plan.
+    RU: Валидирует структуру и полноту недельного плана-черновика.
+    EN: Validates structure and completeness of a weekly plan sketch.
+
+    Validates raw plan sketches (dict of day-keyed dicts), not the
+    WeeklyPlanResult TypedDict produced by generate_weekly_plan.
 
     Args:
-        weekly_plan: Dict representing a weekly meal plan.
+        weekly_plan: Dict representing a weekly meal plan sketch.
 
     Returns:
         True if valid, False if invalid, None on non-dict input.

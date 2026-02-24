@@ -86,6 +86,28 @@ class TestCalculateWeeklyNutrition:
         assert result["total_calories"] == 14000.0
         assert result["avg_calories"] == 2000.0
 
+    def test_non_numeric_calories_ignored(self) -> None:
+        plan = {"day1": {"calories": "abc", "protein": 100}}
+        result = calculate_weekly_nutrition(plan)
+        assert result is not None
+        assert result["total_calories"] == 0.0
+        assert result["total_protein"] == 100.0
+
+    def test_none_protein_ignored(self) -> None:
+        plan = {"day1": {"calories": 1500, "protein": None}}
+        result = calculate_weekly_nutrition(plan)
+        assert result is not None
+        assert result["total_calories"] == 1500.0
+        assert result["total_protein"] == 0.0
+
+    def test_both_non_numeric_still_counts_day(self) -> None:
+        plan = {"day1": {"calories": "bad", "protein": "bad"}}
+        result = calculate_weekly_nutrition(plan)
+        assert result is not None
+        assert result["day_count"] == 1
+        assert result["total_calories"] == 0.0
+        assert result["total_protein"] == 0.0
+
 
 class TestOptimizeWeeklyVariety:
     """Tests for optimize_weekly_variety facade."""
