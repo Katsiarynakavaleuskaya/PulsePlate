@@ -182,7 +182,7 @@ def optimize_weekly_variety(weekly_plan: Dict[str, object]) -> Optional[Dict[str
         weekly_plan: Dict with day keys mapping to per-day meal data.
 
     Returns:
-        Optimized plan dict (currently returns input unchanged), or None on invalid input.
+        Copy of the plan dict augmented with ``variety_optimized=True``, or None on invalid input.
     """
     if not isinstance(weekly_plan, dict) or not weekly_plan:
         return None
