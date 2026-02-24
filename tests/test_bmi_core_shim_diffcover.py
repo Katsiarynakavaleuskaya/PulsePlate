@@ -196,6 +196,30 @@ class TestInterpretGroupShim:
             result = bmi_core.interpret_group(bmi=22.0, group="general", lang=lang)
             assert isinstance(result, str)
 
+    def test_interpret_group_missing_note_key_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test interpret_group falls back to base text when note key raises KeyError."""
+        from core import i18n
+
+        original_t = i18n.t
+        call_count = {"value": 0}
+
+        def mock_t(lang: str, key: str, **kwargs: str) -> str:
+            call_count["value"] += 1
+            # First call is for category key - let it succeed
+            if "bmi_" in key and "advice" not in key:
+                return original_t(lang, key, **kwargs)
+            # Second call is for note key - raise KeyError
+            raise KeyError(f"Mock missing key: {key}")
+
+        monkeypatch.setattr(i18n, "t", mock_t)
+        # Use athlete group which has a note key
+        result = bmi_core.interpret_group(bmi=25.0, group="athlete", lang="en")
+        # Should return just category without note (KeyError caught)
+        assert isinstance(result, str)
+        assert call_count["value"] >= 1
+
 
 class TestBuildPremiumPlanShim:
     """Test build_premium_plan shim coverage (delegates to canonical implementation)."""
@@ -238,3 +262,24 @@ class TestBuildPremiumPlanShim:
             )
             assert isinstance(result["nutrition_tip"], str)
             assert len(result["nutrition_tip"]) > 0
+
+    def test_build_premium_plan_invalid_age_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid age."""
+        with pytest.raises(ValueError, match="Invalid age"):
+            bmi_core.build_premium_plan(age=0, weight_kg=70.0, height_m=1.75, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid age"):
+            bmi_core.build_premium_plan(age=200, weight_kg=70.0, height_m=1.75, bmi=22.9)
+
+    def test_build_premium_plan_invalid_weight_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid weight."""
+        with pytest.raises(ValueError, match="Invalid weight"):
+            bmi_core.build_premium_plan(age=30, weight_kg=0, height_m=1.75, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid weight"):
+            bmi_core.build_premium_plan(age=30, weight_kg=-10, height_m=1.75, bmi=22.9)
+
+    def test_build_premium_plan_invalid_height_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid height."""
+        with pytest.raises(ValueError, match="Invalid height"):
+            bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=0, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid height"):
+            bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=-1, bmi=22.9)
