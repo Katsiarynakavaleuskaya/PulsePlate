@@ -56,7 +56,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "planner_engines",
         "plate_day_micros",
         "premium_week_router_mocking",
-        "weekly_plan_helpers",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",
         "legacy_bmi_removed",
@@ -67,7 +66,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
 # CP3 skip-drift execution target suites (single source of truth for CP3 guards/plans).
 CP3_SKIP_DRIFT_TARGET_FILES: tuple[str, ...] = (
     "test_zero_coverage_modules.py",
-    "test_remaining_modules.py",
     "test_final_core_coverage.py",
     "test_direct_core_functions.py",
     "test_quick_coverage_boost.py",

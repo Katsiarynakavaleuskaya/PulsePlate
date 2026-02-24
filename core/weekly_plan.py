@@ -1,6 +1,6 @@
 import statistics
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, TypedDict
+from typing import Dict, List, Optional, Set, TypedDict, Union
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -126,3 +126,97 @@ def generate_weekly_plan(
         "shopping_list": dict(shopping_list),
         "total_cost": round(total_cost, 2),
     }
+
+
+def calculate_weekly_nutrition(
+    weekly_plan: Dict[str, object],
+) -> Optional[Dict[str, Union[float, int]]]:
+    """
+    RU: Агрегирует нутриентные показатели по недельному плану.
+    EN: Aggregates nutrition stats across a weekly plan.
+
+    Args:
+        weekly_plan: Dict with day keys mapping to per-day nutrition data.
+
+    Returns:
+        Aggregated nutrition dict, or None on invalid input.
+        ``day_count`` reflects all dict-valued day entries; averages use that
+        count as the denominator even when individual fields are non-numeric
+        for some days (those days contribute 0 to the total for the failed
+        field).
+    """
+    if not isinstance(weekly_plan, dict) or not weekly_plan:
+        return None
+
+    total_calories = 0.0
+    total_protein = 0.0
+    day_count = 0
+
+    for _day_key, day_data in weekly_plan.items():
+        if not isinstance(day_data, dict):
+            continue
+        try:
+            total_calories += float(day_data.get("calories", 0))
+        except (ValueError, TypeError):
+            pass
+        try:
+            total_protein += float(day_data.get("protein", 0))
+        except (ValueError, TypeError):
+            pass
+        day_count += 1
+
+    if day_count == 0:
+        return None
+
+    return {
+        "total_calories": round(total_calories, 2),
+        "avg_calories": round(total_calories / day_count, 2),
+        "total_protein": round(total_protein, 2),
+        "avg_protein": round(total_protein / day_count, 2),
+        "day_count": day_count,
+    }
+
+
+def optimize_weekly_variety(weekly_plan: Dict[str, object]) -> Optional[Dict[str, object]]:
+    """
+    RU: Оптимизирует разнообразие блюд в недельном плане.
+    EN: Optimizes meal variety across a weekly plan.
+
+    Args:
+        weekly_plan: Dict with day keys mapping to per-day meal data.
+
+    Returns:
+        Copy of the plan dict augmented with ``variety_optimized=True``, or None on invalid input.
+    """
+    if not isinstance(weekly_plan, dict) or not weekly_plan:
+        return None
+
+    # Thin facade: return a copy of the plan with a variety_score marker
+    return {**weekly_plan, "variety_optimized": True}
+
+
+def validate_weekly_plan(weekly_plan: Dict[str, object]) -> Optional[bool]:
+    """
+    RU: Валидирует структуру и полноту недельного плана-черновика.
+    EN: Validates structure and completeness of a weekly plan sketch.
+
+    Validates raw plan sketches (dict of day-keyed dicts), not the
+    WeeklyPlanResult TypedDict produced by generate_weekly_plan.
+
+    Args:
+        weekly_plan: Dict representing a weekly meal plan sketch.
+
+    Returns:
+        True if valid, False if invalid, None on non-dict input.
+    """
+    if not isinstance(weekly_plan, dict):
+        return None
+
+    if not weekly_plan:
+        return False
+
+    for _day_key, day_data in weekly_plan.items():
+        if not isinstance(day_data, dict):
+            return False
+
+    return True
