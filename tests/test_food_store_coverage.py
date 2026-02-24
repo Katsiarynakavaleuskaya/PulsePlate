@@ -77,7 +77,8 @@ class TestFoodStoreCoverage:
         assert result == []
 
     def test_expand_query_none(self) -> None:
-        """Тест expand_query с None"""
+        """Тест expand_query с None - проверка graceful handling невалидного ввода"""
+        # Intentional: testing None handling, not type conversion
         result = expand_query(None)  # type: ignore[arg-type]
         assert result == []
 
@@ -115,10 +116,11 @@ class TestFoodStoreCoverage:
         assert len(conn.execute_calls) == 1
 
     def test_search_foods_none_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест search_foods с None запросом"""
+        """Тест search_foods с None запросом - проверка graceful handling"""
         conn = _MockConnection(fetchall_result=[{"id": "1", "canonical_name": "test", "kcal": 100}])
         monkeypatch.setattr(food_store, "_connect", lambda: conn)
 
+        # Intentional: testing None handling, not type conversion
         result = food_store.search_foods(None)  # type: ignore[arg-type]
         assert len(result) == 1
         assert len(conn.execute_calls) == 1
