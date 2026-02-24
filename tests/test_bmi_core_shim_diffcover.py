@@ -146,20 +146,40 @@ class TestOtherShimFunctions:
         assert 24.0 <= hi <= 25.0  # HEALTHY_BMI_RANGE.max = 24.9
 
 
+class TestEstimateLevelShim:
+    """Test estimate_level shim coverage (delegates to canonical implementation)."""
+
+    def test_estimate_level_smoke(self) -> None:
+        """Test estimate_level wrapper returns valid level."""
+        level = bmi_core.estimate_level(freq_per_week=3, years=5.0, lang="en")
+        assert level in {"beginner", "novice", "intermediate", "advanced"}
+
+    def test_estimate_level_beginner(self) -> None:
+        """Test estimate_level returns beginner for low experience."""
+        level = bmi_core.estimate_level(freq_per_week=0, years=0.0)
+        assert level == "beginner"
+
+    def test_estimate_level_advanced(self) -> None:
+        """Test estimate_level returns advanced for high experience."""
+        level = bmi_core.estimate_level(freq_per_week=3, years=5.0)
+        assert level == "advanced"
+
+    def test_estimate_level_all_languages(self) -> None:
+        """Test estimate_level with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            level = bmi_core.estimate_level(freq_per_week=2, years=2.0, lang=lang)
+            assert level == "intermediate"
+
+
 class TestDeprecatedStubs:
     """Test deprecated stub functions raise RuntimeError."""
 
-    @pytest.mark.parametrize("fn_name", ["estimate_level", "interpret_group", "build_premium_plan"])
+    @pytest.mark.parametrize("fn_name", ["interpret_group", "build_premium_plan"])
     def test_deprecated_stubs_raise_runtime_error(self, fn_name: str) -> None:
         """Test that deprecated stubs raise RuntimeError."""
         fn = getattr(bmi_core, fn_name)
         with pytest.raises(RuntimeError, match="deprecated"):
             fn()  # stubs should raise a clear error
-
-    def test_estimate_level_raises_with_args(self) -> None:
-        """Test estimate_level raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.estimate_level(3, 2.0, "en")
 
     def test_interpret_group_raises_with_args(self) -> None:
         """Test interpret_group raises even with arguments."""

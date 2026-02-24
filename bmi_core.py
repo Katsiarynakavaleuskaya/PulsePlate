@@ -208,17 +208,30 @@ def healthy_bmi_range(
 
 
 # Legacy functions that have no canonical equivalent (stubs for test compatibility)
-def estimate_level(*_args: object, **_kwargs: object) -> str:
+def estimate_level(
+    freq_per_week: int = 0,
+    years: float = 0.0,
+    lang: str | None = None,
+    *_args: object,
+    **_kwargs: object,
+) -> str:
     """
-    Legacy stub: estimate_level has no canonical equivalent.
+    Legacy shim: delegates to canonical core.bmi.engine.estimate_level.
 
-    This function is deprecated and will be removed.
-    Tests using this function should be migrated or skipped.
+    RU: Оценка уровня физической подготовки на основе опыта тренировок.
+    EN: Estimate fitness experience level based on training history.
 
-    Raises:
-        RuntimeError: Always raises to indicate deprecation
+    Args:
+        freq_per_week: Training sessions per week
+        years: Years of training experience
+        lang: Language code (reserved for localization)
+
+    Returns:
+        Fitness level: "beginner", "novice", "intermediate", or "advanced"
     """
-    raise RuntimeError("estimate_level is deprecated; use core/* canonical APIs")
+    from core.bmi.engine import estimate_level as _canonical_estimate_level
+
+    return _canonical_estimate_level(freq_per_week=freq_per_week, years=years, lang=lang)
 
 
 def interpret_group(*_args: object, **_kwargs: object) -> str:

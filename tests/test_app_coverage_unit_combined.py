@@ -84,21 +84,57 @@ class TestAppUnitTests:
 
     def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
-        require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
-        fail_feature_gated_test(
-            "legacy_bmi_removed",
-            reason="legacy_bmi_removed enabled: test disabled until BMI category assertions are implemented.",
-        )
+        from core.bmi.engine import _bmi_category
+
+        # Test general adult categories
+        assert _bmi_category(bmi=17.0, age=30, group="general") == "underweight"
+        assert _bmi_category(bmi=22.0, age=30, group="general") == "normal"
+        assert _bmi_category(bmi=27.0, age=30, group="general") == "overweight"
+        assert _bmi_category(bmi=32.0, age=30, group="general") == "obesity_1"
+        assert _bmi_category(bmi=37.0, age=30, group="general") == "obesity_2"
+        assert _bmi_category(bmi=42.0, age=30, group="general") == "obesity_3"
+
+        # Test athlete thresholds (higher normal upper bound)
+        assert _bmi_category(bmi=26.0, age=30, group="athlete") == "normal"
+        assert _bmi_category(bmi=28.0, age=30, group="athlete") == "overweight"
+
+        # Test elderly thresholds (adjusted)
+        assert _bmi_category(bmi=17.0, age=65, group="general") == "underweight"
+        assert _bmi_category(bmi=25.0, age=65, group="general") == "normal"
+
+        # Test no-category groups
+        assert _bmi_category(bmi=22.0, age=10, group="too_young") is None
+        assert _bmi_category(bmi=22.0, age=12, group="child") is None
+        assert _bmi_category(bmi=22.0, age=15, group="teen") is None
+        assert _bmi_category(bmi=22.0, age=30, group="pregnant") is None
 
     def test_estimate_level_categories(self) -> None:
         """Test estimate_level with different fitness experience levels."""
-        require_feature("legacy_bmi_removed", reason=FEATURE_REASON)
-        # TODO(pr-739): replace intentional fail with canonical equivalent or remove gate once implemented.
-        fail_feature_gated_test(
-            "legacy_bmi_removed",
-            reason="legacy_bmi_removed enabled: test disabled until estimate level assertions are implemented.",
-        )
+        from core.bmi.engine import estimate_level
+
+        # Test beginner (default, low experience)
+        assert estimate_level(freq_per_week=0, years=0.0) == "beginner"
+        assert estimate_level(freq_per_week=1, years=0.3) == "beginner"
+
+        # Test novice (>= 0.5 years AND >= 1 session/week)
+        assert estimate_level(freq_per_week=1, years=0.5) == "novice"
+        assert estimate_level(freq_per_week=2, years=1.0) == "novice"
+
+        # Test intermediate (>= 2 years AND >= 2 sessions/week)
+        assert estimate_level(freq_per_week=2, years=2.0) == "intermediate"
+        assert estimate_level(freq_per_week=3, years=4.0) == "intermediate"
+
+        # Test advanced (>= 5 years AND >= 3 sessions/week)
+        assert estimate_level(freq_per_week=3, years=5.0) == "advanced"
+        assert estimate_level(freq_per_week=5, years=10.0) == "advanced"
+
+        # Test edge cases: missing one criterion stays at lower level
+        assert estimate_level(freq_per_week=3, years=4.0) == "intermediate"  # < 5 years
+        assert estimate_level(freq_per_week=2, years=5.0) == "intermediate"  # < 3 freq
+
+        # Test with lang parameter (reserved for future localization)
+        assert estimate_level(freq_per_week=3, years=5.0, lang="ru") == "advanced"
+        assert estimate_level(freq_per_week=3, years=5.0, lang="en") == "advanced"
 
     def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """API key matching should be strict by default."""

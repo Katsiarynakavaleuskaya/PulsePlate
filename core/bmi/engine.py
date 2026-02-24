@@ -263,6 +263,72 @@ GROUP_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
     "pregnant": {"ru": "Беременность", "en": "Pregnancy", "es": "Embarazo"},
 }
 
+# --- PRO tier: Fitness experience level estimation ---
+
+FitnessLevel: TypeAlias = Literal["beginner", "novice", "intermediate", "advanced"]
+
+# RU/EN/ES display names for fitness levels
+FITNESS_LEVEL_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
+    "beginner": {"ru": "Начинающий", "en": "Beginner", "es": "Principiante"},
+    "novice": {"ru": "Новичок", "en": "Novice", "es": "Novato"},
+    "intermediate": {"ru": "Средний", "en": "Intermediate", "es": "Intermedio"},
+    "advanced": {"ru": "Продвинутый", "en": "Advanced", "es": "Avanzado"},
+}
+
+
+def estimate_level(
+    freq_per_week: int,
+    years: float,
+    lang: str | None = None,
+) -> FitnessLevel:
+    """
+    RU: Оценка уровня физической подготовки на основе опыта тренировок.
+    EN: Estimate fitness experience level based on training history.
+
+    PRO tier feature for personalized BMI interpretation and recommendations.
+
+    Thresholds (canonical):
+    - advanced: >= 5 years AND >= 3 sessions/week
+    - intermediate: >= 2 years AND >= 2 sessions/week
+    - novice: >= 0.5 years AND >= 1 session/week
+    - beginner: default (less experience)
+
+    Args:
+        freq_per_week: Training sessions per week (0+)
+        years: Years of training experience (0.0+)
+        lang: Language code for future localization (currently unused, reserved)
+
+    Returns:
+        FitnessLevel: One of "beginner", "novice", "intermediate", "advanced"
+    """
+    # Input validation (fail-soft: clamp negatives to 0)
+    freq = max(0, freq_per_week)
+    yrs = max(0.0, years)
+
+    if yrs >= 5.0 and freq >= 3:
+        return "advanced"
+    if yrs >= 2.0 and freq >= 2:
+        return "intermediate"
+    if yrs >= 0.5 and freq >= 1:
+        return "novice"
+    return "beginner"
+
+
+def get_fitness_level_display(level: FitnessLevel, lang: Language) -> str:
+    """
+    RU: Возвращает локализованное название уровня подготовки.
+    EN: Return localized display name for fitness level.
+
+    Args:
+        level: Fitness level key
+        lang: Language code ("ru", "en", "es")
+
+    Returns:
+        Localized display name string
+    """
+    return FITNESS_LEVEL_DISPLAY_NAMES.get(level, {}).get(lang, level)
+
+
 # Athlete string detection (legacy parity) — strict, NOT including "спорт".
 _ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
 

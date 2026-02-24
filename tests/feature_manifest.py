@@ -56,7 +56,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
         "plate_day_micros",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",
-        "legacy_bmi_removed",
         "nutrient_recommendations",
     }
 )
