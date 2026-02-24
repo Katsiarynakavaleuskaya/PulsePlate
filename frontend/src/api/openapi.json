@@ -3796,6 +3796,291 @@
         "title": "RecipeQueryHit",
         "type": "object"
       },
+      "RestaurantHit": {
+        "description": "Restaurant chain search hit.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "source"
+        ],
+        "title": "RestaurantHit",
+        "type": "object"
+      },
+      "RestaurantMenuItem": {
+        "description": "Restaurant menu item payload.",
+        "properties": {
+          "carbs_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carbs G"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "chain_id": {
+            "title": "Chain Id",
+            "type": "string"
+          },
+          "fat_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fat G"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "item_name": {
+            "title": "Item Name",
+            "type": "string"
+          },
+          "kcal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protein G"
+          },
+          "serving_size_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serving Size G"
+          },
+          "sodium_mg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sodium Mg"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          }
+        },
+        "required": [
+          "id",
+          "chain_id",
+          "item_name",
+          "source"
+        ],
+        "title": "RestaurantMenuItem",
+        "type": "object"
+      },
+      "RestaurantSubmission": {
+        "description": "Submission record returned by API.",
+        "properties": {
+          "audit": {
+            "items": {
+              "$ref": "#/components/schemas/SubmissionAuditEntry"
+            },
+            "title": "Audit",
+            "type": "array"
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          },
+          "canonical_name": {
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "off_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Url"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "reviewer_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Notes"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubmissionStatus"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entity_type",
+          "canonical_name",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RestaurantSubmission",
+        "type": "object"
+      },
+      "RestaurantSubmissionCreate": {
+        "description": "Create request for controlled submission queue.",
+        "properties": {
+          "barcode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          },
+          "canonical_name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "off_url": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Url"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "canonical_name"
+        ],
+        "title": "RestaurantSubmissionCreate",
+        "type": "object"
+      },
       "ShopAisle": {
         "description": "Stable aisle/category for iOS (do not rename; only extend).\n\nRU: Категории для группировки списка покупок (не переименовывать).",
         "enum": [
@@ -4876,6 +5161,87 @@
         ],
         "title": "SoftPaywallMessage",
         "type": "object"
+      },
+      "SubmissionAuditEntry": {
+        "description": "Single status transition for a submission.",
+        "properties": {
+          "changed_at": {
+            "title": "Changed At",
+            "type": "string"
+          },
+          "from_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Status"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reviewer_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Notes"
+          },
+          "to_status": {
+            "title": "To Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "to_status",
+          "changed_at"
+        ],
+        "title": "SubmissionAuditEntry",
+        "type": "object"
+      },
+      "SubmissionReviewRequest": {
+        "description": "Request payload for moderation status update.",
+        "properties": {
+          "reviewer_notes": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Notes"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubmissionStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SubmissionReviewRequest",
+        "type": "object"
+      },
+      "SubmissionStatus": {
+        "description": "Moderation states for controlled submissions.",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ],
+        "title": "SubmissionStatus",
+        "type": "string"
       },
       "TargetsIn": {
         "description": "Nutrition targets input model.\n\nRU: Входная схема таргетов питания (используется в PRO/Premium эндпоинтах).\nEN: Input schema for nutrition targets (used by PRO/Premium endpoints).",
@@ -8108,6 +8474,264 @@
         "summary": "Get Recipe",
         "tags": [
           "recipes"
+        ]
+      }
+    },
+    "/api/v1/restaurants/search": {
+      "get": {
+        "operationId": "search_restaurants_api_v1_restaurants_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RestaurantHit"
+                  },
+                  "title": "Response Search Restaurants Api V1 Restaurants Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Restaurants",
+        "tags": [
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/restaurants/submissions": {
+      "post": {
+        "operationId": "create_restaurant_submission_api_v1_restaurants_submissions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestaurantSubmissionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestaurantSubmission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Invalid submission"
+          }
+        },
+        "summary": "Create Restaurant Submission",
+        "tags": [
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/restaurants/submissions/{submission_id}": {
+      "get": {
+        "operationId": "get_restaurant_submission_api_v1_restaurants_submissions__submission_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestaurantSubmission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Restaurant Submission",
+        "tags": [
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/restaurants/submissions/{submission_id}/status": {
+      "patch": {
+        "operationId": "review_restaurant_submission_api_v1_restaurants_submissions__submission_id__status_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestaurantSubmission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Submission not found"
+          },
+          "422": {
+            "description": "Invalid transition"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Review Restaurant Submission",
+        "tags": [
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/restaurants/{chain_id}/menu": {
+      "get": {
+        "operationId": "get_restaurant_menu_api_v1_restaurants__chain_id__menu_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chain_id",
+            "required": true,
+            "schema": {
+              "title": "Chain Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RestaurantMenuItem"
+                  },
+                  "title": "Response Get Restaurant Menu Api V1 Restaurants  Chain Id  Menu Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Restaurant menu not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Restaurant Menu",
+        "tags": [
+          "restaurants"
         ]
       }
     },

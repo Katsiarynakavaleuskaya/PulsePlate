@@ -66,8 +66,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W2-B
-  - Status: In Progress (W2-A merged in PR #891; W2-B barcode contract + tests)
+  - Target PR: PR #891, PR #893 (+ follow-up latency benchmark PR-TBD-FOOD-DB-W2-C)
+  - Status: In Progress (W2-A and W2-B merged; latency benchmark/report pending)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
@@ -86,8 +86,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W3
-  - Status: Planned
+  - Target PR: PR-TBD-FOOD-DB-W3-A
+  - Status: In Progress (W3-A foundation: restaurant schema/endpoints + moderated submissions)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
   - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
@@ -95,6 +95,9 @@ If it is not recorded here — it does not exist.
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/design/RESTAURANT_INTEGRATION_SPEC.md`
     - `docs/roadmap/BACKLOG_LEDGER.md` (P2 Vision: Restaurant/chef integration)
+    - `app/routers/restaurants.py`
+    - `app/services/restaurant_store.py`
+    - `app/schemas/restaurants.py`
   - DoD:
     - MenuStat baseline ingestion is operational
     - Restaurant menu schema and endpoints are documented

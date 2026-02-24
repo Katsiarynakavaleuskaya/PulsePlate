@@ -54,6 +54,10 @@ from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
+from app.routers.restaurants import (
+    moderation_router as restaurant_moderation_router,
+    router as restaurants_router,
+)
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
@@ -834,9 +838,11 @@ async def admin_status() -> Dict[str, str]:
 protected_dependency = Depends(_get_api_key_dynamic)
 
 app.include_router(foods_router)
+app.include_router(restaurants_router)
 app.include_router(recipes_router)
 app.include_router(users_router)
 app.include_router(catalog_router)
+app.include_router(restaurant_moderation_router, dependencies=[protected_dependency])
 app.include_router(export_router, dependencies=[protected_dependency])
 app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])

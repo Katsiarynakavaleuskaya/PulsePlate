@@ -11,6 +11,7 @@ __all__ = [
     "foods",
     "premium_week",
     "pro",
+    "restaurants",
     "recipes",
     "users",
     "vip",
@@ -31,6 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from . import foods as foods  # noqa: F401
     from . import premium_week as premium_week  # noqa: F401
     from . import pro as pro  # noqa: F401
+    from . import restaurants as restaurants  # noqa: F401
     from . import recipes as recipes  # noqa: F401
     from . import users as users  # noqa: F401
     from . import vip as vip  # noqa: F401
