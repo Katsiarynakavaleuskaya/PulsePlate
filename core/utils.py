@@ -283,7 +283,9 @@ def sanitize_html(html: object) -> str:
     return _HTML_TAG_RE.sub("", str(html))
 
 
-_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+_EMAIL_RE = re.compile(
+    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$"
+)
 
 
 def validate_email(email: object) -> bool:
