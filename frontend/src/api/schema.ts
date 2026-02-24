@@ -4879,14 +4879,12 @@ export interface components {
         SubmissionAuditEntry: {
             /** Changed At */
             changed_at: string;
-            /** From Status */
-            from_status?: string | null;
+            from_status?: components["schemas"]["SubmissionStatus"] | null;
             /** Id */
             id: string;
             /** Reviewer Notes */
             reviewer_notes?: string | null;
-            /** To Status */
-            to_status: string;
+            to_status: components["schemas"]["SubmissionStatus"];
         };
         /**
          * SubmissionReviewRequest

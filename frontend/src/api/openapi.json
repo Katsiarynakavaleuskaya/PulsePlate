@@ -5172,13 +5172,12 @@
           "from_status": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/SubmissionStatus"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "From Status"
+            ]
           },
           "id": {
             "title": "Id",
@@ -5196,8 +5195,7 @@
             "title": "Reviewer Notes"
           },
           "to_status": {
-            "title": "To Status",
-            "type": "string"
+            "$ref": "#/components/schemas/SubmissionStatus"
           }
         },
         "required": [

@@ -55,6 +55,8 @@ def _as_float(value: Any) -> float | None:
     """Best-effort numeric conversion for optional nutrient fields."""
     if value is None:
         return None
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):

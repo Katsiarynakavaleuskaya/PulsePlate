@@ -101,6 +101,10 @@ def search_restaurants(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="limit must be in [1,100]"
         )
+    if offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="offset must be >= 0"
+        )
     rows = store.search_restaurants(query, limit, offset)
     return [RestaurantHit(**dict(row)) for row in rows]
 

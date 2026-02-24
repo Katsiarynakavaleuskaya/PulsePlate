@@ -88,6 +88,8 @@ def test_review_submission_missing_returns_none(
 
 def test_as_float_conversion_branches() -> None:
     assert restaurant_store._as_float(12) == 12.0
+    assert restaurant_store._as_float(True) is None
+    assert restaurant_store._as_float(False) is None
     assert restaurant_store._as_float("") is None
     assert restaurant_store._as_float("abc") is None
     assert restaurant_store._as_float(object()) is None

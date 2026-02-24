@@ -68,8 +68,8 @@ class SubmissionAuditEntry(BaseModel):
     """Single status transition for a submission."""
 
     id: str
-    from_status: str | None = None
-    to_status: str
+    from_status: SubmissionStatus | None = None
+    to_status: SubmissionStatus
     reviewer_notes: str | None = None
     changed_at: str
 

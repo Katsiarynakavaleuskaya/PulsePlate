@@ -65,6 +65,13 @@ def test_search_restaurants_limit_validation() -> None:
     assert exc.value.detail == "limit must be in [1,100]"
 
 
+def test_search_restaurants_offset_validation() -> None:
+    with pytest.raises(HTTPException) as exc:
+        restaurants.search_restaurants(query="x", limit=10, offset=-1, store=_StubStore())
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "offset must be >= 0"
+
+
 def test_get_restaurant_store_returns_singleton() -> None:
     assert restaurants.get_restaurant_store() is restaurants._STORE
 
