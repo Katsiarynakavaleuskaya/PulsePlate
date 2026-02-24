@@ -7,12 +7,9 @@ EN: Simple tests for premium week endpoint coverage in main.py
 """
 
 import os
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
-from tests.feature_manifest import FEATURE_REASON, fail_feature_gated_test, require_feature
 
 from app import app
 
@@ -21,13 +18,9 @@ class TestPremiumWeekAppCoverage:
     """Test suite for premium week endpoint coverage in main.py."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
@@ -36,14 +29,34 @@ class TestPremiumWeekAppCoverage:
             del os.environ["API_KEY"]
 
     def test_api_weekly_menu_make_weekly_menu_not_available(self):
-        """Test when make_weekly_menu is not available (503 error)."""
-        # Skip this test for now - mocking is complex with FastAPI
-        # The function is imported at module level and hard to mock
-        require_feature("premium_week_router_mocking", reason=FEATURE_REASON)
-        fail_feature_gated_test(
-            "premium_week_router_mocking",
-            reason="Weekly menu missing-handler assertions are not implemented yet.",
-        )
+        """Test when make_weekly_menu is not available (503 error).
+
+        The endpoint checks both app.make_weekly_menu and legacy_app globals,
+        so we need to ensure both return None to trigger the 503 response.
+        """
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "diet_flags": [],
+            "lang": "en",
+        }
+
+        # Mock make_weekly_menu to be None (not available) in both locations
+        # The endpoint checks app.make_weekly_menu first, then falls back to globals
+        with patch("app.make_weekly_menu", None), patch("legacy_app.make_weekly_menu", None):
+            response = self.client.post(
+                "/api/v1/premium/plan/week",
+                json=payload,
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 503
+            data = response.json()
+            assert "detail" in data
+            assert "not available" in data["detail"].lower()
 
     def test_api_weekly_menu_success(self):
         """Test successful weekly menu generation."""
@@ -87,13 +100,31 @@ class TestPremiumWeekAppCoverage:
 
     def test_api_weekly_menu_exception_handling(self):
         """Test exception handling in weekly menu generation."""
-        # Skip this test for now - mocking is complex with FastAPI
-        # The function is imported at module level and hard to mock
-        require_feature("premium_week_router_mocking", reason=FEATURE_REASON)
-        fail_feature_gated_test(
-            "premium_week_router_mocking",
-            reason="Weekly menu exception-handling assertions are not implemented yet.",
-        )
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "diet_flags": [],
+            "lang": "en",
+        }
+
+        # Mock make_weekly_menu to raise an exception
+        def raise_exception(*args, **kwargs):
+            raise RuntimeError("Test exception: menu engine failure")
+
+        with patch("app.make_weekly_menu", side_effect=raise_exception):
+            response = self.client.post(
+                "/api/v1/premium/plan/week",
+                json=payload,
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 500
+            data = response.json()
+            assert "detail" in data
+            assert "Weekly menu generation failed" in data["detail"]
 
     def test_api_weekly_menu_with_optional_fields(self):
         """Test with optional fields like deficit_pct, surplus_pct, bodyfat, life_stage."""
