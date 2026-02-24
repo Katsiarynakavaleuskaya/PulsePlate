@@ -116,19 +116,16 @@ class TestCoreCoverage97Final:
         if hasattr(targets, "calculate_targets"):
             assert callable(getattr(targets, "calculate_targets"))
 
-    def test_core_time_utils_functions(self):
+    def test_core_time_utils_functions(self) -> None:
         """Test core.time_utils functions."""
-        try:
-            import core.time_utils as tu
+        import core.time_utils as tu
 
-            assert tu is not None
-            # Test if module has expected functions
-            if hasattr(tu, "format_time"):
-                assert callable(getattr(tu, "format_time"))
-            if hasattr(tu, "human_delta"):
-                assert callable(getattr(tu, "human_delta"))
-        except ImportError as exc:
-            require_feature_or_raise(exc, "utils_pack", reason=FEATURE_REASON)
+        assert tu is not None
+        # Test if module has expected functions
+        assert hasattr(tu, "format_time")
+        assert callable(getattr(tu, "format_time"))
+        assert hasattr(tu, "human_delta")
+        assert callable(getattr(tu, "human_delta"))
 
     def test_core_region_catalog_functions(self):
         """Test core.region_catalog functions."""

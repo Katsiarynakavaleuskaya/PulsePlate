@@ -2,13 +2,17 @@
 
 - get_activity_factor: unified mapping for activity multipliers.
 - resolve_attr: safe dynamic attribute resolver respecting test-time patches.
+- safe_float/safe_int/slugify: safe parsing and text utilities.
+- format_number/generate_id/sanitize_html/validate_email: formatting and validation.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import sys
 import types
+import uuid
 from typing import Any, Iterable, Optional
 
 from core.bmr import PAL_FACTORS
@@ -153,3 +157,146 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
 
 # Usage: add comment "# pragma: no cover" after lines that are difficult to test
 # when marking untestable edge cases in coverage reports
+
+
+# ---------------------------------------------------------------------------
+# Thin facades for utils_pack feature key (PR-880)
+# ---------------------------------------------------------------------------
+
+
+def safe_float(value: object, default: float | None = None) -> float | None:
+    """Safely convert value to float, returning default on failure.
+
+    Args:
+        value: Value to convert (string, number, or None).
+        default: Value to return if conversion fails.
+
+    Returns:
+        Converted float or default value.
+    """
+    if value is None:
+        return default
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            return float(value)
+        return float(str(value))
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
+def safe_int(value: object, default: int | None = None) -> int | None:
+    """Safely convert value to int, returning default on failure.
+
+    Args:
+        value: Value to convert (string, number, or None).
+        default: Value to return if conversion fails.
+
+    Returns:
+        Converted int or default value.
+    """
+    if value is None:
+        return default
+    try:
+        # Handle float strings like "123.45" by converting to float first
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            return int(float(value))
+        return int(float(str(value)))
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(text: object) -> str:
+    """Convert text to URL-safe slug.
+
+    Args:
+        text: Text to convert (string or None).
+
+    Returns:
+        Lowercase slug with non-alphanumeric characters replaced by hyphens.
+    """
+    if text is None:
+        return ""
+    s = str(text).lower().strip()
+    s = _SLUG_RE.sub("-", s)
+    return s.strip("-")
+
+
+def format_number(value: object, decimals: int = 2) -> str:
+    """Format a number with specified decimal places.
+
+    Args:
+        value: Number to format.
+        decimals: Number of decimal places.
+
+    Returns:
+        Formatted string representation.
+    """
+    try:
+        if isinstance(value, (int, float)):
+            num = float(value)
+        elif isinstance(value, (str, bytes, bytearray)):
+            num = float(value)
+        else:
+            num = float(str(value))
+        return f"{num:.{decimals}f}"
+    except (ValueError, TypeError, OverflowError):
+        return str(value)
+
+
+def generate_id() -> str:
+    """Generate a unique identifier string.
+
+    Returns:
+        UUID4 string without hyphens.
+    """
+    return uuid.uuid4().hex
+
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def sanitize_html(html: object) -> str:
+    """Remove HTML tags from input string.
+
+    Note: This is a simple tag-stripping utility, not a security-grade
+    sanitizer. For untrusted user input, use a dedicated library like
+    bleach or html-sanitizer.
+
+    Args:
+        html: HTML string to sanitize. Non-string inputs are coerced via str().
+              None returns empty string.
+
+    Returns:
+        Plain text with HTML tags removed.
+    """
+    if html is None:
+        return ""
+    return _HTML_TAG_RE.sub("", str(html))
+
+
+_EMAIL_RE = re.compile(
+    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$"
+)
+
+
+def validate_email(email: object) -> bool:
+    """Validate email address format.
+
+    Args:
+        email: Email address to validate.
+
+    Returns:
+        True if valid email format, False otherwise.
+    """
+    if not email:
+        return False
+    return bool(_EMAIL_RE.match(str(email)))
