@@ -278,7 +278,7 @@ def test_snapshot_manager_manifest_schema_errors(tmp_path: Path) -> None:
         manager.get_last_snapshot_date("broken-source")
 
     manifest_path.write_text(
-        '{"source":"broken-source","snapshots":[{"date":"not-a-date"}]}',
+        '{"source":"broken-source","snapshots":[{"date":"not-a-date","file":"f","mode":"delta","checksum":"x","records":1,"bytes":1}]}',
         encoding="utf-8",
     )
     with pytest.raises(SnapshotIntegrityError):
