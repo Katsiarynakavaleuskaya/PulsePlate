@@ -6,14 +6,12 @@ RU: Простые тесты для покрытия эндпоинта premium
 EN: Simple tests for premium week endpoint coverage in main.py
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 import legacy_app
-from app import app
 
 # Common test payload for weekly menu tests (DRY)
 _BASE_WEEKLY_PAYLOAD: dict = {
@@ -31,18 +29,20 @@ _BASE_WEEKLY_PAYLOAD: dict = {
 class TestPremiumWeekAppCoverage:
     """Test suite for premium week endpoint coverage in main.py."""
 
-    def setup_method(self):
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app)
+    @pytest.fixture(autouse=True)
+    def _env_and_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        client: TestClient,
+    ) -> None:
+        """Set up test client and env with automatic cleanup."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        self.client = client
 
-    def teardown_method(self):
-        """Clean up test environment."""
-        os.environ.pop("API_KEY", None)
-        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-
-    def test_api_weekly_menu_make_weekly_menu_not_available(self, monkeypatch: pytest.MonkeyPatch):
+    def test_api_weekly_menu_make_weekly_menu_not_available(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test when make_weekly_menu is not available (503 error).
 
         The endpoint resolves make_weekly_menu via two paths (legacy_app.py L4277-4282):
@@ -66,11 +66,12 @@ class TestPremiumWeekAppCoverage:
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 503
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "detail" in data
         assert "not available" in data["detail"].lower()
 
-    def test_api_weekly_menu_success(self):
+    def test_api_weekly_menu_success(self) -> None:
         """Test successful weekly menu generation."""
         # Mock make_weekly_menu to return a valid WeekMenu
         mock_week_menu = MagicMock()
@@ -85,13 +86,14 @@ class TestPremiumWeekAppCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert "week_summary" in data
             assert "daily_menus" in data
             assert "weekly_coverage" in data
             assert "shopping_list" in data
 
-    def test_api_weekly_menu_exception_handling(self, monkeypatch: pytest.MonkeyPatch):
+    def test_api_weekly_menu_exception_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test exception handling in weekly menu generation."""
 
         # Mock make_weekly_menu to raise an exception
@@ -108,11 +110,12 @@ class TestPremiumWeekAppCoverage:
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 500
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "detail" in data
         assert "Weekly menu generation failed" in data["detail"]
 
-    def test_api_weekly_menu_with_optional_fields(self):
+    def test_api_weekly_menu_with_optional_fields(self) -> None:
         """Test with optional fields like deficit_pct, surplus_pct, bodyfat, life_stage."""
         payload = {
             **_BASE_WEEKLY_PAYLOAD,
@@ -136,6 +139,7 @@ class TestPremiumWeekAppCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert "week_summary" in data
             assert "daily_menus" in data
