@@ -77,7 +77,8 @@ class OpenFoodFactsDeltaSource:
 
     def _iter_delta_days(self, since: date) -> Iterable[date]:
         current = since + timedelta(days=1)
-        while current <= self._today():
+        end_date = self._today()
+        while current <= end_date:
             yield current
             current = current + timedelta(days=1)
 

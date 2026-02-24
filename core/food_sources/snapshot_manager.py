@@ -12,7 +12,25 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Callable, Protocol, cast
+from typing import Callable, Protocol, TypedDict
+
+
+class ManifestSnapshotEntry(TypedDict):
+    """Typed manifest entry for a single snapshot."""
+
+    date: str
+    file: str
+    checksum: str
+    records: int
+    bytes: int
+    mode: str
+
+
+class ManifestData(TypedDict):
+    """Typed manifest payload stored per source."""
+
+    source: str
+    snapshots: list[ManifestSnapshotEntry]
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -39,7 +57,7 @@ class SnapshotMeta:
     size_bytes: int
     mode: str = "full"
 
-    def to_manifest_entry(self) -> dict[str, Any]:
+    def to_manifest_entry(self) -> ManifestSnapshotEntry:
         """Convert to a serializable manifest entry."""
         return {
             "date": self.snapshot_date.isoformat(),
@@ -93,7 +111,7 @@ class SnapshotManager:
     def _manifest_path(self, source: str) -> Path:
         return self.base_path / source / self.MANIFEST_FILE
 
-    def _load_manifest(self, source: str) -> dict[str, Any]:
+    def _load_manifest(self, source: str) -> ManifestData:
         manifest_path = self._manifest_path(source)
         if not manifest_path.exists():
             return {"source": source, "snapshots": []}
@@ -103,9 +121,8 @@ class SnapshotManager:
             raise SnapshotIntegrityError(
                 f"Invalid manifest schema for source={source}: root object must be a dict"
             )
-        data = cast(dict[str, Any], loaded)
 
-        manifest_source = data.get("source")
+        manifest_source = loaded.get("source")
         if not isinstance(manifest_source, str):
             raise SnapshotIntegrityError(
                 f"Invalid manifest schema for source={source}: missing string 'source' key"
@@ -116,16 +133,17 @@ class SnapshotManager:
                 f"{source}: source mismatch '{manifest_source}'"
             )
 
-        if "snapshots" not in data:
+        if "snapshots" not in loaded:
             raise SnapshotIntegrityError(
                 f"Invalid manifest schema for source={source}: missing 'snapshots' key"
             )
-        snapshots = data["snapshots"]
-        if not isinstance(snapshots, list):
+        snapshots_obj = loaded["snapshots"]
+        if not isinstance(snapshots_obj, list):
             raise SnapshotIntegrityError(
                 f"Invalid manifest schema for source={source}: snapshots must be a list"
             )
-        for index, snapshot in enumerate(snapshots):
+        validated: list[ManifestSnapshotEntry] = []
+        for index, snapshot in enumerate(snapshots_obj):
             if not isinstance(snapshot, dict):
                 raise SnapshotIntegrityError(
                     f"Invalid manifest schema for source={source}: snapshots[{index}] must be a dict"
@@ -137,12 +155,40 @@ class SnapshotManager:
                         f"Invalid manifest schema for source={source}: "
                         f"snapshots[{index}]['{key}'] must be a string"
                     )
-        return data
+            checksum = snapshot.get("checksum")
+            if not isinstance(checksum, str):
+                raise SnapshotIntegrityError(
+                    f"Invalid manifest schema for source={source}: "
+                    f"snapshots[{index}]['checksum'] must be a string"
+                )
+            records = snapshot.get("records")
+            if not isinstance(records, int):
+                raise SnapshotIntegrityError(
+                    f"Invalid manifest schema for source={source}: "
+                    f"snapshots[{index}]['records'] must be an int"
+                )
+            bytes_count = snapshot.get("bytes")
+            if not isinstance(bytes_count, int):
+                raise SnapshotIntegrityError(
+                    f"Invalid manifest schema for source={source}: "
+                    f"snapshots[{index}]['bytes'] must be an int"
+                )
+            validated.append(
+                {
+                    "date": snapshot["date"],
+                    "file": snapshot["file"],
+                    "checksum": checksum,
+                    "records": records,
+                    "bytes": bytes_count,
+                    "mode": snapshot["mode"],
+                }
+            )
+        return {"source": manifest_source, "snapshots": validated}
 
     def get_last_snapshot_date(self, source: str) -> date | None:
         """Return date of latest recorded snapshot for a source."""
         data = self._load_manifest(source)
-        snapshots = data.get("snapshots", [])
+        snapshots = data["snapshots"]
         if not snapshots:
             return None
         try:
@@ -170,17 +216,15 @@ class SnapshotManager:
         manifest_path = self._manifest_path(meta.source)
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         data = self._load_manifest(meta.source)
-
-        snapshots = data.setdefault("snapshots", [])
         entry = meta.to_manifest_entry()
-
-        filtered = [
+        snapshots = data["snapshots"]
+        filtered: list[ManifestSnapshotEntry] = [
             snapshot
             for snapshot in snapshots
             if not (
-                snapshot.get("date") == entry["date"]
-                and snapshot.get("file") == entry["file"]
-                and snapshot.get("mode") == entry["mode"]
+                snapshot["date"] == entry["date"]
+                and snapshot["file"] == entry["file"]
+                and snapshot["mode"] == entry["mode"]
             )
         ]
         filtered.append(entry)
@@ -206,6 +250,11 @@ class SnapshotManager:
         elif force or source.has_updates_since(last_snapshot):
             meta = source.download_delta(last_snapshot, destination)
         else:
+            return None
+
+        if meta.mode == "delta" and meta.record_count == 0:
+            if meta.file_path.exists():
+                meta.file_path.unlink()
             return None
 
         self.record_snapshot(meta)

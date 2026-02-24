@@ -6,6 +6,7 @@ import gzip
 import io
 from datetime import date
 from pathlib import Path
+from types import TracebackType
 
 import pytest
 
@@ -57,7 +58,12 @@ class _FakeStreamResponse:
     def __enter__(self) -> "_FakeStreamResponse":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         _ = (exc_type, exc, tb)
         return None
 
@@ -157,30 +163,49 @@ def test_off_full_malformed_payload_fails_closed(tmp_path: Path) -> None:
 def test_httpx_transport_fetch_and_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     transport = HttpxOFFTransport()
 
-    monkeypatch.setattr(
-        "core.food_sources.off_delta.httpx.get",
-        lambda url, timeout, follow_redirects: _FakeResponse(200, b"ok"),  # type: ignore[arg-type]
-    )
-    assert transport.fetch("https://example.com", timeout_seconds=1) == b"ok"
+    def _httpx_get_ok(url: str, timeout: int, follow_redirects: bool) -> _FakeResponse:
+        _ = (url, timeout, follow_redirects)
+        return _FakeResponse(200, b"ok")
 
     monkeypatch.setattr(
         "core.food_sources.off_delta.httpx.get",
-        lambda url, timeout, follow_redirects: _FakeResponse(404),  # type: ignore[arg-type]
+        _httpx_get_ok,
+    )
+    assert transport.fetch("https://example.com", timeout_seconds=1) == b"ok"
+
+    def _httpx_get_404(url: str, timeout: int, follow_redirects: bool) -> _FakeResponse:
+        _ = (url, timeout, follow_redirects)
+        return _FakeResponse(404)
+
+    monkeypatch.setattr(
+        "core.food_sources.off_delta.httpx.get",
+        _httpx_get_404,
     )
     assert transport.fetch("https://example.com", timeout_seconds=1) is None
 
     failing_response = _FakeResponse(500)
+
+    def _httpx_get_500(url: str, timeout: int, follow_redirects: bool) -> _FakeResponse:
+        _ = (url, timeout, follow_redirects)
+        return failing_response
+
     monkeypatch.setattr(
         "core.food_sources.off_delta.httpx.get",
-        lambda url, timeout, follow_redirects: failing_response,  # type: ignore[arg-type]
+        _httpx_get_500,
     )
     with pytest.raises(RuntimeError):
         transport.fetch("https://example.com", timeout_seconds=1)
     assert failing_response._raise_called is True
 
+    def _httpx_stream_ok(
+        method: str, url: str, timeout: int, follow_redirects: bool
+    ) -> _FakeStreamResponse:
+        _ = (method, url, timeout, follow_redirects)
+        return _FakeStreamResponse([b"a", b"b"])
+
     monkeypatch.setattr(
         "core.food_sources.off_delta.httpx.stream",
-        lambda method, url, timeout, follow_redirects: _FakeStreamResponse([b"a", b"b"]),  # type: ignore[arg-type]
+        _httpx_stream_ok,
     )
     chunks = list(transport.iter_bytes("https://example.com", timeout_seconds=1, chunk_size=2))
     assert chunks == [b"a", b"b"]

@@ -56,6 +56,43 @@ class _DummySource:
         )
 
 
+@dataclass
+class _EmptyDeltaSource:
+    name: str
+    updates_available: bool = True
+
+    def has_updates_since(self, last_snapshot: date) -> bool:
+        _ = last_snapshot
+        return self.updates_available
+
+    def download_full(self, dest: Path) -> SnapshotMeta:
+        output_path = dest / "full.bin"
+        output_path.write_bytes(b"full")
+        return SnapshotMeta(
+            source=self.name,
+            snapshot_date=date(2026, 2, 23),
+            file_path=output_path,
+            checksum_sha256=sha256_file(output_path),
+            record_count=1,
+            size_bytes=output_path.stat().st_size,
+            mode="full",
+        )
+
+    def download_delta(self, since: date, dest: Path) -> SnapshotMeta:
+        _ = since
+        output_path = dest / "delta.bin"
+        output_path.write_bytes(b"")
+        return SnapshotMeta(
+            source=self.name,
+            snapshot_date=date(2026, 2, 24),
+            file_path=output_path,
+            checksum_sha256=sha256_file(output_path),
+            record_count=0,
+            size_bytes=output_path.stat().st_size,
+            mode="delta",
+        )
+
+
 def test_snapshot_manager_first_sync_and_manifest_integrity(tmp_path: Path) -> None:
     manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
     source = _DummySource(name="dummy", full_payload=b"full", delta_payload=b"delta")
@@ -91,6 +128,20 @@ def test_snapshot_manager_syncs_delta_after_initial_snapshot(tmp_path: Path) -> 
     meta = manager.sync_if_needed(source)
     assert meta is not None
     assert meta.mode == "delta"
+
+
+def test_snapshot_manager_skips_empty_delta_without_advancing_manifest(tmp_path: Path) -> None:
+    manager = SnapshotManager(tmp_path, today_provider=lambda: date(2026, 2, 24))
+    source = _EmptyDeltaSource(name="dummy")
+
+    first_meta = manager.sync_if_needed(source)
+    assert first_meta is not None
+    assert manager.get_last_snapshot_date("dummy") == date(2026, 2, 23)
+
+    second_meta = manager.sync_if_needed(source)
+    assert second_meta is None
+    assert manager.get_last_snapshot_date("dummy") == date(2026, 2, 23)
+    assert not (tmp_path / "dummy" / "2026-02-24" / "delta.bin").exists()
 
 
 def test_snapshot_manager_force_sync_uses_delta_even_without_updates(tmp_path: Path) -> None:
@@ -176,6 +227,27 @@ def test_snapshot_manager_manifest_schema_errors(tmp_path: Path) -> None:
 
     manifest_path.write_text(
         '{"source":"broken-source","snapshots":[{"date":"2026-02-24","file":"f","mode":1}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError):
+        manager.get_last_snapshot_date("broken-source")
+
+    manifest_path.write_text(
+        '{"source":"broken-source","snapshots":[{"date":"2026-02-24","file":"f","mode":"delta","checksum":1,"records":1,"bytes":1}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError):
+        manager.get_last_snapshot_date("broken-source")
+
+    manifest_path.write_text(
+        '{"source":"broken-source","snapshots":[{"date":"2026-02-24","file":"f","mode":"delta","checksum":"x","records":"1","bytes":1}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(SnapshotIntegrityError):
+        manager.get_last_snapshot_date("broken-source")
+
+    manifest_path.write_text(
+        '{"source":"broken-source","snapshots":[{"date":"2026-02-24","file":"f","mode":"delta","checksum":"x","records":1,"bytes":"1"}]}',
         encoding="utf-8",
     )
     with pytest.raises(SnapshotIntegrityError):
