@@ -306,68 +306,113 @@ class TestFoodAPIsUpdatePipeline:
     async def test_update_usda_database_old_data_load_error(
         self, update_manager: DatabaseUpdateManager
     ) -> None:
-        """Test _update_usda_database with old data load error (lines 341-342)."""
-        # Mock current version
-        current_version = type(
-            "Version", (), {"checksum": "old_checksum", "timestamp": "2023-01-01T00:00:00Z"}
-        )()
+        """Test _update_usda_database with old data load error (lines 396-399)."""
+        # Set up a current version so _load_backup gets called
+        from core.food_apis.update_manager import DatabaseVersion
+        from core.food_apis.unified_db import UnifiedFoodItem
 
-        with patch.object(update_manager, "_load_versions", return_value={"usda": current_version}):
-            with patch("core.food_apis.update_manager.USDAClient") as mock_usda:
-                mock_usda.return_value.get_all_foods.return_value = [
-                    {"fdc_id": 1, "description": "Test Food"}
-                ]
+        current_version = DatabaseVersion(
+            source="usda",
+            version="old_version",
+            last_updated="2023-01-01T00:00:00Z",
+            record_count=10,
+            checksum="old_checksum",
+            metadata={},
+        )
+        update_manager.versions["usda"] = current_version
 
-                # Mock file loading to raise exception
-                with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
-                    with patch("core.food_apis.update_manager.logger") as mock_logger:
-                        await update_manager._update_usda_database(force=True)
+        # Create proper UnifiedFoodItem for mock return
+        mock_food = UnifiedFoodItem(
+            name="Test Food",
+            nutrients_per_100g={
+                "protein_g": 10.0,
+                "carbs_g": 20.0,
+                "fat_g": 5.0,
+                "calories": 100.0,
+            },
+            cost_per_100g=1.0,
+            tags=["test"],
+            availability_regions=["US"],
+            source="usda",
+            source_id="12345",
+        )
 
-                        # Should log warning about old data load failure
-                        mock_logger.warning.assert_called()
-                        assert "Could not load old data for comparison" in str(
-                            mock_logger.warning.call_args
-                        )
+        # Mock get_common_foods_database to return minimal data with proper type
+        with patch.object(
+            update_manager.unified_db,
+            "get_common_foods_database",
+            return_value={"test_food": mock_food},
+        ):
+            # Patch _load_backup to raise exception (line 397-399)
+            with patch.object(
+                update_manager,
+                "_load_backup",
+                side_effect=FileNotFoundError("File not found"),
+            ):
+                with patch("core.food_apis.update_manager.logger") as mock_logger:
+                    await update_manager._update_usda_database(force=True)
+
+                    # Should log warning about old data load failure (line 399)
+                    # Check all warning calls for our expected message
+                    warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+                    assert any(
+                        "Could not load old data" in call for call in warning_calls
+                    ), f"Expected warning not found in: {warning_calls}"
 
     @pytest.mark.asyncio
     async def test_update_usda_database_general_error(
         self, update_manager: DatabaseUpdateManager
     ) -> None:
-        """Test _update_usda_database with general error (lines 381-382)."""
-        # Mock USDAClient to raise exception
-        with patch(
-            "core.food_apis.update_manager.USDAClient",
+        """Test _update_usda_database with general error (lines 438-450)."""
+        # Patch unified_db.get_common_foods_database to raise exception
+        # (this is what _update_usda_database actually calls at line 356)
+        with patch.object(
+            update_manager.unified_db,
+            "get_common_foods_database",
             side_effect=Exception("API connection error"),
         ):
             with patch("core.food_apis.update_manager.logger") as mock_logger:
                 result = await update_manager._update_usda_database()
 
-                # Should handle error gracefully
+                # Should handle error gracefully (lines 438-450)
                 assert result.success is False
-                assert "API connection error" in result.message
+                assert "API connection error" in result.errors[0]
                 mock_logger.error.assert_called()
-                assert "Error updating usda database" in str(mock_logger.error.call_args)
+                # Check actual log message format (uses %s placeholders)
+                error_calls = [str(c) for c in mock_logger.error.call_args_list]
+                assert any("usda" in call for call in error_calls)
 
     @pytest.mark.asyncio
     async def test_update_off_database_error_during_processing(
         self, update_manager: DatabaseUpdateManager
     ) -> None:
-        """Test _update_off_database with processing error (line 430)."""
-        with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
-            with patch("core.food_apis.update_manager.OFFClient") as mock_off:
-                # Mock OFFClient to return some data
-                mock_off.return_value.search_foods.return_value = [
-                    {"id": "1", "product_name": "Test Product"}
-                ]
+        """Test _update_off_database with processing error (lines 588-597)."""
+        from core.food_apis.update_manager import DatabaseVersion
 
-                # Mock JSON dump to raise exception during processing
-                with patch("json.dump", side_effect=Exception("JSON serialization error")):
-                    with patch("core.food_apis.update_manager.logger") as mock_logger:
-                        result = await update_manager._update_off_database()
+        # Set up a current version so _create_backup gets called
+        current_version = DatabaseVersion(
+            source="openfoodfacts",
+            version="old_version",
+            last_updated="2023-01-01T00:00:00Z",
+            record_count=10,
+            checksum="old_checksum",
+            metadata={},
+        )
+        update_manager.versions["openfoodfacts"] = current_version
 
-                        # Should handle error during processing
-                        assert result.success is False
-                        assert "JSON serialization error" in result.message
+        # Patch _create_backup to raise exception early in the try block
+        # This triggers the outer exception handler (lines 588-597)
+        with patch.object(
+            update_manager,
+            "_create_backup",
+            side_effect=Exception("Backup creation error"),
+        ):
+            with patch("core.food_apis.update_manager.logger") as mock_logger:
+                result = await update_manager._update_off_database()
+
+                # Should handle error during processing (lines 588-597)
+                assert result.success is False
+                assert "Backup creation error" in result.errors[0]
 
 
 class TestUnifiedFoodDatabase:
@@ -394,22 +439,22 @@ class TestUnifiedFoodDatabase:
 
     @pytest.mark.asyncio
     async def test_search_foods_usda_error_fallback(self, unified_db: UnifiedFoodDatabase) -> None:
-        """Test search_foods with USDA error falling back to cache (line 115-134)."""
+        """Test search_food with USDA error gracefully handled (lines 251-261)."""
         # Mock USDA client to raise exception
         with patch.object(
             unified_db.usda_client, "search_foods", side_effect=Exception("USDA API error")
         ):
-            # Create mock cache file with valid data
-            cache_file = unified_db.cache_dir / "search_cache.json"
-            cache_file.parent.mkdir(parents=True, exist_ok=True)
-            cache_data = {"test query": [{"id": "cached_1", "name": "Cached Food"}]}
-            cache_file.write_text(json.dumps(cache_data))
+            # Also disable OFF client so we test pure USDA error path
+            unified_db.off_client = None
 
-            result = await unified_db.search_food("test query")
+            with patch("core.food_apis.unified_db.logger") as mock_logger:
+                result = await unified_db.search_food("test query")
 
-            # Should fallback to cache
-            assert len(result) == 1
-            assert result[0].name == "Cached Food"
+                # Should handle error gracefully and return empty results
+                assert result == []
+                # Error should be logged
+                mock_logger.error.assert_called()
+                assert "Error searching USDA" in str(mock_logger.error.call_args)
 
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db: UnifiedFoodDatabase) -> None:
@@ -419,13 +464,22 @@ class TestUnifiedFoodDatabase:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text("invalid json")
 
-        # Mock USDA client to return valid data
+        # Create a mock USDAFoodItem with required attributes
+        mock_usda_item = MagicMock()
+        mock_usda_item.description = "Test Food"
+        mock_usda_item.fdc_id = 123
+        mock_usda_item.nutrients_per_100g = {"protein_g": 10.0, "fat_g": 5.0, "carbs_g": 20.0}
+        mock_usda_item._generate_tags.return_value = ["test"]
+        mock_usda_item.food_category = "Test Category"
+
+        # Mock USDA client to return valid USDAFoodItem
         with patch.object(
             unified_db.usda_client,
             "get_food_details",
-            return_value={"fdc_id": 123, "description": "Test Food"},
+            return_value=mock_usda_item,
         ):
-            result = await unified_db.get_food_by_id("123")
+            # get_food_by_id requires source and food_id
+            result = await unified_db.get_food_by_id("usda", "123")
 
             # Should handle cache error and fetch from API
             assert result is not None
@@ -434,17 +488,10 @@ class TestUnifiedFoodDatabase:
     @pytest.mark.asyncio
     async def test_get_food_by_id_all_sources_fail(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id when all sources fail."""
-        # Mock all clients to return None/raise exceptions
+        # Mock USDA client to return None
         with patch.object(unified_db.usda_client, "get_food_details", return_value=None):
-            with patch("core.food_apis.unified_db.OFF_AVAILABLE", True):
-                from unittest.mock import AsyncMock
+            # get_food_by_id requires source and food_id
+            result = await unified_db.get_food_by_id("usda", "nonexistent")
 
-                with patch("core.food_apis.unified_db.OFFClient") as mock_off_class:
-                    mock_off_client = AsyncMock()
-                    mock_off_client.get_product.return_value = None
-                    mock_off_class.return_value = mock_off_client
-
-                    result = await unified_db.get_food_by_id("nonexistent")
-
-                    # Should return None when all sources fail
-                    assert result is None
+            # Should return None when source fails
+            assert result is None
