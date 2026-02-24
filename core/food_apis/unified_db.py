@@ -248,14 +248,17 @@ class UnifiedFoodDatabase:
 
         if prefer_source == "usda":
             # Search USDA first
-            usda_results = await self.usda_client.search_foods(query, page_size=5)
-            for usda_item in usda_results:
-                unified_item = UnifiedFoodItem.from_usda_item(usda_item)
-                results.append(unified_item)
+            try:
+                usda_results = await self.usda_client.search_foods(query, page_size=5)
+                for usda_item in usda_results:
+                    unified_item = UnifiedFoodItem.from_usda_item(usda_item)
+                    results.append(unified_item)
 
-                # Cache the best result
-                if not self._memory_cache.get(cache_key):
-                    self._memory_cache[cache_key] = unified_item
+                    # Cache the best result
+                    if not self._memory_cache.get(cache_key):
+                        self._memory_cache[cache_key] = unified_item
+            except Exception:
+                logger.exception("Error searching USDA")
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (prefer_source == "openfoodfacts" or not results) and self.off_client:

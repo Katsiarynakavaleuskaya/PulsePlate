@@ -238,4 +238,5 @@ def test_scheduler_remaining_edges():
 
     sched_mod._scheduler_instance = _Sched2()  # type: ignore[attr-defined]
     loop.run_until_complete(stop_background_updates())
+    sched_mod._scheduler_instance = None  # cleanup: prevent global leak to other tests
     loop.close()
