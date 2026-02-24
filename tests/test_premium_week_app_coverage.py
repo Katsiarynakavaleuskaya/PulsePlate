@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import legacy_app
+from app import app
 
 # Common test payload for weekly menu tests (DRY)
 _BASE_WEEKLY_PAYLOAD: dict = {
@@ -30,15 +31,11 @@ class TestPremiumWeekAppCoverage:
     """Test suite for premium week endpoint coverage in main.py."""
 
     @pytest.fixture(autouse=True)
-    def _env_and_client(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        client: TestClient,
-    ) -> None:
+    def _env_and_client(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set up test client and env with automatic cleanup."""
         monkeypatch.setenv("API_KEY", "test_key")
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-        self.client = client
+        self.client = TestClient(app)
 
     def test_api_weekly_menu_make_weekly_menu_not_available(
         self, monkeypatch: pytest.MonkeyPatch
