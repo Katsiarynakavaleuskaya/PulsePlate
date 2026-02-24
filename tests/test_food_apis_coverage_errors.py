@@ -10,8 +10,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from tests.feature_manifest import FEATURE_REASON, require_feature
-
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 from core.food_apis.unified_db import UnifiedFoodDatabase
 
@@ -151,10 +149,6 @@ class TestFoodAPIsUpdatePipelineBasic:
         # Test empty versions loading
         versions = manager._load_versions()
         assert isinstance(versions, dict)
-
-
-from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
-from core.food_apis.unified_db import UnifiedFoodDatabase
 
 
 class TestFoodAPIsUpdatePipeline:
@@ -452,15 +446,15 @@ class TestUnifiedFoodDatabase:
 
                 # Should handle error gracefully and return empty results
                 assert result == []
-                # Error should be logged
-                mock_logger.error.assert_called()
-                assert "Error searching USDA" in str(mock_logger.error.call_args)
+                # Error should be logged with traceback
+                mock_logger.exception.assert_called()
+                assert "Error searching USDA" in str(mock_logger.exception.call_args)
 
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db: UnifiedFoodDatabase) -> None:
         """Test get_food_by_id with cache load error (line 190-224)."""
         # Create invalid cache file
-        cache_file = unified_db.cache_dir / "food_cache.json"
+        cache_file = unified_db.cache_dir / "unified_food_cache.json"
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text("invalid json")
 

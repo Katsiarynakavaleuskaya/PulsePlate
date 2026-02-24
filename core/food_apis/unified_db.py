@@ -258,7 +258,7 @@ class UnifiedFoodDatabase:
                     if not self._memory_cache.get(cache_key):
                         self._memory_cache[cache_key] = unified_item
             except Exception as e:
-                logger.error(f"Error searching USDA: {e}")
+                logger.exception("Error searching USDA")
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (prefer_source == "openfoodfacts" or not results) and self.off_client:
