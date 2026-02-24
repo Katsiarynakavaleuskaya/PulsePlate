@@ -45,24 +45,19 @@ class TestPremiumWeekAppCoverage:
     def test_api_weekly_menu_make_weekly_menu_not_available(self, monkeypatch: pytest.MonkeyPatch):
         """Test when make_weekly_menu is not available (503 error).
 
-        The endpoint checks both app.make_weekly_menu (via PEP 562 __getattr__) and
-        legacy_app globals(), so we need to ensure both return None.
+        The endpoint resolves make_weekly_menu via two paths (legacy_app.py L4277-4282):
+          1. getattr(sys.modules["app"], "make_weekly_menu", None)  — app module dict
+          2. globals().get("make_weekly_menu")                       — legacy_app namespace
 
-        We remove 'make_weekly_menu' from app._LOCAL_EXPORTS and set
-        legacy_app.make_weekly_menu to None directly.
+        Previous tests using ``patch("app.make_weekly_menu", ...)`` leave the real
+        function in ``app.__dict__`` after cleanup (patch restores via setattr).
+        We must set BOTH to None so neither path resolves a callable.
         """
         import app as app_module
 
-        # Remove 'make_weekly_menu' from app's lazy exports so __getattr__ falls back to legacy_app
-        original_exports = app_module._LOCAL_EXPORTS.copy()
-        monkeypatch.setattr(
-            app_module,
-            "_LOCAL_EXPORTS",
-            {k: v for k, v in original_exports.items() if k != "make_weekly_menu"},
-        )
-
-        # Set make_weekly_menu to None in legacy_app so getattr returns None
-        # and globals().get() also returns None
+        # Null out the app-level attribute (covers path 1: app.__dict__ lookup)
+        monkeypatch.setattr(app_module, "make_weekly_menu", None)
+        # Null out the legacy_app-level attribute (covers path 2: globals() fallback)
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
         response = self.client.post(
