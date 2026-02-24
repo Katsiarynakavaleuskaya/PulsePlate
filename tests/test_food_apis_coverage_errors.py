@@ -370,6 +370,7 @@ class TestFoodAPIsUpdatePipeline:
 
                 # Should handle error gracefully (lines 438-450)
                 assert result.success is False
+                assert result.errors, "Expected non-empty errors list"
                 assert "API connection error" in result.errors[0]
                 mock_logger.error.assert_called()
                 # Check actual log message format (uses %s placeholders)
@@ -406,6 +407,7 @@ class TestFoodAPIsUpdatePipeline:
 
                 # Should handle error during processing (lines 588-597)
                 assert result.success is False
+                assert result.errors, "Expected non-empty errors list"
                 assert "Backup creation error" in result.errors[0]
 
 
