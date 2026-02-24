@@ -171,22 +171,70 @@ class TestEstimateLevelShim:
             assert level == "intermediate"
 
 
-class TestDeprecatedStubs:
-    """Test deprecated stub functions raise RuntimeError."""
+class TestInterpretGroupShim:
+    """Test interpret_group shim coverage (delegates to canonical implementation)."""
 
-    @pytest.mark.parametrize("fn_name", ["interpret_group", "build_premium_plan"])
-    def test_deprecated_stubs_raise_runtime_error(self, fn_name: str) -> None:
-        """Test that deprecated stubs raise RuntimeError."""
-        fn = getattr(bmi_core, fn_name)
-        with pytest.raises(RuntimeError, match="deprecated"):
-            fn()  # stubs should raise a clear error
+    def test_interpret_group_smoke(self) -> None:
+        """Test interpret_group returns localized string."""
+        result = bmi_core.interpret_group(bmi=25.0, group="athlete", lang="en")
+        assert isinstance(result, str)
+        assert len(result) > 0
 
-    def test_interpret_group_raises_with_args(self) -> None:
-        """Test interpret_group raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.interpret_group(22.0, "general", "en")
+    def test_interpret_group_athlete_note(self) -> None:
+        """Test interpret_group includes athlete-specific note."""
+        result = bmi_core.interpret_group(bmi=26.0, group="athlete", lang="en")
+        assert "athlete" in result.lower() or "muscle" in result.lower()
 
-    def test_build_premium_plan_raises_with_args(self) -> None:
-        """Test build_premium_plan raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.build_premium_plan(30, 70.0, 1.75, 22.9, "en", "general", False)
+    def test_interpret_group_pregnant_note(self) -> None:
+        """Test interpret_group includes pregnancy note."""
+        result = bmi_core.interpret_group(bmi=25.0, group="pregnant", lang="en")
+        assert "pregnancy" in result.lower() or "pregnant" in result.lower()
+
+    def test_interpret_group_all_languages(self) -> None:
+        """Test interpret_group with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            result = bmi_core.interpret_group(bmi=22.0, group="general", lang=lang)
+            assert isinstance(result, str)
+
+
+class TestBuildPremiumPlanShim:
+    """Test build_premium_plan shim coverage (delegates to canonical implementation)."""
+
+    def test_build_premium_plan_smoke(self) -> None:
+        """Test build_premium_plan returns dict with expected keys."""
+        result = bmi_core.build_premium_plan(
+            age=30, weight_kg=70.0, height_m=1.75, bmi=22.9, lang="en", group="general"
+        )
+        assert isinstance(result, dict)
+        assert "action" in result
+        assert "healthy_bmi" in result
+        assert "healthy_weight" in result
+        assert "nutrition_tip" in result
+        assert "activity_tip" in result
+
+    def test_build_premium_plan_maintain_action(self) -> None:
+        """Test build_premium_plan returns maintain for healthy weight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=1.75, bmi=22.9)
+        assert result["action"] == "maintain"
+        assert result["delta_kg"] == 0.0
+
+    def test_build_premium_plan_lose_action(self) -> None:
+        """Test build_premium_plan returns lose for overweight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=90.0, height_m=1.75, bmi=29.4)
+        assert result["action"] == "lose"
+        assert result["delta_kg"] > 0
+
+    def test_build_premium_plan_gain_action(self) -> None:
+        """Test build_premium_plan returns gain for underweight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=50.0, height_m=1.75, bmi=16.3)
+        assert result["action"] == "gain"
+        assert result["delta_kg"] > 0
+
+    def test_build_premium_plan_all_languages(self) -> None:
+        """Test build_premium_plan with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            result = bmi_core.build_premium_plan(
+                age=30, weight_kg=70.0, height_m=1.75, bmi=22.9, lang=lang
+            )
+            assert isinstance(result["nutrition_tip"], str)
+            assert len(result["nutrition_tip"]) > 0

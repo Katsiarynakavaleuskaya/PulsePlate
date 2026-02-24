@@ -234,30 +234,83 @@ def estimate_level(
     return _canonical_estimate_level(freq_per_week=freq_per_week, years=years, lang=lang)
 
 
-def interpret_group(*_args: object, **_kwargs: object) -> str:
+def interpret_group(
+    bmi: float,
+    group: str,
+    lang: str = "en",
+    age: int | None = None,
+) -> str:
     """
-    Legacy stub: interpret_group has no canonical equivalent.
+    Legacy shim: delegates to canonical core.bmi.engine.interpret_group.
 
-    This function is deprecated and will be removed.
-    Tests using this function should be migrated or skipped.
+    RU: Расширенная интерпретация группы с контекстными заметками.
+    EN: Enhanced group interpretation with context notes.
 
-    Raises:
-        RuntimeError: Always raises to indicate deprecation
+    Args:
+        bmi: BMI value
+        group: BMI group (general, athlete, pregnant, elderly, child, teen)
+        lang: Language code ("ru", "en", "es")
+        age: Age in years (optional)
+
+    Returns:
+        Localized interpretation string
     """
-    raise RuntimeError("interpret_group is deprecated; use core/* canonical APIs")
+    from core.bmi.engine import interpret_group as _canonical_interpret_group
+
+    return _canonical_interpret_group(bmi=bmi, group=group, lang=lang, age=age)  # type: ignore[arg-type]
 
 
-def build_premium_plan(*_args: object, **_kwargs: object) -> dict[str, Any]:
+def build_premium_plan(
+    age: int,
+    weight_kg: float,
+    height_m: float,
+    bmi: float,
+    lang: str = "en",
+    group: str = "general",
+    premium: bool = True,
+) -> dict[str, Any]:
     """
-    Legacy stub: build_premium_plan has no canonical equivalent.
+    Legacy shim: delegates to canonical core.bmi.engine.build_premium_plan.
 
-    This function is deprecated and will be removed.
-    Tests using this function should be migrated or skipped.
+    RU: Построение премиум плана с рекомендациями.
+    EN: Build premium plan with recommendations.
 
-    Raises:
-        RuntimeError: Always raises to indicate deprecation
+    Args:
+        age: Age in years
+        weight_kg: Weight in kilograms
+        height_m: Height in meters
+        bmi: Pre-calculated BMI value
+        lang: Language code
+        group: BMI group
+        premium: Premium flag (legacy, ignored)
+
+    Returns:
+        Dict with plan details (legacy format)
     """
-    raise RuntimeError("build_premium_plan is deprecated; use core/* canonical APIs")
+    from core.bmi.engine import build_premium_plan as _canonical_build_premium_plan
+
+    result = _canonical_build_premium_plan(
+        age=age,
+        weight_kg=weight_kg,
+        height_m=height_m,
+        bmi=bmi,
+        lang=lang,
+        group=group,  # type: ignore[arg-type]
+        premium=premium,
+    )
+
+    # Convert dataclass to dict for legacy compatibility
+    return {
+        "healthy_bmi": result.healthy_bmi,
+        "healthy_weight": result.healthy_weight,
+        "current_weight": result.current_weight,
+        "current_bmi": result.current_bmi,
+        "action": result.action,
+        "delta_kg": result.delta_kg,
+        "est_weeks": result.est_weeks,
+        "nutrition_tip": result.nutrition_tip,
+        "activity_tip": result.activity_tip,
+    }
 
 
 # normalize_lang is imported above (re-exported for backward compatibility)
