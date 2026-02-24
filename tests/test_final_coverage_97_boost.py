@@ -9,7 +9,7 @@ from tests._client import get_client
 import pytest
 import app as app_mod
 from fastapi.testclient import TestClient
-from tests.feature_manifest import FEATURE_REASON, require_feature, require_feature_or_raise
+from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 # Setup environment before importing
@@ -95,31 +95,39 @@ class TestRecommendationsCoverage:
 
     def test_recommendations_edge_cases(self) -> None:
         """Test recommendations with edge case inputs."""
-        try:
-            from core.recommendations import get_nutrient_recommendations
+        from core.recommendations import get_nutrient_recommendations
 
-            # Test with minimal profile
-            recommendations = get_nutrient_recommendations(
-                age=25, gender="female", weight=60, height=165, activity_level="low"
-            )
-            assert recommendations is not None
-            assert isinstance(recommendations, dict)
-        except (ImportError, TypeError):
-            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
+        recommendations = get_nutrient_recommendations(
+            age=25, gender="female", weight=60, height=165, activity_level="low"
+        )
+        assert recommendations is not None
+        assert isinstance(recommendations, dict)
+        assert "kcal_daily" in recommendations
+        assert "macros" in recommendations
+        assert "micros" in recommendations
+        assert "water_ml_daily" in recommendations
+        assert "activity" in recommendations
 
     def test_recommendations_all_activity_levels(self) -> None:
         """Test recommendations for all activity levels."""
-        try:
-            from core.recommendations import get_nutrient_recommendations
+        from core.recommendations import get_nutrient_recommendations
 
-            activity_levels = ["low", "moderate", "high", "very_high"]
-            for level in activity_levels:
-                recommendations = get_nutrient_recommendations(
-                    age=30, gender="male", weight=75, height=180, activity_level=level
-                )
-                assert recommendations is not None
-        except (ImportError, TypeError):
-            require_feature("nutrient_recommendations", reason=FEATURE_REASON)
+        activity_levels = ["low", "moderate", "high", "very_high"]
+        for level in activity_levels:
+            recommendations = get_nutrient_recommendations(
+                age=30, gender="male", weight=75, height=180, activity_level=level
+            )
+            assert recommendations is not None
+            assert isinstance(recommendations, dict)
+
+    def test_recommendations_invalid_activity_raises(self) -> None:
+        """Test that invalid activity_level raises ValueError."""
+        from core.recommendations import get_nutrient_recommendations
+
+        with pytest.raises(ValueError, match="Unknown activity_level"):
+            get_nutrient_recommendations(
+                age=30, gender="male", weight=75, height=180, activity_level="extreme"
+            )
 
 
 class TestUnifiedDbCoverage:
