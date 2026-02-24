@@ -6514,6 +6514,9 @@
             },
             "description": "Successful Response"
           },
+          "404": {
+            "description": "Food not found"
+          },
           "422": {
             "content": {
               "application/json": {

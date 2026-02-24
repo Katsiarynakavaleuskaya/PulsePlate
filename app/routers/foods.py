@@ -85,7 +85,13 @@ def get_food(food_id: str, store: FoodStore = Depends(get_food_store)) -> FoodIt
     return FoodItem(**row)
 
 
-@router.get("/api/v1/foods/barcode/{barcode}", response_model=FoodItem)
+@router.get(
+    "/api/v1/foods/barcode/{barcode}",
+    response_model=FoodItem,
+    responses={
+        404: {"description": "Food not found"},
+    },
+)
 def get_food_by_barcode(barcode: str, store: FoodStore = Depends(get_food_store)) -> FoodItem:
     try:
         row = store.get_food_by_barcode(barcode)

@@ -109,6 +109,15 @@ def test_get_food_by_barcode_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc.value.detail == "barcode must have length in [8,14]"
 
 
+def test_get_food_by_barcode_route_documents_404() -> None:
+    route = next(
+        r
+        for r in foods.router.routes
+        if getattr(r, "path", "") == "/api/v1/foods/barcode/{barcode}"
+    )
+    assert 404 in route.responses
+
+
 def test_list_foods_compat_backend_via_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
     class _CompatBackend:
         def __init__(self) -> None:

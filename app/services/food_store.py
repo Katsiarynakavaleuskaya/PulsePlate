@@ -527,9 +527,10 @@ def get_food_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
         if row:
             return dict(row)
 
-        # Some sources store GTIN without leading zeros; keep lookup deterministic with one fallback.
-        fallback = normalized.lstrip("0")
-        if fallback and fallback != normalized:
+        # Some sources store GTIN without a single left-pad zero.
+        # Drop only one leading zero to avoid changing significant digits.
+        fallback = normalized[1:] if normalized.startswith("0") else ""
+        if fallback:
             row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (fallback,)).fetchone()
             if row:
                 return dict(row)
