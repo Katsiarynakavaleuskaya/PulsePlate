@@ -11,7 +11,7 @@ for optimizing nutrient intake through food choices.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List, Literal
 
 from core.bmr import calculate_all_bmr, calculate_all_tdee
 
@@ -24,6 +24,7 @@ from .rules_who import (
     get_priority_nutrients_for_profile,
 )
 from .targets import (
+    Activity,
     ActivityTargets,
     MacroTargets,
     MicronutrientTargets,
@@ -498,3 +499,60 @@ def _get_age_factor(age: int, life_stage: str) -> float:
         return 1.1  # Elderly may need more
     else:  # adult
         return 1.0
+
+
+# ---------------------------------------------------------------------------
+# Public facade: simplified API for nutrient recommendations
+# ---------------------------------------------------------------------------
+
+_ACTIVITY_LEVEL_MAP: Dict[str, Activity] = {
+    "low": "sedentary",
+    "light": "light",
+    "moderate": "moderate",
+    "high": "active",
+    "very_high": "very_active",
+}
+
+
+def get_nutrient_recommendations(
+    age: int,
+    gender: Literal["female", "male"],
+    weight_kg: float,
+    height_cm: float,
+    activity_level: Literal["low", "light", "moderate", "high", "very_high"],
+) -> Dict[str, Any]:
+    """
+    RU: Получает персональные рекомендации по питанию (упрощённый API).
+    EN: Get personalized nutrition recommendations (simplified API).
+
+    Thin facade over build_nutrition_targets() for callers that don't need
+    the full UserProfile construction.
+
+    Args:
+        age: Age in years (1-120).
+        gender: "female" or "male".
+        weight_kg: Body weight in kg.
+        height_cm: Height in cm.
+        activity_level: One of "low", "light", "moderate", "high", "very_high".
+
+    Returns:
+        Dict with keys: kcal_daily, macros, water_ml_daily, micros, activity.
+
+    Raises:
+        ValueError: If activity_level is not recognised.
+    """
+    mapped_activity = _ACTIVITY_LEVEL_MAP.get(activity_level)
+    if mapped_activity is None:
+        valid = ", ".join(sorted(_ACTIVITY_LEVEL_MAP))
+        raise ValueError(f"Unknown activity_level: {activity_level!r}. Must be one of: {valid}")
+
+    profile = UserProfile(
+        sex=gender,
+        age=age,
+        weight_kg=weight_kg,
+        height_cm=height_cm,
+        activity=mapped_activity,
+        goal="maintain",
+    )
+    targets = build_nutrition_targets(profile)
+    return targets.get_summary()
