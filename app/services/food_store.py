@@ -11,7 +11,7 @@ import sqlite3
 from pathlib import Path
 import logging
 import os
-from typing import Any, Dict, Iterator, List, Optional, Mapping, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
 import threading
 from collections import defaultdict
 
@@ -40,6 +40,7 @@ except OSError as exc:  # pragma: no cover - extremely rare filesystem errors
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
+FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
 
 DEFAULT_ALIASES: Dict[str, List[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
@@ -271,6 +272,63 @@ _ALIASES_LOCK = threading.Lock()
 _MISSING_FOOD_COUNTER: Dict[str, int] = defaultdict(int)
 _MISSING_FOOD_LOCK = threading.Lock()
 _MISSING_FOOD_REPORT_THRESHOLD = int(os.getenv("MISSING_FOOD_REPORT_THRESHOLD", "100"))
+
+
+class FoodSearchBackend(Protocol):
+    """Search backend contract used by API compatibility layer."""
+
+    def search_foods(
+        self, query: str, limit: int | str = 20, offset: int | str = 0
+    ) -> List[Dict[str, Any]]: ...
+
+
+class _LegacyFoodSearchBackend:
+    """Default backend that keeps existing SQLite/FTS behavior."""
+
+    def search_foods(
+        self, query: str, limit: int | str = 20, offset: int | str = 0
+    ) -> List[Dict[str, Any]]:
+        return search_foods(query, limit=limit, offset=offset)
+
+
+_LEGACY_SEARCH_BACKEND: FoodSearchBackend = _LegacyFoodSearchBackend()
+_COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
+_SEARCH_BACKEND_LOCK = threading.Lock()
+
+
+def _is_truthy_env(value: str | None) -> bool:
+    """Parse common truthy env representations."""
+    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _use_compat_search_backend() -> bool:
+    """Return True when compatibility adapter path is explicitly enabled."""
+    return _is_truthy_env(os.getenv(FEATURE_FOOD_SEARCH_COMPAT_ENABLED))
+
+
+def register_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
+    """Register optional compatibility search backend adapter."""
+    global _COMPAT_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        _COMPAT_SEARCH_BACKEND = adapter
+
+
+def reset_search_backend_adapter() -> None:
+    """Reset compatibility search backend adapter to legacy-only state."""
+    register_search_backend_adapter(None)
+
+
+def get_search_backend() -> FoodSearchBackend:
+    """
+    Resolve active search backend.
+
+    Legacy SQLite backend remains default unless feature flag is enabled and adapter is registered.
+    """
+    with _SEARCH_BACKEND_LOCK:
+        compat_backend = _COMPAT_SEARCH_BACKEND
+    if _use_compat_search_backend() and compat_backend is not None:
+        return compat_backend
+    return _LEGACY_SEARCH_BACKEND
 
 
 def _log_missing_food(food_id: str) -> None:
