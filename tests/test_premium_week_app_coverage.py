@@ -9,6 +9,7 @@ EN: Simple tests for premium week endpoint coverage in main.py
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 import legacy_app
@@ -41,28 +42,40 @@ class TestPremiumWeekAppCoverage:
         os.environ.pop("API_KEY", None)
         os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
-    def test_api_weekly_menu_make_weekly_menu_not_available(self):
+    def test_api_weekly_menu_make_weekly_menu_not_available(self, monkeypatch: pytest.MonkeyPatch):
         """Test when make_weekly_menu is not available (503 error).
 
-        The endpoint checks both app.make_weekly_menu and legacy_app globals(),
-        so we need to ensure both return None to trigger the 503 response.
-        Using patch.dict to directly modify legacy_app.__dict__ ensures globals()
-        sees the patched value.
+        The endpoint checks both app.make_weekly_menu (via PEP 562 __getattr__) and
+        legacy_app globals(), so we need to ensure both return None.
+
+        We mock app._LOCAL_EXPORTS to remove 'make_weekly_menu' and delete from legacy_app.
         """
-        # Use patch.dict to directly modify module's __dict__ for reliable globals() patching
-        with (
-            patch("app.make_weekly_menu", None),
-            patch.dict(legacy_app.__dict__, {"make_weekly_menu": None}),
-        ):
-            response = self.client.post(
-                "/api/v1/premium/plan/week",
-                json=_BASE_WEEKLY_PAYLOAD,
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 503
-            data = response.json()
-            assert "detail" in data
-            assert "not available" in data["detail"].lower()
+        import app as app_module
+
+        # Remove 'make_weekly_menu' from app's lazy exports so __getattr__ won't find it
+        original_exports = app_module._LOCAL_EXPORTS.copy()
+        monkeypatch.setattr(
+            app_module,
+            "_LOCAL_EXPORTS",
+            {k: v for k, v in original_exports.items() if k != "make_weekly_menu"},
+        )
+
+        # Also need to handle the fallback to legacy_app in __getattr__
+        # And delete from legacy_app globals
+        try:
+            monkeypatch.delattr(legacy_app, "make_weekly_menu")
+        except AttributeError:
+            pass
+
+        response = self.client.post(
+            "/api/v1/premium/plan/week",
+            json=_BASE_WEEKLY_PAYLOAD,
+            headers={"X-API-Key": "test_key"},
+        )
+        assert response.status_code == 503
+        data = response.json()
+        assert "detail" in data
+        assert "not available" in data["detail"].lower()
 
     def test_api_weekly_menu_success(self):
         """Test successful weekly menu generation."""
@@ -85,27 +98,26 @@ class TestPremiumWeekAppCoverage:
             assert "weekly_coverage" in data
             assert "shopping_list" in data
 
-    def test_api_weekly_menu_exception_handling(self):
+    def test_api_weekly_menu_exception_handling(self, monkeypatch: pytest.MonkeyPatch):
         """Test exception handling in weekly menu generation."""
 
         # Mock make_weekly_menu to raise an exception
         def raise_exception(*args, **kwargs):
             raise RuntimeError("Test exception: menu engine failure")
 
-        # Use patch.dict for legacy_app to ensure globals() sees the mock
-        with (
-            patch("app.make_weekly_menu", side_effect=raise_exception),
-            patch.dict(legacy_app.__dict__, {"make_weekly_menu": raise_exception}),
-        ):
-            response = self.client.post(
-                "/api/v1/premium/plan/week",
-                json=_BASE_WEEKLY_PAYLOAD,
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
-            assert "Weekly menu generation failed" in data["detail"]
+        # Use monkeypatch.setattr for both modules to ensure globals() sees the mock
+        monkeypatch.setattr("app.make_weekly_menu", raise_exception)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", raise_exception)
+
+        response = self.client.post(
+            "/api/v1/premium/plan/week",
+            json=_BASE_WEEKLY_PAYLOAD,
+            headers={"X-API-Key": "test_key"},
+        )
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
+        assert "Weekly menu generation failed" in data["detail"]
 
     def test_api_weekly_menu_with_optional_fields(self):
         """Test with optional fields like deficit_pct, surplus_pct, bodyfat, life_stage."""
