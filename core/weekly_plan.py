@@ -140,6 +140,10 @@ def calculate_weekly_nutrition(
 
     Returns:
         Aggregated nutrition dict, or None on invalid input.
+        ``day_count`` reflects all dict-valued day entries; averages use that
+        count as the denominator even when individual fields are non-numeric
+        for some days (those days contribute 0 to the total for the failed
+        field).
     """
     if not isinstance(weekly_plan, dict) or not weekly_plan:
         return None
