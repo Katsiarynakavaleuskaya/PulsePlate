@@ -263,6 +263,256 @@ GROUP_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
     "pregnant": {"ru": "Беременность", "en": "Pregnancy", "es": "Embarazo"},
 }
 
+# --- PRO tier: Fitness experience level estimation ---
+
+FitnessLevel: TypeAlias = Literal["beginner", "novice", "intermediate", "advanced"]
+
+# RU/EN/ES display names for fitness levels
+FITNESS_LEVEL_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
+    "beginner": {"ru": "Начинающий", "en": "Beginner", "es": "Principiante"},
+    "novice": {"ru": "Новичок", "en": "Novice", "es": "Novato"},
+    "intermediate": {"ru": "Средний", "en": "Intermediate", "es": "Intermedio"},
+    "advanced": {"ru": "Продвинутый", "en": "Advanced", "es": "Avanzado"},
+}
+
+
+def estimate_level(
+    freq_per_week: int,
+    years: float,
+    lang: str | None = None,
+) -> FitnessLevel:
+    """
+    RU: Оценка уровня физической подготовки на основе опыта тренировок.
+    EN: Estimate fitness experience level based on training history.
+
+    PRO tier feature for personalized BMI interpretation and recommendations.
+
+    Thresholds (canonical):
+    - advanced: >= 5 years AND >= 3 sessions/week
+    - intermediate: >= 2 years AND >= 2 sessions/week
+    - novice: >= 0.5 years AND >= 1 session/week
+    - beginner: default (less experience)
+
+    Args:
+        freq_per_week: Training sessions per week (0+)
+        years: Years of training experience (0.0+)
+        lang: Language code for future localization (currently unused, reserved)
+
+    Returns:
+        FitnessLevel: One of "beginner", "novice", "intermediate", "advanced"
+    """
+    # Input validation (fail-soft: clamp negatives to 0)
+    freq = max(0, freq_per_week)
+    yrs = max(0.0, years)
+
+    if yrs >= 5.0 and freq >= 3:
+        return "advanced"
+    if yrs >= 2.0 and freq >= 2:
+        return "intermediate"
+    if yrs >= 0.5 and freq >= 1:
+        return "novice"
+    return "beginner"
+
+
+def get_fitness_level_display(level: FitnessLevel, lang: Language) -> str:
+    """
+    RU: Возвращает локализованное название уровня подготовки.
+    EN: Return localized display name for fitness level.
+
+    Args:
+        level: Fitness level key
+        lang: Language code ("ru", "en", "es")
+
+    Returns:
+        Localized display name string
+    """
+    return FITNESS_LEVEL_DISPLAY_NAMES.get(level, {}).get(lang, level)
+
+
+# --- PRO tier: Group interpretation with context notes ---
+
+# i18n keys for group-specific notes (canonical mapping)
+_GROUP_NOTE_KEYS: dict[BMIGroup, str] = {
+    "athlete": "advice_athlete_bmi",
+    "pregnant": "bmi_not_valid_during_pregnancy",
+    "elderly": "risk_elderly_note",
+    "child": "risk_child_note",
+    "teen": "risk_teen_note",
+    "too_young": "risk_child_note",
+    "general": "",
+}
+
+
+def interpret_group(
+    bmi: float,
+    group: BMIGroup,
+    lang: str | None = None,
+    age: int | None = None,
+) -> str:
+    """
+    RU: Расширенная интерпретация группы с учетом возраста и контекстных заметок.
+    EN: Enhanced group interpretation with age-specific BMI categorization and notes.
+
+    PRO tier feature combining category + group-specific advisory notes.
+
+    Args:
+        bmi: BMI value
+        group: BMI group (general, athlete, pregnant, elderly, child, teen, too_young)
+        lang: Language code ("ru", "en", "es")
+        age: Age in years (optional, defaults to 30 for category lookup)
+
+    Returns:
+        Localized interpretation string with category and group-specific note
+    """
+    from core.i18n import t
+
+    lang_norm = _normalize_lang(lang)
+    age_val = age if age is not None else 30
+
+    # Get base category string
+    category = _bmi_category(bmi=bmi, age=age_val, group=group)
+    if category is not None:
+        # Map category to i18n key
+        category_key = (
+            f"bmi_{category}" if not category.startswith("obesity") else f"bmi_obese_{category[-1]}"
+        )
+        base_text = t(lang_norm, category_key)
+    else:
+        # No category for this group (child/teen/pregnant/too_young)
+        base_text = ""
+
+    # Get group-specific note
+    note_key = _GROUP_NOTE_KEYS.get(group, "")
+    if note_key:
+        try:
+            note = t(lang_norm, note_key)
+            if base_text:
+                # Remove at most one trailing period from base_text to avoid double dots,
+                # without stripping punctuation from the note.
+                base = base_text[:-1] if base_text.endswith(".") else base_text
+                return f"{base}. {note}"
+            return note
+        except KeyError:
+            pass
+
+    return base_text
+
+
+# --- PRO tier: Premium plan builder ---
+
+# Action type for weight management
+ActionType: TypeAlias = Literal["maintain", "lose", "gain"]
+
+
+@dataclass
+class PremiumPlanResult:
+    """
+    RU: Результат построения премиум плана.
+    EN: Result of building a premium plan.
+    """
+
+    healthy_bmi: tuple[float, float]
+    healthy_weight: tuple[float, float]
+    current_weight: float
+    current_bmi: float
+    action: ActionType
+    delta_kg: float
+    est_weeks: tuple[int, int] | tuple[None, None]
+    nutrition_tip: str
+    activity_tip: str
+
+
+def build_premium_plan(
+    age: int,
+    weight_kg: float,
+    height_m: float,
+    bmi: float,
+    lang: str | None = None,
+    group: BMIGroup = "general",
+    premium: bool = True,
+) -> PremiumPlanResult:
+    """
+    RU: Построение премиум плана с рекомендациями по питанию и активности.
+    EN: Build premium plan with nutrition and activity recommendations.
+
+    PRO tier feature for personalized weight management plan.
+
+    Args:
+        age: Age in years (1-150)
+        weight_kg: Weight in kilograms
+        height_m: Height in meters
+        bmi: Pre-calculated BMI value
+        lang: Language code ("ru", "en", "es")
+        group: BMI group (default "general")
+        premium: Premium flag (legacy parameter, ignored)
+
+    Returns:
+        PremiumPlanResult with plan details and localized tips
+
+    Raises:
+        ValueError: If input validation fails
+    """
+    import math
+
+    from core.i18n import t
+
+    # Input validation
+    if age < 1 or age > 150:
+        raise ValueError("Invalid age: must be between 1 and 150")
+    if weight_kg <= 0:
+        raise ValueError("Invalid weight: must be positive")
+    if height_m <= 0:
+        raise ValueError("Invalid height: must be positive")
+
+    lang_norm = _normalize_lang(lang)
+
+    # Calculate healthy weight range using canonical BMI range
+    bmin, bmax = HEALTHY_BMI_RANGE.min, HEALTHY_BMI_RANGE.max
+    wmin = round(bmin * height_m * height_m, 1)
+    wmax = round(bmax * height_m * height_m, 1)
+
+    # Determine action
+    action: ActionType
+    if wmin <= weight_kg <= wmax:
+        action = "maintain"
+    elif weight_kg > wmax:
+        action = "lose"
+    else:
+        action = "gain"
+
+    # Calculate delta and estimated weeks
+    delta: float
+    est_weeks: tuple[int, int] | tuple[None, None]
+
+    if action == "maintain":
+        delta = 0.0
+        est_weeks = (None, None)
+    elif action == "lose":
+        delta = round(weight_kg - wmax, 1)
+        # 0.25-0.5 kg/week safe loss rate; use ceil to avoid underestimating duration
+        est_weeks = (max(1, math.ceil(delta / 0.5)), max(1, math.ceil(delta / 0.25)))
+    else:  # gain
+        delta = round(wmin - weight_kg, 1)
+        # 0.25-0.5 kg/week safe gain rate; use ceil to avoid underestimating duration
+        est_weeks = (max(1, math.ceil(delta / 0.5)), max(1, math.ceil(delta / 0.25)))
+
+    # Get localized tips
+    nutrition_tip = t(lang_norm, f"action_{action}_tip")
+    activity_tip = t(lang_norm, f"activity_{action}_tip")
+
+    return PremiumPlanResult(
+        healthy_bmi=(bmin, bmax),
+        healthy_weight=(wmin, wmax),
+        current_weight=round(weight_kg, 1),
+        current_bmi=bmi,
+        action=action,
+        delta_kg=delta,
+        est_weeks=est_weeks,
+        nutrition_tip=nutrition_tip,
+        activity_tip=activity_tip,
+    )
+
+
 # Athlete string detection (legacy parity) — strict, NOT including "спорт".
 _ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
 

@@ -5,6 +5,24 @@ EN: BMI package: waist risk and (later) BMI engine orchestration.
 """
 
 from core.bmi.risk import WaistRiskResult, calculate_waist_risk
-from core.bmi.engine import get_bmi_visual_ranges
+from core.bmi.engine import (
+    build_premium_plan,
+    estimate_level,
+    get_bmi_visual_ranges,
+    get_fitness_level_display,
+    interpret_group,
+    FITNESS_LEVEL_DISPLAY_NAMES,
+    PremiumPlanResult,
+)
 
-__all__ = ["WaistRiskResult", "calculate_waist_risk", "get_bmi_visual_ranges"]
+__all__ = [
+    "WaistRiskResult",
+    "calculate_waist_risk",
+    "get_bmi_visual_ranges",
+    "estimate_level",
+    "get_fitness_level_display",
+    "FITNESS_LEVEL_DISPLAY_NAMES",
+    "interpret_group",
+    "build_premium_plan",
+    "PremiumPlanResult",
+]

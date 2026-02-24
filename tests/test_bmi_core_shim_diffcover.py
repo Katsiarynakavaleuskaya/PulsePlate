@@ -146,27 +146,140 @@ class TestOtherShimFunctions:
         assert 24.0 <= hi <= 25.0  # HEALTHY_BMI_RANGE.max = 24.9
 
 
-class TestDeprecatedStubs:
-    """Test deprecated stub functions raise RuntimeError."""
+class TestEstimateLevelShim:
+    """Test estimate_level shim coverage (delegates to canonical implementation)."""
 
-    @pytest.mark.parametrize("fn_name", ["estimate_level", "interpret_group", "build_premium_plan"])
-    def test_deprecated_stubs_raise_runtime_error(self, fn_name: str) -> None:
-        """Test that deprecated stubs raise RuntimeError."""
-        fn = getattr(bmi_core, fn_name)
-        with pytest.raises(RuntimeError, match="deprecated"):
-            fn()  # stubs should raise a clear error
+    def test_estimate_level_smoke(self) -> None:
+        """Test estimate_level wrapper returns valid level."""
+        level = bmi_core.estimate_level(freq_per_week=3, years=5.0, lang="en")
+        assert level in {"beginner", "novice", "intermediate", "advanced"}
 
-    def test_estimate_level_raises_with_args(self) -> None:
-        """Test estimate_level raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.estimate_level(3, 2.0, "en")
+    def test_estimate_level_beginner(self) -> None:
+        """Test estimate_level returns beginner for low experience."""
+        level = bmi_core.estimate_level(freq_per_week=0, years=0.0)
+        assert level == "beginner"
 
-    def test_interpret_group_raises_with_args(self) -> None:
-        """Test interpret_group raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.interpret_group(22.0, "general", "en")
+    def test_estimate_level_advanced(self) -> None:
+        """Test estimate_level returns advanced for high experience."""
+        level = bmi_core.estimate_level(freq_per_week=3, years=5.0)
+        assert level == "advanced"
 
-    def test_build_premium_plan_raises_with_args(self) -> None:
-        """Test build_premium_plan raises even with arguments."""
-        with pytest.raises(RuntimeError, match="deprecated"):
-            bmi_core.build_premium_plan(30, 70.0, 1.75, 22.9, "en", "general", False)
+    def test_estimate_level_all_languages(self) -> None:
+        """Test estimate_level with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            level = bmi_core.estimate_level(freq_per_week=2, years=2.0, lang=lang)
+            assert level == "intermediate"
+
+
+class TestInterpretGroupShim:
+    """Test interpret_group shim coverage (delegates to canonical implementation)."""
+
+    def test_interpret_group_smoke(self) -> None:
+        """Test interpret_group returns localized string."""
+        result = bmi_core.interpret_group(bmi=25.0, group="athlete", lang="en")
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_interpret_group_athlete_note(self) -> None:
+        """Test interpret_group includes athlete-specific note."""
+        result = bmi_core.interpret_group(bmi=26.0, group="athlete", lang="en")
+        assert "athlete" in result.lower() or "muscle" in result.lower()
+
+    def test_interpret_group_pregnant_note(self) -> None:
+        """Test interpret_group includes pregnancy note."""
+        result = bmi_core.interpret_group(bmi=25.0, group="pregnant", lang="en")
+        assert "pregnancy" in result.lower() or "pregnant" in result.lower()
+
+    def test_interpret_group_all_languages(self) -> None:
+        """Test interpret_group with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            result = bmi_core.interpret_group(bmi=22.0, group="general", lang=lang)
+            assert isinstance(result, str)
+
+    def test_interpret_group_missing_note_key_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test interpret_group falls back to base text when note key raises KeyError."""
+        from core import i18n
+
+        original_t = i18n.t
+        call_count = {"value": 0}
+
+        def mock_t(lang: str, key: str, **kwargs: str) -> str:
+            call_count["value"] += 1
+            # First call is for category key - let it succeed
+            if "bmi_" in key and "advice" not in key:
+                return original_t(lang, key, **kwargs)
+            # Second call is for note key - raise KeyError
+            raise KeyError(f"Mock missing key: {key}")
+
+        monkeypatch.setattr(i18n, "t", mock_t)
+        # Use athlete group which has a note key
+        result = bmi_core.interpret_group(bmi=25.0, group="athlete", lang="en")
+        # Should return just category without note (KeyError caught)
+        assert isinstance(result, str)
+        assert call_count["value"] >= 1
+
+
+class TestBuildPremiumPlanShim:
+    """Test build_premium_plan shim coverage (delegates to canonical implementation)."""
+
+    def test_build_premium_plan_smoke(self) -> None:
+        """Test build_premium_plan returns dict with expected keys."""
+        result = bmi_core.build_premium_plan(
+            age=30, weight_kg=70.0, height_m=1.75, bmi=22.9, lang="en", group="general"
+        )
+        assert isinstance(result, dict)
+        assert "action" in result
+        assert "healthy_bmi" in result
+        assert "healthy_weight" in result
+        assert "nutrition_tip" in result
+        assert "activity_tip" in result
+
+    def test_build_premium_plan_maintain_action(self) -> None:
+        """Test build_premium_plan returns maintain for healthy weight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=1.75, bmi=22.9)
+        assert result["action"] == "maintain"
+        assert result["delta_kg"] == 0.0
+
+    def test_build_premium_plan_lose_action(self) -> None:
+        """Test build_premium_plan returns lose for overweight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=90.0, height_m=1.75, bmi=29.4)
+        assert result["action"] == "lose"
+        assert result["delta_kg"] > 0
+
+    def test_build_premium_plan_gain_action(self) -> None:
+        """Test build_premium_plan returns gain for underweight."""
+        result = bmi_core.build_premium_plan(age=30, weight_kg=50.0, height_m=1.75, bmi=16.3)
+        assert result["action"] == "gain"
+        assert result["delta_kg"] > 0
+
+    def test_build_premium_plan_all_languages(self) -> None:
+        """Test build_premium_plan with different language codes."""
+        for lang in ["ru", "en", "es"]:
+            result = bmi_core.build_premium_plan(
+                age=30, weight_kg=70.0, height_m=1.75, bmi=22.9, lang=lang
+            )
+            assert isinstance(result["nutrition_tip"], str)
+            assert len(result["nutrition_tip"]) > 0
+
+    def test_build_premium_plan_invalid_age_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid age."""
+        with pytest.raises(ValueError, match="Invalid age"):
+            bmi_core.build_premium_plan(age=0, weight_kg=70.0, height_m=1.75, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid age"):
+            bmi_core.build_premium_plan(age=200, weight_kg=70.0, height_m=1.75, bmi=22.9)
+
+    def test_build_premium_plan_invalid_weight_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid weight."""
+        with pytest.raises(ValueError, match="Invalid weight"):
+            bmi_core.build_premium_plan(age=30, weight_kg=0, height_m=1.75, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid weight"):
+            bmi_core.build_premium_plan(age=30, weight_kg=-10, height_m=1.75, bmi=22.9)
+
+    def test_build_premium_plan_invalid_height_raises(self) -> None:
+        """Test build_premium_plan raises ValueError for invalid height."""
+        with pytest.raises(ValueError, match="Invalid height"):
+            bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=0, bmi=22.9)
+        with pytest.raises(ValueError, match="Invalid height"):
+            bmi_core.build_premium_plan(age=30, weight_kg=70.0, height_m=-1, bmi=22.9)
