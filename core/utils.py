@@ -241,8 +241,14 @@ def format_number(value: object, decimals: int = 2) -> str:
         Formatted string representation.
     """
     try:
-        return f"{float(value):.{decimals}f}"  # type: ignore[arg-type]
-    except (ValueError, TypeError):
+        if isinstance(value, (int, float)):
+            num = float(value)
+        elif isinstance(value, (str, bytes, bytearray)):
+            num = float(value)
+        else:
+            num = float(str(value))
+        return f"{num:.{decimals}f}"
+    except (ValueError, TypeError, OverflowError):
         return str(value)
 
 
