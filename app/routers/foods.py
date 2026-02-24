@@ -89,6 +89,7 @@ def get_food(food_id: str, store: FoodStore = Depends(get_food_store)) -> FoodIt
     "/api/v1/foods/barcode/{barcode}",
     response_model=FoodItem,
     responses={
+        422: {"description": "Malformed barcode"},
         404: {"description": "Food not found"},
     },
 )

@@ -540,10 +540,17 @@ def get_food_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
     if row:
         return row
 
-    # Some sources store GTIN without a single left-pad zero.
-    # Drop only one leading zero to avoid changing significant digits.
-    fallback = normalized[1:] if normalized.startswith("0") else ""
-    if fallback:
+    fallback_candidates: list[str] = []
+    if normalized.startswith("0"):
+        # First fallback: remove only one padding zero.
+        fallback_candidates.append(normalized[1:])
+
+    # Second fallback: strip all left-padding zeros for GTIN-14 -> GTIN-12 cases.
+    fully_stripped = normalized.lstrip("0")
+    if fully_stripped and fully_stripped not in {normalized, *fallback_candidates}:
+        fallback_candidates.append(fully_stripped)
+
+    for fallback in fallback_candidates:
         row = FoodRepository.get_by_gtin(fallback)
         if row:
             return row

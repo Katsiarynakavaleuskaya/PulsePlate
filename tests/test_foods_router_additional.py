@@ -115,6 +115,7 @@ def test_get_food_by_barcode_route_documents_404() -> None:
         for r in foods.router.routes
         if getattr(r, "path", "") == "/api/v1/foods/barcode/{barcode}"
     )
+    assert 422 in route.responses
     assert 404 in route.responses
 
 
