@@ -24,6 +24,98 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
+- [ ] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 foundation
+  - Target PR: PR-TBD-FOOD-DB-STRATEGY-DOCS
+  - Status: Planned
+  - Area: architecture / data platform / product database
+  - Finding Type: financial + architecture gap closure
+  - Reason: The largest current financial and architecture gap is food/menus data quality and coverage. USDA+OFF foundations exist, but snapshot governance, canonical confidence/provenance policy, and structured execution waves are not yet locked as a canonical strategy.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/design/RESTAURANT_INTEGRATION_SPEC.md`
+    - `core/food_apis/`
+    - `core/food_sources/`
+    - `app/routers/foods.py`
+  - DoD:
+    - Strategy SoT is merged in docs-only PR
+    - Source tiering and update cadence are finalized
+    - Execution is split into wave PRs with clear ownership
+    - Carryover/deferred mapping is documented in this ledger
+
+- [ ] P0: Execution Wave 1 — Snapshot manager + OFF delta + canonical merge contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-FOOD-DB-W1
+  - Status: Planned
+  - Area: backend / data ingestion
+  - Finding Type: runtime foundation
+  - Reason: Runtime needs deterministic snapshot lifecycle and incremental OFF updates before expansion to search and restaurants.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `core/food_sources/`
+    - `core/food_apis/update_manager.py`
+    - `scripts/build_food_db.py`
+  - DoD:
+    - Immutable raw snapshot layout is implemented
+    - Manifest/checksum policy is enforced fail-closed
+    - Deterministic OFF delta ingestion is in place
+    - Existing `/api/v1/foods*` behavior remains compatible
+
+- [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DB-W2
+  - Status: Planned
+  - Area: backend / search / API
+  - Finding Type: performance and UX improvement
+  - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `app/routers/foods.py`
+    - `app/services/food_store.py`
+  - DoD:
+    - Existing `/api/v1/foods` contracts remain stable
+    - New search backend is integrated behind compatibility layer
+    - New endpoints contract for barcode/search filters is documented and tested
+    - Target local-first search latency budget (<50ms p50) is measured and reported
+
+- [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DB-W3
+  - Status: Planned
+  - Area: backend / data model / partner enablement
+  - Finding Type: product coverage expansion
+  - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/design/RESTAURANT_INTEGRATION_SPEC.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md` (P2 Vision: Restaurant/chef integration)
+  - DoD:
+    - MenuStat baseline ingestion is operational
+    - Restaurant menu schema and endpoints are documented
+    - Moderated user submission workflow is implemented (`pending/approved/rejected`)
+    - Source audit trail persists provenance for imported and moderated records
+
+- [ ] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FOOD-DB-W4
+  - Status: Planned
+  - Area: backend / search relevance
+  - Finding Type: strategic enhancement
+  - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+  - DoD:
+    - Feature-flagged semantic retrieval is implemented
+    - Cost/performance benchmark is documented
+    - Rollback-safe deployment path is defined and validated
+    - Non-semantic search path remains default and stable
+
 - [x] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-A (product works)

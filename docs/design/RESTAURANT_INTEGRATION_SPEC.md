@@ -55,3 +55,4 @@ Order acceptance, payment, delivery, partner directory with booking — recorded
 - `app/routers/plan_export.py`, `vip.py` (weekly plan, recipes, export)
 - `core/dietary_constraints.py`, `core/targets.py`
 - `docs/roadmap/BACKLOG_LEDGER.md` (P2 Vision: Restaurant/chef integration)
+- `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md` (Food Data Platform SoT; Wave 3 alignment for restaurant menus and moderated submissions)
