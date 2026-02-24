@@ -17,12 +17,22 @@ class FoodStore(Protocol):
     def get_food(self, food_id: str) -> Mapping[str, Any] | None: ...
 
 
+class _FoodStoreCompat:
+    """Compatibility wrapper that keeps router contract stable while allowing backend switching."""
+
+    def search_foods(self, query: str, limit: int, offset: int) -> Sequence[Mapping[str, Any]]:
+        backend = food_store.get_search_backend()
+        return backend.search_foods(query=query, limit=limit, offset=offset)
+
+    def get_food(self, food_id: str) -> Mapping[str, Any] | None:
+        return food_store.get_food(food_id)
+
+
+_FOOD_STORE_COMPAT: FoodStore = _FoodStoreCompat()
+
+
 def get_food_store() -> FoodStore:
-    # With pre-push mypy (--follow-imports=skip), imported modules are treated as Any. Assigning to
-    # a typed local ensures the router's DI surface stays type-safe in CI and doesn't trip
-    # no-any-return locally.
-    store: FoodStore = food_store
-    return store
+    return _FOOD_STORE_COMPAT
 
 
 @router.get("/api/v1/foods", response_model=list[FoodHit])

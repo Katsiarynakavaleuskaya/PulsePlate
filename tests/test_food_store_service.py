@@ -126,6 +126,52 @@ def test_search_foods_parameter_normalization(monkeypatch: pytest.MonkeyPatch) -
     assert dummy.last_params[-2:] == [5, 1]
 
 
+def test_get_search_backend_defaults_to_legacy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: dict[str, tuple[Any, Any, Any]] = {}
+
+    def fake_legacy_search(query: str, limit: Any = 20, offset: Any = 0) -> List[Dict[str, Any]]:
+        called["params"] = (query, limit, offset)
+        return [{"id": "legacy"}]
+
+    monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
+    monkeypatch.setattr(food_store, "search_foods", fake_legacy_search)
+    food_store.reset_search_backend_adapter()
+
+    backend = food_store.get_search_backend()
+    rows = backend.search_foods("apple", limit=7, offset=3)
+
+    assert rows == [{"id": "legacy"}]
+    assert called["params"] == ("apple", 7, 3)
+
+
+def test_get_search_backend_uses_registered_adapter_when_flag_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _StubBackend:
+        def __init__(self) -> None:
+            self.calls: List[tuple[str, Any, Any]] = []
+
+        def search_foods(
+            self, query: str, limit: Any = 20, offset: Any = 0
+        ) -> List[Dict[str, Any]]:
+            self.calls.append((query, limit, offset))
+            return [{"id": "compat"}]
+
+    stub = _StubBackend()
+    monkeypatch.setenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", "true")
+    food_store.register_search_backend_adapter(stub)
+    try:
+        backend = food_store.get_search_backend()
+        rows = backend.search_foods("banana", limit=5, offset=1)
+        assert rows == [{"id": "compat"}]
+        assert stub.calls == [("banana", 5, 1)]
+    finally:
+        food_store.reset_search_backend_adapter()
+        monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
+
+
 @pytest.mark.parametrize(
     "limit,offset,expected_message",
     [

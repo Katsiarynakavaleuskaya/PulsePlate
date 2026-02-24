@@ -24,11 +24,11 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
+- [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-FOOD-DB-STRATEGY-DOCS
-  - Status: Planned
+  - Target PR: PR #886
+  - Status: ✅ Merged (PR #886, 2026-02-24)
   - Area: architecture / data platform / product database
   - Finding Type: financial + architecture gap closure
   - Reason: The largest current financial and architecture gap is food/menus data quality and coverage. USDA+OFF foundations exist, but snapshot governance, canonical confidence/provenance policy, and structured execution waves are not yet locked as a canonical strategy.
@@ -44,11 +44,11 @@ If it is not recorded here — it does not exist.
     - Execution is split into wave PRs with clear ownership
     - Carryover/deferred mapping is documented in this ledger
 
-- [ ] P0: Execution Wave 1 — Snapshot manager + OFF delta + canonical merge contract
+- [x] P0: Execution Wave 1 — Snapshot manager + OFF delta + canonical merge contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-FOOD-DB-W1
-  - Status: Planned
+  - Target PR: PR #889
+  - Status: ✅ Merged (PR #889, 2026-02-24)
   - Area: backend / data ingestion
   - Finding Type: runtime foundation
   - Reason: Runtime needs deterministic snapshot lifecycle and incremental OFF updates before expansion to search and restaurants.
@@ -66,8 +66,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W2
-  - Status: Planned
+  - Target PR: PR-TBD-FOOD-DB-W2-A
+  - Status: In Progress (W2-A compatibility adapter)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
