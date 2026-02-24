@@ -214,6 +214,18 @@ def test_get_food_by_barcode_uses_full_strip_fallback_as_last_resort(
     assert conn.calls == ["0012345678905", "012345678905", "12345678905"]
 
 
+def test_get_food_by_barcode_skips_short_fallback_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _DummyBarcodeConn(rows_by_barcode={"01234567": None})
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("01234567")
+
+    assert result is None
+    assert conn.calls == ["01234567"]
+
+
 def test_get_food_by_barcode_validation_error() -> None:
     with pytest.raises(ValueError, match=r"barcode must have length in \[8,14\]"):
         food_store.get_food_by_barcode("123")
