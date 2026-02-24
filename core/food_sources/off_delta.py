@@ -85,7 +85,7 @@ class OpenFoodFactsDeltaSource:
         try:
             with gzip.GzipFile(fileobj=io.BytesIO(payload), mode="rb") as gzip_file:
                 return gzip_file.read()
-        except OSError as exc:
+        except (OSError, EOFError) as exc:
             raise SnapshotIntegrityError(f"Malformed OFF delta payload: {source_url}") from exc
 
     def download_delta(self, since: date, dest: Path) -> SnapshotMeta:
@@ -137,7 +137,7 @@ class OpenFoodFactsDeltaSource:
         try:
             with gzip.open(output_path, "rb") as gzip_file:
                 record_count = sum(1 for _ in gzip_file)
-        except OSError as exc:
+        except (OSError, EOFError) as exc:
             raise SnapshotIntegrityError(f"Malformed OFF full snapshot: {output_path}") from exc
 
         checksum = sha256_file(output_path)

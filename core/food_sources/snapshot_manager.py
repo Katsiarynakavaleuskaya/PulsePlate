@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Callable, Protocol, cast
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -80,7 +80,9 @@ class SnapshotManager:
 
     MANIFEST_FILE = "manifest.json"
 
-    def __init__(self, base_path: Path | str, *, today_provider: Any | None = None) -> None:
+    def __init__(
+        self, base_path: Path | str, *, today_provider: Callable[[], date] | None = None
+    ) -> None:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._today_provider = today_provider or date.today
@@ -102,11 +104,39 @@ class SnapshotManager:
                 f"Invalid manifest schema for source={source}: root object must be a dict"
             )
         data = cast(dict[str, Any], loaded)
-        snapshots = data.get("snapshots")
+
+        manifest_source = data.get("source")
+        if not isinstance(manifest_source, str):
+            raise SnapshotIntegrityError(
+                f"Invalid manifest schema for source={source}: missing string 'source' key"
+            )
+        if manifest_source != source:
+            raise SnapshotIntegrityError(
+                "Invalid manifest schema for source="
+                f"{source}: source mismatch '{manifest_source}'"
+            )
+
+        if "snapshots" not in data:
+            raise SnapshotIntegrityError(
+                f"Invalid manifest schema for source={source}: missing 'snapshots' key"
+            )
+        snapshots = data["snapshots"]
         if not isinstance(snapshots, list):
             raise SnapshotIntegrityError(
                 f"Invalid manifest schema for source={source}: snapshots must be a list"
             )
+        for index, snapshot in enumerate(snapshots):
+            if not isinstance(snapshot, dict):
+                raise SnapshotIntegrityError(
+                    f"Invalid manifest schema for source={source}: snapshots[{index}] must be a dict"
+                )
+            for key in ("date", "file", "mode"):
+                value = snapshot.get(key)
+                if not isinstance(value, str):
+                    raise SnapshotIntegrityError(
+                        f"Invalid manifest schema for source={source}: "
+                        f"snapshots[{index}]['{key}'] must be a string"
+                    )
         return data
 
     def get_last_snapshot_date(self, source: str) -> date | None:
