@@ -1398,7 +1398,7 @@ If it is not recorded here — it does not exist.
     - `weekly_plan_helpers` -> ✅ Enabled (PR-881); thin facades added to core/weekly_plan.py (calculate_weekly_nutrition, optimize_weekly_variety, validate_weekly_plan); gates removed from test_remaining_modules.py; 31 coverage tests added
     - `food_apis_error_injection` -> ✅ Enabled (PR-885, 2026-02-24, `2b724190`); fixed 5 test mocks in test_food_apis_coverage_errors.py (correct mock targets, UnifiedFoodItem constructors, errors list assertions); fixed _Sched2 global state leak in test_food_apis_push95.py; added USDA search error handling in unified_db.py; key removed from FEATURE_TODO_KEYS
   - Keys still gated (module exists but tested API surface incomplete):
-    - (none — all feature keys enabled)
+    - `planner_engines`, `plate_day_micros`, `premium_week_router_mocking`, `exports_recipes_products`, `sports_disclaimers_lifestage`, `legacy_bmi_removed`, `nutrient_recommendations`
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
