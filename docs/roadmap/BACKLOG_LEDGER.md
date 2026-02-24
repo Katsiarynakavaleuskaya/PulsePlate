@@ -1396,8 +1396,9 @@ If it is not recorded here — it does not exist.
     - `unified_db` -> ✅ Enabled (PR-879); thin facades added to core/food_apis/unified_db.py (UnifiedFoodDB, FoodSource, merge_food_sources, update_unified_db); gates removed from 9 test files
     - `utils_pack` -> ✅ Enabled (PR-880); thin facades added to core/utils.py (safe_float, safe_int, slugify, format_number, generate_id, sanitize_html, validate_email) and core/time_utils.py (parse_datetime, format_datetime, get_timezone_offset, is_valid_date, format_time, human_delta); gates removed from 4 test files
     - `weekly_plan_helpers` -> ✅ Enabled (PR-881); thin facades added to core/weekly_plan.py (calculate_weekly_nutrition, optimize_weekly_variety, validate_weekly_plan); gates removed from test_remaining_modules.py; 31 coverage tests added
+    - `food_apis_error_injection` -> ✅ Enabled (PR-885, 2026-02-24, `2b724190`); fixed 5 test mocks in test_food_apis_coverage_errors.py (correct mock targets, UnifiedFoodItem constructors, errors list assertions); fixed _Sched2 global state leak in test_food_apis_push95.py; added USDA search error handling in unified_db.py; key removed from FEATURE_TODO_KEYS
   - Keys still gated (module exists but tested API surface incomplete):
-    - `food_apis_error_injection`: error injection paths in food_apis — tests expect different API signatures than implementation provides
+    - (none — all feature keys enabled)
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
