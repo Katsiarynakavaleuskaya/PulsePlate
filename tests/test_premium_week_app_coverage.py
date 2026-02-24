@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+import legacy_app
 from app import app
 
 # Common test payload for weekly menu tests (DRY)
@@ -43,12 +44,16 @@ class TestPremiumWeekAppCoverage:
     def test_api_weekly_menu_make_weekly_menu_not_available(self):
         """Test when make_weekly_menu is not available (503 error).
 
-        The endpoint checks both app.make_weekly_menu and legacy_app globals,
+        The endpoint checks both app.make_weekly_menu and legacy_app globals(),
         so we need to ensure both return None to trigger the 503 response.
+        Using patch.dict to directly modify legacy_app.__dict__ ensures globals()
+        sees the patched value.
         """
-        # Mock make_weekly_menu to be None (not available) in both locations
-        # The endpoint checks app.make_weekly_menu first, then falls back to globals
-        with patch("app.make_weekly_menu", None), patch("legacy_app.make_weekly_menu", None):
+        # Use patch.dict to directly modify module's __dict__ for reliable globals() patching
+        with (
+            patch("app.make_weekly_menu", None),
+            patch.dict(legacy_app.__dict__, {"make_weekly_menu": None}),
+        ):
             response = self.client.post(
                 "/api/v1/premium/plan/week",
                 json=_BASE_WEEKLY_PAYLOAD,
@@ -83,13 +88,14 @@ class TestPremiumWeekAppCoverage:
     def test_api_weekly_menu_exception_handling(self):
         """Test exception handling in weekly menu generation."""
 
-        # Mock make_weekly_menu to raise an exception in both locations for consistency
+        # Mock make_weekly_menu to raise an exception
         def raise_exception(*args, **kwargs):
             raise RuntimeError("Test exception: menu engine failure")
 
+        # Use patch.dict for legacy_app to ensure globals() sees the mock
         with (
             patch("app.make_weekly_menu", side_effect=raise_exception),
-            patch("legacy_app.make_weekly_menu", side_effect=raise_exception),
+            patch.dict(legacy_app.__dict__, {"make_weekly_menu": raise_exception}),
         ):
             response = self.client.post(
                 "/api/v1/premium/plan/week",
