@@ -25,10 +25,14 @@ Primary outcomes:
 
 Implemented foundation already exists:
 
-- source integration: USDA + Open Food Facts (`core/food_apis/*`, `core/food_sources/*`)
-- merge layer: `core/food_merge.py`
-- build/export flow: `scripts/build_food_db.py`
-- existing API surface: `/api/v1/foods`, `/api/v1/foods/search`, `/api/v1/foods/{food_id}` (`app/routers/foods.py`)
+- source integration: USDA + Open Food Facts (`core/food_apis/unified_db.py:152`, `core/food_apis/update_manager.py:134`, `core/food_apis/scheduler.py:28`, `core/food_sources/usda.py:20`, `core/food_sources/off.py:19`)
+- merge layer: `core/food_merge.py:50`
+- build/export flow: `scripts/build_food_db.py:62`
+- existing API surface: `/api/v1/foods`, `/api/v1/foods/search`, `/api/v1/foods/{food_id}` (`app/routers/foods.py:29`, `app/routers/foods.py:53`, `app/routers/foods.py:66`)
+
+Validation criteria for this as-is claim:
+- keep the referenced symbols active at the anchored paths or update anchors in this doc in the same PR
+- keep food foundation tests passing for `tests/test_food_apis*.py` and `tests/test_food_merge*.py` when these surfaces change
 
 Known gap:
 

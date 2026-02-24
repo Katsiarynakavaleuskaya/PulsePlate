@@ -26,7 +26,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 foundation
+  - Priority: P0
   - Target PR: PR-TBD-FOOD-DB-STRATEGY-DOCS
   - Status: Planned
   - Area: architecture / data platform / product database
