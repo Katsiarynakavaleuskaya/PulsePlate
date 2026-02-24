@@ -207,7 +207,7 @@ def healthy_bmi_range(
     return (HEALTHY_BMI_RANGE.min, HEALTHY_BMI_RANGE.max)
 
 
-# Legacy functions that have no canonical equivalent (stubs for test compatibility)
+# Legacy shims: delegate to canonical core.bmi.engine implementations
 def estimate_level(
     freq_per_week: int = 0,
     years: float = 0.0,
@@ -255,9 +255,14 @@ def interpret_group(
     Returns:
         Localized interpretation string
     """
+    from typing import cast
+
+    from core.bmi.engine import BMIGroup
     from core.bmi.engine import interpret_group as _canonical_interpret_group
 
-    return _canonical_interpret_group(bmi=bmi, group=group, lang=lang, age=age)  # type: ignore[arg-type]
+    # Cast string to BMIGroup (legacy API accepts str, canonical uses Literal)
+    normalized_group = cast(BMIGroup, group if group else "general")
+    return _canonical_interpret_group(bmi=bmi, group=normalized_group, lang=lang, age=age)
 
 
 def build_premium_plan(

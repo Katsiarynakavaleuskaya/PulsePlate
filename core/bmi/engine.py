@@ -387,7 +387,10 @@ def interpret_group(
         try:
             note = t(lang_norm, note_key)
             if base_text:
-                return f"{base_text}. {note}".rstrip(".")
+                # Remove at most one trailing period from base_text to avoid double dots,
+                # without stripping punctuation from the note.
+                base = base_text[:-1] if base_text.endswith(".") else base_text
+                return f"{base}. {note}"
             return note
         except KeyError:
             pass
