@@ -329,6 +329,72 @@ def get_fitness_level_display(level: FitnessLevel, lang: Language) -> str:
     return FITNESS_LEVEL_DISPLAY_NAMES.get(level, {}).get(lang, level)
 
 
+# --- PRO tier: Group interpretation with context notes ---
+
+# i18n keys for group-specific notes (canonical mapping)
+_GROUP_NOTE_KEYS: dict[BMIGroup, str] = {
+    "athlete": "advice_athlete_bmi",
+    "pregnant": "bmi_not_valid_during_pregnancy",
+    "elderly": "risk_elderly_note",
+    "child": "risk_child_note",
+    "teen": "risk_teen_note",
+    "too_young": "risk_child_note",
+    "general": "",
+}
+
+
+def interpret_group(
+    bmi: float,
+    group: BMIGroup,
+    lang: str | None = None,
+    age: int | None = None,
+) -> str:
+    """
+    RU: Расширенная интерпретация группы с учетом возраста и контекстных заметок.
+    EN: Enhanced group interpretation with age-specific BMI categorization and notes.
+
+    PRO tier feature combining category + group-specific advisory notes.
+
+    Args:
+        bmi: BMI value
+        group: BMI group (general, athlete, pregnant, elderly, child, teen, too_young)
+        lang: Language code ("ru", "en", "es")
+        age: Age in years (optional, defaults to 30 for category lookup)
+
+    Returns:
+        Localized interpretation string with category and group-specific note
+    """
+    from core.i18n import t
+
+    lang_norm = _normalize_lang(lang)
+    age_val = age if age is not None else 30
+
+    # Get base category string
+    category = _bmi_category(bmi=bmi, age=age_val, group=group)
+    if category is not None:
+        # Map category to i18n key
+        category_key = (
+            f"bmi_{category}" if not category.startswith("obesity") else f"bmi_obese_{category[-1]}"
+        )
+        base_text = t(lang_norm, category_key)
+    else:
+        # No category for this group (child/teen/pregnant/too_young)
+        base_text = ""
+
+    # Get group-specific note
+    note_key = _GROUP_NOTE_KEYS.get(group, "")
+    if note_key:
+        try:
+            note = t(lang_norm, note_key)
+            if base_text:
+                return f"{base_text}. {note}".rstrip(".")
+            return note
+        except KeyError:
+            pass
+
+    return base_text
+
+
 # Athlete string detection (legacy parity) — strict, NOT including "спорт".
 _ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
 
