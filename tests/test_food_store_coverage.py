@@ -6,7 +6,6 @@ RU: Тесты используют monkeypatch вместо @patch для со�
 EN: Tests use monkeypatch instead of @patch for Python 3.12+ compatibility
 """
 
-import os
 from typing import Any, Dict, List, Optional
 from types import TracebackType
 
@@ -62,13 +61,15 @@ class _MockConnection:
         return None
 
 
+@pytest.fixture(autouse=True)
+def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set test environment variables using monkeypatch for proper isolation."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+
 class TestFoodStoreCoverage:
     """Тесты для покрытия недостающих строк в food_store.py"""
-
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_expand_query_empty_string(self) -> None:
         """Тест expand_query с пустой строкой"""
