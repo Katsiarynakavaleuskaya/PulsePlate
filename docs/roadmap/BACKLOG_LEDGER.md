@@ -1368,7 +1368,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 🔄 In progress (PR-879: 3 more keys enabled — core_db, food_apis, unified_db; 8 total enabled, 10 remaining)
+  - Status: 🔄 In progress (PR-888: premium_week_router_mocking enabled; 14 total enabled, 6 remaining)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1388,6 +1388,8 @@ If it is not recorded here — it does not exist.
   - Implemented keys (latest):
     - `shoplist_helpers` -> ✅ Merged (PR-764, 2026-02-16, `48c87f39`); gate removed in PR-748
     - `aliases_module` -> ✅ Enabled (PR-748); core/aliases.py fully implemented
+    - `update_manager` -> ✅ Enabled (PR-761, `0aa3c51b`); Path wrapper .path exposed in core/food_apis/update_manager.py; gates removed from 4 test locations (test_database_apis_coverage.py, test_final_coverage_97_boost.py, test_update_manager_fixed.py); key removed from FEATURE_TODO_KEYS
+    - `region_catalog` -> ✅ Enabled (PR-762, `abed9a48`); stale feature gate removed from test_direct_core_functions.py; 1 test location cleaned; key removed from FEATURE_TODO_KEYS
     - `targets_fixture_data` -> ✅ Enabled (PR-877); gates removed from 3 test files (test_targets_coverage_97.py, test_core_coverage_97_final.py, test_simple_coverage_fixed.py)
     - `i18n_advanced` -> ✅ Enabled (PR-877); thin facades added to core/i18n.py (TranslationManager + 8 functions); gates removed from 4 test files
     - `rag` -> ✅ Enabled (PR-877); thin facades added to core/rag/simple_rag.py (RAGEngine/SimpleRAG + 6 functions); gates removed from 4 test files
@@ -1397,8 +1399,9 @@ If it is not recorded here — it does not exist.
     - `utils_pack` -> ✅ Enabled (PR-880); thin facades added to core/utils.py (safe_float, safe_int, slugify, format_number, generate_id, sanitize_html, validate_email) and core/time_utils.py (parse_datetime, format_datetime, get_timezone_offset, is_valid_date, format_time, human_delta); gates removed from 4 test files
     - `weekly_plan_helpers` -> ✅ Enabled (PR-881); thin facades added to core/weekly_plan.py (calculate_weekly_nutrition, optimize_weekly_variety, validate_weekly_plan); gates removed from test_remaining_modules.py; 31 coverage tests added
     - `food_apis_error_injection` -> ✅ Enabled (PR-885, 2026-02-24, `2b724190`); fixed 5 test mocks in test_food_apis_coverage_errors.py (correct mock targets, UnifiedFoodItem constructors, errors list assertions); fixed _Sched2 global state leak in test_food_apis_push95.py; added USDA search error handling in unified_db.py; key removed from FEATURE_TODO_KEYS
+    - `premium_week_router_mocking` -> ✅ Enabled (PR-888, 2026-02-24, `96c72345`); implemented 2 gated tests (503 make_weekly_menu unavailable, 500 exception handling); fixed PEP 562 `__getattr__` mock residual in `app.__dict__`; key removed from FEATURE_TODO_KEYS
   - Keys still gated (module exists but tested API surface incomplete):
-    - `planner_engines`, `plate_day_micros`, `premium_week_router_mocking`, `exports_recipes_products`, `sports_disclaimers_lifestage`, `legacy_bmi_removed`, `nutrient_recommendations`
+    - `planner_engines`, `plate_day_micros`, `exports_recipes_products`, `sports_disclaimers_lifestage`, `legacy_bmi_removed`, `nutrient_recommendations`
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
