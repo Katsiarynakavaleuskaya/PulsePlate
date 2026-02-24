@@ -1,6 +1,7 @@
 import csv
 import logging
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Dict, List
 
 import pytest
@@ -113,7 +114,12 @@ class _DummyConn:
     def __enter__(self) -> "_DummyConn":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         return None
 
 
@@ -139,7 +145,12 @@ class _DummyBarcodeConn:
     def __enter__(self) -> "_DummyBarcodeConn":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         return None
 
 
