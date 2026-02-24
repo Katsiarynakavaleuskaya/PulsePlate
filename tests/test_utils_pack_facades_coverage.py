@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 
 class TestCoreUtilsFacades:
     """Test core.utils facade functions for coverage."""
@@ -300,20 +302,13 @@ class TestTimeUtilsEdgeCases:
         result = format_datetime(bad_dt)
         assert result is None
 
-    def test_get_timezone_offset_zoneinfo_none(self) -> None:
+    def test_get_timezone_offset_zoneinfo_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_timezone_offset when ZoneInfo unavailable."""
-        from unittest.mock import patch
-
         import core.time_utils as tu
 
-        # Temporarily set ZoneInfo to None
-        originalZoneInfo = tu.ZoneInfo
-        try:
-            tu.ZoneInfo = None  # type: ignore[assignment]
-            result = tu.get_timezone_offset("America/New_York")
-            assert result is None
-        finally:
-            tu.ZoneInfo = originalZoneInfo
+        monkeypatch.setattr(tu, "ZoneInfo", None)
+        result = tu.get_timezone_offset("America/New_York")
+        assert result is None
 
     def test_get_timezone_offset_invalid_timezone(self) -> None:
         """Test get_timezone_offset with invalid timezone names."""

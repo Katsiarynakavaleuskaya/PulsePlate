@@ -177,8 +177,12 @@ def safe_float(value: object, default: float | None = None) -> float | None:
     if value is None:
         return default
     try:
-        return float(value)  # type: ignore[arg-type]
-    except (ValueError, TypeError):
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            return float(value)
+        return float(str(value))
+    except (ValueError, TypeError, OverflowError):
         return default
 
 
@@ -196,8 +200,14 @@ def safe_int(value: object, default: int | None = None) -> int | None:
         return default
     try:
         # Handle float strings like "123.45" by converting to float first
-        return int(float(value))  # type: ignore[arg-type]
-    except (ValueError, TypeError):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            return int(float(value))
+        return int(float(str(value)))
+    except (ValueError, TypeError, OverflowError):
         return default
 
 
