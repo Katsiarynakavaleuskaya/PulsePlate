@@ -11,6 +11,7 @@ import sqlite3
 from pathlib import Path
 import logging
 import os
+import re
 from typing import Any, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
 import threading
 from collections import defaultdict
@@ -41,6 +42,8 @@ ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.c
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
+BARCODE_MIN_LEN = 8
+BARCODE_MAX_LEN = 14
 
 DEFAULT_ALIASES: Dict[str, List[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
@@ -494,6 +497,43 @@ def get_food(food_id: str) -> Optional[Dict[str, Any]]:
     with _connect() as con:
         row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
     return dict(row) if row else None
+
+
+def _normalize_barcode(barcode: str) -> str:
+    """
+    Normalize and validate barcode value.
+
+    RU: Нормализует и валидирует barcode.
+    EN: Normalizes and validates barcode.
+    """
+    normalized = re.sub(r"\D+", "", (barcode or "").strip())
+    if not normalized:
+        raise ValueError("barcode must contain at least one digit")
+    if not (BARCODE_MIN_LEN <= len(normalized) <= BARCODE_MAX_LEN):
+        raise ValueError(f"barcode must have length in [{BARCODE_MIN_LEN},{BARCODE_MAX_LEN}]")
+    return normalized
+
+
+def get_food_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
+    """
+    Return a single food by barcode (GTIN/EAN/UPC) or None when not found.
+
+    RU: Возвращает продукт по штрихкоду (GTIN/EAN/UPC) или None, если не найден.
+    EN: Returns a food by barcode (GTIN/EAN/UPC) or None if not found.
+    """
+    normalized = _normalize_barcode(barcode)
+    with _connect() as con:
+        row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (normalized,)).fetchone()
+        if row:
+            return dict(row)
+
+        # Some sources store GTIN without leading zeros; keep lookup deterministic with one fallback.
+        fallback = normalized.lstrip("0")
+        if fallback and fallback != normalized:
+            row = con.execute("SELECT * FROM foods WHERE gtin = ? LIMIT 1", (fallback,)).fetchone()
+            if row:
+                return dict(row)
+    return None
 
 
 def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Optional[Tuple[str, float]]:

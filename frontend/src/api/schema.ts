@@ -534,6 +534,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/foods/barcode/{barcode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Food By Barcode */
+        get: operations["get_food_by_barcode_api_v1_foods_barcode__barcode__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/foods/search": {
         parameters: {
             query?: never;
@@ -5639,6 +5656,37 @@ export interface operations {
             header?: never;
             path: {
                 food_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoodItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_food_by_barcode_api_v1_foods_barcode__barcode__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barcode: string;
             };
             cookie?: never;
         };

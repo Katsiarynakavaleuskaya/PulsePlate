@@ -66,8 +66,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W2-A
-  - Status: In Progress (W2-A compatibility adapter)
+  - Target PR: PR-TBD-FOOD-DB-W2-B
+  - Status: In Progress (W2-A merged in PR #891; W2-B barcode contract + tests)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
@@ -75,6 +75,8 @@ If it is not recorded here — it does not exist.
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `app/routers/foods.py`
     - `app/services/food_store.py`
+    - `tests/test_food_store_service.py`
+    - `tests/test_foods_router_additional.py`
   - DoD:
     - Existing `/api/v1/foods` contracts remain stable
     - New search backend is integrated behind compatibility layer

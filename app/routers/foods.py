@@ -16,6 +16,8 @@ class FoodStore(Protocol):
 
     def get_food(self, food_id: str) -> Mapping[str, Any] | None: ...
 
+    def get_food_by_barcode(self, barcode: str) -> Mapping[str, Any] | None: ...
+
 
 class _FoodStoreCompat:
     """Compatibility wrapper that keeps router contract stable while allowing backend switching."""
@@ -26,6 +28,9 @@ class _FoodStoreCompat:
 
     def get_food(self, food_id: str) -> Mapping[str, Any] | None:
         return food_store.get_food(food_id)
+
+    def get_food_by_barcode(self, barcode: str) -> Mapping[str, Any] | None:
+        return food_store.get_food_by_barcode(barcode)
 
 
 _FOOD_STORE_COMPAT: FoodStore = _FoodStoreCompat()
@@ -75,6 +80,17 @@ def list_foods_search(
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
 def get_food(food_id: str, store: FoodStore = Depends(get_food_store)) -> FoodItem:
     row = store.get_food(food_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Food not found")
+    return FoodItem(**row)
+
+
+@router.get("/api/v1/foods/barcode/{barcode}", response_model=FoodItem)
+def get_food_by_barcode(barcode: str, store: FoodStore = Depends(get_food_store)) -> FoodItem:
+    try:
+        row = store.get_food_by_barcode(barcode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not row:
         raise HTTPException(status_code=404, detail="Food not found")
     return FoodItem(**row)

@@ -6489,6 +6489,48 @@
         ]
       }
     },
+    "/api/v1/foods/barcode/{barcode}": {
+      "get": {
+        "operationId": "get_food_by_barcode_api_v1_foods_barcode__barcode__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "barcode",
+            "required": true,
+            "schema": {
+              "title": "Barcode",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Food By Barcode",
+        "tags": [
+          "foods"
+        ]
+      }
+    },
     "/api/v1/foods/search": {
       "get": {
         "operationId": "list_foods_search_api_v1_foods_search_get",
