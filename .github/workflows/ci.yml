@@ -155,7 +155,9 @@ jobs:
             if [[ "$path" == docs/* ]]; then
               CHANGED_DOCS+=("$path")
             fi
-            if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" ]]; then
+            # Exclude AGENTS.md and external/generated files from markdownlint
+            if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" \
+                  && "$path" != .agents/* && "$path" != .cursor/* && "$path" != .qoder/* ]]; then
               LINT_MD+=("$path")
             fi
           done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')
