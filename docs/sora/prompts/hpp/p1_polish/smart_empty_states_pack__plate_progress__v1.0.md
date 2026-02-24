@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD013 -->
-# Smart Empty States Pack Prompt Pack
+# Smart Empty States Prompt Pack
 
 Version: v1.0
 Priority: P1

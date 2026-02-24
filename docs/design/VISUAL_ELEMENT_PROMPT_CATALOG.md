@@ -24,6 +24,11 @@ Canonical references:
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 
+Governance note:
+
+- This catalog is an execution map and prompt registry, not a source of new visual policy.
+- Authoritative visual rules remain only in Identity/Profile, Sora Playbook, and QA SoT docs above.
+
 ## 2) App Structure Mapping (Current)
 
 Main web routes in runtime:
@@ -96,7 +101,7 @@ Figma Prompt:
 Design a Home hero ambient background for PulsePlate web.
 Use one dominant focal area behind title and subtitle, luxury-clean, low clutter.
 Use only token semantics: --pp-navy base, --pp-blue supportive gradient,
---pp-green tiny accent, no raw hex in final implementation specs.
+--pp-green tiny accent, aligned with `docs/design/TOKENS_SOT.md`.
 Include desktop and mobile variants. Keep CTA readability highest priority.
 Return layer structure, spacing rhythm, and reduced-motion fallback notes.
 ```
