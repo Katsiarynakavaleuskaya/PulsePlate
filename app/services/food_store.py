@@ -279,7 +279,7 @@ class FoodSearchBackend(Protocol):
 
     def search_foods(
         self, query: str, limit: int | str = 20, offset: int | str = 0
-    ) -> List[Dict[str, Any]]: ...
+    ) -> Sequence[Mapping[str, Any]]: ...
 
 
 class _LegacyFoodSearchBackend:
@@ -287,7 +287,7 @@ class _LegacyFoodSearchBackend:
 
     def search_foods(
         self, query: str, limit: int | str = 20, offset: int | str = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> Sequence[Mapping[str, Any]]:
         return search_foods(query, limit=limit, offset=offset)
 
 
