@@ -69,6 +69,56 @@ def test_get_food_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.id == "f1"
 
 
+def test_get_food_by_barcode_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    row = {
+        "id": "f1",
+        "canonical_name": "Apple",
+        "kcal": 52,
+        "protein_g": 0.3,
+        "fat_g": 0.2,
+        "carbs_g": 14,
+        "version_date": "2024-01-01",
+    }
+    monkeypatch.setattr(foods.food_store, "get_food_by_barcode", lambda *_: row)
+
+    result = foods.get_food_by_barcode("0123456789012", store=foods.get_food_store())
+
+    assert isinstance(result, FoodItem)
+    assert result.id == "f1"
+
+
+def test_get_food_by_barcode_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(foods.food_store, "get_food_by_barcode", lambda *_: None)
+
+    with pytest.raises(HTTPException) as exc:
+        foods.get_food_by_barcode("0123456789012", store=foods.get_food_store())
+
+    assert exc.value.status_code == 404
+
+
+def test_get_food_by_barcode_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_invalid(_: str) -> None:
+        raise ValueError("barcode must have length in [8,14]")
+
+    monkeypatch.setattr(foods.food_store, "get_food_by_barcode", _raise_invalid)
+
+    with pytest.raises(HTTPException) as exc:
+        foods.get_food_by_barcode("123", store=foods.get_food_store())
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "barcode must have length in [8,14]"
+
+
+def test_get_food_by_barcode_route_documents_404() -> None:
+    route = next(
+        r
+        for r in foods.router.routes
+        if getattr(r, "path", "") == "/api/v1/foods/barcode/{barcode}"
+    )
+    assert 422 in route.responses
+    assert 404 in route.responses
+
+
 def test_list_foods_compat_backend_via_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
     class _CompatBackend:
         def __init__(self) -> None:

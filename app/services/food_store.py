@@ -11,6 +11,7 @@ import sqlite3
 from pathlib import Path
 import logging
 import os
+import re
 from typing import Any, Dict, Iterator, List, Optional, Mapping, Protocol, Sequence, Tuple
 import threading
 from collections import defaultdict
@@ -41,6 +42,8 @@ ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.c
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
+BARCODE_MIN_LEN = 8
+BARCODE_MAX_LEN = 14
 
 DEFAULT_ALIASES: Dict[str, List[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
@@ -296,6 +299,24 @@ _COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
+class FoodRepository:
+    """Repository wrapper for food lookups against the local SQLite store."""
+
+    @staticmethod
+    def get_by_id(food_id: str) -> Optional[Dict[str, Any]]:
+        with _connect() as con:
+            row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_gtin(gtin: str) -> Optional[Dict[str, Any]]:
+        with _connect() as con:
+            row = con.execute(
+                "SELECT * FROM foods WHERE gtin = ? ORDER BY id ASC LIMIT 1", (gtin,)
+            ).fetchone()
+        return dict(row) if row else None
+
+
 def _is_truthy_env(value: str | None) -> bool:
     """Parse common truthy env representations."""
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -491,9 +512,57 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
 
 def get_food(food_id: str) -> Optional[Dict[str, Any]]:
     """Return a single food by id or None if not found."""
-    with _connect() as con:
-        row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
-    return dict(row) if row else None
+    return FoodRepository.get_by_id(food_id)
+
+
+def _normalize_barcode(barcode: str) -> str:
+    """
+    Normalize and validate barcode value.
+
+    RU: Нормализует и валидирует barcode.
+    EN: Normalizes and validates barcode.
+    """
+    normalized = re.sub(r"\D+", "", (barcode or "").strip())
+    if not normalized:
+        raise ValueError("barcode must contain at least one digit")
+    if not (BARCODE_MIN_LEN <= len(normalized) <= BARCODE_MAX_LEN):
+        raise ValueError(f"barcode must have length in [{BARCODE_MIN_LEN},{BARCODE_MAX_LEN}]")
+    return normalized
+
+
+def get_food_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
+    """
+    Return a single food by barcode (GTIN/EAN/UPC) or None when not found.
+
+    RU: Возвращает продукт по штрихкоду (GTIN/EAN/UPC) или None, если не найден.
+    EN: Returns a food by barcode (GTIN/EAN/UPC) or None if not found.
+    """
+    normalized = _normalize_barcode(barcode)
+    row = FoodRepository.get_by_gtin(normalized)
+    if row:
+        return row
+
+    fallback_candidates: list[str] = []
+    if normalized.startswith("0"):
+        # First fallback: remove only one padding zero.
+        one_zero = normalized[1:]
+        if len(one_zero) >= BARCODE_MIN_LEN:
+            fallback_candidates.append(one_zero)
+
+    # Second fallback: strip all left-padding zeros for GTIN-14 -> GTIN-12 cases.
+    fully_stripped = normalized.lstrip("0")
+    if (
+        fully_stripped
+        and len(fully_stripped) >= BARCODE_MIN_LEN
+        and fully_stripped not in {normalized, *fallback_candidates}
+    ):
+        fallback_candidates.append(fully_stripped)
+
+    for fallback in fallback_candidates:
+        row = FoodRepository.get_by_gtin(fallback)
+        if row:
+            return row
+    return None
 
 
 def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Optional[Tuple[str, float]]:

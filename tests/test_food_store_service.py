@@ -1,6 +1,7 @@
 import csv
 import logging
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Dict, List
 
 import pytest
@@ -113,7 +114,43 @@ class _DummyConn:
     def __enter__(self) -> "_DummyConn":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        return None
+
+
+class _DummyBarcodeCursor:
+    def __init__(self, row: Dict[str, Any] | None) -> None:
+        self._row = row
+
+    def fetchone(self) -> Dict[str, Any] | None:
+        return self._row
+
+
+class _DummyBarcodeConn:
+    def __init__(self, rows_by_barcode: Dict[str, Dict[str, Any] | None]) -> None:
+        self.rows_by_barcode = rows_by_barcode
+        self.calls: List[str] = []
+
+    def execute(self, sql: str, params: tuple[str]) -> _DummyBarcodeCursor:
+        assert "WHERE gtin = ?" in sql
+        barcode = params[0]
+        self.calls.append(barcode)
+        return _DummyBarcodeCursor(self.rows_by_barcode.get(barcode))
+
+    def __enter__(self) -> "_DummyBarcodeConn":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         return None
 
 
@@ -124,6 +161,100 @@ def test_search_foods_parameter_normalization(monkeypatch: pytest.MonkeyPatch) -
     rows = food_store.search_foods("apple", limit="5", offset="1")
     assert rows and rows[0]["canonical_name"] == "apple"
     assert dummy.last_params[-2:] == [5, 1]
+
+
+def test_get_food_by_barcode_returns_row_with_normalized_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _DummyBarcodeConn(
+        rows_by_barcode={"00012345678905": {"id": "f1", "canonical_name": "apple"}}
+    )
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode(" 00012345678905 ")
+
+    assert result == {"id": "f1", "canonical_name": "apple"}
+    assert conn.calls == ["00012345678905"]
+
+
+def test_get_food_by_barcode_uses_leading_zero_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    conn = _DummyBarcodeConn(
+        rows_by_barcode={
+            "0123456789012": None,
+            "123456789012": {"id": "f2", "canonical_name": "banana"},
+        }
+    )
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("0123456789012")
+
+    assert result == {"id": "f2", "canonical_name": "banana"}
+    assert conn.calls == ["0123456789012", "123456789012"]
+
+
+def test_get_food_by_barcode_drops_only_one_leading_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    conn = _DummyBarcodeConn(
+        rows_by_barcode={
+            "0012345678905": None,
+            "012345678905": {"id": "f3", "canonical_name": "pear"},
+        }
+    )
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("0012345678905")
+
+    assert result == {"id": "f3", "canonical_name": "pear"}
+    assert conn.calls == ["0012345678905", "012345678905"]
+
+
+def test_get_food_by_barcode_uses_full_strip_fallback_as_last_resort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _DummyBarcodeConn(
+        rows_by_barcode={
+            "0012345678905": None,
+            "012345678905": None,
+            "12345678905": {"id": "f4", "canonical_name": "orange"},
+        }
+    )
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("0012345678905")
+
+    assert result == {"id": "f4", "canonical_name": "orange"}
+    assert conn.calls == ["0012345678905", "012345678905", "12345678905"]
+
+
+def test_get_food_by_barcode_skips_short_fallback_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _DummyBarcodeConn(rows_by_barcode={"01234567": None})
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("01234567")
+
+    assert result is None
+    assert conn.calls == ["01234567"]
+
+
+def test_get_food_by_barcode_validation_error() -> None:
+    with pytest.raises(ValueError, match=r"barcode must have length in \[8,14\]"):
+        food_store.get_food_by_barcode("123")
+
+
+def test_get_food_by_barcode_validation_error_when_no_digits() -> None:
+    with pytest.raises(ValueError, match="barcode must contain at least one digit"):
+        food_store.get_food_by_barcode("abc-def")
+
+
+def test_get_food_by_barcode_returns_none_when_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    conn = _DummyBarcodeConn(rows_by_barcode={})
+    monkeypatch.setattr(food_store, "_connect", lambda: conn)
+
+    result = food_store.get_food_by_barcode("1234567890123")
+
+    assert result is None
+    assert conn.calls == ["1234567890123"]
 
 
 def test_get_search_backend_defaults_to_legacy(
