@@ -493,7 +493,7 @@ def test_load_semantic_candidates_uses_passed_limit(
             self.last_params: tuple[int] | None = None
 
         def execute(self, sql: str, params: tuple[int]) -> _SemanticCursor:
-            assert "FROM foods LIMIT ?" in sql
+            assert "FROM foods ORDER BY id ASC LIMIT ?" in sql
             self.last_params = params
             return _SemanticCursor()
 

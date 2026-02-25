@@ -433,7 +433,8 @@ def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
     """
     with _connect() as con:
         rows = con.execute(
-            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ?",
+            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+            "FROM foods ORDER BY id ASC LIMIT ?",
             (limit,),
         ).fetchall()
     return [dict(row) for row in rows]
