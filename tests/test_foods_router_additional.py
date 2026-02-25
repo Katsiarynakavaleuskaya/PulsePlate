@@ -9,6 +9,47 @@ from app.routers import foods
 from app.schemas.food import FoodHit, FoodItem
 
 
+def _build_food_item_payload(flags: Any) -> dict[str, Any]:
+    return {
+        "id": "f1",
+        "canonical_name": "Apple",
+        "kcal": 52,
+        "protein_g": 0.3,
+        "fat_g": 0.2,
+        "carbs_g": 14,
+        "flags": flags,
+        "version_date": "2024-01-01",
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw_flags", "expected"),
+    [
+        ('["VEG","GF"]', ["VEG", "GF"]),
+        ("['VEG', 'GF']", ["VEG", "GF"]),
+        ("VEG, GF", ["VEG", "GF"]),
+        ("VEG;GF", ["VEG", "GF"]),
+        ("VEG|GF", ["VEG", "GF"]),
+        ("VEG", ["VEG"]),
+        (" null ", []),
+        ("None", []),
+        (["VEG", "GF"], ["VEG", "GF"]),
+        (("VEG", "GF"), ["VEG", "GF"]),
+        ({"VEG", "GF"}, {"VEG", "GF"}),
+        ("", []),
+        ("[]", []),
+        (None, []),
+        (123, []),
+    ],
+)
+def test_food_item_flags_normalization(raw_flags: Any, expected: Any) -> None:
+    item = FoodItem(**_build_food_item_payload(raw_flags))
+    if isinstance(expected, set):
+        assert set(item.flags) == expected
+    else:
+        assert item.flags == expected
+
+
 def test_list_foods_invalid_limit() -> None:
     with pytest.raises(HTTPException):
         foods.list_foods(query="apple", limit=0, offset=0, store=foods.food_store)
@@ -85,6 +126,32 @@ def test_get_food_by_barcode_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert isinstance(result, FoodItem)
     assert result.id == "f1"
+
+
+@pytest.mark.parametrize(
+    "flags_value",
+    ['["VEG","GF"]', "['VEG', 'GF']", "VEG,GF", "VEG;GF", "VEG|GF"],
+)
+def test_get_food_by_barcode_success_normalizes_string_flags(
+    monkeypatch: pytest.MonkeyPatch,
+    flags_value: str,
+) -> None:
+    row = {
+        "id": "f1",
+        "canonical_name": "Apple",
+        "kcal": 52,
+        "protein_g": 0.3,
+        "fat_g": 0.2,
+        "carbs_g": 14,
+        "flags": flags_value,
+        "version_date": "2024-01-01",
+    }
+    monkeypatch.setattr(foods.food_store, "get_food_by_barcode", lambda *_: row)
+
+    result = foods.get_food_by_barcode("0123456789012", store=foods.get_food_store())
+
+    assert isinstance(result, FoodItem)
+    assert result.flags == ["VEG", "GF"]
 
 
 def test_get_food_by_barcode_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
