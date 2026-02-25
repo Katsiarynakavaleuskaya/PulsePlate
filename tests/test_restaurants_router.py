@@ -261,3 +261,8 @@ def test_review_submission_not_found_maps_404() -> None:
 def test_review_payload_rejects_pending_status() -> None:
     with pytest.raises(ValidationError):
         SubmissionReviewRequest(status=SubmissionStatus.PENDING)
+
+
+def test_submission_create_rejects_invalid_off_url() -> None:
+    with pytest.raises(ValidationError):
+        RestaurantSubmissionCreate(canonical_name="X", off_url="not-a-url", payload={})

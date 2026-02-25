@@ -10,8 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Any
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SubmissionStatus(str, Enum):
@@ -63,6 +64,17 @@ class RestaurantSubmissionCreate(BaseModel):
     barcode: str | None = Field(default=None, max_length=64)
     off_url: str | None = Field(default=None, max_length=1024)
     payload: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("off_url")
+    @classmethod
+    def validate_off_url(cls, value: str | None) -> str | None:
+        """Allow only valid HTTP(S) URLs for OFF references."""
+        if value is None:
+            return value
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("off_url must be a valid http/https URL")
+        return value
 
 
 class SubmissionAuditEntry(BaseModel):
