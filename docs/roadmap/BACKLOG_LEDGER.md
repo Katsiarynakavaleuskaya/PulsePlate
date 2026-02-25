@@ -88,7 +88,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #895 (+ follow-up PR-TBD-FOOD-DB-W3-B, `feat/food-db-w3b-menustat-provenance-closure`)
+  - Target PR: PR #895 (+ follow-up PR #901, `feat/food-db-w3b-menustat-provenance-closure`)
   - Status: In Progress (W3-A foundation merged in PR #895; W3-B MenuStat ingestion/provenance closure in progress)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
