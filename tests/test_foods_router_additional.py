@@ -28,15 +28,26 @@ def _build_food_item_payload(flags: Any) -> dict[str, Any]:
         ('["VEG","GF"]', ["VEG", "GF"]),
         ("['VEG', 'GF']", ["VEG", "GF"]),
         ("VEG, GF", ["VEG", "GF"]),
+        ("VEG;GF", ["VEG", "GF"]),
+        ("VEG|GF", ["VEG", "GF"]),
+        ("VEG", ["VEG"]),
+        (" null ", []),
+        ("None", []),
+        (["VEG", "GF"], ["VEG", "GF"]),
+        (("VEG", "GF"), ["VEG", "GF"]),
+        ({"VEG", "GF"}, {"VEG", "GF"}),
         ("", []),
         ("[]", []),
         (None, []),
         (123, []),
     ],
 )
-def test_food_item_flags_normalization(raw_flags: Any, expected: list[str]) -> None:
+def test_food_item_flags_normalization(raw_flags: Any, expected: Any) -> None:
     item = FoodItem(**_build_food_item_payload(raw_flags))
-    assert item.flags == expected
+    if isinstance(expected, set):
+        assert set(item.flags) == expected
+    else:
+        assert item.flags == expected
 
 
 def test_list_foods_invalid_limit() -> None:
@@ -117,8 +128,13 @@ def test_get_food_by_barcode_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.id == "f1"
 
 
+@pytest.mark.parametrize(
+    "flags_value",
+    ['["VEG","GF"]', "['VEG', 'GF']", "VEG,GF", "VEG;GF", "VEG|GF"],
+)
 def test_get_food_by_barcode_success_normalizes_string_flags(
     monkeypatch: pytest.MonkeyPatch,
+    flags_value: str,
 ) -> None:
     row = {
         "id": "f1",
@@ -127,7 +143,7 @@ def test_get_food_by_barcode_success_normalizes_string_flags(
         "protein_g": 0.3,
         "fat_g": 0.2,
         "carbs_g": 14,
-        "flags": '["VEG","GF"]',
+        "flags": flags_value,
         "version_date": "2024-01-01",
     }
     monkeypatch.setattr(foods.food_store, "get_food_by_barcode", lambda *_: row)

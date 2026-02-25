@@ -38,7 +38,7 @@ def _normalize_food_flags(value: object) -> List[str]:
             for parser in (json.loads, ast.literal_eval):
                 try:
                     parsed = parser(raw)
-                except (TypeError, ValueError, SyntaxError, json.JSONDecodeError):
+                except (TypeError, ValueError, SyntaxError):
                     continue
                 if isinstance(parsed, (list, tuple, set)):
                     return [str(item).strip() for item in parsed if str(item).strip()]

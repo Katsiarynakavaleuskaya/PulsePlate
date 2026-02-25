@@ -113,7 +113,7 @@ If it is not recorded here — it does not exist.
   - Status: In Progress
   - Area: backend / API contract / data normalization
   - Finding Type: correctness and reliability gap
-  - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of list, causing non-deterministic hit-path behavior in benchmark and runtime.
+  - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of a list, causing non-deterministic hit-path behavior in benchmark and runtime.
   - Links:
     - `app/routers/foods.py`
     - `app/schemas/food.py`
