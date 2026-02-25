@@ -95,7 +95,7 @@ class TestFinalCoreCoverage:
             assert isinstance(is_valid, (bool, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -125,7 +125,7 @@ class TestFinalCoreCoverage:
             assert isinstance(is_valid, (bool, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -227,7 +227,7 @@ class TestFinalCoreCoverage:
             assert isinstance(improvements, (list, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -257,7 +257,7 @@ class TestFinalCoreCoverage:
             assert isinstance(priority, (int, float, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -289,7 +289,7 @@ class TestFinalCoreCoverage:
             assert isinstance(recommendations, (list, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -317,6 +317,6 @@ class TestFinalCoreCoverage:
             assert isinstance(adjusted, (dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass

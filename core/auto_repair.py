@@ -8,7 +8,7 @@ Sprint 5: Auto-repair недели (UX-петля)
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.menu_engine import repair_week_plan
 from core.targets import MicronutrientTargets
@@ -393,3 +393,159 @@ def suggest_manual_fixes(week_plan: Dict, targets: MicronutrientTargets) -> List
     """Предлагает ручные исправления"""
     engine = get_auto_repair_engine()
     return engine.suggest_manual_fixes(week_plan, targets)
+
+
+# =============================================================================
+# Planner Engine Facade Functions
+# =============================================================================
+# These functions provide a simplified API for tests and external callers.
+
+
+def analyze_deficiencies(
+    current_nutrition: Dict[str, Any], target_nutrition: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Analyze nutrient deficiencies between current and target values.
+
+    RU: Анализ дефицитов нутриентов.
+    EN: Analyze nutrient deficiencies.
+
+    Args:
+        current_nutrition: Dict with current nutrient values
+        target_nutrition: Dict with target nutrient values
+
+    Returns:
+        Dict mapping nutrient names to deficiency info
+    """
+    deficiencies: Dict[str, Any] = {}
+
+    for nutrient, target_val in target_nutrition.items():
+        if not isinstance(target_val, (int, float)):
+            continue
+
+        current_val = current_nutrition.get(nutrient, 0)
+        if not isinstance(current_val, (int, float)):
+            current_val = 0
+
+        if current_val < target_val:
+            deficiencies[nutrient] = {
+                "deficit": target_val - current_val,
+                "current": current_val,
+                "target": target_val,
+                "percent_met": (current_val / target_val * 100) if target_val > 0 else 0,
+            }
+
+    return deficiencies
+
+
+def get_repair_suggestions(deficiencies: Any, foods: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Get repair suggestions based on deficiencies and available foods.
+
+    RU: Получение предложений по исправлению дефицитов.
+    EN: Get repair suggestions for deficiencies.
+
+    Args:
+        deficiencies: Dict or list of deficiencies
+        foods: List of available foods with nutrient info
+
+    Returns:
+        List of repair suggestions
+    """
+    suggestions: List[Dict[str, Any]] = []
+
+    if not deficiencies or not foods:
+        return suggestions
+
+    # Convert deficiencies to dict if needed
+    def_dict = deficiencies if isinstance(deficiencies, dict) else {}
+
+    for nutrient, info in def_dict.items():
+        if not isinstance(info, dict):
+            continue
+
+        deficit = info.get("deficit", 0)
+        if deficit <= 0:
+            continue
+
+        # Find foods that can help with this deficiency
+        for food in foods:
+            food_nutrient = food.get(nutrient, 0)
+            if isinstance(food_nutrient, (int, float)) and food_nutrient > 0:
+                suggestions.append(
+                    {
+                        "nutrient": nutrient,
+                        "food": food.get("name", "unknown"),
+                        "amount": food_nutrient,
+                        "deficit": deficit,
+                    }
+                )
+                break  # One suggestion per nutrient
+
+    return suggestions
+
+
+def calculate_repair_priority(deficiency: Dict[str, Any], target: Dict[str, Any]) -> float:
+    """
+    Calculate priority score for a deficiency repair.
+
+    RU: Расчёт приоритета исправления дефицита.
+    EN: Calculate repair priority score.
+
+    Args:
+        deficiency: Dict with deficiency info (expects 'deficit' key or numeric value)
+        target: Dict with target info (expects matching nutrient key or numeric value)
+
+    Returns:
+        Priority score (0-100, higher = more urgent)
+    """
+    # Handle various input formats
+    if isinstance(deficiency, dict) and isinstance(target, dict):
+        # Extract values from dicts
+        deficit_val = deficiency.get("deficit", 0)
+        if isinstance(deficit_val, dict):
+            deficit_val = deficit_val.get("deficit", 0)
+
+        # Get first numeric target value
+        target_val: float = 0.0
+        for v in target.values():
+            if isinstance(v, (int, float)):
+                target_val = float(v)
+                break
+    else:
+        # Assume numeric inputs
+        deficit_val = deficiency if isinstance(deficiency, (int, float)) else 0
+        target_val = float(target) if isinstance(target, (int, float)) else 0.0
+
+    if not isinstance(deficit_val, (int, float)) or target_val <= 0:
+        return 0.0
+
+    # Calculate percentage deficit
+    priority = min(100.0, (deficit_val / target_val) * 100)
+    return priority
+
+
+def find_suitable_foods(*args: Any, **kwargs: Any) -> Optional[List[Dict[str, Any]]]:
+    """
+    Find foods suitable for repairing deficiencies.
+
+    RU: Заглушка - поиск подходящих продуктов.
+    EN: Stub - find suitable foods.
+
+    Note:
+        Not yet implemented. See BACKLOG_LEDGER.md for status.
+    """
+    return None
+
+
+def optimize_meal_plan(*args: Any, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    """
+    Optimize a meal plan to meet targets.
+
+    RU: Заглушка - оптимизация плана питания.
+    EN: Stub - optimize meal plan.
+
+    Note:
+        Not yet implemented. See BACKLOG_LEDGER.md for status.
+    """
+    return None

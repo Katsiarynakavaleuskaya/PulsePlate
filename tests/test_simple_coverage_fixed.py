@@ -552,7 +552,7 @@ class TestSimpleCoverageBoost:
             assert region_catalog_module is not None
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     @pytest.mark.asyncio
     async def test_unified_db_module_coverage(self) -> None:

@@ -47,7 +47,7 @@ class TestCoreCoverage97Final:
             if hasattr(me, "repair_day"):
                 assert callable(getattr(me, "repair_day"))
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_core_plate_functions(self):
         """Test core.plate functions."""
@@ -61,7 +61,7 @@ class TestCoreCoverage97Final:
             if hasattr(plate, "calculate_macros"):
                 assert callable(getattr(plate, "calculate_macros"))
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_core_recommendations_functions(self):
         """Test core.recommendations functions."""
@@ -75,7 +75,7 @@ class TestCoreCoverage97Final:
             if hasattr(rec, "get_nutrition_tips"):
                 assert callable(getattr(rec, "get_nutrition_tips"))
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_core_product_finder_functions(self):
         """Test core.product_finder functions."""
@@ -207,7 +207,7 @@ class TestCoreCoverage97Final:
             if hasattr(men, "build_day"):
                 assert callable(getattr(men, "build_day"))
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_core_product_varieties_functions(self):
         """Test core.product_varieties functions."""
@@ -235,7 +235,7 @@ class TestCoreCoverage97Final:
             if hasattr(rw, "apply_rules"):
                 assert callable(getattr(rw, "apply_rules"))
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_core_food_apis_update_manager_functions(self):
         """Test core.food_apis.update_manager functions."""

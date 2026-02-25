@@ -235,7 +235,7 @@ class TestMenuEngineModule:
             assert isinstance(result, WeekMenu)
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_nutrition_totals(self):
         """Test nutrition totals calculation."""

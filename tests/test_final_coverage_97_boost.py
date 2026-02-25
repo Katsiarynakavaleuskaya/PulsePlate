@@ -73,7 +73,7 @@ class TestMenuEngineNewCoverage:
 
             assert menu_engine_new is not None
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_menu_engine_new_with_functions(self) -> None:
         """Test menu_engine_new functions."""
@@ -87,7 +87,7 @@ class TestMenuEngineNewCoverage:
             if hasattr(menu_engine_new, "make_weekly_menu"):
                 assert callable(menu_engine_new.make_weekly_menu)
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
 
 class TestRecommendationsCoverage:

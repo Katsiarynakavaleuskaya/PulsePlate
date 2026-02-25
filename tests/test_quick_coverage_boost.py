@@ -57,7 +57,7 @@ class TestQuickCoverageBoost:
             assert carb > 0
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_i18n_fallback_coverage(self):
         """Покрытие core/i18n.py fallback scenarios (83% -> 95%+)"""
@@ -114,7 +114,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_auto_repair_edge_cases(self):
         """Покрытие core/auto_repair.py missing branches (94% -> 97%+)"""
@@ -143,7 +143,7 @@ class TestQuickCoverageBoost:
             assert isinstance(gaps, list)
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_menu_engine_missing_branches(self):
         """Покрытие core/menu_engine.py missing branches (95% -> 97%+)"""
@@ -175,7 +175,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_recommendations_edge_cases(self):
         """Покрытие core/recommendations.py scenarios (92% -> 97%+)"""
@@ -208,7 +208,7 @@ class TestQuickCoverageBoost:
             assert isinstance(result, list)
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
 
     def test_region_catalog_edge_cases(self):
         """Покрытие core/region_catalog.py missing lines (89% -> 95%+)"""
