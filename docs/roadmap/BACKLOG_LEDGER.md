@@ -147,10 +147,14 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR-TBD-FOOD-DB-W4-A (`docs/food-db-w4-kickoff`) + PR-TBD-FOOD-DB-W4-B
-  - Status: In Progress (W4-A kickoff: feature-flag + rollout contract split)
+  - Status: In Progress (W4-A merged, W4-B runtime execution in progress)
   - Area: backend / search relevance
   - Finding Type: strategic enhancement
   - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
+  - Execution Notes (2026-02-25):
+    - W4-A kickoff docs merged in PR #902
+    - W4-B runtime branch started: `feat/food-db-w4b-semantic-retrieval`
+    - Initial scope: feature-flagged semantic backend path (`semantic > compat > legacy`) with rollback-safe default (`FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED=false`)
   - Links:
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`

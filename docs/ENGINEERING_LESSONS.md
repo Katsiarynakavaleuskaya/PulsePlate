@@ -218,6 +218,30 @@ def test_search(self, monkeypatch: pytest.MonkeyPatch) -> None:
 Also replace `os.environ` mutation in `setup_method()` with an autouse
 `monkeypatch.setenv()` fixture for proper test isolation.
 
+---
+
+## 12) Feature-flag backend routing must have explicit priority + lock-safe lazy init
+
+### Problem
+
+When multiple search backends are feature-flagged (e.g., `semantic`, `compat`, `legacy`),
+implicit fallback order creates drift and hard-to-reproduce behavior in CI/runtime.
+Additionally, lazy backend creation can deadlock if helper code re-enters the same non-reentrant lock.
+
+### Rule
+
+- Declare backend precedence explicitly (example: `semantic > compat > legacy`).
+- Keep default path fail-closed (`new feature flag = off` by default).
+- In lazy init code guarded by `threading.Lock`, never call helper APIs that re-acquire the same lock.
+  Assign guarded globals directly inside the lock section instead.
+
+### Test contract
+
+- Add deterministic tests for:
+  - priority selection when multiple flags are on
+  - fallback behavior when new adapter is missing
+  - env guard parsing for candidate/window limits
+
 ### Rule
 
 **Prefer `monkeypatch.setattr()` over `@patch` decorator for all new tests.**
