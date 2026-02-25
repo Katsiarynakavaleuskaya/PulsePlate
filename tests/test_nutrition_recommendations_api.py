@@ -13,6 +13,11 @@ EN: Tests for nutrition recommendation API endpoints.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import Any
+
+import core.recommendations as core_recommendations
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -707,15 +712,11 @@ class TestSafetyCheckContract:
         self,
         client: TestClient,
         pro_headers: dict[str, str],
-        monkeypatch,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dataclasses import replace
-
-        import core.recommendations as core_recommendations
-
         original_build = core_recommendations.build_nutrition_targets
 
-        def _build_zero_kcal(profile):
+        def _build_zero_kcal(profile: Any) -> Any:
             return replace(original_build(profile), kcal_daily=0)
 
         monkeypatch.setattr(core_recommendations, "build_nutrition_targets", _build_zero_kcal)

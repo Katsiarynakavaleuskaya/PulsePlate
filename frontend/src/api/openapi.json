@@ -3923,15 +3923,21 @@
             "type": "string"
           },
           "goal": {
-            "default": "maintain",
-            "description": "Nutrition goal",
-            "enum": [
-              "loss",
-              "maintain",
-              "gain"
+            "anyOf": [
+              {
+                "enum": [
+                  "loss",
+                  "maintain",
+                  "gain"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Goal",
-            "type": "string"
+            "description": "Nutrition goal (optional, defaults to maintain)",
+            "title": "Goal"
           },
           "height_cm": {
             "description": "Height in cm",
@@ -3941,17 +3947,22 @@
             "type": "number"
           },
           "life_stage": {
-            "default": "adult",
-            "description": "Life stage for adjusted targets",
-            "enum": [
-              "adult",
-              "teen",
-              "pregnant",
-              "lactating",
-              "elderly"
+            "anyOf": [
+              {
+                "enum": [
+                  "adult",
+                  "pregnant",
+                  "lactating",
+                  "elderly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Life Stage",
-            "type": "string"
+            "description": "Life stage for adjusted targets (optional, defaults to adult)",
+            "title": "Life Stage"
           },
           "surplus_pct": {
             "anyOf": [

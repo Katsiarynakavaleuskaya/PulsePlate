@@ -4365,11 +4365,9 @@ export interface components {
             gender: "female" | "male";
             /**
              * Goal
-             * @description Nutrition goal
-             * @default maintain
-             * @enum {string}
+             * @description Nutrition goal (optional, defaults to maintain)
              */
-            goal: "loss" | "maintain" | "gain";
+            goal?: ("loss" | "maintain" | "gain") | null;
             /**
              * Height Cm
              * @description Height in cm
@@ -4377,11 +4375,9 @@ export interface components {
             height_cm: number;
             /**
              * Life Stage
-             * @description Life stage for adjusted targets
-             * @default adult
-             * @enum {string}
+             * @description Life stage for adjusted targets (optional, defaults to adult)
              */
-            life_stage: "adult" | "teen" | "pregnant" | "lactating" | "elderly";
+            life_stage?: ("adult" | "pregnant" | "lactating" | "elderly") | null;
             /**
              * Surplus Pct
              * @description Calorie surplus % for weight gain (5-20)

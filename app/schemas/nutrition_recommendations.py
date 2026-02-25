@@ -33,13 +33,17 @@ class ProfileInput(BaseModel):
         ..., description="Physical activity level"
     )
     # Optional fields (defaults preserve PR-1 behaviour)
-    goal: Literal["loss", "maintain", "gain"] = Field("maintain", description="Nutrition goal")
+    goal: Literal["loss", "maintain", "gain"] | None = Field(
+        None,
+        description="Nutrition goal (optional, defaults to maintain)",
+    )
     diet_flags: list[str] = Field(
         default_factory=list,
         description="Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST",
     )
-    life_stage: Literal["adult", "teen", "pregnant", "lactating", "elderly"] = Field(
-        "adult", description="Life stage for adjusted targets"
+    life_stage: Literal["adult", "pregnant", "lactating", "elderly"] | None = Field(
+        None,
+        description="Life stage for adjusted targets (optional, defaults to adult)",
     )
     # Goal-specific parameters (per PREMIUM_TARGETS_API spec)
     deficit_pct: float | None = Field(
