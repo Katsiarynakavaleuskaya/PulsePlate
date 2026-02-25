@@ -172,7 +172,7 @@ def _ensure_schema(con: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_submission_audit_submission
             ON submission_audit(submission_id);
         CREATE INDEX IF NOT EXISTS idx_source_catalog_entity
-            ON source_catalog(entity_type, entity_id, created_at);
+            ON source_catalog(entity_type, entity_id, created_at, id);
         """)
     con.commit()
 
