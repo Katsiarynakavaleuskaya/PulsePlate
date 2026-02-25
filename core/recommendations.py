@@ -263,6 +263,8 @@ def generate_deficiency_recommendations(
 
                 if lang == "ru":
                     rec = f"Для {nutrient_coverage.nutrient_name}: {', '.join(sources[:3])}"
+                elif lang == "es":
+                    rec = f"Para {nutrient_coverage.nutrient_name}: {', '.join(sources[:3])}"
                 else:
                     rec = f"For {nutrient_coverage.nutrient_name}: {', '.join(sources[:3])}"
 

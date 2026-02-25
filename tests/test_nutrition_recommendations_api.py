@@ -588,12 +588,12 @@ class TestMicroTargetsContract:
             "magnesium_mg": "mg",
             "zinc_mg": "mg",
             "potassium_mg": "mg",
-            "iodine_ug": "mcg",
-            "selenium_ug": "mcg",
-            "folate_ug": "mcg",
-            "b12_ug": "mcg",
+            "iodine_ug": "μg",
+            "selenium_ug": "μg",
+            "folate_ug": "μg",
+            "b12_ug": "μg",
             "vitamin_d_iu": "IU",
-            "vitamin_a_ug": "mcg",
+            "vitamin_a_ug": "μg",
             "vitamin_c_mg": "mg",
         }
         for name, detail in nutrients.items():
