@@ -235,6 +235,34 @@ git grep -n '@patch("app.services.food_store' -- tests/
 
 If any matches remain, convert them to `monkeypatch.setattr()`.
 
+## 12) API schema types must match persisted row types (barcode hit contract)
+
+### Problem
+Endpoint handlers that construct `FoodItem(**row)` can fail at runtime if DB columns store
+string-encoded payloads for fields typed as structured types (example: `flags` expected as `List[str]`).
+
+### Real incident (W2-C benchmark, 2026-02-25)
+During latency benchmark for `/api/v1/foods/barcode/{barcode}`, hit-path requests raised
+Pydantic validation errors because `app/schemas/food.py` defines:
+
+- `flags: List[str]` (`app/schemas/food.py:40`)
+
+but seeded DB rows may contain string values (e.g. `"[]"`), and router returns:
+
+- `return FoodItem(**row)` (`app/routers/foods.py:105`)
+
+### Rule
+Before exposing DB rows directly through strict Pydantic models:
+
+1. Normalize row payload types in repository/service layer
+2. Add deterministic tests for hit/miss/malformed paths
+3. Treat benchmark "scenario disabled" as tracked debt in `BACKLOG_LEDGER.md`
+
+### Use instead
+- Parse/normalize structured columns (`flags`) before model construction
+- Keep migration/seed contracts aligned with API schema types
+- Verify with endpoint-level tests, not only unit repository tests
+
 ---
 
 ## Repo Commands Reference
