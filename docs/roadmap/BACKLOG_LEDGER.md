@@ -85,11 +85,11 @@ If it is not recorded here — it does not exist.
     - New endpoints contract for barcode/search filters is documented and tested
     - Target local-first search latency budget (<50ms p50) is measured and reported
 
-- [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
+- [x] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #895 (+ follow-up PR #901, `feat/food-db-w3b-menustat-provenance-closure`)
-  - Status: In Progress (W3-A foundation merged in PR #895; W3-B closure tracked in PR #901 and is finalized on merge)
+  - Status: ✅ Merged (W3-A in PR #895 + W3-B closure in PR #901, 2026-02-25)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
   - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
@@ -126,8 +126,8 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FOOD-DB-W4
-  - Status: Planned
+  - Target PR: PR-TBD-FOOD-DB-W4-A (`docs/food-db-w4-kickoff`) + PR-TBD-FOOD-DB-W4-B
+  - Status: In Progress (W4-A kickoff: feature-flag + rollout contract split)
   - Area: backend / search relevance
   - Finding Type: strategic enhancement
   - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.

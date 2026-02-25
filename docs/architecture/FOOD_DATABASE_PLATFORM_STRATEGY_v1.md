@@ -160,6 +160,9 @@ Deliverables:
 
 - pgvector + multilingual embeddings behind feature flag
 - cost/performance benchmark and rollback-safe rollout
+- execution split:
+  - W4-A: feature flag + non-breaking API/contract path (default off)
+  - W4-B: embeddings pipeline + pgvector indexing + benchmark report
 
 ---
 

@@ -263,6 +263,24 @@ Before exposing DB rows directly through strict Pydantic models:
 - Keep migration/seed contracts aligned with API schema types
 - Verify with endpoint-level tests, not only unit repository tests
 
+## 13) After merge, never continue work on the same PR branch
+
+### Problem
+Continuing commits on a branch after PR merge creates ambiguity:
+- new commits are not part of merged `main` state
+- bot/check noise appears for already-merged scope
+- reviewers see stale comments against a closed delivery
+
+### Rule
+Once PR state is `MERGED`:
+1. stop edits on that branch immediately
+2. create a new worktree + new branch from `origin/main`
+3. continue only as a new PR with a new scope
+
+### Verification
+- `gh pr view <N> --json state,mergeCommit,mergedAt`
+- if `state=MERGED`, do not push further commits to that branch
+
 ---
 
 ## Repo Commands Reference
