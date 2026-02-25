@@ -106,6 +106,26 @@ If it is not recorded here — it does not exist.
     - Moderated user submission workflow is implemented (`pending/approved/rejected`)
     - Source audit trail persists provenance for imported and moderated records
 
+- [ ] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DB-W3-C (`feat/food-db-w3d-menustat-importer`)
+  - Status: In Progress
+  - Area: backend / ingestion operations / restaurant coverage
+  - Finding Type: operational gap closure
+  - Reason: Restaurant endpoints and storage contracts exist, but local environments need a deterministic, repeatable import command to seed menu data from MenuStat-style snapshots without manual DB editing.
+  - Links:
+    - `scripts/import_restaurant_menu.py`
+    - `data/restaurant_menu_sample.csv`
+    - `tests/test_import_restaurant_menu_script.py`
+    - `app/services/restaurant_store.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - CLI importer loads MenuStat-style CSV with alias mapping into canonical restaurant tables
+    - Importer supports explicit snapshot date and source name for provenance
+    - Deterministic sample dataset exists for local bootstrap and tests
+    - End-to-end test verifies import command populates searchable chain/menu records
+
 - [x] P1: Food barcode hit contract normalization for canonical FoodItem response
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
