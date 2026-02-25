@@ -166,6 +166,71 @@ Prefer modern typing syntax (Python 3.9+):
 
 ---
 
+## 11) `@patch` decorator fails with `@contextmanager` under Python 3.12 + xdist (CRITICAL)
+
+### Problem
+
+`unittest.mock.patch` used as a **decorator** (`@patch("module._connect")`) does not
+correctly intercept `@contextmanager`-decorated functions when running under
+**Python 3.12 with pytest-xdist** (`-n 4 --dist=loadscope`).
+The mock is applied but the real function executes, causing tests to hit the
+real database and return unexpected results.
+
+### Symptoms
+
+- Tests pass locally (sequential, Python 3.13) but fail in CI (Python 3.12, xdist).
+- Assertions like `assert len(result) == 1` fail because the mock was bypassed
+  and the real DB returned all rows (e.g., 10 or 15 items).
+- Only tests using `@patch` on `@contextmanager` targets are affected; plain
+  function patches may still work.
+
+### Real incidents (PR #896, PR #897)
+
+- PR #896: 12 tests in `test_food_store_coverage.py` failed on Python 3.12 CI.
+- PR #897: 8 tests in `test_food_store_coverage_boost.py` — same root cause,
+  missed in PR #896 scope.
+
+### Fix
+
+Replace all `@patch(...)` decorators with `monkeypatch.setattr()`:
+
+```python
+# BEFORE (broken on 3.12 + xdist):
+@patch("app.services.food_store._connect")
+def test_search(self, mock_connect):
+    mock_con = MagicMock()
+    mock_connect.return_value = mock_con
+    ...
+
+# AFTER (works everywhere):
+def test_search(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_con = _MockConnection(fetchall_result=[...])
+    monkeypatch.setattr(food_store, "_connect", lambda: mock_con)
+    ...
+```
+
+Also replace `os.environ` mutation in `setup_method()` with an autouse
+`monkeypatch.setenv()` fixture for proper test isolation.
+
+### Rule
+
+**Prefer `monkeypatch.setattr()` over `@patch` decorator for all new tests.**
+`monkeypatch` is pytest-native, version-safe, and properly scoped per test.
+
+### Prevention
+
+Before merging any PR that touches `food_store` tests (or any test using
+`@patch` on `@contextmanager` targets), run:
+
+```bash
+# Scan for remaining @patch on food_store targets
+git grep -n '@patch("app.services.food_store' -- tests/
+```
+
+If any matches remain, convert them to `monkeypatch.setattr()`.
+
+---
+
 ## Repo Commands Reference
 
 ```bash
