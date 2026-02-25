@@ -245,3 +245,56 @@ def test_list_foods_compat_flag_without_adapter_falls_back_to_legacy(
     result = foods.list_foods(query="apple", limit=10, offset=0, store=store)
     assert result[0].id == "legacy-1"
     assert called["params"] == ("apple", 10, 0)
+
+
+def test_list_foods_semantic_flag_uses_semantic_backend_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _CompatBackend:
+        def search_foods(
+            self, query: str, limit: int = 20, offset: int = 0
+        ) -> list[dict[str, Any]]:
+            return [
+                {
+                    "id": "compat-1",
+                    "canonical_name": "Compat Apple",
+                    "kcal": 88,
+                    "protein_g": 1.0,
+                    "fat_g": 0.2,
+                    "carbs_g": 19.0,
+                }
+            ]
+
+    class _SemanticBackend:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int]] = []
+
+        def search_foods(
+            self, query: str, limit: int = 20, offset: int = 0
+        ) -> list[dict[str, Any]]:
+            self.calls.append((query, limit, offset))
+            return [
+                {
+                    "id": "semantic-1",
+                    "canonical_name": "Semantic Apple",
+                    "kcal": 66,
+                    "protein_g": 0.7,
+                    "fat_g": 0.1,
+                    "carbs_g": 14.0,
+                }
+            ]
+
+    semantic_backend = _SemanticBackend()
+    monkeypatch.setenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", "true")
+    monkeypatch.setenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", "true")
+    foods.food_store.register_search_backend_adapter(_CompatBackend())
+    foods.food_store.register_semantic_search_backend_adapter(semantic_backend)
+    try:
+        result = foods.list_foods(query="apple", limit=10, offset=0, store=foods.get_food_store())
+        assert result[0].id == "semantic-1"
+        assert semantic_backend.calls == [("apple", 10, 0)]
+    finally:
+        foods.food_store.reset_search_backend_adapter()
+        foods.food_store.reset_semantic_search_backend_adapter()
+        monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
+        monkeypatch.delenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", raising=False)

@@ -218,6 +218,30 @@ def test_search(self, monkeypatch: pytest.MonkeyPatch) -> None:
 Also replace `os.environ` mutation in `setup_method()` with an autouse
 `monkeypatch.setenv()` fixture for proper test isolation.
 
+---
+
+## 12) Feature-flag backend routing must have explicit priority + lock-safe lazy init
+
+### Problem
+
+When multiple search backends are feature-flagged (e.g., `semantic`, `compat`, `legacy`),
+implicit fallback order creates drift and hard-to-reproduce behavior in CI/runtime.
+Additionally, lazy backend creation can deadlock if helper code re-enters the same non-reentrant lock.
+
+### Rule
+
+- Declare backend precedence explicitly (example: `semantic > compat > legacy`).
+- Keep default path fail-closed (`new feature flag = off` by default).
+- In lazy init code guarded by `threading.Lock`, never call helper APIs that re-acquire the same lock.
+  Assign guarded globals directly inside the lock section instead.
+
+### Test contract
+
+- Add deterministic tests for:
+  - priority selection when multiple flags are on
+  - fallback behavior when new adapter is missing
+  - env guard parsing for candidate/window limits
+
 ### Rule
 
 **Prefer `monkeypatch.setattr()` over `@patch` decorator for all new tests.**
@@ -235,7 +259,7 @@ git grep -n '@patch("app.services.food_store' -- tests/
 
 If any matches remain, convert them to `monkeypatch.setattr()`.
 
-## 12) API schema types must match persisted row types (barcode hit contract)
+## 13) API schema types must match persisted row types (barcode hit contract)
 
 ### Problem
 Endpoint handlers that construct `FoodItem(**row)` can fail at runtime if DB columns store
@@ -263,7 +287,7 @@ Before exposing DB rows directly through strict Pydantic models:
 - Keep migration/seed contracts aligned with API schema types
 - Verify with endpoint-level tests, not only unit repository tests
 
-## 13) After merge, never continue work on the same PR branch
+## 14) After merge, never continue work on the same PR branch
 
 ### Problem
 Continuing commits on a branch after PR merge creates ambiguity:
@@ -281,7 +305,7 @@ Once PR state is `MERGED`:
 - `gh pr view <N> --json state,mergeCommit,mergedAt`
 - if `state=MERGED`, do not push further commits to that branch
 
-## 14) Local-first ingest scripts must fail-closed on empty normalized payload
+## 15) Local-first ingest scripts must fail-closed on empty normalized payload
 
 ### Problem
 CSV ingestion can report "success" even when alias mapping drops required fields,

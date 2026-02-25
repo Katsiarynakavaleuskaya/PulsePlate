@@ -42,6 +42,9 @@ ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.c
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
+FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED = "FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED"
+FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT = "FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT"
+DEFAULT_SEMANTIC_CANDIDATE_LIMIT = 250
 BARCODE_MIN_LEN = 8
 BARCODE_MAX_LEN = 14
 
@@ -294,8 +297,59 @@ class _LegacyFoodSearchBackend:
         return search_foods(query, limit=limit, offset=offset)
 
 
+class _BootstrapSemanticSearchBackend:
+    """
+    Lightweight semantic-ish backend for W4 bootstrap.
+
+    RU: Лёгкий semantic bootstrap-бэкенд без внешних зависимостей.
+    EN: Lightweight semantic bootstrap backend without external dependencies.
+    """
+
+    def __init__(self, candidate_limit: int) -> None:
+        self._candidate_limit = candidate_limit
+
+    def search_foods(
+        self, query: str, limit: int | str = 20, offset: int | str = 0
+    ) -> Sequence[Mapping[str, Any]]:
+        normalized_limit, normalized_offset = _validate_pagination_params(limit, offset)
+        normalized_query = (query or "").strip()
+        if not normalized_query:
+            return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
+
+        required_window_size = normalized_limit + normalized_offset
+        if required_window_size > self._candidate_limit:
+            return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
+
+        candidate_fetch_limit = self._candidate_limit
+        candidates = _load_semantic_candidates(limit=candidate_fetch_limit)
+        query_tokens = _semantic_tokens(normalized_query)
+        if not query_tokens:
+            return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
+
+        ranked: List[Tuple[float, Mapping[str, Any]]] = []
+        for row in candidates:
+            canonical_name = str(row.get("canonical_name", ""))
+            score = _semantic_score(query_tokens, canonical_name)
+            if score > 0.0:
+                ranked.append((score, row))
+
+        if not ranked:
+            return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
+
+        ranked.sort(
+            key=lambda item: (
+                -item[0],
+                str(item[1].get("canonical_name", "")).lower(),
+                str(item[1].get("id", "")),
+            )
+        )
+        window = ranked[normalized_offset : normalized_offset + normalized_limit]
+        return [dict(row) for _, row in window]
+
+
 _LEGACY_SEARCH_BACKEND: FoodSearchBackend = _LegacyFoodSearchBackend()
 _COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
+_SEMANTIC_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
@@ -327,6 +381,91 @@ def _use_compat_search_backend() -> bool:
     return _is_truthy_env(os.getenv(FEATURE_FOOD_SEARCH_COMPAT_ENABLED))
 
 
+def _use_semantic_search_backend() -> bool:
+    """Return True when semantic search adapter path is explicitly enabled."""
+    return _is_truthy_env(os.getenv(FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED))
+
+
+def _semantic_tokens(value: str) -> set[str]:
+    """Tokenize free-text query into normalized tokens."""
+    return {token for token in re.findall(r"[0-9a-zа-яё]+", value.lower()) if token}
+
+
+def _semantic_score(query_tokens: set[str], candidate_name: str) -> float:
+    """
+    Rank candidate name against query tokens using deterministic lexical overlap.
+
+    RU: Детерминированный lexical-overlap score для bootstrap semantic path.
+    EN: Deterministic lexical-overlap score for bootstrap semantic path.
+    """
+    candidate_tokens = _semantic_tokens(candidate_name)
+    if not query_tokens or not candidate_tokens:
+        return 0.0
+    overlap = len(query_tokens & candidate_tokens)
+    if overlap == 0:
+        return 0.0
+    union = len(query_tokens | candidate_tokens)
+    base_score = overlap / union
+    prefix_bonus = 0.1 if candidate_name.lower().startswith(tuple(sorted(query_tokens))) else 0.0
+    return base_score + prefix_bonus
+
+
+def _semantic_candidate_limit() -> int:
+    """Return validated candidate pool size for bootstrap semantic search."""
+    raw_value = os.getenv(
+        FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT, str(DEFAULT_SEMANTIC_CANDIDATE_LIMIT)
+    )
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_SEMANTIC_CANDIDATE_LIMIT
+    if parsed < 1:
+        return DEFAULT_SEMANTIC_CANDIDATE_LIMIT
+    return min(parsed, 5000)
+
+
+def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
+    """
+    Load semantic candidate rows directly from foods table.
+
+    RU: Загружает кандидатов напрямую из foods, без MAX_LIMIT clamp.
+    EN: Loads candidates directly from foods, bypassing search pagination clamp.
+    """
+    with _connect() as con:
+        rows = con.execute(
+            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
+            "FROM foods ORDER BY id ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def register_semantic_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
+    """Register semantic search backend adapter."""
+    global _SEMANTIC_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        _SEMANTIC_SEARCH_BACKEND = adapter
+
+
+def reset_semantic_search_backend_adapter() -> None:
+    """Reset semantic search adapter to bootstrap auto-selection mode."""
+    register_semantic_search_backend_adapter(None)
+
+
+def _resolve_semantic_backend(semantic_backend: FoodSearchBackend | None) -> FoodSearchBackend:
+    """Resolve semantic backend, creating deterministic bootstrap backend if needed."""
+    if semantic_backend is not None:
+        return semantic_backend
+    bootstrap_backend = _BootstrapSemanticSearchBackend(candidate_limit=_semantic_candidate_limit())
+    global _SEMANTIC_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        current_semantic = _SEMANTIC_SEARCH_BACKEND
+        if current_semantic is not None:
+            return current_semantic
+        _SEMANTIC_SEARCH_BACKEND = bootstrap_backend
+    return bootstrap_backend
+
+
 def register_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
     """Register optional compatibility search backend adapter."""
     global _COMPAT_SEARCH_BACKEND
@@ -347,6 +486,9 @@ def get_search_backend() -> FoodSearchBackend:
     """
     with _SEARCH_BACKEND_LOCK:
         compat_backend = _COMPAT_SEARCH_BACKEND
+        semantic_backend = _SEMANTIC_SEARCH_BACKEND
+    if _use_semantic_search_backend():
+        return _resolve_semantic_backend(semantic_backend=semantic_backend)
     if _use_compat_search_backend() and compat_backend is not None:
         return compat_backend
     return _LEGACY_SEARCH_BACKEND
