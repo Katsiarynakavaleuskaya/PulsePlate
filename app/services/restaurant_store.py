@@ -171,6 +171,8 @@ def _ensure_schema(con: sqlite3.Connection) -> None:
             ON user_submissions(status);
         CREATE INDEX IF NOT EXISTS idx_submission_audit_submission
             ON submission_audit(submission_id);
+        CREATE INDEX IF NOT EXISTS idx_source_catalog_entity
+            ON source_catalog(entity_type, entity_id, created_at);
         """)
     con.commit()
 
@@ -312,11 +314,35 @@ def get_restaurant_menu(chain_id: str, limit: int = 200) -> list[Dict[str, Any]]
     with _connect() as con:
         rows = con.execute(
             """
-            SELECT id, chain_id, item_name, category, serving_size_g, kcal, protein_g,
-                   fat_g, carbs_g, sodium_mg, source, source_id, is_active
-            FROM restaurant_menu_items
-            WHERE chain_id = ? AND is_active = 1
-            ORDER BY item_name ASC
+            SELECT
+                m.id,
+                m.chain_id,
+                m.item_name,
+                m.category,
+                m.serving_size_g,
+                m.kcal,
+                m.protein_g,
+                m.fat_g,
+                m.carbs_g,
+                m.sodium_mg,
+                m.source,
+                m.source_id,
+                m.is_active,
+                sc.snapshot_date AS snapshot_date,
+                sc.source_name AS provenance_source,
+                sc.source_record_id AS provenance_record_id
+            FROM restaurant_menu_items AS m
+            LEFT JOIN source_catalog AS sc
+                ON sc.id = (
+                    SELECT latest.id
+                    FROM source_catalog AS latest
+                    WHERE latest.entity_type = 'restaurant_menu_item'
+                      AND latest.entity_id = m.id
+                    ORDER BY latest.created_at DESC, latest.id DESC
+                    LIMIT 1
+                )
+            WHERE m.chain_id = ? AND m.is_active = 1
+            ORDER BY m.item_name ASC
             LIMIT ?
             """,
             (chain_id, limit),
@@ -429,13 +455,39 @@ def review_submission(
             """,
             (status, reviewer_notes, now_iso, submission_id),
         )
+        audit_id = str(uuid4())
         con.execute(
             """
             INSERT INTO submission_audit (
                 id, submission_id, from_status, to_status, reviewer_notes, changed_at
             ) VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (str(uuid4()), submission_id, from_status, status, reviewer_notes, now_iso),
+            (audit_id, submission_id, from_status, status, reviewer_notes, now_iso),
+        )
+        con.execute(
+            """
+            INSERT INTO source_catalog (
+                id, entity_type, entity_id, source_name, source_record_id,
+                snapshot_date, raw_data_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid4()),
+                "user_submission",
+                submission_id,
+                "moderation",
+                audit_id,
+                now_iso.split("T", maxsplit=1)[0],
+                json.dumps(
+                    {
+                        "from_status": from_status,
+                        "to_status": status,
+                        "reviewer_notes": reviewer_notes,
+                    },
+                    ensure_ascii=True,
+                ),
+                now_iso,
+            ),
         )
         con.commit()
     return get_submission(submission_id)

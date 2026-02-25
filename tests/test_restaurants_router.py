@@ -148,6 +148,9 @@ def test_get_restaurant_menu_maps_rows() -> None:
                 "source": "menustat",
                 "source_id": "menu-001",
                 "is_active": 1,
+                "snapshot_date": "2026-02-24",
+                "provenance_source": "menustat",
+                "provenance_record_id": "menu-001",
             }
         ]
     )
@@ -155,6 +158,9 @@ def test_get_restaurant_menu_maps_rows() -> None:
     assert len(result) == 1
     assert result[0].id == "m1"
     assert result[0].item_name == "Protein Burger"
+    assert result[0].snapshot_date == "2026-02-24"
+    assert result[0].provenance_source == "menustat"
+    assert result[0].provenance_record_id == "menu-001"
 
 
 def test_create_submission_validation_error_maps_422() -> None:

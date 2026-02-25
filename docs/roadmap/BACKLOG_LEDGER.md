@@ -63,11 +63,11 @@ If it is not recorded here — it does not exist.
     - Deterministic OFF delta ingestion is in place
     - Existing `/api/v1/foods*` behavior remains compatible
 
-- [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
+- [x] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #891, PR #893, PR #898
-  - Status: In Progress (W2-A/W2-B/W2-C merged; barcode hit contract follow-up in progress)
+  - Target PR: PR #891, PR #893, PR #898, PR #900
+  - Status: ✅ Merged (W2-A/W2-B/W2-C + barcode hit contract in PR #900, 2026-02-25)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
@@ -88,8 +88,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #895 (+ follow-up PR-TBD-FOOD-DB-W3-B)
-  - Status: In Progress (W3-A foundation merged in PR #895; MenuStat ingestion/provenance closure pending)
+  - Target PR: PR #895 (+ follow-up PR-TBD-FOOD-DB-W3-B, `feat/food-db-w3b-menustat-provenance-closure`)
+  - Status: In Progress (W3-A foundation merged in PR #895; W3-B MenuStat ingestion/provenance closure in progress)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
   - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
@@ -106,11 +106,11 @@ If it is not recorded here — it does not exist.
     - Moderated user submission workflow is implemented (`pending/approved/rejected`)
     - Source audit trail persists provenance for imported and moderated records
 
-- [ ] P1: Food barcode hit contract normalization for canonical FoodItem response
+- [x] P1: Food barcode hit contract normalization for canonical FoodItem response
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W2-HIT-CONTRACT (`fix/food-barcode-hit-contract`)
-  - Status: In Progress
+  - Target PR: PR #900 (`fix/food-barcode-hit-contract`)
+  - Status: ✅ Merged (PR #900, 2026-02-25)
   - Area: backend / API contract / data normalization
   - Finding Type: correctness and reliability gap
   - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of a list, causing non-deterministic hit-path behavior in benchmark and runtime.

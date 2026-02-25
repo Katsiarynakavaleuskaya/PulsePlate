@@ -55,6 +55,9 @@ class RestaurantMenuItem(BaseModel):
     source: str
     source_id: str | None = None
     is_active: bool = True
+    snapshot_date: str | None = None
+    provenance_source: str | None = None
+    provenance_record_id: str | None = None
 
 
 class RestaurantSubmissionCreate(BaseModel):
