@@ -4167,7 +4167,7 @@ export interface components {
             activity_level: "low" | "light" | "moderate" | "high" | "very_high";
             /**
              * Age
-             * @description Age in years
+             * @description Age in years (adults only)
              */
             age: number;
             /**
@@ -6268,7 +6268,7 @@ export interface operations {
             query: {
                 /** @description Physical activity level */
                 activity_level: "low" | "light" | "moderate" | "high" | "very_high";
-                /** @description Age in years */
+                /** @description Age in years (adults only) */
                 age: number;
                 /** @description Biological sex */
                 gender: "female" | "male";

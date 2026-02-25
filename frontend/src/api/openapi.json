@@ -3715,9 +3715,9 @@
             "type": "string"
           },
           "age": {
-            "description": "Age in years",
+            "description": "Age in years (adults only)",
             "maximum": 120.0,
-            "minimum": 1.0,
+            "minimum": 18.0,
             "title": "Age",
             "type": "integer"
           },
@@ -7330,14 +7330,14 @@
         "operationId": "get_recommendations_api_v1_nutrition_recommendations_get",
         "parameters": [
           {
-            "description": "Age in years",
+            "description": "Age in years (adults only)",
             "in": "query",
             "name": "age",
             "required": true,
             "schema": {
-              "description": "Age in years",
+              "description": "Age in years (adults only)",
               "maximum": 120,
-              "minimum": 1,
+              "minimum": 18,
               "title": "Age",
               "type": "integer"
             }

@@ -10,9 +10,10 @@ IMPORTANT:
 
 from __future__ import annotations
 
+from math import isfinite
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProfileInput(BaseModel):
@@ -22,7 +23,7 @@ class ProfileInput(BaseModel):
     EN: Reusable profile input shared across nutrition endpoints.
     """
 
-    age: int = Field(..., ge=1, le=120, description="Age in years")
+    age: int = Field(..., ge=18, le=120, description="Age in years (adults only)")
     gender: Literal["female", "male"] = Field(..., description="Biological sex")
     weight_kg: float = Field(..., ge=30.0, le=300.0, description="Body weight in kg")
     height_cm: float = Field(..., ge=100.0, le=250.0, description="Height in cm")
@@ -95,6 +96,14 @@ class NutrientCoverageRequest(BaseModel):
     consumed: dict[str, float] = Field(
         ..., min_length=1, description="Consumed nutrient amounts keyed by nutrient name"
     )
+
+    @field_validator("consumed")
+    @classmethod
+    def _validate_consumed_values(cls, v: dict[str, float]) -> dict[str, float]:
+        bad = [k for k, val in v.items() if (not isfinite(val)) or val < 0]
+        if bad:
+            raise ValueError(f"consumed values must be finite and >= 0; invalid keys: {bad}")
+        return v
 
 
 class NutrientCoverageResponse(BaseModel):

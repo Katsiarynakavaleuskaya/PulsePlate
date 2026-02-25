@@ -23,7 +23,7 @@ router = APIRouter(tags=["nutrition"])
     summary="Basic nutrient recommendations (FREE)",
 )
 def get_recommendations(
-    age: int = Query(..., ge=1, le=120, description="Age in years"),
+    age: int = Query(..., ge=18, le=120, description="Age in years (adults only)"),
     gender: Literal["female", "male"] = Query(..., description="Biological sex"),
     weight_kg: float = Query(..., ge=30.0, le=300.0, description="Body weight in kg"),
     height_cm: float = Query(..., ge=100.0, le=250.0, description="Height in cm"),

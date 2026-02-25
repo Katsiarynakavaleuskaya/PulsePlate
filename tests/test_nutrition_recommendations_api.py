@@ -10,19 +10,13 @@ EN: Tests for nutrition recommendation API endpoints.
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
-
-@pytest.fixture
-def client() -> TestClient:
-    from app import app
-
-    return TestClient(app)
+def _assert_json_content_type(resp: object) -> None:
+    """Assert response Content-Type is application/json before calling .json()."""
+    ct = getattr(resp, "headers", {}).get("content-type", "")
+    assert ct.startswith("application/json"), f"Expected application/json, got {ct!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +39,7 @@ class TestFreeRecommendationsSuccess:
     def test_recommendations_success(self, client: TestClient) -> None:
         resp = client.get(_FREE_URL, params=_VALID_PARAMS)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         data = resp.json()
         assert data["kcal_daily"] > 0
         assert data["macros"]["protein_g"] > 0
@@ -60,6 +55,7 @@ class TestFreeRecommendationsSuccess:
         params = {**_VALID_PARAMS, "gender": "female"}
         resp = client.get(_FREE_URL, params=params)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         data = resp.json()
         assert data["kcal_daily"] > 0
 
@@ -69,6 +65,8 @@ class TestFreeRecommendationsSuccess:
         female_resp = client.get(_FREE_URL, params=female_params)
         assert male_resp.status_code == 200
         assert female_resp.status_code == 200
+        _assert_json_content_type(male_resp)
+        _assert_json_content_type(female_resp)
         # Male and female targets should differ for same age/weight/height
         assert male_resp.json()["kcal_daily"] != female_resp.json()["kcal_daily"]
 
@@ -79,7 +77,7 @@ class TestFreeRecommendationsSuccess:
             assert resp.status_code == 200, f"Failed for activity_level={level}"
 
     def test_recommendations_boundary_age_min(self, client: TestClient) -> None:
-        params = {**_VALID_PARAMS, "age": 1}
+        params = {**_VALID_PARAMS, "age": 18}
         resp = client.get(_FREE_URL, params=params)
         assert resp.status_code == 200
 
@@ -109,6 +107,12 @@ class TestFreeRecommendationsValidation:
 
     def test_invalid_age_too_low_422(self, client: TestClient) -> None:
         params = {**_VALID_PARAMS, "age": 0}
+        resp = client.get(_FREE_URL, params=params)
+        assert resp.status_code == 422
+
+    def test_invalid_age_pediatric_rejected_422(self, client: TestClient) -> None:
+        """Age < 18 is rejected — API is adults-only."""
+        params = {**_VALID_PARAMS, "age": 10}
         resp = client.get(_FREE_URL, params=params)
         assert resp.status_code == 422
 
@@ -207,6 +211,7 @@ class TestProCoverageContract:
     ) -> None:
         resp = client.post(_PRO_COVERAGE_URL, json=_VALID_COVERAGE_BODY, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         data = resp.json()
         assert "coverage" in data
         assert "summary" in data
@@ -221,6 +226,7 @@ class TestProCoverageContract:
     def test_coverage_item_fields(self, client: TestClient, pro_headers: dict[str, str]) -> None:
         resp = client.post(_PRO_COVERAGE_URL, json=_VALID_COVERAGE_BODY, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         coverage = resp.json()["coverage"]
         assert len(coverage) > 0
         # Check one item has all required fields
@@ -260,6 +266,7 @@ class TestProCoverageContract:
         }
         resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         summary = resp.json()["summary"]
         assert summary["deficient_count"] == 0
 
@@ -275,6 +282,7 @@ class TestProCoverageContract:
         }
         resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         coverage = resp.json()["coverage"]
         vc = coverage["vitamin_c_mg"]
         assert vc["status"] == "deficient"
@@ -292,6 +300,7 @@ class TestProCoverageContract:
         }
         resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         coverage = resp.json()["coverage"]
         iron = coverage["iron_mg"]
         assert iron["status"] == "excess"
@@ -302,6 +311,7 @@ class TestProCoverageContract:
     ) -> None:
         resp = client.post(_PRO_COVERAGE_URL, json=_VALID_COVERAGE_BODY, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         summary = resp.json()["summary"]
         total = summary["adequate_count"] + summary["deficient_count"] + summary["excess_count"]
         assert total == summary["total_nutrients"]
@@ -311,6 +321,7 @@ class TestProCoverageContract:
     ) -> None:
         resp = client.post(_PRO_COVERAGE_URL, json=_VALID_COVERAGE_BODY, headers=pro_headers)
         assert resp.status_code == 200
+        _assert_json_content_type(resp)
         score = resp.json()["summary"]["overall_score"]
         assert 0.0 <= score <= 100.0
 
@@ -324,6 +335,17 @@ class TestProCoverageValidation:
         body = {
             "profile": _VALID_COVERAGE_BODY["profile"],
             "consumed": {},
+        }
+        resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_coverage_negative_consumed_422(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """Negative consumed values must be rejected at 422."""
+        body = {
+            "profile": _VALID_COVERAGE_BODY["profile"],
+            "consumed": {"protein_g": -10.0},
         }
         resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
         assert resp.status_code == 422
