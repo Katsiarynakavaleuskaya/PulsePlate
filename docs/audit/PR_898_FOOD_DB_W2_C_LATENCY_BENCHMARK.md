@@ -23,7 +23,7 @@
 
 ## Method
 
-Run command (UTC run timestamp: `2026-02-25 07:53:58 UTC`):
+Run command (UTC run timestamp: `2026-02-25 10:23:27 UTC`):
 
 ```bash
 SERVER_SALT=bench-salt \
@@ -40,17 +40,17 @@ python scripts/benchmarks/food_api_latency_benchmark.py \
 Artifact checksum:
 
 - `sha256 docs/audit/artifacts/food_w2c_latency_benchmark.json`
-- `90331d10b53daf2ac8096f374f5851883fee4c904d7f384440f0b5af5ebe53f0`
+- `a30153edae00c2648e5a4e03d7ec655e2703bf33ad893ff735c23ed7d2820cba`
 
 ## Results
 
 | Scenario | Endpoint | Expected status | p50 (ms) | p95 (ms) | p99 (ms) |
 |---|---|---:|---:|---:|---:|
-| foods_list_hit | `/api/v1/foods?query=chicken&limit=20&offset=0` | 200 | 0.8991 | 1.0875 | 1.1198 |
-| foods_search_alias_hit | `/api/v1/foods/search?query=chicken&limit=20&offset=0` | 200 | 0.8900 | 1.0288 | 1.1326 |
-| foods_list_no_results | `/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0` | 200 | 0.8796 | 1.0901 | 1.3637 |
-| barcode_miss | `/api/v1/foods/barcode/9999999999999` | 404 | 0.7822 | 0.9978 | 1.0959 |
-| barcode_malformed | `/api/v1/foods/barcode/abc` | 422 | 0.6859 | 0.8576 | 0.9255 |
+| foods_list_hit | `/api/v1/foods?query=chicken&limit=20&offset=0` | 200 | 0.8724 | 0.9525 | 1.0481 |
+| foods_search_alias_hit | `/api/v1/foods/search?query=chicken&limit=20&offset=0` | 200 | 0.8802 | 0.9665 | 1.0846 |
+| foods_list_no_results | `/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0` | 200 | 0.8720 | 0.9013 | 1.0540 |
+| barcode_miss | `/api/v1/foods/barcode/9999999999999` | 404 | 0.7772 | 0.9819 | 0.9938 |
+| barcode_malformed | `/api/v1/foods/barcode/abc` | 422 | 0.6848 | 0.8616 | 0.9002 |
 
 ## Conclusion
 

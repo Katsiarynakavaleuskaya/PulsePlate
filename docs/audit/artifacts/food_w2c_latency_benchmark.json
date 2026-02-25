@@ -7,41 +7,41 @@
       "name": "foods_list_hit",
       "endpoint": "/api/v1/foods?query=chicken&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.8991,
-      "p95_ms": 1.0875,
-      "p99_ms": 1.1198
+      "p50_ms": 0.8724,
+      "p95_ms": 0.9525,
+      "p99_ms": 1.0481
     },
     {
       "name": "foods_search_alias_hit",
       "endpoint": "/api/v1/foods/search?query=chicken&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.89,
-      "p95_ms": 1.0288,
-      "p99_ms": 1.1326
+      "p50_ms": 0.8802,
+      "p95_ms": 0.9665,
+      "p99_ms": 1.0846
     },
     {
       "name": "foods_list_no_results",
       "endpoint": "/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.8796,
-      "p95_ms": 1.0901,
-      "p99_ms": 1.3637
+      "p50_ms": 0.872,
+      "p95_ms": 0.9013,
+      "p99_ms": 1.054
     },
     {
       "name": "barcode_miss",
       "endpoint": "/api/v1/foods/barcode/9999999999999",
       "expected_status": 404,
-      "p50_ms": 0.7822,
-      "p95_ms": 0.9978,
-      "p99_ms": 1.0959
+      "p50_ms": 0.7772,
+      "p95_ms": 0.9819,
+      "p99_ms": 0.9938
     },
     {
       "name": "barcode_malformed",
       "endpoint": "/api/v1/foods/barcode/abc",
       "expected_status": 422,
-      "p50_ms": 0.6859,
-      "p95_ms": 0.8576,
-      "p99_ms": 0.9255
+      "p50_ms": 0.6848,
+      "p95_ms": 0.8616,
+      "p99_ms": 0.9002
     }
   ]
 }

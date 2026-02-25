@@ -13,11 +13,11 @@ import json
 import logging
 import os
 from pathlib import Path
-import re
 import sqlite3
 import tempfile
 import time
 from typing import Any, Callable
+from urllib.parse import quote_plus
 
 DEFAULT_BENCH_BARCODE = "0123456789012"
 DEFAULT_MISS_BARCODE = "9999999999999"
@@ -72,9 +72,24 @@ def _create_temp_food_db(src_db: Path, injected_barcode: str, tmp_dir: Path) -> 
         con.execute("UPDATE foods SET gtin = ? WHERE id = ?", (injected_barcode, row_id))
         con.commit()
 
-    token_match = re.search(r"[A-Za-z]{3,}", canonical_name or "")
-    query_term = token_match.group(0).lower() if token_match else "apple"
+    query_term = _extract_query_term(canonical_name)
     return tmp_db, query_term
+
+
+def _extract_query_term(canonical_name: str | None) -> str:
+    """Pick the first alpha token (unicode-aware) with length >= 3."""
+    text = canonical_name or ""
+    buffer: list[str] = []
+    for char in text:
+        if char.isalpha():
+            buffer.append(char)
+            continue
+        if len(buffer) >= 3:
+            return "".join(buffer).lower()
+        buffer.clear()
+    if len(buffer) >= 3:
+        return "".join(buffer).lower()
+    return "apple"
 
 
 def _expect_non_empty_list(response: Any) -> None:
@@ -203,13 +218,15 @@ def main() -> int:
             scenarios = [
                 {
                     "name": "foods_list_hit",
-                    "endpoint": f"/api/v1/foods?query={query_term}&limit=20&offset=0",
+                    "endpoint": f"/api/v1/foods?query={quote_plus(query_term)}&limit=20&offset=0",
                     "expected_status": 200,
                     "validator": _expect_non_empty_list,
                 },
                 {
                     "name": "foods_search_alias_hit",
-                    "endpoint": f"/api/v1/foods/search?query={query_term}&limit=20&offset=0",
+                    "endpoint": (
+                        f"/api/v1/foods/search?query={quote_plus(query_term)}&limit=20&offset=0"
+                    ),
                     "expected_status": 200,
                     "validator": _expect_non_empty_list,
                 },
