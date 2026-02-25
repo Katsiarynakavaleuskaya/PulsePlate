@@ -87,10 +87,36 @@ def test_main_fails_when_csv_has_no_header_row(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     csv_path = tmp_path / "headerless.csv"
-    csv_path.write_text("Chain A,Item 1,500\n", encoding="utf-8")
+    csv_path.write_text("", encoding="utf-8")
 
     exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
     assert exit_code == 2
     stderr = capsys.readouterr().err
     assert "Import failed:" in stderr
     assert "input CSV has no header row" in stderr
+
+
+def test_main_fails_when_csv_lacks_required_header_aliases(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    csv_path = tmp_path / "missing_aliases.csv"
+    csv_path.write_text("foo,bar\nx,y\n", encoding="utf-8")
+
+    exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "input CSV missing required columns/aliases" in stderr
+
+
+def test_main_rejects_invalid_snapshot_date(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        import_restaurant_menu.main(["--input", str(csv_path), "--snapshot-date", "2026/02/25"])
+    assert exc_info.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "snapshot-date must be YYYY-MM-DD" in stderr

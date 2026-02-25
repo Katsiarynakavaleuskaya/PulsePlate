@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,16 @@ def _has_required_header_aliases(fieldnames: list[str] | None) -> bool:
     chain_aliases = set(_FIELD_ALIASES["chain_name"])
     item_aliases = set(_FIELD_ALIASES["item_name"])
     return bool(headers.intersection(chain_aliases)) and bool(headers.intersection(item_aliases))
+
+
+def _parse_snapshot_date(value: str) -> str:
+    """Validate CLI snapshot date and return canonical YYYY-MM-DD."""
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"snapshot-date must be YYYY-MM-DD, got: {value!r}"
+        ) from exc
 
 
 def _first_present_value(row: dict[str, Any], aliases: tuple[str, ...]) -> str | None:
@@ -71,8 +82,14 @@ def load_menu_rows(csv_path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
-        if not _has_required_header_aliases(reader.fieldnames):
+        if reader.fieldnames is None:
             raise ValueError("input CSV has no header row")
+        if not _has_required_header_aliases(reader.fieldnames):
+            raise ValueError(
+                "input CSV missing required columns/aliases: "
+                f"one of {list(_FIELD_ALIASES['chain_name'])} and "
+                f"one of {list(_FIELD_ALIASES['item_name'])}"
+            )
         for raw_row in reader:
             normalized = normalize_row(raw_row)
             if not normalized.get("chain_name") or not normalized.get("item_name"):
@@ -130,6 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--snapshot-date",
         default=None,
+        type=_parse_snapshot_date,
         help="Snapshot date (YYYY-MM-DD). Defaults to today's UTC date.",
     )
     parser.add_argument(
