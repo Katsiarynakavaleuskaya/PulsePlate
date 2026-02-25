@@ -82,6 +82,8 @@ def load_menu_rows(csv_path: Path) -> list[dict[str, Any]]:
     """Load and normalize valid rows from CSV file."""
     if not csv_path.exists():
         raise FileNotFoundError(f"input file does not exist: {csv_path}")
+    if not csv_path.is_file():
+        raise ValueError(f"input path is not a file: {csv_path}")
 
     rows: list[dict[str, Any]] = []
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -95,7 +97,10 @@ def load_menu_rows(csv_path: Path) -> list[dict[str, Any]]:
                 f"one of {list(_FIELD_ALIASES['item_name'])}"
             )
         for raw_row in reader:
-            normalized = normalize_row(raw_row)
+            normalized_input = {
+                str(key).strip(): value for key, value in raw_row.items() if key is not None
+            }
+            normalized = normalize_row(normalized_input)
             if not normalized.get("chain_name") or not normalized.get("item_name"):
                 continue
             rows.append(normalized)

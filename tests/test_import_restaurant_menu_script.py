@@ -63,6 +63,19 @@ def test_load_menu_rows_maps_menustat_aliases(tmp_path: Path) -> None:
     assert rows[0]["sodium_mg"] == "800"
 
 
+def test_load_menu_rows_handles_whitespace_in_header_names(tmp_path: Path) -> None:
+    csv_path = tmp_path / "menustat_spaced_headers.csv"
+    csv_path.write_text(
+        ("restaurant ,item_name ,calories\n" "Chain B,Item 2,400\n"),
+        encoding="utf-8",
+    )
+    rows = import_restaurant_menu.load_menu_rows(csv_path)
+    assert len(rows) == 1
+    assert rows[0]["chain_name"] == "Chain B"
+    assert rows[0]["item_name"] == "Item 2"
+    assert rows[0]["kcal"] == "400"
+
+
 def test_main_fails_when_no_valid_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     csv_path = tmp_path / "empty_rows.csv"
     csv_path.write_text("restaurant,item_name\n,\n", encoding="utf-8")
@@ -81,6 +94,16 @@ def test_main_fails_when_input_file_missing(
     stderr = capsys.readouterr().err
     assert "Import failed:" in stderr
     assert "input file does not exist" in stderr
+
+
+def test_main_fails_when_input_path_is_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = import_restaurant_menu.main(["--input", str(tmp_path)])
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "input path is not a file" in stderr
 
 
 def test_main_fails_when_csv_has_no_header_row(
