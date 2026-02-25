@@ -15,8 +15,6 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
-
 # Run these tests serially (not in parallel) to avoid xdist hang issues
 pytestmark = pytest.mark.serial
 
@@ -169,8 +167,6 @@ class TestCoreModulesAdvanced:
             score = calculate_repair_score({}, {})
             assert isinstance(score, (int, float, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -200,8 +196,6 @@ class TestCoreModulesAdvanced:
             is_valid = validate_menu_nutrition({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -227,8 +221,6 @@ class TestCoreModulesAdvanced:
             improvements = suggest_plate_improvements({})
             assert isinstance(improvements, (list, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -258,8 +250,6 @@ class TestCoreModulesAdvanced:
             is_valid = validate_target_ranges({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 

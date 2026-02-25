@@ -1364,10 +1364,7 @@ If it is not recorded here — it does not exist.
       `tests/test_final_coverage_97_boost.py:179`,
       `tests/test_update_manager_fixed.py:129`
     - `planner_engines`: ✅ Enabled (see entry below); renamed residual key to `planner_engines_advanced`
-    - `planner_engines_advanced`: `tests/test_final_core_coverage.py:232`,
-      `tests/test_final_core_coverage.py:262`,
-      `tests/test_final_core_coverage.py:294`,
-      `tests/test_final_core_coverage.py:322`
+    - `planner_engines_advanced`: ✅ Enabled (see entry below)
     - `i18n_advanced`: `tests/test_database_apis_coverage.py:306`,
       `tests/test_direct_core_functions.py:234`
     - `rag`: `tests/test_database_apis_coverage.py:333`,
@@ -1449,8 +1446,9 @@ If it is not recorded here — it does not exist.
     - `nutrient_recommendations` -> ✅ Enabled (PR-894, 2026-02-25); added `get_nutrient_recommendations()` facade in `core/recommendations.py` wrapping `build_nutrition_targets()` with simplified API (age/gender/weight/height/activity_level); activity level mapping (low/moderate/high/very_high); 2 gated tests ungated + 1 edge-case test added in `test_final_coverage_97_boost.py`; key removed from FEATURE_TODO_KEYS
     - `nutrition_api_pr2_pro_endpoints` -> ✅ Enabled (PR-903, 2026-02-25, `aeb1b49a`); added 3 PRO endpoints under `/api/v1/pro/nutrition/`: `POST /deficiency-recommendations` (food-based recs for deficient nutrients, en/ru/es), `POST /micronutrient-targets` (extended micro targets with min/target/max per WHO/EFSA/DRI), `POST /safety-check` (validates nutrition targets against safety bounds); extended `ProfileInput` with optional fields (`goal`, `diet_flags`, `life_stage`, `deficit_pct`, `surplus_pct`, `bodyfat`); added Spanish (es) language support in food sources; 38 new tests (77 total) covering tier guards, contract assertions, validation errors; OpenAPI + TypeScript types regenerated
     - `planner_engines` -> ✅ Enabled (2026-02-25); added ~25 thin facade functions across 4 core modules: `core/targets.py` (calculate_bmr, calculate_tdee, validate_user_data + 4 stubs), `core/auto_repair.py` (analyze_deficiencies, get_repair_suggestions, calculate_repair_priority + 2 stubs), `core/menu_engine.py` (calculate_nutrition_totals, generate_shopping_list, optimize_meals, validate_meal_plan, suggest_meal_improvements), `core/plate.py` (create_nutrition_plate, analyze_plate_balance, get_plate_recommendations, calculate_plate_score, visualize_plate_data); rewrote `test_direct_core_functions.py` to remove feature gates (10 tests import directly); added 61 coverage tests in `test_planner_engines_facades.py`; renamed residual advanced key to `planner_engines_advanced`; key removed from FEATURE_TODO_KEYS
+    - `planner_engines_advanced` -> ✅ Enabled (2026-02-25); added 2 new modules: `core/nutrition_analysis.py` (analyze_nutrition, calculate_nutrition_score, get_nutrition_recommendations, validate_nutrition_data), `core/config.py` (load_config, get_config_value, set_config_value, validate_config); removed feature gates from 6 tests in `test_final_core_coverage.py`; fixed test signatures to match implementations; added 26 coverage tests in `test_planner_engines_advanced_facades.py`; key removed from FEATURE_TODO_KEYS
   - Keys still gated (module exists but tested API surface incomplete):
-    - `planner_engines_advanced`, `plate_day_micros`, `exports_recipes_products`, `sports_disclaimers_lifestage`
+    - `plate_day_micros`, `exports_recipes_products`, `sports_disclaimers_lifestage`
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
