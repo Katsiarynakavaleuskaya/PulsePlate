@@ -56,6 +56,17 @@ class TestNutritionAnalysisFacades:
         assert result is not None
         assert result["status"] == "invalid_values"
 
+    def test_analyze_nutrition_zero_macros(self) -> None:
+        """Test analyze_nutrition with zero macros hits zero-calories branch."""
+        from core.nutrition_analysis import analyze_nutrition
+
+        data = {"protein": 0, "carbs": 0, "fat": 0}
+        result = analyze_nutrition(data)
+        assert result is not None
+        assert result["macros"]["protein_pct"] == 0.0
+        assert result["macros"]["carbs_pct"] == 0.0
+        assert result["macros"]["fat_pct"] == 0.0
+
     # --- calculate_nutrition_score ---
 
     def test_calculate_nutrition_score_empty_dict(self) -> None:
@@ -80,6 +91,12 @@ class TestNutritionAnalysisFacades:
 
         assert calculate_nutrition_score(None) is None  # type: ignore[arg-type]
         assert calculate_nutrition_score("string") is None  # type: ignore[arg-type]
+
+    def test_calculate_nutrition_score_non_numeric(self) -> None:
+        """Test calculate_nutrition_score with non-numeric values returns None."""
+        from core.nutrition_analysis import calculate_nutrition_score
+
+        assert calculate_nutrition_score({"protein": "bad", "carbs": 10, "fat": 5}) is None
 
     def test_calculate_nutrition_score_unbalanced(self) -> None:
         """Test calculate_nutrition_score with unbalanced macros."""
@@ -116,6 +133,12 @@ class TestNutritionAnalysisFacades:
 
         assert get_nutrition_recommendations(None) is None  # type: ignore[arg-type]
 
+    def test_get_nutrition_recommendations_non_numeric(self) -> None:
+        """Test get_nutrition_recommendations with non-numeric values returns None."""
+        from core.nutrition_analysis import get_nutrition_recommendations
+
+        assert get_nutrition_recommendations({"protein": "bad"}) is None
+
     def test_get_nutrition_recommendations_low_protein(self) -> None:
         """Test get_nutrition_recommendations suggests more protein."""
         from core.nutrition_analysis import get_nutrition_recommendations
@@ -124,6 +147,28 @@ class TestNutritionAnalysisFacades:
         result = get_nutrition_recommendations(data)
         assert result is not None
         assert any("protein" in r.lower() for r in result)
+
+    def test_get_nutrition_recommendations_high_protein_low_carbs_low_fat(self) -> None:
+        """Test recommendations for high protein, low carbs, low fat."""
+        from core.nutrition_analysis import get_nutrition_recommendations
+
+        # ~80% protein calories, ~13% carbs, ~7% fat (by calories)
+        data = {"protein": 200, "carbs": 30, "fat": 8}
+        result = get_nutrition_recommendations(data)
+        assert result is not None
+        assert any("protein" in r.lower() for r in result)  # high protein
+        assert any("carb" in r.lower() for r in result)  # low carbs
+        assert any("fat" in r.lower() for r in result)  # low fat
+
+    def test_get_nutrition_recommendations_high_fat(self) -> None:
+        """Test recommendations for high fat intake."""
+        from core.nutrition_analysis import get_nutrition_recommendations
+
+        # Very high fat: fat_pct > 40
+        data = {"protein": 30, "carbs": 50, "fat": 150}
+        result = get_nutrition_recommendations(data)
+        assert result is not None
+        assert any("fat" in r.lower() for r in result)
 
     # --- validate_nutrition_data ---
 

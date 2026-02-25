@@ -116,8 +116,6 @@ def calculate_nutrition_score(data: Dict[str, Any]) -> Optional[float]:
         return None
 
     macros = analysis.get("macros", {})
-    if not macros:
-        return 0.0
 
     # Ideal ratios (by calories): 30% protein, 40% carbs, 30% fat
     ideal_protein = 30.0
@@ -167,8 +165,6 @@ def get_nutrition_recommendations(data: Dict[str, Any]) -> Optional[List[str]]:
         return None
 
     macros = analysis.get("macros", {})
-    if not macros:
-        return ["Insufficient data for recommendations."]
 
     recommendations: List[str] = []
 
