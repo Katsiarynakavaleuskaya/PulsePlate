@@ -109,14 +109,15 @@ def test_main_fails_when_csv_lacks_required_header_aliases(
     assert "input CSV missing required columns/aliases" in stderr
 
 
+@pytest.mark.parametrize("bad_date", ["2026/02/25", "20260225"])
 def test_main_rejects_invalid_snapshot_date(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    bad_date: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     csv_path = tmp_path / "ok.csv"
     csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as exc_info:
-        import_restaurant_menu.main(["--input", str(csv_path), "--snapshot-date", "2026/02/25"])
+        import_restaurant_menu.main(["--input", str(csv_path), "--snapshot-date", bad_date])
     assert exc_info.value.code == 2
     stderr = capsys.readouterr().err
     assert "snapshot-date must be YYYY-MM-DD" in stderr
