@@ -607,6 +607,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nutrition/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Basic nutrient recommendations (FREE)
+         * @description Return WHO-based nutrition recommendations for the given profile.
+         *
+         *     RU: Возвращает рекомендации по питанию на основе норм ВОЗ.
+         *     EN: Returns personalized nutrition recommendations based on WHO standards.
+         */
+        get: operations["get_recommendations_api_v1_nutrition_recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan/week/export.csv": {
         parameters: {
             query?: never;
@@ -997,6 +1020,29 @@ export interface paths {
          *         - Cost estimation
          */
         post: operations["generate_week_plan_api_v1_pro_meal_weekly_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nutrient coverage scoring (PRO)
+         * @description Score nutrient coverage against WHO-based targets.
+         *
+         *     RU: Оценивает покрытие нутриентов в рационе относительно целей ВОЗ.
+         *     EN: Scores actual nutrient intake against personalized WHO targets.
+         */
+        post: operations["score_coverage_api_v1_pro_nutrition_coverage_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3693,6 +3739,110 @@ export interface components {
             min: number;
         };
         /**
+         * NutrientCoverageItem
+         * @description Per-nutrient coverage assessment.
+         *
+         *     RU: Оценка покрытия одного нутриента.
+         *     EN: Coverage assessment for a single nutrient.
+         */
+        NutrientCoverageItem: {
+            /**
+             * Consumed
+             * @description Actual consumed amount
+             */
+            consumed: number;
+            /**
+             * Coverage Percent
+             * @description Percentage of target met (capped at 200%)
+             */
+            coverage_percent: number;
+            /**
+             * Status
+             * @description Coverage status category
+             * @enum {string}
+             */
+            status: "deficient" | "adequate" | "excess";
+            /**
+             * Target
+             * @description Target amount
+             */
+            target: number;
+            /**
+             * Unit
+             * @description Unit of measurement (g, mg, etc.)
+             */
+            unit: string;
+        };
+        /**
+         * NutrientCoverageRequest
+         * @description PRO endpoint request: nutrient coverage scoring.
+         *
+         *     RU: Запрос для PRO эндпоинта оценки покрытия нутриентов.
+         *     EN: Request for PRO nutrient coverage scoring endpoint.
+         */
+        NutrientCoverageRequest: {
+            /**
+             * Consumed
+             * @description Consumed nutrient amounts keyed by nutrient name
+             */
+            consumed: {
+                [key: string]: number;
+            };
+            profile: components["schemas"]["ProfileInput"];
+        };
+        /**
+         * NutrientCoverageResponse
+         * @description PRO endpoint response: nutrient coverage scoring.
+         *
+         *     RU: Ответ для PRO эндпоинта оценки покрытия нутриентов.
+         *     EN: Response for PRO nutrient coverage scoring endpoint.
+         */
+        NutrientCoverageResponse: {
+            /**
+             * Coverage
+             * @description Per-nutrient coverage details
+             */
+            coverage: {
+                [key: string]: components["schemas"]["NutrientCoverageItem"];
+            };
+            /** @description Aggregate coverage statistics */
+            summary: components["schemas"]["NutrientCoverageSummary"];
+        };
+        /**
+         * NutrientCoverageSummary
+         * @description Summary statistics for nutrient coverage.
+         *
+         *     RU: Сводная статистика покрытия нутриентов.
+         *     EN: Summary statistics for nutrient coverage scoring.
+         */
+        NutrientCoverageSummary: {
+            /**
+             * Adequate Count
+             * @description Nutrients with adequate coverage
+             */
+            adequate_count: number;
+            /**
+             * Deficient Count
+             * @description Nutrients with deficient coverage
+             */
+            deficient_count: number;
+            /**
+             * Excess Count
+             * @description Nutrients with excess coverage
+             */
+            excess_count: number;
+            /**
+             * Overall Score
+             * @description Overall nutrition score (0-100)
+             */
+            overall_score: number;
+            /**
+             * Total Nutrients
+             * @description Total nutrients scored
+             */
+            total_nutrients: number;
+        };
+        /**
          * NutrientGapsRequest
          * @description RU: Запрос на анализ дефицитов нутриентов.
          *     EN: Request for nutrient gap analysis.
@@ -3720,6 +3870,46 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+        };
+        /**
+         * NutrientRecommendationsResponse
+         * @description FREE endpoint response: basic nutrient recommendations.
+         *
+         *     RU: Ответ для бесплатного эндпоинта рекомендаций по питанию.
+         *     EN: Response for the free nutrient recommendations endpoint.
+         */
+        NutrientRecommendationsResponse: {
+            /**
+             * Activity
+             * @description Activity targets: moderate_aerobic_min, vigorous_aerobic_min, strength_sessions, steps_daily
+             */
+            activity: {
+                [key: string]: number;
+            };
+            /**
+             * Kcal Daily
+             * @description Target daily calories (kcal)
+             */
+            kcal_daily: number;
+            /**
+             * Macros
+             * @description Macronutrient targets: protein_g, fat_g, carbs_g, fiber_g
+             */
+            macros: {
+                [key: string]: number;
+            };
+            /**
+             * Micros
+             * @description Priority micronutrient targets (WHO/EFSA)
+             */
+            micros: {
+                [key: string]: number;
+            };
+            /**
+             * Water Ml Daily
+             * @description Daily water intake target (ml)
+             */
+            water_ml_daily: number;
         };
         /**
          * NutritionSegmentData
@@ -3960,6 +4150,42 @@ export interface components {
             weekly_coverage: {
                 [key: string]: number;
             };
+        };
+        /**
+         * ProfileInput
+         * @description Reusable profile input for nutrition endpoints.
+         *
+         *     RU: Входные данные профиля для эндпоинтов питания.
+         *     EN: Reusable profile input shared across nutrition endpoints.
+         */
+        ProfileInput: {
+            /**
+             * Activity Level
+             * @description Physical activity level
+             * @enum {string}
+             */
+            activity_level: "low" | "light" | "moderate" | "high" | "very_high";
+            /**
+             * Age
+             * @description Age in years (adults only)
+             */
+            age: number;
+            /**
+             * Gender
+             * @description Biological sex
+             * @enum {string}
+             */
+            gender: "female" | "male";
+            /**
+             * Height Cm
+             * @description Height in cm
+             */
+            height_cm: number;
+            /**
+             * Weight Kg
+             * @description Body weight in kg
+             */
+            weight_kg: number;
         };
         /**
          * ProWeekPlanRequest
@@ -6037,6 +6263,46 @@ export interface operations {
             };
         };
     };
+    get_recommendations_api_v1_nutrition_recommendations_get: {
+        parameters: {
+            query: {
+                /** @description Physical activity level */
+                activity_level: "low" | "light" | "moderate" | "high" | "very_high";
+                /** @description Age in years (adults only) */
+                age: number;
+                /** @description Biological sex */
+                gender: "female" | "male";
+                /** @description Height in cm */
+                height_cm: number;
+                /** @description Body weight in kg */
+                weight_kg: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutrientRecommendationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_week_csv_api_v1_plan_week_export_csv_get: {
         parameters: {
             query?: never;
@@ -6585,6 +6851,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProWeekPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    score_coverage_api_v1_pro_nutrition_coverage_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NutrientCoverageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutrientCoverageResponse"];
                 };
             };
             /** @description Validation Error */

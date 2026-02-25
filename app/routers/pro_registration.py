@@ -59,6 +59,11 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
         app.include_router(pro_router_imported)
         pro_router_result = pro_router_imported
 
+    # Include PRO nutrition insights router (coverage scoring)
+    from app.routers.pro_nutrition_insights import router as pro_nutrition_insights_router
+
+    app.include_router(pro_nutrition_insights_router)
+
     # Include premium_week router for backward compatibility (deprecated)
     # Check FEATURE_PREMIUM_WEEK_ENABLED feature flag
     from app.utils.feature_flags import is_vip_module_enabled
