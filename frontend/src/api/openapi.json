@@ -3906,6 +3906,28 @@
             ],
             "title": "Protein G"
           },
+          "provenance_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance Record Id"
+          },
+          "provenance_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance Source"
+          },
           "serving_size_g": {
             "anyOf": [
               {
@@ -3916,6 +3938,17 @@
               }
             ],
             "title": "Serving Size G"
+          },
+          "snapshot_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Date"
           },
           "sodium_mg": {
             "anyOf": [
