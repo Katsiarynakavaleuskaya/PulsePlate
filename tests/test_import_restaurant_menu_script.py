@@ -1,32 +1,25 @@
 from __future__ import annotations
 
-import runpy
+import os
 from pathlib import Path
 
 import pytest
 
 from app.services import restaurant_store
-
-
-def _load_script_namespace() -> dict[str, object]:
-    repo_root = Path(__file__).resolve().parents[1]
-    script_path = repo_root / "scripts" / "import_restaurant_menu.py"
-    return runpy.run_path(str(script_path))
+from scripts import import_restaurant_menu
 
 
 def test_script_imports_sample_csv_into_local_store(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    namespace = _load_script_namespace()
-    main = namespace["main"]
-    assert callable(main)
-
     repo_root = Path(__file__).resolve().parents[1]
     sample_csv = repo_root / "data" / "restaurant_menu_sample.csv"
-    db_path = tmp_path / "restaurant_menu_cli.sqlite"
+    worker = os.getenv("PYTEST_XDIST_WORKER", "gw0")
+    db_path = tmp_path / f"restaurant_menu_cli_{worker}.sqlite"
+    original_db_path = restaurant_store.DB_PATH
 
-    exit_code = main(
+    exit_code = import_restaurant_menu.main(
         [
             "--input",
             str(sample_csv),
@@ -37,6 +30,7 @@ def test_script_imports_sample_csv_into_local_store(
         ]
     )
     assert exit_code == 0
+    assert restaurant_store.DB_PATH == original_db_path
 
     monkeypatch.setattr(restaurant_store, "DB_PATH", db_path)
     hits = restaurant_store.search_restaurants("pulse", limit=10, offset=0)
@@ -50,10 +44,6 @@ def test_script_imports_sample_csv_into_local_store(
 
 
 def test_load_menu_rows_maps_menustat_aliases(tmp_path: Path) -> None:
-    namespace = _load_script_namespace()
-    load_menu_rows = namespace["load_menu_rows"]
-    assert callable(load_menu_rows)
-
     csv_path = tmp_path / "menustat_like.csv"
     csv_path.write_text(
         (
@@ -62,7 +52,7 @@ def test_load_menu_rows_maps_menustat_aliases(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    rows = load_menu_rows(csv_path)
+    rows = import_restaurant_menu.load_menu_rows(csv_path)
     assert isinstance(rows, list)
     assert len(rows) == 1
     assert rows[0]["chain_name"] == "Chain A"
@@ -73,13 +63,34 @@ def test_load_menu_rows_maps_menustat_aliases(tmp_path: Path) -> None:
     assert rows[0]["sodium_mg"] == "800"
 
 
-def test_main_fails_when_no_valid_rows(tmp_path: Path) -> None:
-    namespace = _load_script_namespace()
-    main = namespace["main"]
-    assert callable(main)
-
+def test_main_fails_when_no_valid_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     csv_path = tmp_path / "empty_rows.csv"
     csv_path.write_text("restaurant,item_name\n,\n", encoding="utf-8")
 
-    exit_code = main(["--input", str(csv_path)])
+    exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
     assert exit_code == 2
+    assert "Import failed:" in capsys.readouterr().err
+
+
+def test_main_fails_when_input_file_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing_path = tmp_path / "missing.csv"
+    exit_code = import_restaurant_menu.main(["--input", str(missing_path)])
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "input file does not exist" in stderr
+
+
+def test_main_fails_when_csv_has_no_header_row(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    csv_path = tmp_path / "headerless.csv"
+    csv_path.write_text("Chain A,Item 1,500\n", encoding="utf-8")
+
+    exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert "input CSV has no header row" in stderr

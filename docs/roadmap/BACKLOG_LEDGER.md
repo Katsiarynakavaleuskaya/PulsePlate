@@ -109,7 +109,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W3-C (`feat/food-db-w3d-menustat-importer`)
+  - Target PR: PR #904 (`feat/food-db-w3d-menustat-importer`)
   - Status: In Progress
   - Area: backend / ingestion operations / restaurant coverage
   - Finding Type: operational gap closure

@@ -14,10 +14,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
-
 from app.services import restaurant_store
 
 _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
@@ -33,6 +29,16 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "sodium_mg": ("sodium_mg", "sodium"),
     "source_id": ("source_id", "menu_item_id", "id"),
 }
+
+
+def _has_required_header_aliases(fieldnames: list[str] | None) -> bool:
+    """Check that CSV headers contain required alias groups."""
+    if fieldnames is None:
+        return False
+    headers = {field.strip() for field in fieldnames if field and field.strip()}
+    chain_aliases = set(_FIELD_ALIASES["chain_name"])
+    item_aliases = set(_FIELD_ALIASES["item_name"])
+    return bool(headers.intersection(chain_aliases)) and bool(headers.intersection(item_aliases))
 
 
 def _first_present_value(row: dict[str, Any], aliases: tuple[str, ...]) -> str | None:
@@ -65,7 +71,7 @@ def load_menu_rows(csv_path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
+        if not _has_required_header_aliases(reader.fieldnames):
             raise ValueError("input CSV has no header row")
         for raw_row in reader:
             normalized = normalize_row(raw_row)
@@ -83,25 +89,31 @@ def run_import(
     db_path: Path | None,
 ) -> dict[str, Any]:
     """Execute import and return summary stats."""
-    if db_path is not None:
-        restaurant_store.DB_PATH = db_path
-        restaurant_store.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    original_db_path = restaurant_store.DB_PATH
+    effective_db_path = original_db_path
+    try:
+        if db_path is not None:
+            restaurant_store.DB_PATH = db_path
+            restaurant_store.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            effective_db_path = restaurant_store.DB_PATH
 
-    rows = load_menu_rows(input_path)
-    if not rows:
-        raise ValueError("no valid menu rows found in input")
+        rows = load_menu_rows(input_path)
+        if not rows:
+            raise ValueError("no valid menu rows found in input")
 
-    stats = restaurant_store.import_menustat_rows(
-        rows,
-        snapshot_date=snapshot_date,
-        source_name=source_name,
-    )
-    return {
-        "input": str(input_path),
-        "db_path": str(restaurant_store.DB_PATH),
-        "rows_loaded": len(rows),
-        **stats,
-    }
+        stats = restaurant_store.import_menustat_rows(
+            rows,
+            snapshot_date=snapshot_date,
+            source_name=source_name,
+        )
+        return {
+            "input": str(input_path),
+            "db_path": str(effective_db_path),
+            "rows_loaded": len(rows),
+            **stats,
+        }
+    finally:
+        restaurant_store.DB_PATH = original_db_path
 
 
 def build_parser() -> argparse.ArgumentParser:
