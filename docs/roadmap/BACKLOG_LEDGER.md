@@ -67,7 +67,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #891, PR #893, PR #898
-  - Status: In Progress (W2-A and W2-B merged; W2-C latency benchmark/report prepared and pending merge)
+  - Status: In Progress (W2-A/W2-B/W2-C merged; barcode hit contract follow-up in progress)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
@@ -109,8 +109,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Food barcode hit contract normalization for canonical FoodItem response
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W2-HIT-CONTRACT
-  - Status: Planned
+  - Target PR: PR-TBD-FOOD-DB-W2-HIT-CONTRACT (`fix/food-barcode-hit-contract`)
+  - Status: In Progress
   - Area: backend / API contract / data normalization
   - Finding Type: correctness and reliability gap
   - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of list, causing non-deterministic hit-path behavior in benchmark and runtime.
