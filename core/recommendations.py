@@ -297,6 +297,41 @@ def _get_nutrient_food_sources(lang: str = "en") -> Dict[str, List[str]]:
             "zinc_mg": ["мясо", "орехи", "семена", "бобовые"],
             "magnesium_mg": ["орехи", "семена", "темная зелень", "цельные зерна"],
         }
+    elif lang == "es":
+        return {
+            "iron_mg": [
+                "carne roja magra",
+                "lentejas",
+                "espinacas",
+                "semillas de calabaza",
+                "cereales fortificados",
+            ],
+            "calcium_mg": [
+                "productos lácteos",
+                "verduras de hoja verde",
+                "sardinas",
+                "almendras",
+                "leche vegetal fortificada",
+            ],
+            "folate_ug": [
+                "legumbres",
+                "verduras de hoja verde",
+                "aguacate",
+                "espárragos",
+                "cereales fortificados",
+            ],
+            "vitamin_d_iu": ["pescado graso", "yemas de huevo", "leche fortificada", "champiñones"],
+            "b12_ug": ["carne", "pescado", "lácteos", "huevos", "levadura nutricional"],
+            "iodine_ug": ["algas marinas", "pescado", "sal yodada", "lácteos"],
+            "zinc_mg": ["carne", "nueces", "semillas", "legumbres", "cereales integrales"],
+            "magnesium_mg": [
+                "nueces",
+                "semillas",
+                "verduras de hoja verde oscuro",
+                "cereales integrales",
+                "chocolate negro",
+            ],
+        }
     else:
         return {
             "iron_mg": [
@@ -350,10 +385,16 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
             "b12_ug": "рассмотрите обогащённые дрожжи или растительное молоко",
             "zinc_mg": "замачивайте бобовые и зерна для улучшения усвоения",
         },
+        "es": {
+            "iron_mg": "combine con alimentos ricos en vitamina C para mejor absorción",
+            "b12_ug": "considere levadura nutricional fortificada o leche vegetal fortificada",
+            "zinc_mg": "remoje legumbres y cereales para mejorar la absorción",
+        },
     }
 
-    if nutrient in vegetarian_swaps[lang]:
-        return f"{recommendation} ({vegetarian_swaps[lang][nutrient]})"
+    lang_swaps = vegetarian_swaps.get(lang, vegetarian_swaps["en"])
+    if nutrient in lang_swaps:
+        return f"{recommendation} ({lang_swaps[nutrient]})"
 
     return recommendation
 

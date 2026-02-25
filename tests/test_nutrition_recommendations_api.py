@@ -1,8 +1,11 @@
-"""Tests for Nutrition Recommendations API endpoints (PR-1).
+"""Tests for Nutrition Recommendations API endpoints (PR-1 + PR-2).
 
 Covers:
 - FREE: GET /api/v1/nutrition/recommendations
 - PRO:  POST /api/v1/pro/nutrition/coverage
+- PRO:  POST /api/v1/pro/nutrition/deficiency-recommendations  (PR-2)
+- PRO:  POST /api/v1/pro/nutrition/micronutrient-targets        (PR-2)
+- PRO:  POST /api/v1/pro/nutrition/safety-check                 (PR-2)
 
 RU: Тесты для API эндпоинтов рекомендаций по питанию.
 EN: Tests for nutrition recommendation API endpoints.
@@ -386,3 +389,340 @@ class TestProCoverageValidation:
         body = {"consumed": {"protein_g": 80.0}}
         resp = client.post(_PRO_COVERAGE_URL, json=body, headers=pro_headers)
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# PR-2 endpoints
+# ---------------------------------------------------------------------------
+
+_PRO_DEFICIENCY_URL = "/api/v1/pro/nutrition/deficiency-recommendations"
+_PRO_MICRO_TARGETS_URL = "/api/v1/pro/nutrition/micronutrient-targets"
+_PRO_SAFETY_CHECK_URL = "/api/v1/pro/nutrition/safety-check"
+
+_VALID_PROFILE: dict = {
+    "age": 35,
+    "gender": "male",
+    "weight_kg": 75.0,
+    "height_cm": 178.0,
+    "activity_level": "moderate",
+}
+
+_VALID_DEFICIENCY_BODY: dict = {
+    "profile": _VALID_PROFILE,
+    "consumed": {
+        "protein_g": 80.0,
+        "fat_g": 60.0,
+        "carbs_g": 250.0,
+        "fiber_g": 25.0,
+        "iron_mg": 5.0,
+        "calcium_mg": 400.0,
+        "vitamin_c_mg": 10.0,
+    },
+    "lang": "en",
+}
+
+_VALID_MICRO_BODY: dict = {"profile": _VALID_PROFILE}
+_VALID_SAFETY_BODY: dict = {"profile": _VALID_PROFILE}
+
+
+# ---------------------------------------------------------------------------
+# Deficiency Recommendations
+# ---------------------------------------------------------------------------
+
+
+class TestDeficiencyRecsTierGuards:
+    """Tier guard tests: deficiency-recommendations requires PRO key."""
+
+    def test_no_auth_401_or_403(self, client: TestClient) -> None:
+        resp = client.post(_PRO_DEFICIENCY_URL, json=_VALID_DEFICIENCY_BODY)
+        assert resp.status_code in (401, 403)
+
+    def test_pro_key_200(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_DEFICIENCY_URL, json=_VALID_DEFICIENCY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+
+    def test_vip_key_200(self, client: TestClient, vip_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_DEFICIENCY_URL, json=_VALID_DEFICIENCY_BODY, headers=vip_headers)
+        assert resp.status_code == 200
+
+
+class TestDeficiencyRecsContract:
+    """Contract tests for deficiency-recommendations endpoint."""
+
+    def test_response_structure(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_DEFICIENCY_URL, json=_VALID_DEFICIENCY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert "recommendations" in data
+        assert "deficient_count" in data
+        assert "profile_summary" in data
+        assert isinstance(data["recommendations"], list)
+        assert isinstance(data["deficient_count"], int)
+        assert data["deficient_count"] >= 0
+
+    def test_lang_ru(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {**_VALID_DEFICIENCY_BODY, "lang": "ru"}
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert isinstance(data["recommendations"], list)
+
+    def test_lang_es(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {**_VALID_DEFICIENCY_BODY, "lang": "es"}
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert isinstance(data["recommendations"], list)
+
+    def test_veg_flag_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {
+            "profile": {**_VALID_PROFILE, "diet_flags": ["VEG"]},
+            "consumed": _VALID_DEFICIENCY_BODY["consumed"],
+            "lang": "en",
+        }
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+
+    def test_profile_summary_format(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_DEFICIENCY_URL, json=_VALID_DEFICIENCY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        summary = resp.json()["profile_summary"]
+        assert "male" in summary
+        assert "35y" in summary
+        assert "75.0kg" in summary
+
+
+class TestDeficiencyRecsValidation:
+    """422 validation tests for deficiency-recommendations."""
+
+    def test_empty_consumed_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {"profile": _VALID_PROFILE, "consumed": {}, "lang": "en"}
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_negative_consumed_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {"profile": _VALID_PROFILE, "consumed": {"iron_mg": -5.0}, "lang": "en"}
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_invalid_profile_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {
+            "profile": {**_VALID_PROFILE, "age": 200},
+            "consumed": {"iron_mg": 5.0},
+            "lang": "en",
+        }
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Micronutrient Targets
+# ---------------------------------------------------------------------------
+
+
+class TestMicroTargetsTierGuards:
+    """Tier guard tests: micronutrient-targets requires PRO key."""
+
+    def test_no_auth_401_or_403(self, client: TestClient) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY)
+        assert resp.status_code in (401, 403)
+
+    def test_pro_key_200(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+
+    def test_vip_key_200(self, client: TestClient, vip_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=vip_headers)
+        assert resp.status_code == 200
+
+
+class TestMicroTargetsContract:
+    """Contract tests for micronutrient-targets endpoint."""
+
+    def test_response_structure(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert "nutrients" in data
+        assert "deficiency_threshold" in data
+        assert 0.0 < data["deficiency_threshold"] <= 1.0
+
+    def test_all_12_nutrients_present(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        nutrients = resp.json()["nutrients"]
+        expected = {
+            "iron_mg",
+            "calcium_mg",
+            "magnesium_mg",
+            "zinc_mg",
+            "potassium_mg",
+            "iodine_ug",
+            "selenium_ug",
+            "folate_ug",
+            "b12_ug",
+            "vitamin_d_iu",
+            "vitamin_a_ug",
+            "vitamin_c_mg",
+        }
+        assert set(nutrients.keys()) == expected
+
+    def test_ranges_min_le_target_le_max(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        for name, detail in resp.json()["nutrients"].items():
+            assert (
+                detail["min"] <= detail["target"] <= detail["max"]
+            ), f"{name}: min={detail['min']} target={detail['target']} max={detail['max']}"
+
+    def test_priority_field_present(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=_VALID_MICRO_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        nutrients = resp.json()["nutrients"]
+        # iron_mg should have priority=5 (highest priority mineral)
+        assert nutrients["iron_mg"]["priority"] == 5
+
+
+class TestMicroTargetsValidation:
+    """422 validation tests for micronutrient-targets."""
+
+    def test_invalid_profile_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {"profile": {**_VALID_PROFILE, "gender": "other"}}
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_missing_profile_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json={}, headers=pro_headers)
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Safety Check
+# ---------------------------------------------------------------------------
+
+
+class TestSafetyCheckTierGuards:
+    """Tier guard tests: safety-check requires PRO key."""
+
+    def test_no_auth_401_or_403(self, client: TestClient) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY)
+        assert resp.status_code in (401, 403)
+
+    def test_pro_key_200(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+
+    def test_vip_key_200(self, client: TestClient, vip_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=vip_headers)
+        assert resp.status_code == 200
+
+
+class TestSafetyCheckContract:
+    """Contract tests for safety-check endpoint."""
+
+    def test_response_structure(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert "is_safe" in data
+        assert "warnings" in data
+        assert "targets_summary" in data
+        assert isinstance(data["is_safe"], bool)
+        assert isinstance(data["warnings"], list)
+
+    def test_normal_profile_is_safe(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        """A healthy normal profile should pass safety checks."""
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert data["is_safe"] is True
+        assert data["warnings"] == []
+
+    def test_targets_summary_fields(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        ts = resp.json()["targets_summary"]
+        assert "kcal_daily" in ts
+        assert "protein_pct" in ts
+        assert "water_ml_daily" in ts
+        assert ts["kcal_daily"] > 0
+        assert 0.0 <= ts["protein_pct"] <= 100.0
+        assert ts["water_ml_daily"] > 0
+
+    def test_is_safe_matches_warnings(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """is_safe must be True iff warnings list is empty."""
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert data["is_safe"] == (len(data["warnings"]) == 0)
+
+
+class TestSafetyCheckValidation:
+    """422 validation tests for safety-check."""
+
+    def test_invalid_profile_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {"profile": {**_VALID_PROFILE, "age": 0}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_missing_profile_422(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json={}, headers=pro_headers)
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Extended ProfileInput (cross-endpoint)
+# ---------------------------------------------------------------------------
+
+
+class TestProfileInputExtended:
+    """Tests for extended ProfileInput optional fields across endpoints."""
+
+    def test_defaults_backward_compatible(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """Omitting optional fields should still work (defaults to maintain/adult/[])."""
+        body = {"profile": _VALID_PROFILE}
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+
+    def test_goal_loss_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {"profile": {**_VALID_PROFILE, "goal": "loss"}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+
+    def test_diet_flags_and_life_stage(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        body = {
+            "profile": {
+                **_VALID_PROFILE,
+                "goal": "gain",
+                "diet_flags": ["VEG", "GF"],
+                "life_stage": "elderly",
+                "age": 65,
+            }
+        }
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)

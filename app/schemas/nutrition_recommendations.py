@@ -32,6 +32,15 @@ class ProfileInput(BaseModel):
     activity_level: Literal["low", "light", "moderate", "high", "very_high"] = Field(
         ..., description="Physical activity level"
     )
+    # Optional fields (defaults preserve PR-1 behaviour)
+    goal: Literal["loss", "maintain", "gain"] = Field("maintain", description="Nutrition goal")
+    diet_flags: list[str] = Field(
+        default_factory=list,
+        description="Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST",
+    )
+    life_stage: Literal["adult", "teen", "pregnant", "lactating", "elderly"] = Field(
+        "adult", description="Life stage for adjusted targets"
+    )
 
 
 class NutrientRecommendationsResponse(BaseModel):
@@ -119,3 +128,106 @@ class NutrientCoverageResponse(BaseModel):
         ..., description="Per-nutrient coverage details"
     )
     summary: NutrientCoverageSummary = Field(..., description="Aggregate coverage statistics")
+
+
+# ---------------------------------------------------------------------------
+# PR-2 models: deficiency recommendations, micronutrient targets, safety check
+# ---------------------------------------------------------------------------
+
+
+class DeficiencyRecommendationsRequest(BaseModel):
+    """RU: Запрос для рекомендаций по устранению дефицитов.
+    EN: Request for food-based deficiency recommendations.
+    """
+
+    profile: ProfileInput
+    consumed: dict[str, _NonNegativeFloat] = Field(
+        ..., min_length=1, description="Consumed nutrient amounts keyed by nutrient name"
+    )
+    lang: Literal["en", "ru", "es"] = Field("en", description="Response language")
+
+    @field_validator("consumed")
+    @classmethod
+    def _validate_consumed_values(cls, v: dict[str, float]) -> dict[str, float]:
+        bad = [k for k, val in v.items() if (not isfinite(val)) or val < 0]
+        if bad:
+            raise ValueError(f"consumed values must be finite and >= 0; invalid keys: {bad}")
+        return v
+
+
+class DeficiencyRecommendationsResponse(BaseModel):
+    """RU: Ответ с рекомендациями по устранению дефицитов.
+    EN: Response with food-based deficiency recommendations.
+    """
+
+    recommendations: list[str] = Field(
+        ..., description="Food-based recommendations for deficient nutrients"
+    )
+    deficient_count: int = Field(..., ge=0, description="Number of deficient nutrients")
+    profile_summary: str = Field(..., description="Brief profile description")
+
+
+class MicronutrientTargetsRequest(BaseModel):
+    """RU: Запрос расширенных микронутриентных целей.
+    EN: Request for extended micronutrient targets with ranges.
+    """
+
+    profile: ProfileInput
+
+
+class MicronutrientDetail(BaseModel):
+    """RU: Детализация одного микронутриента с диапазоном.
+    EN: Single micronutrient detail with min/target/max range.
+    """
+
+    min: float = Field(..., ge=0, description="Minimum acceptable intake")
+    target: float = Field(..., ge=0, description="Recommended daily target")
+    max: float = Field(..., ge=0, description="Upper safe limit")
+    unit: str = Field(..., description="Unit of measurement (mg, mcg, IU)")
+    priority: int | None = Field(None, ge=1, le=5, description="Priority level (1-5, 5=highest)")
+
+
+class MicronutrientTargetsResponse(BaseModel):
+    """RU: Ответ с расширенными микронутриентными целями.
+    EN: Response with extended micronutrient targets and ranges.
+    """
+
+    nutrients: dict[str, MicronutrientDetail] = Field(
+        ..., description="Per-nutrient targets with ranges"
+    )
+    deficiency_threshold: float = Field(
+        ...,
+        gt=0,
+        le=1,
+        description="Threshold below which intake is deficient (fraction of target)",
+    )
+
+
+class TargetsSummary(BaseModel):
+    """RU: Краткая сводка рассчитанных целей.
+    EN: Brief summary of calculated nutrition targets.
+    """
+
+    kcal_daily: int = Field(..., description="Target daily calories")
+    protein_pct: float = Field(
+        ..., ge=0, le=100, description="Protein percentage of total calories"
+    )
+    water_ml_daily: int = Field(..., description="Daily water target (ml)")
+
+
+class SafetyCheckRequest(BaseModel):
+    """RU: Запрос проверки безопасности целевых значений.
+    EN: Request for safety validation of nutrition targets.
+    """
+
+    profile: ProfileInput
+
+
+class SafetyCheckResponse(BaseModel):
+    """RU: Ответ проверки безопасности целевых значений.
+    EN: Response with safety validation results.
+    """
+
+    is_safe: bool = Field(..., description="True if no safety warnings")
+    warnings: list[str] = Field(..., description="Safety warning messages (empty if safe)")
+    targets_summary: TargetsSummary = Field(..., description="Summary of calculated targets")
