@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -76,6 +77,17 @@ def test_load_menu_rows_handles_whitespace_in_header_names(tmp_path: Path) -> No
     assert rows[0]["kcal"] == "400"
 
 
+def test_load_menu_rows_does_not_use_generic_id_as_source_id(tmp_path: Path) -> None:
+    csv_path = tmp_path / "menu_with_generic_id.csv"
+    csv_path.write_text(
+        ("restaurant,item_name,id\n" "Chain C,Item 3,generic-123\n"),
+        encoding="utf-8",
+    )
+    rows = import_restaurant_menu.load_menu_rows(csv_path)
+    assert len(rows) == 1
+    assert "source_id" not in rows[0]
+
+
 def test_main_fails_when_no_valid_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     csv_path = tmp_path / "empty_rows.csv"
     csv_path.write_text("restaurant,item_name\n,\n", encoding="utf-8")
@@ -144,3 +156,31 @@ def test_main_rejects_invalid_snapshot_date(
     assert exc_info.value.code == 2
     stderr = capsys.readouterr().err
     assert "snapshot-date must be YYYY-MM-DD" in stderr
+
+
+@pytest.mark.parametrize(
+    ("raised_exc", "message"),
+    [
+        (PermissionError("denied"), "denied"),
+        (sqlite3.OperationalError("db locked"), "db locked"),
+    ],
+)
+def test_main_fail_closed_on_os_and_sqlite_errors(
+    raised_exc: Exception,
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    csv_path = tmp_path / "ok.csv"
+    csv_path.write_text("restaurant,item_name\nChain A,Item 1\n", encoding="utf-8")
+
+    def _raise_error(**_: object) -> dict[str, object]:
+        raise raised_exc
+
+    monkeypatch.setattr(import_restaurant_menu, "run_import", _raise_error)
+    exit_code = import_restaurant_menu.main(["--input", str(csv_path)])
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Import failed:" in stderr
+    assert message in stderr

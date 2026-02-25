@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import re
+import sqlite3
 import sys
 from datetime import date
 from pathlib import Path
@@ -29,7 +30,7 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "fat_g": ("fat_g", "total_fat"),
     "carbs_g": ("carbs_g", "total_carbohydrate"),
     "sodium_mg": ("sodium_mg", "sodium"),
-    "source_id": ("source_id", "menu_item_id", "id"),
+    "source_id": ("source_id", "menu_item_id"),
 }
 _DATE_YYYY_MM_DD = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -184,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             source_name=args.source_name,
             db_path=args.db_path,
         )
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, OSError, sqlite3.Error) as exc:
         print(f"Import failed: {exc}", file=sys.stderr)
         return 2
 
