@@ -89,7 +89,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #895 (+ follow-up PR #901, `feat/food-db-w3b-menustat-provenance-closure`)
-  - Status: In Progress (W3-A foundation merged in PR #895; W3-B MenuStat ingestion/provenance closure in progress)
+  - Status: In Progress (W3-A foundation merged in PR #895; W3-B closure tracked in PR #901 and is finalized on merge)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
   - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
