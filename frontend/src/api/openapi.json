@@ -2741,6 +2741,139 @@
         "title": "NumericRangeSchema",
         "type": "object"
       },
+      "NutrientCoverageItem": {
+        "description": "Per-nutrient coverage assessment.\n\nRU: Оценка покрытия одного нутриента.\nEN: Coverage assessment for a single nutrient.",
+        "properties": {
+          "consumed": {
+            "description": "Actual consumed amount",
+            "title": "Consumed",
+            "type": "number"
+          },
+          "coverage_percent": {
+            "description": "Percentage of target met (capped at 200%)",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Coverage Percent",
+            "type": "number"
+          },
+          "status": {
+            "description": "Coverage status category",
+            "enum": [
+              "deficient",
+              "adequate",
+              "excess"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "description": "Target amount",
+            "title": "Target",
+            "type": "number"
+          },
+          "unit": {
+            "description": "Unit of measurement (g, mg, etc.)",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consumed",
+          "target",
+          "coverage_percent",
+          "status",
+          "unit"
+        ],
+        "title": "NutrientCoverageItem",
+        "type": "object"
+      },
+      "NutrientCoverageRequest": {
+        "description": "PRO endpoint request: nutrient coverage scoring.\n\nRU: Запрос для PRO эндпоинта оценки покрытия нутриентов.\nEN: Request for PRO nutrient coverage scoring endpoint.",
+        "properties": {
+          "consumed": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Consumed nutrient amounts keyed by nutrient name",
+            "minProperties": 1,
+            "title": "Consumed",
+            "type": "object"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileInput"
+          }
+        },
+        "required": [
+          "profile",
+          "consumed"
+        ],
+        "title": "NutrientCoverageRequest",
+        "type": "object"
+      },
+      "NutrientCoverageResponse": {
+        "description": "PRO endpoint response: nutrient coverage scoring.\n\nRU: Ответ для PRO эндпоинта оценки покрытия нутриентов.\nEN: Response for PRO nutrient coverage scoring endpoint.",
+        "properties": {
+          "coverage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NutrientCoverageItem"
+            },
+            "description": "Per-nutrient coverage details",
+            "title": "Coverage",
+            "type": "object"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/NutrientCoverageSummary",
+            "description": "Aggregate coverage statistics"
+          }
+        },
+        "required": [
+          "coverage",
+          "summary"
+        ],
+        "title": "NutrientCoverageResponse",
+        "type": "object"
+      },
+      "NutrientCoverageSummary": {
+        "description": "Summary statistics for nutrient coverage.\n\nRU: Сводная статистика покрытия нутриентов.\nEN: Summary statistics for nutrient coverage scoring.",
+        "properties": {
+          "adequate_count": {
+            "description": "Nutrients with adequate coverage",
+            "title": "Adequate Count",
+            "type": "integer"
+          },
+          "deficient_count": {
+            "description": "Nutrients with deficient coverage",
+            "title": "Deficient Count",
+            "type": "integer"
+          },
+          "excess_count": {
+            "description": "Nutrients with excess coverage",
+            "title": "Excess Count",
+            "type": "integer"
+          },
+          "overall_score": {
+            "description": "Overall nutrition score (0-100)",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Overall Score",
+            "type": "number"
+          },
+          "total_nutrients": {
+            "description": "Total nutrients scored",
+            "title": "Total Nutrients",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_nutrients",
+          "adequate_count",
+          "deficient_count",
+          "excess_count",
+          "overall_score"
+        ],
+        "title": "NutrientCoverageSummary",
+        "type": "object"
+      },
       "NutrientGapsRequest": {
         "description": "RU: Запрос на анализ дефицитов нутриентов.\nEN: Request for nutrient gap analysis.",
         "properties": {
@@ -2791,6 +2924,54 @@
           "adherence_score"
         ],
         "title": "NutrientGapsResponse",
+        "type": "object"
+      },
+      "NutrientRecommendationsResponse": {
+        "description": "FREE endpoint response: basic nutrient recommendations.\n\nRU: Ответ для бесплатного эндпоинта рекомендаций по питанию.\nEN: Response for the free nutrient recommendations endpoint.",
+        "properties": {
+          "activity": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Activity targets: moderate_aerobic_min, vigorous_aerobic_min, strength_sessions, steps_daily",
+            "title": "Activity",
+            "type": "object"
+          },
+          "kcal_daily": {
+            "description": "Target daily calories (kcal)",
+            "title": "Kcal Daily",
+            "type": "integer"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Macronutrient targets: protein_g, fat_g, carbs_g, fiber_g",
+            "title": "Macros",
+            "type": "object"
+          },
+          "micros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Priority micronutrient targets (WHO/EFSA)",
+            "title": "Micros",
+            "type": "object"
+          },
+          "water_ml_daily": {
+            "description": "Daily water intake target (ml)",
+            "title": "Water Ml Daily",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kcal_daily",
+          "macros",
+          "water_ml_daily",
+          "micros",
+          "activity"
+        ],
+        "title": "NutrientRecommendationsResponse",
         "type": "object"
       },
       "NutritionSegmentData": {
@@ -3516,6 +3697,62 @@
           "adherence_score"
         ],
         "title": "ProWeekPlanResponse",
+        "type": "object"
+      },
+      "ProfileInput": {
+        "description": "Reusable profile input for nutrition endpoints.\n\nRU: Входные данные профиля для эндпоинтов питания.\nEN: Reusable profile input shared across nutrition endpoints.",
+        "properties": {
+          "activity_level": {
+            "description": "Physical activity level",
+            "enum": [
+              "low",
+              "light",
+              "moderate",
+              "high",
+              "very_high"
+            ],
+            "title": "Activity Level",
+            "type": "string"
+          },
+          "age": {
+            "description": "Age in years",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Age",
+            "type": "integer"
+          },
+          "gender": {
+            "description": "Biological sex",
+            "enum": [
+              "female",
+              "male"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "height_cm": {
+            "description": "Height in cm",
+            "maximum": 250.0,
+            "minimum": 100.0,
+            "title": "Height Cm",
+            "type": "number"
+          },
+          "weight_kg": {
+            "description": "Body weight in kg",
+            "maximum": 300.0,
+            "minimum": 30.0,
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "age",
+          "gender",
+          "weight_kg",
+          "height_cm",
+          "activity_level"
+        ],
+        "title": "ProfileInput",
         "type": "object"
       },
       "QuantityDTO-Input": {
@@ -7087,6 +7324,112 @@
         "summary": "Insight V1 Route"
       }
     },
+    "/api/v1/nutrition/recommendations": {
+      "get": {
+        "description": "Return WHO-based nutrition recommendations for the given profile.\n\nRU: Возвращает рекомендации по питанию на основе норм ВОЗ.\nEN: Returns personalized nutrition recommendations based on WHO standards.",
+        "operationId": "get_recommendations_api_v1_nutrition_recommendations_get",
+        "parameters": [
+          {
+            "description": "Age in years",
+            "in": "query",
+            "name": "age",
+            "required": true,
+            "schema": {
+              "description": "Age in years",
+              "maximum": 120,
+              "minimum": 1,
+              "title": "Age",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Biological sex",
+            "in": "query",
+            "name": "gender",
+            "required": true,
+            "schema": {
+              "description": "Biological sex",
+              "enum": [
+                "female",
+                "male"
+              ],
+              "title": "Gender",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Body weight in kg",
+            "in": "query",
+            "name": "weight_kg",
+            "required": true,
+            "schema": {
+              "description": "Body weight in kg",
+              "maximum": 300.0,
+              "minimum": 30.0,
+              "title": "Weight Kg",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Height in cm",
+            "in": "query",
+            "name": "height_cm",
+            "required": true,
+            "schema": {
+              "description": "Height in cm",
+              "maximum": 250.0,
+              "minimum": 100.0,
+              "title": "Height Cm",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Physical activity level",
+            "in": "query",
+            "name": "activity_level",
+            "required": true,
+            "schema": {
+              "description": "Physical activity level",
+              "enum": [
+                "low",
+                "light",
+                "moderate",
+                "high",
+                "very_high"
+              ],
+              "title": "Activity Level",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutrientRecommendationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Basic nutrient recommendations (FREE)",
+        "tags": [
+          "nutrition"
+        ]
+      }
+    },
     "/api/v1/plan/week/export.csv": {
       "get": {
         "operationId": "export_week_csv_api_v1_plan_week_export_csv_get",
@@ -7851,6 +8194,54 @@
         ],
         "summary": "Generate weekly meal plan (PRO tier)",
         "tags": [
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/coverage": {
+      "post": {
+        "description": "Score nutrient coverage against WHO-based targets.\n\nRU: Оценивает покрытие нутриентов в рационе относительно целей ВОЗ.\nEN: Scores actual nutrient intake against personalized WHO targets.",
+        "operationId": "score_coverage_api_v1_pro_nutrition_coverage_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NutrientCoverageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutrientCoverageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Nutrient coverage scoring (PRO)",
+        "tags": [
+          "nutrition",
           "pro"
         ]
       }

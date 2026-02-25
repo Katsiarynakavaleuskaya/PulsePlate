@@ -51,6 +51,7 @@ from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_rout
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
+from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
@@ -838,6 +839,7 @@ async def admin_status() -> Dict[str, str]:
 protected_dependency = Depends(_get_api_key_dynamic)
 
 app.include_router(foods_router)
+app.include_router(nutrition_recommendations_router)
 app.include_router(restaurants_router)
 app.include_router(recipes_router)
 app.include_router(users_router)
