@@ -1154,6 +1154,7 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ **After PR merge, clean local branch, remote branch, and merged worktree in the same work session.**
 - ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
+- ✅ **Before continuing work after merge, verify PR state (`gh pr view <N> --json state,mergeCommit,mergedAt`). If `state=MERGED`, start a new worktree + branch from `origin/main` and do not push to the merged PR branch.**
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.
@@ -1187,6 +1188,10 @@ git worktree prune
 
 # 7) Ensure local repo sees the new main head
 git rev-parse origin/main
+
+# 8) Before any further commits, verify merged PR state and switch scope
+gh pr view <N> --json state,mergeCommit,mergedAt
+# If state=MERGED: create a new worktree + branch from origin/main.
 ```
 
 **Incident response (if force-push to main occurred):**
