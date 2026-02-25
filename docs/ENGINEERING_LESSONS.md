@@ -188,7 +188,13 @@ real database and return unexpected results.
 
 - PR #896: 12 tests in `test_food_store_coverage.py` failed on Python 3.12 CI.
 - PR #897: 8 tests in `test_food_store_coverage_boost.py` — same root cause,
-  missed in PR #896 scope.
+  missed in the scope of PR #896.
+
+### Evidence (file:line)
+
+- `tests/test_food_store_coverage_boost.py:126-170` (monkeypatch migration for `_connect` targets)
+- `tests/test_food_store_coverage_boost.py:67-72` (autouse `monkeypatch.setenv` isolation)
+- `tests/AGENTS.md:21-25` (policy update for `@patch` vs `monkeypatch.setattr`)
 
 ### Fix
 

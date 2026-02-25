@@ -60,8 +60,8 @@ class _MockConnection:
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
-    ) -> None:
-        return None
+    ) -> bool | None:
+        return False
 
 
 @pytest.fixture(autouse=True)
