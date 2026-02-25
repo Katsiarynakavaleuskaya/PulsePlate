@@ -66,13 +66,15 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #891, PR #893 (+ follow-up latency benchmark PR-TBD-FOOD-DB-W2-C)
-  - Status: In Progress (W2-A and W2-B merged; latency benchmark/report pending)
+  - Target PR: PR #891, PR #893, PR #898
+  - Status: In Progress (W2-A and W2-B merged; W2-C latency benchmark/report prepared and pending merge)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
   - Links:
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+    - `scripts/benchmarks/food_api_latency_benchmark.py`
     - `app/routers/foods.py`
     - `app/services/food_store.py`
     - `tests/test_food_store_service.py`
@@ -86,8 +88,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W3-A
-  - Status: In Progress (W3-A foundation: restaurant schema/endpoints + moderated submissions)
+  - Target PR: PR #895 (+ follow-up PR-TBD-FOOD-DB-W3-B)
+  - Status: In Progress (W3-A foundation merged in PR #895; MenuStat ingestion/provenance closure pending)
   - Area: backend / data model / partner enablement
   - Finding Type: product coverage expansion
   - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
@@ -103,6 +105,23 @@ If it is not recorded here — it does not exist.
     - Restaurant menu schema and endpoints are documented
     - Moderated user submission workflow is implemented (`pending/approved/rejected`)
     - Source audit trail persists provenance for imported and moderated records
+
+- [ ] P1: Food barcode hit contract normalization for canonical FoodItem response
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DB-W2-HIT-CONTRACT
+  - Status: Planned
+  - Area: backend / API contract / data normalization
+  - Finding Type: correctness and reliability gap
+  - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of list, causing non-deterministic hit-path behavior in benchmark and runtime.
+  - Links:
+    - `app/routers/foods.py`
+    - `app/schemas/food.py`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+  - DoD:
+    - Barcode hit path returns `200` with valid `FoodItem` serialization on canonical seeded DB
+    - `flags` storage/parse contract is normalized and backward-compatible
+    - Deterministic tests cover hit/miss/malformed barcode paths
 
 - [ ] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
   - Owner: @katsiaryna_kavaleuskaya
