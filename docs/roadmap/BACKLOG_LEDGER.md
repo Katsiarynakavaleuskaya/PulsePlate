@@ -66,14 +66,14 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #891, PR #893, PR-TBD-FOOD-DB-W2-C
+  - Target PR: PR #891, PR #893, PR #898
   - Status: In Progress (W2-A and W2-B merged; W2-C latency benchmark/report prepared and pending merge)
   - Area: backend / search / API
   - Finding Type: performance and UX improvement
   - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
   - Links:
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-    - `docs/audit/PR_TBD_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
     - `scripts/benchmarks/food_api_latency_benchmark.py`
     - `app/routers/foods.py`
     - `app/services/food_store.py`
@@ -117,7 +117,7 @@ If it is not recorded here — it does not exist.
   - Links:
     - `app/routers/foods.py`
     - `app/schemas/food.py`
-    - `docs/audit/PR_TBD_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
   - DoD:
     - Barcode hit path returns `200` with valid `FoodItem` serialization on canonical seeded DB
     - `flags` storage/parse contract is normalized and backward-compatible

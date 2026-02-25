@@ -14,14 +14,14 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 import sqlite3
 import tempfile
 import time
-from typing import Any
+from typing import Any, Callable
 
 DEFAULT_BENCH_BARCODE = "0123456789012"
 DEFAULT_MISS_BARCODE = "9999999999999"
+ResponseValidator = Callable[[Any], None]
 
 
 @dataclass
@@ -58,11 +58,10 @@ def _percentile(values: list[float], percentile: int) -> float:
     return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
 
 
-def _create_temp_food_db(src_db: Path, injected_barcode: str) -> tuple[Path, str]:
+def _create_temp_food_db(src_db: Path, injected_barcode: str, tmp_dir: Path) -> tuple[Path, str]:
     """Create temporary benchmark DB and inject one deterministic barcode hit row."""
-    tmp_dir = Path(tempfile.mkdtemp(prefix="food-bench-"))
     tmp_db = tmp_dir / "food.sqlite"
-    shutil.copy2(src_db, tmp_db)
+    tmp_db.write_bytes(src_db.read_bytes())
 
     with sqlite3.connect(tmp_db) as con:
         row = con.execute("SELECT id, canonical_name FROM foods ORDER BY id ASC LIMIT 1").fetchone()
@@ -73,9 +72,42 @@ def _create_temp_food_db(src_db: Path, injected_barcode: str) -> tuple[Path, str
         con.execute("UPDATE foods SET gtin = ? WHERE id = ?", (injected_barcode, row_id))
         con.commit()
 
-    token = canonical_name.split()[0] if canonical_name.strip() else ""
-    query_term = re.sub(r"[^A-Za-z0-9]+", "", token).lower() or "apple"
+    token_match = re.search(r"[A-Za-z]{3,}", canonical_name or "")
+    query_term = token_match.group(0).lower() if token_match else "apple"
     return tmp_db, query_term
+
+
+def _expect_non_empty_list(response: Any) -> None:
+    payload = response.json()
+    if not isinstance(payload, list) or len(payload) == 0:
+        raise ValueError("expected non-empty list payload")
+
+
+def _expect_empty_list(response: Any) -> None:
+    payload = response.json()
+    if not isinstance(payload, list) or len(payload) != 0:
+        raise ValueError("expected empty list payload")
+
+
+def _expect_detail_contains(expected_fragment: str) -> ResponseValidator:
+    def _validator(response: Any) -> None:
+        payload = response.json()
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if not isinstance(detail, str) or expected_fragment not in detail:
+            raise ValueError(f"expected error detail containing '{expected_fragment}'")
+
+    return _validator
+
+
+def _validate_response(
+    *, name: str, phase: str, response: Any, validator: ResponseValidator | None
+) -> None:
+    if validator is None:
+        return
+    try:
+        validator(response)
+    except Exception as exc:  # pragma: no cover - defensive error wrapping
+        raise RuntimeError(f"{phase} validation failed for {name}: {exc}") from exc
 
 
 def _run_scenario(
@@ -84,6 +116,7 @@ def _run_scenario(
     name: str,
     endpoint: str,
     expected_status: int,
+    validator: ResponseValidator | None,
     warmup: int,
     iterations: int,
 ) -> ScenarioResult:
@@ -94,6 +127,7 @@ def _run_scenario(
             raise RuntimeError(
                 f"warmup status mismatch for {name}: expected={expected_status} got={response.status_code}"
             )
+        _validate_response(name=name, phase="warmup", response=response, validator=validator)
 
     samples_ms: list[float] = []
     for _ in range(iterations):
@@ -104,6 +138,7 @@ def _run_scenario(
             raise RuntimeError(
                 f"status mismatch for {name}: expected={expected_status} got={response.status_code}"
             )
+        _validate_response(name=name, phase="measure", response=response, validator=validator)
         samples_ms.append(elapsed_ms)
 
     return ScenarioResult(
@@ -131,6 +166,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Wave 2-C latency benchmark for food APIs")
     parser.add_argument("--iterations", type=int, default=150)
     parser.add_argument("--warmup", type=int, default=20)
+    parser.add_argument("--db-path", type=Path, default=Path("data/food.sqlite"))
     parser.add_argument("--bench-barcode", default=DEFAULT_BENCH_BARCODE)
     parser.add_argument("--miss-barcode", default=DEFAULT_MISS_BARCODE)
     parser.add_argument("--include-barcode-hit", action="store_true")
@@ -145,67 +181,87 @@ def main() -> int:
     if args.warmup < 0:
         raise ValueError("warmup must be >= 0")
 
-    src_db = Path("data/food.sqlite")
+    src_db = args.db_path
     if not src_db.exists():
         raise FileNotFoundError(f"food db not found: {src_db}")
 
-    tmp_db, query_term = _create_temp_food_db(src_db=src_db, injected_barcode=args.bench_barcode)
-    os.environ["FOOD_DB_PATH"] = str(tmp_db)
-
-    from fastapi.testclient import TestClient
-    from app.main import app
-
-    scenarios = [
-        {
-            "name": "foods_list_hit",
-            "endpoint": f"/api/v1/foods?query={query_term}&limit=20&offset=0",
-            "expected_status": 200,
-        },
-        {
-            "name": "foods_search_alias_hit",
-            "endpoint": f"/api/v1/foods/search?query={query_term}&limit=20&offset=0",
-            "expected_status": 200,
-        },
-        {
-            "name": "foods_list_no_results",
-            "endpoint": "/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0",
-            "expected_status": 200,
-        },
-        {
-            "name": "barcode_miss",
-            "endpoint": f"/api/v1/foods/barcode/{args.miss_barcode}",
-            "expected_status": 404,
-        },
-        {
-            "name": "barcode_malformed",
-            "endpoint": "/api/v1/foods/barcode/abc",
-            "expected_status": 422,
-        },
-    ]
-    if args.include_barcode_hit:
-        scenarios.insert(
-            3,
-            {
-                "name": "barcode_hit",
-                "endpoint": f"/api/v1/foods/barcode/{args.bench_barcode}",
-                "expected_status": 200,
-            },
-        )
-
+    original_food_db_path = os.environ.get("FOOD_DB_PATH")
     results: list[ScenarioResult] = []
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    with TestClient(app, raise_server_exceptions=False) as client:
-        for scenario in scenarios:
-            results.append(
-                _run_scenario(
-                    client=client,
-                    name=scenario["name"],
-                    endpoint=scenario["endpoint"],
-                    expected_status=scenario["expected_status"],
-                    warmup=args.warmup,
-                    iterations=args.iterations,
+
+    with tempfile.TemporaryDirectory(prefix="food-bench-") as tmp_dir_raw:
+        tmp_db, query_term = _create_temp_food_db(
+            src_db=src_db,
+            injected_barcode=args.bench_barcode,
+            tmp_dir=Path(tmp_dir_raw),
+        )
+        os.environ["FOOD_DB_PATH"] = str(tmp_db)
+
+        try:
+            from fastapi.testclient import TestClient
+            from app.main import app
+
+            scenarios = [
+                {
+                    "name": "foods_list_hit",
+                    "endpoint": f"/api/v1/foods?query={query_term}&limit=20&offset=0",
+                    "expected_status": 200,
+                    "validator": _expect_non_empty_list,
+                },
+                {
+                    "name": "foods_search_alias_hit",
+                    "endpoint": f"/api/v1/foods/search?query={query_term}&limit=20&offset=0",
+                    "expected_status": 200,
+                    "validator": _expect_non_empty_list,
+                },
+                {
+                    "name": "foods_list_no_results",
+                    "endpoint": "/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0",
+                    "expected_status": 200,
+                    "validator": _expect_empty_list,
+                },
+                {
+                    "name": "barcode_miss",
+                    "endpoint": f"/api/v1/foods/barcode/{args.miss_barcode}",
+                    "expected_status": 404,
+                    "validator": _expect_detail_contains("Food not found"),
+                },
+                {
+                    "name": "barcode_malformed",
+                    "endpoint": "/api/v1/foods/barcode/abc",
+                    "expected_status": 422,
+                    "validator": _expect_detail_contains("at least one digit"),
+                },
+            ]
+            if args.include_barcode_hit:
+                scenarios.insert(
+                    3,
+                    {
+                        "name": "barcode_hit",
+                        "endpoint": f"/api/v1/foods/barcode/{args.bench_barcode}",
+                        "expected_status": 200,
+                        "validator": None,
+                    },
                 )
-            )
+
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+            with TestClient(app, raise_server_exceptions=False) as client:
+                for scenario in scenarios:
+                    results.append(
+                        _run_scenario(
+                            client=client,
+                            name=scenario["name"],
+                            endpoint=scenario["endpoint"],
+                            expected_status=scenario["expected_status"],
+                            validator=scenario["validator"],
+                            warmup=args.warmup,
+                            iterations=args.iterations,
+                        )
+                    )
+        finally:
+            if original_food_db_path is None:
+                os.environ.pop("FOOD_DB_PATH", None)
+            else:
+                os.environ["FOOD_DB_PATH"] = original_food_db_path
 
     print(_format_results(results))
 
@@ -213,6 +269,7 @@ def main() -> int:
         payload = {
             "iterations": args.iterations,
             "warmup": args.warmup,
+            "db_path": str(args.db_path),
             "results": [
                 {
                     "name": item.name,

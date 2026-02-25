@@ -1,46 +1,47 @@
 {
   "iterations": 120,
   "warmup": 20,
+  "db_path": "data/food.sqlite",
   "results": [
     {
       "name": "foods_list_hit",
-      "endpoint": "/api/v1/foods?query=chickenbreast&limit=20&offset=0",
+      "endpoint": "/api/v1/foods?query=chicken&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.9003,
-      "p95_ms": 1.0863,
-      "p99_ms": 1.186
+      "p50_ms": 0.8991,
+      "p95_ms": 1.0875,
+      "p99_ms": 1.1198
     },
     {
       "name": "foods_search_alias_hit",
-      "endpoint": "/api/v1/foods/search?query=chickenbreast&limit=20&offset=0",
+      "endpoint": "/api/v1/foods/search?query=chicken&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.9071,
-      "p95_ms": 1.1134,
-      "p99_ms": 1.4968
+      "p50_ms": 0.89,
+      "p95_ms": 1.0288,
+      "p99_ms": 1.1326
     },
     {
       "name": "foods_list_no_results",
       "endpoint": "/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0",
       "expected_status": 200,
-      "p50_ms": 0.8841,
-      "p95_ms": 0.9657,
-      "p99_ms": 1.1416
+      "p50_ms": 0.8796,
+      "p95_ms": 1.0901,
+      "p99_ms": 1.3637
     },
     {
       "name": "barcode_miss",
       "endpoint": "/api/v1/foods/barcode/9999999999999",
       "expected_status": 404,
-      "p50_ms": 0.7903,
-      "p95_ms": 1.0003,
-      "p99_ms": 1.0481
+      "p50_ms": 0.7822,
+      "p95_ms": 0.9978,
+      "p99_ms": 1.0959
     },
     {
       "name": "barcode_malformed",
       "endpoint": "/api/v1/foods/barcode/abc",
       "expected_status": 422,
-      "p50_ms": 0.6924,
-      "p95_ms": 0.892,
-      "p99_ms": 0.9466
+      "p50_ms": 0.6859,
+      "p95_ms": 0.8576,
+      "p99_ms": 0.9255
     }
   ]
 }

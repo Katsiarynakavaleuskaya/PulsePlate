@@ -1,4 +1,4 @@
-# PR-TBD — Food DB Wave 2-C Latency Benchmark Report
+# PR-898 — Food DB Wave 2-C Latency Benchmark Report
 
 ## Scope
 
@@ -23,7 +23,7 @@
 
 ## Method
 
-Run command (UTC run timestamp: `2026-02-25 07:17:06 UTC`):
+Run command (UTC run timestamp: `2026-02-25 07:53:58 UTC`):
 
 ```bash
 SERVER_SALT=bench-salt \
@@ -33,23 +33,24 @@ PYTHONPATH=. \
 python scripts/benchmarks/food_api_latency_benchmark.py \
   --iterations 120 \
   --warmup 20 \
+  --db-path data/food.sqlite \
   --output-json docs/audit/artifacts/food_w2c_latency_benchmark.json
 ```
 
 Artifact checksum:
 
 - `sha256 docs/audit/artifacts/food_w2c_latency_benchmark.json`
-- `e2f3487f6617ca38d82c192a560781fb7cd65fa0500d033db579313be56d15d7`
+- `90331d10b53daf2ac8096f374f5851883fee4c904d7f384440f0b5af5ebe53f0`
 
 ## Results
 
 | Scenario | Endpoint | Expected status | p50 (ms) | p95 (ms) | p99 (ms) |
 |---|---|---:|---:|---:|---:|
-| foods_list_hit | `/api/v1/foods?query=chickenbreast&limit=20&offset=0` | 200 | 0.9003 | 1.0863 | 1.1860 |
-| foods_search_alias_hit | `/api/v1/foods/search?query=chickenbreast&limit=20&offset=0` | 200 | 0.9071 | 1.1134 | 1.4968 |
-| foods_list_no_results | `/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0` | 200 | 0.8841 | 0.9657 | 1.1416 |
-| barcode_miss | `/api/v1/foods/barcode/9999999999999` | 404 | 0.7903 | 1.0003 | 1.0481 |
-| barcode_malformed | `/api/v1/foods/barcode/abc` | 422 | 0.6924 | 0.8920 | 0.9466 |
+| foods_list_hit | `/api/v1/foods?query=chicken&limit=20&offset=0` | 200 | 0.8991 | 1.0875 | 1.1198 |
+| foods_search_alias_hit | `/api/v1/foods/search?query=chicken&limit=20&offset=0` | 200 | 0.8900 | 1.0288 | 1.1326 |
+| foods_list_no_results | `/api/v1/foods?query=zzzzzzzzzz&limit=20&offset=0` | 200 | 0.8796 | 1.0901 | 1.3637 |
+| barcode_miss | `/api/v1/foods/barcode/9999999999999` | 404 | 0.7822 | 0.9978 | 1.0959 |
+| barcode_malformed | `/api/v1/foods/barcode/abc` | 422 | 0.6859 | 0.8576 | 0.9255 |
 
 ## Conclusion
 
