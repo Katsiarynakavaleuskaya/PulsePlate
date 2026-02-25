@@ -863,7 +863,9 @@ def generate_shopping_list(meal_plan: Dict[str, Any]) -> Optional[List[Dict[str,
         meals = meal_plan.get("meals", [])
         for meal in meals:
             if isinstance(meal, dict):
-                meal_name = meal.get("name", "")
+                meal_name = str(meal.get("name") or meal.get("title") or "").strip()
+                if not meal_name:
+                    continue
                 # Estimate ingredients from meal name
                 ingredients[meal_name] = {"name": meal_name, "quantity": 1}
 

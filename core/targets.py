@@ -500,8 +500,11 @@ def calculate_bmr(age: int, gender: str, weight: float, height: float) -> Option
     """
     from core.bmr import bmr_mifflin
 
-    # Normalize gender to canonical format
-    sex: Literal["female", "male"] = "male" if str(gender).lower() in ("m", "male") else "female"
+    # Normalize and validate gender
+    gender_normalized = str(gender).strip().lower()
+    if gender_normalized not in {"m", "male", "f", "female"}:
+        return None
+    sex: Literal["female", "male"] = "male" if gender_normalized in {"m", "male"} else "female"
 
     try:
         return bmr_mifflin(weight, height, age, sex)
@@ -525,7 +528,7 @@ def calculate_tdee(bmr: float, activity: str) -> Optional[float]:
     """
     from core.bmr import tdee
 
-    if bmr is None or bmr <= 0:
+    if not isinstance(bmr, (int, float)) or bmr <= 0:
         return None
 
     # Validate and cast activity to Literal type

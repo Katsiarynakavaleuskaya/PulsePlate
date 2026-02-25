@@ -15,7 +15,7 @@ import pytest
 class TestDirectCoreFunctions:
     """Direct tests of core functions to maximize coverage."""
 
-    def test_targets_functions_direct(self):
+    def test_targets_functions_direct(self) -> None:
         """Direct tests of targets functions."""
         from core.targets import (
             adjust_for_activity_level,
@@ -43,7 +43,7 @@ class TestDirectCoreFunctions:
         is_valid = validate_user_data({"age": 30, "weight": 70})
         assert isinstance(is_valid, (bool, type(None)))
 
-    def test_auto_repair_functions_direct(self):
+    def test_auto_repair_functions_direct(self) -> None:
         """Direct tests of auto repair functions."""
         from core.auto_repair import (
             analyze_deficiencies,
@@ -89,7 +89,7 @@ class TestDirectCoreFunctions:
         priority = calculate_repair_priority({"protein": -20}, {"protein": 80})
         assert isinstance(priority, (int, float, type(None)))
 
-    def test_menu_engine_functions_direct(self):
+    def test_menu_engine_functions_direct(self) -> None:
         """Direct tests of menu engine functions."""
         from core.menu_engine import (
             calculate_nutrition_totals,
@@ -127,7 +127,7 @@ class TestDirectCoreFunctions:
         shopping_list = generate_shopping_list(meal_plan)
         assert isinstance(shopping_list, (list, dict, type(None)))
 
-    def test_plate_functions_direct(self):
+    def test_plate_functions_direct(self) -> None:
         """Direct tests of plate functions."""
         from core.plate import (
             analyze_plate_balance,
@@ -165,7 +165,7 @@ class TestDirectCoreFunctions:
         viz_data = visualize_plate_data(foods)
         assert isinstance(viz_data, (dict, list, type(None)))
 
-    def test_i18n_functions_direct(self):
+    def test_i18n_functions_direct(self) -> None:
         """Direct tests of i18n functions."""
         try:
             from core.i18n import (
@@ -212,7 +212,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_food_sources_functions_direct(self):
+    def test_food_sources_functions_direct(self) -> None:
         """Direct tests of food sources functions."""
         try:
             from core.food_sources.base import (
@@ -252,7 +252,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_rag_functions_direct(self):
+    def test_rag_functions_direct(self) -> None:
         """Direct tests of RAG functions."""
         try:
             from core.rag.simple_rag import (
@@ -294,7 +294,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_db_functions_direct(self):
+    def test_db_functions_direct(self) -> None:
         """Direct tests of database functions."""
         try:
             from core.db import (
@@ -343,7 +343,7 @@ class TestDirectCoreFunctions:
         assert regions == catalog.get_available_regions()
         assert all(isinstance(region, str) for region in regions)
 
-    def test_utils_functions_direct(self):
+    def test_utils_functions_direct(self) -> None:
         """Direct tests of utils functions."""
         from core.utils import (
             generate_id,

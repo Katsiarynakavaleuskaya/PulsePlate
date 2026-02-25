@@ -242,7 +242,8 @@ class TestFinalCoreCoverage:
 
             # Test deficiency analysis
             deficiencies = analyze_deficiencies(
-                {"calories": 1500, "protein": 50, "carbs": 200, "fat": 60}
+                {"calories": 1500, "protein": 50, "carbs": 200, "fat": 60},
+                {"calories": 2000, "protein": 80, "carbs": 250, "fat": 70},
             )
             assert isinstance(deficiencies, (dict, list, type(None)))
 
