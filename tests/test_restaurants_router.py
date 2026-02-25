@@ -148,6 +148,9 @@ def test_get_restaurant_menu_maps_rows() -> None:
                 "source": "menustat",
                 "source_id": "menu-001",
                 "is_active": 1,
+                "snapshot_date": "2026-02-24",
+                "provenance_source": "menustat",
+                "provenance_record_id": "menu-001",
             }
         ]
     )
@@ -155,6 +158,37 @@ def test_get_restaurant_menu_maps_rows() -> None:
     assert len(result) == 1
     assert result[0].id == "m1"
     assert result[0].item_name == "Protein Burger"
+    assert result[0].snapshot_date == "2026-02-24"
+    assert result[0].provenance_source == "menustat"
+    assert result[0].provenance_record_id == "menu-001"
+
+
+def test_get_restaurant_menu_maps_rows_without_provenance() -> None:
+    store = _StubStore(
+        menu_rows=[
+            {
+                "id": "m1",
+                "chain_id": "c1",
+                "item_name": "Protein Burger",
+                "category": "Burgers",
+                "serving_size_g": 200.0,
+                "kcal": 540.0,
+                "protein_g": 30.0,
+                "fat_g": 24.0,
+                "carbs_g": 50.0,
+                "sodium_mg": 910.0,
+                "source": "menustat",
+                "source_id": "menu-001",
+                "is_active": 1,
+            }
+        ]
+    )
+    result = restaurants.get_restaurant_menu("c1", limit=20, store=store)
+    assert len(result) == 1
+    assert result[0].id == "m1"
+    assert result[0].snapshot_date is None
+    assert result[0].provenance_source is None
+    assert result[0].provenance_record_id is None
 
 
 def test_create_submission_validation_error_maps_422() -> None:

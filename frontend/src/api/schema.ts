@@ -4423,8 +4423,14 @@ export interface components {
             kcal?: number | null;
             /** Protein G */
             protein_g?: number | null;
+            /** Provenance Record Id */
+            provenance_record_id?: string | null;
+            /** Provenance Source */
+            provenance_source?: string | null;
             /** Serving Size G */
             serving_size_g?: number | null;
+            /** Snapshot Date */
+            snapshot_date?: string | null;
             /** Sodium Mg */
             sodium_mg?: number | null;
             /** Source */

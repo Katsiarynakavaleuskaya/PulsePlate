@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -46,6 +47,9 @@ def test_import_menustat_rows_and_query(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert menu[0]["item_name"] == "Protein Burger"
     assert menu[0]["chain_id"] == "test-chain"
     assert menu[0]["kcal"] == 540.0
+    assert menu[0]["snapshot_date"] == "2026-02-24"
+    assert menu[0]["provenance_source"] == "menustat"
+    assert menu[0]["provenance_record_id"] == "menu-001"
 
 
 def test_submission_lifecycle_with_audit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -68,6 +72,26 @@ def test_submission_lifecycle_with_audit(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert len(reviewed["audit"]) == 1
     assert reviewed["audit"][0]["from_status"] == "pending"
     assert reviewed["audit"][0]["to_status"] == "approved"
+
+    with restaurant_store._connect() as con:
+        source_row = con.execute(
+            """
+            SELECT entity_type, source_name, source_record_id, snapshot_date, raw_data_json
+            FROM source_catalog
+            WHERE entity_type = 'user_submission' AND entity_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (created["id"],),
+        ).fetchone()
+    assert source_row is not None
+    assert source_row["entity_type"] == "user_submission"
+    assert source_row["source_name"] == "moderation"
+    assert source_row["snapshot_date"]
+    source_payload = json.loads(source_row["raw_data_json"])
+    assert source_payload["from_status"] == "pending"
+    assert source_payload["to_status"] == "approved"
+    assert source_payload["reviewer_notes"] == "verified"
 
 
 def test_review_submission_invalid_status(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -183,6 +207,49 @@ def test_import_menustat_rows_non_ascii_ids_do_not_collapse(
     chain_ids = [row["id"] for row in chain_rows]
     assert chain_ids[0] != chain_ids[1]
     assert all(chain_id.startswith("id-") for chain_id in chain_ids)
+
+
+def test_get_restaurant_menu_uses_latest_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    timestamps = iter(
+        [
+            "2026-02-24T00:00:00+00:00",
+            "2026-02-25T00:00:00+00:00",
+        ]
+    )
+    monkeypatch.setattr(restaurant_store, "_utc_now_iso", lambda: next(timestamps))
+
+    restaurant_store.import_menustat_rows(
+        [
+            {
+                "chain_name": "Test Chain",
+                "item_name": "Protein Burger",
+                "kcal": 500,
+                "source_id": "menu-001",
+            }
+        ],
+        snapshot_date="2026-02-24",
+    )
+    restaurant_store.import_menustat_rows(
+        [
+            {
+                "chain_name": "Test Chain",
+                "item_name": "Protein Burger",
+                "kcal": 550,
+                "source_id": "menu-001",
+            }
+        ],
+        snapshot_date="2026-02-25",
+    )
+
+    menu = restaurant_store.get_restaurant_menu("test-chain", limit=10)
+    assert len(menu) == 1
+    assert menu[0]["kcal"] == 550.0
+    assert menu[0]["snapshot_date"] == "2026-02-25"
+    assert menu[0]["provenance_source"] == "menustat"
+    assert menu[0]["provenance_record_id"] == "menu-001"
 
 
 def test_connect_enables_foreign_keys(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
