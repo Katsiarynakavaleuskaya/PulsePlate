@@ -170,7 +170,7 @@ def test_approved_submission_promotion_is_idempotent(
             SELECT raw_data_json
             FROM source_catalog
             WHERE entity_type = 'user_submission' AND entity_id = ?
-            ORDER BY created_at ASC
+            ORDER BY created_at ASC, id ASC
             """,
             (created["id"],),
         ).fetchall()

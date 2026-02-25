@@ -129,7 +129,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DB-W3-E (`feat/food-db-wave3e-submission-promotion`)
+  - Target PR: PR #908 (`feat/food-db-wave3e-submission-promotion`)
   - Status: In Progress
   - Area: backend / moderation workflow / restaurant coverage
   - Finding Type: correctness gap closure
