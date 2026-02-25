@@ -316,8 +316,12 @@ class _BootstrapSemanticSearchBackend:
         if not normalized_query:
             return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
 
-        candidate_fetch_limit = max(self._candidate_limit, normalized_limit + normalized_offset)
-        candidates = search_foods("", limit=candidate_fetch_limit, offset=0)
+        required_window_size = normalized_limit + normalized_offset
+        if required_window_size > self._candidate_limit:
+            return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
+
+        candidate_fetch_limit = self._candidate_limit
+        candidates = _load_semantic_candidates(limit=candidate_fetch_limit)
         query_tokens = _semantic_tokens(normalized_query)
         if not query_tokens:
             return search_foods(normalized_query, limit=normalized_limit, offset=normalized_offset)
@@ -418,6 +422,21 @@ def _semantic_candidate_limit() -> int:
     if parsed < 1:
         return DEFAULT_SEMANTIC_CANDIDATE_LIMIT
     return min(parsed, 5000)
+
+
+def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
+    """
+    Load semantic candidate rows directly from foods table.
+
+    RU: Загружает кандидатов напрямую из foods, без MAX_LIMIT clamp.
+    EN: Loads candidates directly from foods, bypassing search pagination clamp.
+    """
+    with _connect() as con:
+        rows = con.execute(
+            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def register_semantic_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:

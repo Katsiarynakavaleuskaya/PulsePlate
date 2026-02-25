@@ -259,7 +259,7 @@ git grep -n '@patch("app.services.food_store' -- tests/
 
 If any matches remain, convert them to `monkeypatch.setattr()`.
 
-## 12) API schema types must match persisted row types (barcode hit contract)
+## 13) API schema types must match persisted row types (barcode hit contract)
 
 ### Problem
 Endpoint handlers that construct `FoodItem(**row)` can fail at runtime if DB columns store
@@ -287,7 +287,7 @@ Before exposing DB rows directly through strict Pydantic models:
 - Keep migration/seed contracts aligned with API schema types
 - Verify with endpoint-level tests, not only unit repository tests
 
-## 13) After merge, never continue work on the same PR branch
+## 14) After merge, never continue work on the same PR branch
 
 ### Problem
 Continuing commits on a branch after PR merge creates ambiguity:
@@ -305,7 +305,7 @@ Once PR state is `MERGED`:
 - `gh pr view <N> --json state,mergeCommit,mergedAt`
 - if `state=MERGED`, do not push further commits to that branch
 
-## 14) Local-first ingest scripts must fail-closed on empty normalized payload
+## 15) Local-first ingest scripts must fail-closed on empty normalized payload
 
 ### Problem
 CSV ingestion can report "success" even when alias mapping drops required fields,
