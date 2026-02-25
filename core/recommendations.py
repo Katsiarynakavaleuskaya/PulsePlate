@@ -388,7 +388,7 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
             "zinc_mg": "замачивайте бобовые и зерна для улучшения усвоения",
         },
         "es": {
-            "iron_mg": "combine con alimentos ricos en vitamina C para mejor absorción",
+            "iron_mg": "combinar con alimentos ricos en vitamina C para mejorar la absorción",
             "b12_ug": "considere levadura nutricional fortificada o leche vegetal fortificada",
             "zinc_mg": "remoje legumbres y cereales para mejorar la absorción",
         },
