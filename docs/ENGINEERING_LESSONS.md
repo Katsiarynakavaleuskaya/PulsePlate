@@ -281,6 +281,19 @@ Once PR state is `MERGED`:
 - `gh pr view <N> --json state,mergeCommit,mergedAt`
 - if `state=MERGED`, do not push further commits to that branch
 
+## 14) Local-first ingest scripts must fail-closed on empty normalized payload
+
+### Problem
+CSV ingestion can report "success" even when alias mapping drops required fields,
+resulting in zero imported rows and empty API results.
+
+### Rule
+For operational import scripts (MenuStat-style and similar):
+1. normalize column aliases to canonical contract keys
+2. require non-empty mandatory keys (`chain_name`, `item_name`) per row
+3. fail with non-zero exit code when no valid rows remain after normalization
+4. keep a deterministic sample CSV + end-to-end script test in-repo
+
 ---
 
 ## Repo Commands Reference

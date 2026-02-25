@@ -154,6 +154,12 @@ Deliverables:
 - restaurant menu schema and endpoints
 - moderated user submissions (`pending/approved/rejected`) with audit trail
 
+Operational bootstrap (local-first, deterministic):
+
+- run `python -m scripts.import_restaurant_menu --input data/restaurant_menu_sample.csv --snapshot-date 2026-02-25 --db-path data/food.sqlite`
+- this command performs MenuStat-style CSV normalization and writes to `restaurant_chains`, `restaurant_menu_items`, and `source_catalog` via `app/services/restaurant_store.py`
+- use sample CSV for deterministic local bootstrap; production snapshots should keep immutable raw files under `data/raw/menustat/*` and run checksum validation before import
+
 ## W4 (P2): Optional semantic retrieval
 
 Deliverables:

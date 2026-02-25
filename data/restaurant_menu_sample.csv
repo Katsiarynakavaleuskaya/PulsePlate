@@ -1,0 +1,4 @@
+restaurant,item_name,category,serving_size_g,calories,protein,total_fat,total_carbohydrate,sodium,source_id,country
+Pulse Grill,Protein Burger,Burgers,220,540,30,24,50,910,pulse-001,US
+Pulse Grill,Green Salad,Salads,180,180,6,8,18,320,pulse-002,US
+Fit Brew,Vanilla Protein Latte,Drinks,350,260,20,7,30,180,fit-010,US
