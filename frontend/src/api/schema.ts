@@ -1230,6 +1230,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/restaurants/{chain_id}/menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Restaurant Menu */
+        get: operations["get_restaurant_menu_api_v1_restaurants__chain_id__menu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/restaurants/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Restaurants */
+        get: operations["search_restaurants_api_v1_restaurants_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/restaurants/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Restaurant Submission */
+        post: operations["create_restaurant_submission_api_v1_restaurants_submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/restaurants/submissions/{submission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Restaurant Submission */
+        get: operations["get_restaurant_submission_api_v1_restaurants_submissions__submission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/restaurants/submissions/{submission_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Review Restaurant Submission */
+        patch: operations["review_restaurant_submission_api_v1_restaurants_submissions__submission_id__status_patch"];
+        trace?: never;
+    };
     "/api/v1/shoplist": {
         parameters: {
             query?: never;
@@ -4073,6 +4158,106 @@ export interface components {
             title: string;
         };
         /**
+         * RestaurantHit
+         * @description Restaurant chain search hit.
+         */
+        RestaurantHit: {
+            /** Country */
+            country?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Source */
+            source: string;
+        };
+        /**
+         * RestaurantMenuItem
+         * @description Restaurant menu item payload.
+         */
+        RestaurantMenuItem: {
+            /** Carbs G */
+            carbs_g?: number | null;
+            /** Category */
+            category?: string | null;
+            /** Chain Id */
+            chain_id: string;
+            /** Fat G */
+            fat_g?: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Item Name */
+            item_name: string;
+            /** Kcal */
+            kcal?: number | null;
+            /** Protein G */
+            protein_g?: number | null;
+            /** Serving Size G */
+            serving_size_g?: number | null;
+            /** Sodium Mg */
+            sodium_mg?: number | null;
+            /** Source */
+            source: string;
+            /** Source Id */
+            source_id?: string | null;
+        };
+        /**
+         * RestaurantSubmission
+         * @description Submission record returned by API.
+         */
+        RestaurantSubmission: {
+            /** Audit */
+            audit?: components["schemas"]["SubmissionAuditEntry"][];
+            /** Barcode */
+            barcode?: string | null;
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Id */
+            id: string;
+            /** Off Url */
+            off_url?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Reviewer Notes */
+            reviewer_notes?: string | null;
+            status: components["schemas"]["SubmissionStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * RestaurantSubmissionCreate
+         * @description Create request for controlled submission queue.
+         */
+        RestaurantSubmissionCreate: {
+            /** Barcode */
+            barcode?: string | null;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Off Url */
+            off_url?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * ShopAisle
          * @description Stable aisle/category for iOS (do not rename; only extend).
          *
@@ -4693,6 +4878,44 @@ export interface components {
              */
             title_key: string;
         };
+        /**
+         * SubmissionAuditEntry
+         * @description Single status transition for a submission.
+         */
+        SubmissionAuditEntry: {
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            from_status?: components["schemas"]["SubmissionStatus"] | null;
+            /** Id */
+            id: string;
+            /** Reviewer Notes */
+            reviewer_notes?: string | null;
+            to_status: components["schemas"]["SubmissionStatus"];
+        };
+        /**
+         * SubmissionReviewRequest
+         * @description Request payload for moderation status update.
+         */
+        SubmissionReviewRequest: {
+            /** Reviewer Notes */
+            reviewer_notes?: string | null;
+            status: components["schemas"]["SubmissionReviewStatus"];
+        };
+        /**
+         * SubmissionReviewStatus
+         * @description Allowed status values for moderation PATCH endpoint.
+         * @enum {string}
+         */
+        SubmissionReviewStatus: "approved" | "rejected";
+        /**
+         * SubmissionStatus
+         * @description Moderation states for controlled submissions.
+         * @enum {string}
+         */
+        SubmissionStatus: "pending" | "approved" | "rejected";
         /**
          * TargetsIn
          * @description Nutrition targets input model.
@@ -6714,6 +6937,181 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_restaurant_menu_api_v1_restaurants__chain_id__menu_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                chain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestaurantMenuItem"][];
+                };
+            };
+            /** @description Restaurant menu not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_restaurants_api_v1_restaurants_search_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                query?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestaurantHit"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_restaurant_submission_api_v1_restaurants_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestaurantSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestaurantSubmission"];
+                };
+            };
+            /** @description Invalid submission */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_restaurant_submission_api_v1_restaurants_submissions__submission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestaurantSubmission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_restaurant_submission_api_v1_restaurants_submissions__submission_id__status_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestaurantSubmission"];
+                };
+            };
+            /** @description Submission not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
