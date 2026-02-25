@@ -95,7 +95,7 @@ class TestFinalCoreCoverage:
             assert isinstance(is_valid, (bool, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -125,7 +125,7 @@ class TestFinalCoreCoverage:
             assert isinstance(is_valid, (bool, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -227,7 +227,7 @@ class TestFinalCoreCoverage:
             assert isinstance(improvements, (list, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -242,7 +242,8 @@ class TestFinalCoreCoverage:
 
             # Test deficiency analysis
             deficiencies = analyze_deficiencies(
-                {"calories": 1500, "protein": 50, "carbs": 200, "fat": 60}
+                {"calories": 1500, "protein": 50, "carbs": 200, "fat": 60},
+                {"calories": 2000, "protein": 80, "carbs": 250, "fat": 70},
             )
             assert isinstance(deficiencies, (dict, list, type(None)))
 
@@ -257,7 +258,7 @@ class TestFinalCoreCoverage:
             assert isinstance(priority, (int, float, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -289,7 +290,7 @@ class TestFinalCoreCoverage:
             assert isinstance(recommendations, (list, dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
@@ -317,6 +318,6 @@ class TestFinalCoreCoverage:
             assert isinstance(adjusted, (dict, type(None)))
 
         except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
+            require_feature_or_raise(exc, "planner_engines_advanced", reason=FEATURE_REASON)
         except Exception:  # nosec B110 - intentional in test for coverage
             pass

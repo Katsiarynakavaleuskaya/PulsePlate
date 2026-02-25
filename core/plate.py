@@ -413,3 +413,235 @@ def make_plate(
         "meals": meals,
         "meals_per_day": meals_per_day,
     }
+
+
+# =============================================================================
+# Planner Engine Facade Functions
+# =============================================================================
+# These functions provide a simplified API for tests and external callers.
+
+
+def create_nutrition_plate(foods: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Create a nutrition plate from a list of foods.
+
+    RU: Создание тарелки питания из списка продуктов.
+    EN: Create nutrition plate from food list.
+
+    Args:
+        foods: List of food items with nutrition info
+
+    Returns:
+        Plate info dict or None if creation fails
+    """
+    if not foods:
+        return {}
+
+    try:
+        # Calculate totals from foods
+        totals: Dict[str, float] = {
+            "calories": 0,
+            "protein": 0,
+            "carbs": 0,
+            "fat": 0,
+            "fiber": 0,
+        }
+
+        for food in foods:
+            if isinstance(food, dict):
+                totals["calories"] += food.get("calories", 0) or 0
+                totals["protein"] += food.get("protein", 0) or 0
+                totals["carbs"] += food.get("carbs", 0) or 0
+                totals["fat"] += food.get("fat", 0) or 0
+                totals["fiber"] += food.get("fiber", 0) or 0
+
+        # Calculate percentages
+        total_cal = totals["calories"] or 1  # Avoid division by zero
+        return {
+            "totals": totals,
+            "protein_g": int(totals["protein"]),
+            "carbs_g": int(totals["carbs"]),
+            "fat_g": int(totals["fat"]),
+            "fiber_g": int(totals["fiber"]),
+            "kcal": int(totals["calories"]),
+            "protein_pct": round(totals["protein"] * 4 / total_cal * 100, 1),
+            "carbs_pct": round(totals["carbs"] * 4 / total_cal * 100, 1),
+            "fat_pct": round(totals["fat"] * 9 / total_cal * 100, 1),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def analyze_plate_balance(foods: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Analyze the nutritional balance of a plate.
+
+    RU: Анализ баланса питательных веществ.
+    EN: Analyze plate nutritional balance.
+
+    Args:
+        foods: List of food items
+
+    Returns:
+        Balance analysis dict or None
+    """
+    plate = create_nutrition_plate(foods)
+    if not plate:
+        return {}
+
+    kcal = plate.get("kcal", 1) or 1
+    protein = plate.get("protein_g", 0)
+    carbs = plate.get("carbs_g", 0)
+    fat = plate.get("fat_g", 0)
+
+    # Calculate ratios (calories from each macro / total calories)
+    protein_ratio = (protein * 4) / kcal if kcal > 0 else 0
+    carbs_ratio = (carbs * 4) / kcal if kcal > 0 else 0
+    fat_ratio = (fat * 9) / kcal if kcal > 0 else 0
+
+    # Determine balance status based on typical macro guidelines
+    # Ideal: 15-25% protein, 45-65% carbs, 20-35% fat
+    balance_status = "balanced"
+    if protein_ratio < 0.15:
+        balance_status = "low_protein"
+    elif carbs_ratio < 0.40:
+        balance_status = "low_carbs"
+    elif fat_ratio > 0.40:
+        balance_status = "high_fat"
+
+    return {
+        "protein_ratio": round(protein_ratio, 3),
+        "carbs_ratio": round(carbs_ratio, 3),
+        "fat_ratio": round(fat_ratio, 3),
+        "status": balance_status,
+        "kcal": kcal,
+    }
+
+
+def get_plate_recommendations(foods: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    """
+    Get recommendations to improve plate balance.
+
+    RU: Заглушка - рекомендации по улучшению.
+    EN: Stub - plate improvement recommendations.
+
+    Args:
+        foods: List of food items
+
+    Returns:
+        List of recommendations or None
+    """
+    balance = analyze_plate_balance(foods)
+    if not balance:
+        return []
+
+    recommendations: List[Dict[str, Any]] = []
+
+    status = balance.get("status", "balanced")
+    if status == "low_protein":
+        recommendations.append(
+            {
+                "type": "increase_protein",
+                "reason": "Protein intake is below recommended level",
+                "suggestion": "Add lean meats, fish, eggs, or legumes",
+            }
+        )
+    elif status == "low_carbs":
+        recommendations.append(
+            {
+                "type": "increase_carbs",
+                "reason": "Carbohydrate intake is below recommended level",
+                "suggestion": "Add whole grains, fruits, or vegetables",
+            }
+        )
+    elif status == "high_fat":
+        recommendations.append(
+            {
+                "type": "reduce_fat",
+                "reason": "Fat intake exceeds recommended level",
+                "suggestion": "Choose leaner protein sources and reduce oils",
+            }
+        )
+
+    return recommendations
+
+
+def calculate_plate_score(foods: List[Dict[str, Any]]) -> Optional[float]:
+    """
+    Calculate a quality score for the plate (0-100).
+
+    RU: Расчёт оценки качества тарелки.
+    EN: Calculate plate quality score.
+
+    Args:
+        foods: List of food items
+
+    Returns:
+        Score from 0 to 100 or None
+    """
+    balance = analyze_plate_balance(foods)
+    if not balance:
+        return 0.0
+
+    score = 100.0
+
+    # Penalize for imbalances
+    protein_ratio = balance.get("protein_ratio", 0)
+    carbs_ratio = balance.get("carbs_ratio", 0)
+    fat_ratio = balance.get("fat_ratio", 0)
+
+    # Ideal ranges: protein 0.15-0.25, carbs 0.45-0.65, fat 0.20-0.35
+    if protein_ratio < 0.15:
+        score -= (0.15 - protein_ratio) * 100
+    elif protein_ratio > 0.25:
+        score -= (protein_ratio - 0.25) * 50
+
+    if carbs_ratio < 0.45:
+        score -= (0.45 - carbs_ratio) * 50
+    elif carbs_ratio > 0.65:
+        score -= (carbs_ratio - 0.65) * 50
+
+    if fat_ratio < 0.20:
+        score -= (0.20 - fat_ratio) * 30
+    elif fat_ratio > 0.35:
+        score -= (fat_ratio - 0.35) * 100
+
+    return max(0.0, min(100.0, score))
+
+
+def visualize_plate_data(foods: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Generate visualization data for the plate.
+
+    RU: Данные для визуализации тарелки.
+    EN: Generate plate visualization data.
+
+    Args:
+        foods: List of food items
+
+    Returns:
+        Visualization data dict or None
+    """
+    plate = create_nutrition_plate(foods)
+    if not plate:
+        return {}
+
+    # Generate sectors for pie chart visualization
+    sectors = []
+    protein_pct = plate.get("protein_pct", 0)
+    carbs_pct = plate.get("carbs_pct", 0)
+    fat_pct = plate.get("fat_pct", 0)
+
+    if protein_pct > 0:
+        sectors.append({"name": "protein", "percent": protein_pct, "color": "#e74c3c"})
+    if carbs_pct > 0:
+        sectors.append({"name": "carbs", "percent": carbs_pct, "color": "#3498db"})
+    if fat_pct > 0:
+        sectors.append({"name": "fat", "percent": fat_pct, "color": "#f39c12"})
+
+    return {
+        "type": "pie",
+        "sectors": sectors,
+        "totals": plate.get("totals", {}),
+        "kcal": plate.get("kcal", 0),
+    }

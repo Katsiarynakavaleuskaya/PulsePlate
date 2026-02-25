@@ -473,3 +473,166 @@ MIN_HEALTHY_FAT_ABSOLUTE_G: float = 30.0  # Absolute minimum 30g
 # Minimum protein intake (g/kg body weight)
 MIN_PROTEIN_G_PER_KG: float = 1.6  # 1.6 g/kg minimum
 MIN_PROTEIN_ABSOLUTE_G: float = 50.0  # Absolute minimum 50g
+
+
+# =============================================================================
+# Planner Engine Facade Functions
+# =============================================================================
+# These functions provide a simplified API for tests and external callers.
+# They wrap existing implementations in core/bmr.py and provide parameter mapping.
+
+
+def calculate_bmr(age: int, gender: str, weight: float, height: float) -> Optional[float]:
+    """
+    Calculate Basal Metabolic Rate using Mifflin-St Jeor formula.
+
+    RU: Фасад для расчёта BMR с простыми параметрами.
+    EN: Facade for BMR calculation with simple parameters.
+
+    Args:
+        age: Age in years
+        gender: Gender string ('M', 'male', 'F', 'female')
+        weight: Weight in kg
+        height: Height in cm
+
+    Returns:
+        BMR in kcal/day or None if inputs invalid
+    """
+    from core.bmr import bmr_mifflin
+
+    # Normalize and validate gender
+    gender_normalized = str(gender).strip().lower()
+    if gender_normalized not in {"m", "male", "f", "female"}:
+        return None
+    sex: Literal["female", "male"] = "male" if gender_normalized in {"m", "male"} else "female"
+
+    try:
+        return bmr_mifflin(weight, height, age, sex)
+    except (ValueError, TypeError):
+        return None
+
+
+def calculate_tdee(bmr: float, activity: str) -> Optional[float]:
+    """
+    Calculate Total Daily Energy Expenditure from BMR and activity level.
+
+    RU: Фасад для расчёта TDEE.
+    EN: Facade for TDEE calculation.
+
+    Args:
+        bmr: Basal Metabolic Rate in kcal/day
+        activity: Activity level ('sedentary', 'light', 'moderate', 'active', 'very_active')
+
+    Returns:
+        TDEE in kcal/day or None if inputs invalid
+    """
+    from core.bmr import tdee
+
+    if not isinstance(bmr, (int, float)) or bmr <= 0:
+        return None
+
+    # Validate and cast activity to Literal type
+    valid_activities = {"sedentary", "light", "moderate", "active", "very_active"}
+    activity_lower = str(activity).lower().strip()
+    if activity_lower not in valid_activities:
+        return None
+
+    try:
+        return tdee(bmr, activity_lower)  # type: ignore[arg-type]
+    except (ValueError, TypeError, KeyError):
+        return None
+
+
+def get_nutrient_dri(nutrient: str, age: int, gender: str) -> Optional[Dict[str, Any]]:
+    """
+    Get Dietary Reference Intake for a nutrient.
+
+    RU: Получить DRI для нутриента (заглушка - требует базы DRI).
+    EN: Get DRI for nutrient (stub - requires DRI database).
+
+    Args:
+        nutrient: Nutrient name (e.g., 'protein', 'iron', 'calcium')
+        age: Age in years
+        gender: Gender string
+
+    Returns:
+        DRI info dict or None (stub implementation)
+
+    Note:
+        Full implementation requires DRI database. See BACKLOG_LEDGER.md.
+    """
+    # Stub implementation - returns None
+    # TODO: Implement DRI lookup when database is available
+    return None
+
+
+def validate_user_data(data: Dict[str, Any]) -> bool:
+    """
+    Validate user profile data for nutrition calculations.
+
+    RU: Проверка данных пользователя для расчётов.
+    EN: Validate user data for nutrition calculations.
+
+    Args:
+        data: Dict with user data (must contain 'age', 'weight', 'height')
+
+    Returns:
+        True if data is valid, False otherwise
+    """
+    required_numeric = {"age", "weight", "height"}
+
+    # Check all required keys exist
+    if not required_numeric.issubset(data.keys()):
+        return False
+
+    # Validate numeric values are positive
+    for key in required_numeric:
+        val = data.get(key)
+        if not isinstance(val, (int, float)) or val <= 0:
+            return False
+
+    return True
+
+
+def adjust_for_activity_level(
+    base_value: float, activity: str, *args: Any, **kwargs: Any
+) -> Optional[float]:
+    """
+    Adjust a base nutritional value for activity level.
+
+    RU: Заглушка - корректировка по уровню активности.
+    EN: Stub - adjust value for activity level.
+
+    Note:
+        Not yet implemented. See BACKLOG_LEDGER.md for status.
+    """
+    # Stub - return base value unchanged
+    return base_value
+
+
+def get_who_recommendations(
+    age: int, gender: str, *args: Any, **kwargs: Any
+) -> Optional[Dict[str, Any]]:
+    """
+    Get WHO nutritional recommendations.
+
+    RU: Заглушка - рекомендации ВОЗ.
+    EN: Stub - WHO recommendations.
+
+    Note:
+        Not yet implemented. See BACKLOG_LEDGER.md for status.
+    """
+    return None
+
+
+def calculate_daily_targets(profile: Any, *args: Any, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    """
+    Calculate daily nutrition targets from profile.
+
+    RU: Заглушка - расчёт дневных целей.
+    EN: Stub - calculate daily targets.
+
+    Note:
+        Not yet implemented. See BACKLOG_LEDGER.md for status.
+    """
+    return None

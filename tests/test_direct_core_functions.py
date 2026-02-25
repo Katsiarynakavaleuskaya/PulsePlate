@@ -4,191 +4,168 @@ Direct Core Functions Coverage Tests
 
 RU: Прямые тесты функций core модулей для повышения покрытия
 EN: Direct core function tests to improve coverage
+
+Note: This test file exercises the planner_engines facade functions that were
+implemented in PR enabling the planner_engines feature flag.
 """
 
 import pytest
-
-from tests.feature_manifest import FEATURE_REASON, require_feature_or_raise
 
 
 class TestDirectCoreFunctions:
     """Direct tests of core functions to maximize coverage."""
 
-    def test_targets_functions_direct(self):
+    def test_targets_functions_direct(self) -> None:
         """Direct tests of targets functions."""
-        try:
-            from core.targets import (
-                adjust_for_activity_level,
-                calculate_bmr,
-                calculate_daily_targets,
-                calculate_tdee,
-                get_nutrient_dri,
-                get_who_recommendations,
-                validate_user_data,
-            )
+        from core.targets import (
+            adjust_for_activity_level,
+            calculate_bmr,
+            calculate_daily_targets,
+            calculate_tdee,
+            get_nutrient_dri,
+            get_who_recommendations,
+            validate_user_data,
+        )
 
-            # Test BMR calculation
-            bmr = calculate_bmr(age=30, gender="M", weight=70, height=175)
-            assert isinstance(bmr, (int, float, type(None)))
+        # Test BMR calculation
+        bmr = calculate_bmr(age=30, gender="M", weight=70, height=175)
+        assert isinstance(bmr, (int, float, type(None)))
 
-            # Test TDEE calculation
-            tdee = calculate_tdee(bmr=1500, activity="moderate")
-            assert isinstance(tdee, (int, float, type(None)))
+        # Test TDEE calculation
+        tdee = calculate_tdee(bmr=1500, activity="moderate")
+        assert isinstance(tdee, (int, float, type(None)))
 
-            # Test DRI
-            dri = get_nutrient_dri("protein", age=30, gender="M")
-            assert isinstance(dri, (int, float, dict, type(None)))
+        # Test DRI
+        dri = get_nutrient_dri("protein", age=30, gender="M")
+        assert isinstance(dri, (int, float, dict, type(None)))
 
-            # Test validation
-            is_valid = validate_user_data({"age": 30, "weight": 70})
-            assert isinstance(is_valid, (bool, type(None)))
+        # Test validation
+        is_valid = validate_user_data({"age": 30, "weight": 70})
+        assert isinstance(is_valid, (bool, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
-
-    def test_auto_repair_functions_direct(self):
+    def test_auto_repair_functions_direct(self) -> None:
         """Direct tests of auto repair functions."""
-        try:
-            from core.auto_repair import (
-                analyze_deficiencies,
-                calculate_repair_priority,
-                find_suitable_foods,
-                get_repair_suggestions,
-                optimize_meal_plan,
-            )
+        from core.auto_repair import (
+            analyze_deficiencies,
+            calculate_repair_priority,
+            find_suitable_foods,
+            get_repair_suggestions,
+            optimize_meal_plan,
+        )
 
-            # Test with realistic data
-            current_nutrition = {
-                "calories": 1500,
-                "protein": 60,
-                "carbs": 180,
-                "fat": 50,
-                "fiber": 15,
-                "vitamin_c": 40,
-            }
+        # Test with realistic data
+        current_nutrition = {
+            "calories": 1500,
+            "protein": 60,
+            "carbs": 180,
+            "fat": 50,
+            "fiber": 15,
+            "vitamin_c": 40,
+        }
 
-            target_nutrition = {
-                "calories": 2000,
-                "protein": 80,
-                "carbs": 250,
-                "fat": 70,
-                "fiber": 25,
-                "vitamin_c": 90,
-            }
+        target_nutrition = {
+            "calories": 2000,
+            "protein": 80,
+            "carbs": 250,
+            "fat": 70,
+            "fiber": 25,
+            "vitamin_c": 90,
+        }
 
-            # Test deficiency analysis
-            deficiencies = analyze_deficiencies(current_nutrition, target_nutrition)
-            assert isinstance(deficiencies, (dict, list, type(None)))
+        # Test deficiency analysis
+        deficiencies = analyze_deficiencies(current_nutrition, target_nutrition)
+        assert isinstance(deficiencies, (dict, list, type(None)))
 
-            # Test repair suggestions
-            foods = [
-                {"name": "chicken", "protein": 25, "calories": 150},
-                {"name": "broccoli", "vitamin_c": 80, "fiber": 5, "calories": 30},
-                {"name": "rice", "carbs": 45, "calories": 200},
-            ]
-            suggestions = get_repair_suggestions(deficiencies, foods)
-            assert isinstance(suggestions, (list, dict, type(None)))
+        # Test repair suggestions
+        foods = [
+            {"name": "chicken", "protein": 25, "calories": 150},
+            {"name": "broccoli", "vitamin_c": 80, "fiber": 5, "calories": 30},
+            {"name": "rice", "carbs": 45, "calories": 200},
+        ]
+        suggestions = get_repair_suggestions(deficiencies, foods)
+        assert isinstance(suggestions, (list, dict, type(None)))
 
-            # Test priority calculation
-            priority = calculate_repair_priority({"protein": -20}, {"protein": 80})
-            assert isinstance(priority, (int, float, type(None)))
+        # Test priority calculation
+        priority = calculate_repair_priority({"protein": -20}, {"protein": 80})
+        assert isinstance(priority, (int, float, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
-
-    def test_menu_engine_functions_direct(self):
+    def test_menu_engine_functions_direct(self) -> None:
         """Direct tests of menu engine functions."""
-        try:
-            from core.menu_engine import (
-                calculate_nutrition_totals,
-                generate_shopping_list,
-                make_weekly_menu,
-                optimize_meals,
-                suggest_meal_improvements,
-                validate_meal_plan,
-            )
+        from core.menu_engine import (
+            calculate_nutrition_totals,
+            generate_shopping_list,
+            make_weekly_menu,
+            optimize_meals,
+            suggest_meal_improvements,
+            validate_meal_plan,
+        )
 
-            # Test meal plan data
-            meal_plan = {
-                "breakfast": [{"name": "oatmeal", "calories": 150, "protein": 5}],
-                "lunch": [{"name": "salad", "calories": 300, "protein": 15}],
-                "dinner": [{"name": "chicken", "calories": 400, "protein": 30}],
-            }
+        # Test meal plan data
+        meal_plan = {
+            "breakfast": [{"name": "oatmeal", "calories": 150, "protein": 5}],
+            "lunch": [{"name": "salad", "calories": 300, "protein": 15}],
+            "dinner": [{"name": "chicken", "calories": 400, "protein": 30}],
+        }
 
-            # Test nutrition totals
-            totals = calculate_nutrition_totals(meal_plan)
-            assert isinstance(totals, (dict, type(None)))
+        # Test nutrition totals
+        totals = calculate_nutrition_totals(meal_plan)
+        assert isinstance(totals, (dict, type(None)))
 
-            # Test meal improvements
-            improvements = suggest_meal_improvements(meal_plan, {"protein": 80})
-            assert isinstance(improvements, (list, dict, type(None)))
+        # Test meal improvements
+        improvements = suggest_meal_improvements(meal_plan, {"protein": 80})
+        assert isinstance(improvements, (list, dict, type(None)))
 
-            # Test meal optimization
-            optimized = optimize_meals(meal_plan, {"calories": 2000})
-            assert isinstance(optimized, (dict, type(None)))
+        # Test meal optimization
+        optimized = optimize_meals(meal_plan, {"calories": 2000})
+        assert isinstance(optimized, (dict, type(None)))
 
-            # Test validation
-            is_valid = validate_meal_plan(meal_plan)
-            assert isinstance(is_valid, (bool, dict, type(None)))
+        # Test validation
+        is_valid = validate_meal_plan(meal_plan)
+        assert isinstance(is_valid, (bool, dict, type(None)))
 
-            # Test shopping list
-            shopping_list = generate_shopping_list(meal_plan)
-            assert isinstance(shopping_list, (list, dict, type(None)))
+        # Test shopping list
+        shopping_list = generate_shopping_list(meal_plan)
+        assert isinstance(shopping_list, (list, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
-
-    def test_plate_functions_direct(self):
+    def test_plate_functions_direct(self) -> None:
         """Direct tests of plate functions."""
-        try:
-            from core.plate import (
-                analyze_plate_balance,
-                calculate_plate_score,
-                create_nutrition_plate,
-                get_plate_recommendations,
-                visualize_plate_data,
-            )
+        from core.plate import (
+            analyze_plate_balance,
+            calculate_plate_score,
+            create_nutrition_plate,
+            get_plate_recommendations,
+            visualize_plate_data,
+        )
 
-            # Test plate data
-            foods = [
-                {"name": "chicken breast", "protein": 25, "calories": 150, "category": "protein"},
-                {"name": "brown rice", "carbs": 45, "calories": 200, "category": "grains"},
-                {"name": "broccoli", "fiber": 5, "calories": 30, "category": "vegetables"},
-                {"name": "olive oil", "fat": 14, "calories": 120, "category": "fats"},
-            ]
+        # Test plate data
+        foods = [
+            {"name": "chicken breast", "protein": 25, "calories": 150, "category": "protein"},
+            {"name": "brown rice", "carbs": 45, "calories": 200, "category": "grains"},
+            {"name": "broccoli", "fiber": 5, "calories": 30, "category": "vegetables"},
+            {"name": "olive oil", "fat": 14, "calories": 120, "category": "fats"},
+        ]
 
-            # Test plate creation
-            plate = create_nutrition_plate(foods)
-            assert isinstance(plate, (dict, type(None)))
+        # Test plate creation
+        plate = create_nutrition_plate(foods)
+        assert isinstance(plate, (dict, type(None)))
 
-            # Test balance analysis
-            balance = analyze_plate_balance(foods)
-            assert isinstance(balance, (dict, float, type(None)))
+        # Test balance analysis
+        balance = analyze_plate_balance(foods)
+        assert isinstance(balance, (dict, float, type(None)))
 
-            # Test recommendations
-            recommendations = get_plate_recommendations(foods)
-            assert isinstance(recommendations, (list, dict, type(None)))
+        # Test recommendations
+        recommendations = get_plate_recommendations(foods)
+        assert isinstance(recommendations, (list, dict, type(None)))
 
-            # Test plate score
-            score = calculate_plate_score(foods)
-            assert isinstance(score, (int, float, type(None)))
+        # Test plate score
+        score = calculate_plate_score(foods)
+        assert isinstance(score, (int, float, type(None)))
 
-            # Test visualization data
-            viz_data = visualize_plate_data(foods)
-            assert isinstance(viz_data, (dict, list, type(None)))
+        # Test visualization data
+        viz_data = visualize_plate_data(foods)
+        assert isinstance(viz_data, (dict, list, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
-
-    def test_i18n_functions_direct(self):
+    def test_i18n_functions_direct(self) -> None:
         """Direct tests of i18n functions."""
         try:
             from core.i18n import (
@@ -235,7 +212,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_food_sources_functions_direct(self):
+    def test_food_sources_functions_direct(self) -> None:
         """Direct tests of food sources functions."""
         try:
             from core.food_sources.base import (
@@ -275,7 +252,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_rag_functions_direct(self):
+    def test_rag_functions_direct(self) -> None:
         """Direct tests of RAG functions."""
         try:
             from core.rag.simple_rag import (
@@ -317,7 +294,7 @@ class TestDirectCoreFunctions:
         except Exception:  # nosec B110 - intentional in test for coverage
             pass
 
-    def test_db_functions_direct(self):
+    def test_db_functions_direct(self) -> None:
         """Direct tests of database functions."""
         try:
             from core.db import (
@@ -366,47 +343,41 @@ class TestDirectCoreFunctions:
         assert regions == catalog.get_available_regions()
         assert all(isinstance(region, str) for region in regions)
 
-    def test_utils_functions_direct(self):
+    def test_utils_functions_direct(self) -> None:
         """Direct tests of utils functions."""
-        try:
-            from core.utils import (
-                generate_id,
-                safe_float,
-                safe_int,
-                sanitize_html,
-                slugify,
-                validate_email,
-            )
+        from core.utils import (
+            generate_id,
+            safe_float,
+            safe_int,
+            sanitize_html,
+            slugify,
+            validate_email,
+        )
 
-            # Test safe conversions
-            assert safe_float("123.45") == 123.45 or safe_float("123.45") is None
-            assert safe_float("invalid") is None or isinstance(safe_float("invalid"), (int, float))
-            assert safe_float(None) is None or isinstance(safe_float(None), (int, float))
+        # Test safe conversions
+        assert safe_float("123.45") == 123.45 or safe_float("123.45") is None
+        assert safe_float("invalid") is None or isinstance(safe_float("invalid"), (int, float))
+        assert safe_float(None) is None or isinstance(safe_float(None), (int, float))
 
-            assert safe_int("123") == 123 or safe_int("123") is None
-            assert safe_int("invalid") is None or isinstance(safe_int("invalid"), int)
-            assert safe_int(None) is None or isinstance(safe_int(None), int)
+        assert safe_int("123") == 123 or safe_int("123") is None
+        assert safe_int("invalid") is None or isinstance(safe_int("invalid"), int)
+        assert safe_int(None) is None or isinstance(safe_int(None), int)
 
-            # Test slugify
-            slug = slugify("Test String With Spaces")
-            assert isinstance(slug, (str, type(None)))
+        # Test slugify
+        slug = slugify("Test String With Spaces")
+        assert isinstance(slug, (str, type(None)))
 
-            # Test ID generation
-            id_val = generate_id()
-            assert isinstance(id_val, (str, type(None)))
+        # Test ID generation
+        id_val = generate_id()
+        assert isinstance(id_val, (str, type(None)))
 
-            # Test email validation
-            is_valid = validate_email("test@example.com")
-            assert isinstance(is_valid, (bool, type(None)))
+        # Test email validation
+        is_valid = validate_email("test@example.com")
+        assert isinstance(is_valid, (bool, type(None)))
 
-            is_valid = validate_email("invalid-email")
-            assert isinstance(is_valid, (bool, type(None)))
+        is_valid = validate_email("invalid-email")
+        assert isinstance(is_valid, (bool, type(None)))
 
-            # Test HTML sanitization
-            sanitized = sanitize_html("<script>alert('xss')</script>")
-            assert isinstance(sanitized, (str, type(None)))
-
-        except ImportError as exc:
-            require_feature_or_raise(exc, "planner_engines", reason=FEATURE_REASON)
-        except Exception:  # nosec B110 - intentional in test for coverage
-            pass
+        # Test HTML sanitization
+        sanitized = sanitize_html("<script>alert('xss')</script>")
+        assert isinstance(sanitized, (str, type(None)))

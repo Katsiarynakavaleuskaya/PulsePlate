@@ -52,7 +52,7 @@ class FeatureManifest:
 # Canonical feature TODO keys (must match BACKLOG_LEDGER item; one-to-one mapping).
 FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
     {
-        "planner_engines",
+        "planner_engines_advanced",
         "plate_day_micros",
         "exports_recipes_products",
         "sports_disclaimers_lifestage",
@@ -63,7 +63,6 @@ FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
 CP3_SKIP_DRIFT_TARGET_FILES: tuple[str, ...] = (
     "test_zero_coverage_modules.py",
     "test_final_core_coverage.py",
-    "test_direct_core_functions.py",
     "test_quick_coverage_boost.py",
 )
 
