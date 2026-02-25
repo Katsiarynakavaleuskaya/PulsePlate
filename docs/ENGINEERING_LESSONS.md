@@ -318,6 +318,29 @@ For operational import scripts (MenuStat-style and similar):
 3. fail with non-zero exit code when no valid rows remain after normalization
 4. keep a deterministic sample CSV + end-to-end script test in-repo
 
+## 16) Subprocess-backed determinism tests must expose failure diagnostics
+
+### Problem
+When tests call shell pipelines (for example `make openapi`) and fully suppress
+`stdout/stderr`, CI failures become opaque (`CalledProcessError` only), which blocks
+fast triage and encourages blind reruns.
+
+### Real incident (main CI, 2026-02-25)
+`tests/test_openapi_determinism.py` failed in `test-main (3.12)` with
+`Command '['make', 'openapi']' returned non-zero exit status 2`, but no actionable
+stderr was available in job logs because both streams were redirected to `DEVNULL`.
+
+### Rule
+For subprocess-based deterministic tests:
+1. capture subprocess output (`capture_output=True`, `text=True`)
+2. on failure, emit bounded `stdout/stderr` tails in pytest failure message
+3. allow a single retry for transient toolchain/network hiccups, then fail-closed
+
+### Use instead
+- helper wrappers that centralize retry + bounded log tail emission
+- clear failure messages with command, exit code, and log tails
+- deterministic assertions remain strict after command succeeds
+
 ---
 
 ## Repo Commands Reference
