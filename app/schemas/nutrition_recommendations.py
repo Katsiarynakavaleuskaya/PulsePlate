@@ -11,9 +11,11 @@ IMPORTANT:
 from __future__ import annotations
 
 from math import isfinite
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+_NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 
 
 class ProfileInput(BaseModel):
@@ -93,7 +95,7 @@ class NutrientCoverageRequest(BaseModel):
     """
 
     profile: ProfileInput
-    consumed: dict[str, float] = Field(
+    consumed: dict[str, _NonNegativeFloat] = Field(
         ..., min_length=1, description="Consumed nutrient amounts keyed by nutrient name"
     )
 

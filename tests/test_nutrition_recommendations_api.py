@@ -156,6 +156,16 @@ class TestFreeRecommendationsValidation:
         resp = client.get(_FREE_URL, params=params)
         assert resp.status_code == 422
 
+    def test_missing_height_422(self, client: TestClient) -> None:
+        params = {k: v for k, v in _VALID_PARAMS.items() if k != "height_cm"}
+        resp = client.get(_FREE_URL, params=params)
+        assert resp.status_code == 422
+
+    def test_missing_activity_level_422(self, client: TestClient) -> None:
+        params = {k: v for k, v in _VALID_PARAMS.items() if k != "activity_level"}
+        resp = client.get(_FREE_URL, params=params)
+        assert resp.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # PRO endpoint: POST /api/v1/pro/nutrition/coverage

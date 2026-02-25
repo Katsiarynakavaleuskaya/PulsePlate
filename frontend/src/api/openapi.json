@@ -2792,6 +2792,7 @@
         "properties": {
           "consumed": {
             "additionalProperties": {
+              "minimum": 0.0,
               "type": "number"
             },
             "description": "Consumed nutrient amounts keyed by nutrient name",
