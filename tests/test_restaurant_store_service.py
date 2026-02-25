@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,8 @@ from app.services import restaurant_store
 
 
 def _set_test_db(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    db_path = tmp_path / "restaurants_test.sqlite"
+    worker = os.getenv("PYTEST_XDIST_WORKER", "gw0")
+    db_path = tmp_path / f"restaurants_test_{worker}.sqlite"
     monkeypatch.setattr(restaurant_store, "DB_PATH", db_path)
     return db_path
 
