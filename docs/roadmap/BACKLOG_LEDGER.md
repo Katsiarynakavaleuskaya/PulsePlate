@@ -106,11 +106,11 @@ If it is not recorded here — it does not exist.
     - Moderated user submission workflow is implemented (`pending/approved/rejected`)
     - Source audit trail persists provenance for imported and moderated records
 
-- [ ] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
+- [x] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #904 (`feat/food-db-w3d-menustat-importer`)
-  - Status: In Progress
+  - Status: ✅ Merged (PR #904, 2026-02-25)
   - Area: backend / ingestion operations / restaurant coverage
   - Finding Type: operational gap closure
   - Reason: Restaurant endpoints and storage contracts exist, but local environments need a deterministic, repeatable import command to seed menu data from MenuStat-style snapshots without manual DB editing.
@@ -125,6 +125,25 @@ If it is not recorded here — it does not exist.
     - Importer supports explicit snapshot date and source name for provenance
     - Deterministic sample dataset exists for local bootstrap and tests
     - End-to-end test verifies import command populates searchable chain/menu records
+
+- [ ] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DB-W3-E (`feat/food-db-wave3e-submission-promotion`)
+  - Status: In Progress
+  - Area: backend / moderation workflow / restaurant coverage
+  - Finding Type: correctness gap closure
+  - Reason: Moderated submissions reached `approved`, but approved restaurant-menu submissions were not deterministically promoted into canonical `restaurant_menu_items`, creating a product/database gap for local-first lookup.
+  - Links:
+    - `app/services/restaurant_store.py`
+    - `tests/test_restaurant_store_service.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - `approved` submissions with `entity_type=restaurant_menu` are promoted into canonical menu rows in the same transaction scope
+    - Re-approving already approved submissions is idempotent (no duplicate promoted menu rows)
+    - `rejected` submissions do not create menu rows
+    - Promotion failures remain fail-closed (no partial moderation/audit state persisted)
+    - Deterministic tests cover approved/rejected/idempotency/rollback behavior
 
 - [x] P1: Food barcode hit contract normalization for canonical FoodItem response
   - Owner: @katsiaryna_kavaleuskaya
