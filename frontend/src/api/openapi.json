@@ -2136,6 +2136,72 @@
         "title": "DayCloseRequest",
         "type": "object"
       },
+      "DeficiencyRecommendationsRequest": {
+        "description": "RU: Запрос для рекомендаций по устранению дефицитов.\nEN: Request for food-based deficiency recommendations.",
+        "properties": {
+          "consumed": {
+            "additionalProperties": {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            "description": "Consumed nutrient amounts keyed by nutrient name",
+            "minProperties": 1,
+            "title": "Consumed",
+            "type": "object"
+          },
+          "lang": {
+            "default": "en",
+            "description": "Response language",
+            "enum": [
+              "en",
+              "ru",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileInput"
+          }
+        },
+        "required": [
+          "profile",
+          "consumed"
+        ],
+        "title": "DeficiencyRecommendationsRequest",
+        "type": "object"
+      },
+      "DeficiencyRecommendationsResponse": {
+        "description": "RU: Ответ с рекомендациями по устранению дефицитов.\nEN: Response with food-based deficiency recommendations.",
+        "properties": {
+          "deficient_count": {
+            "description": "Number of deficient nutrients",
+            "minimum": 0.0,
+            "title": "Deficient Count",
+            "type": "integer"
+          },
+          "profile_summary": {
+            "description": "Brief profile description",
+            "title": "Profile Summary",
+            "type": "string"
+          },
+          "recommendations": {
+            "description": "Food-based recommendations for deficient nutrients",
+            "items": {
+              "type": "string"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recommendations",
+          "deficient_count",
+          "profile_summary"
+        ],
+        "title": "DeficiencyRecommendationsResponse",
+        "type": "object"
+      },
       "ErrorResponse": {
         "description": "RU: Ответ об ошибке.\nEN: Error response.",
         "properties": {
@@ -2683,6 +2749,95 @@
           }
         },
         "title": "MealLogRequest",
+        "type": "object"
+      },
+      "MicronutrientDetail": {
+        "description": "RU: Детализация одного микронутриента с диапазоном.\nEN: Single micronutrient detail with min/target/max range.",
+        "properties": {
+          "max": {
+            "description": "Upper safe limit",
+            "minimum": 0.0,
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "description": "Minimum acceptable intake",
+            "minimum": 0.0,
+            "title": "Min",
+            "type": "number"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Priority level (1-5, 5=highest)",
+            "title": "Priority"
+          },
+          "target": {
+            "description": "Recommended daily target",
+            "minimum": 0.0,
+            "title": "Target",
+            "type": "number"
+          },
+          "unit": {
+            "description": "Unit of measurement (mg, mcg, IU)",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "min",
+          "target",
+          "max",
+          "unit"
+        ],
+        "title": "MicronutrientDetail",
+        "type": "object"
+      },
+      "MicronutrientTargetsRequest": {
+        "description": "RU: Запрос расширенных микронутриентных целей.\nEN: Request for extended micronutrient targets with ranges.",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/ProfileInput"
+          }
+        },
+        "required": [
+          "profile"
+        ],
+        "title": "MicronutrientTargetsRequest",
+        "type": "object"
+      },
+      "MicronutrientTargetsResponse": {
+        "description": "RU: Ответ с расширенными микронутриентными целями.\nEN: Response with extended micronutrient targets and ranges.",
+        "properties": {
+          "deficiency_threshold": {
+            "description": "Threshold below which intake is deficient (fraction of target)",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Deficiency Threshold",
+            "type": "number"
+          },
+          "nutrients": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MicronutrientDetail"
+            },
+            "description": "Per-nutrient targets with ranges",
+            "title": "Nutrients",
+            "type": "object"
+          }
+        },
+        "required": [
+          "nutrients",
+          "deficiency_threshold"
+        ],
+        "title": "MicronutrientTargetsResponse",
         "type": "object"
       },
       "MoneyDTO": {
@@ -3722,6 +3877,42 @@
             "title": "Age",
             "type": "integer"
           },
+          "bodyfat": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 3.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Body fat % for Katch-McArdle BMR formula",
+            "title": "Bodyfat"
+          },
+          "deficit_pct": {
+            "anyOf": [
+              {
+                "maximum": 25.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calorie deficit % for weight loss (5-25)",
+            "title": "Deficit Pct"
+          },
+          "diet_flags": {
+            "description": "Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST",
+            "items": {
+              "type": "string"
+            },
+            "title": "Diet Flags",
+            "type": "array"
+          },
           "gender": {
             "description": "Biological sex",
             "enum": [
@@ -3731,12 +3922,61 @@
             "title": "Gender",
             "type": "string"
           },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "loss",
+                  "maintain",
+                  "gain"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Nutrition goal (optional, defaults to maintain)",
+            "title": "Goal"
+          },
           "height_cm": {
             "description": "Height in cm",
             "maximum": 250.0,
             "minimum": 100.0,
             "title": "Height Cm",
             "type": "number"
+          },
+          "life_stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "adult",
+                  "pregnant",
+                  "lactating",
+                  "elderly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Life stage for adjusted targets (optional, defaults to adult)",
+            "title": "Life Stage"
+          },
+          "surplus_pct": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calorie surplus % for weight gain (5-20)",
+            "title": "Surplus Pct"
           },
           "weight_kg": {
             "description": "Body weight in kg",
@@ -4352,6 +4592,48 @@
           "canonical_name"
         ],
         "title": "RestaurantSubmissionCreate",
+        "type": "object"
+      },
+      "SafetyCheckRequest": {
+        "description": "RU: Запрос проверки безопасности целевых значений.\nEN: Request for safety validation of nutrition targets.",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/ProfileInput"
+          }
+        },
+        "required": [
+          "profile"
+        ],
+        "title": "SafetyCheckRequest",
+        "type": "object"
+      },
+      "SafetyCheckResponse": {
+        "description": "RU: Ответ проверки безопасности целевых значений.\nEN: Response with safety validation results.",
+        "properties": {
+          "is_safe": {
+            "description": "True if no safety warnings",
+            "title": "Is Safe",
+            "type": "boolean"
+          },
+          "targets_summary": {
+            "$ref": "#/components/schemas/TargetsSummary",
+            "description": "Summary of calculated targets"
+          },
+          "warnings": {
+            "description": "Safety warning messages (empty if safe)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "is_safe",
+          "warnings",
+          "targets_summary"
+        ],
+        "title": "SafetyCheckResponse",
         "type": "object"
       },
       "ShopAisle": {
@@ -5574,6 +5856,35 @@
           "micro"
         ],
         "title": "TargetsIn",
+        "type": "object"
+      },
+      "TargetsSummary": {
+        "description": "RU: Краткая сводка рассчитанных целей.\nEN: Brief summary of calculated nutrition targets.",
+        "properties": {
+          "kcal_daily": {
+            "description": "Target daily calories",
+            "title": "Kcal Daily",
+            "type": "integer"
+          },
+          "protein_pct": {
+            "description": "Protein percentage of total calories",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Protein Pct",
+            "type": "number"
+          },
+          "water_ml_daily": {
+            "description": "Daily water target (ml)",
+            "title": "Water Ml Daily",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kcal_daily",
+          "protein_pct",
+          "water_ml_daily"
+        ],
+        "title": "TargetsSummary",
         "type": "object"
       },
       "TestResponse": {
@@ -8486,6 +8797,54 @@
         ]
       }
     },
+    "/api/v1/pro/nutrition/deficiency-recommendations": {
+      "post": {
+        "description": "Generate food-based recommendations for deficient nutrients.\n\nRU: Формирует рекомендации по продуктам для устранения дефицитов.\nEN: Generates food-first recommendations for nutrients below threshold.",
+        "operationId": "deficiency_recommendations_api_v1_pro_nutrition_deficiency_recommendations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeficiencyRecommendationsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeficiencyRecommendationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Food-based deficiency recommendations (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
     "/api/v1/pro/nutrition/meal-log": {
       "post": {
         "description": "Log a meal event and update adherence micro-model.\n\nRU: Логировать событие приёма пищи и обновить микромодель adherence.\nEN: Log a meal event and update adherence micro-model.\n\nIdempotency: If client_event_id is provided and matches an existing event,\nreturns current state when the event is already applied.",
@@ -8534,6 +8893,54 @@
         ]
       }
     },
+    "/api/v1/pro/nutrition/micronutrient-targets": {
+      "post": {
+        "description": "Build extended micronutrient targets with min/target/max ranges.\n\nRU: Расширенные микроцели с диапазонами (мин/цель/макс) на основе ВОЗ.\nEN: Extended micro targets with min/target/max ranges per WHO/EFSA/DRI.",
+        "operationId": "micronutrient_targets_api_v1_pro_nutrition_micronutrient_targets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MicronutrientTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicronutrientTargetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Extended micronutrient targets with ranges (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
     "/api/v1/pro/nutrition/plate": {
       "post": {
         "description": "Canonical plate endpoint for PRO tier (PlateRequest → PlateResponse).",
@@ -8576,6 +8983,54 @@
           }
         ],
         "summary": "Enhanced plate (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/safety-check": {
+      "post": {
+        "description": "Validate calculated nutrition targets against safety bounds.\n\nRU: Проверяет безопасность рассчитанных целей (калории, белок, гидратация).\nEN: Validates safety of calculated targets (calories, protein, hydration).",
+        "operationId": "safety_check_api_v1_pro_nutrition_safety_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafetyCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafetyCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Safety validation of nutrition targets (PRO)",
         "tags": [
           "nutrition",
           "pro"

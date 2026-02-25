@@ -1117,6 +1117,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/nutrition/deficiency-recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Food-based deficiency recommendations (PRO)
+         * @description Generate food-based recommendations for deficient nutrients.
+         *
+         *     RU: Формирует рекомендации по продуктам для устранения дефицитов.
+         *     EN: Generates food-first recommendations for nutrients below threshold.
+         */
+        post: operations["deficiency_recommendations_api_v1_pro_nutrition_deficiency_recommendations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/nutrition/meal-log": {
         parameters: {
             query?: never;
@@ -1143,6 +1166,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/nutrition/micronutrient-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extended micronutrient targets with ranges (PRO)
+         * @description Build extended micronutrient targets with min/target/max ranges.
+         *
+         *     RU: Расширенные микроцели с диапазонами (мин/цель/макс) на основе ВОЗ.
+         *     EN: Extended micro targets with min/target/max ranges per WHO/EFSA/DRI.
+         */
+        post: operations["micronutrient_targets_api_v1_pro_nutrition_micronutrient_targets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/nutrition/plate": {
         parameters: {
             query?: never;
@@ -1157,6 +1203,29 @@ export interface paths {
          * @description Canonical plate endpoint for PRO tier (PlateRequest → PlateResponse).
          */
         post: operations["pro_nutrition_plate_api_v1_pro_nutrition_plate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/safety-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Safety validation of nutrition targets (PRO)
+         * @description Validate calculated nutrition targets against safety bounds.
+         *
+         *     RU: Проверяет безопасность рассчитанных целей (калории, белок, гидратация).
+         *     EN: Validates safety of calculated targets (calories, protein, hydration).
+         */
+        post: operations["safety_check_api_v1_pro_nutrition_safety_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3438,6 +3507,50 @@ export interface components {
             day: string;
         };
         /**
+         * DeficiencyRecommendationsRequest
+         * @description RU: Запрос для рекомендаций по устранению дефицитов.
+         *     EN: Request for food-based deficiency recommendations.
+         */
+        DeficiencyRecommendationsRequest: {
+            /**
+             * Consumed
+             * @description Consumed nutrient amounts keyed by nutrient name
+             */
+            consumed: {
+                [key: string]: number;
+            };
+            /**
+             * Lang
+             * @description Response language
+             * @default en
+             * @enum {string}
+             */
+            lang: "en" | "ru" | "es";
+            profile: components["schemas"]["ProfileInput"];
+        };
+        /**
+         * DeficiencyRecommendationsResponse
+         * @description RU: Ответ с рекомендациями по устранению дефицитов.
+         *     EN: Response with food-based deficiency recommendations.
+         */
+        DeficiencyRecommendationsResponse: {
+            /**
+             * Deficient Count
+             * @description Number of deficient nutrients
+             */
+            deficient_count: number;
+            /**
+             * Profile Summary
+             * @description Brief profile description
+             */
+            profile_summary: string;
+            /**
+             * Recommendations
+             * @description Food-based recommendations for deficient nutrients
+             */
+            recommendations: string[];
+        };
+        /**
          * ErrorResponse
          * @description RU: Ответ об ошибке.
          *     EN: Error response.
@@ -3699,6 +3812,65 @@ export interface components {
             meal_type?: ("breakfast" | "lunch" | "dinner" | "snack") | null;
             /** Occurred At */
             occurred_at?: string | null;
+        };
+        /**
+         * MicronutrientDetail
+         * @description RU: Детализация одного микронутриента с диапазоном.
+         *     EN: Single micronutrient detail with min/target/max range.
+         */
+        MicronutrientDetail: {
+            /**
+             * Max
+             * @description Upper safe limit
+             */
+            max: number;
+            /**
+             * Min
+             * @description Minimum acceptable intake
+             */
+            min: number;
+            /**
+             * Priority
+             * @description Priority level (1-5, 5=highest)
+             */
+            priority?: number | null;
+            /**
+             * Target
+             * @description Recommended daily target
+             */
+            target: number;
+            /**
+             * Unit
+             * @description Unit of measurement (mg, mcg, IU)
+             */
+            unit: string;
+        };
+        /**
+         * MicronutrientTargetsRequest
+         * @description RU: Запрос расширенных микронутриентных целей.
+         *     EN: Request for extended micronutrient targets with ranges.
+         */
+        MicronutrientTargetsRequest: {
+            profile: components["schemas"]["ProfileInput"];
+        };
+        /**
+         * MicronutrientTargetsResponse
+         * @description RU: Ответ с расширенными микронутриентными целями.
+         *     EN: Response with extended micronutrient targets and ranges.
+         */
+        MicronutrientTargetsResponse: {
+            /**
+             * Deficiency Threshold
+             * @description Threshold below which intake is deficient (fraction of target)
+             */
+            deficiency_threshold: number;
+            /**
+             * Nutrients
+             * @description Per-nutrient targets with ranges
+             */
+            nutrients: {
+                [key: string]: components["schemas"]["MicronutrientDetail"];
+            };
         };
         /**
          * MoneyDTO
@@ -4171,16 +4343,46 @@ export interface components {
              */
             age: number;
             /**
+             * Bodyfat
+             * @description Body fat % for Katch-McArdle BMR formula
+             */
+            bodyfat?: number | null;
+            /**
+             * Deficit Pct
+             * @description Calorie deficit % for weight loss (5-25)
+             */
+            deficit_pct?: number | null;
+            /**
+             * Diet Flags
+             * @description Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST
+             */
+            diet_flags?: string[];
+            /**
              * Gender
              * @description Biological sex
              * @enum {string}
              */
             gender: "female" | "male";
             /**
+             * Goal
+             * @description Nutrition goal (optional, defaults to maintain)
+             */
+            goal?: ("loss" | "maintain" | "gain") | null;
+            /**
              * Height Cm
              * @description Height in cm
              */
             height_cm: number;
+            /**
+             * Life Stage
+             * @description Life stage for adjusted targets (optional, defaults to adult)
+             */
+            life_stage?: ("adult" | "pregnant" | "lactating" | "elderly") | null;
+            /**
+             * Surplus Pct
+             * @description Calorie surplus % for weight gain (5-20)
+             */
+            surplus_pct?: number | null;
             /**
              * Weight Kg
              * @description Body weight in kg
@@ -4488,6 +4690,33 @@ export interface components {
             payload?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * SafetyCheckRequest
+         * @description RU: Запрос проверки безопасности целевых значений.
+         *     EN: Request for safety validation of nutrition targets.
+         */
+        SafetyCheckRequest: {
+            profile: components["schemas"]["ProfileInput"];
+        };
+        /**
+         * SafetyCheckResponse
+         * @description RU: Ответ проверки безопасности целевых значений.
+         *     EN: Response with safety validation results.
+         */
+        SafetyCheckResponse: {
+            /**
+             * Is Safe
+             * @description True if no safety warnings
+             */
+            is_safe: boolean;
+            /** @description Summary of calculated targets */
+            targets_summary: components["schemas"]["TargetsSummary"];
+            /**
+             * Warnings
+             * @description Safety warning messages (empty if safe)
+             */
+            warnings: string[];
         };
         /**
          * ShopAisle
@@ -5175,6 +5404,28 @@ export interface components {
              * @default 0
              */
             water_ml: number;
+        };
+        /**
+         * TargetsSummary
+         * @description RU: Краткая сводка рассчитанных целей.
+         *     EN: Brief summary of calculated nutrition targets.
+         */
+        TargetsSummary: {
+            /**
+             * Kcal Daily
+             * @description Target daily calories
+             */
+            kcal_daily: number;
+            /**
+             * Protein Pct
+             * @description Protein percentage of total calories
+             */
+            protein_pct: number;
+            /**
+             * Water Ml Daily
+             * @description Daily water target (ml)
+             */
+            water_ml_daily: number;
         };
         /**
          * TestResponse
@@ -6982,6 +7233,39 @@ export interface operations {
             };
         };
     };
+    deficiency_recommendations_api_v1_pro_nutrition_deficiency_recommendations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeficiencyRecommendationsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeficiencyRecommendationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     log_meal_api_v1_pro_nutrition_meal_log_post: {
         parameters: {
             query?: never;
@@ -7015,6 +7299,39 @@ export interface operations {
             };
         };
     };
+    micronutrient_targets_api_v1_pro_nutrition_micronutrient_targets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MicronutrientTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicronutrientTargetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     pro_nutrition_plate_api_v1_pro_nutrition_plate_post: {
         parameters: {
             query?: never;
@@ -7035,6 +7352,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    safety_check_api_v1_pro_nutrition_safety_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SafetyCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SafetyCheckResponse"];
                 };
             };
             /** @description Validation Error */
