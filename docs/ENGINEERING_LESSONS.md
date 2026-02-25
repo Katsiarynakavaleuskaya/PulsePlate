@@ -155,9 +155,9 @@ Document supported zero-decimal currencies (currently: **JPY/KRW**) and define t
 
 Prefer modern typing syntax (Python 3.9+):
 
-* `tuple[int, str]`
-* `list[str]`
-* `dict[str, int]`
+- `tuple[int, str]`
+- `list[str]`
+- `dict[str, int]`
 
 ### Type hints for test fixtures
 
