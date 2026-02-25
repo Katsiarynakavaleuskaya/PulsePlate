@@ -41,6 +41,16 @@ class ProfileInput(BaseModel):
     life_stage: Literal["adult", "teen", "pregnant", "lactating", "elderly"] = Field(
         "adult", description="Life stage for adjusted targets"
     )
+    # Goal-specific parameters (per PREMIUM_TARGETS_API spec)
+    deficit_pct: float | None = Field(
+        None, ge=5, le=25, description="Calorie deficit % for weight loss (5-25)"
+    )
+    surplus_pct: float | None = Field(
+        None, ge=5, le=20, description="Calorie surplus % for weight gain (5-20)"
+    )
+    bodyfat: float | None = Field(
+        None, ge=3, le=60, description="Body fat % for Katch-McArdle BMR formula"
+    )
 
 
 class NutrientRecommendationsResponse(BaseModel):

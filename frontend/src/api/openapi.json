@@ -3877,6 +3877,34 @@
             "title": "Age",
             "type": "integer"
           },
+          "bodyfat": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 3.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Body fat % for Katch-McArdle BMR formula",
+            "title": "Bodyfat"
+          },
+          "deficit_pct": {
+            "anyOf": [
+              {
+                "maximum": 25.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calorie deficit % for weight loss (5-25)",
+            "title": "Deficit Pct"
+          },
           "diet_flags": {
             "description": "Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST",
             "items": {
@@ -3924,6 +3952,20 @@
             ],
             "title": "Life Stage",
             "type": "string"
+          },
+          "surplus_pct": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calorie surplus % for weight gain (5-20)",
+            "title": "Surplus Pct"
           },
           "weight_kg": {
             "description": "Body weight in kg",

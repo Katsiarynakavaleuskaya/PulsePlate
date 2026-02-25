@@ -61,9 +61,12 @@ def _profile_from_input(inp: ProfileInput) -> UserProfile:
         weight_kg=inp.weight_kg,
         height_cm=inp.height_cm,
         activity=_ACTIVITY_MAP[inp.activity_level],
-        goal=inp.goal,
+        goal=inp.goal or "maintain",
         diet_flags=set(inp.diet_flags),
-        life_stage=inp.life_stage,
+        life_stage=inp.life_stage or "adult",
+        deficit_pct=inp.deficit_pct,
+        surplus_pct=inp.surplus_pct,
+        bodyfat=inp.bodyfat,
     )
 
 
@@ -219,9 +222,13 @@ def safety_check(req: SafetyCheckRequest) -> SafetyCheckResponse:
 
     profile = _profile_from_input(req.profile)
     targets = build_nutrition_targets(profile)
-    warnings = validate_targets_safety(targets)
 
-    protein_pct = round((targets.macros.protein_g * 4) / targets.kcal_daily * 100, 1)
+    if targets.kcal_daily <= 0:
+        protein_pct = 0.0
+        warnings = ["Invalid kcal_daily value; protein_pct set to 0.0"]
+    else:
+        warnings = validate_targets_safety(targets)
+        protein_pct = round((targets.macros.protein_g * 4) / targets.kcal_daily * 100, 1)
 
     return SafetyCheckResponse(
         is_safe=len(warnings) == 0,

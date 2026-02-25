@@ -4343,6 +4343,16 @@ export interface components {
              */
             age: number;
             /**
+             * Bodyfat
+             * @description Body fat % for Katch-McArdle BMR formula
+             */
+            bodyfat?: number | null;
+            /**
+             * Deficit Pct
+             * @description Calorie deficit % for weight loss (5-25)
+             */
+            deficit_pct?: number | null;
+            /**
              * Diet Flags
              * @description Dietary flags: VEG, GF, DAIRY_FREE, LOW_COST
              */
@@ -4372,6 +4382,11 @@ export interface components {
              * @enum {string}
              */
             life_stage: "adult" | "teen" | "pregnant" | "lactating" | "elderly";
+            /**
+             * Surplus Pct
+             * @description Calorie surplus % for weight gain (5-20)
+             */
+            surplus_pct?: number | null;
             /**
              * Weight Kg
              * @description Body weight in kg

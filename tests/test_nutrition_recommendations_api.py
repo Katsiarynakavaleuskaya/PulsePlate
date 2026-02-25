@@ -477,6 +477,12 @@ class TestDeficiencyRecsContract:
         data = resp.json()
         assert isinstance(data["recommendations"], list)
 
+    def test_lang_invalid_rejected(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        body = {**_VALID_DEFICIENCY_BODY, "lang": "de"}
+        resp = client.post(_PRO_DEFICIENCY_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+        _assert_json_content_type(resp)
+
     def test_veg_flag_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
         body = {
             "profile": {**_VALID_PROFILE, "diet_flags": ["VEG"]},
@@ -575,6 +581,28 @@ class TestMicroTargetsContract:
             "vitamin_c_mg",
         }
         assert set(nutrients.keys()) == expected
+
+        expected_units = {
+            "iron_mg": "mg",
+            "calcium_mg": "mg",
+            "magnesium_mg": "mg",
+            "zinc_mg": "mg",
+            "potassium_mg": "mg",
+            "iodine_ug": "mcg",
+            "selenium_ug": "mcg",
+            "folate_ug": "mcg",
+            "b12_ug": "mcg",
+            "vitamin_d_iu": "IU",
+            "vitamin_a_ug": "mcg",
+            "vitamin_c_mg": "mg",
+        }
+        for name, detail in nutrients.items():
+            assert (
+                isinstance(detail.get("unit"), str) and detail["unit"]
+            ), f"{name} has missing/empty unit"
+            assert (
+                detail["unit"] == expected_units[name]
+            ), f"{name} unit mismatch: expected {expected_units[name]!r}, got {detail['unit']!r}"
 
     def test_ranges_min_le_target_le_max(
         self, client: TestClient, pro_headers: dict[str, str]
@@ -675,6 +703,30 @@ class TestSafetyCheckContract:
         data = resp.json()
         assert data["is_safe"] == (len(data["warnings"]) == 0)
 
+    def test_zero_kcal_guard_sets_protein_pct_zero(
+        self,
+        client: TestClient,
+        pro_headers: dict[str, str],
+        monkeypatch,
+    ) -> None:
+        from dataclasses import replace
+
+        import core.recommendations as core_recommendations
+
+        original_build = core_recommendations.build_nutrition_targets
+
+        def _build_zero_kcal(profile):
+            return replace(original_build(profile), kcal_daily=0)
+
+        monkeypatch.setattr(core_recommendations, "build_nutrition_targets", _build_zero_kcal)
+
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=_VALID_SAFETY_BODY, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+        data = resp.json()
+        assert data["targets_summary"]["protein_pct"] == 0.0
+        assert any("Invalid kcal_daily value" in item for item in data["warnings"])
+
 
 class TestSafetyCheckValidation:
     """422 validation tests for safety-check."""
@@ -726,3 +778,48 @@ class TestProfileInputExtended:
         resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
         assert resp.status_code == 200
         _assert_json_content_type(resp)
+
+    def test_deficit_pct_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        """deficit_pct should be passed to core for loss goal."""
+        body = {"profile": {**_VALID_PROFILE, "goal": "loss", "deficit_pct": 20}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+
+    def test_surplus_pct_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        """surplus_pct should be passed to core for gain goal."""
+        body = {"profile": {**_VALID_PROFILE, "goal": "gain", "surplus_pct": 15}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+
+    def test_bodyfat_accepted(self, client: TestClient, pro_headers: dict[str, str]) -> None:
+        """bodyfat should enable Katch-McArdle BMR formula."""
+        body = {"profile": {**_VALID_PROFILE, "bodyfat": 18.5}}
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 200
+        _assert_json_content_type(resp)
+
+    def test_deficit_pct_out_of_range_422(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """deficit_pct outside 5-25 range should be rejected."""
+        body = {"profile": {**_VALID_PROFILE, "goal": "loss", "deficit_pct": 30}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_surplus_pct_out_of_range_422(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """surplus_pct outside 5-20 range should be rejected."""
+        body = {"profile": {**_VALID_PROFILE, "goal": "gain", "surplus_pct": 25}}
+        resp = client.post(_PRO_SAFETY_CHECK_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
+
+    def test_bodyfat_out_of_range_422(
+        self, client: TestClient, pro_headers: dict[str, str]
+    ) -> None:
+        """bodyfat outside 3-60 range should be rejected."""
+        body = {"profile": {**_VALID_PROFILE, "bodyfat": 70}}
+        resp = client.post(_PRO_MICRO_TARGETS_URL, json=body, headers=pro_headers)
+        assert resp.status_code == 422
