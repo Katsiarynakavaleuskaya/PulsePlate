@@ -49,6 +49,11 @@ def _legacy() -> Any:
     EN: Lazy import to keep import order stable and prevent cycles.
     """
     legacy = importlib.import_module("legacy_app")
+    # Keep app facade compatible while ensuring canonical OpenAPI filtering is installed.
+    install_openapi_builder = getattr(legacy, "_install_openapi_builder", None)
+    legacy_app_instance = getattr(legacy, "app", None)
+    if callable(install_openapi_builder) and legacy_app_instance is not None:
+        install_openapi_builder(legacy_app_instance)
     # Backward-compat for tests/utilities that patch the "real" module by name.
     # RU: Не создаём атрибуты в `app` пакете; используем sys.modules mapping.
     # EN: Do not add extra attributes on the `app` package; use sys.modules mapping.

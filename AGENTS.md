@@ -792,9 +792,11 @@ Source of truth:
 
 - **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
 - **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
+- **Legacy food surface:** `/api/v1/foods/*` and `/api/v1/restaurants/*` are compatibility-only routes; they must be registered with `include_in_schema=False` and must not appear in public OpenAPI.
 - **Legacy aliases:** Deprecated endpoints in wrong namespace (e.g., `/api/v1/bmi/pro` for PRO tier) must be implemented as thin shims delegating to canonical endpoints. Both canonical and legacy paths must be guarded with appropriate tier dependencies.
   - **Example:** `POST /api/v1/bmi/pro` (deprecated) → thin proxy to `POST /api/v1/pro/bmi` (canonical). See `app/routers/bmi_pro_legacy_alias.py` for reference implementation.
 - **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
+- **Guards-first routing:** any PR that adds/changes API routing must include or update an OpenAPI namespace guard test to enforce canonical namespace exposure.
 - **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` router can be PRO tier if it uses `/api/v1/pro/*` namespace).
 - **Frontend must not call `/api/v1/premium/*` endpoints** — use canonical `/api/v1/pro/*` or `/api/v1/vip/*` instead. Deprecated premium endpoints may be removed in future releases.
 

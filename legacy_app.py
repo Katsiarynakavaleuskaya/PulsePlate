@@ -700,6 +700,57 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
+    "/api/v1/bmi/",
+    "/api/v1/pro/",
+    "/api/v1/vip/",
+)
+_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/ws"})
+
+
+def _is_openapi_public_path(path: str) -> bool:
+    """Keep OpenAPI surface restricted to canonical BMI/PRO/VIP namespaces."""
+    if path in _OPENAPI_ALLOWED_EXACT:
+        return True
+    return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)
+
+
+def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
+    """Generate OpenAPI and filter legacy/non-canonical namespaces out of schema."""
+    from fastapi.openapi.utils import get_openapi
+
+    if target_app.openapi_schema:
+        return target_app.openapi_schema
+    schema = get_openapi(
+        title=target_app.title,
+        version=target_app.version,
+        description=target_app.description,
+        routes=target_app.routes,
+        contact=target_app.contact,
+        license_info=target_app.license_info,
+        tags=target_app.openapi_tags,
+    )
+    all_paths = schema.get("paths", {})
+    filtered_paths = {
+        path: value for path, value in all_paths.items() if _is_openapi_public_path(path)
+    }
+    schema["paths"] = dict(sorted(filtered_paths.items()))
+    target_app.openapi_schema = schema
+    return schema
+
+
+def _install_openapi_builder(target_app: FastAPI) -> None:
+    """Install custom OpenAPI builder without method-assign typing violation."""
+    if getattr(target_app.state, "_canonical_openapi_builder_installed", False):
+        return
+
+    def _bound_openapi() -> dict[str, Any]:
+        return _build_canonical_openapi(target_app)
+
+    setattr(target_app, "openapi", _bound_openapi)
+    target_app.state._canonical_openapi_builder_installed = True
+
+
 # Wire rate limiting (PR-628)
 # RU: Подключаем rate-limiting для дорогих endpoints (LLM, exports).
 # EN: Wire rate limiting for expensive endpoints (LLM, exports).
@@ -838,13 +889,17 @@ async def admin_status() -> Dict[str, str]:
 # Include API routers
 protected_dependency = Depends(_get_api_key_dynamic)
 
-app.include_router(foods_router)
+app.include_router(foods_router, include_in_schema=False)
 app.include_router(nutrition_recommendations_router)
-app.include_router(restaurants_router)
+app.include_router(restaurants_router, include_in_schema=False)
 app.include_router(recipes_router)
 app.include_router(users_router)
 app.include_router(catalog_router)
-app.include_router(restaurant_moderation_router, dependencies=[protected_dependency])
+app.include_router(
+    restaurant_moderation_router,
+    dependencies=[protected_dependency],
+    include_in_schema=False,
+)
 app.include_router(export_router, dependencies=[protected_dependency])
 app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])

@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+from typing import Iterable
+
+from app.main import app
+
+ALLOWED_PREFIXES: tuple[str, ...] = (
+    "/api/v1/bmi/",
+    "/api/v1/pro/",
+    "/api/v1/vip/",
+)
+ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/ws"})
+LEGACY_DENY_PREFIXES: tuple[str, ...] = (
+    "/api/v1/foods",
+    "/api/v1/restaurants",
+)
+
+
+def _openapi_paths() -> list[str]:
+    schema = app.openapi()
+    raw_paths = schema.get("paths", {})
+    return sorted(str(path) for path in raw_paths.keys())
+
+
+def _runtime_paths() -> set[str]:
+    return {str(getattr(route, "path", "")) for route in app.routes}
+
+
+def _is_allowed_path(path: str) -> bool:
+    if path in ALLOWED_EXACT:
+        return True
+    return any(path.startswith(prefix) for prefix in ALLOWED_PREFIXES)
+
+
+def _pick_prefixed(paths: Iterable[str], prefixes: tuple[str, ...]) -> list[str]:
+    return sorted(path for path in paths if any(path.startswith(prefix) for prefix in prefixes))
+
+
+def test_openapi_paths_use_only_allowed_namespaces() -> None:
+    paths = _openapi_paths()
+    disallowed = sorted(path for path in paths if not _is_allowed_path(path))
+    assert disallowed == [], f"OpenAPI contains disallowed namespaces: {disallowed}"
+
+
+def test_openapi_does_not_leak_legacy_food_or_restaurant_surface() -> None:
+    paths = _openapi_paths()
+    leaked = _pick_prefixed(paths, LEGACY_DENY_PREFIXES)
+    assert leaked == [], f"legacy surface leaked into schema: {leaked}"
+
+
+def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
+    runtime_paths = _runtime_paths()
+    assert "/ws" in runtime_paths
+    assert "/api/v1/foods" in runtime_paths
+    assert "/api/v1/restaurants/search" in runtime_paths

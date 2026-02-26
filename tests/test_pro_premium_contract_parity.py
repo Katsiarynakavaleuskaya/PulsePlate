@@ -238,12 +238,10 @@ def test_premium_targets_422_parity_pro_targets(
         "/api/v1/premium/plan/week-flexible",
     ],
 )
-def test_premium_endpoints_deprecated_in_openapi(client: TestClient, endpoint_path: str) -> None:
-    """Assert all premium nutrition endpoints are marked deprecated in OpenAPI."""
+def test_premium_endpoints_hidden_from_openapi(client: TestClient, endpoint_path: str) -> None:
+    """Assert deprecated premium aliases are hidden from canonical OpenAPI schema."""
     r = client.get("/openapi.json")
     assert r.status_code == 200
+    assert r.headers.get("content-type", "").startswith("application/json")
     spec = r.json()
-
-    # Extract method (all are POST)
-    op = spec["paths"][endpoint_path]["post"]
-    assert op.get("deprecated") is True, f"{endpoint_path} must be deprecated in OpenAPI"
+    assert endpoint_path not in spec["paths"], f"{endpoint_path} must be hidden from OpenAPI"

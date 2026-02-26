@@ -3,7 +3,7 @@
 Покрывает строки: 2271-2272, 2372, 2400-2426
 """
 
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +17,11 @@ def client(test_environment):
     return TestClient(cast(ASGIApp, app.app))
 
 
+def _assert_json_content_type(response: Any) -> None:
+    """Ensure response is JSON before calling response.json()."""
+    assert response.headers.get("content-type", "").startswith("application/json")
+
+
 class TestAppOpenAPICoverage:
     """Тесты для покрытия app.py OpenAPI generation"""
 
@@ -25,6 +30,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI generation
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         # Проверяем, что OpenAPI schema содержит основные компоненты
         openapi_schema = response.json()
@@ -38,6 +44,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI info
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         assert "title" in openapi_schema["info"]
@@ -50,14 +57,15 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI paths
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем основные пути
-        assert "/" in paths  # root endpoint
+        # Проверяем канонические пути (bmi/pro/vip)
         assert "/api/v1/bmi" in paths
-        assert "/api/v1/bodyfat" in paths
+        assert "/api/v1/pro/nutrition/daily" in paths
+        assert "/api/v1/vip/weekly-plan" in paths
         # /docs и /openapi.json не являются путями в схеме
         # assert "/docs" in paths
         # assert "/openapi.json" in paths
@@ -67,6 +75,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI components
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         components = openapi_schema["components"]
@@ -80,6 +89,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI schemas
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         schemas = openapi_schema["components"]["schemas"]
@@ -97,6 +107,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI security schemes
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         security_schemes = openapi_schema["components"]["securitySchemes"]
@@ -109,20 +120,22 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI operations
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем операции для основных endpoints
-        assert "get" in paths["/health"]
+        # Проверяем операции для канонических endpoints
         assert "post" in paths["/api/v1/bmi"]
-        assert "post" in paths["/api/v1/bodyfat"]
+        assert "get" in paths["/api/v1/pro/nutrition/daily"]
+        assert "post" in paths["/api/v1/vip/weekly-plan"]
 
     def test_app_openapi_parameters_coverage(self, client):
         """Тест покрытия app.py OpenAPI parameters"""
         # Тестируем OpenAPI parameters
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -138,21 +151,23 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI responses
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем ответы для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "responses" in get_operation
+        # Проверяем ответы для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "responses" in post_operation
 
     def test_app_openapi_tags_coverage(self, client):
         """Тест покрытия app.py OpenAPI tags"""
         # Тестируем OpenAPI tags
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -165,21 +180,23 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI summary
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем summary для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "summary" in get_operation
+        # Проверяем summary для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "summary" in post_operation
 
     def test_app_openapi_description_coverage(self, client):
         """Тест покрытия app.py OpenAPI description"""
         # Тестируем OpenAPI description
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -195,15 +212,16 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI operation ID
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем operation ID для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "operationId" in get_operation
+        # Проверяем operation ID для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "operationId" in post_operation
 
     def test_app_openapi_servers_coverage(self, client):
         """Тест покрытия app.py OpenAPI servers"""
@@ -255,6 +273,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI version
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
 
@@ -266,6 +285,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI validation
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         # Проверяем, что схема валидна
         openapi_schema = response.json()

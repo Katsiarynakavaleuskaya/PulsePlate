@@ -24,6 +24,43 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
+- [ ] P0-1: API Surface Governance / Namespace guards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #909 (`feat/pr-909-food-db-next`)
+  - Status: 🟡 In Progress
+  - Area: backend / API governance / OpenAPI contracts
+  - Finding Type: architecture governance gap
+  - Reason: Public OpenAPI surface drift must be locked to canonical FREE/PRO/VIP namespaces to prevent schema sprawl and tier-discipline erosion.
+  - Links:
+    - `docs/architecture/ADR_API_SURFACE_CONSOLIDATION_2026-02-26.md`
+    - `tests/test_openapi_namespace_guards.py`
+    - `legacy_app.py`
+    - `frontend/src/api/openapi.json`
+  - DoD:
+    - OpenAPI namespace guard test is merged and enforced in CI
+    - Legacy `/api/v1/foods*` and `/api/v1/restaurants*` are hidden from OpenAPI schema
+    - Runtime compatibility for legacy routes remains intact
+    - API surface consolidation ADR is merged
+
+- [ ] P0-2: WS namespace migration (`/ws` -> `/api/v1/pro/ws`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-WS-NAMESPACE-MIGRATION
+  - Status: Planned
+  - Area: backend / realtime transport / API governance
+  - Finding Type: namespace consistency follow-up
+  - Reason: WebSocket path still uses transitional root namespace (`/ws`) and must align with canonical PRO surface while preserving a deprecation window.
+  - Links:
+    - `app/routers/realtime_ws.py`
+    - `app/main.py`
+    - `frontend/src/api/wsClient.ts`
+  - DoD:
+    - Canonical WebSocket endpoint available at `/api/v1/pro/ws`
+    - `/ws` compatibility alias is deprecated with removal window documented
+    - OpenAPI/guard policy updated to remove transitional `/ws` allowance
+    - Frontend ws client defaults to canonical path
+
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -126,11 +163,11 @@ If it is not recorded here — it does not exist.
     - Deterministic sample dataset exists for local bootstrap and tests
     - End-to-end test verifies import command populates searchable chain/menu records
 
-- [ ] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
+- [x] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #908 (`feat/food-db-wave3e-submission-promotion`)
-  - Status: In Progress
+  - Status: ✅ Merged (PR #908, 2026-02-25)
   - Area: backend / moderation workflow / restaurant coverage
   - Finding Type: correctness gap closure
   - Reason: Moderated submissions reached `approved`, but approved restaurant-menu submissions were not deterministically promoted into canonical `restaurant_menu_items`, creating a product/database gap for local-first lookup.
