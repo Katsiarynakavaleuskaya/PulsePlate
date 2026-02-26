@@ -1533,11 +1533,12 @@ Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserv
 **Rationale:** Prevents "deferred → forgotten → resurfaces later" anti-pattern. Single source of truth for follow-up work.
 
 **Dependency floor / security guard:** The guard enforces minimum allowed
-package versions (version floors) and detection of explicitly blocked or
-vulnerable packages. Schema and enforcement live in
-`tests/test_dependency_security_guard.py` and
-`tests/fixtures/dependency_security_schema.json`. To raise a minimum version
-or allow a new dependency, update the schema and test expectations together.
+package versions (version floors), blocked packages, and blocked version ranges.
+Schema and enforcement live in `tests/test_dependency_security_guard.py` and
+`tests/fixtures/dependency_security_schema.json`. To raise a minimum version,
+block a package, or block specific versions, update the schema and test
+expectations together. See `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
+for CVE triage workflow.
 
 **Docs lint policy (markdownlint and ledger):**
 
