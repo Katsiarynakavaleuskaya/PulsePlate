@@ -2283,24 +2283,6 @@ export interface components {
             /** Grams */
             grams: number;
         };
-        /** InsightRequest */
-        InsightRequest: {
-            /** Text */
-            text: string;
-        };
-        /**
-         * InsightResponse
-         * @description Insight response payload.
-         *
-         *     RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
-         *     EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
-         */
-        InsightResponse: {
-            /** Insight */
-            insight: string;
-            /** Provider */
-            provider: string;
-        };
         /**
          * LegacyWeekPlanRequest
          * @description Extended request for week plan with optional pre-calculated targets.
