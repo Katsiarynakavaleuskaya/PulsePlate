@@ -85,7 +85,8 @@ make verify
 
 - Link to CVE doc in PR description
 - Update `docs/roadmap/BACKLOG_LEDGER.md` if applicable
-- Include evidence: `rg "^<package>" requirements*.txt`
+- Include evidence across all tracked surfaces:
+  `rg -n "^<package>" requirements.in requirements.txt requirements-dev.txt requirements-lock.txt constraints.txt`
 
 ## Examples
 
