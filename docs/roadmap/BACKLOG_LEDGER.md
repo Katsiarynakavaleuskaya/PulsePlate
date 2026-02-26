@@ -43,11 +43,11 @@ If it is not recorded here — it does not exist.
     - Runtime compatibility for legacy routes remains intact
     - API surface consolidation ADR is merged
 
-- [ ] P0-2: WS namespace migration (`/ws` -> `/api/v1/pro/ws`)
+- [x] P0-2: WS namespace migration (`/ws` -> `/api/v1/pro/ws`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-WS-NAMESPACE-MIGRATION
-  - Status: Planned
+  - Target PR: PR #919 (`feat/p0-2-ws-canonical-clean`)
+  - Status: ✅ Merged (PR #919, 2026-02-26)
   - Area: backend / realtime transport / API governance
   - Finding Type: namespace consistency follow-up
   - Reason: WebSocket path still uses transitional root namespace (`/ws`) and must align with canonical PRO surface while preserving a deprecation window.
