@@ -345,6 +345,41 @@ def test_get_search_backend_prefers_semantic_adapter_over_compat(
         monkeypatch.delenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", raising=False)
 
 
+def test_get_search_backend_rolls_back_to_legacy_when_semantic_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SemanticBackend:
+        def __init__(self) -> None:
+            self.calls: List[tuple[str, Any, Any]] = []
+
+        def search_foods(
+            self, query: str, limit: Any = 20, offset: Any = 0
+        ) -> List[Dict[str, Any]]:
+            self.calls.append((query, limit, offset))
+            return [{"id": "semantic"}]
+
+    called: dict[str, tuple[Any, Any, Any]] = {}
+
+    def fake_legacy_search(query: str, limit: Any = 20, offset: Any = 0) -> List[Dict[str, Any]]:
+        called["params"] = (query, limit, offset)
+        return [{"id": "legacy"}]
+
+    semantic_backend = _SemanticBackend()
+    monkeypatch.setenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", "false")
+    monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
+    monkeypatch.setattr(food_store, "search_foods", fake_legacy_search)
+    food_store.register_semantic_search_backend_adapter(semantic_backend)
+    try:
+        backend = food_store.get_search_backend()
+        rows = backend.search_foods("apple", limit=4, offset=2)
+        assert rows == [{"id": "legacy"}]
+        assert called["params"] == ("apple", 4, 2)
+        assert semantic_backend.calls == []
+    finally:
+        food_store.reset_semantic_search_backend_adapter()
+        monkeypatch.delenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", raising=False)
+
+
 def test_get_search_backend_uses_bootstrap_semantic_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -171,6 +171,9 @@ Deliverables:
     (evidence: `docs/roadmap/BACKLOG_LEDGER.md:126`)
   - W4-B: embeddings pipeline + pgvector indexing + benchmark report
     (evidence: `docs/roadmap/BACKLOG_LEDGER.md:138`)
+    (benchmark evidence: `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`)
+    (artifact: `docs/audit/artifacts/food_w4_semantic_benchmark.json`)
+    (rollback tests: `tests/test_food_store_service.py:348`, `tests/test_foods_router_additional.py:303`)
   - temporary split exit criteria:
     - W4-B implementation PR is merged with benchmark artifact and rollback notes
     - semantic path remains feature-flagged until W4-B benchmark gate is accepted
