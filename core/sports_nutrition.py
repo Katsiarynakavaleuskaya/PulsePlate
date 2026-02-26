@@ -372,3 +372,69 @@ SPORT_MAPPING = {
     "fitness": SportCategory.RECREATIONAL,
     "general": SportCategory.RECREATIONAL,
 }
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def calculate_sports_targets(
+    sport: str = "fitness",
+    training_intensity: str = "moderate",
+    duration_minutes: int = 60,
+    weight_kg: float = 70.0,
+) -> Dict[str, Any]:
+    """Calculate sports nutrition targets for given parameters."""
+    sport_cat = SPORT_MAPPING.get(sport.lower(), SportCategory.RECREATIONAL)
+    # Create minimal profile for calculation
+    from .targets import UserProfile
+
+    profile = UserProfile(
+        sex="male", age=30, height_cm=170, weight_kg=weight_kg, activity="moderate", goal="maintain"
+    )
+    return get_sport_recommendations(profile, sport_cat)
+
+
+def get_athlete_nutrition(athlete_type: str = "endurance") -> Dict[str, Any]:
+    """Get nutrition recommendations for athlete type."""
+    sport_cat = SPORT_MAPPING.get(athlete_type.lower(), SportCategory.RECREATIONAL)
+    from .targets import UserProfile
+
+    profile = UserProfile(
+        sex="male", age=25, height_cm=175, weight_kg=70, activity="moderate", goal="maintain"
+    )
+    return get_sport_recommendations(profile, sport_cat)
+
+
+def adjust_for_training(
+    base_calories: int = 2000,
+    training_type: str = "cardio",
+    duration: int = 60,
+) -> Dict[str, Any]:
+    """Adjust calories for training session."""
+    # Simple multiplier based on training type and duration
+    multipliers = {"cardio": 0.1, "strength": 0.08, "hiit": 0.12, "moderate": 0.08}
+    mult = multipliers.get(training_type.lower(), 0.08)
+    additional = int(base_calories * mult * (duration / 60))
+    return {
+        "base_calories": base_calories,
+        "training_type": training_type,
+        "duration_minutes": duration,
+        "additional_calories": additional,
+        "total_calories": base_calories + additional,
+    }
+
+
+def hydration_needs(
+    weight_kg: float = 70.0,
+    duration_minutes: int = 60,
+    temperature_celsius: float = 20.0,
+) -> float:
+    """Calculate hydration needs during exercise."""
+    # Base: ~500ml per hour, adjusted for weight and temperature
+    base_ml_per_hour = 500
+    weight_factor = weight_kg / 70.0
+    temp_factor = 1.0 + max(0, (temperature_celsius - 20) * 0.03)
+    ml_needed = base_ml_per_hour * (duration_minutes / 60) * weight_factor * temp_factor
+    return round(ml_needed, 1)

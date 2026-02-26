@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from .targets import UserProfile
 
@@ -518,3 +518,119 @@ PEDIATRIC_AGES = {
 }
 
 ADULT_SPECIAL_CONDITIONS = ["pregnant", "lactating", "elderly"]
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def get_lifestage_requirements(
+    age: int = 30,
+    gender: str = "M",
+    lifestage: str = "adult",
+) -> Dict[str, Any]:
+    """Get nutritional requirements for a life stage."""
+    from .targets import UserProfile
+
+    sex: Literal["female", "male"] = "male" if gender.upper() in ("M", "MALE") else "female"
+    profile = UserProfile(
+        sex=sex, age=age, height_cm=170, weight_kg=70, activity="moderate", goal="maintain"
+    )
+    return get_lifestage_recommendations(profile)
+
+
+def adjust_for_age(
+    base_nutrition: Dict[str, Any],
+    age: int = 30,
+) -> Dict[str, Any]:
+    """Adjust nutrition requirements for age."""
+    adjusted = dict(base_nutrition)
+    if age >= 65:
+        # Elderly: increase protein, vitamin D
+        adjusted["protein_multiplier"] = 1.1
+        adjusted["vitamin_d_multiplier"] = 1.2
+        adjusted["age_note"] = "Increased protein and vitamin D for elderly"
+    elif age <= 18:
+        # Youth: increase calcium, energy
+        adjusted["calcium_multiplier"] = 1.2
+        adjusted["energy_multiplier"] = 1.1
+        adjusted["age_note"] = "Increased calcium and energy for growth"
+    else:
+        adjusted["age_note"] = "Standard adult requirements"
+    return adjusted
+
+
+def pregnancy_nutrition(
+    trimester: int = 2,
+    pre_pregnancy_weight: float = 60.0,
+    current_weight: float = 65.0,
+) -> Dict[str, Any]:
+    """Get pregnancy nutrition recommendations."""
+    # Additional calories by trimester (WHO guidelines)
+    extra_cal = {1: 0, 2: 340, 3: 452}
+    weight_gain = current_weight - pre_pregnancy_weight
+    return {
+        "trimester": trimester,
+        "additional_calories": extra_cal.get(trimester, 340),
+        "weight_gain_kg": round(weight_gain, 1),
+        "folate_ug": 600,
+        "iron_mg": 27,
+        "calcium_mg": 1000,
+        "dha_mg": 200,
+        "disclaimer": "Consult obstetrician for personalized prenatal nutrition.",
+    }
+
+
+def elderly_nutrition(
+    age: int = 75,
+    health_conditions: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Get elderly nutrition recommendations."""
+    conditions = health_conditions or []
+    recommendations: Dict[str, Any] = {
+        "age": age,
+        "protein_g_per_kg": 1.2,
+        "vitamin_d_iu": 800,
+        "calcium_mg": 1200,
+        "b12_ug": 2.4,
+        "fiber_g": 25,
+        "hydration_ml": 1500,
+    }
+    if "osteoporosis" in conditions:
+        recommendations["calcium_mg"] = 1500
+        recommendations["vitamin_d_iu"] = 1000
+    if "diabetes" in conditions:
+        recommendations["fiber_g"] = 30
+        recommendations["carb_note"] = "Monitor carbohydrate intake"
+    recommendations["disclaimer"] = "Consult geriatrician for personalized elderly care."
+    return recommendations
+
+
+def child_nutrition(
+    age_years: int = 8,
+    weight_kg: float = 25.0,
+    height_cm: float = 130.0,
+) -> Dict[str, Any]:
+    """Get child nutrition recommendations."""
+    # Estimated needs based on age
+    if age_years <= 5:
+        cal_per_kg = 90
+        protein_per_kg = 1.0
+    elif age_years <= 11:
+        cal_per_kg = 70
+        protein_per_kg = 0.95
+    else:
+        cal_per_kg = 55
+        protein_per_kg = 0.9
+    return {
+        "age_years": age_years,
+        "weight_kg": weight_kg,
+        "height_cm": height_cm,
+        "estimated_calories": int(cal_per_kg * weight_kg),
+        "protein_g": int(protein_per_kg * weight_kg),
+        "calcium_mg": 1000 if age_years >= 9 else 700,
+        "vitamin_d_iu": 600,
+        "iron_mg": 10 if age_years <= 11 else 15,
+        "disclaimer": "Consult pediatrician for personalized child nutrition.",
+    }

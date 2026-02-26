@@ -50,14 +50,12 @@ class FeatureManifest:
 
 
 # Canonical feature TODO keys (must match BACKLOG_LEDGER item; one-to-one mapping).
-FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
-    {
-        "sports_disclaimers_lifestage",
-    }
-)
+# All feature keys have been enabled as of PR-916 (2026-02-26).
+FEATURE_TODO_KEYS: FrozenSet[str] = frozenset()
 
 # CP3 skip-drift execution target suites (single source of truth for CP3 guards/plans).
-CP3_SKIP_DRIFT_TARGET_FILES: tuple[str, ...] = ("test_zero_coverage_modules.py",)
+# All feature keys enabled as of PR-916; no more target files requiring feature gates.
+CP3_SKIP_DRIFT_TARGET_FILES: tuple[str, ...] = ()
 
 
 def require_feature(key: str, reason: str, *, manifest: FeatureManifest | None = None) -> None:
