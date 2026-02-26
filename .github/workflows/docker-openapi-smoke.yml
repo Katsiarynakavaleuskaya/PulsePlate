@@ -107,7 +107,7 @@ jobs:
           docker logs pulseplate-smoke --tail=200 || true
           exit 1
 
-      - name: Assert OpenAPI includes required routes
+      - name: Assert OpenAPI includes canonical routes
         run: |
           python - <<'PY'
           import json
@@ -116,13 +116,14 @@ jobs:
             schema = json.load(f)
 
           paths = schema.get("paths", {})
-          assert "/api/v1/bodyfat" in paths, (
-            "Missing /api/v1/bodyfat in OpenAPI paths. "
+          assert "/api/v1/bmi" in paths, (
+            "Missing /api/v1/bmi in OpenAPI paths. "
             f"Found: {sorted(paths)[:50]}..."
           )
-          methods = {k.lower() for k in paths["/api/v1/bodyfat"].keys()}
-          assert "post" in methods, f"Missing POST for /api/v1/bodyfat. Methods: {sorted(methods)}"
-          print("OK: /api/v1/bodyfat present in OpenAPI")
+          methods = {k.lower() for k in paths["/api/v1/bmi"].keys()}
+          assert "post" in methods, f"Missing POST for /api/v1/bmi. Methods: {sorted(methods)}"
+          assert "/api/v1/bodyfat" not in paths, "/api/v1/bodyfat must not leak into canonical OpenAPI"
+          print("OK: canonical OpenAPI route checks passed")
           PY
 
       - name: Assert /api/v1/bodyfat is not 404
