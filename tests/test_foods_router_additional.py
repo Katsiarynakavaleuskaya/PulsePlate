@@ -298,3 +298,55 @@ def test_list_foods_semantic_flag_uses_semantic_backend_first(
         foods.food_store.reset_semantic_search_backend_adapter()
         monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
         monkeypatch.delenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", raising=False)
+
+
+def test_list_foods_semantic_adapter_not_used_when_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SemanticBackend:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int]] = []
+
+        def search_foods(
+            self, query: str, limit: int = 20, offset: int = 0
+        ) -> list[dict[str, Any]]:
+            self.calls.append((query, limit, offset))
+            return [
+                {
+                    "id": "semantic-ignored",
+                    "canonical_name": "Semantic Apple",
+                    "kcal": 66,
+                    "protein_g": 0.7,
+                    "fat_g": 0.1,
+                    "carbs_g": 14.0,
+                }
+            ]
+
+    called: dict[str, tuple[str, int, int]] = {}
+
+    def fake_legacy_search(query: str, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
+        called["params"] = (query, limit, offset)
+        return [
+            {
+                "id": "legacy-rollback",
+                "canonical_name": "Legacy Apple",
+                "kcal": 52,
+                "protein_g": 0.3,
+                "fat_g": 0.2,
+                "carbs_g": 14.0,
+            }
+        ]
+
+    semantic_backend = _SemanticBackend()
+    monkeypatch.setenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", "false")
+    monkeypatch.delenv("FEATURE_FOOD_SEARCH_COMPAT_ENABLED", raising=False)
+    monkeypatch.setattr(foods.food_store, "search_foods", fake_legacy_search)
+    foods.food_store.register_semantic_search_backend_adapter(semantic_backend)
+    try:
+        result = foods.list_foods(query="apple", limit=10, offset=0, store=foods.get_food_store())
+        assert result[0].id == "legacy-rollback"
+        assert called["params"] == ("apple", 10, 0)
+        assert semantic_backend.calls == []
+    finally:
+        foods.food_store.reset_semantic_search_backend_adapter()
+        monkeypatch.delenv("FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED", raising=False)

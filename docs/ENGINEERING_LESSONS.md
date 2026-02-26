@@ -343,6 +343,26 @@ For subprocess-based deterministic tests:
 
 ---
 
+## 14) Verify merged state before cherry-picking long-lived branches (conflict prevention)
+
+### Problem
+Cherry-picking older feature branch commits after partial upstream merges can create avoidable
+conflicts and duplicate logic.
+
+### Rule
+Before cherry-picking:
+1. check if commits are already merged via `git log origin/main..feature_branch`
+2. inspect file history (`git log -- <file>`) for equivalent merged PRs
+3. if upstream already contains the runtime path, continue with the next unimplemented DoD item
+   instead of replaying stale commits
+
+### Use instead
+- prefer fresh branch from `origin/main`
+- implement only remaining acceptance gaps (benchmark/report/tests/rollback notes)
+- avoid replaying historical commits that represent already-merged behavior
+
+---
+
 ## Repo Commands Reference
 
 ```bash
