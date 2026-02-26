@@ -135,7 +135,7 @@ def calculate_nutrition_score(data: Dict[str, Any]) -> Optional[float]:
     total_deviation = protein_dev + carbs_dev + fat_dev
 
     # Convert to score (0-100, where 100 is perfect)
-    # Max deviation ~100 (e.g., 100% fat would be 30+40+70=140, but realistic max ~100)
+    # Max deviation is 140 (e.g., 100% fat: 30+40+70=140), clamped to 0 minimum
     score = max(0.0, 100.0 - total_deviation)
 
     return float(round(score, 1))
