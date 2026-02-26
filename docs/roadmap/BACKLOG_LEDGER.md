@@ -225,6 +225,25 @@ If it is not recorded here — it does not exist.
     - Rollback-safe deployment path is defined and validated
     - Non-semantic search path remains default and stable
 
+- [ ] P0: Food data licensing + attribution compliance package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #915 (`feat/food-api-attribution-compliance`)
+  - Status: In Progress
+  - Area: backend / legal-compliance / API contracts
+  - Finding Type: legal + governance risk closure
+  - Reason: Food data sources include ODbL-licensed datasets (Open Food Facts). Runtime surface needs a canonical attribution contract and documented policy to reduce legal/compliance risk before broader partner growth.
+  - Links:
+    - `docs/legal/ODbL_COMPLIANCE.md`
+    - `app/routers/pro_food_attribution.py`
+    - `app/services/food_store.py`
+    - `tests/test_pro_food_attribution.py`
+  - DoD:
+    - PRO endpoint returns source-level license + attribution metadata
+    - Source attribution registry is centralized server-side (no client hardcoding)
+    - Deterministic tests cover auth gate + contract payload
+    - Compliance policy doc is merged and linked in backlog
+
 - [x] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0-A (product works)

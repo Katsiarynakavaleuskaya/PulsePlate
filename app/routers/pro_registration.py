@@ -63,6 +63,9 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
     from app.routers.pro_nutrition_insights import router as pro_nutrition_insights_router
 
     app.include_router(pro_nutrition_insights_router)
+    from app.routers.pro_food_attribution import router as pro_food_attribution_router
+
+    app.include_router(pro_food_attribution_router)
 
     # Include premium_week router for backward compatibility (deprecated)
     # Check FEATURE_PREMIUM_WEEK_ENABLED feature flag

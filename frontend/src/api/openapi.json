@@ -2229,6 +2229,63 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FoodAttributionResponse": {
+        "description": "RU: Ответ endpoint с атрибуцией источников.\nEN: Attribution endpoint response for food data sources.",
+        "properties": {
+          "generated_at_utc": {
+            "title": "Generated At Utc",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FoodSourceAttribution"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at_utc",
+          "sources"
+        ],
+        "title": "FoodAttributionResponse",
+        "type": "object"
+      },
+      "FoodSourceAttribution": {
+        "description": "RU: Лицензия и атрибуция по источнику данных.\nEN: License and attribution for a food data source.",
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          }
+        },
+        "required": [
+          "source",
+          "license",
+          "attribution"
+        ],
+        "title": "FoodSourceAttribution",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6034,6 +6091,33 @@
         ],
         "x-alias-of": "/api/v1/pro/bmi",
         "x-migration-path": "Migrate to POST /api/v1/pro/bmi (same contract)"
+      }
+    },
+    "/api/v1/pro/attribution": {
+      "get": {
+        "description": "Return source-license attribution for Food DB providers.\n\nRU: Возвращает лицензии и атрибуцию источников Food DB.\nEN: Returns source licenses and attribution for Food DB.",
+        "operationId": "get_food_data_attribution_api_v1_pro_attribution_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodAttributionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Food Data Attribution",
+        "tags": [
+          "pro"
+        ]
       }
     },
     "/api/v1/pro/bmi": {

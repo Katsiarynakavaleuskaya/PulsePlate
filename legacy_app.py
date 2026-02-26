@@ -3684,6 +3684,10 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         computed_kcal = _macros_to_kcal(macros_aligned)
         if alignment_succeeded and computed_kcal is not None:
             final_kcal_value = computed_kcal
+
+        # RU: Жёсткий безопасный диапазон для ответа Plate API.
+        # EN: Hard safety bounds for Plate API response calories.
+        final_kcal_value = max(1200, min(final_kcal_value, 5000))
         return PlateResponse(
             kcal=final_kcal_value,
             macros=macros_aligned,
@@ -4014,12 +4018,13 @@ def _fallback_targets_response(
 
     if req.goal == "loss":
         pct = req.deficit_pct if req.deficit_pct is not None else 15.0
-        kcal_daily = max(1200, int(tdee * (1.0 - pct / 100.0)))
+        kcal_daily = int(tdee * (1.0 - pct / 100.0))
     elif req.goal == "gain":
         pct = req.surplus_pct if req.surplus_pct is not None else 10.0
         kcal_daily = int(tdee * (1.0 + pct / 100.0))
     else:
         kcal_daily = tdee
+    kcal_daily = max(1200, min(kcal_daily, 5000))
 
     protein_g = int(round(1.6 * req.weight_kg))
     fat_g = int(round(0.9 * req.weight_kg))
@@ -4211,7 +4216,7 @@ def _generate_who_targets_response(
                         )
 
         return WHOTargetsResponse(
-            kcal_daily=targets.kcal_daily,
+            kcal_daily=max(1200, min(int(targets.kcal_daily), 5000)),
             macros={
                 "protein_g": targets.macros.protein_g,
                 "fat_g": targets.macros.fat_g,

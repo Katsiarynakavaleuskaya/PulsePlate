@@ -363,6 +363,26 @@ Before cherry-picking:
 
 ---
 
+## 18) Enforce kcal upper bounds at API response boundaries (property-test hardening)
+
+### Problem
+Hypothesis can discover extreme valid profiles where generated `plate`/`targets`
+calories drift slightly above expected contract bounds (for example `5006`),
+creating nondeterministic CI failures in full-suite property tests.
+
+### Rule
+For nutrition response contracts with explicit kcal ranges:
+1. clamp final API response calories at the boundary layer (`min/max`)
+2. apply the same bound in fallback and primary paths
+3. keep hypothesis/property tests as regression locks for edge profiles
+
+### Use instead
+- response-boundary clamps (`max(1200, min(kcal, 5000))`)
+- shared bounds for `/premium/plate` and `/premium/targets` compatibility aliases
+- deterministic property tests to catch future drift
+
+---
+
 ## Repo Commands Reference
 
 ```bash

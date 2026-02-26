@@ -95,6 +95,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Food Data Attribution
+         * @description Return source-license attribution for Food DB providers.
+         *
+         *     RU: Возвращает лицензии и атрибуцию источников Food DB.
+         *     EN: Returns source licenses and attribution for Food DB.
+         */
+        get: operations["get_food_data_attribution_api_v1_pro_attribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/bmi": {
         parameters: {
             query?: never;
@@ -2222,6 +2245,32 @@ export interface components {
              */
             status: string;
         };
+        /**
+         * FoodAttributionResponse
+         * @description RU: Ответ endpoint с атрибуцией источников.
+         *     EN: Attribution endpoint response for food data sources.
+         */
+        FoodAttributionResponse: {
+            /** Generated At Utc */
+            generated_at_utc: string;
+            /** Sources */
+            sources: components["schemas"]["FoodSourceAttribution"][];
+        };
+        /**
+         * FoodSourceAttribution
+         * @description RU: Лицензия и атрибуция по источнику данных.
+         *     EN: License and attribution for a food data source.
+         */
+        FoodSourceAttribution: {
+            /** Attribution */
+            attribution: string;
+            /** License */
+            license: string;
+            /** Source */
+            source: string;
+            /** Source Url */
+            source_url?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4184,6 +4233,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_food_data_attribution_api_v1_pro_attribution_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoodAttributionResponse"];
                 };
             };
         };

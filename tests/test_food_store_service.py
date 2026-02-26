@@ -653,3 +653,101 @@ def test_db_directory_creation_error(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     sys.modules.pop(module_name, None)
     monkeypatch.delenv("FOOD_DB_PATH", raising=False)
     importlib.import_module(module_name)
+
+
+def test_discover_food_source_keys_falls_back_on_sqlite_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sqlite3
+
+    class _BrokenConn:
+        def __enter__(self) -> "_BrokenConn":
+            raise sqlite3.OperationalError("db unavailable")
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(food_store, "_connect", lambda: _BrokenConn())
+    assert food_store._discover_food_source_keys() == ["usda", "open food facts"]
+
+
+def test_get_food_source_attributions_maps_known_and_unknown_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        food_store,
+        "_discover_food_source_keys",
+        lambda: ["merged(off,usda)", "off", "unknown-source"],
+    )
+
+    rows = food_store.get_food_source_attributions()
+
+    assert rows[0]["source"] == "USDA + Open Food Facts (merged)"
+    assert "ODbL v1.0" in str(rows[0]["license"])
+    assert rows[1]["source"] == "Open Food Facts"
+    assert rows[1]["license"] == "Open Database License (ODbL) v1.0"
+    assert rows[2]["source"] == "UNKNOWN-SOURCE"
+    assert rows[2]["license"] == "Unknown / internal source policy"
+
+
+def test_discover_food_source_keys_returns_sorted_normalized_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SourceCursor:
+        def fetchall(self) -> List[Dict[str, Any]]:
+            return [
+                {"source": " Open Food Facts "},
+                {"source": "USDA"},
+                {"source": ""},
+            ]
+
+    class _SourceConn:
+        def execute(self, sql: str) -> _SourceCursor:
+            assert "SELECT DISTINCT source FROM foods" in sql
+            return _SourceCursor()
+
+        def __enter__(self) -> "_SourceConn":
+            return self
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(food_store, "_connect", lambda: _SourceConn())
+    assert food_store._discover_food_source_keys() == ["open food facts", "usda"]
+
+
+def test_discover_food_source_keys_returns_defaults_when_rows_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SourceCursor:
+        def fetchall(self) -> List[Dict[str, Any]]:
+            return []
+
+    class _SourceConn:
+        def execute(self, sql: str) -> _SourceCursor:
+            assert "SELECT DISTINCT source FROM foods" in sql
+            return _SourceCursor()
+
+        def __enter__(self) -> "_SourceConn":
+            return self
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(food_store, "_connect", lambda: _SourceConn())
+    assert food_store._discover_food_source_keys() == ["usda", "open food facts"]
