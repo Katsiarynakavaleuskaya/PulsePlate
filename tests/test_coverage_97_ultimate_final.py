@@ -21,10 +21,10 @@ class TestCoverage97UltimateFinal:
         assert "openapi" in schema
         assert "info" in schema
 
-        # Verify legacy /insight is hidden from OpenAPI, canonical /api/v1/insight is visible
+        # Verify insight endpoints are hidden from canonical OpenAPI surface
         paths = schema.get("paths", {})
         assert "/insight" not in paths
-        assert "/api/v1/insight" in paths
+        assert "/api/v1/insight" not in paths
 
     def test_app_docs_endpoint(self) -> None:
         """Test docs endpoint."""

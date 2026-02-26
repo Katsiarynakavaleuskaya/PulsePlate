@@ -54,10 +54,10 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем основные пути
-        assert "/" in paths  # root endpoint
+        # Проверяем канонические пути (bmi/pro/vip)
         assert "/api/v1/bmi" in paths
-        assert "/api/v1/bodyfat" in paths
+        assert "/api/v1/pro/nutrition/daily" in paths
+        assert "/api/v1/vip/weekly-plan" in paths
         # /docs и /openapi.json не являются путями в схеме
         # assert "/docs" in paths
         # assert "/openapi.json" in paths
@@ -113,10 +113,10 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем операции для основных endpoints
-        assert "get" in paths["/health"]
+        # Проверяем операции для канонических endpoints
         assert "post" in paths["/api/v1/bmi"]
-        assert "post" in paths["/api/v1/bodyfat"]
+        assert "get" in paths["/api/v1/pro/nutrition/daily"]
+        assert "post" in paths["/api/v1/vip/weekly-plan"]
 
     def test_app_openapi_parameters_coverage(self, client):
         """Тест покрытия app.py OpenAPI parameters"""
@@ -142,11 +142,11 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем ответы для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "responses" in get_operation
+        # Проверяем ответы для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "responses" in post_operation
 
     def test_app_openapi_tags_coverage(self, client):
         """Тест покрытия app.py OpenAPI tags"""
@@ -169,11 +169,11 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем summary для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "summary" in get_operation
+        # Проверяем summary для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "summary" in post_operation
 
     def test_app_openapi_description_coverage(self, client):
         """Тест покрытия app.py OpenAPI description"""
@@ -199,11 +199,11 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем operation ID для основных endpoints
-        health_path = paths["/health"]
-        if "get" in health_path:
-            get_operation = health_path["get"]
-            assert "operationId" in get_operation
+        # Проверяем operation ID для канонического endpoint
+        bmi_path = paths["/api/v1/bmi"]
+        if "post" in bmi_path:
+            post_operation = bmi_path["post"]
+            assert "operationId" in post_operation
 
     def test_app_openapi_servers_coverage(self, client):
         """Тест покрытия app.py OpenAPI servers"""
