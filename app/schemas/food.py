@@ -110,3 +110,25 @@ class FoodHit(BaseModel):
     protein_g: float = 0.0
     fat_g: float = 0.0
     carbs_g: float = 0.0
+
+
+class FoodSourceAttribution(BaseModel):
+    """
+    RU: Лицензия и атрибуция по источнику данных.
+    EN: License and attribution for a food data source.
+    """
+
+    source: str
+    license: str
+    attribution: str
+    source_url: Optional[str] = None
+
+
+class FoodAttributionResponse(BaseModel):
+    """
+    RU: Ответ endpoint с атрибуцией источников.
+    EN: Attribution endpoint response for food data sources.
+    """
+
+    generated_at_utc: str
+    sources: List[FoodSourceAttribution]

@@ -55,6 +55,51 @@ DEFAULT_ALIASES: Dict[str, List[str]] = {
     "творог": ["cottage cheese", "queso cottage"],
 }
 
+# RU: Реестр лицензий и обязательной атрибуции для источников Food DB.
+# EN: License and required attribution registry for Food DB sources.
+_FOOD_SOURCE_ATTRIBUTION_REGISTRY: Dict[str, Dict[str, str | None]] = {
+    "usda": {
+        "source": "USDA FoodData Central",
+        "license": "U.S. Government Work (public domain, source attribution required)",
+        "attribution": "Contains data from USDA FoodData Central.",
+        "source_url": "https://fdc.nal.usda.gov/",
+    },
+    "open food facts": {
+        "source": "Open Food Facts",
+        "license": "Open Database License (ODbL) v1.0",
+        "attribution": "Contains Open Food Facts data licensed under ODbL v1.0.",
+        "source_url": "https://world.openfoodfacts.org/",
+    },
+    "off": {
+        "source": "Open Food Facts",
+        "license": "Open Database License (ODbL) v1.0",
+        "attribution": "Contains Open Food Facts data licensed under ODbL v1.0.",
+        "source_url": "https://world.openfoodfacts.org/",
+    },
+    "menustat": {
+        "source": "MenuStat",
+        "license": "Public research dataset (source attribution required)",
+        "attribution": "Contains data from MenuStat annual restaurant nutrition datasets.",
+        "source_url": "https://www.menustat.org/",
+    },
+    "nutritionix": {
+        "source": "Nutritionix",
+        "license": "Nutritionix API terms",
+        "attribution": "Contains Nutritionix data used under applicable API terms.",
+        "source_url": "https://www.nutritionix.com/business/api",
+    },
+    "merged(off,usda)": {
+        "source": "USDA + Open Food Facts (merged)",
+        "license": "Mixed: USDA public domain + Open Food Facts ODbL v1.0",
+        "attribution": (
+            "Contains merged USDA FoodData Central and Open Food Facts data; "
+            "Open Food Facts portion is licensed under ODbL v1.0."
+        ),
+        "source_url": "https://fdc.nal.usda.gov/",
+    },
+}
+_FOOD_ATTRIBUTION_DEFAULT_KEYS: Tuple[str, ...] = ("usda", "open food facts")
+
 
 def _safe_float(value: int | float | str | None) -> float:
     """Best-effort float conversion; returns 0.0 on None/non-numeric.
@@ -492,6 +537,46 @@ def get_search_backend() -> FoodSearchBackend:
     if _use_compat_search_backend() and compat_backend is not None:
         return compat_backend
     return _LEGACY_SEARCH_BACKEND
+
+
+def _discover_food_source_keys() -> List[str]:
+    """Discover canonical source keys from foods table, fallback to defaults."""
+    try:
+        with _connect() as con:
+            rows = con.execute(
+                "SELECT DISTINCT source FROM foods WHERE source IS NOT NULL ORDER BY source ASC"
+            ).fetchall()
+    except sqlite3.Error:
+        return list(_FOOD_ATTRIBUTION_DEFAULT_KEYS)
+
+    discovered = {str(row["source"]).strip().lower() for row in rows if str(row["source"]).strip()}
+    if not discovered:
+        return list(_FOOD_ATTRIBUTION_DEFAULT_KEYS)
+    return sorted(discovered)
+
+
+def get_food_source_attributions() -> List[Dict[str, str | None]]:
+    """
+    Return license/attribution metadata for known and discovered food sources.
+
+    RU: Возвращает метаданные лицензий и атрибуции по источникам Food DB.
+    EN: Returns license and attribution metadata for Food DB sources.
+    """
+    result: List[Dict[str, str | None]] = []
+    for source_key in _discover_food_source_keys():
+        registry_entry = _FOOD_SOURCE_ATTRIBUTION_REGISTRY.get(source_key)
+        if registry_entry is None:
+            result.append(
+                {
+                    "source": source_key.upper(),
+                    "license": "Unknown / internal source policy",
+                    "attribution": f"Contains data from source '{source_key}'.",
+                    "source_url": None,
+                }
+            )
+            continue
+        result.append(dict(registry_entry))
+    return result
 
 
 def _log_missing_food(food_id: str) -> None:

@@ -255,6 +255,50 @@ class TestEnhancedPlateAPI:
         # Allow 5% variance for rounding
         assert abs(calculated_kcal - kcal) / kcal <= 0.05
 
+    def test_plate_macro_coercion_fallback_keeps_response_valid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cover macro coercion fallback when float conversion fails for a custom macro value."""
+
+        import legacy_app
+
+        class FloatFailIntOk:
+            def __float__(self) -> float:
+                raise TypeError("float conversion disabled for coverage path")
+
+            def __int__(self) -> int:
+                return 7
+
+        def _mock_align(*_args: object, **_kwargs: object) -> tuple[dict[str, object], int, bool]:
+            return (
+                {
+                    "protein_g": 120,
+                    "fat_g": 60,
+                    "carbs_g": 200,
+                    "fiber_g": 30,
+                    "custom_bad": FloatFailIntOk(),
+                },
+                2300,
+                True,
+            )
+
+        monkeypatch.setattr(legacy_app, "align_macros_with_targets", _mock_align)
+
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 170,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+        response = client.post(
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+        )
+
+        assert response.status_code == 400
+        assert "Enhanced plate generation failed" in response.text
+
     def test_plate_goal_specific_differences(self) -> None:
         """Test different goals produce appropriate macro distributions."""
         base_payload = {
