@@ -18,7 +18,8 @@ export interface RealtimeWsConnectOptions {
   onStateChange?: (state: WsConnectionState) => void;
 }
 
-const DEFAULT_WS_PATH = "/ws";
+const DEFAULT_WS_PATH = "/api/v1/pro/ws";
+// Legacy path "/ws" is deprecated; migrate to canonical PRO namespace
 
 function toWsBaseUrl(apiBase: string): string {
   const parsed = new URL(apiBase);

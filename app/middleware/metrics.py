@@ -37,7 +37,8 @@ ROUTE_CACHE_MAX_SIZE: int = 1024
 ROUTE_CACHE_TTL_S: float | None = None
 
 # Bounded WS observability labels (low-cardinality contract).
-WS_ALLOWED_PATH_LABELS: frozenset[str] = frozenset({"/ws"})
+WS_ALLOWED_PATH_LABELS: frozenset[str] = frozenset({"/ws", "/api/v1/pro/ws"})
+# Note: /ws is deprecated; /api/v1/pro/ws is the canonical PRO namespace
 WS_ALLOWED_CLOSE_REASONS: frozenset[str] = frozenset(
     {
         "ws_disabled",

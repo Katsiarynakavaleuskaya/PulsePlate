@@ -30,7 +30,7 @@ describe("wsClient", (): void => {
     };
     setApiClientDependencies(deps);
 
-    expect(buildRealtimeWsUrl("/ws")).toBe("wss://api.example.com/ws");
+    expect(buildRealtimeWsUrl("/api/v1/pro/ws")).toBe("wss://api.example.com/api/v1/pro/ws");
   });
 
   it("buildRealtimeWsUrl appends token in query string", (): void => {
@@ -41,7 +41,7 @@ describe("wsClient", (): void => {
     };
     setApiClientDependencies(deps);
 
-    expect(buildRealtimeWsUrl("/ws", "abc123")).toBe("ws://localhost:8000/ws?token=abc123");
+    expect(buildRealtimeWsUrl("/api/v1/pro/ws", "abc123")).toBe("ws://localhost:8000/api/v1/pro/ws?token=abc123");
   });
 
   it("connectRealtimeWs emits state transitions and parses messages", (): void => {
@@ -71,7 +71,7 @@ describe("wsClient", (): void => {
     });
 
     expect(states).toEqual(["connecting"]);
-    expect(wsCtor).toHaveBeenCalledWith("ws://localhost:8000/ws");
+    expect(wsCtor).toHaveBeenCalledWith("ws://localhost:8000/api/v1/pro/ws");
 
     fakeSocket.onopen?.();
     fakeSocket.onmessage?.({ data: '{"version":"1","type":"pong"}' });

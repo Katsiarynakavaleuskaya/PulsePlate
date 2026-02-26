@@ -714,7 +714,9 @@ _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
-_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/ws"})
+_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
+# Note: /ws is no longer in allowed exact - WebSocket is now at /api/v1/pro/ws
+# which is covered by _OPENAPI_ALLOWED_PREFIXES
 
 
 def _is_openapi_public_path(path: str) -> bool:

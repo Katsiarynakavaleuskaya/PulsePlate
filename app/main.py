@@ -27,8 +27,15 @@ register_pro_contract_routes(app)
 
 
 def _assert_no_duplicate_ws_route() -> None:
-    """Fail fast if /ws is already registered elsewhere."""
+    """Fail fast if /ws or /api/v1/pro/ws is already registered elsewhere."""
     existing_paths = {getattr(route, "path", None) for route in app.routes}
+    # Check for duplicate canonical PRO WS path
+    if "/api/v1/pro/ws" in existing_paths:
+        raise RuntimeError(
+            "Duplicate /api/v1/pro/ws route detected. "
+            "Check legacy_app.py or other router registration points."
+        )
+    # Check for duplicate legacy WS path (will be registered by realtime_ws.router)
     if "/ws" in existing_paths:
         raise RuntimeError(
             "Duplicate /ws route detected. "
