@@ -39,6 +39,7 @@ def test_pro_food_attribution_returns_license_payload(
     assert "generated_at_utc" in payload
     assert isinstance(payload["generated_at_utc"], str)
     generated_at = payload["generated_at_utc"]
+    assert generated_at.endswith("+00:00")
     assert "." not in generated_at
     parsed = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
     assert parsed.tzinfo is not None
