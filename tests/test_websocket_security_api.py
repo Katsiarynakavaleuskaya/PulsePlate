@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -153,7 +154,7 @@ def test_ws_rejects_missing_token(
     assert exc.value.code == 1008
     assert metrics_stub.ws_connect_total.value == 1.0
     assert metrics_stub.ws_connect_total.label_calls[-1] == {
-        "path": "/api/v1/pro/ws",
+        "path": "/ws",
         "result": "rejected",
         "reason": "auth_required",
     }
@@ -485,7 +486,7 @@ def test_ws_metrics_increment_and_active_gauge_restore(
     assert metrics_stub.ws_messages_total.value == 2.0  # in + out for ping/pong
     assert metrics_stub.ws_active_connections.value == 0.0
 
-    assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/api/v1/pro/ws"
+    assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/ws"
     assert metrics_stub.ws_connect_total.label_calls[-1]["result"] == "accepted"
     assert metrics_stub.ws_connect_total.label_calls[-1]["reason"] == "none"
     assert {labels["direction"] for labels in metrics_stub.ws_messages_total.label_calls[-2:]} == {
@@ -493,7 +494,7 @@ def test_ws_metrics_increment_and_active_gauge_restore(
         "out",
     }
     for labels in metrics_stub.ws_messages_total.label_calls[-2:]:
-        assert labels["path"] == "/api/v1/pro/ws"
+        assert labels["path"] == "/ws"
         assert labels["status"] == "ok"
 
 
@@ -511,7 +512,7 @@ def test_ws_policy_close_log_contains_bounded_fields(
     assert policy_records, "Expected at least one ws_policy_close record"
     record = policy_records[-1]
 
-    assert getattr(record, "path", "") == "/api/v1/pro/ws"
+    assert getattr(record, "path", "") == "/ws"
     assert getattr(record, "close_code", 0) == 1008
     assert getattr(record, "reason", "") == "auth_required"
 
@@ -616,3 +617,52 @@ def test_duplicate_ws_route_detection_raises_runtime_error(
 
     with pytest.raises(RuntimeError, match="Duplicate /api/v1/pro/ws route detected"):
         _assert_no_duplicate_ws_route()
+
+
+def test_canonical_ws_path_rejects_payload_too_large(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the canonical /api/v1/pro/ws endpoint rejects oversized payload."""
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect(
+        "/api/v1/pro/ws", headers={"Authorization": "Bearer valid-token"}
+    ) as ws:
+        # Send a payload larger than WS_MAX_MESSAGE_BYTES (128 in test fixture)
+        ws.send_text("x" * 200)
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+def test_canonical_ws_path_handles_subscribe(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the canonical /api/v1/pro/ws endpoint handles subscribe event."""
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect(
+        "/api/v1/pro/ws", headers={"Authorization": "Bearer valid-token"}
+    ) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "subscribe", "channel": "progress"}))
+        response = json.loads(ws.receive_text())
+    assert response["version"] == "1"
+    assert response["type"] == "subscribed"
+    assert response["channel"] == "progress"
+
+
+def test_legacy_ws_path_logs_deprecation_warning(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that legacy /ws path logs deprecation warning."""
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with caplog.at_level(logging.WARNING):
+        with ws_client.websocket_connect(
+            "/ws", headers={"Authorization": "Bearer valid-token"}
+        ) as ws:
+            ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+            ws.receive_text()
+    # Check that deprecation warning was logged
+    assert any("ws_legacy_path_deprecated" in record.message for record in caplog.records)

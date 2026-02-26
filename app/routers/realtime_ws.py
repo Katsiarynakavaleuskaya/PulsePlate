@@ -427,7 +427,7 @@ async def _ws_handler(ws: WebSocket, path_label: str = WS_ROUTE_LABEL) -> None:
 @router.websocket(WS_CANONICAL_PATH)
 async def ws_pro(ws: WebSocket) -> None:
     """Canonical PRO WebSocket endpoint at /api/v1/pro/ws."""
-    await _ws_handler(ws, path_label=WS_ROUTE_LABEL)
+    await _ws_handler(ws, path_label=WS_CANONICAL_PATH)
 
 
 @router.websocket(WS_LEGACY_PATH)
@@ -440,4 +440,4 @@ async def ws_root(ws: WebSocket) -> None:
     logger.warning(
         "ws_legacy_path_deprecated", extra={"path": WS_LEGACY_PATH, "canonical": WS_CANONICAL_PATH}
     )
-    await _ws_handler(ws, path_label=WS_ROUTE_LABEL)
+    await _ws_handler(ws, path_label=WS_LEGACY_PATH)

@@ -127,7 +127,7 @@ jobs:
             local n=0 max=3 delay=5
             until "$@"; do
               n=$((n + 1))
-              if [ "$n" -ge "$max" ]; then return 1; fi
+              if [ "$n" -gt "$max" ]; then return 1; fi
               echo "gh command failed, retry $n/$max in ${delay}s..." >&2
               sleep "$delay"
             done
@@ -165,7 +165,7 @@ jobs:
             local n=0 max=3 delay=5
             until "$@"; do
               n=$((n + 1))
-              if [ "$n" -ge "$max" ]; then return 1; fi
+              if [ "$n" -gt "$max" ]; then return 1; fi
               echo "gh command failed, retry $n/$max in ${delay}s..." >&2
               sleep "$delay"
             done
