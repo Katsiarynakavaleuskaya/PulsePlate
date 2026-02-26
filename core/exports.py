@@ -406,3 +406,79 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     buffer.close()
 
     return pdf_data
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def export_meal_plan(
+    meal_plan: Dict[str, Any], format: str = "json"
+) -> str | bytes | Dict[str, Any] | None:
+    """Export a meal plan in the requested format."""
+    fmt = format.lower()
+    if fmt == "csv":
+        return to_csv_day(meal_plan)
+    if fmt == "pdf":
+        return to_pdf_day(meal_plan)
+    return dict(meal_plan)
+
+
+def export_nutrition_report(nutrition_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a simple nutrition report dict."""
+    return {
+        "report_type": "nutrition",
+        "data": dict(nutrition_data),
+        "summary": {k: v for k, v in nutrition_data.items() if isinstance(v, (int, float))},
+    }
+
+
+def generate_pdf_report(nutrition_data: Dict[str, Any]) -> bytes | None:
+    """Generate a PDF report for nutrition data."""
+    if not REPORTLAB_AVAILABLE:
+        return None
+    pseudo_plan: Dict[str, Any] = {
+        "meals": [
+            {
+                "name": k,
+                "food_item": str(v),
+                "kcal": v if isinstance(v, (int, float)) else 0,
+                "protein_g": 0,
+                "carbs_g": 0,
+                "fat_g": 0,
+            }
+            for k, v in nutrition_data.items()
+        ],
+        "total_kcal": nutrition_data.get("calories", 0),
+        "total_protein": nutrition_data.get("protein", 0),
+        "total_carbs": nutrition_data.get("carbs", 0),
+        "total_fat": nutrition_data.get("fat", 0),
+    }
+    return to_pdf_day(pseudo_plan)
+
+
+def export_to_csv(data: Any) -> str | bytes:
+    """Export arbitrary data to CSV bytes."""
+    if isinstance(data, list) and data:
+        first = data[0]
+        if isinstance(first, dict):
+            return to_csv_day(first)
+    if isinstance(data, dict):
+        return to_csv_day(data)
+    return b""
+
+
+def export_shopping_list(
+    meal_plan: Dict[str, Any],
+) -> list[str]:
+    """Extract a flat shopping list (ingredient names) from a meal plan."""
+    items: list[str] = []
+    for _meal_type, foods in meal_plan.items():
+        if isinstance(foods, list):
+            for food in foods:
+                if isinstance(food, dict):
+                    name = food.get("name", "")
+                    if name:
+                        items.append(name)
+    return items

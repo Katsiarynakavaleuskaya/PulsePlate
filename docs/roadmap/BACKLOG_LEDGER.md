@@ -1466,7 +1466,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-748
-  - Status: 🔄 In progress (PR-891: legacy_bmi_removed enabled; 15 total enabled, 5 remaining)
+  - Status: 🔄 In progress (21 total enabled, 1 remaining: sports_disclaimers_lifestage)
   - Area: backend / tests / feature debt management
   - Finding Type: product feature debt / runtime skip protocol
   - Reason for deferral: Runtime skip reasons are now standardized via
@@ -1504,8 +1504,9 @@ If it is not recorded here — it does not exist.
     - `planner_engines` -> ✅ Enabled (2026-02-25); added ~25 thin facade functions across 4 core modules: `core/targets.py` (calculate_bmr, calculate_tdee, validate_user_data + 4 stubs), `core/auto_repair.py` (analyze_deficiencies, get_repair_suggestions, calculate_repair_priority + 2 stubs), `core/menu_engine.py` (calculate_nutrition_totals, generate_shopping_list, optimize_meals, validate_meal_plan, suggest_meal_improvements), `core/plate.py` (create_nutrition_plate, analyze_plate_balance, get_plate_recommendations, calculate_plate_score, visualize_plate_data); rewrote `test_direct_core_functions.py` to remove feature gates (10 tests import directly); added 61 coverage tests in `test_planner_engines_facades.py`; renamed residual advanced key to `planner_engines_advanced`; key removed from FEATURE_TODO_KEYS
     - `planner_engines_advanced` -> ✅ Enabled (2026-02-25); added 2 new modules: `core/nutrition_analysis.py` (analyze_nutrition, calculate_nutrition_score, get_nutrition_recommendations, validate_nutrition_data), `core/config.py` (load_config, get_config_value, set_config_value, validate_config); removed feature gates from 6 tests in `test_final_core_coverage.py`; fixed test signatures to match implementations; added 26 coverage tests in `test_planner_engines_advanced_facades.py`; key removed from FEATURE_TODO_KEYS
     - `plate_day_micros` -> ✅ Enabled (PR-912, 2026-02-26); day_micros aggregation from meals already implemented in `legacy_app.py:_aggregate_day_micronutrients()` with fallback mechanism for missing recipe ingredients; removed 10 feature gates from `test_plate_targets_micro_coverage.py`; key removed from FEATURE_TODO_KEYS
+    - `exports_recipes_products` -> ✅ Enabled (PR-TBD, 2026-02-26); added 24 thin facade functions across 5 core modules: `core/exports.py` (export_meal_plan, export_nutrition_report, generate_pdf_report, export_to_csv, export_shopping_list), `core/recipe_synth.py` (generate_recipe, synthesize_meal, create_recipe_variations, optimize_recipe_nutrition, suggest_substitutions), `core/product_finder.py` (find_products, search_by_nutrition, filter_by_criteria, get_product_info, compare_products), `core/product_varieties.py` (get_varieties, find_alternatives, group_by_category, suggest_similar, analyze_variety_nutrition), `core/exports_simple.py` (simple_csv_export, simple_json_export, simple_text_export, quick_meal_export); removed 5 feature gates from `test_zero_coverage_modules.py`; key removed from FEATURE_TODO_KEYS
   - Keys still gated (module exists but tested API surface incomplete):
-    - `exports_recipes_products`, `sports_disclaimers_lifestage`
+    - `sports_disclaimers_lifestage`
   - Ad-hoc skip migration (PR-748):
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)

@@ -181,3 +181,46 @@ def to_pdf_week(week: dict, path: Path) -> None:
         doc.build(elems)
     except Exception:
         path.write_bytes(b"PDF generation unavailable; placeholder file")
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def simple_csv_export(data: list[dict]) -> str:
+    """Export a list of row dicts to a CSV string."""
+    if not data:
+        return ""
+    buf = StringIO()
+    fieldnames = list(data[0].keys())
+    w = csv.DictWriter(buf, fieldnames=fieldnames)
+    w.writeheader()
+    for row in data:
+        w.writerow(row)
+    return buf.getvalue()
+
+
+def simple_json_export(data: dict | list) -> str:
+    """Export data to a JSON string."""
+    import json
+
+    return json.dumps(data, ensure_ascii=False, indent=2, default=str)
+
+
+def simple_text_export(data: dict) -> str:
+    """Export data to a human-readable plain-text string."""
+    lines: list[str] = []
+    for key, value in data.items():
+        lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
+def quick_meal_export(meal: dict) -> str:
+    """Return a one-line summary string for a single meal dict."""
+    title = meal.get("title", meal.get("name", "Meal"))
+    kcal = meal.get("kcal", 0)
+    protein = meal.get("protein_g", 0)
+    fat = meal.get("fat_g", 0)
+    carbs = meal.get("carbs_g", 0)
+    return f"{title}: {kcal} kcal | P {protein}g F {fat}g C {carbs}g"

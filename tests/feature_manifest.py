@@ -52,7 +52,6 @@ class FeatureManifest:
 # Canonical feature TODO keys (must match BACKLOG_LEDGER item; one-to-one mapping).
 FEATURE_TODO_KEYS: FrozenSet[str] = frozenset(
     {
-        "exports_recipes_products",
         "sports_disclaimers_lifestage",
     }
 )
