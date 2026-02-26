@@ -715,30 +715,34 @@ def _is_openapi_public_path(path: str) -> bool:
     return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)
 
 
-def _build_canonical_openapi() -> dict[str, Any]:
+def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
     """Generate OpenAPI and filter legacy/non-canonical namespaces out of schema."""
     from fastapi.openapi.utils import get_openapi
 
-    if app.openapi_schema:
-        return app.openapi_schema
+    if target_app.openapi_schema:
+        return target_app.openapi_schema
     schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
+        title=target_app.title,
+        version=target_app.version,
+        description=target_app.description,
+        routes=target_app.routes,
     )
     all_paths = schema.get("paths", {})
     filtered_paths = {
         path: value for path, value in all_paths.items() if _is_openapi_public_path(path)
     }
     schema["paths"] = dict(sorted(filtered_paths.items()))
-    app.openapi_schema = schema
+    target_app.openapi_schema = schema
     return schema
 
 
 def _install_openapi_builder(target_app: FastAPI) -> None:
     """Install custom OpenAPI builder without method-assign typing violation."""
-    setattr(target_app, "openapi", _build_canonical_openapi)
+
+    def _bound_openapi() -> dict[str, Any]:
+        return _build_canonical_openapi(target_app)
+
+    setattr(target_app, "openapi", _bound_openapi)
 
 
 _install_openapi_builder(app)
