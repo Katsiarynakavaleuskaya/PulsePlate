@@ -1,0 +1,32 @@
+{
+  "iterations": 120,
+  "warmup": 20,
+  "db_path": "data/food.sqlite",
+  "max_p95_ms": 50.0,
+  "results": [
+    {
+      "name": "legacy_flag_off",
+      "semantic_enabled": false,
+      "endpoint": "/api/v1/foods?query=chicken&limit=20&offset=0",
+      "p50_ms": 0.8975,
+      "p95_ms": 1.026,
+      "p99_ms": 1.1647
+    },
+    {
+      "name": "semantic_flag_on",
+      "semantic_enabled": true,
+      "endpoint": "/api/v1/foods?query=chicken&limit=20&offset=0",
+      "p50_ms": 0.886,
+      "p95_ms": 0.9278,
+      "p99_ms": 1.0894
+    },
+    {
+      "name": "rollback_flag_off",
+      "semantic_enabled": false,
+      "endpoint": "/api/v1/foods?query=chicken&limit=20&offset=0",
+      "p50_ms": 0.8872,
+      "p95_ms": 0.9388,
+      "p99_ms": 1.1316
+    }
+  ]
+}
