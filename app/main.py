@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from legacy_app import app as _legacy_app  # re-export FastAPI instance from legacy root module
+from legacy_app import (
+    _install_openapi_builder,
+    app as _legacy_app,
+)  # re-export FastAPI instance from legacy root module
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
@@ -18,6 +21,7 @@ import app.routers.realtime_ws as realtime_ws
 
 app: FastAPI = _legacy_app
 
+_install_openapi_builder(app)
 register_metrics(app)
 register_pro_contract_routes(app)
 

@@ -726,6 +726,9 @@ def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
         version=target_app.version,
         description=target_app.description,
         routes=target_app.routes,
+        contact=target_app.contact,
+        license_info=target_app.license_info,
+        tags=target_app.openapi_tags,
     )
     all_paths = schema.get("paths", {})
     filtered_paths = {
@@ -738,14 +741,15 @@ def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
 
 def _install_openapi_builder(target_app: FastAPI) -> None:
     """Install custom OpenAPI builder without method-assign typing violation."""
+    if getattr(target_app.state, "_canonical_openapi_builder_installed", False):
+        return
 
     def _bound_openapi() -> dict[str, Any]:
         return _build_canonical_openapi(target_app)
 
     setattr(target_app, "openapi", _bound_openapi)
+    target_app.state._canonical_openapi_builder_installed = True
 
-
-_install_openapi_builder(app)
 
 # Wire rate limiting (PR-628)
 # RU: Подключаем rate-limiting для дорогих endpoints (LLM, exports).

@@ -5890,7 +5890,14 @@
     }
   },
   "info": {
+    "contact": {
+      "name": "PulsePlate API Support",
+      "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+    },
     "description": "\n## PulsePlate - Nutrition & Meal Planning API\n\n**Mobile-first API** for iOS and web applications with tiered subscription access.\n\n### Subscription Tiers\n\n- **FREE**: BMI calculations, food/recipe search, user management\n- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking\n- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists\n\n### Authentication\n\nPremium endpoints require API key in `X-API-Key` header:\n- PRO tier: Use API key with PRO access level\n- VIP tier: Use API key with VIP access level\n\n### Test API Keys (Development Only)\n\n- PRO: `YOUR_PRO_TEST_KEY`\n- VIP: `YOUR_VIP_TEST_KEY`\n\n**Note**: Replace with actual test keys from your environment variables or Config.plist.\n**Production**: Test keys are disabled in production environments.\n\n### Documentation\n\n- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`\n- iOS Integration: `docs/IOS_API_INTEGRATION.md`\n",
+    "license": {
+      "name": "MIT"
+    },
     "title": "PulsePlate",
     "version": "0.1.0"
   },
@@ -7903,5 +7910,47 @@
         ]
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "description": "BMI calculation endpoints (FREE tier)",
+      "name": "bmi"
+    },
+    {
+      "description": "Business analytics and Bayesian analysis (Internal use)",
+      "name": "business"
+    },
+    {
+      "description": "Export endpoints for meal plans and shopping lists",
+      "name": "export"
+    },
+    {
+      "description": "Food database search and retrieval (FREE tier)",
+      "name": "foods"
+    },
+    {
+      "description": "Health check and system status endpoints",
+      "name": "health"
+    },
+    {
+      "description": "[DEPRECATED] PRO tier features - use /api/v1/pro/* instead. **Requires PRO API key**.",
+      "name": "premium"
+    },
+    {
+      "description": "PRO tier features - weekly meal planning, nutrition targets. **Requires PRO API key**.",
+      "name": "pro"
+    },
+    {
+      "description": "Recipe database search and preview (FREE tier)",
+      "name": "recipes"
+    },
+    {
+      "description": "User management endpoints (FREE tier)",
+      "name": "users"
+    },
+    {
+      "description": "VIP tier features - micronutrients, auto-repair, recipe synthesis, shopping lists. **Requires VIP API key**.",
+      "name": "vip"
+    }
+  ]
 }
