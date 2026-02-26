@@ -27,13 +27,15 @@ register_pro_contract_routes(app)
 
 
 def _assert_no_duplicate_ws_route() -> None:
-    """Fail fast if /ws is already registered elsewhere."""
+    """Fail fast if WS routes are already registered elsewhere."""
     existing_paths = {getattr(route, "path", None) for route in app.routes}
-    if "/ws" in existing_paths:
-        raise RuntimeError(
-            "Duplicate /ws route detected. "
-            "Check legacy_app.py or other router registration points."
-        )
+    ws_paths = ("/api/v1/pro/ws", "/ws")  # tuple for deterministic order
+    for path in ws_paths:
+        if path in existing_paths:
+            raise RuntimeError(
+                f"Duplicate {path} route detected. "
+                "Check legacy_app.py or other router registration points."
+            )
 
 
 _assert_no_duplicate_ws_route()

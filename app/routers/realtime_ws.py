@@ -25,7 +25,13 @@ from app.middleware.metrics import (
 
 router = APIRouter(tags=["realtime"])
 logger = logging.getLogger(__name__)
-WS_ROUTE_LABEL: str = "/ws"
+
+# Canonical PRO namespace for WebSocket (P0-2)
+WS_CANONICAL_PATH: str = "/api/v1/pro/ws"
+# Legacy root path (deprecated, kept for transition window)
+WS_LEGACY_PATH: str = "/ws"
+# Route label for metrics (use canonical path)
+WS_ROUTE_LABEL: str = WS_CANONICAL_PATH
 
 DEFAULT_MAX_MESSAGE_BYTES: int = 4_096
 DEFAULT_WINDOW_SECONDS: int = 10
@@ -175,11 +181,13 @@ def _extract_bearer_token(ws: WebSocket) -> str | None:
     return token or None
 
 
-async def _authenticate_or_close(ws: WebSocket) -> bool:
+async def _authenticate_or_close(ws: WebSocket, path_label: str = WS_ROUTE_LABEL) -> bool:
     """Authenticate websocket and close with policy code on failure."""
     token = _extract_bearer_token(ws)
     if not token:
-        await _close_with_policy(ws, REASON_AUTH_REQUIRED, record_rejected_connect=True)
+        await _close_with_policy(
+            ws, REASON_AUTH_REQUIRED, record_rejected_connect=True, path_override=path_label
+        )
         return False
 
     try:
@@ -187,7 +195,9 @@ async def _authenticate_or_close(ws: WebSocket) -> bool:
         await run_in_threadpool(verifier, token)
         return True
     except Exception:
-        await _close_with_policy(ws, REASON_AUTH_INVALID, record_rejected_connect=True)
+        await _close_with_policy(
+            ws, REASON_AUTH_INVALID, record_rejected_connect=True, path_override=path_label
+        )
         return False
 
 
@@ -255,7 +265,7 @@ def _encode_event(event: dict[str, Any]) -> str:
 
 
 async def _receive_frame_with_idle_timeout(
-    ws: WebSocket, idle_timeout_seconds: int
+    ws: WebSocket, idle_timeout_seconds: int, path_label: str = WS_ROUTE_LABEL
 ) -> MutableMapping[str, Any] | None:
     """Receive one frame, optionally enforcing idle timeout."""
     try:
@@ -263,7 +273,7 @@ async def _receive_frame_with_idle_timeout(
             return await ws.receive()
         return await asyncio.wait_for(ws.receive(), timeout=float(idle_timeout_seconds))
     except asyncio.TimeoutError:
-        await _close_with_policy(ws, REASON_IDLE_TIMEOUT)
+        await _close_with_policy(ws, REASON_IDLE_TIMEOUT, path_override=path_label)
         return None
 
 
@@ -273,13 +283,15 @@ async def _close_with_policy(
     *,
     extra_fields: dict[str, Any] | None = None,
     record_rejected_connect: bool = False,
+    path_override: str | None = None,
 ) -> None:
     """Close websocket with normalized, structured policy log."""
+    path_label = path_override if path_override is not None else WS_ROUTE_LABEL
     if record_rejected_connect:
-        record_ws_connect(WS_ROUTE_LABEL, result="rejected", reason=reason)
+        record_ws_connect(path_label, result="rejected", reason=reason)
 
     log_payload: dict[str, Any] = {
-        "path": WS_ROUTE_LABEL,
+        "path": path_label,
         "close_code": POLICY_CLOSE_CODE,
         "reason": normalize_ws_close_reason(reason),
     }
@@ -289,29 +301,32 @@ async def _close_with_policy(
     await ws.close(code=POLICY_CLOSE_CODE, reason=reason)
 
 
-@router.websocket("/ws")
-async def ws_root(ws: WebSocket) -> None:
-    """Secure and deterministic WebSocket endpoint."""
+async def _ws_handler(ws: WebSocket, path_label: str = WS_ROUTE_LABEL) -> None:
+    """Shared WebSocket handler for canonical and legacy paths."""
     await ws.accept()
 
     ws_metrics_active = False
 
     if not _is_ws_enabled():
-        await _close_with_policy(ws, REASON_WS_DISABLED, record_rejected_connect=True)
+        await _close_with_policy(
+            ws, REASON_WS_DISABLED, record_rejected_connect=True, path_override=path_label
+        )
         return
 
     policy = _policy_from_env()
     connection_acquired = _active_connections.try_acquire(policy.max_connections)
     if not connection_acquired:
-        await _close_with_policy(ws, REASON_TOO_MANY_CONNECTIONS, record_rejected_connect=True)
+        await _close_with_policy(
+            ws, REASON_TOO_MANY_CONNECTIONS, record_rejected_connect=True, path_override=path_label
+        )
         return
 
     try:
-        if not await _authenticate_or_close(ws):
+        if not await _authenticate_or_close(ws, path_label):
             return
 
-        record_ws_connect(WS_ROUTE_LABEL, reason="none")
-        inc_ws_active_connections(WS_ROUTE_LABEL)
+        record_ws_connect(path_label, reason="none")
+        inc_ws_active_connections(path_label)
         ws_metrics_active = True
 
         limiter = _BurstLimiter(
@@ -323,6 +338,7 @@ async def ws_root(ws: WebSocket) -> None:
             frame = await _receive_frame_with_idle_timeout(
                 ws,
                 policy.idle_timeout_seconds,
+                path_label,
             )
             if frame is None:
                 return
@@ -331,27 +347,29 @@ async def ws_root(ws: WebSocket) -> None:
 
             text = frame.get("text")
             if text is None:
-                await _close_with_policy(ws, REASON_TEXT_FRAME_REQUIRED)
+                await _close_with_policy(ws, REASON_TEXT_FRAME_REQUIRED, path_override=path_label)
                 return
 
             if not _is_within_size_limit(text, policy.max_message_bytes):
-                await _close_with_policy(ws, REASON_PAYLOAD_TOO_LARGE)
+                await _close_with_policy(ws, REASON_PAYLOAD_TOO_LARGE, path_override=path_label)
                 return
 
-            record_ws_message(WS_ROUTE_LABEL, direction="in")
+            record_ws_message(path_label, direction="in")
 
             if not limiter.allow():
-                await _close_with_policy(ws, REASON_RATE_LIMITED)
+                await _close_with_policy(ws, REASON_RATE_LIMITED, path_override=path_label)
                 return
 
             message = _parse_message(text)
             if message is None:
-                await _close_with_policy(ws, REASON_INVALID_JSON)
+                await _close_with_policy(ws, REASON_INVALID_JSON, path_override=path_label)
                 return
 
             message_type = message.get("type")
             if not isinstance(message_type, str) or message_type not in policy.allowed_event_types:
-                await _close_with_policy(ws, REASON_EVENT_TYPE_NOT_ALLOWED)
+                await _close_with_policy(
+                    ws, REASON_EVENT_TYPE_NOT_ALLOWED, path_override=path_label
+                )
                 return
 
             version = _resolve_message_version(message, policy)
@@ -360,6 +378,7 @@ async def ws_root(ws: WebSocket) -> None:
                     ws,
                     REASON_UNSUPPORTED_VERSION,
                     extra_fields={"version": version, "type": message_type},
+                    path_override=path_label,
                 )
                 return
 
@@ -373,13 +392,15 @@ async def ws_root(ws: WebSocket) -> None:
                         }
                     )
                 )
-                record_ws_message(WS_ROUTE_LABEL, direction="out")
+                record_ws_message(path_label, direction="out")
                 continue
 
             if message_type == "subscribe":
                 channel = message.get("channel")
                 if not isinstance(channel, str) or channel not in policy.allowed_channels:
-                    await _close_with_policy(ws, REASON_CHANNEL_NOT_ALLOWED)
+                    await _close_with_policy(
+                        ws, REASON_CHANNEL_NOT_ALLOWED, path_override=path_label
+                    )
                     return
 
                 await ws.send_text(
@@ -391,13 +412,32 @@ async def ws_root(ws: WebSocket) -> None:
                         }
                     )
                 )
-                record_ws_message(WS_ROUTE_LABEL, direction="out")
+                record_ws_message(path_label, direction="out")
                 continue
     except WebSocketDisconnect:
         logger.info("ws_disconnect", extra={"reason": "client_disconnected"})
         return
     finally:
         if ws_metrics_active:
-            dec_ws_active_connections(WS_ROUTE_LABEL)
+            dec_ws_active_connections(path_label)
         if connection_acquired:
             _active_connections.release()
+
+
+@router.websocket(WS_CANONICAL_PATH)
+async def ws_pro(ws: WebSocket) -> None:
+    """Canonical PRO WebSocket endpoint at /api/v1/pro/ws."""
+    await _ws_handler(ws, path_label=WS_ROUTE_LABEL)
+
+
+@router.websocket(WS_LEGACY_PATH)
+async def ws_root(ws: WebSocket) -> None:
+    """Legacy WebSocket endpoint at /ws (deprecated, use /api/v1/pro/ws).
+
+    This endpoint is kept for backward compatibility during the transition window.
+    Clients should migrate to /api/v1/pro/ws.
+    """
+    logger.warning(
+        "ws_legacy_path_deprecated", extra={"path": WS_LEGACY_PATH, "canonical": WS_CANONICAL_PATH}
+    )
+    await _ws_handler(ws, path_label=WS_LEGACY_PATH)

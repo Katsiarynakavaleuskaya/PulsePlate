@@ -9,7 +9,9 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
-ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/ws"})
+ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
+# Legacy WS path is kept at runtime but should NOT appear in OpenAPI schema
+# (WebSocket endpoints are not included in OpenAPI by default)
 LEGACY_DENY_PREFIXES: tuple[str, ...] = (
     "/api/v1/foods",
     "/api/v1/restaurants",
@@ -50,6 +52,18 @@ def test_openapi_does_not_leak_legacy_food_or_restaurant_surface() -> None:
 
 def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
     runtime_paths = _runtime_paths()
+    # Legacy WS path (deprecated, kept for transition)
     assert "/ws" in runtime_paths
+    # Canonical PRO WS path
+    assert "/api/v1/pro/ws" in runtime_paths
+    # Legacy food/restaurant routes (hidden from schema, kept at runtime)
     assert "/api/v1/foods" in runtime_paths
     assert "/api/v1/restaurants/search" in runtime_paths
+
+
+def test_ws_routes_not_in_openapi_schema() -> None:
+    """WebSocket endpoints must not appear in the OpenAPI schema."""
+    paths = set(_openapi_paths())
+    ws_routes = {"/ws", "/api/v1/pro/ws"}
+    leaked = ws_routes & paths
+    assert not leaked, f"WS routes leaked into OpenAPI schema: {sorted(leaked)}"

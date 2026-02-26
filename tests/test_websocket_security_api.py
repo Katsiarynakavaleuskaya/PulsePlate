@@ -557,10 +557,63 @@ async def test_ws_handles_websocket_disconnect_exception(
         async def send_text(self, _text: str) -> None:
             return None
 
-    async def _auth_ok(_ws: object) -> bool:
+    async def _auth_ok(_ws: object, _path_label: str = "/ws") -> bool:
         return True
 
     monkeypatch.setattr(realtime_ws, "_is_ws_enabled", lambda: True)
     monkeypatch.setattr(realtime_ws, "_authenticate_or_close", _auth_ok)
 
     await realtime_ws.ws_root(cast(WebSocket, _DummyWebSocket()))
+
+
+def test_canonical_ws_path_accepts_valid_token_and_responds_pong(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the canonical /api/v1/pro/ws endpoint."""
+    monkeypatch.setattr(realtime_ws, "_get_token_verifier", lambda: _accept_stub)
+    with ws_client.websocket_connect(
+        "/api/v1/pro/ws", headers={"Authorization": "Bearer valid-token"}
+    ) as ws:
+        ws.send_text(json.dumps({"version": "1", "type": "ping"}))
+        response = json.loads(ws.receive_text())
+    assert response["version"] == "1"
+    assert response["type"] == "pong"
+    assert isinstance(response["server_time_ms"], int)
+
+
+def test_canonical_ws_path_rejects_missing_token(
+    ws_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the canonical /api/v1/pro/ws endpoint rejects missing token."""
+    with ws_client.websocket_connect("/api/v1/pro/ws") as ws:
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_text()
+    assert exc.value.code == 1008
+
+
+@pytest.mark.parametrize(
+    "ws_path",
+    ["/api/v1/pro/ws", "/ws"],
+)
+def test_duplicate_ws_route_detection_raises_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+    ws_path: str,
+) -> None:
+    """Test that duplicate WS route registration raises RuntimeError for both paths."""
+    from app.main import _assert_no_duplicate_ws_route
+
+    import app.main as main_mod
+
+    mock_routes = [type("Route", (), {"path": ws_path})()]
+
+    class MockApp:
+        @property
+        def routes(self) -> list[object]:
+            return mock_routes
+
+    monkeypatch.setattr(main_mod, "app", MockApp())
+
+    with pytest.raises(RuntimeError, match="Duplicate"):
+        _assert_no_duplicate_ws_route()
