@@ -24,11 +24,11 @@ If it is not recorded here — it does not exist.
 
 ## P0 — Next (Must happen)
 
-- [ ] P0-1: API Surface Governance / Namespace guards
+- [x] P0-1: API Surface Governance / Namespace guards
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR #909 (`feat/pr-909-food-db-next`)
-  - Status: 🟡 In Progress
+  - Status: ✅ Merged (PR #909, 2026-02-26)
   - Area: backend / API governance / OpenAPI contracts
   - Finding Type: architecture governance gap
   - Reason: Public OpenAPI surface drift must be locked to canonical FREE/PRO/VIP namespaces to prevent schema sprawl and tier-discipline erosion.
@@ -199,11 +199,11 @@ If it is not recorded here — it does not exist.
     - `flags` storage/parse contract is normalized and backward-compatible
     - Deterministic tests cover hit/miss/malformed barcode paths
 
-- [ ] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
+- [x] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #902 (`docs/food-db-w4-kickoff`) + PR #905 (`feat(food-db): add W4-B feature-flag semantic search routing`) + PR #914 (`feat/food-w4-benchmark-rollback-closure`)
-  - Status: In Progress (W4-A merged, W4-B runtime merged, benchmark/rollback closure in PR #914)
+  - Status: ✅ Merged (W4-A #902, W4-B #905, W4-C #914 all merged 2026-02-26)
   - Area: backend / search relevance
   - Finding Type: strategic enhancement
   - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
@@ -225,11 +225,11 @@ If it is not recorded here — it does not exist.
     - Rollback-safe deployment path is defined and validated
     - Non-semantic search path remains default and stable
 
-- [ ] P0: Food data licensing + attribution compliance package
+- [x] P0: Food data licensing + attribution compliance package
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR #915 (`feat/food-api-attribution-compliance`)
-  - Status: In Progress
+  - Status: ✅ Merged (PR #915, 2026-02-26)
   - Area: backend / legal-compliance / API contracts
   - Finding Type: legal + governance risk closure
   - Reason: Food data sources include ODbL-licensed datasets (Open Food Facts). Runtime surface needs a canonical attribution contract and documented policy to reduce legal/compliance risk before broader partner growth.
