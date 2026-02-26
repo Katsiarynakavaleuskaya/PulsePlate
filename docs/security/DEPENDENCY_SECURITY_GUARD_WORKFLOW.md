@@ -174,7 +174,10 @@ make verify
 
 - Schema file: `tests/fixtures/dependency_security_schema.json`
 - Test file: `tests/test_dependency_security_guard.py`
-- AGENTS policy: `AGENTS.md` (Dependency floor / security guard section)
+- Guard enforcement: `tests/test_dependency_security_guard.py:177` (min_versions test)
+- Blocked packages test: `tests/test_dependency_security_guard.py:213` (blocked_packages enforcement)
+- Blocked versions test: `tests/test_dependency_security_guard.py:229` (blocked_versions enforcement)
+- AGENTS policy: `AGENTS.md:1535` (Dependency floor / security guard section)
 - CVE docs: `docs/security/CVE-*.md`
 
 ## Future Enhancements
