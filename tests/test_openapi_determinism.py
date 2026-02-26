@@ -93,9 +93,11 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     assert "/api/v1/pro/meal/weekly" in paths
     assert "/api/v1/pro/nutrition/daily" in paths
     assert "/api/v1/pro/nutrition/meal-log" in paths
-    assert "/api/v1/premium/plan/week-flexible" in paths
     assert "/api/v1/pro/bmi/calculate" in paths
-    assert "/api/v1/business/analyze" in paths
+    assert "/api/v1/premium/plan/week-flexible" not in paths
+    assert "/api/v1/business/analyze" not in paths
+    assert "/api/v1/foods" not in paths
+    assert "/api/v1/restaurants/search" not in paths
 
     h1: tuple[str, str] = (_sha256(openapi_path), _sha256(schema_path))
 
