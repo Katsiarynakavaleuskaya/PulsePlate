@@ -30,32 +30,32 @@
 
 ## Method
 
-Run command:
+Run command (exact, single line):
 
 ```bash
-SERVER_SALT=bench-salt \
-TESTING=true \
-RATE_LIMITING_IN_TESTS=false \
-PYTHONPATH=. \
-python scripts/benchmarks/food_semantic_retrieval_benchmark.py \
-  --iterations 120 \
-  --warmup 20 \
-  --db-path data/food.sqlite \
-  --output-json docs/audit/artifacts/food_w4_semantic_benchmark.json
+SERVER_SALT=bench-salt TESTING=true RATE_LIMITING_IN_TESTS=false PYTHONPATH=. python scripts/benchmarks/food_semantic_retrieval_benchmark.py --iterations 120 --warmup 20 --db-path data/food.sqlite --output-json docs/audit/artifacts/food_w4_semantic_benchmark.json
 ```
 
-Artifact checksum:
+Observed output (truncated):
+
+- `legacy_flag_off | False | \`/api/v1/foods?query=chicken&limit=20&offset=0\` | 0.90 | 0.96 | 1.12`
+- `semantic_flag_on | True | \`/api/v1/foods?query=chicken&limit=20&offset=0\` | 0.89 | 0.99 | 1.11`
+- `rollback_flag_off | False | \`/api/v1/foods?query=chicken&limit=20&offset=0\` | 0.90 | 0.97 | 1.18`
+- `exit code: 0`
+
+Artifact checksum command:
 
 - `shasum -a 256 docs/audit/artifacts/food_w4_semantic_benchmark.json`
-- `421b4577e951747d95711c7e0050baea19e1d1a179bdc8d5957f7ceeb452f3c1`
+- `b6e21d23f724e5a768f6af513452b30165c27619b3ecde47440e6346fd849cb6`
+- `exit code: 0`
 
 ## Results
 
 | Scenario | Semantic flag | Endpoint | p50 (ms) | p95 (ms) | p99 (ms) |
 |---|---|---|---:|---:|---:|
-| legacy_flag_off | false | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8975 | 1.0260 | 1.1647 |
-| semantic_flag_on | true | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8860 | 0.9278 | 1.0894 |
-| rollback_flag_off | false | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8872 | 0.9388 | 1.1316 |
+| legacy_flag_off | false | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8977 | 0.9564 | 1.1212 |
+| semantic_flag_on | true | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8896 | 0.9871 | 1.1070 |
+| rollback_flag_off | false | `/api/v1/foods?query=chicken&limit=20&offset=0` | 0.8975 | 0.9713 | 1.1810 |
 
 ## Rollback Validation
 

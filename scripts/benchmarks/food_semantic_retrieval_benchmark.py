@@ -44,6 +44,8 @@ class ScenarioResult:
 
 
 def _percentile(values: list[float], percentile: int) -> float:
+    if not 0 <= percentile <= 100:
+        raise ValueError(f"percentile must be between 0 and 100 inclusive, got {percentile}")
     if not values:
         return 0.0
     if len(values) == 1:

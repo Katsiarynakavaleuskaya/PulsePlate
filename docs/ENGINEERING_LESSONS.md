@@ -343,7 +343,7 @@ For subprocess-based deterministic tests:
 
 ---
 
-## 14) Verify merged state before cherry-picking long-lived branches (conflict prevention)
+## 17) Verify merged state before cherry-picking long-lived branches (conflict prevention)
 
 ### Problem
 Cherry-picking older feature branch commits after partial upstream merges can create avoidable
