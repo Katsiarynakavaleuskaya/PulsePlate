@@ -122,19 +122,8 @@ jobs:
         run: |
           TAG_COMMIT=$(git rev-parse "${GITHUB_REF#refs/tags/}")
 
-          # Retry wrapper for GitHub API flakiness (3 retries, 5s delay)
-          gh_retry() {
-            local n=0 max=3 delay=5
-            until "$@"; do
-              n=$((n + 1))
-              if [ "$n" -ge "$max" ]; then return 1; fi
-              echo "gh command failed, retry $n/$max in ${delay}s..." >&2
-              sleep "$delay"
-            done
-          }
-
-          LAST_NIGHTLY_CONCLUSION=$(gh_retry gh run list --workflow=nightly.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
-          LAST_NIGHTLY_COMMIT=$(gh_retry gh run list --workflow=nightly.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
+          LAST_NIGHTLY_CONCLUSION=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
+          LAST_NIGHTLY_COMMIT=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
 
           if [ "$LAST_NIGHTLY_CONCLUSION" != "success" ] || [ "$LAST_NIGHTLY_CONCLUSION" = "null" ]; then
             echo "❌ Last nightly test did not pass or is missing: $LAST_NIGHTLY_CONCLUSION"
@@ -160,19 +149,8 @@ jobs:
         run: |
           TAG_COMMIT=$(git rev-parse "${GITHUB_REF#refs/tags/}")
 
-          # Retry wrapper for GitHub API flakiness (3 retries, 5s delay)
-          gh_retry() {
-            local n=0 max=3 delay=5
-            until "$@"; do
-              n=$((n + 1))
-              if [ "$n" -ge "$max" ]; then return 1; fi
-              echo "gh command failed, retry $n/$max in ${delay}s..." >&2
-              sleep "$delay"
-            done
-          }
-
-          MAIN_CI_CONCLUSION=$(gh_retry gh run list --workflow=ci.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
-          MAIN_CI_COMMIT=$(gh_retry gh run list --workflow=ci.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
+          MAIN_CI_CONCLUSION=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
+          MAIN_CI_COMMIT=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
 
           if [ "$MAIN_CI_CONCLUSION" != "success" ] || [ "$MAIN_CI_CONCLUSION" = "null" ]; then
             echo "❌ CI on main branch did not pass or is missing: $MAIN_CI_CONCLUSION"
