@@ -94,6 +94,165 @@ def test_submission_lifecycle_with_audit(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert source_payload["reviewer_notes"] == "verified"
 
 
+def test_approved_submission_promotes_menu_item(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    created = restaurant_store.create_submission(
+        canonical_name="Power Wrap",
+        payload={
+            "chain_name": "Fit Hub",
+            "category": "Wraps",
+            "kcal": 420,
+            "protein_g": 28,
+            "fat_g": 12,
+            "carbs_g": 44,
+            "sodium_mg": 640,
+        },
+    )
+
+    reviewed = restaurant_store.review_submission(created["id"], status="approved")
+    assert reviewed is not None
+    assert reviewed["status"] == "approved"
+
+    chains = restaurant_store.search_restaurants("fit hub", limit=10, offset=0)
+    assert len(chains) == 1
+    assert chains[0]["id"] == "fit-hub"
+    assert chains[0]["source"] == restaurant_store.SUBMISSION_MENU_SOURCE
+
+    menu = restaurant_store.get_restaurant_menu("fit-hub", limit=10)
+    assert len(menu) == 1
+    assert menu[0]["item_name"] == "Power Wrap"
+    assert menu[0]["category"] == "Wraps"
+    assert menu[0]["kcal"] == 420.0
+    assert menu[0]["provenance_source"] == restaurant_store.SUBMISSION_MENU_SOURCE
+    assert menu[0]["provenance_record_id"] == f"submission-{created['id']}"
+
+    with restaurant_store._connect() as con:
+        promoted = con.execute(
+            """
+            SELECT source_name, source_record_id
+            FROM source_catalog
+            WHERE entity_type = 'restaurant_menu_item' AND entity_id = ?
+            """,
+            (menu[0]["id"],),
+        ).fetchall()
+    assert len(promoted) == 1
+    assert promoted[0]["source_name"] == restaurant_store.SUBMISSION_MENU_SOURCE
+
+
+def test_approved_submission_promotion_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    created = restaurant_store.create_submission(
+        canonical_name="Idempotent Bowl",
+        payload={"chain_name": "Fit Hub", "kcal": 390},
+    )
+
+    first = restaurant_store.review_submission(created["id"], status="approved")
+    second = restaurant_store.review_submission(created["id"], status="approved")
+    assert first is not None
+    assert second is not None
+    assert second["status"] == "approved"
+
+    with restaurant_store._connect() as con:
+        menu_rows = con.execute(
+            """
+            SELECT id
+            FROM restaurant_menu_items
+            WHERE source = ? AND source_id = ?
+            """,
+            (restaurant_store.SUBMISSION_MENU_SOURCE, f"submission-{created['id']}"),
+        ).fetchall()
+        promoted_sources = con.execute(
+            """
+            SELECT raw_data_json
+            FROM source_catalog
+            WHERE entity_type = 'user_submission' AND entity_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (created["id"],),
+        ).fetchall()
+    assert len(menu_rows) == 1
+    assert len(promoted_sources) == 2
+    first_payload = json.loads(promoted_sources[0]["raw_data_json"])
+    second_payload = json.loads(promoted_sources[1]["raw_data_json"])
+    assert first_payload["promoted_to_menu"] is True
+    assert second_payload["promoted_to_menu"] is False
+
+
+def test_rejected_submission_does_not_promote_menu_item(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    created = restaurant_store.create_submission(
+        canonical_name="Rejected Salad",
+        payload={"chain_name": "Fit Hub", "kcal": 120},
+    )
+
+    reviewed = restaurant_store.review_submission(created["id"], status="rejected")
+    assert reviewed is not None
+    assert reviewed["status"] == "rejected"
+
+    with restaurant_store._connect() as con:
+        menu_count = con.execute("SELECT COUNT(*) FROM restaurant_menu_items").fetchone()[0]
+        promoted_count = con.execute("""
+            SELECT COUNT(*)
+            FROM source_catalog
+            WHERE entity_type = 'restaurant_menu_item'
+            """).fetchone()[0]
+        moderation_row = con.execute(
+            """
+            SELECT raw_data_json
+            FROM source_catalog
+            WHERE entity_type = 'user_submission' AND entity_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (created["id"],),
+        ).fetchone()
+    assert menu_count == 0
+    assert promoted_count == 0
+    assert moderation_row is not None
+    moderation_payload = json.loads(moderation_row["raw_data_json"])
+    assert moderation_payload["promoted_to_menu"] is False
+
+
+def test_review_submission_rolls_back_on_promotion_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_test_db(monkeypatch, tmp_path)
+    created = restaurant_store.create_submission(
+        canonical_name="Rollback Burger",
+        payload={"chain_name": "Fit Hub", "kcal": 500},
+    )
+
+    def _boom(*args: object, **kwargs: object) -> bool:
+        raise RuntimeError("promotion failed")
+
+    monkeypatch.setattr(restaurant_store, "_upsert_menu_row", _boom)
+    with pytest.raises(RuntimeError, match="promotion failed"):
+        restaurant_store.review_submission(created["id"], status="approved")
+
+    current = restaurant_store.get_submission(created["id"])
+    assert current is not None
+    assert current["status"] == "pending"
+    assert current["audit"] == []
+    with restaurant_store._connect() as con:
+        menu_count = con.execute("SELECT COUNT(*) FROM restaurant_menu_items").fetchone()[0]
+        moderation_count = con.execute(
+            """
+            SELECT COUNT(*)
+            FROM source_catalog
+            WHERE entity_type = 'user_submission' AND entity_id = ?
+            """,
+            (created["id"],),
+        ).fetchone()[0]
+    assert menu_count == 0
+    assert moderation_count == 0
+
+
 def test_review_submission_invalid_status(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _set_test_db(monkeypatch, tmp_path)
 
