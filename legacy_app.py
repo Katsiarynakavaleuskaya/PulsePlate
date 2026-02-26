@@ -705,7 +705,7 @@ _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
-_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
+_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/ws"})
 
 
 def _is_openapi_public_path(path: str) -> bool:

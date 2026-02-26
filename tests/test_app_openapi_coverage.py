@@ -3,7 +3,7 @@
 Покрывает строки: 2271-2272, 2372, 2400-2426
 """
 
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +17,11 @@ def client(test_environment):
     return TestClient(cast(ASGIApp, app.app))
 
 
+def _assert_json_content_type(response: Any) -> None:
+    """Ensure response is JSON before calling response.json()."""
+    assert response.headers.get("content-type", "").startswith("application/json")
+
+
 class TestAppOpenAPICoverage:
     """Тесты для покрытия app.py OpenAPI generation"""
 
@@ -25,6 +30,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI generation
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         # Проверяем, что OpenAPI schema содержит основные компоненты
         openapi_schema = response.json()
@@ -38,6 +44,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI info
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         assert "title" in openapi_schema["info"]
@@ -50,6 +57,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI paths
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -67,6 +75,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI components
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         components = openapi_schema["components"]
@@ -80,6 +89,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI schemas
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         schemas = openapi_schema["components"]["schemas"]
@@ -97,6 +107,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI security schemes
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         security_schemes = openapi_schema["components"]["securitySchemes"]
@@ -109,6 +120,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI operations
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -123,6 +135,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI parameters
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -138,6 +151,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI responses
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -153,6 +167,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI tags
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -165,6 +180,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI summary
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -180,6 +196,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI description
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -195,6 +212,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI operation ID
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
@@ -255,6 +273,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI version
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         openapi_schema = response.json()
 
@@ -266,6 +285,7 @@ class TestAppOpenAPICoverage:
         # Тестируем OpenAPI validation
         response = client.get("/openapi.json")
         assert response.status_code == 200
+        _assert_json_content_type(response)
 
         # Проверяем, что схема валидна
         openapi_schema = response.json()

@@ -163,7 +163,7 @@ If it is not recorded here — it does not exist.
     - Deterministic sample dataset exists for local bootstrap and tests
     - End-to-end test verifies import command populates searchable chain/menu records
 
-- [ ] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
+- [x] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #908 (`feat/food-db-wave3e-submission-promotion`)

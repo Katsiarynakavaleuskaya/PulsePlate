@@ -242,5 +242,6 @@ def test_premium_endpoints_hidden_from_openapi(client: TestClient, endpoint_path
     """Assert deprecated premium aliases are hidden from canonical OpenAPI schema."""
     r = client.get("/openapi.json")
     assert r.status_code == 200
+    assert r.headers.get("content-type", "").startswith("application/json")
     spec = r.json()
     assert endpoint_path not in spec["paths"], f"{endpoint_path} must be hidden from OpenAPI"
