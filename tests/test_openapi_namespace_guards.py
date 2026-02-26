@@ -59,3 +59,11 @@ def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
     # Legacy food/restaurant routes (hidden from schema, kept at runtime)
     assert "/api/v1/foods" in runtime_paths
     assert "/api/v1/restaurants/search" in runtime_paths
+
+
+def test_ws_routes_not_in_openapi_schema() -> None:
+    """WebSocket endpoints must not appear in the OpenAPI schema."""
+    paths = set(_openapi_paths())
+    ws_routes = {"/ws", "/api/v1/pro/ws"}
+    leaked = ws_routes & paths
+    assert not leaked, f"WS routes leaked into OpenAPI schema: {sorted(leaked)}"

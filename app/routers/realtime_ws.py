@@ -440,4 +440,4 @@ async def ws_root(ws: WebSocket) -> None:
     logger.warning(
         "ws_legacy_path_deprecated", extra={"path": WS_LEGACY_PATH, "canonical": WS_CANONICAL_PATH}
     )
-    await _ws_handler(ws, path_label=WS_ROUTE_LABEL)
+    await _ws_handler(ws, path_label=WS_LEGACY_PATH)

@@ -153,7 +153,7 @@ def test_ws_rejects_missing_token(
     assert exc.value.code == 1008
     assert metrics_stub.ws_connect_total.value == 1.0
     assert metrics_stub.ws_connect_total.label_calls[-1] == {
-        "path": "/api/v1/pro/ws",
+        "path": "/ws",
         "result": "rejected",
         "reason": "auth_required",
     }
@@ -485,7 +485,7 @@ def test_ws_metrics_increment_and_active_gauge_restore(
     assert metrics_stub.ws_messages_total.value == 2.0  # in + out for ping/pong
     assert metrics_stub.ws_active_connections.value == 0.0
 
-    assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/api/v1/pro/ws"
+    assert metrics_stub.ws_connect_total.label_calls[-1]["path"] == "/ws"
     assert metrics_stub.ws_connect_total.label_calls[-1]["result"] == "accepted"
     assert metrics_stub.ws_connect_total.label_calls[-1]["reason"] == "none"
     assert {labels["direction"] for labels in metrics_stub.ws_messages_total.label_calls[-2:]} == {
@@ -493,7 +493,7 @@ def test_ws_metrics_increment_and_active_gauge_restore(
         "out",
     }
     for labels in metrics_stub.ws_messages_total.label_calls[-2:]:
-        assert labels["path"] == "/api/v1/pro/ws"
+        assert labels["path"] == "/ws"
         assert labels["status"] == "ok"
 
 
@@ -511,7 +511,7 @@ def test_ws_policy_close_log_contains_bounded_fields(
     assert policy_records, "Expected at least one ws_policy_close record"
     record = policy_records[-1]
 
-    assert getattr(record, "path", "") == "/api/v1/pro/ws"
+    assert getattr(record, "path", "") == "/ws"
     assert getattr(record, "close_code", 0) == 1008
     assert getattr(record, "reason", "") == "auth_required"
 
@@ -557,7 +557,7 @@ async def test_ws_handles_websocket_disconnect_exception(
         async def send_text(self, _text: str) -> None:
             return None
 
-    async def _auth_ok(_ws: object, _path_label: str = "/api/v1/pro/ws") -> bool:
+    async def _auth_ok(_ws: object, _path_label: str = "/ws") -> bool:
         return True
 
     monkeypatch.setattr(realtime_ws, "_is_ws_enabled", lambda: True)
@@ -593,26 +593,27 @@ def test_canonical_ws_path_rejects_missing_token(
     assert exc.value.code == 1008
 
 
+@pytest.mark.parametrize(
+    "ws_path",
+    ["/api/v1/pro/ws", "/ws"],
+)
 def test_duplicate_ws_route_detection_raises_runtime_error(
     monkeypatch: pytest.MonkeyPatch,
+    ws_path: str,
 ) -> None:
-    """Test that duplicate WS route registration raises RuntimeError."""
+    """Test that duplicate WS route registration raises RuntimeError for both paths."""
     from app.main import _assert_no_duplicate_ws_route
 
-    # Create a mock routes list with /api/v1/pro/ws already present
-    mock_routes = [type("Route", (), {"path": "/api/v1/pro/ws"})()]
-
-    # Patch the app.routes property via __class__
     import app.main as main_mod
 
-    original_app = main_mod.app
+    mock_routes = [type("Route", (), {"path": ws_path})()]
 
     class MockApp:
         @property
-        def routes(self):
+        def routes(self) -> list[object]:
             return mock_routes
 
     monkeypatch.setattr(main_mod, "app", MockApp())
 
-    with pytest.raises(RuntimeError, match="Duplicate /api/v1/pro/ws route detected"):
+    with pytest.raises(RuntimeError, match="Duplicate"):
         _assert_no_duplicate_ws_route()
