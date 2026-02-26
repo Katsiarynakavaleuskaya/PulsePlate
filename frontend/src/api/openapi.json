@@ -2317,42 +2317,6 @@
         "title": "Ingredient",
         "type": "object"
       },
-      "InsightRequest": {
-        "properties": {
-          "text": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "title": "InsightRequest",
-        "type": "object"
-      },
-      "InsightResponse": {
-        "description": "Insight response payload.\n\nRU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.\nEN: Explicit response model keeps OpenAPI stable and enables TS type generation.",
-        "properties": {
-          "insight": {
-            "minLength": 1,
-            "title": "Insight",
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "title": "Provider",
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "insight"
-        ],
-        "title": "InsightResponse",
-        "type": "object"
-      },
       "LegacyWeekPlanRequest": {
         "additionalProperties": false,
         "description": "Extended request for week plan with optional pre-calculated targets.\n\nSupports two modes:\n- Mode A: With targets (pre-calculated nutrition goals)\n- Mode B: Calculate targets from user profile (sex, age, etc.)",

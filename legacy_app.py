@@ -2240,6 +2240,7 @@ def _enforce_vip_llm_monthly_quota(vip_key: str) -> None:
     "/api/v1/insight",
     response_model=InsightResponse,
     responses=RATE_LIMIT_429_RESPONSES,
+    include_in_schema=False,
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
 async def insight_v1_route(
