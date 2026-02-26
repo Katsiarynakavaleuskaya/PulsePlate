@@ -177,6 +177,15 @@ pro_router: Optional[APIRouter] = None
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
 _BASELINE_CALCULATE_ALL_TDEE = calculate_all_tdee
 
+MIN_DAILY_KCAL = 1200
+MAX_DAILY_KCAL = 5000
+
+
+def _clamp_daily_kcal(kcal_value: int | float) -> int:
+    """Clamp daily kcal to conservative API safety bounds."""
+    return max(MIN_DAILY_KCAL, min(int(kcal_value), MAX_DAILY_KCAL))
+
+
 try:
     from core.food_apis.scheduler import (
         start_background_updates as _scheduler_start_background_updates,
@@ -3687,7 +3696,7 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
 
         # RU: Жёсткий безопасный диапазон для ответа Plate API.
         # EN: Hard safety bounds for Plate API response calories.
-        final_kcal_value = max(1200, min(final_kcal_value, 5000))
+        final_kcal_value = _clamp_daily_kcal(final_kcal_value)
         return PlateResponse(
             kcal=final_kcal_value,
             macros=macros_aligned,
@@ -4024,7 +4033,7 @@ def _fallback_targets_response(
         kcal_daily = int(tdee * (1.0 + pct / 100.0))
     else:
         kcal_daily = tdee
-    kcal_daily = max(1200, min(kcal_daily, 5000))
+    kcal_daily = _clamp_daily_kcal(kcal_daily)
 
     protein_g = int(round(1.6 * req.weight_kg))
     fat_g = int(round(0.9 * req.weight_kg))
@@ -4216,7 +4225,7 @@ def _generate_who_targets_response(
                         )
 
         return WHOTargetsResponse(
-            kcal_daily=max(1200, min(int(targets.kcal_daily), 5000)),
+            kcal_daily=_clamp_daily_kcal(targets.kcal_daily),
             macros={
                 "protein_g": targets.macros.protein_g,
                 "fat_g": targets.macros.fat_g,
