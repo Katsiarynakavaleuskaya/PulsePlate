@@ -202,23 +202,23 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #902 (`docs/food-db-w4-kickoff`) + PR #905 (`feat(food-db): add W4-B feature-flag semantic search routing`) + PR #913 (`feat/food-w4-benchmark-rollback-closure`)
-  - Status: In Progress (W4-A merged, W4-B runtime merged, benchmark/rollback closure in PR #913)
+  - Target PR: PR #902 (`docs/food-db-w4-kickoff`) + PR #905 (`feat(food-db): add W4-B feature-flag semantic search routing`) + PR #914 (`feat/food-w4-benchmark-rollback-closure`)
+  - Status: In Progress (W4-A merged, W4-B runtime merged, benchmark/rollback closure in PR #914)
   - Area: backend / search relevance
   - Finding Type: strategic enhancement
   - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
   - Execution Notes:
     - (2026-02-25) W4-A kickoff docs merged in PR #902
     - (2026-02-25) W4-B runtime merged in PR #905 (feature-flagged `semantic > compat > legacy`)
-    - (2026-02-26) W4 benchmark + rollback validation bundle prepared in PR #913
+    - (2026-02-26) W4 benchmark + rollback validation bundle prepared in PR #914
       - Added semantic benchmark harness: `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
       - Added rollback-safe tests for semantic flag-off path: `tests/test_food_store_service.py`, `tests/test_foods_router_additional.py`
-      - Added benchmark audit artifact/report: `docs/audit/PR_913_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`, `docs/audit/artifacts/food_w4_semantic_benchmark.json`
+      - Added benchmark audit artifact/report: `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`, `docs/audit/artifacts/food_w4_semantic_benchmark.json`
   - Links:
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
     - `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
-    - `docs/audit/PR_913_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`
+    - `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`
   - DoD:
     - Feature-flagged semantic retrieval is implemented
     - Cost/performance benchmark is documented

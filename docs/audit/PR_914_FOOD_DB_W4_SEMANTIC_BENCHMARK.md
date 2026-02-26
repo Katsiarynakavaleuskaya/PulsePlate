@@ -1,4 +1,4 @@
-# PR-913 — Food DB W4 Semantic Retrieval Benchmark and Rollback Validation
+# PR-914 — Food DB W4 Semantic Retrieval Benchmark and Rollback Validation
 
 ## Scope
 
