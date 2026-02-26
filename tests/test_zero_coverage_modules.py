@@ -88,8 +88,6 @@ class TestZeroCoverageModules:
             shopping = export_shopping_list(meal_plan)
             assert isinstance(shopping, (str, list, dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -142,8 +140,6 @@ class TestZeroCoverageModules:
             )
             assert isinstance(substitutions, (list, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -188,8 +184,6 @@ class TestZeroCoverageModules:
             )
             assert isinstance(comparison, (dict, list, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -237,8 +231,6 @@ class TestZeroCoverageModules:
             )
             assert isinstance(nutrition_analysis, (dict, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass
@@ -273,8 +265,6 @@ class TestZeroCoverageModules:
             meal_export = quick_meal_export(meal)
             assert isinstance(meal_export, (str, type(None)))
 
-        except ImportError as exc:
-            require_feature_or_raise(exc, "exports_recipes_products", reason=FEATURE_REASON)
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
             pass

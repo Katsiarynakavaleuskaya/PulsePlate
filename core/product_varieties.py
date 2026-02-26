@@ -374,3 +374,77 @@ class ProductVarietiesManager:
             "total_varieties": total_varieties,
             "avg_varieties_per_product": round(avg_varieties_per_product, 2),
         }
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+_manager: Optional[ProductVarietiesManager] = None
+
+
+def _get_manager() -> ProductVarietiesManager:
+    global _manager
+    if _manager is None:
+        _manager = ProductVarietiesManager()
+    return _manager
+
+
+def get_varieties(product_name: str) -> List[ProductVariety]:
+    """Return all varieties for *product_name*."""
+    return _get_manager().get_varieties(product_name)
+
+
+def find_alternatives(
+    product: str,
+    criteria: Optional[List[str]] = None,
+) -> List[Dict]:
+    """Find alternative products matching criteria keywords."""
+    mgr = _get_manager()
+    varieties = mgr.get_varieties(product)
+    if not varieties:
+        return []
+    results: List[Dict] = []
+    for v in varieties:
+        info: Dict[str, Union[str, float, bool]] = {
+            "name": v.name,
+            "variety": v.variety,
+            "brand": v.brand,
+        }
+        if criteria:
+            if "lactose_free" in criteria and "LF" not in v.flags:
+                continue
+            if "plant_based" in criteria and "VEG" not in v.flags:
+                continue
+        results.append(info)
+    return results
+
+
+def group_by_category(
+    products: List[Dict],
+) -> Dict[str, List[Dict]]:
+    """Group a list of product dicts by their category field."""
+    groups: Dict[str, List[Dict]] = {}
+    for product in products:
+        cat = str(product.get("category", "other"))
+        groups.setdefault(cat, []).append(product)
+    return groups
+
+
+def suggest_similar(
+    product: str,
+    similarity_criteria: Optional[List[str]] = None,
+) -> List[str]:
+    """Suggest products similar to *product*."""
+    mgr = _get_manager()
+    varieties = mgr.get_varieties(product)
+    return [f"{v.variety} ({v.brand})" for v in varieties]
+
+
+def analyze_variety_nutrition(
+    base_product: str,
+    varieties: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, float]]:
+    """Return nutritional comparison for varieties of *base_product*."""
+    mgr = _get_manager()
+    return mgr.get_nutritional_comparison(base_product)

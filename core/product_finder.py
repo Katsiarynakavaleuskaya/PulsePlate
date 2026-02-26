@@ -485,3 +485,113 @@ class ProductFinder:
             "price_per_unit": food_item.price_per_unit,
             "flags": ",".join(sorted(food_item.flags)) if food_item.flags else "",
         }
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def find_products(
+    query: str = "",
+    category: str = "",
+    max_results: int = 10,
+) -> List[Dict]:
+    """Find products matching a text query."""
+    db = parse_food_db("data/food_db.csv")
+    query_lower = query.lower()
+    results: List[Dict] = []
+    for key, item in db.items():
+        if query_lower in item.name.lower() or query_lower in str(key).lower():
+            results.append(
+                {
+                    "name": item.name,
+                    "protein_g": item.protein_g,
+                    "fat_g": item.fat_g,
+                    "carbs_g": item.carbs_g,
+                    "category": category,
+                }
+            )
+            if len(results) >= max_results:
+                break
+    return results
+
+
+def search_by_nutrition(
+    nutrition_criteria: Dict[str, float],
+) -> List[Dict]:
+    """Search products by nutrition criteria (min/max filters)."""
+    db = parse_food_db("data/food_db.csv")
+    results: List[Dict] = []
+    for _key, item in db.items():
+        match = True
+        if (
+            "protein_min" in nutrition_criteria
+            and item.protein_g < nutrition_criteria["protein_min"]
+        ):
+            match = False
+        if "calories_max" in nutrition_criteria:
+            est_cal = item.protein_g * 4 + item.carbs_g * 4 + item.fat_g * 9
+            if est_cal > nutrition_criteria["calories_max"]:
+                match = False
+        if match:
+            results.append(
+                {
+                    "name": item.name,
+                    "protein_g": item.protein_g,
+                    "fat_g": item.fat_g,
+                    "carbs_g": item.carbs_g,
+                }
+            )
+    return results
+
+
+def filter_by_criteria(
+    products: List[Dict],
+    criteria: Dict[str, float],
+) -> List[Dict]:
+    """Filter a list of product dicts by numeric criteria."""
+    filtered: List[Dict] = []
+    for product in products:
+        match = True
+        for key, threshold in criteria.items():
+            if key.endswith("_min"):
+                field = key[: -len("_min")]
+                if product.get(field, 0) < threshold:
+                    match = False
+            elif key.endswith("_max"):
+                field = key[: -len("_max")]
+                if product.get(field, 0) > threshold:
+                    match = False
+        if match:
+            filtered.append(product)
+    return filtered
+
+
+def get_product_info(product_id: str) -> Dict:
+    """Return basic info dict for a product by name/id."""
+    db = parse_food_db("data/food_db.csv")
+    for key, item in db.items():
+        if str(key) == product_id or item.name.lower() == product_id.lower():
+            return {
+                "name": item.name,
+                "protein_g": item.protein_g,
+                "fat_g": item.fat_g,
+                "carbs_g": item.carbs_g,
+                "fiber_g": item.fiber_g,
+            }
+    return {"name": product_id, "found": False}
+
+
+def compare_products(
+    product_ids: List[str],
+    criteria: Optional[List[str]] = None,
+) -> List[Dict]:
+    """Compare products side-by-side on given criteria."""
+    results: List[Dict] = []
+    for pid in product_ids:
+        info = get_product_info(pid)
+        if criteria:
+            info = {k: v for k, v in info.items() if k in criteria or k == "name"}
+        results.append(info)
+    return results
