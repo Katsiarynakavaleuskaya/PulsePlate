@@ -280,3 +280,45 @@ PROFESSIONAL_REFERRALS = {
 def get_professional_referral(category: str, language: Literal["en", "ru"] = "en") -> str:
     """Get professional referral recommendation."""
     return PROFESSIONAL_REFERRALS.get(category, PROFESSIONAL_REFERRALS["general"])[language]
+
+
+# ---------------------------------------------------------------------------
+# Thin facade functions (test-expected API surface)
+# ---------------------------------------------------------------------------
+
+
+def get_disclaimer(disclaimer_type: str = "general") -> str:
+    """Get disclaimer text by type."""
+    disclaimers = {
+        "general": MEDICAL_DISCLAIMER["en"],
+        "medical": MEDICAL_DISCLAIMER["en"],
+        "legal": LEGAL_DISCLAIMER["en"],
+        "privacy": PRIVACY_DISCLAIMER["en"],
+    }
+    return disclaimers.get(disclaimer_type.lower(), MEDICAL_DISCLAIMER["en"])
+
+
+def get_medical_disclaimer(context: str = "general") -> str:
+    """Get medical disclaimer for context."""
+    base = MEDICAL_DISCLAIMER["en"]
+    if context in SPECIAL_POPULATION_DISCLAIMERS:
+        return base + "\n\n" + SPECIAL_POPULATION_DISCLAIMERS[context]["en"]
+    return base
+
+
+def get_nutrition_disclaimer(context: str = "general") -> str:
+    """Get nutrition-specific disclaimer."""
+    base = (
+        "Nutritional information provided is for educational purposes only. "
+        "Individual needs vary. Consult a registered dietitian for personalized advice."
+    )
+    if context == "meal_planning":
+        return base + " Meal plans are suggestions only and may not suit all dietary needs."
+    elif context == "supplements":
+        return base + " Supplements should be taken under professional guidance."
+    return base
+
+
+def get_liability_disclaimer(context: str = "general") -> str:
+    """Get liability disclaimer."""
+    return LEGAL_DISCLAIMER["en"]
