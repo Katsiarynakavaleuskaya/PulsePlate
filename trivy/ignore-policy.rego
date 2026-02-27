@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-05-27 (manual removal)
 # Last reviewed: 2026-02-27
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -92,26 +92,45 @@ ignore if {
 	cve_2026_27171_pkgid_match
 }
 
-# CVE-2026-3184 (util-linux) - upstream unfixed in Debian bookworm
+# CVE-2025-14831 (gnutls) - base image not yet updated to fixed version
+# Review-by: 2026-05-27 (check if base image updated to deb12u6)
+# Rationale: Fix available in 3.7.9-2+deb12u6 but base image still has deb12u5
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-14831
+# Documented in: docs/security/CVE-2025-14831-gnutls.md
+# Removal condition: Remove when base image updated to include libgnutls30 >= 3.7.9-2+deb12u6
+
+ignore if {
+	input.VulnerabilityID == "CVE-2025-14831"
+	input.PkgName == "libgnutls30"
+	input.InstalledVersion == "3.7.9-2+deb12u5"
+}
+
+# CVE-2026-3184 (util-linux family) - upstream unfixed in Debian bookworm
 # Review-by: 2026-05-27 (manual removal)
 # Rationale: Unfixed distro CVE; access control bypass via hostname canonicalization; LOW severity
+# Affects all binary packages from util-linux source: bsdutils, libblkid1, libmount1,
+#   libsmartcols1, libuuid1, mount, util-linux, util-linux-extra
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
 # Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
 
-# Helper rule: check if InstalledVersion matches observed version
-cve_2026_3184_version_match if {
-	input.InstalledVersion == "2.38.1-5+deb12u3"
+# Helper rule: all util-linux family packages affected by CVE-2026-3184
+cve_2026_3184_pkg_match if {
+	util_linux_pkgs := {
+		"bsdutils", "libblkid1", "libmount1", "libsmartcols1",
+		"libuuid1", "mount", "util-linux", "util-linux-extra"
+	}
+	util_linux_pkgs[input.PkgName]
 }
 
-# Helper rule: check if PkgID matches observed util-linux-extra package
-cve_2026_3184_pkgid_match if {
-	contains(input.PkgID, "util-linux-extra@2.38.1-5+deb12u3")
+# Helper rule: check if InstalledVersion matches observed versions (with/without epoch)
+cve_2026_3184_version_match if {
+	affected_versions := {"2.38.1-5+deb12u3", "1:2.38.1-5+deb12u3"}
+	affected_versions[input.InstalledVersion]
 }
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
-	input.PkgName == "util-linux-extra"
+	cve_2026_3184_pkg_match
 	cve_2026_3184_version_match
-	cve_2026_3184_pkgid_match
 }
