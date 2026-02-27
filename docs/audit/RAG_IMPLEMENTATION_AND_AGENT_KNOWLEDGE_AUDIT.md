@@ -304,7 +304,7 @@ Timeout на весь RAG-пайплайн: `RAG_PIPELINE_TIMEOUT_SEC = 10`.
 
 | Документ | Что добавить |
 |----------|-------------|
-| `BACKLOG_LEDGER.md` | Строка «RAG implementation audit» с ссылкой на этот файл |
+| `BACKLOG_LEDGER.md` | Строка «RAG implementation audit» со ссылкой на этот файл |
 | `docs/orchestration/AGENT_CONTEXT_MAP.md` | RAG-контракт для каждого агента |
 | `docs/deploy/PRODUCTION.md` | pgvector конфигурация, feedback DB схема |
 
