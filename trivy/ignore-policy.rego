@@ -9,7 +9,7 @@ default ignore := false
 # - Limit to the installed versions reported at time of suppression
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
-# Suppression expires: 2026-05-10 (manual removal)
+# Suppression expires: 2026-05-27 (manual removal)
 # Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md
 
 ignore if {
