@@ -1742,6 +1742,119 @@ If it is not recorded here — it does not exist.
     - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
     - No OpenAPI determinism regressions; `make verify` passes
 
+- [ ] P1: RAG implementation audit — baseline (docs-only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / RAG / docs)
+  - Target PR: TBD (branch `docs/audit-rag-implementation-and-agent-knowledge`)
+  - Status: In progress
+  - Area: docs / audit
+  - Reason (EN): Establish evidence-based baseline for current RAG (insight-only, Jaccard), backlog gaps (sources[], confidence, multi-hop, feedback storage, agent RAG), and prioritized follow-up. No runtime changes in this PR.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/simple_rag.py`, `legacy_app.py` (insight RAG paths)
+  - DoD:
+    - Audit and RAG contract docs merged in docs-only PR
+    - BACKLOG_LEDGER updated with follow-up items below
+    - Branch follows PR scope guard (docs only)
+
+- [ ] P1: RAG contract implementation (sources[], confidence, budget constants)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / RAG)
+  - Target PR: PR-next-1 (runtime)
+  - Status: Planned (after audit merged)
+  - Reason (EN): Implement response schema and internal RAGContext/RAGChunk per `docs/contracts/RAG_CONTRACT.md`; add `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` to Insight response; add `core/rag/contracts.py` and `rag_constants.py`.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `legacy_app.py` (InsightResponse, insight_v1/insight)
+  - DoD:
+    - InsightResponse (or extended schema) includes sources, confidence, rag_used, hops, latency_ms
+    - RAGChunk/RAGContext dataclasses in core/rag; constants in core/rag
+    - Deterministic tests for new response fields; `make verify` passes
+
+- [ ] P1: RAG feedback storage (prerequisite for recursive learning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / RAG / DB)
+  - Target PR: PR-next-3 (runtime)
+  - Status: Planned
+  - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and optionally `user_knowledge` for VIP); RLS; migration.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (Feedback Schema)
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 5.2, 6.2)
+    - `docs/roadmap/BACKLOG_LEDGER.md` (Recursive methods ~2897–2924)
+  - DoD:
+    - Migration for rag_feedback (and user_knowledge if scoped); RLS enabled
+    - No PII in stored LLM response without redaction; docs/db schema doc updated
+    - `make verify` passes
+
+- [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG)
+  - Target PR: PR-next-6 (runtime)
+  - Status: Planned
+  - Reason (EN): Replace Jaccard-only retrieval with semantic search; pgvector already in W4 food search. Improves retrieval quality 40–60% per audit.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.1, 5.1)
+    - `core/rag/simple_rag.py`, W4 semantic search implementation
+  - DoD:
+    - Feature-flagged vector retrieval; fallback to current Jaccard path
+    - Latency and recall documented; `make verify` passes
+
+- [ ] P2: sources[] in Insight response (client-visible)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (API / RAG)
+  - Target PR: PR-next-7 (runtime)
+  - Status: Planned
+  - Reason (EN): Expose RAG sources to client for transparency and EU AI Act traceability; requires RAG contract implementation first.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (sect. 2)
+    - `legacy_app.py` (InsightResponse)
+  - DoD:
+    - Insight response includes sources[] when rag_used=true; preview redacted; OpenAPI updated
+    - `make verify` and `make openapi-check` pass
+
+- [ ] P2: RAG for CBT agent (first domain agent)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG / coaching)
+  - Target PR: PR-next-8 (runtime)
+  - Status: Planned
+  - Reason (EN): Connect CBT/coaching flow to RAG per AGENT_CORPUS_MAP; first agent to use retrieval before LLM.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.2, 4.3)
+    - `docs/contracts/RAG_CONTRACT.md` (Corpus Routing)
+    - `.cursor/agents/cbt-psychologist-agent.md`
+  - DoD:
+    - CBT path retrieves context from docs/cbt/ (or configured corpus); context passed to LLM
+    - Tier-gated (PRO/VIP); tests; `make verify` passes
+
+- [ ] P2: Multi-hop retrieval + query refinement
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG)
+  - Target PR: PR-next-9 (runtime)
+  - Status: Planned
+  - Reason (EN): Implement recursive RAG (max_hops, query refinement) per RECURSIVE_METHODS_LLM_RAG.md; budget MAX_RAG_HOPS=3, RAG_PIPELINE_TIMEOUT_SEC=10.
+  - Links:
+    - `docs/insights/RECURSIVE_METHODS_LLM_RAG.md`
+    - `docs/contracts/RAG_CONTRACT.md` (budget)
+  - DoD:
+    - retrieve_context supports max_hops>1; timeout enforced; deterministic tests
+    - `make verify` passes
+
+- [ ] P2: Philosophy-agent + RAG validation pipeline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG / philosophy)
+  - Target PR: PR-next-10 (runtime)
+  - Status: Planned
+  - Reason (EN): Pipeline query → RAG → philosophy-agent → LLM so that RAG context is validated before response; per BACKLOG Philosophical logic principles.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 3.2)
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+    - `.cursor/agents/philosophy-agent.md`
+  - DoD:
+    - RAG context passed to philosophy validation layer; integration test
+    - `make verify` passes
+
 - [x] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (observability / migration)
