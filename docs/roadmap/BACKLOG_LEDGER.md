@@ -1742,11 +1742,11 @@ If it is not recorded here — it does not exist.
     - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
     - No OpenAPI determinism regressions; `make verify` passes
 
-- [ ] P1: RAG implementation audit — baseline (docs-only)
+- [x] P1: RAG implementation audit — baseline (docs-only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG / docs)
-  - Target PR: TBD (branch `docs/audit-rag-implementation-and-agent-knowledge`)
-  - Status: In progress
+  - Target PR: PR #928 (merged)
+  - Status: Done
   - Area: docs / audit
   - Reason (EN): Establish evidence-based baseline for current RAG (insight-only, Jaccard), backlog gaps (sources[], confidence, multi-hop, feedback storage, agent RAG), and prioritized follow-up. No runtime changes in this PR.
   - Links:
@@ -1758,11 +1758,11 @@ If it is not recorded here — it does not exist.
     - BACKLOG_LEDGER updated with follow-up items below
     - Branch follows PR scope guard (docs only)
 
-- [ ] P1: RAG contract implementation (sources[], confidence, budget constants)
+- [x] P1: RAG contract implementation (sources[], confidence, budget constants)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG)
-  - Target PR: PR-next-1 (runtime)
-  - Status: Planned (after audit merged)
+  - Target PR: feat/rag-contract-impl-v2 (pending PR)
+  - Status: Done (implementation complete, PR pending)
   - Reason (EN): Implement response schema and internal RAGContext/RAGChunk per `docs/contracts/RAG_CONTRACT.md`; add `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` to Insight response; add `core/rag/contracts.py` and `rag_constants.py`.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md`

@@ -1171,15 +1171,32 @@ class InsightRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
 
 
+class RAGSourceItem(BaseModel):
+    """Single RAG source in Insight response per RAG_CONTRACT.md §2."""
+
+    chunk_id: str
+    file: str
+    preview: str
+    score: float
+
+
 class InsightResponse(BaseModel):
-    """Insight response payload.
+    """Insight response payload per RAG_CONTRACT.md §2.
 
     RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
     EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
+
+    New RAG fields (sources, confidence, rag_used, hops, latency_ms) are all optional
+    with safe defaults so old clients keep working without changes.
     """
 
     provider: str = Field(..., min_length=1)
     insight: str = Field(..., min_length=1)
+    sources: list[RAGSourceItem] = Field(default_factory=list)
+    confidence: Optional[float] = None
+    rag_used: bool = False
+    hops: int = 0
+    latency_ms: int = 0
 
 
 class BMIRequest(BaseModel):
@@ -2137,6 +2154,30 @@ from core.insight.llm_provider_loader import (  # noqa: E402
 )
 
 
+def _format_rag_chunks_for_prompt(chunks: list[Any]) -> str:
+    """Concatenate RAGChunk objects into a prompt-ready string with source headers."""
+    parts: list[str] = []
+    for ch in chunks:
+        parts.append(f"# Source: {ch.file} (score={ch.score:.2f})\n{ch.content}")
+    return "\n\n".join(parts)
+
+
+def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
+    """Build RAGSourceItem list from RAGChunks with redacted previews."""
+    items: list[RAGSourceItem] = []
+    for ch in chunks:
+        preview = _redact_rag_context_for_insight(ch.content)
+        items.append(
+            RAGSourceItem(
+                chunk_id=ch.chunk_id,
+                file=ch.file,
+                preview=preview[:200] if preview else "",
+                score=round(ch.score, 4),
+            )
+        )
+    return items
+
+
 async def insight_v1(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
@@ -2162,20 +2203,38 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
 
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
     prompt_text = prompt_input
+    rag_sources: list[RAGSourceItem] = []
+    rag_confidence: Optional[float] = None
+    rag_hops: int = 0
+    rag_latency_ms: int = 0
     if use_rag:
         with suppress(Exception):
-            from core.rag.simple_rag import retrieve_context as _rag_retrieve
+            from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
-            if ctx := _rag_retrieve(prompt_input, max_chunks=3):
+            rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_hops = rag_ctx.hops
+            rag_latency_ms = rag_ctx.latency_ms
+            if rag_ctx.chunks:
+                rag_confidence = round(rag_ctx.confidence, 4)
+                rag_sources = _build_rag_source_items(rag_ctx.chunks)
+                raw_context = _format_rag_chunks_for_prompt(rag_ctx.chunks)
                 prompt_text = _build_insight_prompt(
                     prompt_input,
-                    _redact_rag_context_for_insight(ctx),
+                    _redact_rag_context_for_insight(raw_context),
                 )
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return InsightResponse(provider=provider.name, insight=insight_text)
+        return InsightResponse(
+            provider=provider.name,
+            insight=insight_text,
+            sources=rag_sources,
+            confidence=rag_confidence,
+            rag_used=use_rag,
+            hops=rag_hops,
+            latency_ms=rag_latency_ms,
+        )
     except Exception:
         # Log server-side only; never return exception details to client (privacy/safety).
         logger.exception("Insight provider call failed (/api/v1/insight)")
@@ -2207,20 +2266,38 @@ async def insight(req: InsightRequest) -> InsightResponse:
 
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
     prompt_text = prompt_input
+    rag_sources: list[RAGSourceItem] = []
+    rag_confidence: Optional[float] = None
+    rag_hops: int = 0
+    rag_latency_ms: int = 0
     if use_rag:
         with suppress(Exception):
-            from core.rag.simple_rag import retrieve_context as _rag_retrieve
+            from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
-            if ctx := _rag_retrieve(prompt_input, max_chunks=3):
+            rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_hops = rag_ctx.hops
+            rag_latency_ms = rag_ctx.latency_ms
+            if rag_ctx.chunks:
+                rag_confidence = round(rag_ctx.confidence, 4)
+                rag_sources = _build_rag_source_items(rag_ctx.chunks)
+                raw_context = _format_rag_chunks_for_prompt(rag_ctx.chunks)
                 prompt_text = _build_insight_prompt(
                     prompt_input,
-                    _redact_rag_context_for_insight(ctx),
+                    _redact_rag_context_for_insight(raw_context),
                 )
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return InsightResponse(provider=provider.name, insight=insight_text)
+        return InsightResponse(
+            provider=provider.name,
+            insight=insight_text,
+            sources=rag_sources,
+            confidence=rag_confidence,
+            rag_used=use_rag,
+            hops=rag_hops,
+            latency_ms=rag_latency_ms,
+        )
     except Exception:
         logger.exception("Insight provider call failed (/insight)")
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None

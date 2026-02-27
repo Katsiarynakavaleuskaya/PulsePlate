@@ -60,6 +60,49 @@ def test_insight_redacts_rag_source_headers(
     """Ensure RAG context source lines are not forwarded to the LLM prompt."""
 
     import llm
+    from dataclasses import dataclass
+    from typing import Optional
+
+    @dataclass
+    class _FakeChunk:
+        chunk_id: str
+        file: str
+        content: str
+        score: float
+        hop: int = 1
+
+    @dataclass
+    class _FakeCtx:
+        query: str
+        refined_queries: list[str]
+        chunks: list[_FakeChunk]
+        confidence: float
+        hops: int
+        latency_ms: int
+        agent_id: Optional[str] = None
+        user_tier: Optional[str] = None
+
+    def fake_structured(
+        query: str,
+        max_chunks: int = 3,
+        agent_id: str | None = None,
+        user_tier: str | None = None,
+    ) -> _FakeCtx:
+        return _FakeCtx(
+            query=query,
+            refined_queries=[query],
+            chunks=[
+                _FakeChunk(
+                    chunk_id="secret.md:1",
+                    file="secret.md",
+                    content="# Source: secret.md (score=0.99)\n\nHELLO",
+                    score=0.99,
+                ),
+            ],
+            confidence=0.99,
+            hops=1,
+            latency_ms=10,
+        )
 
     class EchoProvider:
         name = "echo"
@@ -67,16 +110,12 @@ def test_insight_redacts_rag_source_headers(
         async def generate(self, text: str) -> str:
             return text
 
-    def fake_retrieve_context(query: str, max_chunks: int = 3) -> str:
-        # Simulate internal metadata that must NOT leak.
-        return "# Source: secret.md (score=0.99)\n\nHELLO"
-
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
     monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
     monkeypatch.setattr(
-        "core.rag.simple_rag.retrieve_context",
-        fake_retrieve_context,
+        "core.rag.simple_rag.retrieve_context_structured",
+        fake_structured,
         raising=True,
     )
 
