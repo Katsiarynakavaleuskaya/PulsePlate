@@ -125,11 +125,8 @@ cve_2026_3184_pkg_match if {
 
 # Helper rule: check if InstalledVersion matches observed versions (with/without epoch)
 cve_2026_3184_version_match if {
-	input.InstalledVersion == "2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_version_match if {
-	input.InstalledVersion == "1:2.38.1-5+deb12u3"
+	affected_versions := {"2.38.1-5+deb12u3", "1:2.38.1-5+deb12u3"}
+	affected_versions[input.InstalledVersion]
 }
 
 ignore if {
