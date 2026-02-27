@@ -2429,8 +2429,8 @@ If it is not recorded here — it does not exist.
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-03-01
-    - `.trivyignore` — CVE-2026-0861 expires: 2026-03-01
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
+    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
   - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
   - Links:
     - docs/security/CVE-2026-0861-glibc.md
@@ -2439,6 +2439,9 @@ If it is not recorded here — it does not exist.
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
+  - **Last reviewed: 2026-02-27**
+    - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
+    - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
 
 ---
 
