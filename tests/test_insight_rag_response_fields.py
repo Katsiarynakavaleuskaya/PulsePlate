@@ -118,6 +118,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
         assert data["hops"] == 1
@@ -151,6 +152,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
         assert data["sources"] == []
@@ -172,6 +174,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
@@ -199,6 +202,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         for src in data["sources"]:
             assert "# Source:" not in src["preview"]
@@ -223,6 +227,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert "Source:" not in data["insight"]
 
@@ -249,6 +254,7 @@ class TestInsightLegacyRAGFields:
 
         resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
         assert len(data["sources"]) == 2
@@ -270,6 +276,7 @@ class TestInsightLegacyRAGFields:
 
         resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []

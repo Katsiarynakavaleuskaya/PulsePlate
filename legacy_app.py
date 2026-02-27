@@ -2207,11 +2207,13 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     rag_confidence: Optional[float] = None
     rag_hops: int = 0
     rag_latency_ms: int = 0
+    rag_actually_used = False
     if use_rag:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_actually_used = True
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
@@ -2231,7 +2233,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
             insight=insight_text,
             sources=rag_sources,
             confidence=rag_confidence,
-            rag_used=use_rag,
+            rag_used=rag_actually_used,
             hops=rag_hops,
             latency_ms=rag_latency_ms,
         )
@@ -2270,11 +2272,13 @@ async def insight(req: InsightRequest) -> InsightResponse:
     rag_confidence: Optional[float] = None
     rag_hops: int = 0
     rag_latency_ms: int = 0
+    rag_actually_used = False
     if use_rag:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_actually_used = True
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
@@ -2294,7 +2298,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
             insight=insight_text,
             sources=rag_sources,
             confidence=rag_confidence,
-            rag_used=use_rag,
+            rag_used=rag_actually_used,
             hops=rag_hops,
             latency_ms=rag_latency_ms,
         )

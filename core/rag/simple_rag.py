@@ -164,8 +164,12 @@ def retrieve_context_structured(
     top = [x for x in scored[:limit] if x[2] >= MIN_CHUNK_SCORE]
     chunks = [
         RAGChunk(
-            chunk_id=f"{Path(src).name}:{i}",
-            file=src,
+            chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
+            file=(
+                str(Path(src).relative_to(ROOT))
+                if Path(src).is_relative_to(ROOT)
+                else Path(src).name
+            ),
             content=ch[:MAX_CHUNK_SIZE_CHARS],
             score=sc,
             hop=1,
