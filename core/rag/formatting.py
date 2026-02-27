@@ -8,9 +8,10 @@ from __future__ import annotations
 from typing import Any
 
 from core.insight.safety import redact_rag_context_for_insight
+from core.rag.contracts import RAGChunk
 
 
-def format_rag_chunks_for_prompt(chunks: list[Any]) -> str:
+def format_rag_chunks_for_prompt(chunks: list[RAGChunk]) -> str:
     """Concatenate RAGChunk objects into a prompt-ready string with source headers."""
     parts: list[str] = []
     for ch in chunks:
@@ -18,7 +19,7 @@ def format_rag_chunks_for_prompt(chunks: list[Any]) -> str:
     return "\n\n".join(parts)
 
 
-def build_rag_source_dicts(chunks: list[Any]) -> list[dict[str, Any]]:
+def build_rag_source_dicts(chunks: list[RAGChunk]) -> list[dict[str, Any]]:
     """Build source-item dicts from RAGChunks with redacted previews.
 
     Returns plain dicts so the caller (``legacy_app.py``) can wrap them in
