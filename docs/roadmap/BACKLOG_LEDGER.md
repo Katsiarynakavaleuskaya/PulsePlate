@@ -1758,11 +1758,11 @@ If it is not recorded here — it does not exist.
     - BACKLOG_LEDGER updated with follow-up items below
     - Branch follows PR scope guard (docs only)
 
-- [ ] P1: RAG contract implementation (sources[], confidence, budget constants)
+- [x] P1: RAG contract implementation (sources[], confidence, budget constants)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG)
   - Target PR: PR #935
-  - Status: In review (PR open, pending merge)
+  - Status: ✅ Merged (PR #935, 2026-02-27)
   - Reason (EN): Implement response schema and internal RAGContext/RAGChunk per `docs/contracts/RAG_CONTRACT.md`; add `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` to Insight response; add `core/rag/contracts.py` and `rag_constants.py`.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md`
@@ -1801,11 +1801,11 @@ If it is not recorded here — it does not exist.
     - Feature-flagged vector retrieval; fallback to current Jaccard path
     - Latency and recall documented; `make verify` passes
 
-- [ ] P2: sources[] in Insight response (client-visible)
+- [x] P2: sources[] in Insight response (client-visible)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (API / RAG)
-  - Target PR: PR-next-7 (runtime)
-  - Status: Planned
+  - Target PR: PR #935
+  - Status: ✅ Merged as part of PR #935 (2026-02-27)
   - Reason (EN): Expose RAG sources to client for transparency and EU AI Act traceability; requires RAG contract implementation first.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (sect. 2)
