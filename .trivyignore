@@ -1102,7 +1102,7 @@ CVE-2025-8058
 ##   - When fixed version available: remove suppression, update base image
 ##   - Documented in: docs/security/CVE-2026-0861-glibc.md
 ##
-## Suppression expires: 2026-03-01
+## Suppression expires: 2026-05-27
 ## Review cadence: Weekly (e.g., Fridays) as part of Security triage routine
 ## Remove suppression when: Debian releases security update with fixed glibc
 
