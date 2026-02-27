@@ -2025,20 +2025,21 @@ If it is not recorded here — it does not exist.
       (CVE-2026-26007) — `tests/test_dependency_security_guard.py`
     - [ ] Security/code scanning alerts close on next scan
 
-- [ ] Generalize dependency vulnerability guards beyond single-CVE floors
+- [x] Generalize dependency vulnerability guards beyond single-CVE floors (merged 2026-02-27)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD follow-up (security guard generalization)
-  - Status: 📌 Backlog
+  - Target PR: PR #923
+  - Status: ✅ Closed
   - Reason: Current guard test enforces a floor for one high-risk dependency (`cryptography`). Preventing future
     regressions at scale needs a deterministic allow/deny schema for multiple packages/CVEs.
   - Links:
     - `tests/test_dependency_security_guard.py`
-    - `docs/security/CVE-2026-26007-cryptography.md`
+    - `tests/fixtures/dependency_security_schema.json`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
   - DoD:
-    - Introduce a centralized guard schema (`package -> min_safe_version` or denylist) for key dependencies
-    - Deterministic CI/pytest check validates all relevant requirement surfaces
-    - Developer docs explain how to update schema when new CVEs are triaged
+    - [x] Introduce a centralized guard schema (`package -> min_safe_version` or denylist) for key dependencies
+    - [x] Deterministic CI/pytest check validates all relevant requirement surfaces
+    - [x] Developer docs explain how to update schema when new CVEs are triaged
 
 - [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
   - Owner: @katsiaryna_kavaleuskaya
