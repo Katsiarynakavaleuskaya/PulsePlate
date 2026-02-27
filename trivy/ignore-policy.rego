@@ -10,6 +10,7 @@ default ignore := false
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-05-27 (manual removal)
+# Last reviewed: 2026-02-27
 # Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md
 
 ignore if {
@@ -27,7 +28,7 @@ ignore if {
 }
 
 # CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
-# Review-by: 2026-03-01 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Upstream unfixed; GitHub runner base image (deb12u10/deb12u13); no actionable remediation in repo
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-15281
 # Documented in: docs/security/CVE-2025-15281-glibc.md
@@ -67,7 +68,7 @@ ignore if {
 }
 
 # CVE-2026-27171 (zlib1g) - upstream unfixed in Debian bookworm
-# Review-by: 2026-05-10 (manual removal)
+# Review-by: 2026-05-27 (manual removal)
 # Rationale: Unfixed distro CVE; no fixed version reported in Trivy metadata for bookworm at time of triage
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
