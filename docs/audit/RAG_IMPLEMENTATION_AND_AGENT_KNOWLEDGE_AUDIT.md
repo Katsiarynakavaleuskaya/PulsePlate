@@ -38,8 +38,8 @@ The current RAG implementation covers **only one endpoint** (`/api/v1/insight`, 
 | Insight (канон) | `legacy_app.py` | 2163–2173 | `POST /api/v1/insight` — RAG-контекст редактируется и подставляется в промпт |
 | Insight (legacy) | `legacy_app.py` | 2208–2217 | `POST /insight` — аналогично |
 | Redact | `core/insight/safety.py` | 10–23 (`redact_rag_context_for_insight`) | Удаление строк `# Source:` из контекста перед промптом |
-| VIP guard | `tests/test_insight_vip_guard_api.py` | — | Rate limit + tier check |
-| Monthly quota | `tests/test_insight_vip_monthly_quota_api.py` | — | Квотирование до вызова провайдера |
+| VIP guard | `tests/test_insight_vip_guard_api.py` | 50–78, 80–98 | Rate limit + tier check (`test_insight_v1_requires_vip_tier`, `test_insight_legacy_requires_vip_tier`) |
+| Monthly quota | `tests/test_insight_vip_monthly_quota_api.py` | 69–100 | Квотирование до вызова провайдера (`test_insight_v1_over_quota_hard_stops_before_provider_call`) |
 
 **Evidence (file:line):**
 
@@ -68,8 +68,8 @@ def invalidate_index() -> None
 |---|-------------|----------|
 | 1 | Нет векторных эмбеддингов, только keyword/Jaccard (~30% оценки RAG) | `docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md` |
 | 2 | Один проход retrieval, нет multi-hop, нет query refinement | `docs/insights/RECURSIVE_METHODS_LLM_RAG.md` |
-| 3 | Нет персонального RAG под планы VIP/PRO клиентов | grep `simple_rag`/`retrieve_context` — только legacy_app + тесты |
-| 4 | Нет связи с доменными агентами (CBT, nutritionist, logic, philosophy) | idem |
+| 3 | Нет персонального RAG под планы VIP/PRO клиентов | `legacy_app.py:2167,2212` — единственные вызовы `retrieve_context` в app; тесты: `tests/test_legacy_app_diff_coverage.py:310-313`, `tests/test_rag_simple.py:29` |
+| 4 | Нет связи с доменными агентами (CBT, nutritionist, logic, philosophy) | `legacy_app.py:2167,2212` — RAG только в insight; CBT/nutritionist не импортируют `retrieve_context` |
 | 5 | Нет персистентного хранилища знаний (только in-memory) | `BACKLOG_LEDGER.md` ~2912: «User feedback storage — prerequisite for recursive learning» |
 | 6 | Нет контура обучения (ML/RL) | `core/` — только детерминистическая логика + LLM-провайдеры |
 
@@ -325,7 +325,7 @@ Timeout на весь RAG-пайплайн: `RAG_PIPELINE_TIMEOUT_SEC = 10`.
 | # | Действие | Тип | Приоритет | Ветка / PR |
 |---|----------|-----|-----------|------------|
 | 1 | Аудит принят (этот документ) | docs | Критический | `docs/audit-rag-...` |
-| 2 | Контракт RAG (`sources[]`, `confidence`, бюджет) | docs | Высокий | PR-next-1 |
+| 2 | Контракт RAG (`sources[]`, `confidence`, бюджет) | docs | Высокий | This PR (delivered) |
 | 3 | Feedback storage (`rag_feedback` schema + migration) | code+docs | Высокий | PR-next-3 |
 | 4 | Vector retrieval (pgvector + sentence-transformers) | code | Средний | PR-next-6 |
 | 5 | `sources[]` в response schema Insight | code | Средний | PR-next-7 |
