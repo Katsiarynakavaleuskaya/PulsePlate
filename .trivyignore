@@ -1,8 +1,8 @@
 ## Trivy vulnerability ignore list
 ##
-## Last reviewed: 2026-01-28
+## Last reviewed: 2026-02-27
 ## Base image: python:3.13.6-slim (Debian 12 bookworm)
-## Next review: 2026-04-28
+## Next review: 2026-05-27
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
 ## IMPORTANT: Container uses python:3.13.6-slim based on Debian bookworm.
