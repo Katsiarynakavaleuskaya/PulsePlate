@@ -22,7 +22,7 @@
 
 - **Normative (обязательные к реализации):** секции 2 (Response Schema), 3 (RAGContext/RAGChunk), 4 (константы бюджета), 5 (Tier-политика), 6 (AGENT_CORPUS_MAP), 7 (Feedback Schema DDL). Эти элементы — контракт для рантайм-реализации; при расхождении с аудитом или бэклогом приоритет у данного документа.
 - **Example / reference:** конкретные значения в таблицах (SLA, Tier), примеры JSON и Python — иллюстративные; канонические значения при реализации брать из `core/rag/` (после появления модулей) или из миграций для DDL.
-- **AGENT_CORPUS_MAP и синхронизация с другими мапами:** в этом документе `AGENT_CORPUS_MAP` задаёт маршрутизацию корпусов по агенту. Концептуально он пересекается с `AGENT_CONTEXT_MAP` (orchestration) и планируемым `AGENT_KNOWLEDGE_MAP`. Синхронизация: единый источник истины для «агент → корпус/контекст» будет вестись в одном месте (например, `core/rag/` или конфиг); в документации до реализации контракта этот файл остаётся нормой, а дублирование в аудите/бэклоге — ссылкой на данный раздел. При реализации — консолидировать в один модуль/мапу и обновить контракт.
+- **AGENT_CORPUS_MAP и синхронизация с другими мапами:** в этом документе `AGENT_CORPUS_MAP` задаёт маршрутизацию корпусов по агенту. Концептуально он пересекается с `AGENT_CONTEXT_MAP` (`docs/orchestration/AGENT_CONTEXT_MAP.md`) и планируемым `AGENT_KNOWLEDGE_MAP` (`docs/orchestration/AGENT_KNOWLEDGE_MAP.md` — см. аудит §8.1). Временный шов (две мапы в разных документах): exit criteria — единый источник в `core/rag/` (или конфиг) после реализации RAG contract; отслеживание — BACKLOG_LEDGER item «RAG contract implementation» (sources[], confidence, budget) с DoD «консолидировать agent→corpus в один модуль и обновить контракт». До реализации этот файл — норма; при реализации — ADR на консолидацию и обновление контракта.
 
 ---
 
@@ -205,10 +205,12 @@ ALTER TABLE user_knowledge ENABLE ROW LEVEL SECURITY;
 
 ## 8. Security Notes
 
-- `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту.
-- `user_knowledge.embedding` изолирован по `user_id` через RLS.
-- `rag_feedback.llm_response` не хранится без редактирования (PII).
-- Rate limit на RAG-эндпоинты сохраняется (см. `tests/test_insight_vip_guard_api.py`).
+Evidence anchors (audit policy: architecture docs must cite `file:line` or mark target-state):
+
+- `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
+- `user_knowledge.embedding` изолирован по `user_id` через RLS. **Target-state:** DDL в §7 включает `ENABLE ROW LEVEL SECURITY`; при миграции добавить политику `USING (auth.uid() = user_id)` (или аналог).
+- `rag_feedback.llm_response` не хранится без редактирования (PII). **Target-state:** при реализации записи в `rag_feedback` применять redaction (тот же `core/insight/safety.py` или отдельный redactor) перед сохранением.
+- Rate limit на RAG-эндпоинты (insight) сохраняется. **Evidence:** детерминированные 429-тесты — `tests/test_rate_limit_llm_and_exports_api.py:95-108` (`/api/v1/insight`), `:117-130` (`/insight`); tier-guard — `tests/test_insight_vip_guard_api.py:50-78`.
 
 ---
 

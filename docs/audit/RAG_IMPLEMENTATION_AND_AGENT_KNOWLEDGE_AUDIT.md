@@ -294,7 +294,7 @@ Timeout на весь RAG-пайплайн: `RAG_PIPELINE_TIMEOUT_SEC = 10`.
 
 | Документ | Путь | Содержание | PR |
 |----------|------|-----------|-----|
-| RAG Contract | `docs/contracts/RAG_CONTRACT.md` | Response schema, `sources[]`, `confidence`, бюджет рекурсии | PR-next-1 |
+| RAG Contract | `docs/contracts/RAG_CONTRACT.md` | Response schema, `sources[]`, `confidence`, бюджет рекурсии | **delivered** (этот PR) |
 | Agent Knowledge Map | `docs/orchestration/AGENT_KNOWLEDGE_MAP.md` | Кто какой корпус/индекс использует | PR-next-2 |
 | Feedback Storage Schema | `docs/db/RAG_FEEDBACK_SCHEMA.md` | DDL для `rag_feedback`, `user_knowledge` | PR-next-3 |
 | Recursive RAG Design | `docs/insights/RECURSIVE_RAG_DESIGN.md` | Multi-hop pipeline, query refinement | PR-next-4 |
