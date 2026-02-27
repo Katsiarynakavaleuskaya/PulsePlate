@@ -1758,7 +1758,7 @@ If it is not recorded here — it does not exist.
     - BACKLOG_LEDGER updated with follow-up items below
     - Branch follows PR scope guard (docs only)
 
-- [x] P1: RAG contract implementation (sources[], confidence, budget constants)
+- [ ] P1: RAG contract implementation (sources[], confidence, budget constants)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG)
   - Target PR: PR #935

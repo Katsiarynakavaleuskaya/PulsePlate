@@ -2213,7 +2213,6 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = _rag_structured(prompt_input, max_chunks=3)
-            rag_actually_used = True
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
@@ -2224,6 +2223,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
                     prompt_input,
                     _redact_rag_context_for_insight(raw_context),
                 )
+            rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
@@ -2278,7 +2278,6 @@ async def insight(req: InsightRequest) -> InsightResponse:
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = _rag_structured(prompt_input, max_chunks=3)
-            rag_actually_used = True
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
@@ -2289,6 +2288,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
                     prompt_input,
                     _redact_rag_context_for_insight(raw_context),
                 )
+            rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
