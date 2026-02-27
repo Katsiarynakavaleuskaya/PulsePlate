@@ -13,8 +13,16 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Iterable, List, Tuple
+
+from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.rag_constants import (
+    MAX_CHUNK_SIZE_CHARS,
+    MAX_SOURCES_IN_RESPONSE,
+    MIN_CHUNK_SCORE,
+)
 
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
@@ -121,6 +129,65 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
     for src, ch, sc in top:
         parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")
     return "\n\n".join(parts)
+
+
+def retrieve_context_structured(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+) -> RAGContext:
+    """
+    Return RAG retrieval result as RAGContext per RAG_CONTRACT.md §3.
+
+    Backward-compatible with retrieve_context: same index and scoring;
+    use this when response needs sources, confidence, hops, latency_ms.
+    """
+    start = time.perf_counter()
+    items = _get_index()
+    refined: list[str] = [query]
+    if not items:
+        return RAGContext(
+            query=query,
+            refined_queries=refined,
+            chunks=[],
+            confidence=0.0,
+            hops=1,
+            latency_ms=int((time.perf_counter() - start) * 1000),
+            agent_id=agent_id,
+            user_tier=user_tier,
+        )
+    scored = sorted(
+        ((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True
+    )
+    limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
+    top = [x for x in scored[:limit] if x[2] >= MIN_CHUNK_SCORE]
+    chunks = [
+        RAGChunk(
+            chunk_id=f"{Path(src).relative_to(ROOT) if Path(src).is_relative_to(ROOT) else Path(src).name}:{i}",
+            file=(
+                str(Path(src).relative_to(ROOT))
+                if Path(src).is_relative_to(ROOT)
+                else Path(src).name
+            ),
+            content=ch[:MAX_CHUNK_SIZE_CHARS],
+            score=sc,
+            hop=1,
+        )
+        for i, (src, ch, sc) in enumerate(top, 1)
+    ]
+    confidence = sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    return RAGContext(
+        query=query,
+        refined_queries=refined,
+        chunks=chunks,
+        confidence=confidence,
+        hops=1,
+        latency_ms=latency_ms,
+        agent_id=agent_id,
+        user_tier=user_tier,
+    )
 
 
 # ---------------------------------------------------------------------------

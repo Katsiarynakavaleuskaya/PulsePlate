@@ -307,10 +307,41 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
 
-    # Patch retrieve_context to return context (exercise walrus branch)
+    # Patch retrieve_context_structured to return a context with chunks
     import core.rag.simple_rag as simple_rag
+    from dataclasses import dataclass
+    from typing import Optional
 
-    monkeypatch.setattr(simple_rag, "retrieve_context", lambda *_a, **_k: "ctx")
+    @dataclass
+    class _Chunk:
+        chunk_id: str
+        file: str
+        content: str
+        score: float
+        hop: int = 1
+
+    @dataclass
+    class _Ctx:
+        query: str
+        refined_queries: list[str]
+        chunks: list[_Chunk]
+        confidence: float
+        hops: int
+        latency_ms: int
+        agent_id: Optional[str] = None
+        user_tier: Optional[str] = None
+
+    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+        return _Ctx(
+            query="question",
+            refined_queries=["question"],
+            chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
 
     req = legacy_app.InsightRequest(text="question")
     out = await legacy_app.insight_v1(req)
@@ -334,8 +365,39 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
     import core.rag.simple_rag as simple_rag
+    from dataclasses import dataclass
+    from typing import Optional
 
-    monkeypatch.setattr(simple_rag, "retrieve_context", lambda *_a, **_k: "ctx")
+    @dataclass
+    class _Chunk:
+        chunk_id: str
+        file: str
+        content: str
+        score: float
+        hop: int = 1
+
+    @dataclass
+    class _Ctx:
+        query: str
+        refined_queries: list[str]
+        chunks: list[_Chunk]
+        confidence: float
+        hops: int
+        latency_ms: int
+        agent_id: Optional[str] = None
+        user_tier: Optional[str] = None
+
+    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+        return _Ctx(
+            query="q",
+            refined_queries=["q"],
+            chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
     monkeypatch.setattr(
         legacy_app,
         "_build_insight_prompt",
@@ -363,13 +425,42 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
     import core.rag.simple_rag as simple_rag
+    from dataclasses import dataclass
+    from typing import Optional
+
+    @dataclass
+    class _Chunk:
+        chunk_id: str
+        file: str
+        content: str
+        score: float
+        hop: int = 1
+
+    @dataclass
+    class _Ctx:
+        query: str
+        refined_queries: list[str]
+        chunks: list[_Chunk]
+        confidence: float
+        hops: int
+        latency_ms: int
+        agent_id: Optional[str] = None
+        user_tier: Optional[str] = None
 
     # Return a large context to force prompt trimming
-    monkeypatch.setattr(
-        simple_rag,
-        "retrieve_context",
-        lambda *_a, **_k: "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2),
-    )
+    big_content = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
+
+    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+        return _Ctx(
+            query="q",
+            refined_queries=["q"],
+            chunks=[_Chunk(chunk_id="a:1", file="a.md", content=big_content, score=0.9)],
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
 
     req = legacy_app.InsightRequest(text="q")
     out = await legacy_app.insight(req)
@@ -393,8 +484,39 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
     import core.rag.simple_rag as simple_rag
+    from dataclasses import dataclass
+    from typing import Optional
 
-    monkeypatch.setattr(simple_rag, "retrieve_context", lambda *_a, **_k: "ctx")
+    @dataclass
+    class _Chunk:
+        chunk_id: str
+        file: str
+        content: str
+        score: float
+        hop: int = 1
+
+    @dataclass
+    class _Ctx:
+        query: str
+        refined_queries: list[str]
+        chunks: list[_Chunk]
+        confidence: float
+        hops: int
+        latency_ms: int
+        agent_id: Optional[str] = None
+        user_tier: Optional[str] = None
+
+    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+        return _Ctx(
+            query="q",
+            refined_queries=["q"],
+            chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
     monkeypatch.setattr(
         legacy_app,
         "_build_insight_prompt",
