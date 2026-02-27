@@ -2155,27 +2155,17 @@ from core.insight.llm_provider_loader import (  # noqa: E402
 
 
 def _format_rag_chunks_for_prompt(chunks: list[Any]) -> str:
-    """Concatenate RAGChunk objects into a prompt-ready string with source headers."""
-    parts: list[str] = []
-    for ch in chunks:
-        parts.append(f"# Source: {ch.file} (score={ch.score:.2f})\n{ch.content}")
-    return "\n\n".join(parts)
+    """Thin proxy → core.rag.formatting.format_rag_chunks_for_prompt."""
+    from core.rag.formatting import format_rag_chunks_for_prompt
+
+    return format_rag_chunks_for_prompt(chunks)
 
 
 def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
-    """Build RAGSourceItem list from RAGChunks with redacted previews."""
-    items: list[RAGSourceItem] = []
-    for ch in chunks:
-        preview = _redact_rag_context_for_insight(ch.content)
-        items.append(
-            RAGSourceItem(
-                chunk_id=ch.chunk_id,
-                file=ch.file,
-                preview=preview[:200] if preview else "",
-                score=round(ch.score, 4),
-            )
-        )
-    return items
+    """Thin proxy → core.rag.formatting.build_rag_source_dicts."""
+    from core.rag.formatting import build_rag_source_dicts
+
+    return [RAGSourceItem(**d) for d in build_rag_source_dicts(chunks)]
 
 
 async def insight_v1(req: InsightRequest) -> InsightResponse:
@@ -2212,7 +2202,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
-            rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
@@ -2277,7 +2267,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context_structured as _rag_structured
 
-            rag_ctx = _rag_structured(prompt_input, max_chunks=3)
+            rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
