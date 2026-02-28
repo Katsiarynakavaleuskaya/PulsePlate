@@ -138,7 +138,7 @@ Component Gallery lists **58 component types** (table below). Below: **Evidence*
    When introducing a new component, check Gallery for the canonical name and aliases (e.g. Modal/Dialog/Popup) and document in our design system so naming stays consistent.
 
 2. **Gap checklist**
-   Use the 50-type list as a checklist against `frontend/src/components/ui/index.ts` and `docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md` to avoid missing a category (e.g. Separator, Skip link, Visually hidden).
+   Use the 58-type list as a checklist against `frontend/src/components/ui/index.ts` and `docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md` to avoid missing a category (e.g. Separator, Skip link, Visually hidden).
 
 3. **Documentation**
    In design system or Storybook, add one-line definitions from Gallery where useful (e.g. «Alert — a way of informing the user of important changes in a prominent way»).
