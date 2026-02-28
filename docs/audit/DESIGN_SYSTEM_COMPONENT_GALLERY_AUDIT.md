@@ -53,7 +53,7 @@
 
 ## 3. Component Gallery Catalog vs PulsePlate (Gap Map)
 
-Component Gallery lists **50 component types**. Below: **Evidence** = our implementation; **Gap** = missing or partial; **Ref** = Component Gallery definition (for enrichment).
+Component Gallery lists **58 component types** (table below). Below: **Evidence** = our implementation; **Gap** = missing or partial; **Ref** = Component Gallery definition (for enrichment).
 
 | # | Gallery component | Our state | Evidence / gap |
 |---|-------------------|-----------|----------------|
@@ -85,7 +85,7 @@ Component Gallery lists **50 component types**. Below: **Evidence** = our implem
 | 26 | Label | Partial | FormField/labels; no standalone Label. |
 | 27 | Link | Partial | React Router Link; no design-system Link. |
 | 28 | List | Gap | No unified List component. |
-| 29 | Modal | Have | Dialog + BeforeAfter modal pattern. |
+| 29 | Modal | Partial | Dialog used as modal implementation (`frontend/src/components/ui/Dialog.tsx`) + BeforeAfter pattern; no generic Modal.tsx. |
 | 30 | Navigation | Partial | TabBar, MobileMenu; no generic Nav. |
 | 31 | Pagination | Gap | FRONTEND_MODERN_COMPONENTS_AUDIT:104. |
 | 32 | Popover | Gap | FRONTEND_MODERN_COMPONENTS_AUDIT:94. |
@@ -114,7 +114,7 @@ Component Gallery lists **50 component types**. Below: **Evidence** = our implem
 | 55 | Tooltip | Partial | Recharts Tooltip in ProgressCharts; no global Tooltip (FRONTEND_MODERN_COMPONENTS_AUDIT:93). |
 | 56 | Tree view | Gap | Not in scope. |
 | 57 | Video | Gap | Not in scope. |
-| 58 | Visually hidden | Gap | No screenreader-only utility. |
+| 58 | Visually hidden | Gap | No screen reader–only utility. |
 
 ---
 
@@ -123,7 +123,7 @@ Component Gallery lists **50 component types**. Below: **Evidence** = our implem
 **Conclusion: yes, as a taxonomy and prioritization reference, not as a code dependency.**
 
 - **Component Gallery** is a **catalog of component types and definitions** (names, aliases, one-line descriptions). It does not ship code; it helps align our design system with common naming and semantics.
-- **Evidence:** [Component Gallery — About](https://component.gallery/components/): «The Component Gallery is a project by Iain Bean, built with Astro, using data from Airtable.» Our stack is React + Tailwind; we do not add Component Gallery as a runtime dependency. We use it to:
+- **Evidence:** [Component Gallery — About](https://component.gallery/components/) (accessed 2026-02-28): «The Component Gallery is a project by Iain Bean, built with Astro, using data from Airtable.» Our stack is React + Tailwind; we do not add Component Gallery as a runtime dependency. We use it to:
   1. **Validate gaps** — our existing audit (FRONTEND_MODERN_COMPONENTS_AUDIT) already lists missing components; Component Gallery confirms taxonomy (e.g. Alert vs Notification, Breadcrumbs, Dropdown menu, Progress bar, Tooltip).
   2. **Prioritize** — same P0/P1/P2 order as in FRONTEND_MODERN_COMPONENTS_AUDIT (forms first, then layout/nav, then feedback).
   3. **Name and document** — when adding components, we can align names and descriptions with Gallery (e.g. «Alert» for prominent feedback, «Progress bar» for completion status).
