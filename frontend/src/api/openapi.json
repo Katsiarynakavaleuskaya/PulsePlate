@@ -3904,6 +3904,182 @@
         "title": "QuantityDTO",
         "type": "object"
       },
+      "RAGChunkInput": {
+        "description": "Input schema for a retrieved chunk in feedback.",
+        "properties": {
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "title": "RAGChunkInput",
+        "type": "object"
+      },
+      "RAGFeedbackRequest": {
+        "description": "Request schema for submitting RAG feedback.",
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "hops": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hops"
+          },
+          "llm_response": {
+            "anyOf": [
+              {
+                "maxLength": 50000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Response"
+          },
+          "query": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "retrieved_chunks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RAGChunkInput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved Chunks"
+          },
+          "user_correction": {
+            "anyOf": [
+              {
+                "maxLength": 50000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Correction"
+          },
+          "user_rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Rating"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RAGFeedbackRequest",
+        "type": "object"
+      },
+      "RAGFeedbackResponse": {
+        "description": "Response schema for feedback submission.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "message": {
+            "default": "Feedback submitted successfully",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "RAGFeedbackResponse",
+        "type": "object"
+      },
       "RateLimitErrorResponse": {
         "description": "Error response for 429 rate-limit exceeded.\n\nMatches FastAPI/Starlette HTTPException envelope: {\"detail\": \"...\"}.",
         "properties": {

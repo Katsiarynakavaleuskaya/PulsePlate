@@ -336,8 +336,10 @@ def test_no_direct_model_submodule_imports() -> None:
         + list(_iter_py_files("tests/**/*.py"))
     ):
         rel = _rel(path)
-        # Allow the export module itself and this guard file
-        if rel in ("app/models/__init__.py", "tests/test_repo_policy_guards.py"):
+        # Allow files within app/models/ (they form a cohesive layer and may
+        # cross-reference TypeDecorators and shared utilities like JSONEncodedDict)
+        # and this guard file
+        if rel.startswith("app/models/") or rel == "tests/test_repo_policy_guards.py":
             continue
 
         content = _read(path)
