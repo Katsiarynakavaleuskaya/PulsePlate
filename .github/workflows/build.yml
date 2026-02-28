@@ -101,6 +101,9 @@ jobs:
         with:
           version: 'v0.65.0'
 
+      - name: Restore ignore-policy after setup-trivy
+        run: git checkout -- trivy/ignore-policy.rego
+
       - name: Run Trivy vulnerability scanner (filesystem scan)
         run: |
           trivy fs . \
@@ -179,6 +182,9 @@ jobs:
         uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
         with:
           version: 'v0.65.0'
+
+      - name: Restore ignore-policy after setup-trivy
+        run: git checkout -- trivy/ignore-policy.rego
 
       - name: Run Trivy vulnerability scanner (image scan, report-only)
         continue-on-error: true

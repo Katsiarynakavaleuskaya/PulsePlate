@@ -48,6 +48,9 @@ jobs:
         with:
           version: 'v0.65.0'
 
+      - name: Restore ignore-policy after setup-trivy
+        run: git checkout -- trivy/ignore-policy.rego
+
       - name: Run Trivy vulnerability scanner
         run: |
           trivy image \
