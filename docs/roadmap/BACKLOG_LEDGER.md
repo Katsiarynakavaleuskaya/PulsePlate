@@ -1773,11 +1773,11 @@ If it is not recorded here — it does not exist.
     - RAGChunk/RAGContext dataclasses in core/rag; constants in core/rag
     - Deterministic tests for new response fields; `make verify` passes
 
-- [ ] P1: RAG feedback storage (prerequisite for recursive learning)
+- [x] P1: RAG feedback storage (prerequisite for recursive learning)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG / DB)
-  - Target PR: PR #937 (`feat/p1-rag-feedback-storage`)
-  - Status: In progress (PR open)
+  - Target PR: PR #937 (merged)
+  - Status: ✅ Merged (PR #937, 2026-02-28)
   - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and `user_knowledge` for VIP); application-layer RLS; migration.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (Feedback Schema)
