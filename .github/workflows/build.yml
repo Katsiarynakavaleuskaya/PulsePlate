@@ -97,20 +97,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Run Trivy vulnerability scanner (filesystem scan)
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
         with:
-          scan-type: 'fs'
-          scan-ref: .
-          scanners: vuln
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          # FS scan is report-only: publish SARIF findings without blocking merges.
-          exit-code: '0'
-          trivyignores: '.trivyignore'
-          ignore-policy: ${{ env.TRIVY_IGNORE_POLICY_PATH }}
+          version: 'v0.65.0'
+
+      - name: Run Trivy vulnerability scanner (filesystem scan)
+        env:
+          TRIVY_IGNORE_POLICY_PATH: ${{ github.workspace }}/trivy/ignore-policy.rego
+        run: |
+          trivy fs . --ignore-policy "$TRIVY_IGNORE_POLICY_PATH" --scanners vuln \
+            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
+            --ignore-unfixed --exit-code 0 --trivyignore .trivyignore
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
