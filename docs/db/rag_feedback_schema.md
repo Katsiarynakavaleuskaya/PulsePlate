@@ -90,7 +90,7 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 
 ## API Endpoint
 
-**POST /api/v1/feedback/rag**
+### POST /api/v1/feedback/rag
 
 ```json
 {

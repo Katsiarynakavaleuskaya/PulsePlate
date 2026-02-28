@@ -19,7 +19,6 @@ See:
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "202602280001"
@@ -44,7 +43,7 @@ def upgrade() -> None:
         sa.Column("hops", sa.SmallInteger(), nullable=True),
         sa.Column(
             "created_at",
-            postgresql.TIMESTAMP(timezone=True),
+            sa.DateTime(timezone=True),
             server_default=sa.text("(CURRENT_TIMESTAMP)"),
             nullable=False,
         ),
@@ -86,7 +85,7 @@ def upgrade() -> None:
         sa.Column("source", sa.String(256), nullable=True),
         sa.Column(
             "created_at",
-            postgresql.TIMESTAMP(timezone=True),
+            sa.DateTime(timezone=True),
             server_default=sa.text("(CURRENT_TIMESTAMP)"),
             nullable=False,
         ),

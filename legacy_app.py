@@ -50,7 +50,6 @@ from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_router
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
-from app.routers.feedback import router as feedback_router
 from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.plan_export import export_router, plan_router
@@ -5387,9 +5386,6 @@ if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
 
 # Include BMI router (FREE tier, no API key required)
 app.include_router(bmi_router)
-
-# Include Feedback router (requires any valid API key for user attribution)
-app.include_router(feedback_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 

@@ -3910,6 +3910,7 @@
           "chunk_id": {
             "anyOf": [
               {
+                "maxLength": 256,
                 "type": "string"
               },
               {
@@ -3921,6 +3922,7 @@
           "file": {
             "anyOf": [
               {
+                "maxLength": 512,
                 "type": "string"
               },
               {
@@ -3932,6 +3934,7 @@
           "preview": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
@@ -4021,6 +4024,7 @@
                 "items": {
                   "$ref": "#/components/schemas/RAGChunkInput"
                 },
+                "maxItems": 50,
                 "type": "array"
               },
               {

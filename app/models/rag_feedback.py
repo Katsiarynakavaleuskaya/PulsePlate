@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -29,7 +30,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 from core.db import Base
 from app.models.events import JSONEncodedDict
@@ -64,7 +64,6 @@ class RAGFeedback(Base):
         Index(
             "idx_rag_feedback_agent",
             "agent_id",
-            postgresql_where="agent_id IS NOT NULL",
         ),
         {"extend_existing": True},
     )
@@ -94,7 +93,7 @@ class RAGFeedback(Base):
     hops: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
+        DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
@@ -144,7 +143,7 @@ class UserKnowledge(Base):
     source: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
+        DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )

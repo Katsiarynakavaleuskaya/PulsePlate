@@ -14,7 +14,7 @@ import re
 from typing import Optional
 
 # Common PII patterns
-EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 # US phone formats: 555-123-4567, 555.123.4567, 5551234567
 PHONE_PATTERN = re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b")
 # US SSN format: 123-45-6789

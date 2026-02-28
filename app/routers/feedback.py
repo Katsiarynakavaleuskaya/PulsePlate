@@ -26,7 +26,6 @@ from app.middleware.api_tiers import (
 )
 from core.db import get_session
 from core.pii_redaction import redact_pii_from_text
-from app.models import RAGFeedback
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +35,9 @@ router = APIRouter(prefix="/api/v1/feedback", tags=["feedback"])
 class RAGChunkInput(BaseModel):
     """Input schema for a retrieved chunk in feedback."""
 
-    chunk_id: Optional[str] = None
-    file: Optional[str] = None
-    preview: Optional[str] = None
+    chunk_id: Optional[str] = Field(None, max_length=256)
+    file: Optional[str] = Field(None, max_length=512)
+    preview: Optional[str] = Field(None, max_length=2000)
     score: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
@@ -47,7 +46,7 @@ class RAGFeedbackRequest(BaseModel):
 
     agent_id: Optional[str] = Field(None, max_length=64)
     query: str = Field(..., min_length=1, max_length=10000)
-    retrieved_chunks: Optional[List[RAGChunkInput]] = None
+    retrieved_chunks: Optional[List[RAGChunkInput]] = Field(None, max_length=50)
     llm_response: Optional[str] = Field(None, max_length=50000)
     user_rating: Optional[int] = Field(None, ge=1, le=5)
     user_correction: Optional[str] = Field(None, max_length=50000)
@@ -127,6 +126,8 @@ def submit_rag_feedback(
             }
             for c in feedback.retrieved_chunks
         ]
+
+    from app.models import RAGFeedback  # lazy import per OpenAPI generation policy
 
     record = RAGFeedback(
         user_id=current_user.user_id,

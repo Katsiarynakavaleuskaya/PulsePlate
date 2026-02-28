@@ -18,6 +18,7 @@ from legacy_app import (
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 import app.routers.realtime_ws as realtime_ws
+from app.routers.feedback import router as feedback_router
 
 app: FastAPI = _legacy_app
 
@@ -40,5 +41,8 @@ def _assert_no_duplicate_ws_route() -> None:
 
 _assert_no_duplicate_ws_route()
 app.include_router(realtime_ws.router)
+
+# Register feedback router (new endpoint, not legacy — belongs here per policy)
+app.include_router(feedback_router)
 
 __all__ = ["app"]
