@@ -11,7 +11,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
 jobs:
   # Build and test Docker image
@@ -110,7 +109,7 @@ jobs:
           # FS scan is report-only: publish SARIF findings without blocking merges.
           exit-code: '0'
           trivyignores: '.trivyignore'
-          ignore-policy: ${{ env.TRIVY_IGNORE_POLICY_PATH }}
+          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
@@ -188,7 +187,7 @@ jobs:
           output: 'trivy-image.sarif'
           severity: 'CRITICAL,HIGH'
           trivyignores: '.trivyignore'
-          ignore-policy: ${{ env.TRIVY_IGNORE_POLICY_PATH }}
+          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
 
       - name: Upload Trivy image scan results
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
