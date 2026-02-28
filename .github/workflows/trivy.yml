@@ -46,16 +46,19 @@ jobs:
           tags: pulseplate:trivy-scan-${{ github.sha }}
           target: production
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
         with:
-          image-ref: 'pulseplate:trivy-scan-${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          trivyignores: '.trivyignore'
-          ignore-policy: ${{ env.TRIVY_IGNORE_POLICY_PATH }}
+          version: 'v0.65.0'
+
+      - name: Run Trivy vulnerability scanner
+        env:
+          TRIVY_IGNORE_POLICY_PATH: ${{ github.workspace }}/trivy/ignore-policy.rego
+        run: |
+          trivy image --ignore-policy "$TRIVY_IGNORE_POLICY_PATH" \
+            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
+            --trivyignore .trivyignore \
+            'pulseplate:trivy-scan-${{ github.sha }}'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
