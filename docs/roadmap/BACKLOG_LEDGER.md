@@ -1816,12 +1816,18 @@ If it is not recorded here — it does not exist.
     - Insight response includes sources[] when rag_used=true; preview redacted; OpenAPI updated
     - `make verify` and `make openapi-check` pass
 
-- [ ] P2: RAG for CBT agent (first domain agent)
+- [x] P2: RAG for CBT agent (first domain agent)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG / coaching)
-  - Target PR: PR-next-8 (runtime)
-  - Status: Planned
+  - Target PR: feat/p2-rag-cbt-agent
+  - Status: Implemented
   - Reason (EN): Connect CBT/coaching flow to RAG per AGENT_CORPUS_MAP; first agent to use retrieval before LLM.
+  - Implementation (EN):
+    - Created CBT corpus documents: `docs/cbt/cognitive_restructuring.md`, `docs/cbt/thought_records.md`, `docs/psychology/motivation_theories.md`
+    - Added `AGENT_CORPUS_MAP` to `core/rag/contracts.py` with cbt-agent mapping
+    - Implemented corpus filtering in `core/rag/vector_rag.py` and `core/rag/simple_rag.py`
+    - Created PRO-gated endpoint `POST /api/v1/pro/cbt/insight` in `app/routers/cbt_insight.py`
+    - Feature-flagged via `FEATURE_CBT_AGENT` env var
   - Links:
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.2, 4.3)
     - `docs/contracts/RAG_CONTRACT.md` (Corpus Routing)

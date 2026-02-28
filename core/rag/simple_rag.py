@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     MAX_CHUNK_SIZE_CHARS,
     MAX_SOURCES_IN_RESPONSE,
@@ -142,10 +142,32 @@ def retrieve_context_structured(
 
     Backward-compatible with retrieve_context: same index and scoring;
     use this when response needs sources, confidence, hops, latency_ms.
+
+    If agent_id is in AGENT_CORPUS_MAP, filters retrieval to that agent's
+    corpus paths. Otherwise, queries all indexed content.
     """
     start = time.perf_counter()
     items = _get_index()
     refined: list[str] = [query]
+
+    # Get corpus prefixes for agent-specific filtering
+    corpus_prefixes = AGENT_CORPUS_MAP.get(agent_id) if agent_id else None
+
+    # Filter items by corpus prefixes if specified
+    if corpus_prefixes:
+        filtered_items = [
+            (src, ch)
+            for src, ch in items
+            if any(src.endswith(prefix.rstrip("/")) or prefix in src for prefix in corpus_prefixes)
+        ]
+        if not filtered_items and items:
+            logger.warning(
+                "No items match corpus_prefixes=%s for agent_id=%s",
+                corpus_prefixes,
+                agent_id,
+            )
+        items = filtered_items
+
     if not items:
         return RAGContext(
             query=query,

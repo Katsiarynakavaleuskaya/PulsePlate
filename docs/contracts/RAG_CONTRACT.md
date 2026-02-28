@@ -157,6 +157,14 @@ MAX_CHUNK_SIZE_CHARS: int = 800
 
 ## 6. Corpus Routing (для доменных агентов)
 
+**Implementation status:** `cbt-agent` corpus filtering is implemented in `core/rag/contracts.py:AGENT_CORPUS_MAP`. Other agent mappings are target-state.
+
+**Evidence:**
+- `core/rag/contracts.py:AGENT_CORPUS_MAP` — canonical constant with `cbt-agent` → `["docs/cbt/", "docs/psychology/"]`
+- `core/rag/vector_rag.py:_retrieve_vector_from_db()` — corpus filtering via `corpus_prefixes` parameter
+- `core/rag/simple_rag.py:retrieve_context_structured()` — Jaccard fallback with corpus filtering
+- `app/routers/cbt_insight.py` — PRO-gated endpoint using `agent_id="cbt-agent"`
+
 ```python
 AGENT_CORPUS_MAP: dict[str, list[str]] = {
     "cbt-agent": ["docs/cbt/", "docs/psychology/"],

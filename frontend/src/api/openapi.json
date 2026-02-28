@@ -1715,6 +1715,87 @@
         "title": "BusinessAnalysisResponse",
         "type": "object"
       },
+      "CBTInsightRequest": {
+        "description": "Request schema for CBT insight endpoint.",
+        "properties": {
+          "query": {
+            "description": "User query for CBT-informed insight",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "CBTInsightRequest",
+        "type": "object"
+      },
+      "CBTInsightResponse": {
+        "description": "Response schema for CBT insight endpoint.",
+        "properties": {
+          "confidence": {
+            "default": 0.0,
+            "description": "RAG retrieval confidence score",
+            "title": "Confidence",
+            "type": "number"
+          },
+          "insight": {
+            "description": "CBT-informed response from LLM",
+            "title": "Insight",
+            "type": "string"
+          },
+          "rag_used": {
+            "default": false,
+            "description": "Whether RAG context was used",
+            "title": "Rag Used",
+            "type": "boolean"
+          },
+          "sources": {
+            "description": "CBT corpus sources used for context",
+            "items": {
+              "$ref": "#/components/schemas/CBTSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "insight"
+        ],
+        "title": "CBTInsightResponse",
+        "type": "object"
+      },
+      "CBTSourceItem": {
+        "description": "Single source from CBT corpus in response.",
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "preview": {
+            "title": "Preview",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "file",
+          "preview",
+          "score"
+        ],
+        "title": "CBTSourceItem",
+        "type": "object"
+      },
       "CatalogInfoDTO": {
         "description": "RU: Каталожная информация для enrichment слоя (adapter-only).\nEN: Catalog enrichment info (adapter-only).\n\nThis is attached to shoplist lines when region_id/store_id are provided.\nMissing catalog is not an error (fail-soft).",
         "properties": {
@@ -6355,6 +6436,56 @@
         ],
         "summary": "Calculate BMI with WHR (PRO tier)",
         "tags": [
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/cbt/insight": {
+      "post": {
+        "description": "Generate CBT-informed insight using RAG and LLM.\n\nRetrieves relevant context from CBT corpus (docs/cbt/, docs/psychology/)\nand generates a supportive response using LLM.\n\nRequires PRO tier API key.",
+        "operationId": "cbt_insight_api_v1_pro_cbt_insight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CBTInsightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CBTInsightResponse"
+                }
+              }
+            },
+            "description": "CBT insight generated successfully"
+          },
+          "401": {
+            "description": "API key required for PRO tier access"
+          },
+          "403": {
+            "description": "API key does not have PRO tier access"
+          },
+          "422": {
+            "description": "Validation error in request"
+          },
+          "503": {
+            "description": "CBT agent feature disabled or unavailable"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Cbt Insight",
+        "tags": [
+          "CBT",
           "pro"
         ]
       }
