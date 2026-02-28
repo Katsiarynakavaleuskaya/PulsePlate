@@ -84,6 +84,10 @@ def _retrieve_vector_postgres(
     """Retrieve similar rows via pgvector cosine distance operator."""
     from sqlalchemy import text
 
+    # Format embedding explicitly into pgvector's canonical text form
+    # instead of relying on str(list) which may have inconsistent formatting.
+    qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
+
     stmt = text(
         "SELECT id, content, source, "
         "1 - (embedding <=> :qvec::vector) AS similarity "
@@ -92,7 +96,7 @@ def _retrieve_vector_postgres(
         "ORDER BY embedding <=> :qvec::vector "
         "LIMIT :lim"
     )
-    rows = session.execute(stmt, {"qvec": str(query_embedding), "lim": limit}).fetchall()
+    rows = session.execute(stmt, {"qvec": qvec_text, "lim": limit}).fetchall()
     return [(row, row.similarity) for row in rows]
 
 

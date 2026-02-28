@@ -21,6 +21,8 @@ import logging
 import threading
 from typing import Any, Protocol, runtime_checkable
 
+from core.rag.rag_constants import EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_NAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,9 +49,13 @@ class SentenceTransformerEmbeddings:
     Lazy: model is not loaded until the first ``.encode()`` call.
     """
 
-    def __init__(self, model_name: str = "all-mpnet-base-v2") -> None:
+    def __init__(
+        self,
+        model_name: str = EMBEDDING_MODEL_NAME,
+        dimensions: int = EMBEDDING_DIMENSIONS,
+    ) -> None:
         self.model_name = model_name
-        self.dimensions = 768
+        self.dimensions = dimensions
         self._model: Any | None = None
         self._lock = threading.Lock()
 
