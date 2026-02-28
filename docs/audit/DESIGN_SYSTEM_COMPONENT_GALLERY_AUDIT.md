@@ -185,7 +185,7 @@ Component Gallery lists **58 component types** (table below). Below: **Evidence*
 
 ## 7. References
 
-- **Component Gallery (source):** https://component.gallery/components/
+- **Component Gallery (source):** <https://component.gallery/components/>
 - **Token SoT:** `docs/design/TOKENS_SOT.md`
 - **Luxury guidelines:** `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
 - **Frontend components audit:** `docs/audit/FRONTEND_MODERN_COMPONENTS_AUDIT.md`
