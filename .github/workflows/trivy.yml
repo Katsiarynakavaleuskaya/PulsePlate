@@ -53,7 +53,7 @@ jobs:
           trivy image \
             --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
             --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
-            --trivyignore .trivyignore \
+            --ignorefile .trivyignore \
             'pulseplate:trivy-scan-${{ github.sha }}'
 
       - name: Upload Trivy scan results to GitHub Security tab
