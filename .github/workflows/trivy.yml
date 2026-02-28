@@ -49,7 +49,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
         env:
-          TRIVY_IGNORE_POLICY_PATH: ${{ github.workspace }}/trivy/ignore-policy.rego
+          TRIVY_IGNORE_POLICY_PATH: /github/workspace/trivy/ignore-policy.rego
         with:
           image-ref: 'pulseplate:trivy-scan-${{ github.sha }}'
           format: 'template'
@@ -57,7 +57,7 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
           trivyignores: '.trivyignore'
-          ignore-policy: ${{ github.workspace }}/trivy/ignore-policy.rego
+          ignore-policy: /github/workspace/trivy/ignore-policy.rego
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
