@@ -59,7 +59,7 @@ def _fake_jaccard(
     )
 
 
-class TestCosineSimility:
+class TestCosineSimilarity:
     """Unit tests for _cosine_similarity helper."""
 
     def test_identical_vectors(self) -> None:

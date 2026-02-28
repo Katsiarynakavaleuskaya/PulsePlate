@@ -16,8 +16,9 @@ from __future__ import annotations
 import json
 import logging
 import math
+import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.utils.feature_flags import is_rag_vector_enabled
 from core.rag.contracts import RAGChunk, RAGContext
@@ -28,22 +29,28 @@ from core.rag.rag_constants import (
     MIN_VECTOR_SCORE,
 )
 
+if TYPE_CHECKING:
+    from providers.embeddings import EmbeddingProvider
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Singleton embedding provider (lazy)
+# Singleton embedding provider (lazy, thread-safe)
 # ---------------------------------------------------------------------------
 
-_embedding_provider: Any | None = None
+_embedding_provider: EmbeddingProvider | None = None
+_embedding_provider_lock = threading.Lock()
 
 
-def _get_embedding_provider() -> Any:
-    """Return the singleton embedding provider, created lazily."""
+def _get_embedding_provider() -> EmbeddingProvider:
+    """Return the singleton embedding provider, created lazily (thread-safe)."""
     global _embedding_provider
     if _embedding_provider is None:
-        from providers.embeddings import SentenceTransformerEmbeddings
+        with _embedding_provider_lock:
+            if _embedding_provider is None:
+                from providers.embeddings import SentenceTransformerEmbeddings
 
-        _embedding_provider = SentenceTransformerEmbeddings()
+                _embedding_provider = SentenceTransformerEmbeddings()
     return _embedding_provider
 
 
@@ -115,6 +122,15 @@ def _retrieve_vector_sqlite(
     ).fetchall()
 
     scored: list[tuple[Any, float]] = []
+
+    if len(query_embedding) != EMBEDDING_DIMENSIONS:
+        logger.error(
+            "Query embedding length %d != expected %d",
+            len(query_embedding),
+            EMBEDDING_DIMENSIONS,
+        )
+        return []
+
     for row in rows:
         try:
             stored = json.loads(row.embedding)
