@@ -308,7 +308,7 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
 
     # Patch retrieve_context_structured to return a context with chunks
-    import core.rag.simple_rag as simple_rag
+    import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
 
@@ -341,7 +341,7 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
             latency_ms=10,
         )
 
-    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
+    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
 
     req = legacy_app.InsightRequest(text="question")
     out = await legacy_app.insight_v1(req)
@@ -364,7 +364,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
     import llm
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
-    import core.rag.simple_rag as simple_rag
+    import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
 
@@ -397,7 +397,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
             latency_ms=10,
         )
 
-    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
+    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
     monkeypatch.setattr(
         legacy_app,
         "_build_insight_prompt",
@@ -424,7 +424,7 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
     import llm
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
-    import core.rag.simple_rag as simple_rag
+    import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
 
@@ -460,7 +460,7 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
             latency_ms=10,
         )
 
-    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
+    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
 
     req = legacy_app.InsightRequest(text="q")
     out = await legacy_app.insight(req)
@@ -483,7 +483,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
     import llm
 
     monkeypatch.setattr(llm, "get_provider", lambda: _Provider())
-    import core.rag.simple_rag as simple_rag
+    import core.rag.vector_rag as vector_rag
     from dataclasses import dataclass
     from typing import Optional
 
@@ -516,7 +516,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
             latency_ms=10,
         )
 
-    monkeypatch.setattr(simple_rag, "retrieve_context_structured", _fake_structured)
+    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
     monkeypatch.setattr(
         legacy_app,
         "_build_insight_prompt",

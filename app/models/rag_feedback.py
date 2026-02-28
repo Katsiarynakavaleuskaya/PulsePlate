@@ -135,9 +135,9 @@ class UserKnowledge(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Embedding vector for semantic search
-    # On Postgres with pgvector: VECTOR(768)
-    # On SQLite (tests): TEXT storing JSON array (not searchable)
-    # Migration handles the dialect-specific type
+    # On Postgres with pgvector: VECTOR(768) (after migration 202602280003)
+    # On SQLite (tests): TEXT storing JSON array; app-level cosine in vector_rag.py
+    # See: core/rag/vector_rag.py for dialect-aware retrieval
     embedding: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     source: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)

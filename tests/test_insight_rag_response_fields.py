@@ -111,7 +111,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
-            "core.rag.simple_rag.retrieve_context_structured",
+            "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
@@ -145,7 +145,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
-            "core.rag.simple_rag.retrieve_context_structured",
+            "core.rag.vector_rag.retrieve_context_structured",
             _make_empty_structured,
             raising=True,
         )
@@ -195,7 +195,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
-            "core.rag.simple_rag.retrieve_context_structured",
+            "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
@@ -220,7 +220,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
-            "core.rag.simple_rag.retrieve_context_structured",
+            "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )
@@ -247,7 +247,7 @@ class TestInsightLegacyRAGFields:
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
         monkeypatch.setattr(
-            "core.rag.simple_rag.retrieve_context_structured",
+            "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
             raising=True,
         )

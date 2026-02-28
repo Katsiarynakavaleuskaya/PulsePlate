@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from providers.embeddings import EmbeddingProvider
 
 
 class ProviderBase(Protocol):
@@ -12,4 +15,4 @@ class ProviderBase(Protocol):
         raise NotImplementedError("Provider must implement .generate(text)")
 
 
-__all__ = ["ProviderBase"]
+__all__ = ["ProviderBase", "EmbeddingProvider"]
