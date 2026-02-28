@@ -10,3 +10,8 @@ MAX_SOURCES_IN_RESPONSE: int = 5
 RAG_PIPELINE_TIMEOUT_SEC: int = 10
 MIN_CHUNK_SCORE: float = 0.1
 MAX_CHUNK_SIZE_CHARS: int = 800
+
+# Vector retrieval constants (P2)
+EMBEDDING_MODEL_NAME: str = "all-mpnet-base-v2"
+EMBEDDING_DIMENSIONS: int = 768
+MIN_VECTOR_SCORE: float = 0.3  # cosine similarity threshold (higher bar than Jaccard's 0.1)

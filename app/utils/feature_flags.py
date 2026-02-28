@@ -26,4 +26,13 @@ def is_vip_module_enabled() -> bool:
     return _is_truthy(os.getenv("VIP_MODULE_ENABLED", "true"))
 
 
-__all__ = ["is_vip_module_enabled", "_is_truthy"]
+def is_rag_vector_enabled() -> bool:
+    """Check if vector-based RAG retrieval is enabled.
+
+    When True, RAG pipeline uses pgvector cosine similarity instead of
+    Jaccard tokenization.  Falls back to Jaccard on failure regardless.
+    """
+    return _is_truthy(os.getenv("FEATURE_RAG_VECTOR"))
+
+
+__all__ = ["is_vip_module_enabled", "is_rag_vector_enabled", "_is_truthy"]

@@ -114,7 +114,7 @@ def test_insight_redacts_rag_source_headers(
     monkeypatch.setenv("FEATURE_RAG", "true")
     monkeypatch.setattr(llm, "get_provider", lambda: EchoProvider(), raising=True)
     monkeypatch.setattr(
-        "core.rag.simple_rag.retrieve_context_structured",
+        "core.rag.vector_rag.retrieve_context_structured",
         fake_structured,
         raising=True,
     )

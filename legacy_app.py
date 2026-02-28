@@ -2200,7 +2200,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     rag_actually_used = False
     if use_rag:
         with suppress(Exception):
-            from core.rag.simple_rag import retrieve_context_structured as _rag_structured
+            from core.rag.vector_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
             rag_hops = rag_ctx.hops
@@ -2265,7 +2265,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
     rag_actually_used = False
     if use_rag:
         with suppress(Exception):
-            from core.rag.simple_rag import retrieve_context_structured as _rag_structured
+            from core.rag.vector_rag import retrieve_context_structured as _rag_structured
 
             rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
             rag_hops = rag_ctx.hops
