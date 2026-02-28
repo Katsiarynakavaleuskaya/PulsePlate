@@ -35,5 +35,8 @@ pyarrow>=20.0.0,<24.0.0
 setuptools>=78.1.1,<79.0.0
 # Vector retrieval for RAG (P2): embedding generation + pgvector similarity search
 # Feature-flagged via FEATURE_RAG_VECTOR; not loaded when disabled.
-sentence-transformers>=3.3.1,<4.0.0
+# sentence-transformers 4.x+ requires transformers 5.x (fixes PVE-2026-85102).
+sentence-transformers>=4.0.0,<6.0.0
+# transformers>=5.0.0 fixes PVE-2026-85102 (transitive via sentence-transformers).
+transformers>=5.0.0,<6.0.0
 pgvector>=0.3.6,<1.0.0
