@@ -3040,6 +3040,55 @@ export interface components {
             value: string;
         };
         /**
+         * RAGChunkInput
+         * @description Input schema for a retrieved chunk in feedback.
+         */
+        RAGChunkInput: {
+            /** Chunk Id */
+            chunk_id?: string | null;
+            /** File */
+            file?: string | null;
+            /** Preview */
+            preview?: string | null;
+            /** Score */
+            score?: number | null;
+        };
+        /**
+         * RAGFeedbackRequest
+         * @description Request schema for submitting RAG feedback.
+         */
+        RAGFeedbackRequest: {
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Hops */
+            hops?: number | null;
+            /** Llm Response */
+            llm_response?: string | null;
+            /** Query */
+            query: string;
+            /** Retrieved Chunks */
+            retrieved_chunks?: components["schemas"]["RAGChunkInput"][] | null;
+            /** User Correction */
+            user_correction?: string | null;
+            /** User Rating */
+            user_rating?: number | null;
+        };
+        /**
+         * RAGFeedbackResponse
+         * @description Response schema for feedback submission.
+         */
+        RAGFeedbackResponse: {
+            /** Id */
+            id: number;
+            /**
+             * Message
+             * @default Feedback submitted successfully
+             */
+            message: string;
+        };
+        /**
          * RateLimitErrorResponse
          * @description Error response for 429 rate-limit exceeded.
          *

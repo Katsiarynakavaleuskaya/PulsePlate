@@ -1776,16 +1776,18 @@ If it is not recorded here — it does not exist.
 - [ ] P1: RAG feedback storage (prerequisite for recursive learning)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI / RAG / DB)
-  - Target PR: PR-next-3 (runtime)
-  - Status: Planned
-  - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and optionally `user_knowledge` for VIP); RLS; migration.
+  - Target PR: PR #937 (`feat/p1-rag-feedback-storage`)
+  - Status: In progress (PR open)
+  - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and `user_knowledge` for VIP); application-layer RLS; migration.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (Feedback Schema)
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 5.2, 6.2)
-    - `docs/roadmap/BACKLOG_LEDGER.md` (Recursive methods ~2897–2924)
+    - `docs/db/rag_feedback_schema.md` (schema documentation)
   - DoD:
-    - Migration for rag_feedback (and user_knowledge if scoped); RLS enabled
-    - No PII in stored LLM response without redaction; docs/db schema doc updated
+    - Migration for rag_feedback and user_knowledge tables
+    - PII redaction via `core/pii_redaction.py` before storage
+    - Application-layer security (user_id filtering); DB RLS deferred to project-wide PR
+    - docs/db schema doc created
     - `make verify` passes
 
 - [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
