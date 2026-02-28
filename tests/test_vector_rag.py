@@ -263,3 +263,251 @@ class TestResetEmbeddingProvider:
         vector_rag._embedding_provider = "something"
         vector_rag.reset_embedding_provider()
         assert vector_rag._embedding_provider is None
+
+
+class TestGetEmbeddingProvider:
+    """Test _get_embedding_provider singleton with lazy loading."""
+
+    def test_creates_provider_on_first_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Singleton should create SentenceTransformerEmbeddings on first call."""
+        from core.rag import vector_rag
+
+        vector_rag._embedding_provider = None
+
+        fake_cls = MagicMock()
+        fake_instance = MagicMock()
+        fake_cls.return_value = fake_instance
+
+        monkeypatch.setattr(
+            "providers.embeddings.SentenceTransformerEmbeddings",
+            fake_cls,
+        )
+
+        result = vector_rag._get_embedding_provider()
+        assert result is fake_instance
+        fake_cls.assert_called_once()
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+    def test_returns_cached_provider_on_second_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Second call should return cached provider without re-creating."""
+        from core.rag import vector_rag
+
+        fake_provider = MagicMock()
+        vector_rag._embedding_provider = fake_provider
+
+        result = vector_rag._get_embedding_provider()
+        assert result is fake_provider
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+
+class TestRetrieveVectorPostgres:
+    """Test _retrieve_vector_postgres with mock session."""
+
+    def test_postgres_query_and_format(self) -> None:
+        """Postgres path should format embedding and execute SQL."""
+        from core.rag.vector_rag import _retrieve_vector_postgres
+
+        fake_row = MagicMock()
+        fake_row.similarity = 0.95
+        fake_session = MagicMock()
+        fake_session.execute.return_value.fetchall.return_value = [fake_row]
+
+        results = _retrieve_vector_postgres([1.0, 2.0, 3.0], 5, fake_session)
+
+        assert len(results) == 1
+        assert results[0][0] is fake_row
+        assert results[0][1] == 0.95
+
+        # Verify qvec format is pgvector-canonical
+        call_args = fake_session.execute.call_args
+        params = call_args[1] if call_args[1] else call_args[0][1]
+        assert params["qvec"] == "[1.0,2.0,3.0]"
+        assert params["lim"] == 5
+
+
+class TestRetrieveVectorFromDb:
+    """Test _retrieve_vector_from_db orchestration."""
+
+    def test_full_sqlite_flow(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Full flow: encode query → search SQLite → build RAGContext."""
+        from contextlib import contextmanager
+
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+        monkeypatch.setattr(vector_rag, "MIN_VECTOR_SCORE", 0.1)
+
+        # Mock embedding provider
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        # Mock DB session with SQLite dialect
+        class _Row:
+            def __init__(self, id: int, content: str, source: str, embedding: str) -> None:
+                self.id = id
+                self.content = content
+                self.source = source
+                self.embedding = embedding
+
+        rows = [_Row(1, "matching doc", "notes.md", json.dumps([0.9, 0.1, 0.0]))]
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "sqlite"
+        fake_session.execute.return_value.fetchall.return_value = rows
+
+        @contextmanager
+        def _fake_session_scope():  # type: ignore[no-untyped-def]
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, "agent-1", "PRO")
+        assert isinstance(ctx, RAGContext)
+        assert len(ctx.chunks) == 1
+        assert ctx.chunks[0].file == "notes.md"
+        assert ctx.chunks[0].score > 0
+        assert ctx.agent_id == "agent-1"
+        assert ctx.user_tier == "PRO"
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+    def test_empty_encode_returns_empty_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If provider.encode returns empty, return empty context."""
+        from core.rag import vector_rag
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = []
+        vector_rag._embedding_provider = fake_provider
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        assert isinstance(ctx, RAGContext)
+        assert ctx.chunks == []
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+    def test_postgres_dialect_calls_postgres_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Postgres dialect should call _retrieve_vector_postgres."""
+        from contextlib import contextmanager
+
+        from core.rag import vector_rag
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "postgresql"
+
+        @contextmanager
+        def _fake_session_scope():  # type: ignore[no-untyped-def]
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+
+        # Mock postgres retrieval to return scored rows
+        fake_row = MagicMock()
+        fake_row.id = 1
+        fake_row.content = "pg doc"
+        fake_row.source = "pg.md"
+        fake_row.similarity = 0.9
+        monkeypatch.setattr(
+            vector_rag,
+            "_retrieve_vector_postgres",
+            lambda q, lim, s: [(fake_row, 0.9)],
+        )
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        assert len(ctx.chunks) == 1
+        assert ctx.chunks[0].file == "pg.md"
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+    def test_below_min_score_chunks_filtered(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Chunks below MIN_VECTOR_SCORE are filtered out."""
+        from contextlib import contextmanager
+
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "MIN_VECTOR_SCORE", 0.5)
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "sqlite"
+        fake_session.execute.return_value.fetchall.return_value = []
+
+        @contextmanager
+        def _fake_session_scope():  # type: ignore[no-untyped-def]
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        assert ctx.chunks == []
+        assert ctx.confidence == 0.0
+
+        # Cleanup
+        vector_rag._embedding_provider = None
+
+
+class TestRetrieveContextStructuredVectorSuccess:
+    """Test retrieve_context_structured when vector path succeeds."""
+
+    def test_vector_success_returns_vector_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When vector retrieval returns chunks, return them directly."""
+        import core.rag.vector_rag as vector_rag
+
+        vector_ctx = RAGContext(
+            query="test",
+            refined_queries=["test"],
+            chunks=[
+                RAGChunk(
+                    chunk_id="uk:1:1",
+                    file="doc.md",
+                    content="vector result",
+                    score=0.85,
+                    hop=1,
+                )
+            ],
+            confidence=0.85,
+            hops=1,
+            latency_ms=10,
+        )
+
+        monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag._retrieve_vector_from_db",
+            lambda *a, **k: vector_ctx,
+        )
+
+        ctx = vector_rag.retrieve_context_structured("test")
+        assert isinstance(ctx, RAGContext)
+        assert len(ctx.chunks) == 1
+        assert ctx.chunks[0].content == "vector result"
+
+
+class TestQueryEmbeddingValidation:
+    """Test query embedding dimension validation in SQLite path."""
+
+    def test_wrong_query_dimensions_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """SQLite path returns empty when query embedding has wrong dimensions."""
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 768)
+
+        fake_session = MagicMock()
+        fake_session.execute.return_value.fetchall.return_value = []
+
+        # 3-dim query vs 768-dim expected
+        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session)
+        assert results == []
