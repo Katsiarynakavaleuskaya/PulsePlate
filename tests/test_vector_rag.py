@@ -7,6 +7,7 @@ DB operations use SQLite (test default).
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import MagicMock
@@ -360,7 +361,7 @@ class TestRetrieveVectorFromDb:
         fake_session.execute.return_value.fetchall.return_value = rows
 
         @contextmanager
-        def _fake_session_scope():  # type: ignore[no-untyped-def]
+        def _fake_session_scope() -> Iterator[MagicMock]:
             yield fake_session
 
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
@@ -405,7 +406,7 @@ class TestRetrieveVectorFromDb:
         fake_session.bind.dialect.name = "postgresql"
 
         @contextmanager
-        def _fake_session_scope():  # type: ignore[no-untyped-def]
+        def _fake_session_scope() -> Iterator[MagicMock]:
             yield fake_session
 
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
@@ -443,10 +444,21 @@ class TestRetrieveVectorFromDb:
 
         fake_session = MagicMock()
         fake_session.bind.dialect.name = "sqlite"
-        fake_session.execute.return_value.fetchall.return_value = []
+
+        # Provide a row whose cosine([1,0,0], [0,1,0]) == 0.0, below MIN_VECTOR_SCORE=0.5
+        class _Row:
+            def __init__(self, id: int, content: str, source: str, embedding: str) -> None:
+                self.id = id
+                self.content = content
+                self.source = source
+                self.embedding = embedding
+
+        fake_session.execute.return_value.fetchall.return_value = [
+            _Row(1, "low score", "notes.md", json.dumps([0.0, 1.0, 0.0]))
+        ]
 
         @contextmanager
-        def _fake_session_scope():  # type: ignore[no-untyped-def]
+        def _fake_session_scope() -> Iterator[MagicMock]:
             yield fake_session
 
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
@@ -503,11 +515,21 @@ class TestQueryEmbeddingValidation:
         """SQLite path returns empty when query embedding has wrong dimensions."""
         from core.rag import vector_rag
 
-        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 768)
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        # Provide a valid DB row that *would* match if guard didn't fire
+        class _Row:
+            def __init__(self, id: int, content: str, source: str, embedding: str) -> None:
+                self.id = id
+                self.content = content
+                self.source = source
+                self.embedding = embedding
 
         fake_session = MagicMock()
-        fake_session.execute.return_value.fetchall.return_value = []
+        fake_session.execute.return_value.fetchall.return_value = [
+            _Row(1, "doc", "src", json.dumps([1.0, 0.0, 0.0]))
+        ]
 
-        # 3-dim query vs 768-dim expected
-        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0, 0.0], 5, fake_session)
+        # 2-dim query vs 3-dim expected — guard should reject
+        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0], 5, fake_session)
         assert results == []
