@@ -22,17 +22,17 @@ Stores user ratings, corrections, and metadata about RAG interactions to enable 
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| `id` | `SERIAL` | PK | Auto-increment ID |
-| `user_id` | `INTEGER` | FK(users.id), NOT NULL | User who provided feedback |
-| `agent_id` | `VARCHAR(64)` | NULL | Optional agent identifier |
-| `query` | `TEXT` | NOT NULL | User's original query |
-| `retrieved_chunks` | `TEXT/JSONB` | NULL | Retrieved chunks: `[{chunk_id, file, preview, score}]` |
-| `llm_response` | `TEXT` | NULL | LLM response (PII redacted) |
-| `user_rating` | `SMALLINT` | CHECK(1-5) | User satisfaction rating |
-| `user_correction` | `TEXT` | NULL | User's corrected response (PII redacted) |
-| `confidence` | `FLOAT` | CHECK(0.0-1.0) | RAG confidence score |
-| `hops` | `SMALLINT` | CHECK(>=0) | Number of retrieval hops |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Submission timestamp |
+| `id` | `Integer` | PK, autoincrement | Auto-increment ID |
+| `user_id` | `Integer` | FK(users.id), NOT NULL | User who provided feedback |
+| `agent_id` | `String(64)` | NULL | Optional agent identifier |
+| `query` | `Text` | NOT NULL | User's original query |
+| `retrieved_chunks` | `Text` | NULL | Retrieved chunks: `[{chunk_id, file, preview, score}]` |
+| `llm_response` | `Text` | NULL | LLM response (PII redacted) |
+| `user_rating` | `SmallInteger` | CHECK(1-5) | User satisfaction rating |
+| `user_correction` | `Text` | NULL | User's corrected response (PII redacted) |
+| `confidence` | `Float` | CHECK(0.0-1.0) | RAG confidence score |
+| `hops` | `SmallInteger` | CHECK(>=0) | Number of retrieval hops |
+| `created_at` | `DateTime(tz)` | NOT NULL, server_default | Submission timestamp |
 
 ### Indexes
 
@@ -55,12 +55,12 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| `id` | `SERIAL` | PK | Auto-increment ID |
-| `user_id` | `INTEGER` | FK(users.id), NOT NULL | Knowledge owner |
-| `content` | `TEXT` | NOT NULL | Knowledge content |
-| `embedding` | `TEXT` | NULL | Vector embedding (JSON on SQLite, VECTOR(768) on Postgres) |
-| `source` | `VARCHAR(256)` | NULL | Content source identifier |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Creation timestamp |
+| `id` | `Integer` | PK, autoincrement | Auto-increment ID |
+| `user_id` | `Integer` | FK(users.id), NOT NULL | Knowledge owner |
+| `content` | `Text` | NOT NULL | Knowledge content |
+| `embedding` | `Text` | NULL | Vector embedding (JSON on SQLite, VECTOR(768) on Postgres) |
+| `source` | `String(256)` | NULL | Content source identifier |
+| `created_at` | `DateTime(tz)` | NOT NULL, server_default | Creation timestamp |
 
 ### Indexes
 
