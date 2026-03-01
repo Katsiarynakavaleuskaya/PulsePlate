@@ -38,7 +38,7 @@ jobs:
           push: false
           load: true
           tags: pulseplate:test
-          cache-from: type=gha
+          # Omit cache-from to avoid 404 BlobNotFound when GHA cache entry is missing; still write cache for publish job
           cache-to: type=gha,mode=max
           target: production
 
