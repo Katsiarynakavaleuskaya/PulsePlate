@@ -61,6 +61,21 @@ If it is not recorded here — it does not exist.
     - OpenAPI/guard policy updated to remove transitional `/ws` allowance
     - Frontend ws client defaults to canonical path
 
+- [ ] P1: Docker build provenance workaround (temporary seam)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #949 (this PR introduces the workaround); follow-up PR to remove when upstream fixed
+  - Area: CI / Docker / GHCR
+  - Finding Type: temporary seam (CodeRabbit r2869761967)
+  - Reason: `provenance: false` and single-arch in `.github/workflows/build.yml` are workarounds for GHA cache/buildx "cache entry no longer exists" failures. Trade-off: SLSA attestations disabled until buildx/GHA cache is stable.
+  - Links:
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `.github/workflows/build.yml` (publish step)
+  - DoD:
+    - Remove `provenance: false` and restore provenance when buildx/GHA cache no longer fails with "cache entry no longer exists"
+    - Optionally restore `platforms: linux/amd64,linux/arm64` when stable
+    - Update this ledger item and ADR status when seam is removed
+
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
