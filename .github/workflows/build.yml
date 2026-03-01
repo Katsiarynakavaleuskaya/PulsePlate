@@ -178,6 +178,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
+          # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
           provenance: false
           target: production
 
