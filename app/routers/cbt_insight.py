@@ -12,12 +12,17 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
+from app.security.rate_limit import (
+    RATE_LIMIT_429_RESPONSES,
+    RATE_LIMIT_INSIGHT,
+    limit_if_available,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +133,15 @@ Provide a helpful, CBT-informed response:"""
         401: {"description": "API key required for PRO tier access"},
         403: {"description": "API key does not have PRO tier access"},
         422: {"description": "Validation error in request"},
+        429: {"description": "Rate limit exceeded"},
         503: {"description": "CBT agent feature disabled or unavailable"},
+        **RATE_LIMIT_429_RESPONSES,
     },
 )
+@limit_if_available(RATE_LIMIT_INSIGHT)
 async def cbt_insight(
     request: CBTInsightRequest,
+    raw_request: Request,
     _api_key: str = Security(api_key_header),
     _tier: str = Depends(require_pro_tier),
 ) -> CBTInsightResponse:
@@ -215,6 +224,8 @@ async def cbt_insight(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM provider not available",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("LLM generation failed: %s", e, exc_info=True)
         raise HTTPException(

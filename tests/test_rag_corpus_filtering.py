@@ -336,7 +336,6 @@ class TestCorpusFilteringIntegration:
 
         assert len(ctx.chunks) == 0
         # Warning should be logged about no matches
-        assert (
-            any("corpus_prefixes" in record.message.lower() for record in caplog.records)
-            or len(ctx.chunks) == 0
-        )
+        assert any(
+            "corpus_prefixes" in record.message.lower() for record in caplog.records
+        ), "Expected warning about empty corpus match"

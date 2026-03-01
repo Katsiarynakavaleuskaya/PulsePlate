@@ -158,7 +158,7 @@ def retrieve_context_structured(
         filtered_items = [
             (src, ch)
             for src, ch in items
-            if any(src.endswith(prefix.rstrip("/")) or prefix in src for prefix in corpus_prefixes)
+            if any(src.startswith(prefix) for prefix in corpus_prefixes)
         ]
         if not filtered_items and items:
             logger.warning(

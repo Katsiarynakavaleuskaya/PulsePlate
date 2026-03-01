@@ -662,7 +662,7 @@ class TestCorpusFilteringVectorRag:
             or "no vector results" in record.message.lower()
             for record in caplog.records
         )
-        assert warning_logged or len(ctx.chunks) == 0
+        assert warning_logged, "Expected warning about empty corpus results"
 
         # Cleanup
         vector_rag._embedding_provider = None

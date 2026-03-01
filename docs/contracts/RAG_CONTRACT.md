@@ -160,10 +160,12 @@ MAX_CHUNK_SIZE_CHARS: int = 800
 **Implementation status:** `cbt-agent` corpus filtering is implemented in `core/rag/contracts.py:AGENT_CORPUS_MAP`. Other agent mappings are target-state.
 
 **Evidence:**
-- `core/rag/contracts.py:AGENT_CORPUS_MAP` — canonical constant with `cbt-agent` → `["docs/cbt/", "docs/psychology/"]`
-- `core/rag/vector_rag.py:_retrieve_vector_from_db()` — corpus filtering via `corpus_prefixes` parameter
-- `core/rag/simple_rag.py:retrieve_context_structured()` — Jaccard fallback with corpus filtering
-- `app/routers/cbt_insight.py` — PRO-gated endpoint using `agent_id="cbt-agent"`
+- `core/rag/contracts.py:19` — `AGENT_CORPUS_MAP` constant with `cbt-agent` → `["docs/cbt/", "docs/psychology/"]`
+- `core/rag/vector_rag.py:86` — `_retrieve_vector_postgres()` corpus filtering via parameterized LIKE
+- `core/rag/vector_rag.py:124` — `_retrieve_vector_sqlite()` corpus filtering via parameterized LIKE
+- `core/rag/vector_rag.py:181` — `_retrieve_vector_from_db()` resolves `agent_id` → `corpus_prefixes`
+- `core/rag/simple_rag.py:157` — Jaccard fallback with `startswith` corpus filtering
+- `app/routers/cbt_insight.py:134` — PRO-gated endpoint using `agent_id="cbt-agent"`
 
 ```python
 AGENT_CORPUS_MAP: dict[str, list[str]] = {

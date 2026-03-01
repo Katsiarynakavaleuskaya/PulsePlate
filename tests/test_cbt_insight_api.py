@@ -71,8 +71,8 @@ class TestCBTInsightTierGating:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         data = response.json()
-        assert "insight" in data
         assert "rag_used" in data
         assert "sources" in data
         assert "confidence" in data
@@ -360,6 +360,7 @@ class TestCBTInsightRAGIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         data = response.json()
         assert data["rag_used"] is True
         assert data["confidence"] == pytest.approx(0.88, 0.01)
@@ -390,10 +391,38 @@ class TestCBTInsightRAGIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         data = response.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
         assert data["confidence"] == 0.0
+
+    def test_rag_retrieval_failure_falls_back_gracefully(self) -> None:
+        """When RAG retrieval raises, endpoint continues without RAG context."""
+
+        def mock_retrieve_error(*args: object, **kwargs: object) -> object:
+            raise RuntimeError("RAG backend unavailable")
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            mock_retrieve_error,
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "Fallback CBT response"
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: mock_provider,
+        )
+
+        payload = {"query": "How to stay positive?"}
+        response = self.client.post(self.url, json=payload, headers=self.pro_headers)
+
+        assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
+        data = response.json()
+        assert data["rag_used"] is False
+        assert data["insight"] == "Fallback CBT response"
 
 
 class TestCBTInsightLLMIntegration:

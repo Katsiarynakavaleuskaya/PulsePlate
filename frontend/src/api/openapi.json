@@ -6474,6 +6474,16 @@
           "422": {
             "description": "Validation error in request"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
           "503": {
             "description": "CBT agent feature disabled or unavailable"
           }
