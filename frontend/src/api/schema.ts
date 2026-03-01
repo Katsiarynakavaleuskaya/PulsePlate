@@ -173,6 +173,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/cbt/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cbt Insight
+         * @description Generate CBT-informed insight using RAG and LLM.
+         *
+         *     Retrieves relevant context from CBT corpus (docs/cbt/, docs/psychology/)
+         *     and generates a supportive response using LLM.
+         *
+         *     Requires PRO tier API key.
+         */
+        post: operations["cbt_insight_api_v1_pro_cbt_insight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/meal/shopping-list": {
         parameters: {
             query?: never;
@@ -2101,6 +2126,59 @@ export interface components {
             source_id: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * CBTInsightRequest
+         * @description Request schema for CBT insight endpoint.
+         */
+        CBTInsightRequest: {
+            /**
+             * Query
+             * @description User query for CBT-informed insight
+             */
+            query: string;
+        };
+        /**
+         * CBTInsightResponse
+         * @description Response schema for CBT insight endpoint.
+         */
+        CBTInsightResponse: {
+            /**
+             * Confidence
+             * @description RAG retrieval confidence score
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Insight
+             * @description CBT-informed response from LLM
+             */
+            insight: string;
+            /**
+             * Rag Used
+             * @description Whether RAG context was used
+             * @default false
+             */
+            rag_used: boolean;
+            /**
+             * Sources
+             * @description CBT corpus sources used for context
+             */
+            sources?: components["schemas"]["CBTSourceItem"][];
+        };
+        /**
+         * CBTSourceItem
+         * @description Single source from CBT corpus in response.
+         */
+        CBTSourceItem: {
+            /** Chunk Id */
+            chunk_id: string;
+            /** File */
+            file: string;
+            /** Preview */
+            preview: string;
+            /** Score */
+            score: number;
         };
         /**
          * CurrencyDTO
@@ -4351,6 +4429,74 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    cbt_insight_api_v1_pro_cbt_insight_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CBTInsightRequest"];
+            };
+        };
+        responses: {
+            /** @description CBT insight generated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CBTInsightResponse"];
+                };
+            };
+            /** @description API key required for PRO tier access */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API key does not have PRO tier access */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error in request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description CBT agent feature disabled or unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
