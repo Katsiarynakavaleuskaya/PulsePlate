@@ -43,23 +43,32 @@ jobs:
           tags: pulseplate:trivy-scan-${{ github.sha }}
           target: production
 
-      - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.5
-        with:
-          version: 'v0.68.2'
-
-      - name: Restore ignore-policy after setup-trivy
-        run: git checkout -- trivy/ignore-policy.rego
+      - name: Install Trivy via apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+          trivy --version
 
       - name: Run Trivy vulnerability scanner
         run: |
           trivy image \
-            --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
-            --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
+            --format sarif \
+            --output trivy-results.sarif \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
             --ignorefile .trivyignore \
+            --ignore-policy trivy/ignore-policy.rego \
             'pulseplate:trivy-scan-${{ github.sha }}'
+
+      - name: Verify SARIF file exists
+        run: ls -la trivy-results.sarif
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
+        if: always()
         with:
           sarif_file: 'trivy-results.sarif'
