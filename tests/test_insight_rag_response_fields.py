@@ -154,9 +154,11 @@ class TestInsightV1RAGFields:
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
-        assert data["rag_used"] is True
+        # rag_used is False when no chunks contribute to prompt (empty RAG result)
+        assert data["rag_used"] is False
         assert data["sources"] == []
         assert data["confidence"] is None
+        # hops and latency_ms reflect the RAG call metadata even when chunks are empty
         assert data["hops"] == 1
         assert data["latency_ms"] == 5
 

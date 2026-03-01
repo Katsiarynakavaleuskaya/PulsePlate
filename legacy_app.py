@@ -2206,14 +2206,35 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
-                rag_confidence = round(rag_ctx.confidence, 4)
-                rag_sources = _build_rag_source_items(rag_ctx.chunks)
-                raw_context = _format_rag_chunks_for_prompt(rag_ctx.chunks)
-                prompt_text = _build_insight_prompt(
-                    prompt_input,
-                    _redact_rag_context_for_insight(raw_context),
-                )
-            rag_actually_used = True
+                # Philosophy validation (post-RAG, pre-LLM)
+                from app.utils.feature_flags import is_philosophy_validation_enabled
+
+                _philo = is_philosophy_validation_enabled()
+                if _philo:
+                    from core.rag.validation import validate_rag_chunks
+
+                    _val = validate_rag_chunks(rag_ctx.chunks)
+                    chunks_to_use = _val.filtered_chunks
+                    for _w in _val.warnings:
+                        logger.debug("rag_validation: %s", _w)
+                else:
+                    chunks_to_use = rag_ctx.chunks
+
+                if chunks_to_use:
+                    if _philo:
+                        rag_confidence = round(
+                            sum(c.score for c in chunks_to_use) / len(chunks_to_use),
+                            4,
+                        )
+                    else:
+                        rag_confidence = round(rag_ctx.confidence, 4)
+                    rag_sources = _build_rag_source_items(chunks_to_use)
+                    raw_context = _format_rag_chunks_for_prompt(chunks_to_use)
+                    prompt_text = _build_insight_prompt(
+                        prompt_input,
+                        _redact_rag_context_for_insight(raw_context),
+                    )
+                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
@@ -2271,14 +2292,35 @@ async def insight(req: InsightRequest) -> InsightResponse:
             rag_hops = rag_ctx.hops
             rag_latency_ms = rag_ctx.latency_ms
             if rag_ctx.chunks:
-                rag_confidence = round(rag_ctx.confidence, 4)
-                rag_sources = _build_rag_source_items(rag_ctx.chunks)
-                raw_context = _format_rag_chunks_for_prompt(rag_ctx.chunks)
-                prompt_text = _build_insight_prompt(
-                    prompt_input,
-                    _redact_rag_context_for_insight(raw_context),
-                )
-            rag_actually_used = True
+                # Philosophy validation (post-RAG, pre-LLM)
+                from app.utils.feature_flags import is_philosophy_validation_enabled
+
+                _philo = is_philosophy_validation_enabled()
+                if _philo:
+                    from core.rag.validation import validate_rag_chunks
+
+                    _val = validate_rag_chunks(rag_ctx.chunks)
+                    chunks_to_use = _val.filtered_chunks
+                    for _w in _val.warnings:
+                        logger.debug("rag_validation: %s", _w)
+                else:
+                    chunks_to_use = rag_ctx.chunks
+
+                if chunks_to_use:
+                    if _philo:
+                        rag_confidence = round(
+                            sum(c.score for c in chunks_to_use) / len(chunks_to_use),
+                            4,
+                        )
+                    else:
+                        rag_confidence = round(rag_ctx.confidence, 4)
+                    rag_sources = _build_rag_source_items(chunks_to_use)
+                    raw_context = _format_rag_chunks_for_prompt(chunks_to_use)
+                    prompt_text = _build_insight_prompt(
+                        prompt_input,
+                        _redact_rag_context_for_insight(raw_context),
+                    )
+                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:

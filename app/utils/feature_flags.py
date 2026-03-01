@@ -35,4 +35,19 @@ def is_rag_vector_enabled() -> bool:
     return _is_truthy(os.getenv("FEATURE_RAG_VECTOR"))
 
 
-__all__ = ["is_vip_module_enabled", "is_rag_vector_enabled", "_is_truthy"]
+def is_philosophy_validation_enabled() -> bool:
+    """Check if philosophy validation layer is enabled for RAG chunks.
+
+    When True, retrieved RAG chunks are validated post-retrieval for
+    claim semantics and wellness-safety boundaries before being passed
+    to LLM.  Deterministic rule-based checks, no LLM cost.
+    """
+    return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_VALIDATION"))
+
+
+__all__ = [
+    "is_vip_module_enabled",
+    "is_rag_vector_enabled",
+    "is_philosophy_validation_enabled",
+    "_is_truthy",
+]
