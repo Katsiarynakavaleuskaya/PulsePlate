@@ -9,6 +9,7 @@ Feature-gated via FEATURE_CBT_AGENT environment variable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -27,6 +28,9 @@ from app.security.rate_limit import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pro/cbt", tags=["CBT", "pro"])
+
+# LLM provider call timeout (seconds) - prevents unbounded requests
+LLM_TIMEOUT_SECONDS: float = 60.0
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +139,7 @@ Provide a helpful, CBT-informed response:"""
         422: {"description": "Validation error in request"},
         429: {"description": "Rate limit exceeded"},
         503: {"description": "CBT agent feature disabled or unavailable"},
+        504: {"description": "LLM provider call timed out"},
         **RATE_LIMIT_429_RESPONSES,
     },
 )
@@ -210,7 +215,10 @@ async def cbt_insight(
         from llm import get_provider
 
         provider = get_provider()
-        insight_text = await run_in_threadpool(provider.generate, prompt)
+        insight_text = await asyncio.wait_for(
+            run_in_threadpool(provider.generate, prompt),
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
 
         if not insight_text:
             raise HTTPException(
@@ -223,6 +231,12 @@ async def cbt_insight(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM provider not available",
+        )
+    except asyncio.TimeoutError:
+        logger.error("LLM provider call timed out after %s seconds", LLM_TIMEOUT_SECONDS)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="LLM provider call timed out",
         )
     except HTTPException:
         raise

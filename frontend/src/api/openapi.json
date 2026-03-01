@@ -6486,6 +6486,9 @@
           },
           "503": {
             "description": "CBT agent feature disabled or unavailable"
+          },
+          "504": {
+            "description": "LLM provider call timed out"
           }
         },
         "security": [

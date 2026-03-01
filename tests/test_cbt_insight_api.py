@@ -517,3 +517,42 @@ class TestCBTInsightLLMIntegration:
 
         assert response.status_code == 503
         assert "failed" in response.json()["detail"].lower()
+
+    def test_llm_timeout_returns_504(self) -> None:
+        """When LLM call times out, endpoint returns 504."""
+        import asyncio
+
+        def mock_retrieve(*args: object, **kwargs: object) -> object:
+            return _make_rag_context()
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            mock_retrieve,
+        )
+
+        # Set a very short timeout for testing
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.LLM_TIMEOUT_SECONDS",
+            0.001,  # 1ms timeout
+        )
+
+        mock_provider = MagicMock()
+        # Simulate slow LLM that takes longer than timeout
+        import time
+
+        def slow_generate(*args: object, **kwargs: object) -> str:
+            time.sleep(0.1)  # 100ms - longer than 1ms timeout
+            return "Response"
+
+        mock_provider.generate.side_effect = slow_generate
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: mock_provider,
+        )
+
+        payload = {"query": "Test query"}
+        response = self.client.post(self.url, json=payload, headers=self.pro_headers)
+
+        assert response.status_code == 504
+        assert response.headers.get("content-type", "").startswith("application/json")
+        assert "timed out" in response.json()["detail"].lower()
