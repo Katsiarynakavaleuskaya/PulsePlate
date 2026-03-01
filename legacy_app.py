@@ -2234,7 +2234,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
                         prompt_input,
                         _redact_rag_context_for_insight(raw_context),
                     )
-            rag_actually_used = True
+                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
@@ -2320,7 +2320,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
                         prompt_input,
                         _redact_rag_context_for_insight(raw_context),
                     )
-            rag_actually_used = True
+                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
