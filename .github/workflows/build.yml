@@ -9,8 +9,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ghcr-build-push-${{ github.ref }}
-  cancel-in-progress: true
+  # Serialize runs that can publish the same commit artifacts across refs (branch + tag)
+  group: ghcr-build-push-${{ github.sha }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
