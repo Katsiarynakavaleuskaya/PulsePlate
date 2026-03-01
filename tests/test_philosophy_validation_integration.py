@@ -193,6 +193,8 @@ class TestPhilosophyValidationV1:
         )
 
         resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         # Only clean:1 (score=0.85) survives → confidence = 0.85
         assert data["confidence"] == 0.85
@@ -219,6 +221,7 @@ class TestPhilosophyValidationV1:
             resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         # Fail-safe: both chunks should be present
         chunk_ids = [s["chunk_id"] for s in data["sources"]]
@@ -293,6 +296,7 @@ class TestPhilosophyValidationLegacy:
 
         resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert len(data["sources"]) == 2
 
