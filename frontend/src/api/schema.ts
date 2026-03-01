@@ -4491,6 +4491,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     generate_shopping_list_api_v1_pro_meal_shopping_list_post: {
