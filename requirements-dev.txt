@@ -57,10 +57,11 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.4.0
+faker==40.5.1
     # via -r requirements-dev.in
-filelock==3.20.3
+filelock==3.24.3
     # via
+    #   -c requirements.txt
     #   cachecontrol
     #   virtualenv
 hypothesis==6.151.9
@@ -74,13 +75,17 @@ idna==3.11
 iniconfig==2.3.0
     # via pytest
 jinja2==3.1.6
-    # via diff-cover
+    # via
+    #   -c requirements.txt
+    #   diff-cover
 librt==0.7.5
     # via mypy
 license-expression==30.4.4
     # via cyclonedx-python-lib
 markdown-it-py==4.0.0
-    # via rich
+    # via
+    #   -c requirements.txt
+    #   rich
 markupsafe==3.0.3
     # via
     #   -c requirements.txt
@@ -88,7 +93,9 @@ markupsafe==3.0.3
 marshmallow==4.2.2
     # via -r requirements-dev.in
 mdurl==0.1.2
-    # via markdown-it-py
+    # via
+    #   -c requirements.txt
+    #   markdown-it-py
 msgpack==1.1.2
     # via cachecontrol
 mypy==1.19.1
@@ -147,6 +154,7 @@ pycparser==2.23
     #   cffi
 pygments==2.19.2
     # via
+    #   -c requirements.txt
     #   diff-cover
     #   pytest
     #   rich
@@ -180,6 +188,7 @@ pytokens==0.3.0
     # via black
 pyyaml==6.0.3
     # via
+    #   -c requirements.txt
     #   bandit
     #   detect-secrets
     #   pre-commit
@@ -189,8 +198,9 @@ requests==2.32.5
     #   cachecontrol
     #   detect-secrets
     #   pip-audit
-rich==14.2.0
+rich==14.3.3
     # via
+    #   -c requirements.txt
     #   bandit
     #   pip-audit
 ruff==0.15.2
