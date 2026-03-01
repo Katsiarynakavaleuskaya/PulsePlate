@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
 #
-bandit==1.9.3
+bandit==1.9.4
     # via -r requirements-dev.in
 black==26.1.0
     # via -r requirements-dev.in
@@ -203,7 +203,7 @@ rich==14.3.3
     #   -c requirements.txt
     #   bandit
     #   pip-audit
-ruff==0.15.2
+ruff==0.15.4
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
