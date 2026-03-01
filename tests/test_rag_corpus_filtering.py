@@ -187,7 +187,7 @@ class TestSimpleRAGCorpusFilteringLogic:
         filtered_items = [
             (src, ch)
             for src, ch in items
-            if any(src.endswith(prefix.rstrip("/")) or prefix in src for prefix in corpus_prefixes)
+            if any(src.startswith(prefix) for prefix in corpus_prefixes)
         ]
 
         assert len(filtered_items) == 2
@@ -207,7 +207,7 @@ class TestSimpleRAGCorpusFilteringLogic:
         filtered_items = [
             (src, ch)
             for src, ch in items
-            if any(src.endswith(prefix.rstrip("/")) or prefix in src for prefix in corpus_prefixes)
+            if any(src.startswith(prefix) for prefix in corpus_prefixes)
         ]
 
         assert len(filtered_items) == 0
