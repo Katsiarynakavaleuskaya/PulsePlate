@@ -8,6 +8,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  # Serialize runs that can publish the same commit artifacts across refs (branch + tag)
+  group: ghcr-build-push-${{ github.sha }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -34,8 +39,9 @@ jobs:
           push: false
           load: true
           tags: pulseplate:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Omit cache-from to avoid 404 BlobNotFound when GHA cache entry is missing; still write cache for publish job.
+          # mode=min to avoid 30+ min export (mode=max exports every layer → huge upload to GHA).
+          cache-to: type=gha,mode=min
           target: production
 
       - name: Test Docker image
@@ -163,16 +169,21 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
 
-      - name: Build and push Docker image (multi-arch)
+      - name: Build and push Docker image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # Single-arch for cache/push stability (CodeRabbit discussion_r2869743452). Restore linux/arm64 when GHA cache/provenance is stable.
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
+          cache-to: type=gha,mode=min
+          # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
+          # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
+          provenance: false
           target: production
 
       - name: Set image ref for SBOM and image scan
