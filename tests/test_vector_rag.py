@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -420,7 +420,7 @@ class TestRetrieveVectorFromDb:
         monkeypatch.setattr(
             vector_rag,
             "_retrieve_vector_postgres",
-            lambda q, lim, s: [(fake_row, 0.9)],
+            lambda q, lim, s, corpus_prefixes=None: [(fake_row, 0.9)],
         )
 
         ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
@@ -533,3 +533,136 @@ class TestQueryEmbeddingValidation:
         # 2-dim query vs 3-dim expected — guard should reject
         results = vector_rag._retrieve_vector_sqlite([1.0, 0.0], 5, fake_session)
         assert results == []
+
+
+class TestCorpusFilteringVectorRag:
+    """Tests for corpus filtering in vector_rag retrieval functions."""
+
+    def test_postgres_corpus_filtering_builds_where_clause(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Postgres retrieval builds WHERE clause with corpus prefixes."""
+        from core.rag import vector_rag
+
+        captured_sql: list[str] = []
+        captured_params: list[dict] = []
+
+        class MockResult:
+            def fetchall(self) -> list:
+                return []
+
+        def mock_execute(stmt: Any, params: dict | None = None) -> MockResult:
+            captured_sql.append(str(stmt))
+            captured_params.append(params or {})
+            return MockResult()
+
+        fake_session = MagicMock()
+        fake_session.execute = mock_execute
+
+        # Call with corpus_prefixes
+        query_embedding = [1.0, 0.0, 0.0]
+        corpus_prefixes = ["docs/cbt/", "docs/psychology/"]
+
+        vector_rag._retrieve_vector_postgres(
+            query_embedding, 5, fake_session, corpus_prefixes=corpus_prefixes
+        )
+
+        # Verify SQL contains LIKE clauses for prefixes
+        assert len(captured_sql) == 1
+        sql = captured_sql[0]
+        assert "LIKE" in sql
+        assert "prefix_0" in sql
+        assert "prefix_1" in sql
+
+        # Verify params contain prefix patterns
+        params = captured_params[0]
+        assert params.get("prefix_0") == "docs/cbt/%"
+        assert params.get("prefix_1") == "docs/psychology/%"
+
+    def test_sqlite_corpus_filtering_builds_where_clause(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """SQLite retrieval builds WHERE clause with corpus prefixes."""
+        from core.rag import vector_rag
+
+        captured_sql: list[str] = []
+        captured_params: list[dict] = []
+
+        class MockResult:
+            def fetchall(self) -> list:
+                return []
+
+        def mock_execute(stmt: Any, params: dict | None = None) -> MockResult:
+            captured_sql.append(str(stmt))
+            captured_params.append(params or {})
+            return MockResult()
+
+        fake_session = MagicMock()
+        fake_session.execute = mock_execute
+
+        # Call with corpus_prefixes
+        query_embedding = [1.0, 0.0, 0.0]
+        corpus_prefixes = ["docs/cbt/"]
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+        vector_rag._retrieve_vector_sqlite(
+            query_embedding, 5, fake_session, corpus_prefixes=corpus_prefixes
+        )
+
+        # Verify SQL contains LIKE clauses for prefixes
+        assert len(captured_sql) == 1
+        sql = captured_sql[0]
+        assert "LIKE" in sql
+        assert "prefix_0" in sql
+
+        # Verify params contain prefix patterns
+        params = captured_params[0]
+        assert params.get("prefix_0") == "docs/cbt/%"
+
+    def test_retrieve_from_db_logs_warning_when_corpus_empty(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """_retrieve_vector_from_db logs warning when corpus prefixes but no results."""
+        import logging
+        from contextlib import contextmanager
+
+        from core.rag import vector_rag
+
+        fake_provider = MagicMock()
+        fake_provider.encode.return_value = [[1.0, 0.0, 0.0]]
+        vector_rag._embedding_provider = fake_provider
+
+        fake_session = MagicMock()
+        fake_session.bind.dialect.name = "postgresql"
+
+        @contextmanager
+        def _fake_session_scope() -> Iterator[MagicMock]:
+            yield fake_session
+
+        monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+
+        # Mock postgres retrieval to return empty results
+        monkeypatch.setattr(
+            vector_rag,
+            "_retrieve_vector_postgres",
+            lambda q, lim, s, corpus_prefixes=None: [],  # Empty results
+        )
+
+        with caplog.at_level(logging.WARNING, logger="core.rag.vector_rag"):
+            ctx = vector_rag._retrieve_vector_from_db(
+                "test", 3, agent_id="cbt-agent", user_tier="PRO"
+            )
+
+        # Should return empty context
+        assert len(ctx.chunks) == 0
+
+        # Should log warning about empty corpus results
+        warning_logged = any(
+            "corpus_prefixes" in record.message.lower()
+            or "no vector results" in record.message.lower()
+            for record in caplog.records
+        )
+        assert warning_logged, "Expected warning about empty corpus results"
+
+        # Cleanup
+        vector_rag._embedding_provider = None

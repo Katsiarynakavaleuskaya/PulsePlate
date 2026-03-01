@@ -1816,12 +1816,18 @@ If it is not recorded here — it does not exist.
     - Insight response includes sources[] when rag_used=true; preview redacted; OpenAPI updated
     - `make verify` and `make openapi-check` pass
 
-- [ ] P2: RAG for CBT agent (first domain agent)
+- [x] P2: RAG for CBT agent (first domain agent)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG / coaching)
-  - Target PR: PR-next-8 (runtime)
-  - Status: Planned
+  - Target PR: feat/p2-rag-cbt-agent
+  - Status: Implemented
   - Reason (EN): Connect CBT/coaching flow to RAG per AGENT_CORPUS_MAP; first agent to use retrieval before LLM.
+  - Implementation (EN):
+    - Created CBT corpus documents: `docs/cbt/cognitive_restructuring.md`, `docs/cbt/thought_records.md`, `docs/psychology/motivation_theories.md`
+    - Added `AGENT_CORPUS_MAP` to `core/rag/contracts.py` with cbt-agent mapping
+    - Implemented corpus filtering in `core/rag/vector_rag.py` and `core/rag/simple_rag.py`
+    - Created PRO-gated endpoint `POST /api/v1/pro/cbt/insight` in `app/routers/cbt_insight.py`
+    - Feature-flagged via `FEATURE_CBT_AGENT` env var
   - Links:
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.2, 4.3)
     - `docs/contracts/RAG_CONTRACT.md` (Corpus Routing)
@@ -3233,8 +3239,51 @@ If it is not recorded here — it does not exist.
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
+- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
+  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
+  - Status: 📋 Planned
+  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
+  - Links:
+    - app/security/llm_monthly_quota.py (VIP-only implementation)
+    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
+    - app/routers/cbt_insight.py (PRO endpoint without monthly quota)
+  - DoD:
+    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
+    - CBT insight endpoint calls quota check before provider.generate()
+    - Deterministic tests for PRO quota enforcement
+
+- [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (defense-in-depth; corpus is controlled server docs)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
+  - Links:
+    - app/routers/cbt_insight.py:186-196 (chunk content usage)
+    - PR #942 CodeRabbit comment (2868000571)
+  - DoD:
+    - Add redact_rag_context_for_insight() helper (or equivalent)
+    - Apply to prompt assembly and response previews
+    - Unit tests for redaction patterns
+
+- [ ] P2: CorpusNotIndexedError - wire up or remove
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (minor cleanup)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): CorpusNotIndexedError is defined and exported in core/rag/contracts.py but never raised in production code. Either wire it up in simple_rag.py/vector_rag.py where corpus-not-found warnings are logged, or remove the unused exception to avoid confusion.
+  - Links:
+    - core/rag/contracts.py:25-30 (exception definition)
+    - core/rag/simple_rag.py, core/rag/vector_rag.py (warning paths)
+    - PR #942 CodeRabbit comment (2868000574)
+  - DoD:
+    - Either: raise CorpusNotIndexedError where appropriate and handle in callers
+    - Or: remove exception class and update tests
+
 ---
 
-**Last updated:** 2026-02-24 (Figma MCP configuration, design execution pipeline)
+**Last updated:** 2026-03-01 (PR-942 CBT agent deferred items: PRO quota, redaction, CorpusNotIndexedError)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

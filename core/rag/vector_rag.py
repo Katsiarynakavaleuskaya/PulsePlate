@@ -21,7 +21,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from app.utils.feature_flags import is_rag_vector_enabled
-from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
     MAX_CHUNK_SIZE_CHARS,
@@ -87,23 +87,37 @@ def _retrieve_vector_postgres(
     query_embedding: list[float],
     limit: int,
     session: Any,
+    corpus_prefixes: list[str] | None = None,
 ) -> list[tuple[Any, float]]:
-    """Retrieve similar rows via pgvector cosine distance operator."""
+    """Retrieve similar rows via pgvector cosine distance operator.
+
+    If corpus_prefixes is provided, filters results to rows where source
+    starts with one of the given prefixes (agent-specific corpus filtering).
+    """
     from sqlalchemy import text
 
     # Format embedding explicitly into pgvector's canonical text form
     # instead of relying on str(list) which may have inconsistent formatting.
     qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
-    stmt = text(
-        "SELECT id, content, source, "
-        "1 - (embedding <=> :qvec::vector) AS similarity "
-        "FROM user_knowledge "
-        "WHERE embedding IS NOT NULL "
-        "ORDER BY embedding <=> :qvec::vector "
-        "LIMIT :lim"
-    )
-    rows = session.execute(stmt, {"qvec": qvec_text, "lim": limit}).fetchall()
+    # Build WHERE clause with optional corpus filtering
+    where_clause = "WHERE embedding IS NOT NULL"
+    params: dict[str, Any] = {"qvec": qvec_text, "lim": limit}
+
+    if corpus_prefixes:
+        # Build OR conditions for each prefix using LIKE
+        prefix_conditions = []
+        for i, prefix in enumerate(corpus_prefixes):
+            param_name = f"prefix_{i}"
+            prefix_conditions.append(f"source LIKE :{param_name}")
+            params[param_name] = f"{prefix}%"
+        if prefix_conditions:
+            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+
+    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
+    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608
+    stmt = text(sql)
+    rows = session.execute(stmt, params).fetchall()
     return [(row, row.similarity) for row in rows]
 
 
@@ -111,14 +125,33 @@ def _retrieve_vector_sqlite(
     query_embedding: list[float],
     limit: int,
     session: Any,
+    corpus_prefixes: list[str] | None = None,
 ) -> list[tuple[Any, float]]:
-    """Retrieve similar rows via application-level cosine (SQLite tests)."""
+    """Retrieve similar rows via application-level cosine (SQLite tests).
+
+    If corpus_prefixes is provided, filters results to rows where source
+    starts with one of the given prefixes (agent-specific corpus filtering).
+    """
     from sqlalchemy import text
 
+    # Build WHERE clause with optional corpus filtering
+    where_clause = "WHERE embedding IS NOT NULL"
+    params: dict[str, Any] = {}
+
+    if corpus_prefixes:
+        prefix_conditions = []
+        for i, prefix in enumerate(corpus_prefixes):
+            param_name = f"prefix_{i}"
+            prefix_conditions.append(f"source LIKE :{param_name}")
+            params[param_name] = f"{prefix}%"
+        if prefix_conditions:
+            where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
+
+    # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
+    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608
     rows = session.execute(
-        text(
-            "SELECT id, content, source, embedding FROM user_knowledge WHERE embedding IS NOT NULL"
-        )
+        text(sql),
+        params,
     ).fetchall()
 
     scored: list[tuple[Any, float]] = []
@@ -151,8 +184,15 @@ def _retrieve_vector_from_db(
     agent_id: str | None,
     user_tier: str | None,
 ) -> RAGContext:
-    """Core vector retrieval: encode query, search DB, return RAGContext."""
+    """Core vector retrieval: encode query, search DB, return RAGContext.
+
+    If agent_id is in AGENT_CORPUS_MAP, filters retrieval to that agent's
+    corpus paths. Otherwise, queries all indexed content.
+    """
     start = time.perf_counter()
+
+    # Get corpus prefixes for agent-specific filtering
+    corpus_prefixes = AGENT_CORPUS_MAP.get(agent_id) if agent_id else None
 
     provider = _get_embedding_provider()
     query_vectors = provider.encode([query])
@@ -167,9 +207,9 @@ def _retrieve_vector_from_db(
         limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
 
         if dialect == "postgresql":
-            results = _retrieve_vector_postgres(query_embedding, limit, session)
+            results = _retrieve_vector_postgres(query_embedding, limit, session, corpus_prefixes)
         else:
-            results = _retrieve_vector_sqlite(query_embedding, limit, session)
+            results = _retrieve_vector_sqlite(query_embedding, limit, session, corpus_prefixes)
 
     # Filter by minimum score and build RAGChunks
     chunks: list[RAGChunk] = []
@@ -184,6 +224,14 @@ def _retrieve_vector_from_db(
                 score=round(similarity, 4),
                 hop=1,
             )
+        )
+
+    # Log warning if agent-specific corpus expected but no results found
+    if corpus_prefixes and not chunks:
+        logger.warning(
+            "No vector results for agent_id=%s with corpus_prefixes=%s",
+            agent_id,
+            corpus_prefixes,
         )
 
     confidence = sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
