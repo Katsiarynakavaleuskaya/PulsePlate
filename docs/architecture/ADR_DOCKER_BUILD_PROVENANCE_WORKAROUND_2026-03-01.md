@@ -14,7 +14,7 @@ To unblock main and stabilize CI, we apply two workarounds in `.github/workflows
 - Set `provenance: false` in the publish job's `docker/build-push-action` step.
 - Keep single platform `linux/amd64` for the publish step; document intent to restore `linux/arm64` when GHA cache/provenance is stable.
 - Inline comments in the workflow document the trade-off (SLSA attestations disabled; `cosign verify-attestation` will fail for consumers) and re-enable intent.
-- This ADR and a Backlog Ledger item track the temporary seam and exit criteria.
+- This ADR documents the temporary seam and exit criteria.
 
 ## Rationale
 - Restores green CI and reliable image pushes to GHCR.
@@ -34,8 +34,7 @@ To unblock main and stabilize CI, we apply two workarounds in `.github/workflows
 - [ ] Upstream fix or documented stable approach: buildx and/or GHA cache backend no longer produces "cache entry no longer exists" (or equivalent) when using `cache-from: type=gha` and provenance enabled.
 - [ ] Remove `provenance: false` and restore default or `provenance: mode=max` in `.github/workflows/build.yml` publish step.
 - [ ] Optionally restore `platforms: linux/amd64,linux/arm64` when cache/provenance is stable.
-- [ ] Close Backlog Ledger item and update this ADR status to Superseded with a pointer to the removal PR.
+- [ ] Update this ADR status to Superseded with a pointer to the removal PR when workaround is removed.
 
 ## Links
-- Backlog Ledger: `docs/roadmap/BACKLOG_LEDGER.md` (entry: Docker build provenance workaround).
 - Workflow: `.github/workflows/build.yml`.
