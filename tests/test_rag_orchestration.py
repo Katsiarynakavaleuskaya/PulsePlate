@@ -13,8 +13,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -93,7 +92,7 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
@@ -109,21 +108,17 @@ class TestRetrieveAndValidateRag:
 
     @pytest.mark.asyncio
     async def test_validation_disabled_uses_all_chunks(self) -> None:
-        """When FEATURE_PHILOSOPHY_VALIDATION=false, all chunks are used."""
+        """When philo_validation_enabled=False, all chunks are used."""
         chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
-            patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=False,
-            ),
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
                 return_value="Chunk1\nChunk2",
@@ -133,7 +128,7 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
 
         assert result.rag_actually_used is True
         assert len(result.chunks) == 2
@@ -162,15 +157,11 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
-            patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=True,
-            ),
             patch(
                 "core.rag.validation.validate_rag_chunks",
                 return_value=val_result,
@@ -184,7 +175,7 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
 
         assert result.rag_actually_used is True
         assert len(result.chunks) == 1
@@ -209,21 +200,17 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
             patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=True,
-            ),
-            patch(
                 "core.rag.validation.validate_rag_chunks",
                 return_value=val_result,
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
 
         assert result.rag_actually_used is False
         assert result.chunks == []
@@ -252,15 +239,11 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
-            patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=True,
-            ),
             patch(
                 "core.rag.validation.validate_rag_chunks",
                 return_value=val_result,
@@ -274,7 +257,7 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk3",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
 
         # Mean of 0.9 and 0.8 = 0.85
         assert result.confidence == 0.85
@@ -294,15 +277,11 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
-            patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=True,
-            ),
             patch(
                 "core.rag.validation.validate_rag_chunks",
                 return_value=val_result,
@@ -316,7 +295,7 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
 
         assert len(result.warnings) == 1
         assert "weasel_word" in result.warnings[0]
@@ -325,7 +304,7 @@ class TestRetrieveAndValidateRag:
     async def test_failsafe_on_exception_returns_empty(self) -> None:
         """On any exception, returns empty result (fail-safe)."""
         with patch(
-            "core.rag.orchestration.run_in_threadpool",
+            "asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=RuntimeError("RAG retrieval failed"),
         ):
@@ -343,15 +322,11 @@ class TestRetrieveAndValidateRag:
 
         with (
             patch(
-                "core.rag.orchestration.run_in_threadpool",
+                "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
-            patch(
-                "app.utils.feature_flags.is_philosophy_validation_enabled",
-                return_value=False,
-            ),
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
                 return_value="Knowledge about wellness.",
@@ -361,7 +336,9 @@ class TestRetrieveAndValidateRag:
                 return_value="Knowledge about wellness.",
             ),
         ):
-            result = await retrieve_and_validate_rag("What is wellness?")
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
 
         assert "Context:" in result.formatted_prompt
         assert "Knowledge about wellness" in result.formatted_prompt

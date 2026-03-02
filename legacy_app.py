@@ -2189,9 +2189,14 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     rag_actually_used = False
 
     if use_rag:
+        from app.utils.feature_flags import is_philosophy_validation_enabled
         from core.rag.orchestration import retrieve_and_validate_rag
 
-        rag_result = await retrieve_and_validate_rag(prompt_input, max_chunks=3)
+        rag_result = await retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=3,
+            philo_validation_enabled=is_philosophy_validation_enabled(),
+        )
         rag_hops = rag_result.hops
         rag_latency_ms = rag_result.latency_ms
         rag_actually_used = rag_result.rag_actually_used
@@ -2251,9 +2256,14 @@ async def insight(req: InsightRequest) -> InsightResponse:
     rag_actually_used = False
 
     if use_rag:
+        from app.utils.feature_flags import is_philosophy_validation_enabled
         from core.rag.orchestration import retrieve_and_validate_rag
 
-        rag_result = await retrieve_and_validate_rag(prompt_input, max_chunks=3)
+        rag_result = await retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=3,
+            philo_validation_enabled=is_philosophy_validation_enabled(),
+        )
         rag_hops = rag_result.hops
         rag_latency_ms = rag_result.latency_ms
         rag_actually_used = rag_result.rag_actually_used

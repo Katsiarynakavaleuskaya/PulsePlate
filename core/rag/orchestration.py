@@ -10,11 +10,10 @@ On any internal exception the orchestrator returns empty result (fail-safe).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
-
-from starlette.concurrency import run_in_threadpool
 
 if TYPE_CHECKING:
     from core.rag.contracts import RAGChunk
@@ -72,6 +71,8 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
 async def retrieve_and_validate_rag(
     prompt_input: str,
     max_chunks: int = 3,
+    *,
+    philo_validation_enabled: bool = False,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
 
@@ -84,6 +85,8 @@ async def retrieve_and_validate_rag(
         User query text for RAG retrieval.
     max_chunks:
         Maximum chunks to retrieve (default 3).
+    philo_validation_enabled:
+        Whether to run philosophy validation on chunks (feature flag).
 
     Returns
     -------
@@ -93,12 +96,12 @@ async def retrieve_and_validate_rag(
 
     Notes
     -----
-    - Feature flag ``FEATURE_PHILOSOPHY_VALIDATION`` controls validation
+    - Caller passes feature flag state (keeps core/ decoupled from app/)
     - Lazy imports preserve fail-safe behavior (missing modules don't crash)
     - Confidence is recalculated from filtered chunks when validation enabled
     """
     try:
-        return await _run_orchestration(prompt_input, max_chunks)
+        return await _run_orchestration(prompt_input, max_chunks, philo_validation_enabled)
     except Exception:
         logger.warning(
             "RAG orchestration failed; returning empty result",
@@ -110,14 +113,15 @@ async def retrieve_and_validate_rag(
 async def _run_orchestration(
     prompt_input: str,
     max_chunks: int,
+    philo_enabled: bool,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
     from core.rag.formatting import format_rag_chunks_for_prompt
     from core.rag.vector_rag import retrieve_context_structured
 
-    # Retrieve chunks
-    rag_ctx = await run_in_threadpool(
+    # Retrieve chunks (run sync function in thread)
+    rag_ctx = await asyncio.to_thread(
         retrieve_context_structured, prompt_input, max_chunks=max_chunks
     )
 
@@ -134,10 +138,6 @@ async def _run_orchestration(
             chunks_filtered=0,
         )
 
-    # Check philosophy validation flag
-    from app.utils.feature_flags import is_philosophy_validation_enabled
-
-    philo_enabled = is_philosophy_validation_enabled()
     warnings: list[str] = []
     chunks_to_use = rag_ctx.chunks
     chunks_filtered = 0
