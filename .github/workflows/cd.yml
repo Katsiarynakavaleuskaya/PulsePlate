@@ -8,9 +8,9 @@
 # and secrets: SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
 # STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
-# Production deploy: set repository/environment variable PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'.
-# When unset, deploy jobs are skipped (images still built). For SSH: configure "production"
-# environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
+# Production deploy: set PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'. When unset or any other value,
+# deploy jobs are skipped (container images are still built and pushed to GHCR). For PROD_DEPLOY_MODE=ssh
+# configure Environment "production" secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
 # See deploy/PRODUCTION.md.
 
 name: CD
@@ -219,7 +219,7 @@ jobs:
 
   deploy-production:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
-    # When unset or 'self-hosted', this job is skipped; avoids "ssh: no key found" when secrets not configured.
+    # When unset or any value other than 'ssh', this job is skipped; avoids "ssh: no key found" when secrets not configured.
     if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh'
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest

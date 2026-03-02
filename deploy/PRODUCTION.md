@@ -9,7 +9,7 @@ SSH + `docker compose`.
 
 Auto-deploy is controlled by repository or environment variable `PROD_DEPLOY_MODE`:
 
-- `ssh`: Deploy from GitHub-hosted runners over SSH (requires port 22 reachable; set Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`). SSH key must be full PEM including newlines to avoid "ssh: no key found".  # pragma: allowlist secret
+- `ssh`: Deploy from GitHub-hosted runners over SSH (port 22 reachable). SSH key must be full PEM including newlines to avoid "ssh: no key found". Required Environment "production" secrets: `SSH_HOST_PRODUCTION`, `SSH_USER`, `SSH_KEY`, `PRODUCTION_DOMAIN`, `GHCR_READ_TOKEN`.  <!-- pragma: allowlist secret -->
 - `self-hosted`: Deploy from a self-hosted runner inside your infrastructure (recommended).
 
 If `PROD_DEPLOY_MODE` is unset or any other value, deploy jobs are skipped (images are still built and pushed to GHCR).
