@@ -4,14 +4,14 @@
 # Staging: Build, push Docker image to GHCR, deploy to staging server over SSH.
 # Production: Build and push on semver tags `v*` when required secrets are configured.
 #
-# Required staging secrets (GitHub Environment "staging"):
-# - SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
-#   STAGING_DOMAIN, GHCR_READ_TOKEN
+# Staging deploy (optional): set Environment "staging" variable STAGING_DEPLOY_ENABLED=true
+# and secrets: SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
+# STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
-# To enable production auto-deploy:
-# - Configure `production` environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY,
-#   PRODUCTION_DOMAIN, GHCR_READ_TOKEN (if needed)
-# - Ensure the server has the deploy directory and docker compose files (see deploy/PRODUCTION.md)
+# Production deploy: set repository/environment variable PROD_DEPLOY_MODE to 'ssh' or 'self-hosted'.
+# When unset, deploy jobs are skipped (images still built). For SSH: configure "production"
+# environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY, PRODUCTION_DOMAIN, GHCR_READ_TOKEN.
+# See deploy/PRODUCTION.md.
 
 name: CD
 
@@ -73,6 +73,7 @@ jobs:
           target: staging
 
       - name: Deploy to staging over SSH
+        if: vars.STAGING_DEPLOY_ENABLED == 'true'
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
@@ -88,6 +89,7 @@ jobs:
             ./deploy.sh '${{ github.sha }}'
 
       - name: Healthcheck (staging)
+        if: vars.STAGING_DEPLOY_ENABLED == 'true'
         run: |
           set -euo pipefail
           for i in 1 2 3; do
@@ -216,9 +218,9 @@ jobs:
           target: production
 
   deploy-production:
-    # Default deploy mode is SSH from GitHub-hosted runners unless explicitly set to self-hosted.
-    # This prevents both prod deploy jobs from being eligible at the same time.
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE != 'self-hosted'
+    # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
+    # When unset or 'self-hosted', this job is skipped; avoids "ssh: no key found" when secrets not configured.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh'
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     environment:
