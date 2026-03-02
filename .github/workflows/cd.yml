@@ -1,9 +1,12 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # CD Workflow - Continuous Deployment
 #
-# Simplified CD workflow: Build and push Docker images only.
-# SSH deployment steps are available. Production deploy runs on semver tags `v*`
-# when required production environment secrets are configured.
+# Staging: Build, push Docker image to GHCR, deploy to staging server over SSH.
+# Production: Build and push on semver tags `v*` when required secrets are configured.
+#
+# Required staging secrets (GitHub Environment "staging"):
+# - SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
+#   STAGING_DOMAIN, GHCR_READ_TOKEN
 #
 # To enable production auto-deploy:
 # - Configure `production` environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY,
@@ -32,11 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      # Staging domain (subdomain or free domain)
-      # Options: staging.yourdomain.com, pulseplate-staging.duckdns.org, or free Freenom domain
-      # Set STAGING_DOMAIN secret in GitHub Environment (e.g., "pulseplate-staging.duckdns.org")
-      # Note: environment.url cannot use secrets context, using static fallback
-      url: https://staging.pulseplate.app
+      # Staging domain: pulseplate-staging.duckdns.org (DuckDNS, free DDNS)
+      # Note: environment.url cannot use secrets context, using static value
+      url: https://pulseplate-staging.duckdns.org
     concurrency:
       group: cd-build-${{ github.ref_name }}
       cancel-in-progress: true
@@ -71,30 +72,34 @@ jobs:
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
 
-      # SSH deployment for staging (commented out until servers are available)
-      # - name: Prepare known_hosts (staging)
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     ssh-keyscan -H ${{ secrets.SSH_HOST_STAGING }} >> ~/.ssh/known_hosts 2>/dev/null
-      #     chmod 644 ~/.ssh/known_hosts
-      #
-      # - name: Deploy to staging over SSH
-      #   uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
-      #   with:
-      #     host: ${{ secrets.SSH_HOST_STAGING }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     key: ${{ secrets.SSH_KEY }}
-      #     script: |
-      #       set -euo pipefail
-      #       export GHCR_USER='${{ github.actor }}'
-      #       export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-      #       export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
-      #       cd /srv/pulseplate-staging
-      #       ./deploy.sh '${{ github.sha }}'
-      #
-      # - name: Healthcheck (staging)
-      #   run: |
-      #     curl -fsS --max-time 5 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null
+      - name: Deploy to staging over SSH
+        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+        with:
+          host: ${{ secrets.SSH_HOST_STAGING }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
+          script: |
+            set -euo pipefail
+            export GHCR_USER='${{ github.repository_owner }}'
+            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+            export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
+            cd /srv/pulseplate-staging
+            ./deploy.sh '${{ github.sha }}'
+
+      - name: Healthcheck (staging)
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null; then
+              echo "Healthcheck passed"
+              exit 0
+            fi
+            echo "Attempt $i failed"
+            [ "$i" -lt 3 ] && sleep 5
+          done
+          echo "Healthcheck failed after 3 attempts"
+          exit 1
 
   # Pre-production quality gates
   production-gates:
