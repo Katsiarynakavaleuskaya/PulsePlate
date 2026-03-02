@@ -11,6 +11,10 @@ from core.rag.orchestration import (
     RAGOrchestrationResult,
     retrieve_and_validate_rag,
 )
+from core.rag.philosophy_pipeline import (
+    PipelineResult,
+    run_pipeline,
+)
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
     EMBEDDING_MODEL_NAME,
@@ -30,6 +34,8 @@ __all__ = [
     "RAGContext",
     "RAGOrchestrationResult",
     "retrieve_and_validate_rag",
+    "PipelineResult",
+    "run_pipeline",
     "EMBEDDING_DIMENSIONS",
     "EMBEDDING_MODEL_NAME",
     "MAX_CHUNK_SIZE_CHARS",
