@@ -7,6 +7,10 @@ from core.rag.contracts import (
     RAGChunk,
     RAGContext,
 )
+from core.rag.orchestration import (
+    RAGOrchestrationResult,
+    retrieve_and_validate_rag,
+)
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
     EMBEDDING_MODEL_NAME,
@@ -24,6 +28,8 @@ __all__ = [
     "CorpusNotIndexedError",
     "RAGChunk",
     "RAGContext",
+    "RAGOrchestrationResult",
+    "retrieve_and_validate_rag",
     "EMBEDDING_DIMENSIONS",
     "EMBEDDING_MODEL_NAME",
     "MAX_CHUNK_SIZE_CHARS",

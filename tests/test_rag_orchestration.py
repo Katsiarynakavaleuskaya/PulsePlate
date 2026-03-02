@@ -1,0 +1,346 @@
+"""Unit tests for RAG orchestration module.
+
+Tests cover:
+- Happy path with validation filtering
+- No chunks retrieved scenario
+- Validation disabled (flag off)
+- All chunks filtered by validation
+- Fail-safe on import/execution errors
+- Confidence recalculation
+- Prompt formatting with context
+- Warning propagation
+"""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from core.rag.contracts import RAGChunk, RAGContext
+from core.rag.orchestration import (
+    RAGOrchestrationResult,
+    _build_prompt_with_context,
+    _empty_result,
+    retrieve_and_validate_rag,
+)
+from core.rag.validation import ValidationResult
+
+
+def _make_chunk(
+    chunk_id: str = "chunk-1",
+    content: str = "Test content for chunk.",
+    score: float = 0.85,
+    file: str = "docs/test.md",
+) -> RAGChunk:
+    """Create a test RAGChunk."""
+    return RAGChunk(chunk_id=chunk_id, file=file, content=content, score=score)
+
+
+def _make_rag_context(
+    chunks: list[RAGChunk] | None = None,
+    confidence: float = 0.8,
+    hops: int = 1,
+    latency_ms: int = 50,
+) -> RAGContext:
+    """Create a test RAGContext."""
+    return RAGContext(
+        query="test query",
+        refined_queries=[],
+        chunks=chunks or [],
+        confidence=confidence,
+        hops=hops,
+        latency_ms=latency_ms,
+    )
+
+
+class TestEmptyResult:
+    """Tests for _empty_result helper."""
+
+    def test_empty_result_preserves_prompt(self) -> None:
+        result = _empty_result("my prompt")
+        assert result.formatted_prompt == "my prompt"
+        assert result.rag_actually_used is False
+        assert result.chunks == []
+        assert result.confidence is None
+        assert result.hops == 0
+        assert result.latency_ms == 0
+
+
+class TestBuildPromptWithContext:
+    """Tests for _build_prompt_with_context helper."""
+
+    def test_no_context_returns_text(self) -> None:
+        assert _build_prompt_with_context("hello", None) == "hello"
+        assert _build_prompt_with_context("hello", "") == "hello"
+
+    def test_with_context_builds_prompt(self) -> None:
+        result = _build_prompt_with_context("question?", "some context")
+        assert "Context:" in result
+        assert "some context" in result
+        assert "Question: question?" in result
+        assert "Answer:" in result
+
+
+class TestRetrieveAndValidateRag:
+    """Tests for main orchestration function."""
+
+    @pytest.mark.asyncio
+    async def test_no_chunks_retrieved_returns_empty(self) -> None:
+        """When RAG returns no chunks, result has rag_actually_used=False."""
+        rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=100)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+        ):
+            result = await retrieve_and_validate_rag("test prompt")
+
+        assert result.rag_actually_used is False
+        assert result.chunks == []
+        assert result.formatted_prompt == "test prompt"
+        assert result.hops == 2
+        assert result.latency_ms == 100
+
+    @pytest.mark.asyncio
+    async def test_validation_disabled_uses_all_chunks(self) -> None:
+        """When philo_validation_enabled=False, all chunks are used."""
+        chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+
+        assert result.rag_actually_used is True
+        assert len(result.chunks) == 2
+        assert result.confidence == 0.8  # Original confidence used
+        assert result.chunks_filtered == 0
+        assert "Context:" in result.formatted_prompt
+
+    @pytest.mark.asyncio
+    async def test_validation_enabled_filters_chunks(self) -> None:
+        """When validation enabled, filtered chunks are used."""
+        chunks = [
+            _make_chunk("c1", content="Clean content here.", score=0.9),
+            _make_chunk("c2", content="Contains diagnosis term.", score=0.7),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
+
+        # Validation returns only first chunk (second filtered)
+        filtered = [chunks[0]]
+        val_result = ValidationResult(
+            passed=True,
+            filtered_chunks=filtered,
+            warnings=["medical_boundary: chunk c2 rejected"],
+            rejected_count=1,
+            validation_latency_ms=5,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.validation.validate_rag_chunks",
+                return_value=val_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is True
+        assert len(result.chunks) == 1
+        assert result.chunks[0].chunk_id == "c1"
+        assert result.chunks_retrieved == 2
+        assert result.chunks_filtered == 1
+        assert "medical_boundary" in result.warnings[0]
+
+    @pytest.mark.asyncio
+    async def test_all_chunks_filtered_returns_not_used(self) -> None:
+        """When all chunks filtered by validation, rag_actually_used=False."""
+        chunks = [_make_chunk("c1", content="Medical diagnosis required.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks)
+
+        # Validation filters all chunks
+        val_result = ValidationResult(
+            passed=False,
+            filtered_chunks=[],
+            warnings=["medical_boundary: chunk c1 rejected"],
+            rejected_count=1,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.validation.validate_rag_chunks",
+                return_value=val_result,
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is False
+        assert result.chunks == []
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks_retrieved == 1
+        assert result.chunks_filtered == 1
+
+    @pytest.mark.asyncio
+    async def test_confidence_recalculated_with_validation(self) -> None:
+        """With validation enabled, confidence is mean of filtered chunk scores."""
+        chunks = [
+            _make_chunk("c1", score=0.9),
+            _make_chunk("c2", score=0.5),  # Will be filtered
+            _make_chunk("c3", score=0.8),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.73)
+
+        # Keep c1 and c3 (scores 0.9 and 0.8) -> mean = 0.85
+        filtered = [chunks[0], chunks[2]]
+        val_result = ValidationResult(
+            passed=True,
+            filtered_chunks=filtered,
+            warnings=[],
+            rejected_count=1,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.validation.validate_rag_chunks",
+                return_value=val_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk3",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk3",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        # Mean of 0.9 and 0.8 = 0.85
+        assert result.confidence == 0.85
+
+    @pytest.mark.asyncio
+    async def test_warnings_propagated_from_validation(self) -> None:
+        """Validation warnings are included in result."""
+        chunks = [_make_chunk("c1", content="Some say this is true.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks)
+
+        val_result = ValidationResult(
+            passed=True,
+            filtered_chunks=chunks,
+            warnings=["weasel_word: chunk c1 contains 'some say'"],
+            rejected_count=0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.validation.validate_rag_chunks",
+                return_value=val_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert len(result.warnings) == 1
+        assert "weasel_word" in result.warnings[0]
+
+    @pytest.mark.asyncio
+    async def test_failsafe_on_exception_returns_empty(self) -> None:
+        """On any exception, returns empty result (fail-safe)."""
+        with patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("RAG retrieval failed"),
+        ):
+            result = await retrieve_and_validate_rag("test prompt")
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+
+    @pytest.mark.asyncio
+    async def test_prompt_formatted_with_redacted_context(self) -> None:
+        """Formatted prompt includes redacted RAG context."""
+        chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Knowledge about wellness.",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Knowledge about wellness.",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "What is wellness?", philo_validation_enabled=False
+            )
+
+        assert "Context:" in result.formatted_prompt
+        assert "Knowledge about wellness" in result.formatted_prompt
+        assert "Question: What is wellness?" in result.formatted_prompt
+        assert "Answer:" in result.formatted_prompt

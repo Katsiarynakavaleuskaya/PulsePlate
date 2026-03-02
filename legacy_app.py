@@ -2145,20 +2145,9 @@ INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
 
-from core.insight.safety import (  # noqa: E402
-    redact_rag_context_for_insight as _redact_rag_context_for_insight,
-)
-
 from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
 )
-
-
-def _format_rag_chunks_for_prompt(chunks: list[Any]) -> str:
-    """Thin proxy → core.rag.formatting.format_rag_chunks_for_prompt."""
-    from core.rag.formatting import format_rag_chunks_for_prompt
-
-    return format_rag_chunks_for_prompt(chunks)
 
 
 def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
@@ -2198,43 +2187,24 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     rag_hops: int = 0
     rag_latency_ms: int = 0
     rag_actually_used = False
+
     if use_rag:
-        with suppress(Exception):
-            from core.rag.vector_rag import retrieve_context_structured as _rag_structured
+        from app.utils.feature_flags import is_philosophy_validation_enabled
+        from core.rag.orchestration import retrieve_and_validate_rag
 
-            rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
-            rag_hops = rag_ctx.hops
-            rag_latency_ms = rag_ctx.latency_ms
-            if rag_ctx.chunks:
-                # Philosophy validation (post-RAG, pre-LLM)
-                from app.utils.feature_flags import is_philosophy_validation_enabled
+        rag_result = await retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=3,
+            philo_validation_enabled=is_philosophy_validation_enabled(),
+        )
+        rag_hops = rag_result.hops
+        rag_latency_ms = rag_result.latency_ms
+        rag_actually_used = rag_result.rag_actually_used
+        rag_confidence = rag_result.confidence
+        prompt_text = rag_result.formatted_prompt
+        if rag_result.chunks:
+            rag_sources = _build_rag_source_items(rag_result.chunks)
 
-                _philo = is_philosophy_validation_enabled()
-                if _philo:
-                    from core.rag.validation import validate_rag_chunks
-
-                    _val = validate_rag_chunks(rag_ctx.chunks)
-                    chunks_to_use = _val.filtered_chunks
-                    for _w in _val.warnings:
-                        logger.debug("rag_validation: %s", _w)
-                else:
-                    chunks_to_use = rag_ctx.chunks
-
-                if chunks_to_use:
-                    if _philo:
-                        rag_confidence = round(
-                            sum(c.score for c in chunks_to_use) / len(chunks_to_use),
-                            4,
-                        )
-                    else:
-                        rag_confidence = round(rag_ctx.confidence, 4)
-                    rag_sources = _build_rag_source_items(chunks_to_use)
-                    raw_context = _format_rag_chunks_for_prompt(chunks_to_use)
-                    prompt_text = _build_insight_prompt(
-                        prompt_input,
-                        _redact_rag_context_for_insight(raw_context),
-                    )
-                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
@@ -2284,43 +2254,24 @@ async def insight(req: InsightRequest) -> InsightResponse:
     rag_hops: int = 0
     rag_latency_ms: int = 0
     rag_actually_used = False
+
     if use_rag:
-        with suppress(Exception):
-            from core.rag.vector_rag import retrieve_context_structured as _rag_structured
+        from app.utils.feature_flags import is_philosophy_validation_enabled
+        from core.rag.orchestration import retrieve_and_validate_rag
 
-            rag_ctx = await run_in_threadpool(_rag_structured, prompt_input, max_chunks=3)
-            rag_hops = rag_ctx.hops
-            rag_latency_ms = rag_ctx.latency_ms
-            if rag_ctx.chunks:
-                # Philosophy validation (post-RAG, pre-LLM)
-                from app.utils.feature_flags import is_philosophy_validation_enabled
+        rag_result = await retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=3,
+            philo_validation_enabled=is_philosophy_validation_enabled(),
+        )
+        rag_hops = rag_result.hops
+        rag_latency_ms = rag_result.latency_ms
+        rag_actually_used = rag_result.rag_actually_used
+        rag_confidence = rag_result.confidence
+        prompt_text = rag_result.formatted_prompt
+        if rag_result.chunks:
+            rag_sources = _build_rag_source_items(rag_result.chunks)
 
-                _philo = is_philosophy_validation_enabled()
-                if _philo:
-                    from core.rag.validation import validate_rag_chunks
-
-                    _val = validate_rag_chunks(rag_ctx.chunks)
-                    chunks_to_use = _val.filtered_chunks
-                    for _w in _val.warnings:
-                        logger.debug("rag_validation: %s", _w)
-                else:
-                    chunks_to_use = rag_ctx.chunks
-
-                if chunks_to_use:
-                    if _philo:
-                        rag_confidence = round(
-                            sum(c.score for c in chunks_to_use) / len(chunks_to_use),
-                            4,
-                        )
-                    else:
-                        rag_confidence = round(rag_ctx.confidence, 4)
-                    rag_sources = _build_rag_source_items(chunks_to_use)
-                    raw_context = _format_rag_chunks_for_prompt(chunks_to_use)
-                    prompt_text = _build_insight_prompt(
-                        prompt_input,
-                        _redact_rag_context_for_insight(raw_context),
-                    )
-                    rag_actually_used = True
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
