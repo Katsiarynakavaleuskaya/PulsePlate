@@ -213,13 +213,18 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 2. Click "New environment"
 3. Name: `staging`
 
-### 2. Add Secrets
+### 2. Enable staging deploy and add secrets
 
-Add these secrets to the `staging` environment:
+Set the **Environment variable** (Settings → Environments → staging → Environment variables):
+
+- `STAGING_DEPLOY_ENABLED` = `true` — required for CD to run SSH deploy. If unset, the CD workflow only builds and pushes the image (no deploy); this avoids "ssh: no key found" when secrets are not yet configured.
+
+Add these **secrets** to the `staging` environment:
 
 - `SSH_HOST_STAGING` - Your server IP or domain
 - `SSH_USER` - SSH username (usually `root` or `ubuntu`)
-- `SSH_KEY` - Your private SSH key content
+- `SSH_KEY` - Full private SSH key (PEM format), including `-----BEGIN ... KEY-----` and `-----END ... KEY-----`; preserve newlines when pasting to avoid "ssh: no key found"
+- `SSH_HOST_STAGING_FINGERPRINT` - Staging **server** host key fingerprint, usually `SHA256:...` (optional but recommended). **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
 - `GHCR_READ_TOKEN` - GitHub PAT with `read:packages` permission
 - `STAGING_DOMAIN` - Your staging domain
 
