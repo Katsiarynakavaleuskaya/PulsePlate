@@ -89,6 +89,7 @@ jobs:
 
       - name: Healthcheck (staging)
         run: |
+          set -euo pipefail
           for i in 1 2 3; do
             if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null; then
               echo "Healthcheck passed"
