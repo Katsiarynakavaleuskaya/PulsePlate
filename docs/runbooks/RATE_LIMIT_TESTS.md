@@ -79,7 +79,7 @@ curl -X POST http://localhost:8000/api/v1/test/rate-limit
 
 ```bash
 # Test against staging environment
-BASE_URL=https://staging.pulseplate.app ./scripts/test_rate_limiting.sh
+BASE_URL=https://pulseplate-staging.duckdns.org ./scripts/test_rate_limiting.sh
 ```
 
 ### Production Verification
