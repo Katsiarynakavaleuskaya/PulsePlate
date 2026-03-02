@@ -94,8 +94,8 @@ jobs:
               echo "Healthcheck passed"
               exit 0
             fi
-            echo "Attempt $i failed, retrying in 5s..."
-            sleep 5
+            echo "Attempt $i failed"
+            [ "$i" -lt 3 ] && sleep 5
           done
           echo "Healthcheck failed after 3 attempts"
           exit 1
