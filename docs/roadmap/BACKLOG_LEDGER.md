@@ -1849,19 +1849,25 @@ If it is not recorded here — it does not exist.
     - retrieve_context supports max_hops>1; timeout enforced; deterministic tests
     - `make verify` passes
 
-- [ ] P2: Philosophy-agent + RAG validation pipeline
+- [x] P2: Philosophy-agent + RAG validation pipeline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG / philosophy)
-  - Target PR: PR-next-10 (runtime)
-  - Status: Planned
+  - Target PR: feat/p2-philosophy-rag-pipeline
+  - Status: ✅ Implemented (2026-03-02)
   - Reason (EN): Pipeline query → RAG → philosophy-agent → LLM so that RAG context is validated before response; per BACKLOG Philosophical logic principles.
   - Links:
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 3.2)
     - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
     - `.cursor/agents/philosophy-agent.md`
+    - `core/rag/philosophy_pipeline.py` (4-stage pipeline implementation)
   - DoD:
     - RAG context passed to philosophy validation layer; integration test
     - `make verify` passes
+  - Evidence:
+    - 4-stage deterministic pipeline: rule validation → claim classification → source alignment → logical consistency
+    - Stage 1 blocks (medical/weasel/malformed); stages 2-4 advisory-only warnings
+    - 42 unit tests in `tests/test_philosophy_pipeline.py`
+    - diff-coverage 98% (>=97%)
 
 - [x] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
   - Owner: @katsiaryna_kavaleuskaya

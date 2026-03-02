@@ -24,6 +24,7 @@ from core.rag.orchestration import (
     _empty_result,
     retrieve_and_validate_rag,
 )
+from core.rag.philosophy_pipeline import PipelineResult, StageResult
 from core.rag.validation import ValidationResult
 
 
@@ -138,21 +139,20 @@ class TestRetrieveAndValidateRag:
 
     @pytest.mark.asyncio
     async def test_validation_enabled_filters_chunks(self) -> None:
-        """When validation enabled, filtered chunks are used."""
+        """When validation enabled, pipeline filters chunks."""
         chunks = [
             _make_chunk("c1", content="Clean content here.", score=0.9),
             _make_chunk("c2", content="Contains diagnosis term.", score=0.7),
         ]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
 
-        # Validation returns only first chunk (second filtered)
+        # Pipeline returns only first chunk (second filtered by stage 1)
         filtered = [chunks[0]]
-        val_result = ValidationResult(
-            passed=True,
+        pipeline_result = PipelineResult(
             filtered_chunks=filtered,
+            stage_results=[],
             warnings=["medical_boundary: chunk c2 rejected"],
-            rejected_count=1,
-            validation_latency_ms=5,
+            total_latency_ms=5.0,
         )
 
         with (
@@ -163,8 +163,8 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
             patch(
-                "core.rag.validation.validate_rag_chunks",
-                return_value=val_result,
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
             ),
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
@@ -186,16 +186,16 @@ class TestRetrieveAndValidateRag:
 
     @pytest.mark.asyncio
     async def test_all_chunks_filtered_returns_not_used(self) -> None:
-        """When all chunks filtered by validation, rag_actually_used=False."""
+        """When all chunks filtered by pipeline, rag_actually_used=False."""
         chunks = [_make_chunk("c1", content="Medical diagnosis required.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks)
 
-        # Validation filters all chunks
-        val_result = ValidationResult(
-            passed=False,
+        # Pipeline filters all chunks
+        pipeline_result = PipelineResult(
             filtered_chunks=[],
+            stage_results=[],
             warnings=["medical_boundary: chunk c1 rejected"],
-            rejected_count=1,
+            total_latency_ms=3.0,
         )
 
         with (
@@ -206,8 +206,8 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
             patch(
-                "core.rag.validation.validate_rag_chunks",
-                return_value=val_result,
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
             ),
         ):
             result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
@@ -228,13 +228,13 @@ class TestRetrieveAndValidateRag:
         ]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.73)
 
-        # Keep c1 and c3 (scores 0.9 and 0.8) -> mean = 0.85
+        # Pipeline keeps c1 and c3 (scores 0.9 and 0.8) -> mean = 0.85
         filtered = [chunks[0], chunks[2]]
-        val_result = ValidationResult(
-            passed=True,
+        pipeline_result = PipelineResult(
             filtered_chunks=filtered,
+            stage_results=[],
             warnings=[],
-            rejected_count=1,
+            total_latency_ms=4.0,
         )
 
         with (
@@ -245,8 +245,8 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
             patch(
-                "core.rag.validation.validate_rag_chunks",
-                return_value=val_result,
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
             ),
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
@@ -263,16 +263,19 @@ class TestRetrieveAndValidateRag:
         assert result.confidence == 0.85
 
     @pytest.mark.asyncio
-    async def test_warnings_propagated_from_validation(self) -> None:
-        """Validation warnings are included in result."""
+    async def test_warnings_propagated_from_pipeline(self) -> None:
+        """Pipeline warnings are included in result."""
         chunks = [_make_chunk("c1", content="Some say this is true.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks)
 
-        val_result = ValidationResult(
-            passed=True,
+        pipeline_result = PipelineResult(
             filtered_chunks=chunks,
-            warnings=["weasel_word: chunk c1 contains 'some say'"],
-            rejected_count=0,
+            stage_results=[],
+            warnings=[
+                "weasel_word: chunk c1 contains 'some say'",
+                "claim_speculation: chunk c1 classified as speculation",
+            ],
+            total_latency_ms=2.0,
         )
 
         with (
@@ -283,8 +286,8 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
             patch(
-                "core.rag.validation.validate_rag_chunks",
-                return_value=val_result,
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
             ),
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
@@ -297,8 +300,9 @@ class TestRetrieveAndValidateRag:
         ):
             result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
 
-        assert len(result.warnings) == 1
+        assert len(result.warnings) == 2
         assert "weasel_word" in result.warnings[0]
+        assert "claim_speculation" in result.warnings[1]
 
     @pytest.mark.asyncio
     async def test_failsafe_on_exception_returns_empty(self) -> None:

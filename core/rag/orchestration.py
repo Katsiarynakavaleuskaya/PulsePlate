@@ -143,15 +143,15 @@ async def _run_orchestration(
     chunks_filtered = 0
 
     if philo_enabled:
-        from core.rag.validation import validate_rag_chunks
+        from core.rag.philosophy_pipeline import run_pipeline
 
-        val_result = validate_rag_chunks(rag_ctx.chunks)
-        chunks_to_use = val_result.filtered_chunks
-        chunks_filtered = val_result.rejected_count
-        warnings = val_result.warnings
+        pipeline_result = run_pipeline(rag_ctx.chunks, query=prompt_input)
+        chunks_to_use = pipeline_result.filtered_chunks
+        chunks_filtered = len(rag_ctx.chunks) - len(pipeline_result.filtered_chunks)
+        warnings = pipeline_result.warnings
 
         for w in warnings:
-            logger.debug("rag_validation: %s", w)
+            logger.debug("rag_pipeline: %s", w)
 
     # If no chunks survived validation
     if not chunks_to_use:
