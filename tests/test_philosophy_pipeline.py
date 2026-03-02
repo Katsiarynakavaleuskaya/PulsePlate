@@ -18,7 +18,6 @@ from core.rag.contracts import RAGChunk
 from core.rag.philosophy_pipeline import (
     ClaimType,
     PipelineResult,
-    StageResult,
     _alignment_score,
     _extract_numeric_ranges,
     _ranges_contradict,

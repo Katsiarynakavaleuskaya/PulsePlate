@@ -105,11 +105,13 @@ _NUMERIC_RANGE_RE = re.compile(
 )
 
 # Stage 3: Alignment thresholds
-_HIGH_SCORE_THRESHOLD = 0.7
-_SHORT_TEXT_THRESHOLD = 30
-_VERY_SHORT_TEXT_THRESHOLD = 20
-_MEDIUM_SCORE_THRESHOLD = 0.5
-_ALIGNMENT_WARNING_THRESHOLD = 0.5
+# These thresholds detect score-vs-content quality mismatches.
+# High score + short text suggests the retriever matched on boilerplate/headers.
+_HIGH_SCORE_THRESHOLD = 0.7  # Above this, chunk is considered "high confidence"
+_SHORT_TEXT_THRESHOLD = 30  # Below 30 chars is suspiciously short for useful content
+_VERY_SHORT_TEXT_THRESHOLD = 20  # Below 20 chars is almost certainly low quality
+_MEDIUM_SCORE_THRESHOLD = 0.5  # Medium confidence threshold
+_ALIGNMENT_WARNING_THRESHOLD = 0.5  # Misalignment score above this triggers warning
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +329,7 @@ def _extract_numeric_ranges(text: str) -> list[tuple[float, float]]:
             high = float(match.group(2))
             if low < high:
                 ranges.append((low, high))
-        except ValueError:
+        except ValueError:  # pragma: no cover - defensive; regex ensures valid floats
             continue
     return ranges
 
@@ -339,9 +341,19 @@ def _ranges_contradict(a: tuple[float, float], b: tuple[float, float]) -> bool:
 
 def _stage4_logical_consistency(
     chunks: list[RAGChunk],
-    query: str,
+    query: str,  # noqa: ARG001 - reserved for future semantic contradiction detection
 ) -> StageResult:
-    """Detect contradictory numeric claims and single-source echo."""
+    """Detect contradictory numeric claims and single-source echo.
+
+    Parameters
+    ----------
+    chunks:
+        Filtered chunks to check for consistency.
+    query:
+        Original user query (reserved for future query-aware contradiction
+        detection, e.g. flagging when query asks about X but chunks contradict on X).
+    """
+    _ = query  # Silence unused-variable linters; see docstring for rationale
     start = time.perf_counter()
     warnings: list[str] = []
     metadata: dict[str, Any] = {}
