@@ -5,7 +5,8 @@
 # Production: Build and push on semver tags `v*` when required secrets are configured.
 #
 # Required staging secrets (GitHub Environment "staging"):
-# - SSH_HOST_STAGING, SSH_USER, SSH_KEY, STAGING_DOMAIN, GHCR_READ_TOKEN
+# - SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
+#   STAGING_DOMAIN, GHCR_READ_TOKEN
 #
 # To enable production auto-deploy:
 # - Configure `production` environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY,
@@ -71,21 +72,16 @@ jobs:
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
 
-      - name: Prepare known_hosts (staging)
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SSH_HOST_STAGING }} >> ~/.ssh/known_hosts 2>/dev/null
-          chmod 644 ~/.ssh/known_hosts
-
       - name: Deploy to staging over SSH
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
           script: |
             set -euo pipefail
-            export GHCR_USER='${{ github.actor }}'
+            export GHCR_USER='${{ github.repository_owner }}'
             export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
             export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
             cd /srv/pulseplate-staging
@@ -93,7 +89,16 @@ jobs:
 
       - name: Healthcheck (staging)
         run: |
-          curl -fsS --max-time 5 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null
+          for i in 1 2 3; do
+            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null; then
+              echo "Healthcheck passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Healthcheck failed after 3 attempts"
+          exit 1
 
   # Pre-production quality gates
   production-gates:
