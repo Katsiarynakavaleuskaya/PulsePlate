@@ -69,8 +69,7 @@ jobs:
       - name: Environment validation complete
         run: |
           echo "✅ Environment validation completed successfully"
-          echo "📝 Note: Full deployment disabled until frontend/iOS are ready"
-          echo "🚀 When ready, rename cd.yml.disabled back to cd.yml"
+          echo "📝 Note: Full deploy is locked until WEB_IOS_RELEASE_READY=true"
 
   production-validation:
     runs-on: ubuntu-latest
@@ -92,4 +91,4 @@ jobs:
       - name: Production validation complete
         run: |
           echo "✅ Production environment validation completed"
-          echo "📝 Note: Full deployment disabled until frontend/iOS are ready"
+          echo "📝 Note: Full deploy is locked until WEB_IOS_RELEASE_READY=true"

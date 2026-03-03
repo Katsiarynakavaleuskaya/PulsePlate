@@ -14,6 +14,18 @@ Auto-deploy is controlled by repository or environment variable `PROD_DEPLOY_MOD
 
 If `PROD_DEPLOY_MODE` is unset or any other value, deploy jobs are skipped (images are still built and pushed to GHCR).
 
+## Global release-readiness lock (required)
+
+Deployment jobs in CD are additionally gated by:
+
+- `WEB_IOS_RELEASE_READY=true`
+
+Canonical policy:
+
+- While web and iOS are not release-ready, keep `WEB_IOS_RELEASE_READY` unset or `false`.
+- In this state, CD remains build/validation only (no production deploy), while image build/push can still run.
+- Enable real production deploy only after release readiness is explicitly confirmed.
+
 ## Source of truth: production image
 
 For any tag `vX.Y.Z`, the production build publishes:
@@ -257,6 +269,7 @@ Variables (store in the `production` environment):
 
 - `DEPLOY_DIR` (optional): absolute path to the deploy directory on the production machine.
   If unset, the workflow auto-detects `/opt/pulseplate` then `/srv/pulseplate-production`.
+- `WEB_IOS_RELEASE_READY` (required for deploy): set to `true` only when web+iOS release readiness is approved.
 
 ## Self-hosted runner (recommended)
 

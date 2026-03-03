@@ -20,15 +20,29 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
           echo "Deleting merged branch: ${HEAD_REF}"
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+          response_file="$(mktemp)"
+          http_code=$(curl -sS -o "$response_file" -w "%{http_code}" -X DELETE \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/git/refs/heads/${HEAD_REF}")
           # 204 = deleted, 404 = already deleted (both acceptable)
           if [ "$http_code" = "204" ] || [ "$http_code" = "404" ]; then
             echo "✅ Branch deleted or already gone (HTTP $http_code)"
+          elif [ "$http_code" = "422" ]; then
+            if grep -qiE "Reference does not exist|already exists|cannot delete|Validation Failed" "$response_file"; then
+              # Idempotent-safe fallback: API can return 422 for already-removed refs
+              # during races with manual/automatic branch deletion.
+              echo "✅ Branch deletion is idempotent-safe (HTTP 422; ref already handled)"
+            else
+              echo "❌ Failed to delete branch (HTTP 422)"
+              cat "$response_file"
+              exit 1
+            fi
           else
             echo "❌ Failed to delete branch (HTTP $http_code)"
+            cat "$response_file"
             exit 1
           fi
+          rm -f "$response_file"
