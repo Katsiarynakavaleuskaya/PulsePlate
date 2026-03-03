@@ -73,11 +73,15 @@ jobs:
           target: staging
 
       # When STAGING_DEPLOY_ENABLED=true but SSH_KEY (or host) is not set, skip deploy to avoid "ssh: no key found" / fingerprint mismatch.
+      # Use env so multi-line SSH_KEY is not inlined in run (avoids breaking when key was set and working).
       - name: Check staging deploy readiness
         id: staging-deploy-ready
         if: vars.STAGING_DEPLOY_ENABLED == 'true'
+        env:
+          SSH_KEY_REF: ${{ secrets.SSH_KEY }}
+          SSH_HOST_REF: ${{ secrets.SSH_HOST_STAGING }}
         run: |
-          if [ -z "${{ secrets.SSH_KEY }}" ] || [ -z "${{ secrets.SSH_HOST_STAGING }}" ]; then
+          if [ -z "$SSH_KEY_REF" ] || [ -z "$SSH_HOST_REF" ]; then
             echo "skip=1" >> "$GITHUB_OUTPUT"
             echo "Staging deploy skipped: SSH_KEY or SSH_HOST_STAGING not configured."
           else
