@@ -22,11 +22,12 @@
 
 # RU: Fallback staging hostname для build-only режима, когда staging deploy отключён
 # EN: Fallback staging hostname for build-only mode when staging deploy is disabled
-pulseplate-staging.duckdns.org {
+{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
     encode gzip
     reverse_proxy app:8000
 
     header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"

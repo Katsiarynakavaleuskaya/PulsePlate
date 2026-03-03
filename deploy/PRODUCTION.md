@@ -125,12 +125,14 @@ It also contains a staging TLS fallback vhost for `pulseplate-staging.duckdns.or
 The following environment variables must be set in your `.env` file or exported in the shell:
 
 - **`PRODUCTION_DOMAIN`** (required): Your production domain name (e.g., `api.pulseplate.com`)
+- **`STAGING_FALLBACK_DOMAIN`** (optional): staging hostname served by production fallback vhost in build-only mode (default: `pulseplate-staging.duckdns.org`)
 - **`IMAGE_REF`** (required): Docker image reference (e.g., `ghcr.io/owner/repo@sha256:...`)
 
 Example `.env` file:
 
 ```bash
 PRODUCTION_DOMAIN=api.pulseplate.com
+STAGING_FALLBACK_DOMAIN=pulseplate-staging.duckdns.org
 IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
 # Add other application-specific variables here
 ```

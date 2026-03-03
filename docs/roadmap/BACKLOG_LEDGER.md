@@ -61,6 +61,25 @@ If it is not recorded here — it does not exist.
     - OpenAPI/guard policy updated to remove transitional `/ws` allowance
     - Frontend ws client defaults to canonical path
 
+- [ ] P1: Remove staging TLS fallback seam after full staging readiness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-STAGING-SEAM-REMOVAL
+  - Area: deploy / CD policy / staging runtime
+  - Finding Type: temporary seam removal
+  - Reason: Build-only mode keeps staging HTTPS alive via production Caddy fallback vhost. This is intentional temporary behavior and must be removed once staging runtime deploy is continuously enabled.
+  - Links:
+    - `docs/architecture/ADR_STAGING_TLS_FALLBACK_SEAM_2026-03-04.md`
+    - `deploy/Caddyfile.production`
+    - `deploy/docker-compose.production.yaml`
+    - `docs/deploy/STAGING.md`
+    - `.github/workflows/cd.yml`
+  - DoD:
+    - Staging stack in `/srv/pulseplate-staging` is primary runtime source for staging URL
+    - `WEB_IOS_RELEASE_READY=true` and staging SSH deploy path is continuously enabled
+    - Production Caddy fallback vhost for `STAGING_FALLBACK_DOMAIN` is removed
+    - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
+
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
