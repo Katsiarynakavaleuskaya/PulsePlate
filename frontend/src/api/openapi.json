@@ -2367,6 +2367,14 @@
         "title": "FoodSourceAttribution",
         "type": "object"
       },
+      "FulfillmentMode": {
+        "enum": [
+          "pickup",
+          "delivery"
+        ],
+        "title": "FulfillmentMode",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3221,6 +3229,528 @@
           "min_packs"
         ],
         "title": "PackedLineDTO",
+        "type": "object"
+      },
+      "PartnerConsent": {
+        "properties": {
+          "accepted_at_utc": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At Utc"
+          },
+          "consent_share_with_partner": {
+            "description": "Explicit user consent to share menu package with selected partner.",
+            "title": "Consent Share With Partner",
+            "type": "boolean"
+          },
+          "consent_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Consent Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consent_share_with_partner",
+          "consent_version"
+        ],
+        "title": "PartnerConsent",
+        "type": "object"
+      },
+      "PartnerOrderConfirmRequest": {
+        "properties": {
+          "action": {
+            "const": "confirm",
+            "default": "confirm",
+            "title": "Action",
+            "type": "string"
+          },
+          "client_event_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          },
+          "confirmed_by": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Confirmed By",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "confirmed_by"
+        ],
+        "title": "PartnerOrderConfirmRequest",
+        "type": "object"
+      },
+      "PartnerOrderCreateRequest": {
+        "properties": {
+          "client_event_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/PartnerOrderDraft"
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "title": "PartnerOrderCreateRequest",
+        "type": "object"
+      },
+      "PartnerOrderDraft": {
+        "properties": {
+          "allergens": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allergens",
+            "type": "array"
+          },
+          "attribution_source": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution Source"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/PartnerConsent"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Note"
+          },
+          "delivery_fee_minor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Delivery Fee Minor",
+            "type": "integer"
+          },
+          "dietary_tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Dietary Tags",
+            "type": "array"
+          },
+          "fulfillment": {
+            "$ref": "#/components/schemas/FulfillmentMode"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PartnerOrderItemIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "restaurant_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Restaurant Id",
+            "type": "string"
+          },
+          "scheduled_for": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled For"
+          },
+          "service_fee_minor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Service Fee Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "restaurant_id",
+          "currency",
+          "fulfillment",
+          "items",
+          "consent"
+        ],
+        "title": "PartnerOrderDraft",
+        "type": "object"
+      },
+      "PartnerOrderItemIn": {
+        "properties": {
+          "menu_item_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Menu Item Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "qty": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Qty",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "minimum": 0.0,
+            "title": "Unit Price Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "menu_item_id",
+          "title",
+          "qty",
+          "unit_price_minor"
+        ],
+        "title": "PartnerOrderItemIn",
+        "type": "object"
+      },
+      "PartnerOrderItemPreview": {
+        "properties": {
+          "line_total_minor": {
+            "title": "Line Total Minor",
+            "type": "integer"
+          },
+          "menu_item_id": {
+            "title": "Menu Item Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "title": "Unit Price Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "menu_item_id",
+          "title",
+          "qty",
+          "unit_price_minor",
+          "line_total_minor"
+        ],
+        "title": "PartnerOrderItemPreview",
+        "type": "object"
+      },
+      "PartnerOrderPreviewRequest": {
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/PartnerOrderDraft"
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "title": "PartnerOrderPreviewRequest",
+        "type": "object"
+      },
+      "PartnerOrderPreviewResponse": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fulfillment": {
+            "$ref": "#/components/schemas/FulfillmentMode"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PartnerOrderItemPreview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "restaurant_id": {
+            "title": "Restaurant Id",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PartnerOrderTotals"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "restaurant_id",
+          "currency",
+          "fulfillment",
+          "items",
+          "totals"
+        ],
+        "title": "PartnerOrderPreviewResponse",
+        "type": "object"
+      },
+      "PartnerOrderResponse": {
+        "properties": {
+          "allergens": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allergens",
+            "type": "array"
+          },
+          "attribution_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution Source"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "confirmed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed By"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/PartnerConsent"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Note"
+          },
+          "dietary_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dietary Tags",
+            "type": "array"
+          },
+          "fulfillment": {
+            "$ref": "#/components/schemas/FulfillmentMode"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PartnerOrderItemPreview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "restaurant_id": {
+            "title": "Restaurant Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PartnerOrderStatus"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PartnerOrderTotals"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "restaurant_id",
+          "currency",
+          "fulfillment",
+          "items",
+          "totals",
+          "customer_note",
+          "dietary_tags",
+          "allergens",
+          "consent",
+          "attribution_source",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PartnerOrderResponse",
+        "type": "object"
+      },
+      "PartnerOrderStatus": {
+        "enum": [
+          "draft",
+          "pending_partner",
+          "confirmed",
+          "rejected",
+          "fulfilled",
+          "cancelled"
+        ],
+        "title": "PartnerOrderStatus",
+        "type": "string"
+      },
+      "PartnerOrderTotals": {
+        "properties": {
+          "delivery_fee_minor": {
+            "minimum": 0.0,
+            "title": "Delivery Fee Minor",
+            "type": "integer"
+          },
+          "service_fee_minor": {
+            "minimum": 0.0,
+            "title": "Service Fee Minor",
+            "type": "integer"
+          },
+          "subtotal_minor": {
+            "minimum": 0.0,
+            "title": "Subtotal Minor",
+            "type": "integer"
+          },
+          "total_minor": {
+            "minimum": 0.0,
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subtotal_minor",
+          "service_fee_minor",
+          "delivery_fee_minor",
+          "total_minor"
+        ],
+        "title": "PartnerOrderTotals",
         "type": "object"
       },
       "PlateRequest": {
@@ -7137,6 +7667,197 @@
         "tags": [
           "nutrition",
           "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders": {
+      "post": {
+        "operationId": "create_partner_order_api_v1_pro_restaurants_partner_orders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerOrderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "description": "Invalid order draft"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders/preview": {
+      "post": {
+        "operationId": "preview_partner_order_api_v1_pro_restaurants_partner_orders_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerOrderPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Invalid order draft"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Preview Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders/{order_id}": {
+      "get": {
+        "operationId": "get_partner_order_api_v1_pro_restaurants_partner_orders__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Order not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders/{order_id}/confirm": {
+      "post": {
+        "operationId": "confirm_partner_order_api_v1_pro_restaurants_partner_orders__order_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerOrderConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Order not found"
+          },
+          "409": {
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "description": "Invalid transition"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Confirm Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
         ]
       }
     },

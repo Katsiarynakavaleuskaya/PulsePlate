@@ -493,6 +493,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/restaurants/partner/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Partner Order */
+        post: operations["create_partner_order_api_v1_pro_restaurants_partner_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/restaurants/partner/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Partner Order */
+        get: operations["get_partner_order_api_v1_pro_restaurants_partner_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/restaurants/partner/orders/{order_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Partner Order */
+        post: operations["confirm_partner_order_api_v1_pro_restaurants_partner_orders__order_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/restaurants/partner/orders/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Partner Order */
+        post: operations["preview_partner_order_api_v1_pro_restaurants_partner_orders_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/shoplist/day": {
         parameters: {
             query?: never;
@@ -2349,6 +2417,11 @@ export interface components {
             /** Source Url */
             source_url?: string | null;
         };
+        /**
+         * FulfillmentMode
+         * @enum {string}
+         */
+        FulfillmentMode: "pickup" | "delivery";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2822,6 +2895,173 @@ export interface components {
              * @enum {string}
              */
             rounding: "CEIL" | "NEAREST" | "NONE";
+        };
+        /** PartnerConsent */
+        PartnerConsent: {
+            /** Accepted At Utc */
+            accepted_at_utc?: string | null;
+            /**
+             * Consent Share With Partner
+             * @description Explicit user consent to share menu package with selected partner.
+             */
+            consent_share_with_partner: boolean;
+            /** Consent Version */
+            consent_version: string;
+        };
+        /** PartnerOrderConfirmRequest */
+        PartnerOrderConfirmRequest: {
+            /**
+             * Action
+             * @default confirm
+             * @constant
+             */
+            action: "confirm";
+            /** Client Event Id */
+            client_event_id?: string | null;
+            /** Confirmed By */
+            confirmed_by: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** PartnerOrderCreateRequest */
+        PartnerOrderCreateRequest: {
+            /** Client Event Id */
+            client_event_id?: string | null;
+            draft: components["schemas"]["PartnerOrderDraft"];
+        };
+        /** PartnerOrderDraft */
+        PartnerOrderDraft: {
+            /** Allergens */
+            allergens?: string[];
+            /** Attribution Source */
+            attribution_source?: string | null;
+            consent: components["schemas"]["PartnerConsent"];
+            /** Currency */
+            currency: string;
+            /** Customer Note */
+            customer_note?: string | null;
+            /**
+             * Delivery Fee Minor
+             * @default 0
+             */
+            delivery_fee_minor: number;
+            /** Dietary Tags */
+            dietary_tags?: string[];
+            fulfillment: components["schemas"]["FulfillmentMode"];
+            /** Items */
+            items: components["schemas"]["PartnerOrderItemIn"][];
+            /** Restaurant Id */
+            restaurant_id: string;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /**
+             * Service Fee Minor
+             * @default 0
+             */
+            service_fee_minor: number;
+        };
+        /** PartnerOrderItemIn */
+        PartnerOrderItemIn: {
+            /** Menu Item Id */
+            menu_item_id: string;
+            /** Note */
+            note?: string | null;
+            /** Qty */
+            qty: number;
+            /** Title */
+            title: string;
+            /** Unit Price Minor */
+            unit_price_minor: number;
+        };
+        /** PartnerOrderItemPreview */
+        PartnerOrderItemPreview: {
+            /** Line Total Minor */
+            line_total_minor: number;
+            /** Menu Item Id */
+            menu_item_id: string;
+            /** Note */
+            note?: string | null;
+            /** Qty */
+            qty: number;
+            /** Title */
+            title: string;
+            /** Unit Price Minor */
+            unit_price_minor: number;
+        };
+        /** PartnerOrderPreviewRequest */
+        PartnerOrderPreviewRequest: {
+            draft: components["schemas"]["PartnerOrderDraft"];
+        };
+        /** PartnerOrderPreviewResponse */
+        PartnerOrderPreviewResponse: {
+            /** Currency */
+            currency: string;
+            fulfillment: components["schemas"]["FulfillmentMode"];
+            /** Items */
+            items: components["schemas"]["PartnerOrderItemPreview"][];
+            /** Restaurant Id */
+            restaurant_id: string;
+            totals: components["schemas"]["PartnerOrderTotals"];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** PartnerOrderResponse */
+        PartnerOrderResponse: {
+            /** Allergens */
+            allergens: string[];
+            /** Attribution Source */
+            attribution_source: string | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+            /** Confirmed By */
+            confirmed_by?: string | null;
+            consent: components["schemas"]["PartnerConsent"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Customer Note */
+            customer_note: string | null;
+            /** Dietary Tags */
+            dietary_tags: string[];
+            fulfillment: components["schemas"]["FulfillmentMode"];
+            /** Id */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PartnerOrderItemPreview"][];
+            /** Restaurant Id */
+            restaurant_id: string;
+            status: components["schemas"]["PartnerOrderStatus"];
+            totals: components["schemas"]["PartnerOrderTotals"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /**
+         * PartnerOrderStatus
+         * @enum {string}
+         */
+        PartnerOrderStatus: "draft" | "pending_partner" | "confirmed" | "rejected" | "fulfilled" | "cancelled";
+        /** PartnerOrderTotals */
+        PartnerOrderTotals: {
+            /** Delivery Fee Minor */
+            delivery_fee_minor: number;
+            /** Service Fee Minor */
+            service_fee_minor: number;
+            /** Subtotal Minor */
+            subtotal_minor: number;
+            /** Total Minor */
+            total_minor: number;
         };
         /**
          * PlateRequest
@@ -4873,6 +5113,160 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    create_partner_order_api_v1_pro_restaurants_partner_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerOrderCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderResponse"];
+                };
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid order draft */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_partner_order_api_v1_pro_restaurants_partner_orders__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderResponse"];
+                };
+            };
+            /** @description Order not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_partner_order_api_v1_pro_restaurants_partner_orders__order_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerOrderConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderResponse"];
+                };
+            };
+            /** @description Order not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_partner_order_api_v1_pro_restaurants_partner_orders_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerOrderPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderPreviewResponse"];
+                };
+            };
+            /** @description Invalid order draft */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
