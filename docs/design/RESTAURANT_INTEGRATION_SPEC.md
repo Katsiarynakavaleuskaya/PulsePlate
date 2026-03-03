@@ -53,17 +53,32 @@ Canonical non-breaking PRO endpoints:
 - `POST /api/v1/pro/restaurants/partner/orders`
 - `GET /api/v1/pro/restaurants/partner/orders/{order_id}`
 - `POST /api/v1/pro/restaurants/partner/orders/{order_id}/confirm`
+- Evidence: `app/routers/pro_restaurant_partner.py:30`, `app/routers/pro_restaurant_partner.py:40`, `app/routers/pro_restaurant_partner.py:80`, `app/routers/pro_restaurant_partner.py:106`
 
 Status model for partner orders:
 
 `draft -> pending_partner -> confirmed | rejected -> fulfilled | cancelled`
+- Evidence: `app/schemas/restaurant_partner.py:27`
 
 Current implementation baseline (contract-first):
 
 - Server computes totals (`subtotal`, `fees`, `total`) and does not trust client totals.
+- Evidence: `app/services/restaurant_partner_orders.py:61`
 - Idempotency via `client_event_id` for create/confirm paths.
+- Evidence: `app/services/restaurant_partner_orders.py:85`, `app/services/restaurant_partner_orders.py:155`
 - `confirm` is fail-closed for invalid transitions.
+- Evidence: `app/services/restaurant_partner_orders.py:195`, `app/routers/pro_restaurant_partner.py:132`
 - Legacy `/api/v1/restaurants/*` remains backward-compatible and is not changed by this contract track.
+- Evidence: `app/routers/restaurants.py:25`
+
+Temporary seam governance (contract-first -> persistent integration):
+
+- ADR: `docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md` (explicit seam and exit conditions).
+- Ledger SoT: `docs/roadmap/BACKLOG_LEDGER.md` (`W3-R1`..`W3-R4` execution items with DoD and blockers).
+- Exit criteria (must all hold):
+  1. Runtime storage migrates from in-memory seam to persistent storage with audit trail.
+  2. All partner-order error contracts are typed and verified in deterministic tests.
+  3. Legacy-only assumptions are removed or formally deprecated with a tracked removal PR.
 
 ---
 

@@ -65,6 +65,13 @@ class PartnerConsent(BaseModel):
     consent_version: str = Field(..., min_length=1, max_length=32)
     accepted_at_utc: datetime | None = None
 
+    @field_validator("consent_share_with_partner")
+    @classmethod
+    def _validate_partner_share_consent(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("consent_share_with_partner must be true for partner order flows")
+        return value
+
 
 class PartnerOrderDraft(BaseModel):
     restaurant_id: str = Field(..., min_length=1, max_length=64)
@@ -93,6 +100,8 @@ class PartnerOrderDraft(BaseModel):
     def _validate_schedule_not_past(cls, value: datetime | None) -> datetime | None:
         if value is None:
             return value
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            raise ValueError("scheduled_for must include timezone offset")
         value_utc = value.astimezone(timezone.utc)
         if value_utc < _utc_now():
             raise ValueError("scheduled_for must not be in the past")
@@ -114,7 +123,7 @@ class PartnerOrderPreviewResponse(BaseModel):
 
 class PartnerOrderCreateRequest(BaseModel):
     draft: PartnerOrderDraft
-    client_event_id: str | None = Field(default=None, max_length=64)
+    client_event_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class PartnerOrderResponse(BaseModel):
@@ -137,8 +146,12 @@ class PartnerOrderResponse(BaseModel):
     version: int = Field(default=1, ge=1)
 
 
+class PartnerOrderErrorResponse(BaseModel):
+    detail: str
+
+
 class PartnerOrderConfirmRequest(BaseModel):
     confirmed_by: str = Field(..., min_length=1, max_length=128)
-    client_event_id: str | None = Field(default=None, max_length=64)
+    client_event_id: str | None = Field(default=None, min_length=1, max_length=64)
     note: str | None = Field(default=None, max_length=500)
     action: Literal["confirm"] = "confirm"

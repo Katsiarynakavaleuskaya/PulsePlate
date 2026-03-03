@@ -2960,6 +2960,7 @@ If it is not recorded here — it does not exist.
   - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md (temporary seam + exit criteria)
     - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
     - core/dietary_constraints.py, core/targets.py
   - Prerequisites:
@@ -2981,8 +2982,12 @@ If it is not recorded here — it does not exist.
   - Reason: Freeze canonical v1 contract before deep runtime integration to prevent schema drift.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
     - app/routers/pro_restaurant_partner.py
     - app/schemas/restaurant_partner.py
+  - Blockers:
+    - Persistent storage + audit trail not implemented yet (in-memory seam for W3-R1 only)
+    - Partner retrieval/confirmation hardening and export adapter waves pending (`W3-R3`, `W3-R4`)
   - DoD:
     - Non-breaking PRO endpoints contract documented and available under `/api/v1/pro/restaurants/partner/*`
     - State model and transition constraints documented (`draft -> pending_partner -> confirmed|rejected -> fulfilled|cancelled`)
@@ -2996,6 +3001,7 @@ If it is not recorded here — it does not exist.
   - Reason: Partner access must be explicit, revocable, and auditable.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
   - DoD:
     - Consent/share issuance flow documented with expiry + revocation semantics
     - Fail-closed behavior documented for revoked/expired shares (`403/410`)
@@ -3009,6 +3015,7 @@ If it is not recorded here — it does not exist.
   - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
     - app/routers/pro_restaurant_partner.py
   - DoD:
     - Deterministic success/error contracts documented (`200/401/403/404/410/422/429`)
@@ -3023,6 +3030,7 @@ If it is not recorded here — it does not exist.
   - Reason: Guarantee stable mapping from weekly plan artifacts to partner payloads.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
     - app/routers/plan_export.py
     - tests/test_pro_restaurant_partner_api.py
   - DoD:

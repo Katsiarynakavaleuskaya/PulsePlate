@@ -2960,6 +2960,11 @@ export interface components {
              */
             service_fee_minor: number;
         };
+        /** PartnerOrderErrorResponse */
+        PartnerOrderErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
         /** PartnerOrderItemIn */
         PartnerOrderItemIn: {
             /** Menu Item Id */
@@ -5129,6 +5134,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderResponse"];
+                };
+            };
             /** @description Successful Response */
             201: {
                 headers: {
@@ -5143,14 +5157,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
             /** @description Invalid order draft */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
         };
     };
@@ -5179,7 +5197,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -5221,21 +5241,27 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
             /** @description client_event_id conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
             /** @description Invalid transition */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
         };
     };
@@ -5266,7 +5292,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
             };
         };
     };

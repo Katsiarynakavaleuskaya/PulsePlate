@@ -105,7 +105,10 @@ def create_order(
                 if existing_hash != draft_hash:
                     raise ValueError("client_event_id conflict: payload mismatch")
                 replay = _ORDERS[existing_order_id]
-                return PartnerOrderResponse.model_validate(deepcopy(replay)), False
+                replay_response: PartnerOrderResponse = PartnerOrderResponse.model_validate(
+                    deepcopy(replay)
+                )
+                return replay_response, False
 
         order_id = str(uuid4())
         preview = preview_order(draft)
@@ -146,7 +149,8 @@ def get_order(order_id: str) -> PartnerOrderResponse | None:
         payload = _ORDERS.get(order_id)
         if payload is None:
             return None
-        return PartnerOrderResponse.model_validate(deepcopy(payload))
+        order: PartnerOrderResponse = PartnerOrderResponse.model_validate(deepcopy(payload))
+        return order
 
 
 def confirm_order(
@@ -180,7 +184,10 @@ def confirm_order(
                 _, existing_hash = existing
                 if existing_hash != confirm_hash:
                     raise ValueError("client_event_id conflict: confirm payload mismatch")
-                return PartnerOrderResponse.model_validate(deepcopy(payload)), False
+                replay_response: PartnerOrderResponse = PartnerOrderResponse.model_validate(
+                    deepcopy(payload)
+                )
+                return replay_response, False
 
         current = payload["status"]
         if current != PartnerOrderStatus.pending_partner.value:
@@ -198,7 +205,10 @@ def confirm_order(
         if client_event_id:
             _CONFIRM_EVENTS[(order_id, client_event_id)] = (order_id, confirm_hash)
 
-        return PartnerOrderResponse.model_validate(deepcopy(payload)), True
+        confirmed_response: PartnerOrderResponse = PartnerOrderResponse.model_validate(
+            deepcopy(payload)
+        )
+        return confirmed_response, True
 
 
 def reset_state() -> None:
