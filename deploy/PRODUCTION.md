@@ -84,7 +84,7 @@ services:
       - "443:443"
     environment:
       - PRODUCTION_DOMAIN=${PRODUCTION_DOMAIN}
-      - STAGING_FALLBACK_DOMAIN=${STAGING_FALLBACK_DOMAIN}  # optional fallback domain
+      - STAGING_FALLBACK_DOMAIN=${STAGING_FALLBACK_DOMAIN:-pulseplate-staging.duckdns.org}  # optional fallback domain
     volumes:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
