@@ -33,6 +33,38 @@
 2. **Sharing mechanism:** Signed link with expiry (reuse idea from export/sign) or separate endpoint "generate partner link" with consent.
 3. **Documented contract schema** (what's in JSON, which fields required) for restaurants/chefs.
 
+## Contract-First Decomposition (W3-R1..W3-R4)
+
+Naming note: `W3-R*` is a dedicated restaurant integration sub-track and does not change historical
+Food DB Wave 3 items (`W3-A..W3-E`).
+
+| Wave | Scope | DoD |
+| ---- | ----- | --- |
+| **W3-R1** | Contract freeze (OpenAPI/JSON contract + examples for partner menu package) | Contract and required fields are frozen for v1, additive-only compatibility rule documented. |
+| **W3-R2** | Consent + share issuance (signed link/token with expiry) | Expiry + revocation semantics documented; audit fields defined (`issuer`, `partner_id`, `issued_at`, `expires_at`, `revoked_at`). |
+| **W3-R3** | Partner retrieval contract | Deterministic success/error contract documented (`200/401/403/404/410/429`), no payment/delivery scope creep. |
+| **W3-R4** | Export adapter + deterministic contract tests | Mapping from weekly plan/recipes/constraints to partner payload documented; deterministic test matrix is mandatory gate. |
+
+## Current Contract Surface (W3-R1 baseline)
+
+Canonical non-breaking PRO endpoints:
+
+- `POST /api/v1/pro/restaurants/partner/orders/preview`
+- `POST /api/v1/pro/restaurants/partner/orders`
+- `GET /api/v1/pro/restaurants/partner/orders/{order_id}`
+- `POST /api/v1/pro/restaurants/partner/orders/{order_id}/confirm`
+
+Status model for partner orders:
+
+`draft -> pending_partner -> confirmed | rejected -> fulfilled | cancelled`
+
+Current implementation baseline (contract-first):
+
+- Server computes totals (`subtotal`, `fees`, `total`) and does not trust client totals.
+- Idempotency via `client_event_id` for create/confirm paths.
+- `confirm` is fail-closed for invalid transitions.
+- Legacy `/api/v1/restaurants/*` remains backward-compatible and is not changed by this contract track.
+
 ---
 
 ## Out of Current Scope
