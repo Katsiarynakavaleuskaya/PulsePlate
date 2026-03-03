@@ -5421,15 +5421,6 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerOrderResponse"];
                 };
             };
-            /** @description Partner consent required */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
-                };
-            };
             /** @description Order not found */
             404: {
                 headers: {
@@ -5481,6 +5472,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartnerHandoffShareResponse"];
+                };
+            };
+            /** @description Partner consent required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
                 };
             };
             /** @description Order not found */

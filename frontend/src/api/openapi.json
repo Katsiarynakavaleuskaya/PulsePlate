@@ -8115,16 +8115,6 @@
             },
             "description": "Successful Response"
           },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
-                }
-              }
-            },
-            "description": "Partner consent required"
-          },
           "404": {
             "content": {
               "application/json": {
@@ -8202,6 +8192,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Partner consent required"
           },
           "404": {
             "content": {

@@ -31,6 +31,7 @@ _ORDERS: dict[str, dict[str, Any]] = {}
 _CREATE_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
 _CONFIRM_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
 _SHARES: dict[str, dict[str, Any]] = {}
+MAX_SHARE_TTL_MINUTES = 60 * 24 * 30
 
 
 class OrderNotFoundError(KeyError):
@@ -259,8 +260,8 @@ def issue_handoff_share(
         consent_payload = order_payload.get("consent") or {}
         if not bool(consent_payload.get("consent_share_with_partner")):
             raise PartnerConsentRequiredError("partner consent required")
-        if expires_in_minutes <= 0:
-            raise ValueError("expires_in_minutes must be > 0")
+        if expires_in_minutes <= 0 or expires_in_minutes > MAX_SHARE_TTL_MINUTES:
+            raise ValueError(f"expires_in_minutes must be in [1, {MAX_SHARE_TTL_MINUTES}]")
 
         now = _utc_now()
         expires_at = now + timedelta(minutes=expires_in_minutes)

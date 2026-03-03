@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import hashlib
 from typing import Any
 
+from core.fingerprint_security import compute_fingerprint
 from fastapi.testclient import TestClient
 import pytest
 
@@ -430,9 +430,7 @@ def test_issue_handoff_share_happy_path(
     )
     assert issue.status_code == 201, issue.text
     payload = _json(issue)
-    expected_issuer = (
-        f"api_key:{hashlib.sha256(pro_headers['X-API-Key'].encode('utf-8')).hexdigest()[:12]}"
-    )
+    expected_issuer = f"api_key:{compute_fingerprint(pro_headers['X-API-Key'], truncate=12)}"
     assert payload["order_id"] == order_id
     assert payload["issuer"] == expected_issuer
     assert payload["partner_id"] == "partner-1"
@@ -604,7 +602,7 @@ def test_get_handoff_share_status_expired_410(
     monkeypatch.setattr(
         restaurant_partner_orders,
         "_utc_now",
-        lambda: expires_at,
+        lambda: expires_at + timedelta(seconds=1),
     )
     status_resp = client.get(
         f"/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status",
@@ -669,10 +667,18 @@ def test_issue_handoff_share_service_ttl_guard_value_error(
 
     from app.services import restaurant_partner_orders
 
-    with pytest.raises(ValueError, match="expires_in_minutes must be > 0"):
+    with pytest.raises(ValueError, match=r"expires_in_minutes must be in \[1, 43200\]"):
         restaurant_partner_orders.issue_handoff_share(
             order_id=order_id,
             issuer="test-issuer",
             partner_id="partner-ttl",
             expires_in_minutes=0,
+        )
+
+    with pytest.raises(ValueError, match=r"expires_in_minutes must be in \[1, 43200\]"):
+        restaurant_partner_orders.issue_handoff_share(
+            order_id=order_id,
+            issuer="test-issuer",
+            partner_id="partner-ttl",
+            expires_in_minutes=43201,
         )

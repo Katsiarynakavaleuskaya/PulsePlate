@@ -7,9 +7,9 @@ EN: Contract-first endpoints for `menu -> partner` flow.
 
 from __future__ import annotations
 
-import hashlib
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+
+from core.fingerprint_security import compute_fingerprint
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.restaurant_partner import (
@@ -33,8 +33,7 @@ router = APIRouter(
 
 def _issuer_from_api_key(api_key: str) -> str:
     """Build stable non-reversible issuer marker from authenticated API key."""
-    digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
-    return f"api_key:{digest}"
+    return f"api_key:{compute_fingerprint(api_key, truncate=12)}"
 
 
 @router.post(
@@ -108,10 +107,6 @@ def get_partner_order(order_id: str) -> PartnerOrderResponse:
     "/orders/{order_id}/confirm",
     response_model=PartnerOrderResponse,
     responses={
-        status.HTTP_403_FORBIDDEN: {
-            "description": "Partner consent required",
-            "model": PartnerOrderErrorResponse,
-        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Order not found",
             "model": PartnerOrderErrorResponse,
@@ -156,6 +151,10 @@ def confirm_partner_order(
     response_model=PartnerHandoffShareResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Partner consent required",
+            "model": PartnerOrderErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Order not found",
             "model": PartnerOrderErrorResponse,
