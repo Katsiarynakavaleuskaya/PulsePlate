@@ -28,7 +28,7 @@ from app.schemas.restaurant_partner import (
 
 _LOCK = threading.Lock()
 _ORDERS: dict[str, dict[str, Any]] = {}
-_CREATE_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
+_CREATE_EVENTS: dict[tuple[str, str, str], tuple[str, str]] = {}
 _CONFIRM_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
 _SHARES: dict[str, dict[str, Any]] = {}
 MAX_SHARE_TTL_MINUTES = 60 * 24 * 30
@@ -127,7 +127,7 @@ def create_order(
 
     with _LOCK:
         if client_event_id:
-            create_key = (draft.restaurant_id, client_event_id)
+            create_key = (issuer, draft.restaurant_id, client_event_id)
             existing = _CREATE_EVENTS.get(create_key)
             if existing is not None:
                 existing_order_id, existing_hash = existing
@@ -167,7 +167,7 @@ def create_order(
         _ORDERS[order_id] = order_payload
 
         if client_event_id:
-            _CREATE_EVENTS[(draft.restaurant_id, client_event_id)] = (order_id, draft_hash)
+            _CREATE_EVENTS[(issuer, draft.restaurant_id, client_event_id)] = (order_id, draft_hash)
 
         created = PartnerOrderResponse.model_validate(deepcopy(order_payload))
         return created, True

@@ -129,6 +129,27 @@ def test_create_partner_order_idempotent_replay(
     assert _json(first)["id"] == _json(second)["id"]
 
 
+def test_create_partner_order_idempotency_is_scoped_by_issuer(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    payload = {"draft": _sample_draft(), "client_event_id": "evt-create-2b"}
+    first = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json=payload,
+    )
+    second = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=vip_headers,
+        json=payload,
+    )
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert _json(first)["id"] != _json(second)["id"]
+
+
 def test_create_partner_order_idempotency_conflict_409(
     client: TestClient,
     pro_headers: dict[str, str],
