@@ -217,7 +217,7 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 
 Set the **Environment variable** (Settings → Environments → staging → Environment variables):
 
-- `STAGING_DEPLOY_ENABLED` = `true` — required for CD to run SSH deploy. If unset, the CD workflow only builds and pushes the image (no deploy); this avoids "ssh: no key found" when secrets are not yet configured.
+- `STAGING_DEPLOY_ENABLED` = `true` — required for CD to run SSH deploy. If unset, the CD workflow only builds and pushes the image (no deploy); this avoids "ssh: no key found" when secrets are not yet configured. If set to `true` but `SSH_KEY` or `SSH_HOST_STAGING` is missing, the workflow skips the deploy and healthcheck steps (job still succeeds; build+push already done).
 
 Add these **secrets** to the `staging` environment:
 

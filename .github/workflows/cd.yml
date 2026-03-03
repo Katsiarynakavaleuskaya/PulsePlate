@@ -72,8 +72,20 @@ jobs:
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
 
-      - name: Deploy to staging over SSH
+      # When STAGING_DEPLOY_ENABLED=true but SSH_KEY (or host) is not set, skip deploy to avoid "ssh: no key found" / fingerprint mismatch.
+      - name: Check staging deploy readiness
+        id: staging-deploy-ready
         if: vars.STAGING_DEPLOY_ENABLED == 'true'
+        run: |
+          if [ -z "${{ secrets.SSH_KEY }}" ] || [ -z "${{ secrets.SSH_HOST_STAGING }}" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "Staging deploy skipped: SSH_KEY or SSH_HOST_STAGING not configured."
+          else
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to staging over SSH
+        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1'
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
@@ -89,7 +101,7 @@ jobs:
             ./deploy.sh '${{ github.sha }}'
 
       - name: Healthcheck (staging)
-        if: vars.STAGING_DEPLOY_ENABLED == 'true'
+        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1'
         run: |
           set -euo pipefail
           for i in 1 2 3; do
