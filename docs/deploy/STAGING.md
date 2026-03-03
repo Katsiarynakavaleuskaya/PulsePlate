@@ -218,6 +218,7 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 Set the **Environment variable** (Settings → Environments → staging → Environment variables):
 
 - `STAGING_DEPLOY_ENABLED` = `true` — required for CD to run SSH deploy. If unset, the CD workflow only builds and pushes the image (no deploy); this avoids "ssh: no key found" when secrets are not yet configured. If set to `true` but `SSH_KEY` or `SSH_HOST_STAGING` is missing, the workflow skips the deploy and healthcheck steps (job still succeeds; build+push already done).
+- `STAGING_DEPLOY_REQUIRED` = `true|false` (optional, default `false`) — controls whether a failed staging SSH deploy should fail the whole CD workflow. Keep `false` for non-blocking staging; set `true` when staging deploy must be strict/blocking.
 
 Add these **secrets** to the `staging` environment:
 
@@ -227,6 +228,21 @@ Add these **secrets** to the `staging` environment:
 - `SSH_HOST_STAGING_FINGERPRINT` - Staging **server** host key fingerprint, usually `SHA256:...` (optional but recommended). **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
 - `GHCR_READ_TOKEN` - GitHub PAT with `read:packages` permission
 - `STAGING_DOMAIN` - Your staging domain
+
+#### Host key fingerprint mismatch (CI error)
+
+If CD fails with `ssh: handshake failed: ssh: host key fingerprint mismatch`, rotate `SSH_HOST_STAGING_FINGERPRINT` to the current host key:
+
+```bash
+# From your laptop (preferred): get current ed25519 host key fingerprint
+ssh-keyscan -t ed25519 your-staging-host 2>/dev/null \
+  | ssh-keygen -lf - -E sha256 \
+  | awk '{print $2}'
+```
+
+Expected output format: `SHA256:...`
+
+After updating the GitHub environment secret, re-run the failed CD workflow.
 
 ### 3. Create GitHub PAT
 
