@@ -8224,6 +8224,20 @@
             "description": "Order not found"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
+                }
+              }
+            },
             "description": "Invalid handoff payload"
           }
         },

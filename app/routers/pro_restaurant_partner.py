@@ -73,10 +73,12 @@ def preview_partner_order(payload: PartnerOrderPreviewRequest) -> PartnerOrderPr
 def create_partner_order(
     payload: PartnerOrderCreateRequest,
     response: Response,
+    x_api_key: str = Depends(require_pro_tier),
 ) -> PartnerOrderResponse:
     try:
         created, is_new = restaurant_partner_orders.create_order(
             draft=payload.draft,
+            issuer=_issuer_from_api_key(x_api_key),
             client_event_id=payload.client_event_id,
         )
     except ValueError as exc:
@@ -161,6 +163,16 @@ def confirm_partner_order(
         },
         status.HTTP_422_UNPROCESSABLE_CONTENT: {
             "description": "Invalid handoff payload",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "oneOf": [
+                            {"$ref": "#/components/schemas/PartnerOrderErrorResponse"},
+                            {"$ref": "#/components/schemas/HTTPValidationError"},
+                        ]
+                    }
+                }
+            },
         },
     },
 )
@@ -180,6 +192,8 @@ def issue_handoff_share(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         ) from exc
+    except restaurant_partner_orders.ShareAccessForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except restaurant_partner_orders.PartnerConsentRequiredError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:

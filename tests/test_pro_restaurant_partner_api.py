@@ -466,6 +466,31 @@ def test_issue_handoff_share_unknown_order_404(
     assert issue.status_code == 404
 
 
+def test_issue_handoff_share_forbidden_for_other_issuer_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-9b"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    issue = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
+        headers=vip_headers,
+        json={
+            "partner_id": "partner-1b",
+            "expires_in_minutes": 60,
+        },
+    )
+    assert issue.status_code == 403
+    assert _json(issue) == {"detail": "share access forbidden"}
+
+
 def test_get_handoff_share_status_revoked_403(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -731,10 +756,12 @@ def test_issue_handoff_share_service_ttl_guard_value_error(
 
     from app.services import restaurant_partner_orders
 
+    expected_issuer = f"api_key:{compute_fingerprint(pro_headers['X-API-Key'], truncate=12)}"
+
     with pytest.raises(ValueError, match=r"expires_in_minutes must be in \[1, 43200\]"):
         restaurant_partner_orders.issue_handoff_share(
             order_id=order_id,
-            issuer="test-issuer",
+            issuer=expected_issuer,
             partner_id="partner-ttl",
             expires_in_minutes=0,
         )
@@ -742,7 +769,7 @@ def test_issue_handoff_share_service_ttl_guard_value_error(
     with pytest.raises(ValueError, match=r"expires_in_minutes must be in \[1, 43200\]"):
         restaurant_partner_orders.issue_handoff_share(
             order_id=order_id,
-            issuer="test-issuer",
+            issuer=expected_issuer,
             partner_id="partner-ttl",
             expires_in_minutes=43201,
         )

@@ -113,6 +113,7 @@ def preview_order(draft: PartnerOrderDraft) -> PartnerOrderPreviewResponse:
 def create_order(
     *,
     draft: PartnerOrderDraft,
+    issuer: str,
     client_event_id: str | None,
 ) -> tuple[PartnerOrderResponse, bool]:
     """Create order or return idempotent replay.
@@ -145,6 +146,7 @@ def create_order(
             consent_payload["accepted_at_utc"] = now.isoformat()
         order_payload: dict[str, Any] = {
             "id": order_id,
+            "issuer": issuer,
             "status": PartnerOrderStatus.pending_partner.value,
             "restaurant_id": preview.restaurant_id,
             "currency": preview.currency,
@@ -260,6 +262,8 @@ def issue_handoff_share(
         order_payload = _ORDERS.get(order_id)
         if order_payload is None:
             raise OrderNotFoundError("order not found")
+        if order_payload.get("issuer") != issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
 
         consent_payload = order_payload.get("consent") or {}
         if not bool(consent_payload.get("consent_share_with_partner")):
