@@ -33,6 +33,53 @@
 2. **Sharing mechanism:** Signed link with expiry (reuse idea from export/sign) or separate endpoint "generate partner link" with consent.
 3. **Documented contract schema** (what's in JSON, which fields required) for restaurants/chefs.
 
+## Contract-First Decomposition (W3-R1..W3-R4)
+
+Naming note: `W3-R*` is a dedicated restaurant integration sub-track and does not change historical
+Food DB Wave 3 items (`W3-A..W3-E`).
+
+| Wave | Scope | DoD |
+| ---- | ----- | --- |
+| **W3-R1** | Contract freeze (OpenAPI/JSON contract + examples for partner menu package) | Contract and required fields are frozen for v1, additive-only compatibility rule documented. |
+| **W3-R2** | Consent + share issuance (signed link/token with expiry) | Expiry + revocation semantics documented; audit fields defined (`issuer`, `partner_id`, `issued_at`, `expires_at`, `revoked_at`). |
+| **W3-R3** | Partner retrieval contract | Deterministic success/error contract documented (`200/401/403/404/410/429`), no payment/delivery scope creep. |
+| **W3-R4** | Export adapter + deterministic contract tests | Mapping from weekly plan/recipes/constraints to partner payload documented; deterministic test matrix is mandatory gate. |
+
+## Current Contract Surface (W3-R1 baseline)
+
+Canonical non-breaking PRO endpoints:
+
+- `POST /api/v1/pro/restaurants/partner/orders/preview`
+- `POST /api/v1/pro/restaurants/partner/orders`
+- `GET /api/v1/pro/restaurants/partner/orders/{order_id}`
+- `POST /api/v1/pro/restaurants/partner/orders/{order_id}/confirm`
+- Evidence: `app/routers/pro_restaurant_partner.py:30`, `app/routers/pro_restaurant_partner.py:40`, `app/routers/pro_restaurant_partner.py:80`, `app/routers/pro_restaurant_partner.py:106`
+
+Status model for partner orders:
+
+`draft -> pending_partner -> confirmed | rejected -> fulfilled | cancelled`
+- Evidence: `app/schemas/restaurant_partner.py:27`
+
+Current implementation baseline (contract-first):
+
+- Server computes totals (`subtotal`, `fees`, `total`) and does not trust client totals.
+- Evidence: `app/services/restaurant_partner_orders.py:61`
+- Idempotency via `client_event_id` for create/confirm paths.
+- Evidence: `app/services/restaurant_partner_orders.py:85`, `app/services/restaurant_partner_orders.py:155`
+- `confirm` is fail-closed for invalid transitions.
+- Evidence: `app/services/restaurant_partner_orders.py:195`, `app/routers/pro_restaurant_partner.py:132`
+- Legacy `/api/v1/restaurants/*` remains backward-compatible and is not changed by this contract track.
+- Evidence: `app/routers/restaurants.py:25`
+
+Temporary seam governance (contract-first -> persistent integration):
+
+- ADR: `docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md` (explicit seam and exit conditions).
+- Ledger SoT: `docs/roadmap/BACKLOG_LEDGER.md` (`W3-R1`..`W3-R4` execution items with DoD and blockers).
+- Exit criteria (must all hold):
+  1. Runtime storage migrates from in-memory seam to persistent storage with audit trail.
+  2. All partner-order error contracts are typed and verified in deterministic tests.
+  3. Legacy-only assumptions are removed or formally deprecated with a tracked removal PR.
+
 ---
 
 ## Out of Current Scope

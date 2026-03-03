@@ -2955,11 +2955,12 @@ If it is not recorded here — it does not exist.
 
 - [ ] P2 Vision: Restaurant/chef integration (partners accept menus from our products, cook for users)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate product block; after VIP/export stabilization)
+  - Target PR: PR #TBD-W3-R1-CONTRACT (umbrella split into W3-R1..W3-R4)
   - Priority: P2 (long-term product direction)
   - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md (temporary seam + exit criteria)
     - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
     - core/dietary_constraints.py, core/targets.py
   - Prerequisites:
@@ -2970,7 +2971,72 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Product spec: scenario "user sends menu to restaurant/chef" (what partner sees, how confirms) — EN: documented user flow and partner UX
     - Technical prerequisites documented in design spec (export format, consent, contract schema)
+    - Execution decomposition W3-R1..W3-R4 is recorded with per-wave DoD
     - Implementation — separate PRs (export format, partner API or signed link, optionally partner directory)
+
+- [ ] P2: Execution Wave 3-R1 — Partner API contract freeze (`menu -> partner`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #TBD-W3-R1-CONTRACT
+  - Status: 🟡 In progress
+  - Reason: Freeze canonical v1 contract before deep runtime integration to prevent schema drift.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+    - app/schemas/restaurant_partner.py
+  - Blockers:
+    - Persistent storage + audit trail not implemented yet (in-memory seam for W3-R1 only)
+    - Partner retrieval/confirmation hardening and export adapter waves pending (`W3-R3`, `W3-R4`)
+  - DoD:
+    - Non-breaking PRO endpoints contract documented and available under `/api/v1/pro/restaurants/partner/*`
+    - State model and transition constraints documented (`draft -> pending_partner -> confirmed|rejected -> fulfilled|cancelled`)
+    - Request/response schema examples and compatibility policy (additive-only for v1) documented
+
+- [ ] P2: Execution Wave 3-R2 — Consent + signed handoff contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #TBD-W3-R2-CONSENT-HANDOFF
+  - Status: 📋 Planned
+  - Reason: Partner access must be explicit, revocable, and auditable.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+  - DoD:
+    - Consent/share issuance flow documented with expiry + revocation semantics
+    - Fail-closed behavior documented for revoked/expired shares (`403/410`)
+    - Audit fields fixed (`issuer`, `partner_id`, `issued_at`, `expires_at`, `revoked_at`)
+
+- [ ] P2: Execution Wave 3-R3 — Partner retrieval + confirmation hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #TBD-W3-R3-PARTNER-RETRIEVE-CONFIRM
+  - Status: 📋 Planned
+  - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+  - DoD:
+    - Deterministic success/error contracts documented (`200/401/403/404/410/422/429`)
+    - Idempotency rules fixed for create/confirm paths (`client_event_id`)
+    - Out-of-scope boundary enforced (no payment/delivery in this wave)
+
+- [ ] P2: Execution Wave 3-R4 — Export adapter + deterministic contract tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #TBD-W3-R4-EXPORT-TESTS
+  - Status: 📋 Planned
+  - Reason: Guarantee stable mapping from weekly plan artifacts to partner payloads.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/plan_export.py
+    - tests/test_pro_restaurant_partner_api.py
+  - DoD:
+    - Mapping rules from weekly plan/recipes/constraints to partner payload documented
+    - Deterministic contract tests defined and passing
+    - Rollback-safe rollout notes captured in audit artifact
 
 ---
 
