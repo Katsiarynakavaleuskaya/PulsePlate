@@ -33,6 +33,12 @@ class PartnerOrderStatus(str, Enum):
     cancelled = "cancelled"
 
 
+class PartnerHandoffShareStatus(str, Enum):
+    active = "active"
+    revoked = "revoked"
+    expired = "expired"
+
+
 class PartnerOrderItemIn(BaseModel):
     menu_item_id: str = Field(..., min_length=1, max_length=64)
     title: str = Field(..., min_length=1, max_length=256)
@@ -155,3 +161,20 @@ class PartnerOrderConfirmRequest(BaseModel):
     client_event_id: str | None = Field(default=None, min_length=1, max_length=64)
     note: str | None = Field(default=None, max_length=500)
     action: Literal["confirm"] = "confirm"
+
+
+class PartnerHandoffShareIssueRequest(BaseModel):
+    issuer: str = Field(..., min_length=1, max_length=128)
+    partner_id: str = Field(..., min_length=1, max_length=128)
+    expires_in_minutes: int = Field(..., ge=1, le=60 * 24 * 30)
+
+
+class PartnerHandoffShareResponse(BaseModel):
+    share_id: str
+    order_id: str
+    issuer: str
+    partner_id: str
+    issued_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None = None
+    status: PartnerHandoffShareStatus

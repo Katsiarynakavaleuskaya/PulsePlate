@@ -493,6 +493,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Handoff Share */
+        post: operations["revoke_handoff_share_api_v1_pro_restaurants_partner_handoff_shares__share_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Handoff Share Status */
+        get: operations["get_handoff_share_status_api_v1_pro_restaurants_partner_handoff_shares__share_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/restaurants/partner/orders": {
         parameters: {
             query?: never;
@@ -538,6 +572,23 @@ export interface paths {
         put?: never;
         /** Confirm Partner Order */
         post: operations["confirm_partner_order_api_v1_pro_restaurants_partner_orders__order_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue Handoff Share */
+        post: operations["issue_handoff_share_api_v1_pro_restaurants_partner_orders__order_id__handoff_shares_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2908,6 +2959,44 @@ export interface components {
             /** Consent Version */
             consent_version: string;
         };
+        /** PartnerHandoffShareIssueRequest */
+        PartnerHandoffShareIssueRequest: {
+            /** Expires In Minutes */
+            expires_in_minutes: number;
+            /** Issuer */
+            issuer: string;
+            /** Partner Id */
+            partner_id: string;
+        };
+        /** PartnerHandoffShareResponse */
+        PartnerHandoffShareResponse: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Issuer */
+            issuer: string;
+            /** Order Id */
+            order_id: string;
+            /** Partner Id */
+            partner_id: string;
+            /** Revoked At */
+            revoked_at?: string | null;
+            /** Share Id */
+            share_id: string;
+            status: components["schemas"]["PartnerHandoffShareStatus"];
+        };
+        /**
+         * PartnerHandoffShareStatus
+         * @enum {string}
+         */
+        PartnerHandoffShareStatus: "active" | "revoked" | "expired";
         /** PartnerOrderConfirmRequest */
         PartnerOrderConfirmRequest: {
             /**
@@ -5121,6 +5210,104 @@ export interface operations {
             };
         };
     };
+    revoke_handoff_share_api_v1_pro_restaurants_partner_handoff_shares__share_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                share_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerHandoffShareResponse"];
+                };
+            };
+            /** @description Share not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_handoff_share_status_api_v1_pro_restaurants_partner_handoff_shares__share_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                share_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerHandoffShareResponse"];
+                };
+            };
+            /** @description Share revoked */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Share not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Share expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_partner_order_api_v1_pro_restaurants_partner_orders_post: {
         parameters: {
             query?: never;
@@ -5255,6 +5442,50 @@ export interface operations {
                 };
             };
             /** @description Invalid transition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+        };
+    };
+    issue_handoff_share_api_v1_pro_restaurants_partner_orders__order_id__handoff_shares_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerHandoffShareIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerHandoffShareResponse"];
+                };
+            };
+            /** @description Order not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Invalid handoff payload */
             422: {
                 headers: {
                     [name: string]: unknown;

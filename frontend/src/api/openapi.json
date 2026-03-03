@@ -3264,6 +3264,100 @@
         "title": "PartnerConsent",
         "type": "object"
       },
+      "PartnerHandoffShareIssueRequest": {
+        "properties": {
+          "expires_in_minutes": {
+            "maximum": 43200.0,
+            "minimum": 1.0,
+            "title": "Expires In Minutes",
+            "type": "integer"
+          },
+          "issuer": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "partner_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "partner_id",
+          "expires_in_minutes"
+        ],
+        "title": "PartnerHandoffShareIssueRequest",
+        "type": "object"
+      },
+      "PartnerHandoffShareResponse": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "issuer": {
+            "title": "Issuer",
+            "type": "string"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "partner_id": {
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "share_id": {
+            "title": "Share Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PartnerHandoffShareStatus"
+          }
+        },
+        "required": [
+          "share_id",
+          "order_id",
+          "issuer",
+          "partner_id",
+          "issued_at",
+          "expires_at",
+          "status"
+        ],
+        "title": "PartnerHandoffShareResponse",
+        "type": "object"
+      },
+      "PartnerHandoffShareStatus": {
+        "enum": [
+          "active",
+          "revoked",
+          "expired"
+        ],
+        "title": "PartnerHandoffShareStatus",
+        "type": "string"
+      },
       "PartnerOrderConfirmRequest": {
         "properties": {
           "action": {
@@ -7685,6 +7779,142 @@
         ]
       }
     },
+    "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke": {
+      "post": {
+        "operationId": "revoke_handoff_share_api_v1_pro_restaurants_partner_handoff_shares__share_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "title": "Share Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerHandoffShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Share not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Revoke Handoff Share",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status": {
+      "get": {
+        "operationId": "get_handoff_share_status_api_v1_pro_restaurants_partner_handoff_shares__share_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "title": "Share Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerHandoffShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Share revoked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Share not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Share expired"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Handoff Share Status",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
     "/api/v1/pro/restaurants/partner/orders": {
       "post": {
         "operationId": "create_partner_order_api_v1_pro_restaurants_partner_orders_post",
@@ -7929,6 +8159,74 @@
           }
         ],
         "summary": "Confirm Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares": {
+      "post": {
+        "operationId": "issue_handoff_share_api_v1_pro_restaurants_partner_orders__order_id__handoff_shares_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerHandoffShareIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerHandoffShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Order not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid handoff payload"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Issue Handoff Share",
         "tags": [
           "pro",
           "restaurants"

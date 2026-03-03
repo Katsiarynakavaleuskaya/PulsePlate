@@ -71,6 +71,31 @@ Current implementation baseline (contract-first):
 - Legacy `/api/v1/restaurants/*` remains backward-compatible and is not changed by this contract track.
 - Evidence: `app/routers/restaurants.py:25`
 
+## W3-R2 Contract Surface (consent + signed handoff)
+
+Canonical non-breaking PRO endpoints (contract-first seam):
+
+- `POST /api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares`
+  - `201` issued, `404` order not found, `422` invalid payload.
+- `GET /api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status`
+  - `200` active, `403` revoked (fail-closed), `410` expired (fail-closed), `404` not found.
+- `POST /api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke`
+  - `200` revoked (idempotent), `404` not found.
+
+Audit fields (fixed in contract):
+
+- `issuer`
+- `partner_id`
+- `issued_at`
+- `expires_at`
+- `revoked_at`
+
+Evidence anchors:
+
+- Endpoints: `app/routers/pro_restaurant_partner.py:146`, `app/routers/pro_restaurant_partner.py:176`, `app/routers/pro_restaurant_partner.py:201`
+- Contract models: `app/schemas/restaurant_partner.py:160`, `app/schemas/restaurant_partner.py:166`
+- Fail-closed semantics (`403/410`): `app/routers/pro_restaurant_partner.py:194`, `app/routers/pro_restaurant_partner.py:196`
+
 Temporary seam governance (contract-first -> persistent integration):
 
 - ADR: `docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md` (explicit seam and exit conditions).
