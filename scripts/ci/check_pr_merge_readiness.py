@@ -134,6 +134,14 @@ def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
             }
             nodes {
               isResolved
+              isOutdated
+              comments(first: 1) {
+                nodes {
+                  author {
+                    login
+                  }
+                }
+              }
             }
           }
         }
@@ -157,7 +165,13 @@ def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
             .get("reviewThreads", {})
         )
         nodes = threads.get("nodes", [])
-        total += sum(1 for item in nodes if item and not item.get("isResolved", False))
+        total += sum(
+            1
+            for item in nodes
+            if item
+            and not item.get("isResolved", False)
+            and not _is_non_conversation_security_thread(item)
+        )
         page_info = threads.get("pageInfo", {})
         if not page_info.get("hasNextPage", False):
             break
@@ -165,6 +179,13 @@ def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
         if not cursor:
             break
     return total
+
+
+def _is_non_conversation_security_thread(thread: dict[str, Any]) -> bool:
+    """Ignore GHAS code-scanning threads because they cannot be resolved as conversations."""
+    first_comment = ((thread.get("comments") or {}).get("nodes") or [None])[0] or {}
+    author = ((first_comment.get("author") or {}).get("login") or "").strip().lower()
+    return author == "github-advanced-security"
 
 
 def _api_request_paginated_list(base_url: str, token: str) -> list[Any]:
