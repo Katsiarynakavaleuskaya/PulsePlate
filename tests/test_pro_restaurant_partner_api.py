@@ -563,6 +563,70 @@ def test_revoke_handoff_share_idempotent_200(
     assert _json(second)["revoked_at"] is not None
 
 
+def test_get_handoff_share_status_forbidden_for_other_issuer_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-11b"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    issue = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
+        headers=pro_headers,
+        json={
+            "partner_id": "partner-3b",
+            "expires_in_minutes": 60,
+        },
+    )
+    assert issue.status_code == 201, issue.text
+    share_id = _json(issue)["share_id"]
+
+    status_resp = client.get(
+        f"/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status",
+        headers=vip_headers,
+    )
+    assert status_resp.status_code == 403
+    assert _json(status_resp) == {"detail": "share access forbidden"}
+
+
+def test_revoke_handoff_share_forbidden_for_other_issuer_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-11c"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    issue = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
+        headers=pro_headers,
+        json={
+            "partner_id": "partner-3c",
+            "expires_in_minutes": 60,
+        },
+    )
+    assert issue.status_code == 201, issue.text
+    share_id = _json(issue)["share_id"]
+
+    revoke = client.post(
+        f"/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke",
+        headers=vip_headers,
+    )
+    assert revoke.status_code == 403
+    assert _json(revoke) == {"detail": "share access forbidden"}
+
+
 def test_revoke_handoff_share_not_found_404(
     client: TestClient,
     pro_headers: dict[str, str],

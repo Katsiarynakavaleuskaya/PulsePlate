@@ -5228,6 +5228,15 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerHandoffShareResponse"];
                 };
             };
+            /** @description Share access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
             /** @description Share not found */
             404: {
                 headers: {
@@ -5268,7 +5277,7 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerHandoffShareResponse"];
                 };
             };
-            /** @description Share revoked */
+            /** @description Share revoked or access forbidden */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5497,9 +5506,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
-                };
+                content?: never;
             };
         };
     };

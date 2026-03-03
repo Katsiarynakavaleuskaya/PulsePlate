@@ -54,6 +54,10 @@ class ShareExpiredError(TimeoutError):
     """Raised when handoff share is expired."""
 
 
+class ShareAccessForbiddenError(PermissionError):
+    """Raised when issuer tries to access a share owned by another issuer."""
+
+
 def _utc_now() -> datetime:
     """Return timezone-aware UTC timestamp."""
     return datetime.now(timezone.utc)
@@ -287,12 +291,18 @@ def issue_handoff_share(
         return issued_response
 
 
-def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
+def get_handoff_share_status(
+    share_id: str,
+    *,
+    requester_issuer: str,
+) -> PartnerHandoffShareResponse:
     """Read handoff share status with fail-closed revoked/expired behavior."""
     with _LOCK:
         payload = _SHARES.get(share_id)
         if payload is None:
             raise ShareNotFoundError("share not found")
+        if payload.get("issuer") != requester_issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
 
         if payload.get("revoked_at") is not None:
             payload["status"] = PartnerHandoffShareStatus.revoked.value
@@ -310,12 +320,18 @@ def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
         return status_response
 
 
-def revoke_handoff_share(share_id: str) -> PartnerHandoffShareResponse:
+def revoke_handoff_share(
+    share_id: str,
+    *,
+    requester_issuer: str,
+) -> PartnerHandoffShareResponse:
     """Revoke handoff share (idempotent)."""
     with _LOCK:
         payload = _SHARES.get(share_id)
         if payload is None:
             raise ShareNotFoundError("share not found")
+        if payload.get("issuer") != requester_issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
 
         if payload.get("revoked_at") is None:
             payload["revoked_at"] = _utc_now().isoformat()

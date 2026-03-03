@@ -161,7 +161,6 @@ def confirm_partner_order(
         },
         status.HTTP_422_UNPROCESSABLE_CONTENT: {
             "description": "Invalid handoff payload",
-            "model": PartnerOrderErrorResponse,
         },
     },
 )
@@ -196,7 +195,7 @@ def issue_handoff_share(
     response_model=PartnerHandoffShareResponse,
     responses={
         status.HTTP_403_FORBIDDEN: {
-            "description": "Share revoked",
+            "description": "Share revoked or access forbidden",
             "model": PartnerOrderErrorResponse,
         },
         status.HTTP_404_NOT_FOUND: {
@@ -209,13 +208,21 @@ def issue_handoff_share(
         },
     },
 )
-def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
+def get_handoff_share_status(
+    share_id: str,
+    x_api_key: str = Depends(require_pro_tier),
+) -> PartnerHandoffShareResponse:
     try:
-        return restaurant_partner_orders.get_handoff_share_status(share_id)
+        return restaurant_partner_orders.get_handoff_share_status(
+            share_id,
+            requester_issuer=_issuer_from_api_key(x_api_key),
+        )
     except restaurant_partner_orders.ShareNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc
+    except restaurant_partner_orders.ShareAccessForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except restaurant_partner_orders.ShareRevokedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except restaurant_partner_orders.ShareExpiredError as exc:
@@ -226,16 +233,28 @@ def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
     "/handoff/shares/{share_id}/revoke",
     response_model=PartnerHandoffShareResponse,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Share access forbidden",
+            "model": PartnerOrderErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Share not found",
             "model": PartnerOrderErrorResponse,
-        }
+        },
     },
 )
-def revoke_handoff_share(share_id: str) -> PartnerHandoffShareResponse:
+def revoke_handoff_share(
+    share_id: str,
+    x_api_key: str = Depends(require_pro_tier),
+) -> PartnerHandoffShareResponse:
     try:
-        return restaurant_partner_orders.revoke_handoff_share(share_id)
+        return restaurant_partner_orders.revoke_handoff_share(
+            share_id,
+            requester_issuer=_issuer_from_api_key(x_api_key),
+        )
     except restaurant_partner_orders.ShareNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc
+    except restaurant_partner_orders.ShareAccessForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
