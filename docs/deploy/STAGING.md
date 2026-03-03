@@ -217,14 +217,14 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 
 Set the **Environment variable** (Settings → Environments → staging → Environment variables):
 
-- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready.
-- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when `WEB_IOS_RELEASE_READY=true`.
+- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready. (`.github/workflows/cd.yml:83,98`)
+- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when `WEB_IOS_RELEASE_READY=true`. (`.github/workflows/cd.yml:83,98`)
 - `STAGING_DEPLOY_REQUIRED` = `true|false` (optional, default `false`) — controls whether a failed staging SSH deploy should fail the whole CD workflow. Keep `false` for non-blocking staging; set `true` when staging deploy must be strict/blocking.
 
 **Build-only policy (canonical):**
-- If `WEB_IOS_RELEASE_READY` is not `true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy).
-- If `WEB_IOS_RELEASE_READY=true` and `STAGING_DEPLOY_ENABLED=true`, deploy runs when required secrets are present.
-- If deploy is enabled but `SSH_KEY` or `SSH_HOST_STAGING` is missing, deploy/healthcheck steps are skipped and workflow stays green.
+- If `WEB_IOS_RELEASE_READY` is not `true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy). (`.github/workflows/cd.yml:67-77,83,98`)
+- If `WEB_IOS_RELEASE_READY=true` and `STAGING_DEPLOY_ENABLED=true`, deploy runs when required secrets are present. (`.github/workflows/cd.yml:83-99`)
+- If deploy is enabled but `SSH_KEY` or `SSH_HOST_STAGING` is missing, deploy/healthcheck steps are skipped and workflow stays green. (`.github/workflows/cd.yml:81-93,98,127`)
 
 Add these **secrets** to the `staging` environment:
 

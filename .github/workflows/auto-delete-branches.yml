@@ -31,10 +31,14 @@ jobs:
           if [ "$http_code" = "204" ] || [ "$http_code" = "404" ]; then
             echo "✅ Branch deleted or already gone (HTTP $http_code)"
           elif [ "$http_code" = "422" ]; then
-            if grep -qiE "Reference does not exist|already exists|cannot delete|Validation Failed" "$response_file"; then
+            if grep -qiE "Reference does not exist|reference.*not found|already gone|already deleted" "$response_file"; then
               # Idempotent-safe fallback: API can return 422 for already-removed refs
               # during races with manual/automatic branch deletion.
               echo "✅ Branch deletion is idempotent-safe (HTTP 422; ref already handled)"
+            elif grep -qi "Cannot delete a protected branch" "$response_file"; then
+              echo "❌ Cannot delete protected branch (HTTP 422)"
+              cat "$response_file"
+              exit 1
             else
               echo "❌ Failed to delete branch (HTTP 422)"
               cat "$response_file"
