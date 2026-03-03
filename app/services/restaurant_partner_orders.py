@@ -33,6 +33,26 @@ _CONFIRM_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
 _SHARES: dict[str, dict[str, Any]] = {}
 
 
+class OrderNotFoundError(KeyError):
+    """Raised when partner flow references unknown order."""
+
+
+class ShareNotFoundError(KeyError):
+    """Raised when handoff share is missing."""
+
+
+class PartnerConsentRequiredError(PermissionError):
+    """Raised when partner handoff consent is missing."""
+
+
+class ShareRevokedError(PermissionError):
+    """Raised when handoff share is revoked."""
+
+
+class ShareExpiredError(TimeoutError):
+    """Raised when handoff share is expired."""
+
+
 def _utc_now() -> datetime:
     """Return timezone-aware UTC timestamp."""
     return datetime.now(timezone.utc)
@@ -234,7 +254,13 @@ def issue_handoff_share(
     with _LOCK:
         order_payload = _ORDERS.get(order_id)
         if order_payload is None:
-            raise KeyError("order not found")
+            raise OrderNotFoundError("order not found")
+
+        consent_payload = order_payload.get("consent") or {}
+        if not bool(consent_payload.get("consent_share_with_partner")):
+            raise PartnerConsentRequiredError("partner consent required")
+        if expires_in_minutes <= 0:
+            raise ValueError("expires_in_minutes must be > 0")
 
         now = _utc_now()
         expires_at = now + timedelta(minutes=expires_in_minutes)
@@ -265,16 +291,16 @@ def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
     with _LOCK:
         payload = _SHARES.get(share_id)
         if payload is None:
-            raise KeyError("share not found")
+            raise ShareNotFoundError("share not found")
 
         if payload.get("revoked_at") is not None:
             payload["status"] = PartnerHandoffShareStatus.revoked.value
-            raise PermissionError("share revoked")
+            raise ShareRevokedError("share revoked")
 
         expires_at = datetime.fromisoformat(payload["expires_at"])
-        if expires_at < _utc_now():
+        if expires_at <= _utc_now():
             payload["status"] = PartnerHandoffShareStatus.expired.value
-            raise TimeoutError("share expired")
+            raise ShareExpiredError("share expired")
 
         payload["status"] = PartnerHandoffShareStatus.active.value
         status_response: PartnerHandoffShareResponse = PartnerHandoffShareResponse.model_validate(
@@ -288,7 +314,7 @@ def revoke_handoff_share(share_id: str) -> PartnerHandoffShareResponse:
     with _LOCK:
         payload = _SHARES.get(share_id)
         if payload is None:
-            raise KeyError("share not found")
+            raise ShareNotFoundError("share not found")
 
         if payload.get("revoked_at") is None:
             payload["revoked_at"] = _utc_now().isoformat()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import hashlib
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -423,15 +424,17 @@ def test_issue_handoff_share_happy_path(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-1",
             "partner_id": "partner-1",
             "expires_in_minutes": 60,
         },
     )
     assert issue.status_code == 201, issue.text
     payload = _json(issue)
+    expected_issuer = (
+        f"api_key:{hashlib.sha256(pro_headers['X-API-Key'].encode('utf-8')).hexdigest()[:12]}"
+    )
     assert payload["order_id"] == order_id
-    assert payload["issuer"] == "user-1"
+    assert payload["issuer"] == expected_issuer
     assert payload["partner_id"] == "partner-1"
     assert payload["issued_at"] is not None
     assert payload["expires_at"] is not None
@@ -443,7 +446,6 @@ def test_issue_handoff_share_requires_pro_tier(client: TestClient) -> None:
     response = client.post(
         "/api/v1/pro/restaurants/partner/orders/order-1/handoff/shares",
         json={
-            "issuer": "user-2",
             "partner_id": "partner-2",
             "expires_in_minutes": 60,
         },
@@ -459,7 +461,6 @@ def test_issue_handoff_share_unknown_order_404(
         "/api/v1/pro/restaurants/partner/orders/missing-order/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-1",
             "partner_id": "partner-1",
             "expires_in_minutes": 60,
         },
@@ -482,7 +483,6 @@ def test_get_handoff_share_status_revoked_403(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-2",
             "partner_id": "partner-2",
             "expires_in_minutes": 60,
         },
@@ -500,6 +500,7 @@ def test_get_handoff_share_status_revoked_403(
         headers=pro_headers,
     )
     assert status_resp.status_code == 403
+    assert _json(status_resp) == {"detail": "share revoked"}
 
 
 def test_get_handoff_share_status_active_200(
@@ -516,7 +517,6 @@ def test_get_handoff_share_status_active_200(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-2b",
             "partner_id": "partner-2b",
             "expires_in_minutes": 60,
         },
@@ -544,7 +544,6 @@ def test_revoke_handoff_share_idempotent_200(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-3",
             "partner_id": "partner-3",
             "expires_in_minutes": 60,
         },
@@ -592,7 +591,6 @@ def test_get_handoff_share_status_expired_410(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         headers=pro_headers,
         json={
-            "issuer": "user-4",
             "partner_id": "partner-4",
             "expires_in_minutes": 1,
         },
@@ -606,13 +604,14 @@ def test_get_handoff_share_status_expired_410(
     monkeypatch.setattr(
         restaurant_partner_orders,
         "_utc_now",
-        lambda: expires_at + timedelta(seconds=1),
+        lambda: expires_at,
     )
     status_resp = client.get(
         f"/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status",
         headers=pro_headers,
     )
     assert status_resp.status_code == 410
+    assert _json(status_resp) == {"detail": "share expired"}
 
 
 def test_get_handoff_share_status_not_found_404(
@@ -624,3 +623,56 @@ def test_get_handoff_share_status_not_found_404(
         headers=pro_headers,
     )
     assert response.status_code == 404
+    assert _json(response) == {"detail": "Share not found"}
+
+
+def test_issue_handoff_share_requires_partner_consent_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-13"},
+    )
+    order_id = _json(created)["id"]
+
+    from app.services import restaurant_partner_orders
+
+    with restaurant_partner_orders._LOCK:  # noqa: SLF001
+        restaurant_partner_orders._ORDERS[order_id]["consent"][  # noqa: SLF001
+            "consent_share_with_partner"
+        ] = False
+
+    issue = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
+        headers=pro_headers,
+        json={
+            "partner_id": "partner-5",
+            "expires_in_minutes": 60,
+        },
+    )
+    assert issue.status_code == 403
+    assert _json(issue) == {"detail": "partner consent required"}
+
+
+def test_issue_handoff_share_service_ttl_guard_value_error(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-14"},
+    )
+    order_id = _json(created)["id"]
+
+    from app.services import restaurant_partner_orders
+
+    with pytest.raises(ValueError, match="expires_in_minutes must be > 0"):
+        restaurant_partner_orders.issue_handoff_share(
+            order_id=order_id,
+            issuer="test-issuer",
+            partner_id="partner-ttl",
+            expires_in_minutes=0,
+        )

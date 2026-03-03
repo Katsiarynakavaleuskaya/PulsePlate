@@ -7,6 +7,8 @@ EN: Contract-first endpoints for `menu -> partner` flow.
 
 from __future__ import annotations
 
+import hashlib
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.middleware.api_tiers import require_pro_tier
@@ -27,6 +29,12 @@ router = APIRouter(
     tags=["pro", "restaurants"],
     dependencies=[Depends(require_pro_tier)],
 )
+
+
+def _issuer_from_api_key(api_key: str) -> str:
+    """Build stable non-reversible issuer marker from authenticated API key."""
+    digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
+    return f"api_key:{digest}"
 
 
 @router.post(
@@ -100,6 +108,10 @@ def get_partner_order(order_id: str) -> PartnerOrderResponse:
     "/orders/{order_id}/confirm",
     response_model=PartnerOrderResponse,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Partner consent required",
+            "model": PartnerOrderErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Order not found",
             "model": PartnerOrderErrorResponse,
@@ -157,17 +169,25 @@ def confirm_partner_order(
 def issue_handoff_share(
     order_id: str,
     payload: PartnerHandoffShareIssueRequest,
+    x_api_key: str = Depends(require_pro_tier),
 ) -> PartnerHandoffShareResponse:
     try:
         issued = restaurant_partner_orders.issue_handoff_share(
             order_id=order_id,
-            issuer=payload.issuer,
+            issuer=_issuer_from_api_key(x_api_key),
             partner_id=payload.partner_id,
             expires_in_minutes=payload.expires_in_minutes,
         )
-    except KeyError as exc:
+    except restaurant_partner_orders.OrderNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
+        ) from exc
+    except restaurant_partner_orders.PartnerConsentRequiredError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
         ) from exc
     return issued
 
@@ -193,13 +213,13 @@ def issue_handoff_share(
 def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
     try:
         return restaurant_partner_orders.get_handoff_share_status(share_id)
-    except KeyError as exc:
+    except restaurant_partner_orders.ShareNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc
-    except PermissionError as exc:
+    except restaurant_partner_orders.ShareRevokedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except TimeoutError as exc:
+    except restaurant_partner_orders.ShareExpiredError as exc:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
 
 
@@ -216,7 +236,7 @@ def get_handoff_share_status(share_id: str) -> PartnerHandoffShareResponse:
 def revoke_handoff_share(share_id: str) -> PartnerHandoffShareResponse:
     try:
         return restaurant_partner_orders.revoke_handoff_share(share_id)
-    except KeyError as exc:
+    except restaurant_partner_orders.ShareNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc

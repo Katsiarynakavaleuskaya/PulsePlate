@@ -3272,12 +3272,6 @@
             "title": "Expires In Minutes",
             "type": "integer"
           },
-          "issuer": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Issuer",
-            "type": "string"
-          },
           "partner_id": {
             "maxLength": 128,
             "minLength": 1,
@@ -3286,7 +3280,6 @@
           }
         },
         "required": [
-          "issuer",
           "partner_id",
           "expires_in_minutes"
         ],
@@ -8121,6 +8114,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Partner consent required"
           },
           "404": {
             "content": {

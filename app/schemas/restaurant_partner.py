@@ -164,7 +164,6 @@ class PartnerOrderConfirmRequest(BaseModel):
 
 
 class PartnerHandoffShareIssueRequest(BaseModel):
-    issuer: str = Field(..., min_length=1, max_length=128)
     partner_id: str = Field(..., min_length=1, max_length=128)
     expires_in_minutes: int = Field(..., ge=1, le=60 * 24 * 30)
 

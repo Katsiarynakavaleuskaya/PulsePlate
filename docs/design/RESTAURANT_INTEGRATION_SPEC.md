@@ -95,6 +95,7 @@ Evidence anchors:
 - Endpoints: `app/routers/pro_restaurant_partner.py:146`, `app/routers/pro_restaurant_partner.py:176`, `app/routers/pro_restaurant_partner.py:201`
 - Contract models: `app/schemas/restaurant_partner.py:160`, `app/schemas/restaurant_partner.py:166`
 - Fail-closed semantics (`403/410`): `app/routers/pro_restaurant_partner.py:194`, `app/routers/pro_restaurant_partner.py:196`
+- Revoke idempotency enforcement + test: `app/services/restaurant_partner_orders.py:302`, `tests/test_pro_restaurant_partner_api.py:541`
 
 Temporary seam governance (contract-first -> persistent integration):
 

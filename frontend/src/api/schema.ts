@@ -2963,8 +2963,6 @@ export interface components {
         PartnerHandoffShareIssueRequest: {
             /** Expires In Minutes */
             expires_in_minutes: number;
-            /** Issuer */
-            issuer: string;
             /** Partner Id */
             partner_id: string;
         };
@@ -5421,6 +5419,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartnerOrderResponse"];
+                };
+            };
+            /** @description Partner consent required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
                 };
             };
             /** @description Order not found */
