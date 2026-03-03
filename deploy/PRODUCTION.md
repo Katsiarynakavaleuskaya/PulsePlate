@@ -24,6 +24,8 @@ Canonical policy:
 
 - While web and iOS are not release-ready, keep `WEB_IOS_RELEASE_READY` unset or `false`.
 - In this state, CD remains build/validation only (no production deploy), while image build/push can still run.
+- In this state, `pulseplate-staging.duckdns.org` is served by a fallback vhost in `deploy/Caddyfile.production`
+  to keep staging HTTPS alive and avoid TLS handshake failures.
 - Enable real production deploy only after release readiness is explicitly confirmed.
 
 ## Source of truth: production image
@@ -96,6 +98,7 @@ The production Caddy configuration is located at:
 **`deploy/Caddyfile.production`**
 
 It already contains a complete and secure reverse proxy setup using the `{$PRODUCTION_DOMAIN}` environment variable and does not need to be created manually.
+It also contains a staging TLS fallback vhost for `pulseplate-staging.duckdns.org` used during build-only phases.
 
 **To use it on the production server:**
 
