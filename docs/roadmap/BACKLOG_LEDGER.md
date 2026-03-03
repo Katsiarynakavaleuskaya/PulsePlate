@@ -2996,7 +2996,7 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R2 — Consent + signed handoff contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD-W3-R2-CONSENT-HANDOFF
+  - Target PR: PR #960 (`feat(restaurants): W3-R2 consent + signed handoff contract`)
   - Status: 🟡 In progress
   - Reason: Partner access must be explicit, revocable, and auditable.
   - Links:
