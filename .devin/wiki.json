@@ -1,0 +1,191 @@
+{
+  "repo_notes": [
+    {
+      "content": "PulsePlate is a health and nutrition platform with a FastAPI backend, React web client, and SwiftUI iOS client. Documentation should prioritize architecture boundaries, public API contracts, and operational runbooks.",
+      "author": "Codex Coordinator"
+    },
+    {
+      "content": "Keep the wiki aligned with canonical project policies from AGENTS.md: thin-client rules for frontend/iOS, deterministic quality gates, and guarded API namespace governance.",
+      "author": "Codex Coordinator"
+    },
+    {
+      "content": "Food data is a strategic subsystem. Cover USDA/OFF ingestion, snapshot/update orchestration, canonical food store behavior, restaurant integration contracts, and rollout sequencing tracked in BACKLOG_LEDGER.",
+      "author": "Codex Coordinator"
+    },
+    {
+      "content": "For runtime understanding, emphasize exact ownership: app/ for HTTP/middleware/schemas, core/ for domain logic, providers/ for external adapters, deploy/ for runtime environments, tests/ for policy guards.",
+      "author": "Codex Coordinator"
+    },
+    {
+      "content": "Document both canonical and transitional surfaces explicitly where relevant, but keep public contract guidance stable and non-ambiguous for web/iOS consumers.",
+      "author": "Codex Coordinator"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Entry point for new contributors: product context, subsystem map, repository layout, request flow, tier routing, and local development quickstart.",
+      "parent": null
+    },
+    {
+      "title": "Backend",
+      "purpose": "FastAPI backend architecture, module ownership, routing model, and runtime composition across app/ and core/.",
+      "parent": "Overview"
+    },
+    {
+      "title": "API Gateway & Routing",
+      "purpose": "How requests enter the backend, router registration flow, middleware order, and endpoint exposure strategy.",
+      "parent": "Backend"
+    },
+    {
+      "title": "API Tiers & Access Control",
+      "purpose": "Tier-based access model, API key/session checks, and guard mechanisms enforcing FREE/PRO/VIP capabilities.",
+      "parent": "Backend"
+    },
+    {
+      "title": "FREE & PRO Tier Endpoints",
+      "purpose": "Document FREE and PRO endpoint groups, request/response patterns, and compatibility expectations.",
+      "parent": "Backend"
+    },
+    {
+      "title": "VIP Tier Endpoints",
+      "purpose": "Document VIP-only endpoint surface, registration rules, flags, and fail-closed behavior.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Core: Nutrition & Plate Calculation",
+      "purpose": "Core nutrition targets, BMI/TDEE/plate logic, and canonical domain computations in core/.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Core: Food Database Services",
+      "purpose": "Food lookup services, source normalization, provenance, and canonical food contracts used by API routes.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Core: Meal Planning",
+      "purpose": "Weekly/day planning logic, meal generation flow, and data dependencies for planning APIs.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Shopping List Generation & Export",
+      "purpose": "Shopping list pipeline, export flows, and safeguards for heavy endpoints.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Database Layer",
+      "purpose": "SQLAlchemy session lifecycle, model ownership, migration boundaries, and fallback behavior.",
+      "parent": "Backend"
+    },
+    {
+      "title": "LLM Integration & RAG",
+      "purpose": "LLM provider routing, RAG hooks, quota/rate-limit controls, and reliability constraints.",
+      "parent": "Backend"
+    },
+    {
+      "title": "Frontend",
+      "purpose": "React/Vite web architecture, page structure, thin HTTP adapter usage, and API contract consumption.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Application Structure & Build",
+      "purpose": "Frontend project layout, build pipeline, and local dev/runtime build behavior.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "API Client & Authentication",
+      "purpose": "Frontend API client architecture, auth token/key storage, and request-layer invariants.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Nutrition Setup Page",
+      "purpose": "UX/data flow of nutrition setup and how frontend binds to backend nutrition contracts.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Plate, Progress & Premium Features",
+      "purpose": "Core premium user journeys and frontend integration with pro/vip capabilities.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Shopping List & Weekly Plan Viewer",
+      "purpose": "Frontend rendering flows for weekly plans and shopping list data.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Internationalization",
+      "purpose": "Localization architecture, translation key ownership, and i18n runtime behavior.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Telemetry & Feature Flags",
+      "purpose": "Client telemetry hooks, feature-flag consumption, and guardrails for rollout safety.",
+      "parent": "Frontend"
+    },
+    {
+      "title": "Food Data Pipeline",
+      "purpose": "High-level architecture of food data ingestion, update orchestration, canonicalization, and serving path.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Data Sources & Ingestion",
+      "purpose": "External food sources, ingestion adapters, normalization logic, and snapshot/input contracts.",
+      "parent": "Food Data Pipeline"
+    },
+    {
+      "title": "Database Update Manager",
+      "purpose": "Versioning, checksums, backup/rollback, and scheduled update control for food datasets.",
+      "parent": "Food Data Pipeline"
+    },
+    {
+      "title": "Infrastructure & DevOps",
+      "purpose": "Deployment/runtime architecture, environment policy, CI/CD orchestration, and operational guardrails.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Docker & Containerization",
+      "purpose": "Container images, compose topology, health checks, and runtime packaging strategy.",
+      "parent": "Infrastructure & DevOps"
+    },
+    {
+      "title": "CI Pipelines",
+      "purpose": "CI workflow stages, required checks, and merge-gate semantics.",
+      "parent": "Infrastructure & DevOps"
+    },
+    {
+      "title": "Deployment",
+      "purpose": "Staging/production deployment workflows, release controls, and readiness policies.",
+      "parent": "Infrastructure & DevOps"
+    },
+    {
+      "title": "Development Tooling",
+      "purpose": "Developer tooling, local scripts, and productivity/quality helpers used in daily workflow.",
+      "parent": "Infrastructure & DevOps"
+    },
+    {
+      "title": "Testing & Quality",
+      "purpose": "Testing architecture, quality gates, and repository-level policy enforcement.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Testing Strategy & Infrastructure",
+      "purpose": "Test layers, deterministic smoke subsets, and environment setup for reliable CI/local runs.",
+      "parent": "Testing & Quality"
+    },
+    {
+      "title": "Repository Policies (AGENTS.md)",
+      "purpose": "Canonical engineering policies, hard gates, and collaboration/merge discipline.",
+      "parent": "Testing & Quality"
+    },
+    {
+      "title": "Dependency Management & Security",
+      "purpose": "Dependency lifecycle, security baseline updates, and supply-chain constraints.",
+      "parent": "Testing & Quality"
+    },
+    {
+      "title": "Bayesian Code Analyzers",
+      "purpose": "AI/bot/static analysis feedback loop, actionable comment handling, and merge-readiness mapping discipline.",
+      "parent": "Testing & Quality"
+    }
+  ]
+}
