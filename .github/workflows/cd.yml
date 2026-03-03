@@ -89,6 +89,8 @@ jobs:
           fi
 
       - name: Deploy to staging over SSH
+        id: deploy-staging
+        continue-on-error: true
         if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1'
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
@@ -104,8 +106,21 @@ jobs:
             cd /srv/pulseplate-staging
             ./deploy.sh '${{ github.sha }}'
 
+      - name: Handle staging deploy failure (non-blocking by default)
+        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1' && steps.deploy-staging.outcome == 'failure'
+        env:
+          STAGING_DEPLOY_REQUIRED: ${{ vars.STAGING_DEPLOY_REQUIRED }}
+        run: |
+          echo "::warning::Staging SSH deploy failed. Common cause: SSH_HOST_STAGING_FINGERPRINT is outdated (host key rotated)."
+          echo "::warning::Rotate staging host fingerprint secret and re-run CD."
+          if [ "${STAGING_DEPLOY_REQUIRED:-false}" = "true" ]; then
+            echo "::error::STAGING_DEPLOY_REQUIRED=true, failing workflow due to staging deploy failure."
+            exit 1
+          fi
+          echo "Continuing because STAGING_DEPLOY_REQUIRED is not true."
+
       - name: Healthcheck (staging)
-        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1'
+        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1' && steps.deploy-staging.outcome == 'success'
         run: |
           set -euo pipefail
           for i in 1 2 3; do
