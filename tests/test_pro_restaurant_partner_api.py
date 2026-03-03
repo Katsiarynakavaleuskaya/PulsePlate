@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -239,3 +241,94 @@ def test_confirm_partner_order_not_found_404(
         json={"confirmed_by": "partner-user-4"},
     )
     assert response.status_code == 404
+
+
+def test_confirm_partner_order_idempotency_conflict_409(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-7"},
+    )
+    order_id = created.json()["id"]
+
+    first = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={
+            "confirmed_by": "partner-user-5",
+            "client_event_id": "evt-confirm-conflict",
+            "note": "Partner accepted with note",
+        },
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["customer_note"] == "Partner accepted with note"
+
+    second = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={
+            "confirmed_by": "partner-user-5",
+            "client_event_id": "evt-confirm-conflict",
+            "note": "Different note",
+        },
+    )
+    assert second.status_code == 409
+
+
+def test_preview_partner_order_invalid_currency_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    draft = _sample_draft()
+    draft["currency"] = "US1"
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/preview",
+        headers=pro_headers,
+        json={"draft": draft},
+    )
+    assert response.status_code == 422
+
+
+def test_preview_partner_order_null_schedule_is_accepted(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    draft = _sample_draft()
+    draft["scheduled_for"] = None
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/preview",
+        headers=pro_headers,
+        json={"draft": draft},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_preview_partner_order_past_schedule_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    draft = _sample_draft()
+    draft["scheduled_for"] = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/preview",
+        headers=pro_headers,
+        json={"draft": draft},
+    )
+    assert response.status_code == 422
+
+
+def test_preview_partner_order_future_schedule_200(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    draft = _sample_draft()
+    draft["scheduled_for"] = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/preview",
+        headers=pro_headers,
+        json={"draft": draft},
+    )
+    assert response.status_code == 200, response.text
