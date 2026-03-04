@@ -439,7 +439,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 **Wellness language BLOCKER guard (docs safety):**
 
-- Docs/public copy must pass wellness language blockers guard (no medical claims; allowlist only for explicit policy examples).
+- Docs/public copy must pass wellness language blocker guard (no medical claims; allowlist only for explicit policy examples).
 - Guard test: `tests/guards/test_wellness_language_blockers_guard.py`
 - Allowlist: `tests/guards/wellness_language_allowlist.txt`; in-file marker: `pulseplate-allow:blocker-example`
 

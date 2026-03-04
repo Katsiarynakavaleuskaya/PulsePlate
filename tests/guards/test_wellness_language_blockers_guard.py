@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Pattern, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -79,33 +79,38 @@ def _iter_files(root: Path) -> Iterable[Path]:
         yield p
 
 
-def _load_allowlist() -> List[str]:
+def _load_allowlist() -> List[Pattern[str]]:
+    """Load and compile allowlist regexes once (avoids recompilation per line)."""
     allow_path = REPO_ROOT / "tests" / "guards" / "wellness_language_allowlist.txt"
     if not allow_path.exists():
         return []
-    lines: List[str] = []
+    patterns: List[Pattern[str]] = []
     for raw in allow_path.read_text(encoding="utf-8").splitlines():
         s = raw.strip()
         if not s or s.startswith("#"):
             continue
-        lines.append(s)
-    return lines
+        try:
+            patterns.append(re.compile(s, re.IGNORECASE))
+        except re.error:
+            continue
+    return patterns
 
 
-def _is_allowlisted(path: Path, line: str, allow_regexes: List[str]) -> bool:
+def _is_allowlisted(path: Path, line: str, allow_patterns: List[Pattern[str]]) -> bool:
     try:
         rel = path.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         rel = path.as_posix()
-    for rx in allow_regexes:
-        if re.search(rx, f"{rel}::{line}", flags=re.IGNORECASE):
+    composite = f"{rel}::{line}"
+    for pat in allow_patterns:
+        if pat.search(composite):
             return True
     return False
 
 
 def test_wellness_language_blockers_guard() -> None:
     """Fail if docs/ contains medical claims (wellness-only posture)."""
-    allow_regexes = _load_allowlist()
+    allow_patterns = _load_allowlist()
     findings: List[Finding] = []
 
     for root in SCAN_DIRS:
@@ -113,9 +118,11 @@ def test_wellness_language_blockers_guard() -> None:
             continue
 
         for file_path in _iter_files(root):
+            if not file_path.exists():
+                continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
+            except (UnicodeDecodeError, FileNotFoundError, OSError):
                 continue
 
             for idx, line in enumerate(text.splitlines(), start=1):
@@ -124,7 +131,7 @@ def test_wellness_language_blockers_guard() -> None:
 
                 for code, pattern in BLOCKER_PATTERNS:
                     if pattern.search(line):
-                        if _is_allowlisted(file_path, line, allow_regexes):
+                        if _is_allowlisted(file_path, line, allow_patterns):
                             continue
                         findings.append(
                             Finding(
@@ -158,4 +165,13 @@ def test_wellness_guard_blocks_medical_claim_ru() -> None:
         if code == "WELLNESS_MEDICAL_CLAIM_RU":
             assert pattern.search("Мы вылечим тревожность за 2 недели.")
             assert pattern.search("FFMI лечит недостаток мышц.")
+            break
+
+
+def test_wellness_guard_blocks_medical_claim_en() -> None:
+    """Guard must fail when EN medical claim appears (negative test)."""
+    for code, pattern in BLOCKER_PATTERNS:
+        if code == "WELLNESS_MEDICAL_CLAIM_EN":
+            assert pattern.search("We cure anxiety quickly.")
+            assert pattern.search("This cures your condition.")
             break

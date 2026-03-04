@@ -3246,11 +3246,11 @@ If it is not recorded here — it does not exist.
     - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
     - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
-- [x] P2: Guards — wellness language blocker (docs safety)
+- [ ] P2: Guards — wellness language blocker (docs safety)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (quality / safety)
   - Target PR: PR #969 (test/guards-wellness-language-blockers)
-  - Status: ✅ Implemented (guard test merged)
+  - Status: 🟡 In progress (implemented in PR #969; close after merge)
   - Reason (EN): Deterministic CI guard to block medical/diagnostic claims in docs and public copy (wellness-only posture). Blocks RU+EN phrases: лечит, вылечит, вылечим, исцелит, диагноз, диагностирую, диагностирует; allowlist for policy docs.
   - Links:
     - `tests/guards/test_wellness_language_blockers_guard.py`
