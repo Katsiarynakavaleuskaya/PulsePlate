@@ -29,13 +29,26 @@ from app.schemas.restaurant_partner import (
 _LOCK = threading.Lock()
 _ORDERS: dict[str, dict[str, Any]] = {}
 _CREATE_EVENTS: dict[tuple[str, str, str], tuple[str, str]] = {}
-_CONFIRM_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
+_CONFIRM_EVENTS: dict[tuple[str, str, str], tuple[str, str]] = {}
 _SHARES: dict[str, dict[str, Any]] = {}
 MAX_SHARE_TTL_MINUTES = 60 * 24 * 30
+_GONE_ORDER_STATUSES = {
+    PartnerOrderStatus.rejected.value,
+    PartnerOrderStatus.fulfilled.value,
+    PartnerOrderStatus.cancelled.value,
+}
 
 
 class OrderNotFoundError(KeyError):
     """Raised when partner flow references unknown order."""
+
+
+class OrderAccessForbiddenError(PermissionError):
+    """Raised when issuer tries to access an order owned by another issuer."""
+
+
+class OrderGoneError(RuntimeError):
+    """Raised when order is terminal/gone for retrieval-confirm flow."""
 
 
 class ShareNotFoundError(KeyError):
@@ -67,6 +80,13 @@ def _payload_hash(payload: dict[str, Any]) -> str:
     """Build deterministic payload hash for idempotency checks."""
     dumped = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
+
+
+def _status_value(raw_status: Any) -> str:
+    """Normalize enum/string status to a plain value for deterministic checks."""
+    if isinstance(raw_status, PartnerOrderStatus):
+        return raw_status.value
+    return str(raw_status)
 
 
 def _build_preview_items(draft: PartnerOrderDraft) -> list[PartnerOrderItemPreview]:
@@ -173,12 +193,16 @@ def create_order(
         return created, True
 
 
-def get_order(order_id: str) -> PartnerOrderResponse | None:
+def get_order(order_id: str, *, issuer: str) -> PartnerOrderResponse | None:
     """Return stored order by ID."""
     with _LOCK:
         payload = _ORDERS.get(order_id)
         if payload is None:
             return None
+        if payload.get("issuer") != issuer:
+            raise OrderAccessForbiddenError("order access forbidden")
+        if _status_value(payload.get("status")) in _GONE_ORDER_STATUSES:
+            raise OrderGoneError("order gone")
         order: PartnerOrderResponse = PartnerOrderResponse.model_validate(deepcopy(payload))
         return order
 
@@ -186,6 +210,7 @@ def get_order(order_id: str) -> PartnerOrderResponse | None:
 def confirm_order(
     *,
     order_id: str,
+    issuer: str,
     confirmed_by: str,
     client_event_id: str | None,
     note: str | None,
@@ -206,9 +231,11 @@ def confirm_order(
         payload = _ORDERS.get(order_id)
         if payload is None:
             raise KeyError("order not found")
+        if payload.get("issuer") != issuer:
+            raise OrderAccessForbiddenError("order access forbidden")
 
         if client_event_id:
-            confirm_key = (order_id, client_event_id)
+            confirm_key = (issuer, order_id, client_event_id)
             existing = _CONFIRM_EVENTS.get(confirm_key)
             if existing is not None:
                 _, existing_hash = existing
@@ -218,6 +245,9 @@ def confirm_order(
                     deepcopy(payload)
                 )
                 return replay_response, False
+
+        if _status_value(payload.get("status")) in _GONE_ORDER_STATUSES:
+            raise OrderGoneError("order gone")
 
         current = payload["status"]
         if current != PartnerOrderStatus.pending_partner.value:
@@ -233,7 +263,7 @@ def confirm_order(
             payload["customer_note"] = note
 
         if client_event_id:
-            _CONFIRM_EVENTS[(order_id, client_event_id)] = (order_id, confirm_hash)
+            _CONFIRM_EVENTS[(issuer, order_id, client_event_id)] = (order_id, confirm_hash)
 
         confirmed_response: PartnerOrderResponse = PartnerOrderResponse.model_validate(
             deepcopy(payload)

@@ -5386,8 +5386,26 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerOrderResponse"];
                 };
             };
+            /** @description Order access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
             /** @description Order not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Order gone */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5430,6 +5448,15 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerOrderResponse"];
                 };
             };
+            /** @description Order access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
             /** @description Order not found */
             404: {
                 headers: {
@@ -5441,6 +5468,15 @@ export interface operations {
             };
             /** @description client_event_id conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Order gone */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
