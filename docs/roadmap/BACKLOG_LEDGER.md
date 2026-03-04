@@ -3261,7 +3261,7 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Philosophy Validator (runtime LLM output validation)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (quality / safety)
-  - Target PR: feat/philosophy-validator-core
+  - Target PR: PR #972 (`feat/philosophy-validator-core`)
   - Status: 🔄 IN PROGRESS
   - Reason (EN): Deterministic runtime validator for LLM outputs used in product copy/coaching. `validate_llm_output(text, domain=None) -> Report`; BLOCKER codes: WELLNESS_MEDICAL_CLAIM_*, WELLNESS_GUARANTEE, NON_FALSIFIABLE_VAGUE, POTENTIAL_CONTRADICTION. No network, regex/rules only. Coordinator can require rewrite before merge.
   - Links:

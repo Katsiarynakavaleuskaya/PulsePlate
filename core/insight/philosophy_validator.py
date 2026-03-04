@@ -30,7 +30,9 @@ _BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     (
         "WELLNESS_MEDICAL_CLAIM_EN",
         re.compile(
-            r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose|cures?\s+your|cures?\s+the)\b",
+            r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose"
+            r"|cures?\s+your|cures?\s+the|diagnoses?\s+your|diagnoses?\s+the"
+            r"|(?:this|it)\s+(?:cures?|diagnoses?))\b",
             re.IGNORECASE,
         ),
     ),
@@ -96,4 +98,5 @@ def validate_llm_output(text: str, *, domain: str | None = None) -> Report:
     for code, pattern in _BLOCKER_PATTERNS:
         for m in pattern.finditer(text):
             blockers.append(Finding(code=code, start=m.start(), end=m.end(), matched=m.group(0)))
+    blockers.sort(key=lambda b: b.start)
     return Report(ok=len(blockers) == 0, blockers=blockers, domain=domain)

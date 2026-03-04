@@ -31,7 +31,21 @@ def test_validate_llm_output_blocks_ru_medical_claim() -> None:
 
 
 def test_validate_llm_output_blocks_ru_diagnosis() -> None:
-    """RU diagnosis claim blocks."""
+    """RU diagnosis claim (диагноз) blocks."""
+    r = validate_llm_output("Мы поставим вам диагноз депрессии.")
+    assert r.ok is False
+    assert any(b.code == "WELLNESS_MEDICAL_CLAIM_RU" for b in r.blockers)
+
+
+def test_validate_llm_output_blocks_ru_diagnosis_case_insensitive() -> None:
+    """RU diagnosis claim blocks regardless of case (re.IGNORECASE)."""
+    r = validate_llm_output("МЫ ПОСТАВИМ ВАМ ДИАГНОЗ ТРЕВОЖНОСТИ.")
+    assert r.ok is False
+    assert any(b.code == "WELLNESS_MEDICAL_CLAIM_RU" for b in r.blockers)
+
+
+def test_validate_llm_output_blocks_ru_lechit() -> None:
+    """RU medical claim (лечит) blocks."""
     r = validate_llm_output("FFMI лечит недостаток мышц.")
     assert r.ok is False
     assert any(b.code == "WELLNESS_MEDICAL_CLAIM_RU" for b in r.blockers)
@@ -49,6 +63,29 @@ def test_validate_llm_output_blocks_en_will_diagnose() -> None:
     r = validate_llm_output("This will diagnose your condition.")
     assert r.ok is False
     assert any(b.code == "WELLNESS_MEDICAL_CLAIM_EN" for b in r.blockers)
+
+
+def test_validate_llm_output_blocks_en_this_cures() -> None:
+    """EN 'This cures X' blocks (broadened pattern)."""
+    r = validate_llm_output("This cures anxiety quickly.")
+    assert r.ok is False
+    assert any(b.code == "WELLNESS_MEDICAL_CLAIM_EN" for b in r.blockers)
+
+
+def test_validate_llm_output_blocks_en_it_diagnoses() -> None:
+    """EN 'It diagnoses X' blocks (broadened pattern)."""
+    r = validate_llm_output("It diagnoses depression accurately.")
+    assert r.ok is False
+    assert any(b.code == "WELLNESS_MEDICAL_CLAIM_EN" for b in r.blockers)
+
+
+def test_validate_llm_output_blockers_sorted_by_position() -> None:
+    """Blockers are sorted by start position (chronological order for UI)."""
+    r = validate_llm_output("We cure. However, we cure again.")
+    assert r.ok is False
+    assert len(r.blockers) >= 2
+    for i in range(len(r.blockers) - 1):
+        assert r.blockers[i].start <= r.blockers[i + 1].start
 
 
 def test_validate_llm_output_blocks_guarantee() -> None:
