@@ -19,14 +19,18 @@ from app.schemas.restaurant_partner import (
 
 def _extract_days(week_plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract canonical days list from supported weekly-plan wrappers."""
-    for candidate in (week_plan, week_plan.get("menu") or {}, week_plan.get("data") or {}):
+    for candidate in (week_plan, week_plan.get("menu"), week_plan.get("data")):
+        if not isinstance(candidate, dict):
+            continue
         days = candidate.get("days")
         if isinstance(days, list):
             return [day for day in days if isinstance(day, dict)]
 
-    daily_menus = (week_plan.get("data") or {}).get("daily_menus")
-    if isinstance(daily_menus, list):
-        return [day for day in daily_menus if isinstance(day, dict)]
+    data_node = week_plan.get("data")
+    if isinstance(data_node, dict):
+        daily_menus = data_node.get("daily_menus")
+        if isinstance(daily_menus, list):
+            return [day for day in daily_menus if isinstance(day, dict)]
 
     raise ValueError("week_plan must contain days/menu.days/data.daily_menus list")
 
