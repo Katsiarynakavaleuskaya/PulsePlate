@@ -2372,16 +2372,20 @@ If it is not recorded here — it does not exist.
     - Paywall router/navigation handler implemented
     - SoftPaywallHookView CTA wired to navigation
     - No TODO comments in production code
-- [ ] Optional: CI script guard for iOS (repo-wide scan)
+- [ ] P1: iOS open-source implementation gate (repo-wide scan + thin-client conformance)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: TBD
-  - Reason: current Swift Testing guard is sufficient; script is hardening
+  - Target PR: PR-TBD-IOS-OSS-IMPLEMENTATION-GATE
+  - Status: 🟡 Prioritized
+  - Reason: Product quality now depends on deterministic iOS conformance checks before merge; Swift guard tests exist, but we need a repo-wide open-source gate that validates implementation patterns and prevents silent drift.
   - Links:
     - docs/audit/PR_559_ANTI_DUPLICATION_GUARDS.md
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+    - docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md
   - DoD:
     - GH Actions step scans iOS app Swift sources for forbidden patterns
     - Excludes fixtures/mocks
+    - Thin-client/APIClient invariants are enforced in CI for changed iOS files
     - Documented in ios/AGENTS.md
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
@@ -3160,12 +3164,89 @@ If it is not recorded here — it does not exist.
     - Community features complete (Social Network + Gamification + Restaurant)
     - End-to-end user journeys documented and tested
 
+<a id="ledger-p0-master-checklist-triage"></a>
+- [ ] P0: Master checklist phase-fit triage (PulsePlate_Master_Checklist v1.0)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (program alignment / scope control)
+  - Target PR: PR-TBD-MASTER-CHECKLIST-TRIAGE
+  - Status: 🟡 In progress (docs triage)
+  - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
+  - Links:
+    - docs/roadmap/BACKLOG_LEDGER.md
+    - docs/roadmap/PulsePlate_Master_Checklist_v1.0.md:1
+    - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+  - DoD:
+    - Every checklist item is mapped to one of: `Now`, `Next`, `Later`, `Deferred`
+    - `Now` items are represented by explicit backlog entries with owner + DoD + target PR
+    - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
+    - No duplicate or conflicting ownership across active worktrees
+
+<a id="ledger-p0-payments-ruby-ios"></a>
+- [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (revenue continuity)
+  - Target PR: PR-TBD-PAYMENTS-RUBY-IOS-BASELINE
+  - Status: 📋 Planned
+  - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
+  - Links:
+    - docs/contracts/PRODUCT_TIER_MAP.md
+    - ios/PulsePlate/Services/ProKeyProvider.swift:1
+    - app/routers/pro_registration.py:1
+  - Prerequisites:
+    - ✅ Tier activation contract exists (FREE/PRO/VIP)
+    - ⏳ Unified billing activation service is finalized for source-specific receipts
+  - DoD:
+    - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
+    - `activate_subscription()` contract supports all three sources with deterministic audit trail
+    - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
+    - API/webhook/error contracts are tested and non-breaking for existing clients
+
+<a id="ledger-p1-frontend-ai-parity"></a>
+- [ ] P1: Frontend parity for new AI-agent and LLM reliability features
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (quality visibility)
+  - Target PR: PR-TBD-FRONTEND-AI-PARITY
+  - Status: 📋 Planned
+  - Reason (EN): Backend quality features (RAG confidence, verification pipeline, recursive/philosophical controls) must be visible in web/iOS UX; otherwise quality work remains opaque and user trust/conversion suffers. (RU: Новые quality-фичи ИИ должны быть отражены во фронтенде; иначе улучшения качества не видны пользователю и не влияют на доверие/конверсию.)
+  - Links:
+    - frontend/src/api/openapi.json
+    - frontend/src/api/schema.ts
+    - docs/design/NUTRITION_COACHING_DESIGN.md
+    - docs/contracts/RAG_CONTRACT.md
+  - DoD:
+    - UI contracts for `sources[]`, confidence, verification state are aligned with backend schema
+    - Frontend/iOS screens for AI assistant reflect reliability state (validated / partial / fallback)
+    - Thin-client guards remain green; no business logic duplication on clients
+    - Deterministic contract tests added for new AI-quality response fields
+
+<a id="ledger-p1-scientific-reliability-pipeline"></a>
+- [ ] P1: Scientific reliability publication pipeline (blog + evidence artifacts)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (trust + GTM)
+  - Target PR: PR-TBD-SCIENTIFIC-RELIABILITY-BLOG
+  - Status: 📋 Planned
+  - Reason (EN): Product differentiation requires public, evidence-based communication of reliability methods (RAG grounding, philosophical validation, recursive verification) with reproducible metrics and no medical overclaiming. (RU: Для дифференциации нужен публичный научно-достоверный контент по quality-подходу без медикал-оверклеймов.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md
+  - DoD:
+    - Editorial plan and evidence format are documented (metrics, caveats, claim boundaries)
+    - At least one canonical article draft is mapped to verifiable repo artifacts
+    - Marketing copy checklist includes wellness-safe and evidence-only claims
+
+<a id="ledger-p1-philosophical-logic"></a>
 - [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on reliability)
-  - Target PR: TBD (implementation after design review)
-  - Status: 📋 Design Complete
-  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Expected impact: reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Ожидаемый эффект: снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
+  - Target PR: PR-TBD-LLM-PHILOSOPHY-W1
+  - Status: 🟡 Prioritized (quality wave W1)
+  - Dependencies:
+    - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
+  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Hypothesized impact (to be benchmark-validated): reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Гипотеза (с обязательной валидацией бенчмарками): снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
     - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
@@ -3175,6 +3256,7 @@ If it is not recorded here — it does not exist.
   - Prerequisites:
     - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
     - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
+    - ⏳ Master checklist phase-fit triage approved
     - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
   - DoD:
     - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
@@ -3182,17 +3264,21 @@ If it is not recorded here — it does not exist.
     - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
     - Phase 4: Linguistic philosophy implemented (speech acts, language games)
     - Phase 5: Integrated framework complete (unified prompt builder + validator)
-    - **Speed Optimization Phase:** Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
-    - Validation metrics: contradiction rate <2%, verification rate >95%, pragmatic utility >90%
-    - Performance metrics: latency reduction 50-60% average, quality maintained ≥95%
+    - Hypothesis target (requires benchmark validation): Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
+    - Hypothesis target (requires benchmark validation): contradiction rate <2%, verification rate >95%, pragmatic utility >90%
+    - Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained ≥95%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
 
+<a id="ledger-p1-recursive-methods"></a>
 - [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on quality and accuracy)
-  - Target PR: TBD (implementation after design review)
-  - Status: 📋 Design Complete
-  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
+  - Target PR: PR-TBD-RECURSIVE-LLM-W1
+  - Status: 🟡 Prioritized (quality wave W1-B)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
+  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Hypothesized overall impact (pending benchmark validation): retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
     - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
@@ -3213,17 +3299,24 @@ If it is not recorded here — it does not exist.
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
     - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
     - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
-    - **Optimization Phase:** Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
-    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
-    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
+    - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
+    - Hypothesis target (requires benchmark validation): caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end recursive pipeline)
 
+<a id="ledger-p2-unified-aicoach"></a>
 - [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (integration of all components after individual implementations)
-  - Target PR: TBD (implementation after Phase 1-4 components are complete)
-  - Status: 📋 Planned (depends on Philosophical logic + Recursive methods + CBT coaching)
-  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
+  - Target PR: PR-TBD-UNIFIED-AICOACH-PHASE5
+  - Status: 📋 Planned (integration wave)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
+    - [P1 Recursive methods](#ledger-p1-recursive-methods)
+    - [P1 Frontend parity for AI reliability](#ledger-p1-frontend-ai-parity)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
+  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Hypothesized impact (pending benchmark validation): multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Гипотеза (с обязательной валидацией бенчмарками): мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
     - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
@@ -3241,8 +3334,9 @@ If it is not recorded here — it does not exist.
     - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
     - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
     - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
-    - Performance metrics: latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
-    - Cost optimization: ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Hypothesis target (requires benchmark validation): latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
+    - Hypothesis target (requires benchmark validation): ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
     - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
