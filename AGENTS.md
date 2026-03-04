@@ -442,6 +442,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Docs/public copy must pass wellness language blocker guard (no medical claims; allowlist only for explicit policy examples).
 - Guard test: `tests/guards/test_wellness_language_blockers_guard.py`
 - Allowlist: `tests/guards/wellness_language_allowlist.txt`; in-file marker: `pulseplate-allow:blocker-example`
+- LLM outputs used in product copy/coaching must pass `philosophy_validator` (BLOCKER = rewrite). See `core.insight.philosophy_validator.validate_llm_output`.
 
 **❌ Forbidden in `legacy_app.py`:**
 
