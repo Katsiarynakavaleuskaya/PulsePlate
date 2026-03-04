@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from app.schemas.restaurant_partner import FulfillmentMode
+from app.schemas.restaurant_partner import FulfillmentMode, PartnerConsent
 from app.services.restaurant_partner_export_adapter import build_order_draft_from_weekly_plan
 
 
-def _consent() -> dict[str, object]:
-    return {
-        "consent_share_with_partner": True,
-        "consent_version": "v1",
-    }
+def _consent() -> PartnerConsent:
+    return PartnerConsent(
+        consent_share_with_partner=True,
+        consent_version="v1",
+    )
 
 
 def _week_plan() -> dict[str, object]:
