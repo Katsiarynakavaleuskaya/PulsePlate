@@ -8057,6 +8057,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Order access forbidden"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -8066,6 +8076,16 @@
               }
             },
             "description": "Order not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Order gone"
           },
           "422": {
             "content": {
@@ -8125,6 +8145,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Order access forbidden"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -8144,6 +8174,16 @@
               }
             },
             "description": "client_event_id conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Order gone"
           },
           "422": {
             "content": {
