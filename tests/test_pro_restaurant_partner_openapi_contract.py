@@ -6,6 +6,7 @@ from app.main import app
 
 PARTNER_PATHS: set[str] = {
     "/api/v1/pro/restaurants/partner/orders/preview",
+    "/api/v1/pro/restaurants/partner/orders/adapt/preview",
     "/api/v1/pro/restaurants/partner/orders",
     "/api/v1/pro/restaurants/partner/orders/{order_id}",
     "/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
@@ -42,6 +43,11 @@ def test_partner_openapi_security_is_api_key_on_all_operations() -> None:
 def test_partner_openapi_response_codes_contract() -> None:
     expected_codes: dict[tuple[str, str], set[str]] = {
         ("/api/v1/pro/restaurants/partner/orders/preview", "post"): {"200", "422"},
+        ("/api/v1/pro/restaurants/partner/orders/adapt/preview", "post"): {
+            "200",
+            "422",
+            "429",
+        },
         ("/api/v1/pro/restaurants/partner/orders", "post"): {"200", "201", "409", "422"},
         ("/api/v1/pro/restaurants/partner/orders/{order_id}", "get"): {
             "200",
@@ -91,6 +97,12 @@ def test_partner_openapi_request_body_schemas() -> None:
         == "#/components/schemas/PartnerOrderPreviewRequest"
     )
     assert (
+        _op("/api/v1/pro/restaurants/partner/orders/adapt/preview", "post")["requestBody"][
+            "content"
+        ]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PartnerOrderWeeklyAdapterRequest"
+    )
+    assert (
         _op("/api/v1/pro/restaurants/partner/orders", "post")["requestBody"]["content"][
             "application/json"
         ]["schema"]["$ref"]
@@ -119,6 +131,15 @@ def test_partner_openapi_response_schemas_contract() -> None:
     }
     assert _json_schema("/api/v1/pro/restaurants/partner/orders/preview", "post", "422") == {
         "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+    }
+    assert _json_schema("/api/v1/pro/restaurants/partner/orders/adapt/preview", "post", "200") == {
+        "$ref": "#/components/schemas/PartnerOrderPreviewResponse"
+    }
+    assert _json_schema("/api/v1/pro/restaurants/partner/orders/adapt/preview", "post", "422") == {
+        "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+    }
+    assert _json_schema("/api/v1/pro/restaurants/partner/orders/adapt/preview", "post", "429") == {
+        "$ref": "#/components/schemas/RateLimitErrorResponse"
     }
     assert _json_schema("/api/v1/pro/restaurants/partner/orders", "post", "201") == {
         "$ref": "#/components/schemas/PartnerOrderResponse"
@@ -262,7 +283,9 @@ def test_partner_openapi_component_schemas_exist() -> None:
         "PartnerOrderCreateRequest",
         "PartnerOrderErrorResponse",
         "PartnerOrderPreviewRequest",
+        "PartnerOrderWeeklyAdapterRequest",
         "PartnerOrderPreviewResponse",
         "PartnerOrderResponse",
+        "RateLimitErrorResponse",
     }
     assert required <= schemas

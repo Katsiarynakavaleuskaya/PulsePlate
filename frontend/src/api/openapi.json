@@ -3855,6 +3855,101 @@
         "title": "PartnerOrderTotals",
         "type": "object"
       },
+      "PartnerOrderWeeklyAdapterRequest": {
+        "description": "Request schema for weekly-plan -> partner order adapter preview.",
+        "properties": {
+          "allergens": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allergens",
+            "type": "array"
+          },
+          "attribution_source": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution Source"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/PartnerConsent"
+          },
+          "currency": {
+            "default": "USD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Note"
+          },
+          "delivery_fee_minor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Delivery Fee Minor",
+            "type": "integer"
+          },
+          "dietary_tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Dietary Tags",
+            "type": "array"
+          },
+          "fulfillment": {
+            "$ref": "#/components/schemas/FulfillmentMode",
+            "default": "pickup"
+          },
+          "restaurant_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Restaurant Id",
+            "type": "string"
+          },
+          "service_fee_minor": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Service Fee Minor",
+            "type": "integer"
+          },
+          "unit_price_minor_default": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Unit Price Minor Default",
+            "type": "integer"
+          },
+          "week_plan": {
+            "additionalProperties": true,
+            "title": "Week Plan",
+            "type": "object"
+          }
+        },
+        "required": [
+          "week_plan",
+          "restaurant_id",
+          "consent"
+        ],
+        "title": "PartnerOrderWeeklyAdapterRequest",
+        "type": "object"
+      },
       "PlateRequest": {
         "description": "RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.",
         "properties": {
@@ -7979,6 +8074,63 @@
           }
         ],
         "summary": "Create Partner Order",
+        "tags": [
+          "pro",
+          "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/restaurants/partner/orders/adapt/preview": {
+      "post": {
+        "operationId": "preview_partner_order_from_weekly_plan_api_v1_pro_restaurants_partner_orders_adapt_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerOrderWeeklyAdapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerOrderErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid weekly plan adapter payload"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Preview Partner Order From Weekly Plan",
         "tags": [
           "pro",
           "restaurants"
