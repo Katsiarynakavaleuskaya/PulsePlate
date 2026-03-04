@@ -130,6 +130,24 @@ Out-of-scope boundary in W3-R3:
   `app/routers/pro_restaurant_partner.py:162`, `tests/test_pro_restaurant_partner_openapi_contract.py:7`,
   `docs/roadmap/BACKLOG_LEDGER.md:3032`.
 
+## W3-R4 Contract Notes (weekly export adapter)
+
+Adapter surface (non-breaking PRO):
+
+- `POST /api/v1/pro/restaurants/partner/orders/adapt/preview`
+  - Converts weekly-plan payload into partner-order draft and returns deterministic preview.
+  - `200` preview, `422` invalid adapter payload, `429` rate-limited export path.
+
+Deterministic mapping rules (v1):
+
+- Input accepts canonical `days[].meals[].items[]` and wrappers `menu.days` / `data.daily_menus`.
+- Flattening order is stable: day order -> meal order -> item order (no sorting).
+- `menu_item_id` is deterministic by position: `wk-d{day:02d}-m{meal:02d}-i{item:03d}`.
+- `title` maps from `item.title` or `item.name`; entries without title are dropped.
+- `qty` is numeric-coerced and bounded to `[1, 100]`.
+- `unit_price_minor` uses explicit adapter default (`unit_price_minor_default`), so totals stay deterministic.
+- No payment/delivery orchestration is introduced in this wave (preview-only adapter seam).
+
 Temporary seam governance (contract-first -> persistent integration):
 
 - ADR: `docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md` (explicit seam and exit conditions).

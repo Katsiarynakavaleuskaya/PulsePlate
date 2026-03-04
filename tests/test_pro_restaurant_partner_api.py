@@ -84,6 +84,114 @@ def test_preview_partner_order_validation_422(
     assert response.status_code == 422
 
 
+def test_preview_partner_order_from_weekly_plan_requires_pro_tier(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        json={
+            "restaurant_id": "resto-1",
+            "week_plan": {"days": []},
+            "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
+        },
+    )
+    assert response.status_code in {401, 403}
+
+
+def test_preview_partner_order_from_weekly_plan_happy_path(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    payload = {
+        "restaurant_id": "resto-weekly-1",
+        "currency": "usd",
+        "fulfillment": "pickup",
+        "week_plan": {
+            "menu": {
+                "days": [
+                    {
+                        "date": "2026-03-04",
+                        "meals": [
+                            {
+                                "name": "Breakfast",
+                                "items": [
+                                    {"name": "Oats", "qty": 2, "note": "with berries"},
+                                    {"title": "Greek yogurt", "qty": 1},
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+        "service_fee_minor": 50,
+        "delivery_fee_minor": 0,
+        "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
+        "unit_price_minor_default": 0,
+    }
+
+    first = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json=payload,
+    )
+    second = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json=payload,
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+
+    first_payload = _json(first)
+    second_payload = _json(second)
+    assert first_payload == second_payload
+    assert first_payload["restaurant_id"] == "resto-weekly-1"
+    assert first_payload["totals"]["subtotal_minor"] == 0
+    assert [item["menu_item_id"] for item in first_payload["items"]] == [
+        "wk-d01-m01-i001",
+        "wk-d01-m01-i002",
+    ]
+
+
+def test_preview_partner_order_from_weekly_plan_invalid_shape_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json={
+            "restaurant_id": "resto-weekly-2",
+            "week_plan": {"menu": {}},
+            "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
+        },
+    )
+    assert response.status_code == 422
+    assert "days/menu.days/data.daily_menus" in _json(response)["detail"]
+
+
+def test_preview_partner_order_from_weekly_plan_invalid_currency_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json={
+            "restaurant_id": "resto-weekly-3",
+            "currency": "US1",
+            "week_plan": {
+                "days": [
+                    {
+                        "meals": [{"items": [{"name": "Oats", "qty": 1}]}],
+                    }
+                ]
+            },
+            "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_create_partner_order_and_get(
     client: TestClient,
     pro_headers: dict[str, str],

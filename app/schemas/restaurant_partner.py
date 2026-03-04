@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -116,6 +117,31 @@ class PartnerOrderDraft(BaseModel):
 
 class PartnerOrderPreviewRequest(BaseModel):
     draft: PartnerOrderDraft
+
+
+class PartnerOrderWeeklyAdapterRequest(BaseModel):
+    """Request schema for weekly-plan -> partner order adapter preview."""
+
+    week_plan: dict[str, Any]
+    restaurant_id: str = Field(..., min_length=1, max_length=64)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    fulfillment: FulfillmentMode = FulfillmentMode.pickup
+    service_fee_minor: int = Field(default=0, ge=0)
+    delivery_fee_minor: int = Field(default=0, ge=0)
+    customer_note: str | None = Field(default=None, max_length=500)
+    dietary_tags: list[str] = Field(default_factory=list, max_length=50)
+    allergens: list[str] = Field(default_factory=list, max_length=50)
+    consent: PartnerConsent
+    attribution_source: str | None = Field(default=None, max_length=128)
+    unit_price_minor_default: int = Field(default=0, ge=0)
+
+    @field_validator("currency")
+    @classmethod
+    def _validate_adapter_currency(cls, value: str) -> str:
+        upper = value.upper()
+        if len(upper) != 3 or not upper.isalpha():
+            raise ValueError("currency must be a 3-letter ISO code")
+        return upper
 
 
 class PartnerOrderPreviewResponse(BaseModel):

@@ -595,6 +595,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/restaurants/partner/orders/adapt/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Partner Order From Weekly Plan */
+        post: operations["preview_partner_order_from_weekly_plan_api_v1_pro_restaurants_partner_orders_adapt_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/restaurants/partner/orders/preview": {
         parameters: {
             query?: never;
@@ -3156,6 +3173,49 @@ export interface components {
             total_minor: number;
         };
         /**
+         * PartnerOrderWeeklyAdapterRequest
+         * @description Request schema for weekly-plan -> partner order adapter preview.
+         */
+        PartnerOrderWeeklyAdapterRequest: {
+            /** Allergens */
+            allergens?: string[];
+            /** Attribution Source */
+            attribution_source?: string | null;
+            consent: components["schemas"]["PartnerConsent"];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Customer Note */
+            customer_note?: string | null;
+            /**
+             * Delivery Fee Minor
+             * @default 0
+             */
+            delivery_fee_minor: number;
+            /** Dietary Tags */
+            dietary_tags?: string[];
+            /** @default pickup */
+            fulfillment: components["schemas"]["FulfillmentMode"];
+            /** Restaurant Id */
+            restaurant_id: string;
+            /**
+             * Service Fee Minor
+             * @default 0
+             */
+            service_fee_minor: number;
+            /**
+             * Unit Price Minor Default
+             * @default 0
+             */
+            unit_price_minor_default: number;
+            /** Week Plan */
+            week_plan: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * PlateRequest
          * @description RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.
          */
@@ -5544,6 +5604,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartnerOrderErrorResponse"] | components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_partner_order_from_weekly_plan_api_v1_pro_restaurants_partner_orders_adapt_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerOrderWeeklyAdapterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderPreviewResponse"];
+                };
+            };
+            /** @description Invalid weekly plan adapter payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
                 };
             };
         };
