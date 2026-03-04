@@ -73,11 +73,12 @@ async def retrieve_and_validate_rag(
     max_chunks: int = 3,
     *,
     philo_validation_enabled: bool = False,
+    recursive_rag_enabled: bool = False,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
 
-    Retrieves chunks via vector RAG, applies philosophy validation if enabled,
-    and builds the formatted prompt with RAG context.
+    Retrieves chunks via vector/recursive RAG, applies philosophy validation
+    when required, and builds the formatted prompt with RAG context.
 
     Parameters
     ----------
@@ -87,6 +88,8 @@ async def retrieve_and_validate_rag(
         Maximum chunks to retrieve (default 3).
     philo_validation_enabled:
         Whether to run philosophy validation on chunks (feature flag).
+    recursive_rag_enabled:
+        Whether to run recursive multi-hop retrieval path.
 
     Returns
     -------
@@ -101,7 +104,12 @@ async def retrieve_and_validate_rag(
     - Confidence is recalculated from filtered chunks when validation enabled
     """
     try:
-        return await _run_orchestration(prompt_input, max_chunks, philo_validation_enabled)
+        return await _run_orchestration(
+            prompt_input,
+            max_chunks,
+            philo_validation_enabled,
+            recursive_rag_enabled,
+        )
     except Exception:
         logger.warning(
             "RAG orchestration failed; returning empty result",
@@ -114,16 +122,29 @@ async def _run_orchestration(
     prompt_input: str,
     max_chunks: int,
     philo_enabled: bool,
+    recursive_enabled: bool,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
     from core.rag.formatting import format_rag_chunks_for_prompt
-    from core.rag.vector_rag import retrieve_context_structured
 
-    # Retrieve chunks (run sync function in thread)
-    rag_ctx = await asyncio.to_thread(
-        retrieve_context_structured, prompt_input, max_chunks=max_chunks
-    )
+    validation_already_applied = False
+    if recursive_enabled:
+        from core.rag.recursive_retrieval import retrieve_recursive_context_structured
+
+        rag_ctx = await asyncio.to_thread(
+            retrieve_recursive_context_structured,
+            prompt_input,
+            max_chunks=max_chunks,
+            philo_validation_enabled=philo_enabled,
+        )
+        validation_already_applied = philo_enabled
+    else:
+        from core.rag.vector_rag import retrieve_context_structured
+
+        rag_ctx = await asyncio.to_thread(
+            retrieve_context_structured, prompt_input, max_chunks=max_chunks
+        )
 
     if not rag_ctx.chunks:
         return RAGOrchestrationResult(
@@ -142,7 +163,7 @@ async def _run_orchestration(
     chunks_to_use = rag_ctx.chunks
     chunks_filtered = 0
 
-    if philo_enabled:
+    if philo_enabled and not validation_already_applied:
         from core.rag.philosophy_pipeline import run_pipeline
 
         pipeline_result = run_pipeline(rag_ctx.chunks, query=prompt_input)

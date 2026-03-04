@@ -138,6 +138,74 @@ class TestRetrieveAndValidateRag:
         assert "Context:" in result.formatted_prompt
 
     @pytest.mark.asyncio
+    async def test_recursive_enabled_uses_recursive_retriever(self) -> None:
+        """When recursive flag is on, orchestration calls recursive retriever path."""
+        chunks = [_make_chunk("c1", score=0.9)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ) as to_thread_mock,
+            patch(
+                "core.rag.recursive_retrieval.retrieve_recursive_context_structured"
+            ) as recursive,
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                recursive_rag_enabled=True,
+            )
+
+        assert to_thread_mock.call_count == 1
+        assert to_thread_mock.call_args.args[0] is recursive
+        assert result.rag_actually_used is True
+        assert result.hops == 2
+
+    @pytest.mark.asyncio
+    async def test_recursive_with_philo_enabled_skips_second_pipeline_pass(self) -> None:
+        """Recursive path already verifies chunks; orchestration should not re-run pipeline."""
+        chunks = [_make_chunk("c1", score=0.85)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.85, hops=2)
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+            patch("core.rag.philosophy_pipeline.run_pipeline") as pipeline_mock,
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1",
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                recursive_rag_enabled=True,
+            )
+
+        pipeline_mock.assert_not_called()
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.85
+
+    @pytest.mark.asyncio
     async def test_validation_enabled_filters_chunks(self) -> None:
         """When validation enabled, pipeline filters chunks."""
         chunks = [

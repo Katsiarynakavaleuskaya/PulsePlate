@@ -8,7 +8,7 @@ Covers: sources[], confidence, rag_used, hops, latency_ms in both
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -84,6 +84,36 @@ def _make_empty_structured(
         confidence=0.0,
         hops=1,
         latency_ms=5,
+        agent_id=agent_id,
+        user_tier=user_tier,
+    )
+
+
+def _make_fake_recursive_structured(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    philo_validation_enabled: bool = False,
+) -> _FakeRAGContext:
+    """Fake recursive retriever with deeper hops and refined query chain."""
+    del philo_validation_enabled
+    chunks = [
+        _FakeRAGChunk(
+            chunk_id="recursive.md:1",
+            file="recursive.md",
+            content="Recursive retrieval with deterministic verification.",
+            score=0.82,
+            hop=2,
+        )
+    ]
+    return _FakeRAGContext(
+        query=query,
+        refined_queries=[query, f"{query} deterministic verification"],
+        chunks=chunks[:max_chunks],
+        confidence=0.82,
+        hops=2,
+        latency_ms=55,
         agent_id=agent_id,
         user_tier=user_tier,
     )
@@ -208,6 +238,43 @@ class TestInsightV1RAGFields:
         data = resp.json()
         for src in data["sources"]:
             assert "# Source:" not in src["preview"]
+
+    def test_recursive_rag_enabled_returns_recursive_metadata(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Recursive RAG mode returns same contract with deeper hops metadata."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        monkeypatch.setattr(
+            "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
+            _make_fake_recursive_structured,
+            raising=True,
+        )
+
+        def _vector_must_not_be_used(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("vector retriever must not be used in recursive mode")
+
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _vector_must_not_be_used,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 55
+        assert data["confidence"] == 0.82
+        assert len(data["sources"]) == 1
 
     def test_insight_text_not_contaminated_by_source_headers(
         self,

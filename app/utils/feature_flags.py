@@ -45,9 +45,19 @@ def is_philosophy_validation_enabled() -> bool:
     return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_VALIDATION"))
 
 
+def is_recursive_rag_enabled() -> bool:
+    """Check if recursive RAG retrieval flow is enabled.
+
+    Default is off; when enabled orchestration can execute multi-hop retrieval
+    with bounded refinement/verification budgets.
+    """
+    return _is_truthy(os.getenv("FEATURE_RAG_RECURSIVE"))
+
+
 __all__ = [
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
     "is_philosophy_validation_enabled",
+    "is_recursive_rag_enabled",
     "_is_truthy",
 ]
