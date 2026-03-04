@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from scripts.orchestration.agent_run_summary import build_summary, compute_run_id
 
 
@@ -15,6 +13,21 @@ def test_run_id_is_deterministic() -> None:
     rid2 = compute_run_id(agent="philosophy-agent", domain="safety", task_type="Safety", text=text)
     assert rid1 == rid2
     assert len(rid1) == 12
+
+
+def test_run_id_changes_with_inputs() -> None:
+    """run_id must change when agent, domain, task_type, or text changes."""
+    base = {
+        "agent": "philosophy-agent",
+        "domain": "safety",
+        "task_type": "Safety",
+        "text": "Wellness-only advice.",
+    }
+    rid_base = compute_run_id(**base)
+    assert rid_base != compute_run_id(**{**base, "agent": "logic-agent"})
+    assert rid_base != compute_run_id(**{**base, "domain": "docs"})
+    assert rid_base != compute_run_id(**{**base, "task_type": "Documentation"})
+    assert rid_base != compute_run_id(**{**base, "text": "Different text."})
 
 
 def test_summary_contains_philosophy_validator_blocker() -> None:

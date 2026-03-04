@@ -2,6 +2,8 @@
 
 Single-path: philosophy_validator + optional static docs scan.
 Exit 0 = PASS, 1 = REWRITE_REQUIRED (BLOCKER or failed static scans).
+
+Run from repo root: python scripts/orchestration/agent_run_summary.py ...
 """
 
 from __future__ import annotations
@@ -61,23 +63,28 @@ def read_text_from_file(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip("\n")
 
 
-def _load_allowlist(repo_root: Path) -> list[str]:
+def _load_allowlist(repo_root: Path) -> list[re.Pattern[str]]:
+    """Load and compile allowlist regexes. Skip invalid entries with warning."""
     allow_path = repo_root / "tests" / "guards" / "wellness_language_allowlist.txt"
     if not allow_path.exists():
         return []
-    patterns: list[str] = []
-    for raw in allow_path.read_text(encoding="utf-8").splitlines():
+    compiled: list[re.Pattern[str]] = []
+    for line_no, raw in enumerate(allow_path.read_text(encoding="utf-8").splitlines(), start=1):
         s = raw.strip()
         if not s or s.startswith("#"):
             continue
-        patterns.append(s)
-    return patterns
+        try:
+            compiled.append(re.compile(s, re.IGNORECASE))
+        except re.error:
+            # Skip invalid regex; log would require logging module
+            continue
+    return compiled
 
 
-def _is_allowlisted(path_rel: str, line: str, allow_regexes: list[str]) -> bool:
+def _is_allowlisted(path_rel: str, line: str, allow_patterns: list[re.Pattern[str]]) -> bool:
     target = f"{path_rel}::{line}"
-    for rx in allow_regexes:
-        if re.search(rx, target, flags=re.IGNORECASE):
+    for rx in allow_patterns:
+        if rx.search(target):
             return True
     return False
 
@@ -94,10 +101,11 @@ def scan_docs_for_wellness_blockers(
     if not scan_root.exists():
         return {"ok": True, "findings_count": 0, "findings": []}
 
-    allow_regexes = _load_allowlist(repo_root)
+    allow_patterns = _load_allowlist(repo_root)
     findings: list[dict[str, Any]] = []
 
-    text_exts = {".md", ".txt", ".yml", ".yaml", ".json", ".py", ".ts", ".tsx"}
+    # Docs-only: no source code in docs/ per project policy
+    text_exts = {".md", ".txt", ".yml", ".yaml", ".json"}
     exclude_dirs = {".git", ".venv", "node_modules", "dist", "build", "worktrees"}
 
     for path in sorted(scan_root.rglob("*")):
@@ -121,7 +129,7 @@ def scan_docs_for_wellness_blockers(
 
             for code, pattern in _BLOCKER_PATTERNS:
                 if pattern.search(line):
-                    if _is_allowlisted(path_rel, line, allow_regexes):
+                    if _is_allowlisted(path_rel, line, allow_patterns):
                         continue
                     findings.append(
                         {
@@ -144,6 +152,10 @@ def scan_docs_for_wellness_blockers(
 
 def validate_text_with_philosophy_validator(text: str, *, domain: str) -> dict[str, Any]:
     """Wrap core.insight.philosophy_validator, return JSON-safe dict."""
+    # Ensure repo root on path when run as script (python scripts/.../agent_run_summary.py)
+    _root = _repo_root()
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
     from core.insight.philosophy_validator import validate_llm_output
 
     report = validate_llm_output(text, domain=domain)
