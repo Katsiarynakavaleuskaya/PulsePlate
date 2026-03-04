@@ -10,19 +10,22 @@ from __future__ import annotations
 import threading
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.middleware.api_tiers import require_pro_tier
+from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 from app.schemas.restaurant_partner import (
     PartnerOrderConfirmRequest,
     PartnerOrderCreateRequest,
     PartnerOrderErrorResponse,
     PartnerHandoffShareIssueRequest,
     PartnerHandoffShareResponse,
+    PartnerOrderWeeklyAdapterRequest,
     PartnerOrderPreviewRequest,
     PartnerOrderPreviewResponse,
     PartnerOrderResponse,
 )
+from app.services import restaurant_partner_export_adapter
 from app.services import restaurant_partner_orders
 
 _ISSUER_LOCK = threading.Lock()
@@ -60,6 +63,46 @@ def _issuer_from_api_key(api_key: str) -> str:
 def preview_partner_order(payload: PartnerOrderPreviewRequest) -> PartnerOrderPreviewResponse:
     preview: PartnerOrderPreviewResponse = restaurant_partner_orders.preview_order(payload.draft)
     return preview
+
+
+@router.post(
+    "/orders/adapt/preview",
+    response_model=PartnerOrderPreviewResponse,
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": "Invalid weekly plan adapter payload",
+            "model": PartnerOrderErrorResponse,
+        },
+        **RATE_LIMIT_429_RESPONSES,
+    },
+)
+@limit_if_available(RATE_LIMIT_EXPORTS)
+def preview_partner_order_from_weekly_plan(
+    request: Request,
+    payload: PartnerOrderWeeklyAdapterRequest,
+) -> PartnerOrderPreviewResponse:
+    del request
+    try:
+        draft = restaurant_partner_export_adapter.build_order_draft_from_weekly_plan(
+            week_plan=payload.week_plan,
+            restaurant_id=payload.restaurant_id,
+            currency=payload.currency,
+            fulfillment=payload.fulfillment,
+            service_fee_minor=payload.service_fee_minor,
+            delivery_fee_minor=payload.delivery_fee_minor,
+            customer_note=payload.customer_note,
+            dietary_tags=payload.dietary_tags,
+            allergens=payload.allergens,
+            consent=payload.consent,
+            attribution_source=payload.attribution_source,
+            unit_price_minor_default=payload.unit_price_minor_default,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    return restaurant_partner_orders.preview_order(draft)
 
 
 @router.post(
