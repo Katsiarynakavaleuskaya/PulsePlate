@@ -173,19 +173,28 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 2
 
     @pytest.mark.asyncio
-    async def test_recursive_with_philo_enabled_skips_second_pipeline_pass(self) -> None:
-        """Recursive path already verifies chunks; orchestration should not re-run pipeline."""
+    async def test_recursive_with_philo_enabled_runs_pipeline_and_forwards_flag(self) -> None:
+        """Recursive path must still run pipeline and forward validation flag."""
         chunks = [_make_chunk("c1", score=0.85)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.85, hops=2)
+        pipeline_result = PipelineResult(
+            filtered_chunks=chunks,
+            stage_results=[],
+            warnings=[],
+            total_latency_ms=1.0,
+        )
 
         with (
             patch(
                 "asyncio.to_thread",
                 new_callable=AsyncMock,
                 return_value=rag_ctx,
-            ),
+            ) as to_thread_mock,
             patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
-            patch("core.rag.philosophy_pipeline.run_pipeline") as pipeline_mock,
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ) as pipeline_mock,
             patch(
                 "core.rag.formatting.format_rag_chunks_for_prompt",
                 return_value="Chunk1",
@@ -201,7 +210,8 @@ class TestRetrieveAndValidateRag:
                 recursive_rag_enabled=True,
             )
 
-        pipeline_mock.assert_not_called()
+        pipeline_mock.assert_called_once_with(rag_ctx.chunks, query="test prompt")
+        assert to_thread_mock.call_args.kwargs["philo_validation_enabled"] is True
         assert result.rag_actually_used is True
         assert result.confidence == 0.85
 

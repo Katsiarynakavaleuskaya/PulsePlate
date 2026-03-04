@@ -128,7 +128,6 @@ async def _run_orchestration(
     # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
     from core.rag.formatting import format_rag_chunks_for_prompt
 
-    validation_already_applied = False
     if recursive_enabled:
         from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 
@@ -138,7 +137,6 @@ async def _run_orchestration(
             max_chunks=max_chunks,
             philo_validation_enabled=philo_enabled,
         )
-        validation_already_applied = philo_enabled
     else:
         from core.rag.vector_rag import retrieve_context_structured
 
@@ -163,7 +161,7 @@ async def _run_orchestration(
     chunks_to_use = rag_ctx.chunks
     chunks_filtered = 0
 
-    if philo_enabled and not validation_already_applied:
+    if philo_enabled:
         from core.rag.philosophy_pipeline import run_pipeline
 
         pipeline_result = run_pipeline(rag_ctx.chunks, query=prompt_input)

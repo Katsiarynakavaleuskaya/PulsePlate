@@ -97,7 +97,8 @@ def _make_fake_recursive_structured(
     philo_validation_enabled: bool = False,
 ) -> _FakeRAGContext:
     """Fake recursive retriever with deeper hops and refined query chain."""
-    del philo_validation_enabled
+    # Intentionally unused: keep signature parity with real recursive retriever.
+    _ = philo_validation_enabled
     chunks = [
         _FakeRAGChunk(
             chunk_id="recursive.md:1",
@@ -269,6 +270,7 @@ class TestInsightV1RAGFields:
 
         resp = client.post("/api/v1/insight", json={"text": "What is BMI?"}, headers=vip_headers)
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
         assert data["hops"] == 2

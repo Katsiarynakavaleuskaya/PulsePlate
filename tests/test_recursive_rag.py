@@ -188,3 +188,181 @@ def test_recursive_fail_safe_on_internal_error(monkeypatch: pytest.MonkeyPatch) 
     assert result.chunks == []
     assert result.confidence == 0.0
     assert result.hops >= 1
+
+
+def test_compute_confidence_empty_returns_zero() -> None:
+    """Empty chunk list must map to deterministic zero confidence."""
+    import core.rag.recursive_retrieval as recursive
+
+    assert recursive._compute_confidence([]) == 0.0
+
+
+def test_refine_query_without_frequencies_returns_input() -> None:
+    """If no informative tokens exist, refinement must keep the same query."""
+    import core.rag.recursive_retrieval as recursive
+
+    chunks = [
+        RAGChunk(
+            chunk_id="s1",
+            file="doc.md",
+            content="This and that with what where when.",
+            score=0.7,
+        )
+    ]
+    assert recursive._refine_query("What and where?", chunks) == "What and where?"
+
+
+def test_refine_query_handles_empty_sorted_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Defensive branch: empty sorted output should return original query."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "sorted", lambda *_args, **_kwargs: [], raising=False)
+    chunks = [
+        RAGChunk(
+            chunk_id="x1",
+            file="doc.md",
+            content="Metabolic adaptation endurance recovery protocol",
+            score=0.8,
+        )
+    ]
+    assert recursive._refine_query("nutrition", chunks) == "nutrition"
+
+
+def test_apply_verification_skips_pipeline_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verification should return validated chunks directly when philo is off."""
+    import core.rag.recursive_retrieval as recursive
+
+    chunks = [RAGChunk(chunk_id="id-1", file="d.md", content="ok", score=0.6)]
+
+    monkeypatch.setattr(
+        "core.rag.validation.validate_rag_chunks",
+        lambda _chunks, agent_id=None: ValidationResult(
+            passed=True,
+            filtered_chunks=_chunks,
+            warnings=[],
+            rejected_count=0,
+            validation_latency_ms=1,
+        ),
+    )
+
+    def _pipeline_must_not_run(*_args: Any, **_kwargs: Any) -> PipelineResult:
+        raise AssertionError("pipeline must not run when philo_validation_enabled=False")
+
+    monkeypatch.setattr("core.rag.philosophy_pipeline.run_pipeline", _pipeline_must_not_run)
+
+    result = recursive._apply_verification(
+        chunks=chunks,
+        query="q",
+        agent_id=None,
+        philo_validation_enabled=False,
+    )
+    assert result == chunks
+
+
+def test_recursive_timeout_breaks_before_first_hop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Timeout budget at zero should stop before invoking retriever."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 0.0)
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+
+    def _must_not_run(*_args: Any, **_kwargs: Any) -> RAGContext:
+        raise AssertionError("retriever should not be called when timeout already exceeded")
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _must_not_run)
+
+    result = retrieve_recursive_context_structured("timeout case")
+    assert result.hops == 1
+    assert result.chunks == []
+
+
+def test_recursive_breaks_when_first_hop_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty first hop should stop recursive loop immediately."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(query, [], confidence=0.0),
+    )
+
+    result = retrieve_recursive_context_structured("empty hop")
+    assert result.hops == 1
+    assert result.chunks == []
+
+
+def test_recursive_breaks_when_verification_removes_all_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If verification strips all chunks, loop must stop safely."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 2)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [RAGChunk(chunk_id="a1", file="doc.md", content="signal token", score=0.7)],
+            confidence=0.7,
+        ),
+    )
+    monkeypatch.setattr(
+        "core.rag.validation.validate_rag_chunks",
+        lambda chunks, agent_id=None: ValidationResult(
+            passed=False,
+            filtered_chunks=[],
+            warnings=["filtered-all"],
+            rejected_count=len(chunks),
+            validation_latency_ms=1,
+        ),
+    )
+
+    result = retrieve_recursive_context_structured("verify-drop", philo_validation_enabled=False)
+    assert result.hops == 1
+    assert result.chunks == []
+
+
+def test_recursive_breaks_when_refinement_does_not_change_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When refinement returns same query, recursion must stop."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "RAG_PIPELINE_TIMEOUT_SEC", 100.0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda query, **_: _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="same-query",
+                    file="doc.md",
+                    content="This and that with where when.",
+                    score=0.6,
+                )
+            ],
+            confidence=0.6,
+        ),
+    )
+
+    result = retrieve_recursive_context_structured("what and where")
+    assert result.hops == 1
+    assert result.refined_queries == ["what and where"]
