@@ -84,7 +84,11 @@ def check_artifact_gitignore() -> bool:
     if not gitignore_path.exists():
         print("WARNING: .gitignore not found; agent run artifacts may be committed")
         return True
-    content = gitignore_path.read_text(encoding="utf-8")
+    try:
+        content = gitignore_path.read_text(encoding="utf-8")
+    except OSError:
+        print("WARNING: Could not read .gitignore; agent run artifacts may be committed")
+        return True
     for rule in ARTIFACT_GITIGNORE_RULES:
         if rule not in content:
             print(f"WARNING: {rule} not in .gitignore; agent run summaries may be committed")
