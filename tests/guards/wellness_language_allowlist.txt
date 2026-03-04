@@ -11,3 +11,5 @@
 ^docs/legal/COPY_RULES_WELLNESS\.md::.*\|.*"(лечит|диагностирует)".*\|.*
 # BACKLOG_LEDGER: ledger entry describing the guard (lists blocked phrases)
 ^docs/roadmap/BACKLOG_LEDGER\.md::.*Blocks RU\+EN phrases
+# PR_TBD audit: forbidden-phrase examples (we document what NOT to write)
+^docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT\.md::.*I diagnose you
