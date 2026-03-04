@@ -250,6 +250,23 @@ Expected output format: `SHA256:...`
 
 After updating the GitHub environment secret, re-run the failed CD workflow.
 
+#### Staging TLS in build-only mode
+
+When `WEB_IOS_RELEASE_READY` is not `true`, SSH deploy to `/srv/pulseplate-staging` is skipped by design.
+Evidence: `.github/workflows/cd.yml:83`, `.github/workflows/cd.yml:98`
+
+To avoid `ERR_SSL_PROTOCOL_ERROR` on the public staging URL in this mode, production Caddy keeps a
+fallback vhost (`{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org}`) and serves it from the
+running app container.
+Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.yaml:46`
+
+- This fallback is transport-level only (TLS + reverse proxy) and does not replace a real staging deploy.
+- Once full staging deploy is enabled (`WEB_IOS_RELEASE_READY=true` + staging secrets), verify
+  `/srv/pulseplate-staging` compose stack is active and remove fallback dependency from ops checks.
+- Temporary seam tracking:
+  - ADR: `docs/architecture/ADR_STAGING_TLS_FALLBACK_SEAM_2026-03-04.md`
+  - Backlog: `docs/roadmap/BACKLOG_LEDGER.md` (`P1: Remove staging TLS fallback seam after full staging readiness`)
+
 ### 3. Create GitHub PAT
 
 1. Go to GitHub → Settings → Developer settings → Personal access tokens

@@ -234,6 +234,7 @@ dist/
 local/
 dev/
 worktrees/
+.qoder/
 !docs/dev/
 !docs/dev/**
 debug_*.py

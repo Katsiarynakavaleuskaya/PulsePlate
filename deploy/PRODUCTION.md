@@ -24,6 +24,8 @@ Canonical policy:
 
 - While web and iOS are not release-ready, keep `WEB_IOS_RELEASE_READY` unset or `false`.
 - In this state, CD remains build/validation only (no production deploy), while image build/push can still run.
+- In this state, `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) is served by a fallback vhost in `deploy/Caddyfile.production`
+  to keep staging HTTPS alive and avoid TLS handshake failures.
 - Enable real production deploy only after release readiness is explicitly confirmed.
 
 ## Source of truth: production image
@@ -82,6 +84,7 @@ services:
       - "443:443"
     environment:
       - PRODUCTION_DOMAIN=${PRODUCTION_DOMAIN}
+      - STAGING_FALLBACK_DOMAIN=${STAGING_FALLBACK_DOMAIN:-pulseplate-staging.duckdns.org}  # optional fallback domain
     volumes:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -96,6 +99,7 @@ The production Caddy configuration is located at:
 **`deploy/Caddyfile.production`**
 
 It already contains a complete and secure reverse proxy setup using the `{$PRODUCTION_DOMAIN}` environment variable and does not need to be created manually.
+It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) used during build-only phases.
 
 **To use it on the production server:**
 
@@ -122,12 +126,14 @@ It already contains a complete and secure reverse proxy setup using the `{$PRODU
 The following environment variables must be set in your `.env` file or exported in the shell:
 
 - **`PRODUCTION_DOMAIN`** (required): Your production domain name (e.g., `api.pulseplate.com`)
+- **`STAGING_FALLBACK_DOMAIN`** (optional): staging hostname served by production fallback vhost in build-only mode (default: `pulseplate-staging.duckdns.org`)
 - **`IMAGE_REF`** (required): Docker image reference (e.g., `ghcr.io/owner/repo@sha256:...`)
 
 Example `.env` file:
 
 ```bash
 PRODUCTION_DOMAIN=api.pulseplate.com
+STAGING_FALLBACK_DOMAIN=pulseplate-staging.duckdns.org
 IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
 # Add other application-specific variables here
 ```
