@@ -3012,11 +3012,11 @@ If it is not recorded here — it does not exist.
     - State model and transition constraints documented (`draft -> pending_partner -> confirmed|rejected -> fulfilled|cancelled`)
     - Request/response schema examples and compatibility policy (additive-only for v1) documented
 
-- [ ] P2: Execution Wave 3-R2 — Consent + signed handoff contract
+- [x] P2: Execution Wave 3-R2 — Consent + signed handoff contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #960 (`feat(restaurants): W3-R2 consent + signed handoff contract`)
-  - Status: 🟡 In progress
+  - Status: ✅ Merged (PR #960, 2026-03-04)
   - Reason: Partner access must be explicit, revocable, and auditable.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
@@ -3032,17 +3032,21 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R3 — Partner retrieval + confirmation hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD-W3-R3-PARTNER-RETRIEVE-CONFIRM
-  - Status: 📋 Planned
+  - Target PR: This PR (`feat/restaurants-w3-r3-retrieval-confirm-hardening`)
+  - Status: 🟡 In progress
   - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
     - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
     - app/routers/pro_restaurant_partner.py
+    - tests/test_pro_restaurant_partner_api.py
+    - tests/test_pro_restaurant_partner_openapi_contract.py
   - DoD:
-    - Deterministic success/error contracts documented (`200/401/403/404/410/422/429`)
-    - Idempotency rules fixed for create/confirm paths (`client_event_id`)
-    - Out-of-scope boundary enforced (no payment/delivery in this wave)
+    - Owner isolation for retrieval/confirm is deterministic (`403` on issuer mismatch)
+    - `410 Gone` semantics are deterministic for expired handoff shares (including replay behavior)
+    - Confirm idempotency contract is deterministic for replay/conflict (`client_event_id`)
+    - OpenAPI partner contract is locked by tests (paths, response codes, schema refs, security)
+    - Out-of-scope boundary remains enforced (no payment/delivery in this wave)
 
 - [ ] P2: Execution Wave 3-R4 — Export adapter + deterministic contract tests
   - Owner: @katsiaryna_kavaleuskaya

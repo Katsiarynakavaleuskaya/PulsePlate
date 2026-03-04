@@ -97,6 +97,28 @@ Evidence anchors:
 - Fail-closed semantics (`403/410`): `app/routers/pro_restaurant_partner.py:198`, `app/routers/pro_restaurant_partner.py:206`
 - Revoke idempotency enforcement + test: `app/services/restaurant_partner_orders.py:323`, `tests/test_pro_restaurant_partner_api.py:531`
 
+## W3-R3 Contract Notes (retrieval + confirmation hardening)
+
+Issuer isolation (hard requirement):
+
+- `GET /api/v1/pro/restaurants/partner/orders/{order_id}` and
+  `POST /api/v1/pro/restaurants/partner/orders/{order_id}/confirm`
+  are issuer-isolated operations.
+- Access with a different issuer/API key must return `403` (owner mismatch), fail-closed.
+- Contract tests: `tests/test_pro_restaurant_partner_api.py` (`403` owner mismatch scenarios).
+
+Gone semantics (hard requirement):
+
+- Expired handoff share status is terminal-gone semantics (`410`) and must stay deterministic on replay.
+- Replay of status checks after expiry must continue to return `410` (no silent recovery to `200`/`403`).
+- Contract tests: `tests/test_pro_restaurant_partner_api.py` (`410` expired + replay).
+
+Out-of-scope boundary in W3-R3:
+
+- W3-R3 does not introduce payment, delivery orchestration, partner marketplace directory,
+  or fulfillment lifecycle expansion.
+- Scope is restricted to retrieval/confirm hardening + deterministic error contract behavior.
+
 Temporary seam governance (contract-first -> persistent integration):
 
 - ADR: `docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md` (explicit seam and exit conditions).
