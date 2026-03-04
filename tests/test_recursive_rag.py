@@ -257,21 +257,11 @@ def test_refine_query_without_frequencies_returns_input() -> None:
     assert recursive._refine_query("What and where?", chunks) == "What and where?"
 
 
-def test_refine_query_handles_empty_sorted_result(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Defensive branch: empty sorted output should return original query."""
+def test_refine_query_handles_empty_sorted_result() -> None:
+    """Defensive path: no informative chunks should keep the original query."""
     import core.rag.recursive_retrieval as recursive
 
-    monkeypatch.setattr(recursive, "sorted", lambda *_args, **_kwargs: [], raising=False)
-    chunks = [
-        RAGChunk(
-            chunk_id="x1",
-            file="doc.md",
-            content="Metabolic adaptation endurance recovery protocol",
-            score=0.8,
-        )
-    ]
+    chunks: list[RAGChunk] = []
     assert recursive._refine_query("nutrition", chunks) == "nutrition"
 
 

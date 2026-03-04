@@ -141,7 +141,13 @@ def retrieve_recursive_context_structured(
         from core.rag.vector_rag import retrieve_context_structured
 
         for hop in range(1, MAX_RAG_HOPS + 1):
-            if (time.perf_counter() - start_ts) >= RAG_PIPELINE_TIMEOUT_SEC:
+            elapsed_sec = time.perf_counter() - start_ts
+            if elapsed_sec >= RAG_PIPELINE_TIMEOUT_SEC:
+                logger.debug(
+                    "Recursive retrieval timeout; breaking at hop=%d elapsed_ms=%d",
+                    hop,
+                    int(elapsed_sec * 1000),
+                )
                 break
 
             hops_done = hop
