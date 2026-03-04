@@ -3162,6 +3162,7 @@ If it is not recorded here — it does not exist.
     - Community features complete (Social Network + Gamification + Restaurant)
     - End-to-end user journeys documented and tested
 
+<a id="ledger-p0-master-checklist-triage"></a>
 - [ ] P0: Master checklist phase-fit triage (PulsePlate_Master_Checklist v1.0)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (program alignment / scope control)
@@ -3170,6 +3171,7 @@ If it is not recorded here — it does not exist.
   - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
   - Links:
     - docs/roadmap/BACKLOG_LEDGER.md
+    - https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit (PulsePlate_Master_Checklist v1.0 source)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
   - DoD:
@@ -3178,6 +3180,7 @@ If it is not recorded here — it does not exist.
     - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
     - No duplicate or conflicting ownership across active worktrees
 
+<a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
@@ -3197,6 +3200,7 @@ If it is not recorded here — it does not exist.
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
 
+<a id="ledger-p1-frontend-ai-parity"></a>
 - [ ] P1: Frontend parity for new AI-agent and LLM reliability features
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (quality visibility)
@@ -3229,11 +3233,15 @@ If it is not recorded here — it does not exist.
     - At least one canonical article draft is mapped to verifiable repo artifacts
     - Marketing copy checklist includes wellness-safe and evidence-only claims
 
+<a id="ledger-p1-philosophical-logic"></a>
 - [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on reliability)
   - Target PR: PR-TBD-LLM-PHILOSOPHY-W1
-  - Status: 🟡 Prioritized (next quality wave after P0 payment/fact-check alignment)
+  - Status: 🟡 Prioritized (quality wave W1)
+  - Dependencies:
+    - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
   - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Expected impact: reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Ожидаемый эффект: снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
@@ -3257,11 +3265,14 @@ If it is not recorded here — it does not exist.
     - Performance metrics: latency reduction 50-60% average, quality maintained ≥95%
     - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
 
+<a id="ledger-p1-recursive-methods"></a>
 - [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on quality and accuracy)
   - Target PR: PR-TBD-RECURSIVE-LLM-W1
-  - Status: 🟡 Prioritized (starts after Philosophical W1 baseline)
+  - Status: 🟡 Prioritized (quality wave W1-B)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
   - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
@@ -3288,11 +3299,17 @@ If it is not recorded here — it does not exist.
     - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
     - Integration tests pass (end-to-end recursive pipeline)
 
+<a id="ledger-p2-unified-aicoach"></a>
 - [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (integration of all components after individual implementations)
   - Target PR: PR-TBD-UNIFIED-AICOACH-PHASE5
-  - Status: 📋 Planned (depends on Philosophical + Recursive + CBT completion and stabilized payment/frontend baseline)
+  - Status: 📋 Planned (integration wave)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
+    - [P1 Recursive methods](#ledger-p1-recursive-methods)
+    - [P1 Frontend parity for AI reliability](#ledger-p1-frontend-ai-parity)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
   - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
   - Links:
     - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
