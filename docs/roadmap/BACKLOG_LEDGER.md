@@ -3190,8 +3190,8 @@ If it is not recorded here — it does not exist.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PRODUCT_TIER_MAP.md
-    - ios/PulsePlate/Services/
-    - app/routers/
+    - ios/PulsePlate/Services/ProKeyProvider.swift:1
+    - app/routers/pro_registration.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
     - ⏳ Unified billing activation service is finalized for source-specific receipts
