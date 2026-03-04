@@ -148,6 +148,7 @@ It exists to help the coordinator route work efficiently.
 
 ## Related Documentation
 
+- **Routing Graph (SoT):** `docs/orchestration/AGENT_ROUTING_GRAPH.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
