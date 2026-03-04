@@ -3051,8 +3051,8 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R4 — Export adapter + deterministic contract tests
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD-W3-R4-EXPORT-TESTS
-  - Status: 📋 Planned
+  - Target PR: PR #TBD-W3-R4-EXPORT-TESTS (`feat/restaurants-w3-r4-observability-rollback`)
+  - Status: 🟡 In progress
   - Reason: Guarantee stable mapping from weekly plan artifacts to partner payloads.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
