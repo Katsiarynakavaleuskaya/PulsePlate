@@ -1,0 +1,9 @@
+# Keep allowlist surgical (path-anchored).
+# Format: one regex per line, applied to path::line (e.g. docs/foo.md::content).
+# Example pattern:
+# ^docs/research/2026/.*::.*\btreatment\b.*
+
+# Policy docs: forbidden-phrase examples (we document what NOT to write)
+^docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW\.md::.*запрещены
+^docs/legal/RISK_LANGUAGE_GUIDE\.md::.*
+^docs/legal/COPY_RULES_WELLNESS\.md::.*
