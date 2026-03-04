@@ -55,6 +55,8 @@
 3. Runtime changes require reviewer.
 4. Docs-only tasks may omit reviewer.
 5. Coordinator retains final authority.
+6. **Domain `safety`** = wellness language boundaries + claim semantics + contradiction checks (single definition; do not duplicate elsewhere).
+7. **Reviewer** in this graph = process/merge reviewer, not formal security review (formal review semantics live in `AGENT_CAPABILITY_MATRIX.md`).
 
 ---
 
