@@ -93,6 +93,13 @@ Or individually:
 - Any appearance of these paths in `git status` is a **P0 stop** condition. Remove/ignore them before continuing any task.
 - Any PR with tracked `worktrees/` paths is **No-Go** and must not be merged.
 
+**Worktree isolation (hard):**
+
+- Do not edit files inside `worktrees/...` while an agent is working there.
+- Integration only via PR: agent promotes changes → human reviews → merge. No in-place edits.
+- If human must intervene: create a new branch from the agent branch; do NOT edit in-place inside the worktree directory.
+- See: `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md` (Worktree isolation policy).
+
 **SKIPPED policy (Bad skip vs Intentional skip):**
 
 - **Intentional skip:** Documented, scoped (e.g. known missing module, expected-red guard),

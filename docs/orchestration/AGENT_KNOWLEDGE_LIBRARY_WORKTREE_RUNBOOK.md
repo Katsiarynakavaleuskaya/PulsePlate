@@ -22,7 +22,32 @@ teams may keep RU-first discussion and decision context in artifacts when needed
   - [`docs/orchestration/synthesis.template.md`](./synthesis.template.md)
   - [`docs/orchestration/dod.template.md`](./dod.template.md)
 
-## 2) Worktree bootstrap (separate branch)
+## 2) Worktree isolation policy (hard rule)
+
+**Purpose:** Prevent merge conflicts and orchestration chaos when agent and human edit the same files.
+
+**Rules:**
+
+- **Agent worktree is immutable to humans.** Do not edit files inside `worktrees/...` while the agent is working.
+- **Integration only via PR.** Agent promotes changes → human reviews → merge. No in-place edits.
+- **Worktree states:** `active` (agent working) | `abandoned` (stale, to prune) | `merged` (PR merged, cleanup required).
+- **If human must intervene:** Create a new branch from the agent branch; do NOT edit in-place inside the worktree directory.
+
+**Example (human intervention):**
+
+```bash
+# Agent branch: worktree/orchestration-improvements
+# Human needs to fix something:
+git checkout -b fix/orchestration-typo worktree/orchestration-improvements
+# Edit in main repo (not in worktrees/), commit, push, open PR
+# Do NOT: cd worktrees/orchestration_improvements && edit files there
+```
+
+**Rationale:** Supply-chain control — changes flow through PR review; no silent overwrites.
+
+---
+
+## 3) Worktree bootstrap (separate branch)
 
 ```bash
 git fetch origin
@@ -36,7 +61,7 @@ Recommended branch naming:
 - `worktree/agent-library-<topic>`
 - `feature/brainstorm-<topic>`
 
-## 3) Library structure (project knowledge base)
+## 4) Library structure (project knowledge base)
 
 Use one canonical tree for reusable knowledge artifacts:
 
@@ -59,7 +84,7 @@ Rules:
 - Reusable invariant/policy goes to one SoT doc only (anti-duplication).
 - If item is deferred, record in backlog ledger immediately.
 
-## 4) Mandatory flow (brainstorm to PR)
+## 5) Mandatory flow (brainstorm to PR)
 
 1. Step 0. Pre-flight
    - owner: `agent-coordinator`
@@ -92,7 +117,7 @@ Rules:
    - output: PR description + DoD
    - gate: scope and acceptance checks explicit
 
-## 5) Matrix-driven routing block (fill each cycle)
+## 6) Matrix-driven routing block (fill each cycle)
 
 Copy this block into each brainstorm file:
 
@@ -109,7 +134,7 @@ Copy this block into each brainstorm file:
 
 Reference matrix: [`docs/orchestration/AGENT_CAPABILITY_MATRIX.md`](./AGENT_CAPABILITY_MATRIX.md).
 
-## 6) Evidence contract (non-negotiable)
+## 7) Evidence contract (non-negotiable)
 
 Every promoted claim must include at least one:
 
@@ -124,7 +149,7 @@ Forbidden:
 
 KPP reference: [`docs/memory/kpp_knowledge_promotion_pipeline.md`](../memory/kpp_knowledge_promotion_pipeline.md).
 
-## 7) Promotion log template (fill by agents)
+## 8) Promotion log template (fill by agents)
 
 Create `docs/library/promotion/YYYY-MM-DD_<topic>_promotion-log.md`:
 
@@ -148,7 +173,7 @@ Create `docs/library/promotion/YYYY-MM-DD_<topic>_promotion-log.md`:
   - Target PR:
 ```
 
-## 8) PR template (brainstorm-driven)
+## 9) PR template (brainstorm-driven)
 
 Use this structure in PR body:
 
@@ -175,14 +200,14 @@ Use this structure in PR body:
 - Ledger item(s):
 ```
 
-## 9) How agents enrich knowledge (without drift)
+## 10) How agents enrich knowledge (without drift)
 
 - Agents enrich by **promotion** into repo artifacts, not hidden memory.
 - Use one-source policy wording and link to it from other docs.
 - Keep raw research evidence separate from canonical policy.
 - Convert repeated findings into guard tests where possible.
 
-## 10) Definition of done for one cycle
+## 11) Definition of done for one cycle
 
 - Brainstorm artifact exists and is matrix-routed.
 - External claims (if any) are backed by evidence.
