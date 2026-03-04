@@ -227,6 +227,7 @@ yarn-error.log*
 
 # Agent run summaries (local artifacts; never commit)
 artifacts/agent_runs/
+artifacts/orchestration/
 
 # Build artifacts
 build/

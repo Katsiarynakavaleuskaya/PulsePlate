@@ -336,6 +336,17 @@ python scripts/orchestration/agent_run_summary.py \
 
 ---
 
+### Telemetry rollup (optional, advisory)
+
+```bash
+mkdir -p artifacts/orchestration
+python scripts/orchestration/telemetry_rollup.py
+```
+
+See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
+
+---
+
 ## Step 6: DoD (Definition of Done)
 
 **When:** Before PR merge
