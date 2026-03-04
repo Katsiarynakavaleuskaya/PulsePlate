@@ -3246,6 +3246,18 @@ If it is not recorded here — it does not exist.
     - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
     - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
+- [x] P2: Guards — wellness language blocker (docs safety)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality / safety)
+  - Target PR: PR-TBD (test/guards-wellness-language-blockers)
+  - Status: ✅ Implemented (guard test merged)
+  - Reason (EN): Deterministic CI guard to block medical/diagnostic claims in docs and public copy (wellness-only posture). Blocks RU+EN phrases: лечит, вылечит, вылечим, исцелит, диагноз, диагностирую, диагностирует; allowlist for policy docs.
+  - Links:
+    - `tests/guards/test_wellness_language_blockers_guard.py`
+    - `tests/guards/wellness_language_allowlist.txt`
+  - DoD:
+    - Guard test merged; allowlist exists; fails on blocker phrases; documented marker `pulseplate-allow:blocker-example`
+
 - [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (optional tooling improvement)
