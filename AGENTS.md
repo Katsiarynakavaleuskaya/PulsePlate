@@ -212,6 +212,8 @@ A **task** is any unit of work that:
 4. **Synthesis** → Coordinator synthesizes multi-agent work into coherent solution
 5. **DoD** → Coordinator verifies Definition of Done before PR merge
 
+**Agent Run Summary:** Coordinator must generate Agent Run Summary JSON before merge readiness (local artifact; never committed). Artifact location: `artifacts/agent_runs/` (gitignored).
+
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`
