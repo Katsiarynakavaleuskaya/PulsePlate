@@ -2781,6 +2781,82 @@ If it is not recorded here — it does not exist.
 
 ### Orchestration Enhancements (follow-ups to PR-634)
 
+- [ ] P1: Orchestration — document worktree isolation policy (agent worktree immutable to humans)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (docs-only)
+  - Priority: P1
+  - Area: dev-process / orchestration
+  - Finding Type: operational policy
+  - Reason: Agent works in its own worktree; a human edits the same files → merge conflicts → orchestration chaos. No explicit rule "human cannot edit agent worktree." Integration flow exists (PR promotion) but operational law is missing.
+  - Links:
+    - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Policy section added to runbook (worktree states: active/abandoned/merged; allowed human intervention via new branch)
+    - Short hard-rule excerpt in root `AGENTS.md` (do not edit inside worktrees/; integration only via PR)
+    - Example "human intervention via new branch" documented
+
+- [ ] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (docs-only)
+  - Priority: P1
+  - Area: orchestration / RAG
+  - Finding Type: policy gap
+  - Reason: AGENT_CONTEXT_MAP and AGENT_CAPABILITY_MATRIX exist; AGENT_CORPUS_MAP exists in core/rag/contracts.py. No docs-level SoT for agent → corpus → RAG index policy. Security posture (retrieved content untrusted) needs policy clarity.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/contracts.py` (AGENT_CORPUS_MAP)
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Document `docs/orchestration/AGENT_KNOWLEDGE_MAP.md` created
+    - References AGENT_CORPUS_MAP policy; boundaries + indexing scope + security posture described
+    - If RAG deprioritized: close as WONTFIX with explicit reason
+
+- [ ] P2: Tooling — pre-flight auto-verification script
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: tooling / orchestration
+  - Finding Type: automation
+  - Reason: Pre-flight Checklist is manual; coordinator "mentally checks" docs. Risk of drift. Script is direct executor of canon.
+  - Links:
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/orchestration/workflow.md`
+    - `.cursor/agents/agent-coordinator.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Script verifies required context files present, repo hygiene (no tracked worktrees), prints PASS/FAIL
+    - Failure mode explicit; does not block unrelated tasks (scoped to orchestration workflow)
+
+- [ ] P2: Orchestration — agent routing graph (task → domains → agents)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (docs-only)
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: routing
+  - Reason: Capability matrix is advisory; no automatic routing. Task → domain classifier → agent set makes orchestration deterministic.
+  - Links:
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Routing graph spec or document (task → domains → agents)
+    - Linked from coordinator or capability matrix
+
+- [ ] P2: Orchestration — agent clusters (scaling for 40+ agents)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (future)
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: scalability
+  - Reason: 26 agents; coordinator routes to each. At scale (40+ agents) routing becomes unwieldy. Cluster-first routing (backend, frontend, ml, research, security) scales better.
+  - Links:
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Cluster definitions documented
+    - Routing logic updated or documented for future adoption
+
 - [ ] Agent Context Cache (avoid re-loading AGENTS.md)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
@@ -2831,19 +2907,10 @@ If it is not recorded here — it does not exist.
     - Mermaid output format defined (inputs + expected diagram)
     - Example visualization added to orchestration docs or runbook
 
-- [ ] Auto-verification script (Pre-flight Checklist)
+- [x] Auto-verification script (Pre-flight Checklist) — superseded by P2: Tooling — pre-flight auto-verification script
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: dev-process / orchestration
-  - Finding Type: automation
-  - Reason: Pre-flight Checklist is manual; automation can fail-fast on missing required context.
-  - Links:
-    - docs/orchestration/AGENT_CONTEXT_MAP.md
-    - .cursor/agents/agent-coordinator.md
-  - DoD:
-    - A script/tool verifies required context files are present and referenced correctly
-    - Failure mode is explicit and does not block unrelated tasks (scoped to orchestration workflow)
+  - Status: ✅ Superseded (consolidated into P2 entry above)
+  - Reason: Same scope; consolidated with plan link in P2 entry.
 
 - [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya
