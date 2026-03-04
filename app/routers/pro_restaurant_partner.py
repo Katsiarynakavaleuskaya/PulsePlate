@@ -103,14 +103,31 @@ def create_partner_order(
     "/orders/{order_id}",
     response_model=PartnerOrderResponse,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Order access forbidden",
+            "model": PartnerOrderErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Order not found",
             "model": PartnerOrderErrorResponse,
-        }
+        },
+        status.HTTP_410_GONE: {
+            "description": "Order gone",
+            "model": PartnerOrderErrorResponse,
+        },
     },
 )
-def get_partner_order(order_id: str) -> PartnerOrderResponse:
-    order = restaurant_partner_orders.get_order(order_id)
+def get_partner_order(
+    order_id: str,
+    x_api_key: str = Depends(require_pro_tier),
+) -> PartnerOrderResponse:
+    issuer = _issuer_from_api_key(x_api_key)
+    try:
+        order = restaurant_partner_orders.get_order(order_id, issuer=issuer)
+    except restaurant_partner_orders.OrderAccessForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except restaurant_partner_orders.OrderGoneError as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order
@@ -120,12 +137,20 @@ def get_partner_order(order_id: str) -> PartnerOrderResponse:
     "/orders/{order_id}/confirm",
     response_model=PartnerOrderResponse,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Order access forbidden",
+            "model": PartnerOrderErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Order not found",
             "model": PartnerOrderErrorResponse,
         },
         status.HTTP_409_CONFLICT: {
             "description": "client_event_id conflict",
+            "model": PartnerOrderErrorResponse,
+        },
+        status.HTTP_410_GONE: {
+            "description": "Order gone",
             "model": PartnerOrderErrorResponse,
         },
         status.HTTP_422_UNPROCESSABLE_CONTENT: {
@@ -137,10 +162,13 @@ def get_partner_order(order_id: str) -> PartnerOrderResponse:
 def confirm_partner_order(
     order_id: str,
     payload: PartnerOrderConfirmRequest,
+    x_api_key: str = Depends(require_pro_tier),
 ) -> PartnerOrderResponse:
+    issuer = _issuer_from_api_key(x_api_key)
     try:
         confirmed, _ = restaurant_partner_orders.confirm_order(
             order_id=order_id,
+            issuer=issuer,
             confirmed_by=payload.confirmed_by,
             client_event_id=payload.client_event_id,
             note=payload.note,
@@ -149,6 +177,10 @@ def confirm_partner_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         ) from exc
+    except restaurant_partner_orders.OrderAccessForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except restaurant_partner_orders.OrderGoneError as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except RuntimeError as exc:
