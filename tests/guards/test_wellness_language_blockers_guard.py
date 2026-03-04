@@ -166,6 +166,8 @@ def test_wellness_guard_blocks_medical_claim_ru() -> None:
             assert pattern.search("Мы вылечим тревожность за 2 недели.")
             assert pattern.search("FFMI лечит недостаток мышц.")
             break
+    else:
+        raise AssertionError("WELLNESS_MEDICAL_CLAIM_RU pattern not found in BLOCKER_PATTERNS")
 
 
 def test_wellness_guard_blocks_medical_claim_en() -> None:
@@ -175,3 +177,5 @@ def test_wellness_guard_blocks_medical_claim_en() -> None:
             assert pattern.search("We cure anxiety quickly.")
             assert pattern.search("This cures your condition.")
             break
+    else:
+        raise AssertionError("WELLNESS_MEDICAL_CLAIM_EN pattern not found in BLOCKER_PATTERNS")
