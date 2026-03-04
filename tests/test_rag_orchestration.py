@@ -173,8 +173,8 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 2
 
     @pytest.mark.asyncio
-    async def test_recursive_with_philo_enabled_runs_pipeline_and_forwards_flag(self) -> None:
-        """Recursive path must still run pipeline and forward validation flag."""
+    async def test_recursive_with_philo_enabled_runs_pipeline_without_double_filter(self) -> None:
+        """Orchestration owns philo filtering; recursive call keeps philo flag off."""
         chunks = [_make_chunk("c1", score=0.85)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.85, hops=2)
         pipeline_result = PipelineResult(
@@ -211,7 +211,7 @@ class TestRetrieveAndValidateRag:
             )
 
         pipeline_mock.assert_called_once_with(rag_ctx.chunks, query="test prompt")
-        assert to_thread_mock.call_args.kwargs["philo_validation_enabled"] is True
+        assert to_thread_mock.call_args.kwargs["philo_validation_enabled"] is False
         assert result.rag_actually_used is True
         assert result.confidence == 0.85
 

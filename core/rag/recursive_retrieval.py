@@ -177,16 +177,19 @@ def retrieve_recursive_context_structured(
             if not hop_chunks:
                 break
 
+            candidate_chunks = dict(merged_chunks)
             for chunk in hop_chunks:
-                existing = merged_chunks.get(chunk.chunk_id)
+                existing = candidate_chunks.get(chunk.chunk_id)
                 if existing is None or chunk.score > existing.score:
-                    merged_chunks[chunk.chunk_id] = chunk
+                    candidate_chunks[chunk.chunk_id] = chunk
 
-            ranked_chunks = _rank_chunks(merged_chunks.values(), limit)
+            ranked_chunks = _rank_chunks(candidate_chunks.values(), limit)
             confidence = _compute_confidence(ranked_chunks)
 
             if hop > 1 and (confidence - previous_confidence) < MIN_CONFIDENCE_GAIN_PER_HOP:
                 break
+
+            merged_chunks = candidate_chunks
             previous_confidence = confidence
 
             if len(refined_queries) - 1 >= MAX_REFINEMENT_PASSES:

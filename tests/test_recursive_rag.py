@@ -176,6 +176,51 @@ def test_recursive_early_stop_on_low_confidence_gain(
     assert result.confidence == 0.5
 
 
+def test_low_gain_hop_does_not_pollute_merged_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Low-gain second hop must not commit new chunks to final merged output."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", 0.2)
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        if "novelword" in query:
+            return _ctx(
+                query,
+                [
+                    RAGChunk(
+                        chunk_id="b-low",
+                        file="doc.md",
+                        content="novelword low confidence branch",
+                        score=0.1,
+                    )
+                ],
+                confidence=0.1,
+            )
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id="a-high",
+                    file="doc.md",
+                    content="novelword high confidence evidence",
+                    score=0.9,
+                )
+            ],
+            confidence=0.9,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured("base query")
+    assert result.hops == 2
+    assert [chunk.chunk_id for chunk in result.chunks] == ["a-high"]
+
+
 def test_recursive_fail_safe_on_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Internal retrieval failure must return safe empty context."""
 

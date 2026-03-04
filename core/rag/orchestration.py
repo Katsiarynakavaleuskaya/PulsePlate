@@ -135,7 +135,7 @@ async def _run_orchestration(
             retrieve_recursive_context_structured,
             prompt_input,
             max_chunks=max_chunks,
-            philo_validation_enabled=philo_enabled,
+            philo_validation_enabled=False,
         )
     else:
         from core.rag.vector_rag import retrieve_context_structured
