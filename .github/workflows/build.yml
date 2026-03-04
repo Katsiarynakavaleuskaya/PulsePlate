@@ -115,6 +115,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (filesystem scan)
         run: |
           trivy fs . \
+            --db-repository ghcr.io/aquasecurity/trivy-db \
             --ignore-policy "${{ github.workspace }}/trivy/ignore-policy.rego" \
             --scanners vuln \
             --format sarif --output trivy-results.sarif --severity CRITICAL,HIGH \
