@@ -3352,6 +3352,20 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Guard test merged; allowlist exists; fails on blocker phrases; documented marker `pulseplate-allow:blocker-example`
 
+- [ ] P2: Philosophy Validator (runtime LLM output validation)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality / safety)
+  - Target PR: PR #972 (`feat/philosophy-validator-core`)
+  - Status: 🔄 IN PROGRESS
+  - Reason (EN): Deterministic runtime validator for LLM outputs used in product copy/coaching. `validate_llm_output(text, domain=None) -> Report`; BLOCKER codes: WELLNESS_MEDICAL_CLAIM_*, WELLNESS_GUARANTEE, NON_FALSIFIABLE_VAGUE, POTENTIAL_CONTRADICTION. No network, regex/rules only. Coordinator can require rewrite before merge.
+  - Links:
+    - `core/insight/philosophy_validator.py`
+    - `tests/test_philosophy_validator.py`
+  - DoD:
+    - `core.insight.philosophy_validator` module merged
+    - Unit tests pass (RU/EN blockers, contradiction, determinism)
+    - AGENTS.md policy: LLM outputs must pass philosophy_validator (BLOCKER = rewrite)
+
 - [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (optional tooling improvement)
