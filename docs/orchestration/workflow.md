@@ -295,6 +295,37 @@ When routing tasks, coordinator should include appropriate hint level based on:
 
 ---
 
+## Agent Run Summary Artifact (Local JSON, non-tracked)
+
+**Purpose:** Deterministic run summary for coordinator/agents (validator + static scans).
+**Status:** Local artifact only. Must NOT be committed.
+
+**Canonical path:** `artifacts/agent_runs/` (gitignored)
+
+### When to generate
+- After **Synthesis** (coordinator) and before **Merge readiness**.
+
+### Command (single-path)
+```bash
+mkdir -p artifacts/agent_runs
+
+python scripts/orchestration/agent_run_summary.py \
+  --agent agent-coordinator \
+  --domain <domain> \
+  --task-type "<task_type>" \
+  --stdin \
+  --output "artifacts/agent_runs/<run_id>__agent-coordinator__<domain>.json"
+```
+
+### Input contract
+- `stdin` must contain the final text output being reviewed (copy/coaching/synthesis).
+
+### Decision contract
+- Exit code `0` = PASS
+- Exit code `1` = REWRITE_REQUIRED (BLOCKER or failed static scans)
+
+---
+
 ## Step 6: DoD (Definition of Done)
 
 **When:** Before PR merge
