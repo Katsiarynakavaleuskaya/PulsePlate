@@ -3171,6 +3171,7 @@ If it is not recorded here — it does not exist.
   - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
   - Links:
     - docs/roadmap/BACKLOG_LEDGER.md
+    - docs/roadmap/PulsePlate_Master_Checklist_v1.0.md:1
     - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
@@ -3218,6 +3219,7 @@ If it is not recorded here — it does not exist.
     - Thin-client guards remain green; no business logic duplication on clients
     - Deterministic contract tests added for new AI-quality response fields
 
+<a id="ledger-p1-scientific-reliability-pipeline"></a>
 - [ ] P1: Scientific reliability publication pipeline (blog + evidence artifacts)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (trust + GTM)
@@ -3260,9 +3262,10 @@ If it is not recorded here — it does not exist.
     - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
     - Phase 4: Linguistic philosophy implemented (speech acts, language games)
     - Phase 5: Integrated framework complete (unified prompt builder + validator)
-    - **Speed Optimization Phase:** Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
-    - Validation metrics: contradiction rate <2%, verification rate >95%, pragmatic utility >90%
-    - Performance metrics: latency reduction 50-60% average, quality maintained ≥95%
+    - Hypothesis target (requires benchmark validation): Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
+    - Hypothesis target (requires benchmark validation): contradiction rate <2%, verification rate >95%, pragmatic utility >90%
+    - Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained ≥95%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
 
 <a id="ledger-p1-recursive-methods"></a>
@@ -3294,9 +3297,10 @@ If it is not recorded here — it does not exist.
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
     - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
     - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
-    - **Optimization Phase:** Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
-    - Performance metrics: retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
-    - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
+    - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
+    - Hypothesis target (requires benchmark validation): caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Integration tests pass (end-to-end recursive pipeline)
 
 <a id="ledger-p2-unified-aicoach"></a>
@@ -3328,8 +3332,9 @@ If it is not recorded here — it does not exist.
     - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
     - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
     - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
-    - Performance metrics: latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
-    - Cost optimization: ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Hypothesis target (requires benchmark validation): latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
+    - Hypothesis target (requires benchmark validation): ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
     - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
     - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
