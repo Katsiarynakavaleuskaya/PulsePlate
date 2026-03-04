@@ -34,7 +34,8 @@ _BLOCKER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose"
             r"|I\s+cure|I\s+diagnose|cures?\s+your|cures?\s+the"
-            r"|diagnoses?\s+your|diagnoses?\s+the)\b",
+            r"|diagnoses?\s+your|diagnoses?\s+the"
+            r"|(this|it)\s+(cures?|diagnoses?))\b",
             re.IGNORECASE,
         ),
     ),
@@ -119,7 +120,7 @@ def scan_docs_for_wellness_blockers(
 
         try:
             content = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, FileNotFoundError):
             continue
 
         path_rel = path.relative_to(repo_root).as_posix()
