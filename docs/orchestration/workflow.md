@@ -65,6 +65,9 @@ Task
 
 ### Pre-flight Checklist
 
+#### 0) Auto-verification (mandatory)
+- [ ] Run: `python3 scripts/orchestration/check_preflight.py` — must exit 0 (PASS). Failure = stop execution.
+
 #### 1) Context loading
 - [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)
 - [ ] Загружен `RUNBOOK_AGENT.md` (операционные команды/проверки)
