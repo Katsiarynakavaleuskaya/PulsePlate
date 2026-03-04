@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from app.schemas.restaurant_partner import FulfillmentMode, PartnerConsent
@@ -13,7 +15,7 @@ def _consent() -> PartnerConsent:
     )
 
 
-def _week_plan() -> dict[str, object]:
+def _week_plan() -> dict[str, Any]:
     return {
         "days": [
             {
