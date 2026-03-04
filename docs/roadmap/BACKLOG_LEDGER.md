@@ -2815,9 +2815,10 @@ If it is not recorded here — it does not exist.
     - References AGENT_CORPUS_MAP policy; boundaries + indexing scope + security posture described
     - If RAG deprioritized: close as WONTFIX with explicit reason
 
-- [ ] P2: Tooling — pre-flight auto-verification script
+- [x] P2: Tooling — pre-flight auto-verification script
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR #966
+  - Status: ✅ Merged (PR #966, 2026-03-04)
   - Priority: P2
   - Area: tooling / orchestration
   - Finding Type: automation
@@ -2833,7 +2834,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] P2: Orchestration — agent routing graph (task → domains → agents)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (docs-only)
+  - Target PR: PR #967 (docs-only)
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: routing
