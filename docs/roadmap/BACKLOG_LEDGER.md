@@ -3171,7 +3171,7 @@ If it is not recorded here — it does not exist.
   - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
   - Links:
     - docs/roadmap/BACKLOG_LEDGER.md
-    - https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit (PulsePlate_Master_Checklist v1.0 source)
+    - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
   - DoD:
