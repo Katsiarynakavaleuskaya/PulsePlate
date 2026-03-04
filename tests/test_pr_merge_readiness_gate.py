@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts.ci import check_pr_merge_readiness as merge_gate
 from scripts.ci.check_pr_merge_readiness import _is_actionable, _mapped_urls
 
@@ -30,7 +32,7 @@ def test_mapped_urls_extracts_review_url_and_no_actionable_marker() -> None:
 
 
 def test_graphql_unresolved_threads_ignores_ghas_non_conversation(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """GHAS code-scanning threads are not resolvable conversations and should not block merge."""
 

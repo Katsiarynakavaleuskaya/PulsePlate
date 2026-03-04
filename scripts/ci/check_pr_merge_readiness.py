@@ -134,7 +134,6 @@ def _graphql_unresolved_threads(repo: str, pr_number: int, token: str) -> int:
             }
             nodes {
               isResolved
-              isOutdated
               comments(first: 1) {
                 nodes {
                   author {
