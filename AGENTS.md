@@ -437,6 +437,12 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Waist risk note (compat): `core/bmi/risk.get_waist_risk_note()`
 - Healthy BMI range: `core/bmi/engine.HEALTHY_BMI_RANGE`
 
+**Wellness language BLOCKER guard (docs safety):**
+
+- Docs/public copy must pass wellness language blocker guard (no medical claims; allowlist only for explicit policy examples).
+- Guard test: `tests/guards/test_wellness_language_blockers_guard.py`
+- Allowlist: `tests/guards/wellness_language_allowlist.txt`; in-file marker: `pulseplate-allow:blocker-example`
+
 **❌ Forbidden in `legacy_app.py`:**
 
 - `warn, high = (94, 102)` or similar

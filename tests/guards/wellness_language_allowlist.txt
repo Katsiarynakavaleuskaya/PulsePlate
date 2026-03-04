@@ -1,0 +1,13 @@
+# Keep allowlist surgical (path-anchored).
+# Format: one regex per line, applied to path::line (e.g. docs/foo.md::content).
+# Example pattern:
+# ^docs/research/2026/.*::.*\btreatment\b.*
+
+# Policy docs: forbidden-phrase examples (we document what NOT to write)
+^docs/audience_pack/INVESTOR_PUBLIC_OVERVIEW\.md::.*запрещены
+# RISK_LANGUAGE_GUIDE: only bad-example lines in code block (FFMI лечит, WHR диагностирует)
+^docs/legal/RISK_LANGUAGE_GUIDE\.md::.*(FFMI лечит|WHR диагностирует)
+# COPY_RULES_WELLNESS: only table rows listing forbidden words
+^docs/legal/COPY_RULES_WELLNESS\.md::.*\|.*"(лечит|диагностирует)".*\|.*
+# BACKLOG_LEDGER: ledger entry describing the guard (lists blocked phrases)
+^docs/roadmap/BACKLOG_LEDGER\.md::.*Blocks RU\+EN phrases

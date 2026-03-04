@@ -445,6 +445,20 @@ pytest -q tests/test_repo_policy_guards.py
     - Mark both checkboxes as completed after discussion-thread pass.
     - Add explicit mapping entries for each addressed bot review comment.
 
+- **Wellness language BLOCKER guard**: `tests/guards/test_wellness_language_blockers_guard.py`
+  - **What it enforces**:
+    - `docs/` must not contain medical/diagnostic claims (wellness-only posture).
+    - Blocks RU: лечит, вылечит, вылечим, исцелит, диагноз, диагностирую, диагностирует.
+    - Blocks EN: we cure, we diagnose, will cure, will diagnose, cures your, cures the.
+  - **How to run**:
+    ```bash
+    pytest -q tests/guards/test_wellness_language_blockers_guard.py
+    ```
+  - **How to fix failures**:
+    - Remove/rewrite medical claims in docs.
+    - Or add to `tests/guards/wellness_language_allowlist.txt` (path-anchored regex).
+    - Or add in-file marker `pulseplate-allow:blocker-example` for policy/example lines.
+
 ## Type hints policy (tests)
 
 ### Hard rules
