@@ -79,6 +79,9 @@
     "vitest": "^3.2.4",
     "esbuild": "^0.25.0"
   },
+  "overrides": {
+    "dompurify": "github:cure53/DOMPurify#729097f63a78e3e0e9f771e648f462bee100e78f"
+  },
   "msw": {
     "workerDirectory": [
       "public"
