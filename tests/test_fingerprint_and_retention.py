@@ -195,10 +195,13 @@ def test_log_retention_manager_properties() -> None:
         mgr.sensitive_retention_days = original_sensitive
 
 
-def test_log_retention_cleanup_stub(caplog: pytest.LogCaptureFixture) -> None:
-    """cleanup_expired_logs should log warning and return 0."""
+def test_log_retention_cleanup_missing_root_returns_zero(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """cleanup_expired_logs returns 0 when log root does not exist."""
     mgr = log_retention.get_retention_manager()
+    monkeypatch.setenv(mgr.LOG_ROOT_ENV, "/tmp/nonexistent-pulseplate-log-root")
     with caplog.at_level("WARNING"):
         deleted = mgr.cleanup_expired_logs()
     assert deleted == 0
-    assert any("not implemented" in rec.message for rec in caplog.records)
+    assert not any("Cannot delete expired log file" in rec.message for rec in caplog.records)

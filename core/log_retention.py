@@ -1,14 +1,15 @@
 """Log retention policy management for GDPR/privacy compliance.
 
 Manages automatic cleanup of logs based on data classification and retention periods.
-
-Note: cleanup_expired_logs is a stub that logs a warning and returns 0 (no files deleted).
 """
 
 from enum import Enum
-from typing import Dict, Optional
 import logging
+from pathlib import Path
 import threading
+import time
+from typing import Dict, Optional
+import os
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -31,6 +32,9 @@ DATA_CLASS_PSEUDONYMOUS: DataClass = DataClass.PSEUDONYMOUS
 
 class LogRetentionManager:
     """Manages log file retention and cleanup based on data classification."""
+
+    LOG_ROOT_ENV = "LOG_RETENTION_ROOT"
+    DEFAULT_LOG_ROOT = Path("logs")
 
     def __init__(self) -> None:
         """Initialize retention manager with default policies."""
@@ -88,31 +92,100 @@ class LogRetentionManager:
     def sensitive_retention_days(self, days: int) -> None:
         self._set_retention(DataClass.SENSITIVE, days)
 
-    def cleanup_expired_logs(self, data_class: Optional[DataClass] = None) -> int:
+    @staticmethod
+    def _is_within_root(path: Path, root: Path) -> bool:
+        """Return True if path is under root after symlink resolution."""
+        try:
+            path.resolve().relative_to(root.resolve())
+            return True
+        except (ValueError, OSError, RuntimeError):
+            return False
+
+    def _resolve_log_root(self) -> Path:
+        """Resolve configured log root directory."""
+        raw_path = os.getenv(self.LOG_ROOT_ENV, "").strip()
+        if raw_path:
+            return Path(raw_path).expanduser().resolve()
+        return self.DEFAULT_LOG_ROOT.resolve()
+
+    @staticmethod
+    def _classify_file(path: Path, root: Path) -> DataClass:
+        """Infer data class from path segments; default to pseudonymous."""
+        try:
+            parts = [part.lower() for part in path.resolve().relative_to(root.resolve()).parts]
+        except (ValueError, OSError, RuntimeError):
+            return DATA_CLASS_PSEUDONYMOUS
+
+        if DataClass.SENSITIVE.value.lower() in parts:
+            return DataClass.SENSITIVE
+        if DataClass.PUBLIC.value.lower() in parts:
+            return DataClass.PUBLIC
+        if DataClass.PSEUDONYMOUS.value.lower() in parts:
+            return DataClass.PSEUDONYMOUS
+        return DATA_CLASS_PSEUDONYMOUS
+
+    def cleanup_expired_logs(
+        self, data_class: Optional[DataClass] = None, *, dry_run: bool = False
+    ) -> int:
         """Clean up expired log files based on retention policy.
 
         Args:
             data_class: Optional data class filter. If None, process all classes.
+            dry_run: If True, count deletions without removing files.
 
         Returns:
             Number of deleted log files
         """
-        # TODO: Implement actual deletion logic:
-        # - Iterate over files in the configured log directory
-        # - For each file, determine its data_class (if applicable) and age
-        # - Compare file age to retention_periods (and optional data_class filter)
-        # - Safely delete files that exceed their retention window
-        # - Support safety features (e.g., dry‑run mode, backups, safeguards)
-        # - Update and return the number of deleted files
-        # Non-destructive stub for now: log cleanup not yet implemented.
-        # Return 0 to indicate no files deleted (safe default).
-        data_class_str = data_class.value if data_class else "all"
-        logger.warning(
-            "Log cleanup not implemented for data_class=%s - returning 0 (no files deleted). "
-            "Implement real deletion logic against log directory using retention_periods.",
+        root = self._resolve_log_root()
+        if not root.exists() or not root.is_dir():
+            logger.info("Log cleanup skipped: root directory not found (%s)", root)
+            return 0
+
+        now_ts = time.time()
+        deleted_count = 0
+        data_class_str = data_class.value if data_class else "ALL"
+
+        for file_path in root.rglob("*"):
+            if not file_path.is_file():
+                continue
+            if not self._is_within_root(file_path, root):
+                logger.warning("Skipping file outside retention root: %s", file_path)
+                continue
+
+            file_data_class = self._classify_file(file_path, root)
+            if data_class is not None and file_data_class != data_class:
+                continue
+
+            retention_days = self._retention_periods[file_data_class]
+            retention_seconds = retention_days * 24 * 60 * 60
+
+            try:
+                file_age_seconds = max(0.0, now_ts - file_path.stat().st_mtime)
+            except OSError:
+                logger.warning("Cannot stat file during log cleanup: %s", file_path)
+                continue
+
+            if file_age_seconds <= retention_seconds:
+                continue
+
+            if dry_run:
+                deleted_count += 1
+                continue
+
+            try:
+                file_path.unlink()
+                deleted_count += 1
+            except OSError:
+                logger.warning("Cannot delete expired log file: %s", file_path)
+
+        logger.info(
+            "Log cleanup completed: deleted=%d, dry_run=%s, data_class=%s, root=%s",
+            deleted_count,
+            dry_run,
             data_class_str,
+            root,
         )
-        return 0
+        return deleted_count
 
 
 # Global singleton instance
