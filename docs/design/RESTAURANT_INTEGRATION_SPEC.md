@@ -105,19 +105,30 @@ Issuer isolation (hard requirement):
   `POST /api/v1/pro/restaurants/partner/orders/{order_id}/confirm`
   are issuer-isolated operations.
 - Access with a different issuer/API key must return `403` (owner mismatch), fail-closed.
-- Contract tests: `tests/test_pro_restaurant_partner_api.py` (`403` owner mismatch scenarios).
+- Evidence anchors: `app/routers/pro_restaurant_partner.py:120`, `app/routers/pro_restaurant_partner.py:162`,
+  `app/services/restaurant_partner_orders.py:196`, `app/services/restaurant_partner_orders.py:210`.
+- Contract tests: `tests/test_pro_restaurant_partner_api.py:111`,
+  `tests/test_pro_restaurant_partner_api.py:131`, `tests/test_pro_restaurant_partner_api.py:363`,
+  `tests/test_pro_restaurant_partner_api.py:384`.
 
 Gone semantics (hard requirement):
 
 - Expired handoff share status is terminal-gone semantics (`410`) and must stay deterministic on replay.
 - Replay of status checks after expiry must continue to return `410` (no silent recovery to `200`/`403`).
-- Contract tests: `tests/test_pro_restaurant_partner_api.py` (`410` expired + replay).
+- Evidence anchors: `app/services/restaurant_partner_orders.py:204`,
+  `app/services/restaurant_partner_orders.py:249`, `app/routers/pro_restaurant_partner.py:129`,
+  `app/routers/pro_restaurant_partner.py:183`.
+- Contract tests: `tests/test_pro_restaurant_partner_api.py:230`,
+  `tests/test_pro_restaurant_partner_api.py:410`, `tests/test_pro_restaurant_partner_api.py:880`.
 
 Out-of-scope boundary in W3-R3:
 
 - W3-R3 does not introduce payment, delivery orchestration, partner marketplace directory,
   or fulfillment lifecycle expansion.
 - Scope is restricted to retrieval/confirm hardening + deterministic error contract behavior.
+- Scope evidence anchors: `app/routers/pro_restaurant_partner.py:120`,
+  `app/routers/pro_restaurant_partner.py:162`, `tests/test_pro_restaurant_partner_openapi_contract.py:7`,
+  `docs/roadmap/BACKLOG_LEDGER.md:3032`.
 
 Temporary seam governance (contract-first -> persistent integration):
 

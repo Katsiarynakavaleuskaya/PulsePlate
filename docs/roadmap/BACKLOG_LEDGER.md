@@ -3032,7 +3032,7 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R3 — Partner retrieval + confirmation hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: This PR (`feat/restaurants-w3-r3-retrieval-confirm-hardening`)
+  - Target PR: PR #962 (`feat(restaurants): W3-R3 retrieval and confirmation hardening`)
   - Status: 🟡 In progress
   - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
   - Links:

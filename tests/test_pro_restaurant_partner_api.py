@@ -128,6 +128,31 @@ def test_get_partner_order_forbidden_for_other_issuer_403(
     assert get_resp.status_code == 403
 
 
+def test_get_partner_order_forbidden_takes_precedence_over_gone_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-1c"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    from app.services import restaurant_partner_orders
+
+    with restaurant_partner_orders._LOCK:  # noqa: SLF001
+        restaurant_partner_orders._ORDERS[order_id]["status"] = "cancelled"  # noqa: SLF001
+
+    get_resp = client.get(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}",
+        headers=vip_headers,
+    )
+    assert get_resp.status_code == 403
+
+
 def test_create_partner_order_idempotent_replay(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -215,9 +240,12 @@ def test_get_partner_order_gone_410_for_terminal_status(
     order_id = _json(created)["id"]
 
     from app.services import restaurant_partner_orders
+    from app.schemas.restaurant_partner import PartnerOrderStatus
 
     with restaurant_partner_orders._LOCK:  # noqa: SLF001
-        restaurant_partner_orders._ORDERS[order_id]["status"] = "cancelled"  # noqa: SLF001
+        restaurant_partner_orders._ORDERS[order_id][
+            "status"
+        ] = PartnerOrderStatus.cancelled  # noqa: SLF001
 
     response = client.get(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}",
@@ -225,6 +253,13 @@ def test_get_partner_order_gone_410_for_terminal_status(
     )
     assert response.status_code == 410
     assert _json(response) == {"detail": "order gone"}
+
+    replay_response = client.get(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}",
+        headers=pro_headers,
+    )
+    assert replay_response.status_code == 410
+    assert _json(replay_response) == {"detail": "order gone"}
 
 
 def test_confirm_partner_order_happy_path(
@@ -349,6 +384,32 @@ def test_confirm_partner_order_forbidden_for_other_issuer_403(
     assert confirm.status_code == 403
 
 
+def test_confirm_partner_order_forbidden_takes_precedence_over_gone_403(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-6c"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    from app.services import restaurant_partner_orders
+
+    with restaurant_partner_orders._LOCK:  # noqa: SLF001
+        restaurant_partner_orders._ORDERS[order_id]["status"] = "cancelled"  # noqa: SLF001
+
+    confirm = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=vip_headers,
+        json={"confirmed_by": "partner-user-mismatch", "client_event_id": "evt-confirm-6c"},
+    )
+    assert confirm.status_code == 403
+
+
 def test_confirm_partner_order_gone_410_for_terminal_status(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -373,6 +434,47 @@ def test_confirm_partner_order_gone_410_for_terminal_status(
     )
     assert confirm.status_code == 410
     assert _json(confirm) == {"detail": "order gone"}
+
+    replay = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={"confirmed_by": "partner-user-gone", "client_event_id": "evt-confirm-gone"},
+    )
+    assert replay.status_code == 410
+    assert _json(replay) == {"detail": "order gone"}
+
+
+def test_confirm_partner_order_idempotent_replay_after_terminal_transition(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-6d"},
+    )
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    first_confirm = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={"confirmed_by": "partner-user-replay", "client_event_id": "evt-confirm-6d"},
+    )
+    assert first_confirm.status_code == 200, first_confirm.text
+
+    from app.services import restaurant_partner_orders
+
+    with restaurant_partner_orders._LOCK:  # noqa: SLF001
+        restaurant_partner_orders._ORDERS[order_id]["status"] = "fulfilled"  # noqa: SLF001
+
+    replay = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={"confirmed_by": "partner-user-replay", "client_event_id": "evt-confirm-6d"},
+    )
+    assert replay.status_code == 200
+    assert _json(replay)["id"] == order_id
 
 
 def test_confirm_partner_order_idempotency_conflict_409(

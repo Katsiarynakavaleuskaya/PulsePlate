@@ -82,6 +82,13 @@ def _payload_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
 
 
+def _status_value(raw_status: Any) -> str:
+    """Normalize enum/string status to a plain value for deterministic checks."""
+    if isinstance(raw_status, PartnerOrderStatus):
+        return raw_status.value
+    return str(raw_status)
+
+
 def _build_preview_items(draft: PartnerOrderDraft) -> list[PartnerOrderItemPreview]:
     """Convert request items to preview rows with computed line totals."""
     items: list[PartnerOrderItemPreview] = []
@@ -194,7 +201,7 @@ def get_order(order_id: str, *, issuer: str) -> PartnerOrderResponse | None:
             return None
         if payload.get("issuer") != issuer:
             raise OrderAccessForbiddenError("order access forbidden")
-        if str(payload.get("status")) in _GONE_ORDER_STATUSES:
+        if _status_value(payload.get("status")) in _GONE_ORDER_STATUSES:
             raise OrderGoneError("order gone")
         order: PartnerOrderResponse = PartnerOrderResponse.model_validate(deepcopy(payload))
         return order
@@ -226,8 +233,6 @@ def confirm_order(
             raise KeyError("order not found")
         if payload.get("issuer") != issuer:
             raise OrderAccessForbiddenError("order access forbidden")
-        if str(payload.get("status")) in _GONE_ORDER_STATUSES:
-            raise OrderGoneError("order gone")
 
         if client_event_id:
             confirm_key = (issuer, order_id, client_event_id)
@@ -240,6 +245,9 @@ def confirm_order(
                     deepcopy(payload)
                 )
                 return replay_response, False
+
+        if _status_value(payload.get("status")) in _GONE_ORDER_STATUSES:
+            raise OrderGoneError("order gone")
 
         current = payload["status"]
         if current != PartnerOrderStatus.pending_partner.value:
