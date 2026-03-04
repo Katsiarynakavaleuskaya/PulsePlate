@@ -3249,7 +3249,7 @@ If it is not recorded here — it does not exist.
 - [x] P2: Guards — wellness language blocker (docs safety)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (quality / safety)
-  - Target PR: PR-TBD (test/guards-wellness-language-blockers)
+  - Target PR: PR #969 (test/guards-wellness-language-blockers)
   - Status: ✅ Implemented (guard test merged)
   - Reason (EN): Deterministic CI guard to block medical/diagnostic claims in docs and public copy (wellness-only posture). Blocks RU+EN phrases: лечит, вылечит, вылечим, исцелит, диагноз, диагностирую, диагностирует; allowlist for policy docs.
   - Links:
