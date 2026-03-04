@@ -35,7 +35,7 @@
 
 | Domain   | Primary Agent            | Secondary                | Reviewer                |
 |----------|--------------------------|--------------------------|-------------------------|
-| backend  | architecture-specialist  | bug-hunter               | security-auditor        |
+| backend  | architecture-specialist  | backend-engineer, bug-hunter | security-auditor        |
 | ios      | frontend-engineer        | creative-designer        | bug-hunter              |
 | frontend | frontend-engineer        | creative-designer        | bug-hunter              |
 | infra    | dev-operator             | architecture-specialist | security-auditor        |
@@ -57,6 +57,7 @@
 5. Coordinator retains final authority.
 6. **Domain `safety`** = wellness language boundaries + claim semantics + contradiction checks (single definition; do not duplicate elsewhere).
 7. **Reviewer** in this graph = process/merge reviewer, not formal security review (formal review semantics live in `AGENT_CAPABILITY_MATRIX.md`).
+8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks default to primary domain of most relevant agent per capability matrix.
 
 ---
 
@@ -82,4 +83,4 @@ Reviewer --> MergeDecision
 
 ---
 
-**Last updated:** 2026-03-04 (PR TBD)
+**Last updated:** 2026-03-04 (PR #967)

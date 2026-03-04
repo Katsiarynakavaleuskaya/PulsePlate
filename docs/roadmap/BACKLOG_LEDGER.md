@@ -2834,7 +2834,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] P2: Orchestration — agent routing graph (task → domains → agents)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #967 (docs-only, IN PROGRESS)
+  - Target PR: PR #967 (docs-only)
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: routing
