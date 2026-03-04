@@ -8,7 +8,7 @@ EN: Temporary in-memory store for contract-first phase (no DB migrations).
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import threading
@@ -17,6 +17,8 @@ from uuid import uuid4
 
 from app.schemas.restaurant_partner import (
     PartnerOrderDraft,
+    PartnerHandoffShareResponse,
+    PartnerHandoffShareStatus,
     PartnerOrderItemPreview,
     PartnerOrderPreviewResponse,
     PartnerOrderResponse,
@@ -26,8 +28,34 @@ from app.schemas.restaurant_partner import (
 
 _LOCK = threading.Lock()
 _ORDERS: dict[str, dict[str, Any]] = {}
-_CREATE_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
+_CREATE_EVENTS: dict[tuple[str, str, str], tuple[str, str]] = {}
 _CONFIRM_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
+_SHARES: dict[str, dict[str, Any]] = {}
+MAX_SHARE_TTL_MINUTES = 60 * 24 * 30
+
+
+class OrderNotFoundError(KeyError):
+    """Raised when partner flow references unknown order."""
+
+
+class ShareNotFoundError(KeyError):
+    """Raised when handoff share is missing."""
+
+
+class PartnerConsentRequiredError(PermissionError):
+    """Raised when partner handoff consent is missing."""
+
+
+class ShareRevokedError(PermissionError):
+    """Raised when handoff share is revoked."""
+
+
+class ShareExpiredError(TimeoutError):
+    """Raised when handoff share is expired."""
+
+
+class ShareAccessForbiddenError(PermissionError):
+    """Raised when issuer tries to access a share owned by another issuer."""
 
 
 def _utc_now() -> datetime:
@@ -85,6 +113,7 @@ def preview_order(draft: PartnerOrderDraft) -> PartnerOrderPreviewResponse:
 def create_order(
     *,
     draft: PartnerOrderDraft,
+    issuer: str,
     client_event_id: str | None,
 ) -> tuple[PartnerOrderResponse, bool]:
     """Create order or return idempotent replay.
@@ -98,7 +127,7 @@ def create_order(
 
     with _LOCK:
         if client_event_id:
-            create_key = (draft.restaurant_id, client_event_id)
+            create_key = (issuer, draft.restaurant_id, client_event_id)
             existing = _CREATE_EVENTS.get(create_key)
             if existing is not None:
                 existing_order_id, existing_hash = existing
@@ -117,6 +146,7 @@ def create_order(
             consent_payload["accepted_at_utc"] = now.isoformat()
         order_payload: dict[str, Any] = {
             "id": order_id,
+            "issuer": issuer,
             "status": PartnerOrderStatus.pending_partner.value,
             "restaurant_id": preview.restaurant_id,
             "currency": preview.currency,
@@ -137,7 +167,7 @@ def create_order(
         _ORDERS[order_id] = order_payload
 
         if client_event_id:
-            _CREATE_EVENTS[(draft.restaurant_id, client_event_id)] = (order_id, draft_hash)
+            _CREATE_EVENTS[(issuer, draft.restaurant_id, client_event_id)] = (order_id, draft_hash)
 
         created = PartnerOrderResponse.model_validate(deepcopy(order_payload))
         return created, True
@@ -217,3 +247,101 @@ def reset_state() -> None:
         _ORDERS.clear()
         _CREATE_EVENTS.clear()
         _CONFIRM_EVENTS.clear()
+        _SHARES.clear()
+
+
+def issue_handoff_share(
+    *,
+    order_id: str,
+    issuer: str,
+    partner_id: str,
+    expires_in_minutes: int,
+) -> PartnerHandoffShareResponse:
+    """Issue consent-based partner handoff share with audit fields."""
+    with _LOCK:
+        order_payload = _ORDERS.get(order_id)
+        if order_payload is None:
+            raise OrderNotFoundError("order not found")
+        if order_payload.get("issuer") != issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
+
+        consent_payload = order_payload.get("consent") or {}
+        if not bool(consent_payload.get("consent_share_with_partner")):
+            raise PartnerConsentRequiredError("partner consent required")
+        if expires_in_minutes <= 0 or expires_in_minutes > MAX_SHARE_TTL_MINUTES:
+            raise ValueError(f"expires_in_minutes must be in [1, {MAX_SHARE_TTL_MINUTES}]")
+
+        now = _utc_now()
+        expires_at = now + timedelta(minutes=expires_in_minutes)
+        share_id = str(uuid4())
+
+        share_payload: dict[str, Any] = {
+            "share_id": share_id,
+            "order_id": order_id,
+            "issuer": issuer,
+            "partner_id": partner_id,
+            "issued_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "revoked_at": None,
+            "status": PartnerHandoffShareStatus.active.value,
+        }
+        _SHARES[share_id] = share_payload
+        # Keep order updated for audit trace in contract-first seam.
+        order_payload["updated_at"] = now.isoformat()
+
+        issued_response: PartnerHandoffShareResponse = PartnerHandoffShareResponse.model_validate(
+            deepcopy(share_payload)
+        )
+        return issued_response
+
+
+def get_handoff_share_status(
+    share_id: str,
+    *,
+    requester_issuer: str,
+) -> PartnerHandoffShareResponse:
+    """Read handoff share status with fail-closed revoked/expired behavior."""
+    with _LOCK:
+        payload = _SHARES.get(share_id)
+        if payload is None:
+            raise ShareNotFoundError("share not found")
+        if payload.get("issuer") != requester_issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
+
+        if payload.get("revoked_at") is not None:
+            payload["status"] = PartnerHandoffShareStatus.revoked.value
+            raise ShareRevokedError("share revoked")
+
+        expires_at = datetime.fromisoformat(payload["expires_at"])
+        if expires_at <= _utc_now():
+            payload["status"] = PartnerHandoffShareStatus.expired.value
+            raise ShareExpiredError("share expired")
+
+        payload["status"] = PartnerHandoffShareStatus.active.value
+        status_response: PartnerHandoffShareResponse = PartnerHandoffShareResponse.model_validate(
+            deepcopy(payload)
+        )
+        return status_response
+
+
+def revoke_handoff_share(
+    share_id: str,
+    *,
+    requester_issuer: str,
+) -> PartnerHandoffShareResponse:
+    """Revoke handoff share (idempotent)."""
+    with _LOCK:
+        payload = _SHARES.get(share_id)
+        if payload is None:
+            raise ShareNotFoundError("share not found")
+        if payload.get("issuer") != requester_issuer:
+            raise ShareAccessForbiddenError("share access forbidden")
+
+        if payload.get("revoked_at") is None:
+            payload["revoked_at"] = _utc_now().isoformat()
+        payload["status"] = PartnerHandoffShareStatus.revoked.value
+
+        revoked_response: PartnerHandoffShareResponse = PartnerHandoffShareResponse.model_validate(
+            deepcopy(payload)
+        )
+        return revoked_response

@@ -2996,8 +2996,8 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R1 — Partner API contract freeze (`menu -> partner`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD-W3-R1-CONTRACT
-  - Status: 🟡 In progress
+  - Target PR: PR #958 (`feat(restaurants): add PRO partner order contract (W3-R1)`)
+  - Status: ✅ Merged (2026-03-03)
   - Reason: Freeze canonical v1 contract before deep runtime integration to prevent schema drift.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
@@ -3015,12 +3015,15 @@ If it is not recorded here — it does not exist.
 - [ ] P2: Execution Wave 3-R2 — Consent + signed handoff contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD-W3-R2-CONSENT-HANDOFF
-  - Status: 📋 Planned
+  - Target PR: PR #960 (`feat(restaurants): W3-R2 consent + signed handoff contract`)
+  - Status: 🟡 In progress
   - Reason: Partner access must be explicit, revocable, and auditable.
   - Links:
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
     - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+    - app/schemas/restaurant_partner.py
+    - tests/test_pro_restaurant_partner_api.py
   - DoD:
     - Consent/share issuance flow documented with expiry + revocation semantics
     - Fail-closed behavior documented for revoked/expired shares (`403/410`)
