@@ -72,6 +72,29 @@ def check_worktrees_untracked() -> bool:
     return True
 
 
+ARTIFACT_GITIGNORE_RULES = [
+    "artifacts/agent_runs/",
+    "artifacts/orchestration/",
+]
+
+
+def check_artifact_gitignore() -> bool:
+    """Warn if agent run artifacts are not gitignored. Soft guard (always returns True)."""
+    gitignore_path = ROOT / ".gitignore"
+    if not gitignore_path.exists():
+        print("WARNING: .gitignore not found; agent run artifacts may be committed")
+        return True
+    try:
+        content = gitignore_path.read_text(encoding="utf-8")
+    except OSError:
+        print("WARNING: Could not read .gitignore; agent run artifacts may be committed")
+        return True
+    for rule in ARTIFACT_GITIGNORE_RULES:
+        if rule not in content:
+            print(f"WARNING: {rule} not in .gitignore; agent run summaries may be committed")
+    return True
+
+
 def check_working_tree_clean() -> bool:
     """Verify working tree is clean. Return True if clean."""
     code, out = _run(["git", "status", "--porcelain"])
@@ -97,6 +120,7 @@ def main() -> int:
     ok &= check_sot_files()
     ok &= check_worktrees_untracked()
     ok &= check_working_tree_clean()
+    check_artifact_gitignore()  # Soft guard: warning only, never fails
     return 0 if ok else 1
 
 

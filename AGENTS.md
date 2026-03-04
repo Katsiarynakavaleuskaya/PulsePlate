@@ -77,6 +77,8 @@ Or individually:
 **Hard rule:** local/dev artifacts must never be tracked in git.
 
 **Forbidden to commit:**
+- `artifacts/agent_runs/`
+- `artifacts/orchestration/`
 - `worktrees/`
 - `.venv/`
 - `.pytest_cache/`
@@ -213,6 +215,8 @@ A **task** is any unit of work that:
 5. **DoD** → Coordinator verifies Definition of Done before PR merge
 
 **Agent Run Summary:** Coordinator must generate Agent Run Summary JSON before merge readiness (local artifact; never committed). Artifact location: `artifacts/agent_runs/` (gitignored).
+
+**Orchestration telemetry:** Advisory only (no auto-routing writes). Telemetry outputs live under `artifacts/` (gitignored) and must not be committed. See `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`.
 
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`

@@ -26,6 +26,7 @@
 - [ ] `python3 scripts/orchestration/check_preflight.py` (in clean worktree)
 - [ ] `pre-commit run --all-files`
 - [ ] Agent Run Summary JSON generated (`artifacts/agent_runs/...json`) and decision is `PASS`
+- [ ] (Optional) Telemetry rollup generated (`artifacts/orchestration/telemetry_rollup.json`)
 - [ ] `make test-fast` (optional, CI runs it)
 
 ---
