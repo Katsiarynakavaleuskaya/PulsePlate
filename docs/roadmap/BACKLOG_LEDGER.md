@@ -2781,9 +2781,10 @@ If it is not recorded here — it does not exist.
 
 ### Orchestration Enhancements (follow-ups to PR-634)
 
-- [ ] P1: Orchestration — document worktree isolation policy (agent worktree immutable to humans)
+- [x] P1: Orchestration — document worktree isolation policy (agent worktree immutable to humans)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (docs-only)
+  - Target PR: PR #963
+  - Status: merged 2026-03-04 (79024d70)
   - Priority: P1
   - Area: dev-process / orchestration
   - Finding Type: operational policy
@@ -2796,9 +2797,10 @@ If it is not recorded here — it does not exist.
     - Short hard-rule excerpt in root `AGENTS.md` (do not edit inside worktrees/; integration only via PR)
     - Example "human intervention via new branch" documented
 
-- [ ] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
+- [x] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (docs-only)
+  - Target PR: PR #963
+  - Status: merged 2026-03-04 (79024d70)
   - Priority: P1
   - Area: orchestration / RAG
   - Finding Type: policy gap
