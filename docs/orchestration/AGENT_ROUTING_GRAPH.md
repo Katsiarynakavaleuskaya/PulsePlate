@@ -27,6 +27,7 @@
 | Design         | design   |
 | Documentation  | docs     |
 | Research       | research |
+| Safety / Philosophy / Logic | safety  |
 
 ---
 
@@ -43,6 +44,7 @@
 | docs     | web-research-agent       | agent-coordinator        | bug-hunter              |
 | design   | creative-designer        | frontend-engineer        | agent-coordinator       |
 | research | web-research-agent       | ai-innovation-specialist| agent-coordinator       |
+| safety   | philosophy-agent         | logic-agent             | agent-coordinator       |
 
 ---
 
