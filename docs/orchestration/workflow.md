@@ -309,11 +309,21 @@ When routing tasks, coordinator should include appropriate hint level based on:
 ```bash
 mkdir -p artifacts/agent_runs
 
+# Philosophy validator only (default)
 python scripts/orchestration/agent_run_summary.py \
   --agent agent-coordinator \
   --domain <domain> \
   --task-type "<task_type>" \
   --stdin \
+  --output "artifacts/agent_runs/<run_id>__agent-coordinator__<domain>.json"
+
+# Full pre-merge: validator + static docs scan
+python scripts/orchestration/agent_run_summary.py \
+  --agent agent-coordinator \
+  --domain <domain> \
+  --task-type "<task_type>" \
+  --stdin \
+  --scan-docs \
   --output "artifacts/agent_runs/<run_id>__agent-coordinator__<domain>.json"
 ```
 

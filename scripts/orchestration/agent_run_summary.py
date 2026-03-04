@@ -33,7 +33,8 @@ _BLOCKER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         "WELLNESS_MEDICAL_CLAIM_EN",
         re.compile(
             r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose"
-            r"|cures?\s+your|cures?\s+the)\b",
+            r"|I\s+cure|I\s+diagnose|cures?\s+your|cures?\s+the"
+            r"|diagnoses?\s+your|diagnoses?\s+the)\b",
             re.IGNORECASE,
         ),
     ),
@@ -273,7 +274,9 @@ def main(argv: list[str] | None = None) -> int:
     payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True)
 
     if args.output:
-        Path(args.output).write_text(payload + "\n", encoding="utf-8")
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(payload + "\n", encoding="utf-8")
     else:
         print(payload)
 

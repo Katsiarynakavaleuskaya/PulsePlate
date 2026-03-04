@@ -53,7 +53,9 @@ BLOCKER_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
     (
         "WELLNESS_MEDICAL_CLAIM_EN",
         re.compile(
-            r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose|cures?\s+your|cures?\s+the)\b",
+            r"\b(we\s+cure|we\s+diagnose|will\s+cure|will\s+diagnose"
+            r"|I\s+cure|I\s+diagnose|cures?\s+your|cures?\s+the"
+            r"|diagnoses?\s+your|diagnoses?\s+the)\b",
             re.IGNORECASE,
         ),
     ),
@@ -176,6 +178,8 @@ def test_wellness_guard_blocks_medical_claim_en() -> None:
         if code == "WELLNESS_MEDICAL_CLAIM_EN":
             assert pattern.search("We cure anxiety quickly.")
             assert pattern.search("This cures your condition.")
+            assert pattern.search("I diagnose your condition.")
+            assert pattern.search("This diagnoses the disease.")
             break
     else:
         raise AssertionError("WELLNESS_MEDICAL_CLAIM_EN pattern not found in BLOCKER_PATTERNS")
