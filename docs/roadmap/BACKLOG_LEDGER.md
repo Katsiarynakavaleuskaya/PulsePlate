@@ -2787,7 +2787,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1
   - Area: dev-process / orchestration
   - Finding Type: operational policy
-  - Reason: Agent works in its own worktree; human edits same files → merge conflicts → orchestration chaos. No explicit rule "human cannot edit agent worktree." Integration flow exists (PR promotion) but operational law is missing.
+  - Reason: Agent works in its own worktree; a human edits the same files → merge conflicts → orchestration chaos. No explicit rule "human cannot edit agent worktree." Integration flow exists (PR promotion) but operational law is missing.
   - Links:
     - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
     - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
@@ -2843,10 +2843,10 @@ If it is not recorded here — it does not exist.
     - Routing graph spec or document (task → domains → agents)
     - Linked from coordinator or capability matrix
 
-- [ ] P3: Orchestration — agent clusters (scaling for 40+ agents)
+- [ ] P2: Orchestration — agent clusters (scaling for 40+ agents)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (future)
-  - Priority: P3
+  - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: scalability
   - Reason: 26 agents; coordinator routes to each. At scale (40+ agents) routing becomes unwieldy. Cluster-first routing (backend, frontend, ml, research, security) scales better.

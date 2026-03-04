@@ -20,7 +20,7 @@ The orchestration audit and external review identified **3 critical gaps** and *
 | P2 | Agent Context Cache | Already in backlog |
 | P2 | Orchestration Telemetry | Already in backlog |
 | P2 | Agent routing graph | Backlog added |
-| P3 | Agent clusters (scaling) | Backlog added |
+| P2 | Agent clusters (scaling) | Backlog added |
 
 ---
 
@@ -28,13 +28,13 @@ The orchestration audit and external review identified **3 critical gaps** and *
 
 ### 2.1 Problem
 
-- Agent works in its own worktree; human edits same files → merge conflicts → orchestration chaos.
+- Agent works in its own worktree; a human edits the same files → merge conflicts → orchestration chaos.
 - No explicit rule: "human cannot edit agent worktree."
 - Integration flow exists (PR promotion) but operational law is missing.
 
 ### 2.2 Solution
 
-**A) Runbook section** (`AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`):
+**A) Runbook section** (`docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`):
 
 - Add "Worktree Isolation Policy" section.
 - Define worktree states: `active` / `abandoned` / `merged`.
@@ -58,8 +58,8 @@ The orchestration audit and external review identified **3 critical gaps** and *
 
 ### 3.1 Problem
 
-- `AGENT_CONTEXT_MAP` and `AGENT_CAPABILITY_MATRIX` exist.
-- `AGENT_CORPUS_MAP` exists in `core/rag/contracts.py` (runtime).
+- `AGENT_CONTEXT_MAP` and `AGENT_CAPABILITY_MATRIX` exist (`docs/orchestration/AGENT_CONTEXT_MAP.md`, `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`).
+- `AGENT_CORPUS_MAP` exists in `core/rag/contracts.py:19` (runtime).
 - No docs-level SoT: agent → corpus → RAG index policy.
 - RAG retrieval is untrusted; prompt-injection posture needs policy clarity.
 
@@ -118,7 +118,7 @@ Create `scripts/orchestration/check_preflight.py` (or similar):
 ### 5.2 Solution
 
 - Define routing graph (task → domains → agents).
-- Document in `docs/orchestration/` or extend capability matrix.
+- Document in `docs/orchestration/` or extend `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`.
 - Example: task "optimize API endpoint" → domains: backend, performance → agents: backend-agent, performance-agent, qa-agent.
 
 ### 5.3 DoD
@@ -157,7 +157,7 @@ Already in BACKLOG_LEDGER (Orchestration Enhancements).
 
 ---
 
-## 8. P3 — Agent Clusters
+## 8. P2 — Agent Clusters
 
 ### 8.1 Problem
 
@@ -185,7 +185,7 @@ Already in BACKLOG_LEDGER (Orchestration Enhancements).
 4. **P2 Routing graph** — docs-only PR.
 5. **P2 Context cache** — separate PR (coordinator/tooling).
 6. **P2 Telemetry** — separate PR (spec + optional recording).
-7. **P3 Agent clusters** — future PR (when scaling needed).
+7. **P2 Agent clusters** — future PR (when scaling needed).
 
 ---
 
@@ -210,5 +210,5 @@ Key flows:
 
 ---
 
-**Last updated:** 2026-03-05
+**Last updated:** 2026-02-27
 **Owner:** @katsiaryna_kavaleuskaya
