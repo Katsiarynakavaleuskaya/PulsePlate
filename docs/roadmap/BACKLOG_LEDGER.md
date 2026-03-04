@@ -2832,9 +2832,10 @@ If it is not recorded here — it does not exist.
     - Script verifies required context files present, repo hygiene (no tracked worktrees), prints PASS/FAIL
     - Failure mode explicit; does not block unrelated tasks (scoped to orchestration workflow)
 
-- [ ] P2: Orchestration — agent routing graph (task → domains → agents)
+- [x] P2: Orchestration — agent routing graph (task → domains → agents)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #967 (docs-only)
+  - Target PR: PR #967
+  - Status: ✅ Merged (PR #967, 2026-03-04)
   - Priority: P2
   - Area: dev-process / orchestration
   - Finding Type: routing
