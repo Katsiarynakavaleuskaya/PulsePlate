@@ -37,7 +37,7 @@ def test_build_order_draft_from_weekly_plan_happy_path_deterministic() -> None:
         week_plan=_week_plan(),
         restaurant_id="resto-1",
         currency="USD",
-        fulfillment=FulfillmentMode.pickup.value,
+        fulfillment=FulfillmentMode.pickup,
         service_fee_minor=99,
         delivery_fee_minor=0,
         customer_note="No peanuts",
@@ -66,7 +66,7 @@ def test_build_order_draft_supports_menu_wrapper() -> None:
         week_plan=wrapped,
         restaurant_id="resto-2",
         currency="USD",
-        fulfillment=FulfillmentMode.delivery.value,
+        fulfillment=FulfillmentMode.delivery,
         service_fee_minor=0,
         delivery_fee_minor=199,
         customer_note=None,
@@ -153,7 +153,7 @@ def test_build_order_draft_qty_is_bounded() -> None:
         week_plan=week,
         restaurant_id="resto-3",
         currency="USD",
-        fulfillment=FulfillmentMode.pickup.value,
+        fulfillment=FulfillmentMode.pickup,
         service_fee_minor=0,
         delivery_fee_minor=0,
         customer_note=None,
@@ -195,6 +195,27 @@ def test_build_order_draft_invalid_qty_raises_value_error() -> None:
         build_order_draft_from_weekly_plan(
             week_plan=week,
             restaurant_id="resto-bad-qty",
+            currency="USD",
+            fulfillment=FulfillmentMode.pickup,
+            service_fee_minor=0,
+            delivery_fee_minor=0,
+            customer_note=None,
+            dietary_tags=[],
+            allergens=[],
+            consent=_consent(),
+            attribution_source=None,
+            unit_price_minor_default=0,
+        )
+
+
+def test_build_order_draft_overflow_qty_raises_value_error() -> None:
+    week = _week_plan()
+    week["days"][0]["meals"][0]["items"][0]["qty"] = "1e309"
+
+    with pytest.raises(ValueError, match="qty must be numeric"):
+        build_order_draft_from_weekly_plan(
+            week_plan=week,
+            restaurant_id="resto-overflow-qty",
             currency="USD",
             fulfillment=FulfillmentMode.pickup,
             service_fee_minor=0,
@@ -263,7 +284,7 @@ def test_build_order_draft_raises_when_shape_missing() -> None:
             week_plan={"menu": {}},
             restaurant_id="resto-4",
             currency="USD",
-            fulfillment=FulfillmentMode.pickup.value,
+            fulfillment=FulfillmentMode.pickup,
             service_fee_minor=0,
             delivery_fee_minor=0,
             customer_note=None,
@@ -299,7 +320,7 @@ def test_build_order_draft_raises_when_no_mappable_items() -> None:
             week_plan={"days": [{"meals": [{"items": [{"qty": 2}]}]}]},
             restaurant_id="resto-5",
             currency="USD",
-            fulfillment=FulfillmentMode.pickup.value,
+            fulfillment=FulfillmentMode.pickup,
             service_fee_minor=0,
             delivery_fee_minor=0,
             customer_note=None,

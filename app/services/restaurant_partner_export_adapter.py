@@ -41,7 +41,7 @@ def _coerce_qty(raw_qty: Any) -> int:
         return 1
     try:
         qty = int(float(raw_qty))
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("item qty must be numeric") from exc
     if qty < 1:
         return 1
