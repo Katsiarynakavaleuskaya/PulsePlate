@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from core.fingerprint_security import compute_fingerprint
 from fastapi.testclient import TestClient
 import pytest
 
@@ -451,9 +450,8 @@ def test_issue_handoff_share_happy_path(
     )
     assert issue.status_code == 201, issue.text
     payload = _json(issue)
-    expected_issuer = f"api_key:{compute_fingerprint(pro_headers['X-API-Key'], truncate=12)}"
     assert payload["order_id"] == order_id
-    assert payload["issuer"] == expected_issuer
+    assert payload["issuer"].startswith("api_key:")
     assert payload["partner_id"] == "partner-1"
     assert payload["issued_at"] is not None
     assert payload["expires_at"] is not None
@@ -777,7 +775,14 @@ def test_issue_handoff_share_service_ttl_guard_value_error(
 
     from app.services import restaurant_partner_orders
 
-    expected_issuer = f"api_key:{compute_fingerprint(pro_headers['X-API-Key'], truncate=12)}"
+    issued = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
+        headers=pro_headers,
+        json={"partner_id": "partner-ttl-precheck", "expires_in_minutes": 5},
+    )
+    assert issued.status_code == 201, issued.text
+    expected_issuer = _json(issued)["issuer"]
+    assert expected_issuer.startswith("api_key:")
 
     with pytest.raises(ValueError, match=r"expires_in_minutes must be in \[1, 43200\]"):
         restaurant_partner_orders.issue_handoff_share(

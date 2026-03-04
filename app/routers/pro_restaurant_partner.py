@@ -7,9 +7,10 @@ EN: Contract-first endpoints for `menu -> partner` flow.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+import threading
+from uuid import uuid4
 
-from core.fingerprint_security import compute_fingerprint
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.restaurant_partner import (
@@ -24,6 +25,9 @@ from app.schemas.restaurant_partner import (
 )
 from app.services import restaurant_partner_orders
 
+_ISSUER_LOCK = threading.Lock()
+_ISSUER_BY_API_KEY: dict[str, str] = {}
+
 router = APIRouter(
     prefix="/api/v1/pro/restaurants/partner",
     tags=["pro", "restaurants"],
@@ -32,8 +36,15 @@ router = APIRouter(
 
 
 def _issuer_from_api_key(api_key: str) -> str:
-    """Build stable non-reversible issuer marker from authenticated API key."""
-    return f"api_key:{compute_fingerprint(api_key, truncate=12)}"
+    """Build process-stable opaque issuer marker from authenticated API key."""
+    if not api_key:
+        return "api_key:anonymous"
+    with _ISSUER_LOCK:
+        marker = _ISSUER_BY_API_KEY.get(api_key)
+        if marker is None:
+            marker = f"api_key:{uuid4().hex[:12]}"
+            _ISSUER_BY_API_KEY[api_key] = marker
+    return marker
 
 
 @router.post(
