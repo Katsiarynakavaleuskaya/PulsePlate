@@ -126,6 +126,24 @@ If it is not recorded here — it does not exist.
     - Guard detects banned binaries when call spans multiple lines, or document limitation
     - No false negatives on existing codebase
 
+- [ ] P1: Disposition guard — ban mapping to trigger-only commits
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (fix/orch-ban-trigger-commit-mapping)
+  - Area: orchestration / review governance
+  - Finding Type: process hardening
+  - Reason: Prevent FIXED proof bypass via empty or CI rerun/trigger commits. Mapping `- <url> -> <sha>` must not accept empty commits or commits whose subject matches trigger/rerun patterns.
+  - Links:
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `tests/test_review_threads_disposition_strict.py`
+    - `AGENTS.md` (Review Governance)
+  - DoD:
+    - Gate fails when mapping SHA is empty commit (no changed files)
+    - Gate fails when commit subject matches trigger/rerun patterns (trigger ci, re-run ci, re-run checks)
+    - Tests cover deny (empty, trigger subject) and allow (normal commit)
+    - AGENTS.md updated with FIXED proof quality (trigger-only ban) rule
+    - Optional allowlist with TTL remains empty by default (P2 if needed)
+
 - [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
