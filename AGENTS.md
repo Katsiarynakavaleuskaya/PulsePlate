@@ -107,6 +107,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 
 **CI / gh-based gates:** Gates that use GitHub CLI (`gh`) MUST run with `GH_TOKEN` set in CI (export from `secrets.GITHUB_TOKEN`). Local/dev without auth: scripts using `gh` (e.g. disposition guard) may SKIP with exit 0 and a clear message; in CI use `--require-auth` so missing auth fails explicitly.
 
+**Bandit / nosec policy (no blind suppressions):** Adding `# nosec` to silence Bandit is **forbidden** when a simple fix exists (e.g. B607 → use `shutil.which()` for full path). `# nosec` is allowed **only** with: (1) rule code (e.g. B607), (2) one-line justification, (3) `(remove-by: YYYY-MM-DD, ref: issue/PR)` on the same comment line, and (4) only when there is no safe code fix. **remove-by and ref MUST NOT be 'N/A'** (policy enforcement). Any subprocess call to external tools (`gh`, `git`, `curl`, `wget`, `ssh`) MUST use an absolute path via `shutil.which()` or config. Enforced by `tests/guards/test_nosec_policy_guard.py` and `tests/guards/test_subprocess_uses_absolute_binaries.py`. Legacy suppressions are allowlisted in `tests/guards/fixtures/nosec_policy_allowlist.txt` (Phase 1); migrate to full format and remove from allowlist over time.
+
+**Fix before mapping:** When security/linter checks fail (Bandit, Ruff, MyPy, tests), it is **forbidden** to touch PR-body mapping or resolve review threads first. Fix the root cause (code/docs) first; only then update discussion mapping or resolve threads. Tasks that affect Bandit/Trivy/security gates MUST NOT be done in auto/weak modes.
+
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
