@@ -8090,11 +8090,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid activation payload"
+            "description": "Validation Error"
           }
         },
         "security": [

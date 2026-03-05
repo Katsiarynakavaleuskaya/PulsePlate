@@ -32,6 +32,10 @@ class ActivationAccessForbiddenError(PermissionError):
     """Raised when issuer attempts to read another issuer's activation."""
 
 
+class IdempotencyConflictError(ValueError):
+    """Raised when an idempotency key is reused with a different payload."""
+
+
 def _utc_now() -> datetime:
     """Return timezone-aware UTC timestamp."""
     return datetime.now(timezone.utc)
@@ -80,7 +84,7 @@ def activate_subscription(
         if existing_event is not None:
             activation_id, existing_hash = existing_event
             if existing_hash != fingerprint:
-                raise ValueError("client_event_id conflict: payload mismatch")
+                raise IdempotencyConflictError("client_event_id conflict: payload mismatch")
             replay_data = deepcopy(_ACTIVATIONS[activation_id])
             replay: SubscriptionActivationResponse = SubscriptionActivationResponse.model_validate(
                 replay_data

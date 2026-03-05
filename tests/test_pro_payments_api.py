@@ -102,6 +102,26 @@ def test_activate_subscription_ios_without_verification_is_pending(
     assert payload["verified_at"] is None
 
 
+def test_activate_subscription_defaults_verification_payload_when_omitted(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json={
+            "source": "ios_app_store",
+            "client_event_id": "evt-ios-no-payload-1",
+            "verification_ok": True,
+            "external_txn_id": "txn-no-payload-1",
+        },
+    )
+    assert response.status_code == 201, response.text
+    payload = _json(response)
+    assert payload["status"] == "active"
+    assert payload["reconcile_status"] == "verified"
+
+
 def test_activate_subscription_manual_rails_start_pending(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -171,7 +191,10 @@ def test_activate_subscription_idempotency_conflict_returns_409(
     )
     assert first.status_code == 201, first.text
     assert conflict.status_code == 409, conflict.text
-    assert "client_event_id conflict" in conflict.text
+    conflict_payload = _json(conflict)
+    assert conflict_payload["status"] == "error"
+    assert conflict_payload["code"] == "idempotency_conflict"
+    assert "client_event_id conflict" in conflict_payload["detail"]
 
 
 def test_activate_subscription_invalid_source_returns_422(
@@ -244,6 +267,9 @@ def test_get_activation_forbidden_for_other_issuer(
         headers=vip_headers,
     )
     assert fetched.status_code == 403
+    payload = _json(fetched)
+    assert payload["status"] == "error"
+    assert payload["code"] == "forbidden"
 
 
 def test_get_activation_not_found_returns_404(
@@ -255,3 +281,6 @@ def test_get_activation_not_found_returns_404(
         headers=pro_headers,
     )
     assert response.status_code == 404
+    payload = _json(response)
+    assert payload["status"] == "error"
+    assert payload["code"] == "not_found"

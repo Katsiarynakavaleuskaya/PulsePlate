@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import hashlib
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import JSONResponse
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.payments import (
@@ -22,7 +23,6 @@ from app.services import payments_activation
 router = APIRouter(
     prefix="/api/v1/pro/payments",
     tags=["pro", "payments"],
-    dependencies=[Depends(require_pro_tier)],
 )
 
 
@@ -47,25 +47,29 @@ def _issuer_from_api_key(api_key: str) -> str:
             "description": "client_event_id conflict",
             "model": PaymentErrorResponse,
         },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "description": "Invalid activation payload",
-            "model": PaymentErrorResponse,
-        },
     },
 )
 def activate_subscription(
     payload: ActivateSubscriptionRequest,
     response: Response,
     x_api_key: str = Depends(require_pro_tier),
-) -> SubscriptionActivationResponse:
+) -> SubscriptionActivationResponse | JSONResponse:
     """Create activation or return idempotent replay."""
     try:
         activation, is_new = payments_activation.activate_subscription(
             issuer=_issuer_from_api_key(x_api_key),
             payload=payload,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except payments_activation.IdempotencyConflictError as exc:
+        error = PaymentErrorResponse(
+            code="idempotency_conflict",
+            message="client_event_id conflict",
+            detail=str(exc),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=error.model_dump(mode="json"),
+        )
     if not is_new:
         response.status_code = status.HTTP_200_OK
     return activation
@@ -88,13 +92,29 @@ def activate_subscription(
 def get_subscription_activation(
     activation_id: str,
     x_api_key: str = Depends(require_pro_tier),
-) -> SubscriptionActivationResponse:
+) -> SubscriptionActivationResponse | JSONResponse:
     """Get activation status by ID."""
     issuer = _issuer_from_api_key(x_api_key)
     try:
         activation = payments_activation.get_activation(activation_id, issuer=issuer)
     except payments_activation.ActivationAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        error = PaymentErrorResponse(
+            code="forbidden",
+            message="Activation access forbidden",
+            detail=str(exc),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content=error.model_dump(mode="json"),
+        )
     if activation is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activation not found")
+        error = PaymentErrorResponse(
+            code="not_found",
+            message="Activation not found",
+            detail=activation_id,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error.model_dump(mode="json"),
+        )
     return activation
