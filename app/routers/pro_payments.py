@@ -7,8 +7,7 @@ EN: Baseline PRO endpoints for subscription activation (contract-first, non-brea
 
 from __future__ import annotations
 
-import threading
-from uuid import uuid4
+import hashlib
 
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
@@ -26,20 +25,13 @@ router = APIRouter(
     tags=["pro", "payments"],
 )
 
-_ISSUER_LOCK = threading.Lock()
-_ISSUER_BY_API_KEY: dict[str, str] = {}
-
 
 def _issuer_from_api_key(api_key: str) -> str:
-    """Return stable opaque issuer marker from API key."""
+    """Return deterministic opaque issuer marker from API key."""
     if not api_key:
         return "api_key:anonymous"
-    with _ISSUER_LOCK:
-        marker = _ISSUER_BY_API_KEY.get(api_key)
-        if marker is None:
-            marker = f"api_key:{uuid4().hex[:12]}"
-            _ISSUER_BY_API_KEY[api_key] = marker
-    return marker
+    digest = hashlib.sha3_256(api_key.encode("utf-8")).hexdigest()
+    return f"api_key:{digest}"
 
 
 @router.post(
