@@ -67,6 +67,7 @@ Task
 
 #### 0) Auto-verification (mandatory)
 - [ ] Run: `python3 scripts/orchestration/check_preflight.py` — must exit 0 (PASS). Failure = stop execution.
+- [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
 
 #### 1) Context loading
 - [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)

@@ -220,6 +220,8 @@ A **task** is any unit of work that:
 
 **Routing helper:** No hardcoded routing defaults except coordinator fallback; canonical `docs/orchestration/AGENT_ROUTING_GRAPH.md` is the baseline. Telemetry is advisory. Routing helper MUST NOT modify routing docs; it emits decisions only (JSON stdout).
 
+**Agent docs consistency:** Agent docs MUST stay consistent: routing ⊆ inventory ⊆ capability. Run `python scripts/orchestration/check_agent_consistency.py` (must PASS before merge readiness).
+
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`
 - Work Review: `docs/orchestration/work_review.template.md`
