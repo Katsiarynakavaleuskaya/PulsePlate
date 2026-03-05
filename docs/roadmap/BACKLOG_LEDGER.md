@@ -3367,7 +3367,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (mobile security correctness)
   - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE
   - Status: 📋 Planned
-  - Reason (EN): Master checklist items #5 and #6 require platform-appropriate secret storage. iOS conformance is immediate (active rail); Android Keystore validation follows Android monetization wave.
+  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
@@ -3375,7 +3375,22 @@ If it is not recorded here — it does not exist.
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
-    - Android Keystore task is linked as deferred follow-up with explicit trigger
+
+<a id="ledger-p2-android-keystore-conformance"></a>
+- [ ] P2: Android Keystore secret storage conformance (deferred track)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (deferred until Android monetization activation)
+  - Target PR: PR-TBD-ANDROID-KEYSTORE-CONFORMANCE
+  - Status: ⏸️ Deferred
+  - Reason (EN): Master checklist item #6 remains deferred because current monetization baseline is iOS-first + RU/BY manual rails; Android billing/runtime is not in active delivery scope yet.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-mobile-secret-conformance
+    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios
+  - DoD:
+    - Resume trigger is explicit: Android billing tasks (`#9/#23/#24/#32`) move from `Deferred` to `Now/Next`
+    - Android app storage layer documents and enforces Keystore-only secret handling
+    - Guard tests prevent insecure storage fallback on Android
 
 <a id="ledger-p0-pro-vip-depends-guard"></a>
 - [ ] P0: PRO/VIP route `Depends` coverage guard
