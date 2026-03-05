@@ -44,12 +44,13 @@ class RoutingDecision:
 
 
 def _read_json(path: Path) -> Optional[Dict[str, Any]]:
-    if not path.exists():
+    if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _get_agent_stats(telemetry: Dict[str, Any], agent: str) -> Dict[str, Any]:
