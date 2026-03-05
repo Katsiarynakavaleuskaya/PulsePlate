@@ -90,6 +90,7 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
     Base URL (without anchor) must appear inside Fixed in Commit Mapping section
     with Disposition + proof (Commit/Evidence/Backlog) nearby (±12 lines).
     Match by base URL so #discussion_r... and #pullrequestreview-... both match.
+    Scan all occurrences; return True if any occurrence has a valid window.
     """
     thread_base = url.split("#")[0]
     lines = section.splitlines()
@@ -98,7 +99,8 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
             start = max(0, i - 12)
             end = min(len(lines), i + 13)
             window = "\n".join(lines[start:end])
-            return bool(DISPOSITION_RE.search(window) and PROOF_RE.search(window))
+            if DISPOSITION_RE.search(window) and PROOF_RE.search(window):
+                return True
     return False
 
 

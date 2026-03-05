@@ -97,10 +97,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 ### Enforcement rules
 
 1. **Checkboxes and mapping do not substitute fixes.**
-   Phase2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
+   Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
 3. **Resolved threads must be listed under Fixed in Commit Mapping** with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** with the corresponding commit SHA.
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** with disposition-specific proof (Commit SHA for FIXED; Evidence for NOT-A-BUG; Backlog link for DEFERRED).
 5. If no disposition can be determined, **the thread remains open**.
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
