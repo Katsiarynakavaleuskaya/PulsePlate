@@ -1869,6 +1869,8 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
   - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
     - `core/rag/simple_rag.py`
     - `tests/test_rag_simple.py`
     - `tests/test_insight_rag_response_fields.py`
@@ -1884,6 +1886,8 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason: Raw SQL string assembly in vector retrieval path increases maintenance and security review overhead; contract should move to parameterized/ORM-safe composition.
   - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
     - `core/rag/vector_rag.py`
     - `tests/test_vector_rag.py`
   - DoD:
@@ -1898,6 +1902,8 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason: Contradiction checks in Stage-4 should explicitly incorporate active user query semantics to reduce context-irrelevant flags and improve reliability scoring fidelity.
   - Links:
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+    - `docs/contracts/RAG_CONTRACT.md`
     - `core/rag/philosophy_pipeline.py`
     - `core/rag/validation.py`
     - `tests/test_philosophy_validation_integration.py`
