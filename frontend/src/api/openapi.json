@@ -1,6 +1,69 @@
 {
   "components": {
     "schemas": {
+      "ActivateSubscriptionRequest": {
+        "description": "Activation request payload (contract-first, deterministic).",
+        "properties": {
+          "client_event_id": {
+            "description": "Client-generated idempotency event ID",
+            "maxLength": 128,
+            "minLength": 6,
+            "title": "Client Event Id",
+            "type": "string"
+          },
+          "external_txn_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider-side transaction or intent ID",
+            "title": "External Txn Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PaymentSource"
+          },
+          "verification_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deterministic verification result for baseline R1 contract",
+            "title": "Verification Ok"
+          },
+          "verification_payload": {
+            "additionalProperties": true,
+            "description": "Opaque verification payload. Server remains source of truth.",
+            "title": "Verification Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "source",
+          "client_event_id"
+        ],
+        "title": "ActivateSubscriptionRequest",
+        "type": "object"
+      },
+      "ActivationStatus": {
+        "description": "Canonical activation state for subscription activation flow.",
+        "enum": [
+          "pending_verification",
+          "active",
+          "rejected"
+        ],
+        "title": "ActivationStatus",
+        "type": "string"
+      },
       "AdherenceEventRequest": {
         "additionalProperties": false,
         "description": "Request schema for recording an adherence event.\n\nRU: Схема запроса для записи события adherence.\nEN: Request schema for recording an adherence event.\n\nSecurity Note:\n    subject_id is derived from authenticated API key (not from request payload)\n    to prevent horizontal privilege escalation.",
@@ -3950,6 +4013,45 @@
         "title": "PartnerOrderWeeklyAdapterRequest",
         "type": "object"
       },
+      "PaymentErrorResponse": {
+        "description": "Deterministic error envelope for payment activation endpoints.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "default": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "detail"
+        ],
+        "title": "PaymentErrorResponse",
+        "type": "object"
+      },
+      "PaymentSource": {
+        "description": "Canonical payment sources (RU/BY + iOS baseline).",
+        "enum": [
+          "ios_app_store",
+          "erip_qr",
+          "swift_manual"
+        ],
+        "title": "PaymentSource",
+        "type": "string"
+      },
       "PlateRequest": {
         "description": "RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.",
         "properties": {
@@ -5084,6 +5186,17 @@
         "title": "RecipeQueryHit",
         "type": "object"
       },
+      "ReconcileStatus": {
+        "description": "Reconciliation status for financial audit trail.",
+        "enum": [
+          "pending",
+          "verified",
+          "rejected",
+          "not_required"
+        ],
+        "title": "ReconcileStatus",
+        "type": "string"
+      },
       "SafetyCheckRequest": {
         "description": "RU: Запрос проверки безопасности целевых значений.\nEN: Request for safety validation of nutrition targets.",
         "properties": {
@@ -6205,6 +6318,67 @@
           "default_cta"
         ],
         "title": "SoftPaywallMessage",
+        "type": "object"
+      },
+      "SubscriptionActivationResponse": {
+        "description": "Canonical activation response for all payment sources.",
+        "properties": {
+          "activation_id": {
+            "title": "Activation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_txn_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Txn Id"
+          },
+          "payment_source": {
+            "$ref": "#/components/schemas/PaymentSource"
+          },
+          "reconcile_status": {
+            "$ref": "#/components/schemas/ReconcileStatus"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActivationStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "activation_id",
+          "payment_source",
+          "status",
+          "reconcile_status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SubscriptionActivationResponse",
         "type": "object"
       },
       "TargetsIn": {
@@ -7863,6 +8037,143 @@
         "summary": "WHO nutrition targets (PRO)",
         "tags": [
           "nutrition",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/activate": {
+      "post": {
+        "description": "Create activation or return idempotent replay.",
+        "operationId": "activate_subscription_api_v1_pro_payments_activate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid activation payload"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Activate Subscription",
+        "tags": [
+          "payments",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/activations/{activation_id}": {
+      "get": {
+        "description": "Get activation status by ID.",
+        "operationId": "get_subscription_activation_api_v1_pro_payments_activations__activation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "activation_id",
+            "required": true,
+            "schema": {
+              "title": "Activation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation access forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Subscription Activation",
+        "tags": [
+          "payments",
           "pro"
         ]
       }

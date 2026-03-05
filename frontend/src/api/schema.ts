@@ -493,6 +493,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/payments/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Subscription
+         * @description Create activation or return idempotent replay.
+         */
+        post: operations["activate_subscription_api_v1_pro_payments_activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/payments/activations/{activation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subscription Activation
+         * @description Get activation status by ID.
+         */
+        get: operations["get_subscription_activation_api_v1_pro_payments_activations__activation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke": {
         parameters: {
             query?: never;
@@ -1188,6 +1228,41 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActivateSubscriptionRequest
+         * @description Activation request payload (contract-first, deterministic).
+         */
+        ActivateSubscriptionRequest: {
+            /**
+             * Client Event Id
+             * @description Client-generated idempotency event ID
+             */
+            client_event_id: string;
+            /**
+             * External Txn Id
+             * @description Provider-side transaction or intent ID
+             */
+            external_txn_id?: string | null;
+            source: components["schemas"]["PaymentSource"];
+            /**
+             * Verification Ok
+             * @description Deterministic verification result for baseline R1 contract
+             */
+            verification_ok?: boolean | null;
+            /**
+             * Verification Payload
+             * @description Opaque verification payload. Server remains source of truth.
+             */
+            verification_payload?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ActivationStatus
+         * @description Canonical activation state for subscription activation flow.
+         * @enum {string}
+         */
+        ActivationStatus: "pending_verification" | "active" | "rejected";
         /**
          * AdherenceEventRequest
          * @description Request schema for recording an adherence event.
@@ -3216,6 +3291,29 @@ export interface components {
             };
         };
         /**
+         * PaymentErrorResponse
+         * @description Deterministic error envelope for payment activation endpoints.
+         */
+        PaymentErrorResponse: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @default error
+             */
+            status: string;
+        };
+        /**
+         * PaymentSource
+         * @description Canonical payment sources (RU/BY + iOS baseline).
+         * @enum {string}
+         */
+        PaymentSource: "ios_app_store" | "erip_qr" | "swift_manual";
+        /**
          * PlateRequest
          * @description RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.
          */
@@ -3649,6 +3747,12 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * ReconcileStatus
+         * @description Reconciliation status for financial audit trail.
+         * @enum {string}
+         */
+        ReconcileStatus: "pending" | "verified" | "rejected" | "not_required";
         /**
          * SafetyCheckRequest
          * @description RU: Запрос проверки безопасности целевых значений.
@@ -4296,6 +4400,31 @@ export interface components {
              * @description i18n key for title
              */
             title_key: string;
+        };
+        /**
+         * SubscriptionActivationResponse
+         * @description Canonical activation response for all payment sources.
+         */
+        SubscriptionActivationResponse: {
+            /** Activation Id */
+            activation_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Txn Id */
+            external_txn_id?: string | null;
+            payment_source: components["schemas"]["PaymentSource"];
+            reconcile_status: components["schemas"]["ReconcileStatus"];
+            status: components["schemas"]["ActivationStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Verified At */
+            verified_at?: string | null;
         };
         /**
          * TargetsIn
@@ -5255,6 +5384,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WHOTargetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_subscription_api_v1_pro_payments_activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Invalid activation payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+        };
+    };
+    get_subscription_activation_api_v1_pro_payments_activations__activation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Activation access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Activation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
             /** @description Validation Error */

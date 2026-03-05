@@ -3294,8 +3294,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #982 (triage dependency) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-CONTRACT
-  - Status: 🟡 In progress (contract-first docs wave)
+  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1
+  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
@@ -3305,6 +3305,9 @@ If it is not recorded here — it does not exist.
     - docs/contracts/PRODUCT_TIER_MAP.md
     - ios/PulsePlate/Services/ProKeyProvider.swift:1
     - app/routers/pro_registration.py:1
+    - app/routers/pro_payments.py:1
+    - app/schemas/payments.py:1
+    - app/services/payments_activation.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
     - ⏳ Unified billing activation service is finalized for source-specific receipts
