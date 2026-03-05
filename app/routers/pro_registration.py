@@ -66,6 +66,9 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
     from app.routers.pro_food_attribution import router as pro_food_attribution_router
 
     app.include_router(pro_food_attribution_router)
+    from app.routers.pro_payments import router as pro_payments_router
+
+    app.include_router(pro_payments_router)
     from app.routers.pro_restaurant_partner import router as pro_restaurant_partner_router
 
     app.include_router(pro_restaurant_partner_router)

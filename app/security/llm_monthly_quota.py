@@ -20,30 +20,14 @@ from sqlalchemy import text
 from core.db import session_scope
 
 from app.models.llm_quota_usage import VipLlmMonthlyUsage  # noqa: F401  # register table metadata
+from app.security.server_salt import require_server_salt
 
-_SERVER_SALT_ENV = "SERVER_SALT"
 _VIP_LIMIT_ENV = "VIP_LLM_INSIGHT_REQUESTS_PER_MONTH"
 
 # NOTE: Table name must match app/models/llm_quota_usage.py.
 _USAGE_TABLE = "vip_llm_monthly_usage"
 
 DEFAULT_VIP_LLM_INSIGHT_REQUESTS_PER_MONTH = 30
-
-
-def require_server_salt() -> str:
-    """Return SERVER_SALT or raise (fail-fast contract).
-
-    RU: Возвращает SERVER_SALT или падает (fail-fast).
-    EN: Returns SERVER_SALT or raises (fail-fast).
-    """
-
-    salt = (os.getenv(_SERVER_SALT_ENV) or "").strip()
-    if not salt:
-        raise RuntimeError(
-            "SERVER_SALT is required for VIP LLM monthly quota enforcement. "
-            "Set SERVER_SALT to a non-empty secret value."
-        )
-    return salt
 
 
 def require_vip_llm_monthly_limit() -> int:
