@@ -5,8 +5,10 @@ Guard: resolved review threads must have explicit Disposition records in PR body
 Strict mode: every resolved thread must be listed under **Fixed in Commit Mapping**
 with Disposition (FIXED | NOT-A-BUG | DEFERRED) and proof (Commit / Evidence / Backlog).
 
-Requires: GitHub CLI `gh` authenticated (GH_TOKEN or GITHUB_TOKEN). In CI use --require-auth
-and export GH_TOKEN from secrets.GITHUB_TOKEN. Local without auth: exits 0 (SKIP) unless --require-auth.
+Requires: GitHub CLI `gh` authenticated. **Canonical token: GH_TOKEN.** In CI use --require-auth and
+export GH_TOKEN from secrets.GITHUB_TOKEN. GITHUB_TOKEN alone is not sufficient — gh reads GH_TOKEN.
+Preflight: when --require-auth or CI=true, script requires GH_TOKEN and exits 1 with diagnostic before
+any GraphQL; no mapping/resolve attempts without valid auth.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import shutil
 import subprocess  # nosec B404: fixed gh CLI only (remove-by: 2026-04-30, ref: PR-985)
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
@@ -32,10 +35,15 @@ class ResolvedThreadRef:
     url: str
     source: str
     is_resolved: bool
+    created_at: str  # ISO 8601 from GraphQL (first comment createdAt)
 
 
 # Timeout for gh CLI calls to avoid hanging CI (CodeRabbit/Cubic).
 _RUN_TIMEOUT_SEC = 60
+_GIT_TIMEOUT_SEC = 15
+
+# Mapping line: "- https://... -> sha" or "- https://...#anchor -> sha"
+_MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
 
 
 def _run(cmd: list[str]) -> str:
@@ -47,6 +55,104 @@ def _run(cmd: list[str]) -> str:
             f"Command failed: {' '.join(cmd)}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
     return result.stdout
+
+
+def _parse_iso_datetime(value: str) -> datetime:
+    """
+    Parse ISO 8601 datetime from GitHub/GraphQL or git (%cI).
+    Supports trailing 'Z'.
+    """
+    v = value.strip()
+    if v.endswith("Z"):
+        v = v[:-1] + "+00:00"
+    dt = datetime.fromisoformat(v)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _git_commit_time_iso(commit_sha: str) -> str:
+    """
+    Return commit committer date in strict ISO 8601 (git %cI).
+    Uses absolute git path (B607-class safe).
+    """
+    git_path = shutil.which("git")
+    if not git_path:
+        raise RuntimeError("git not found in PATH; required for commit-after-comment guard")
+    result = subprocess.run(
+        [git_path, "show", "-s", "--format=%cI", commit_sha],
+        capture_output=True,
+        text=True,
+        timeout=_GIT_TIMEOUT_SEC,
+        check=False,
+    )  # nosec B603: fixed argv, no user input (remove-by: 2026-04-30, ref: PR-985)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git show failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
+        )
+    out = result.stdout.strip()
+    if not out:
+        raise RuntimeError(f"git returned empty commit time for sha={commit_sha}")
+    return out
+
+
+def _parse_mapping_section(section: str) -> dict[str, str]:
+    """
+    Parse Fixed in Commit Mapping section: lines like "- https://... -> sha".
+    Returns dict mapping url (and url base) -> sha for lookup.
+    """
+    mapping: dict[str, str] = {}
+    for line in section.splitlines():
+        m = _MAPPING_LINE_RE.search(line)
+        if not m:
+            continue
+        url_part, sha = m.group(1).strip(), m.group(2)
+        mapping[url_part] = sha
+        base = url_part.split("#")[0]
+        if base not in mapping:
+            mapping[base] = sha
+    return mapping
+
+
+def _check_commit_after_comment(
+    resolved_threads: list[ResolvedThreadRef],
+    section: str,
+    *,
+    _git_commit_time_fn: Any = None,
+) -> list[str]:
+    """
+    For each resolved thread with a mapped SHA, require commit_time > comment_time.
+    Returns list of violation messages (empty if all pass).
+    _git_commit_time_fn(sha) -> ISO str for tests; default _git_commit_time_iso.
+    """
+    get_commit_time = _git_commit_time_fn or _git_commit_time_iso
+    mapping_by_url = _parse_mapping_section(section)
+    violations: list[str] = []
+    for t in resolved_threads:
+        thread_base = t.url.split("#")[0]
+        sha = mapping_by_url.get(t.url) or mapping_by_url.get(thread_base)
+        if not sha:
+            violations.append(
+                f"{t.url}: no commit SHA in mapping (add line '- <url> -> <sha>' in Fixed in Commit Mapping)"
+            )
+            continue
+        if not t.created_at:
+            violations.append(
+                f"{t.url}: missing comment timestamp (cannot verify commit-after-comment)"
+            )
+            continue
+        try:
+            thread_created = _parse_iso_datetime(t.created_at)
+            commit_iso = get_commit_time(sha)
+            commit_dt = _parse_iso_datetime(commit_iso)
+            if commit_dt <= thread_created:
+                violations.append(
+                    f"{t.url}: mapped to {sha} but commit_time={commit_iso} <= comment_time={t.created_at} "
+                    "(commit must be after comment; fix code first, then map)"
+                )
+        except RuntimeError as e:
+            violations.append(f"{t.url}: {e}")
+    return violations
 
 
 def _get_pr_number() -> int:
@@ -126,7 +232,7 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
             nodes {
               isResolved
               comments(first: 1) {
-                nodes { url }
+                nodes { url createdAt }
               }
             }
           }
@@ -147,11 +253,14 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
                 continue
             comment_nodes = (t.get("comments") or {}).get("nodes") or []
             if comment_nodes and comment_nodes[0].get("url"):
+                first = comment_nodes[0]
+                created_at = first.get("createdAt") or ""
                 resolved.append(
                     ResolvedThreadRef(
-                        url=comment_nodes[0]["url"],
+                        url=first["url"],
                         source="comment",
                         is_resolved=True,
+                        created_at=created_at,
                     )
                 )
         page = pr["reviewThreads"]["pageInfo"]
@@ -180,6 +289,49 @@ def _has_gh_auth() -> bool:
     return result.returncode == 0
 
 
+def _env_diagnostic() -> str:
+    """Return one-line env status (SET/MISSING only, no values)."""
+    keys = ("GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT", "CI", "GITHUB_ACTIONS")
+    parts = [f"{k}={('SET' if (os.environ.get(k) or '').strip() else 'MISSING')}" for k in keys]
+    return " ".join(parts)
+
+
+def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
+    """
+    When require_auth or CI: require GH_TOKEN and optional gh auth status. Exit 1 with
+    diagnostic and fix commands before any GraphQL. Single source of token: GH_TOKEN.
+    """
+    if not require_auth and not in_ci:
+        return
+    gh_token = (os.environ.get("GH_TOKEN") or "").strip()
+    if not gh_token:
+        print("ERROR: GH_TOKEN required for disposition guard (--require-auth or CI=true).")
+        print("       gh reads GH_TOKEN; GITHUB_TOKEN alone is not sufficient.")
+        print(f"       Env: {_env_diagnostic()}")
+        print("Fix (choose one):")
+        print('  export GH_TOKEN="$GITHUB_TOKEN"   # if GITHUB_TOKEN is set')
+        print('  export GH_TOKEN="$GITHUB_PAT"    # or from your PAT')
+        print("  Then: gh auth status")
+        sys.exit(1)
+    # GH_TOKEN set — verify gh can use it (preflight before GraphQL)
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
+        sys.exit(1)
+    result = subprocess.run(
+        [gh_path, "auth", "status"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )  # nosec B603: fixed argv (remove-by: 2026-04-30, ref: PR-985)
+    if result.returncode != 0:
+        print("ERROR: GH_TOKEN is set but gh auth status failed. Fix env before running GraphQL.")
+        print(f"       Env: {_env_diagnostic()}")
+        print("  gh auth status  # run manually to see reason")
+        sys.stderr.write(result.stderr or "")
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check resolved review threads have disposition in PR body."
@@ -187,19 +339,18 @@ def main() -> None:
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="In CI: fail if GH_TOKEN/GITHUB_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
+        help="In CI: fail if GH_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
     )
     args = parser.parse_args()
 
-    if not _has_gh_auth():
-        if args.require_auth or os.environ.get("CI") == "true":
-            print(
-                "ERROR: GH_TOKEN (or GITHUB_TOKEN) required for disposition guard. "
-                "In CI export GH_TOKEN from secrets.GITHUB_TOKEN."
-            )
-            sys.exit(1)
-        print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
-        sys.exit(0)
+    in_ci = os.environ.get("CI") == "true"
+    if args.require_auth or in_ci:
+        # Strict preflight: require GH_TOKEN and gh auth status before any GraphQL
+        _require_gh_token_preflight(args.require_auth, in_ci)
+    else:
+        if not _has_gh_auth():
+            print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
+            sys.exit(0)
 
     pr_number = _get_pr_number()
     body = _get_pr_body()
@@ -245,8 +396,21 @@ def main() -> None:
         print("  and one of: Commit: / Evidence: / Backlog:")
         sys.exit(1)
 
+    # Commit-after-comment guard: mapping must reference a commit made AFTER the comment
+    commit_after_violations = _check_commit_after_comment(resolved_threads, section)
+    if commit_after_violations:
+        print(
+            "ERROR: Commit-after-comment policy violated. Map only commits made AFTER the comment.\n"
+        )
+        for v in commit_after_violations:
+            print(f"  - {v}")
+        print(
+            "\nFix: Make a code/doc fix commit, then add '- <thread_url> -> <commit_sha>' in Fixed in Commit Mapping."
+        )
+        sys.exit(1)
+
     print(
-        f"OK: All {len(resolved_threads)} resolved review threads have Disposition + proof in Fixed in Commit Mapping."
+        f"OK: All {len(resolved_threads)} resolved review threads have Disposition + proof and commit-after-comment."
     )
     sys.exit(0)
 

@@ -96,6 +96,36 @@ If it is not recorded here — it does not exist.
     - Each legacy `# nosec` either removed (fix) or converted to full format (Bxxx:, remove-by: date, ref:)
     - Guard no longer uses allowlist (or allowlist file removed)
 
+- [ ] P2: Integrate review-thread disposition guard into pre-flight
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #986 or PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Make disposition check always-on by calling `check_review_threads_disposition.py` from `scripts/orchestration/check_preflight.py` and documenting in `workflow.md`.
+  - Links:
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `scripts/orchestration/check_preflight.py`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Pre-flight runs disposition guard when in PR context (or always)
+    - workflow.md updated with required step
+    - No regression in pre-flight runtime
+
+- [ ] P2: Subprocess guard — multiline subprocess.run/Popen detection
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: guards / security policy
+  - Finding Type: optional improvement (Cubic suggestion)
+  - Reason: Current guard scans single-line subprocess calls; multiline invocations (e.g. `subprocess.run([\n  "gh", ...])`) may escape detection. Extend guard to multiline or AST-based scan.
+  - Links:
+    - `tests/guards/test_subprocess_uses_absolute_binaries.py`
+    - `AGENTS.md` (subprocess absolute path policy)
+  - DoD:
+    - Guard detects banned binaries when call spans multiple lines, or document limitation
+    - No false negatives on existing codebase
+
 - [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
