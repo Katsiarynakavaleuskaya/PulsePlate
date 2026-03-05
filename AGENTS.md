@@ -39,6 +39,72 @@ Or individually:
 - Merge checklist is mandatory in PR body (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
 
+## Review Governance
+
+Review threads **must not be resolved without an explicit disposition**.
+Every actionable comment must be classified as one of the following:
+
+### FIXED
+
+The issue was corrected in code or documentation.
+
+Required:
+
+* Commit SHA
+* Evidence (`file:line`, test, or command output)
+
+Example:
+
+```
+Disposition: FIXED
+Commit: 7733589a
+Evidence: docs/orchestration/AGENT_CAPABILITY_MATRIX.md:12
+```
+
+### NOT-A-BUG
+
+The comment is valid feedback but the current implementation is correct.
+
+Required:
+
+* Explanation
+* Evidence (`file:line`, contract reference, or test)
+
+Example:
+
+```
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/AGENT_ROUTING_GRAPH.md:36
+Reason: Routing graph already enforces canonical slug usage.
+```
+
+### DEFERRED
+
+The issue is intentionally postponed.
+
+Required:
+
+* Link to backlog item (`BACKLOG_LEDGER.md` or issue)
+* Mention in PR body under **Deferred / Follow-ups**
+
+Example:
+
+```
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
+```
+
+### Enforcement rules
+
+1. **Checkboxes and mapping do not substitute fixes.**
+   Phase2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
+2. **Review threads cannot be resolved without disposition evidence.**
+3. **Resolved threads must be listed under Fixed in Commit Mapping** with Disposition + proof (Commit/Evidence/Backlog).
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** with the corresponding commit SHA.
+5. If no disposition can be determined, **the thread remains open**.
+
+**Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
+
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
