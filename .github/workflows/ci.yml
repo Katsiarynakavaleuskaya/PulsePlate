@@ -196,7 +196,8 @@ jobs:
             echo "No markdownlint targets; skipping."
             exit 0
           fi
-          npx --yes markdownlint-cli2 $(cat "$GITHUB_WORKSPACE/.phase1_lint_md_files")
+          mapfile -t LINT_FILES < "$GITHUB_WORKSPACE/.phase1_lint_md_files"
+          npx --yes markdownlint-cli2 "${LINT_FILES[@]}"
 
   pr_body_phase2_gates:
     name: PR Body Phase2 gates
