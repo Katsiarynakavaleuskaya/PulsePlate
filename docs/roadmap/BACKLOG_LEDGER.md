@@ -144,6 +144,24 @@ If it is not recorded here — it does not exist.
     - AGENTS.md updated with FIXED proof quality (trigger-only ban) rule
     - Optional allowlist with TTL remains empty by default (P2 if needed)
 
+- [ ] P2: Stabilize nosec allowlist keys (path + token/hash, not line)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: guards / tech-debt
+  - Finding Type: robustness
+  - Reason: Line-based allowlist entries drift on any file edit; allowlist should key by path + code-fragment hash or token so refactors do not require allowlist updates.
+  - Links: `tests/guards/fixtures/nosec_policy_allowlist.txt`, `tests/guards/test_nosec_policy_guard.py`
+  - DoD: Allowlist format supports path + stable identifier (hash/snippet); guard matches by identifier; line number optional or derived.
+
+- [ ] P2: Extend trigger-only ban with optional allowlist TTL (if needed)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: orchestration / review governance
+  - Reason: If an exception is ever needed for a trigger-only mapping, add TTL allowlist (same style as nosec: remove-by, ref); empty by default.
+  - DoD: Allowlist file exists (or doc); format documented; guard consults allowlist when present.
+
 - [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
