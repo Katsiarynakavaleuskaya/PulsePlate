@@ -108,13 +108,13 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 ## Payments Transport (P0 baseline policy)
 
 Contract source:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
 
 Thin-client rules for payments:
-1. iOS must use existing `APIClient`/`HTTPClient` seam only.
-2. Receipt/business decision logic stays server-side (`/api/v1/billing/*` contracts).
-3. Client may send transport payload and render server state, but must not infer activation logic locally.
-4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets.
+1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
+2. Receipt/business decision logic stays server-side (`/api/v1/billing/*` contracts) and is tracked as runtime rollout, not client logic (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md:3297`).
+3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
+4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
 
 Planned transport surfaces (runtime PRs):
 - `POST /api/v1/billing/apple/verify-receipt`
