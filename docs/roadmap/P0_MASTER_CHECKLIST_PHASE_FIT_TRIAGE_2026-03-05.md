@@ -70,6 +70,7 @@
 4. Checklist `#3` -> `#ledger-p0-rag-input-sanitizer`.
 5. Checklist `#5` -> `#ledger-p1-mobile-secret-conformance`.
 6. Checklist `#7` -> `#ledger-p0-pro-vip-depends-guard`.
+7. Checklist `#6` -> `#ledger-p2-android-keystore-conformance`.
 
 ## Deviation Notes vs Original Checklist
 
