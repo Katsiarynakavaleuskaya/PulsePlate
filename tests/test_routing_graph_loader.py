@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.route_with_telemetry import route
 
 
 def test_parses_safety_domain() -> None:
@@ -56,3 +57,18 @@ def test_parses_all_known_domains() -> None:
         "safety",
     }
     assert expected.issubset(set(routes.keys()))
+
+
+def test_domain_normalized_to_lowercase() -> None:
+    """Domain keys must be lowercase for consistent lookup."""
+    routes = load_routing_graph()
+    for key in routes.keys():
+        assert key == key.lower(), f"Domain key must be lowercase: {key!r}"
+
+
+def test_route_normalizes_domain_lookup() -> None:
+    """route() must resolve 'Safety' and 'safety' to same canonical route."""
+    routing = load_routing_graph()
+    d1 = route("Safety", "test", telemetry=None, routing=routing)
+    d2 = route("safety", "test", telemetry=None, routing=routing)
+    assert d1.primary == d2.primary == "philosophy-agent"

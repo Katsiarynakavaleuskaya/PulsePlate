@@ -103,13 +103,16 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
     routes: Dict[str, DomainRoute] = {}
 
     for line in lines[start:]:
+        stripped = line.strip()
+        if stripped == "---" or stripped.startswith("##"):
+            break
         cols = _split_md_row(line)
         if not cols:
             continue
         if len(cols) <= max(i_domain, i_primary, i_reviewer):
             continue
 
-        domain = cols[i_domain].strip()
+        domain = cols[i_domain].strip().lower()
         primary = cols[i_primary].strip()
         reviewer = cols[i_reviewer].strip()
         secondary_raw = (

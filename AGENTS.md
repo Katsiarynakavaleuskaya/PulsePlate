@@ -218,7 +218,7 @@ A **task** is any unit of work that:
 
 **Orchestration telemetry:** Advisory only (no auto-routing writes). Telemetry outputs live under `artifacts/` (gitignored) and must not be committed. See `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`.
 
-**Routing helper:** No hardcoded routing defaults except coordinator fallback; canonical `docs/orchestration/AGENT_ROUTING_GRAPH.md` is the baseline. Telemetry is advisory.
+**Routing helper:** No hardcoded routing defaults except coordinator fallback; canonical `docs/orchestration/AGENT_ROUTING_GRAPH.md` is the baseline. Telemetry is advisory. Routing helper MUST NOT modify routing docs; it emits decisions only (JSON stdout).
 
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`

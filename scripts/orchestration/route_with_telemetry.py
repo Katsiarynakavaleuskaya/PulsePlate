@@ -100,6 +100,7 @@ def route(
     routing: Dict[str, DomainRoute],
 ) -> RoutingDecision:
     """Compute routing decision from telemetry (advisory) + canonical graph."""
+    domain = domain.strip().lower()
     canon_primary, canon_secondary, canon_reviewer = _canonical_fallback(domain, routing)
 
     rationale: Dict[str, Any] = {"source": "canonical_only"}
