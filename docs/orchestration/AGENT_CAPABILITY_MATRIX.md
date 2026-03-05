@@ -23,28 +23,40 @@ Coordinator may assign agents outside their primary domain if justified.
 
 ## Agent Capabilities
 
-| Agent | Primary Layers | Primary Domains | Can Review | Can Delegate To |
-|-------|----------------|-----------------|------------|-----------------|
-| **Coordinator** | All | Routing, synthesis, orchestration | All agents | All agents |
-| **Architecture** | `core/`, `app/`, `frontend/`, `ios/` | Design patterns, invariants, layer boundaries | Bug Hunter, Security | AI Innovation, Bug Hunter |
-| **Bug Hunter** | `tests/`, CI | Test failures, coverage gaps, guard violations | Coordinator, Architecture | Architecture, Security |
-| **AI Innovation** | `core/`, `providers/` | LLM, RAG, R&D, prototypes | Architecture, Security | Bug Hunter (for testing) |
-| **Security** | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
-| **Marketing** | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
-| **Creative Designer** | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
-| **Философский агент (`Philosophy Agent`)** | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
-| **Логический агент (`Logic Agent`)** | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
-| **Байесовский агент / UQ (`Bayesian / UQ Agent`)** | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
-| **RAG-агент (`RAG Systems Agent`)** | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
-| **Web Research Agent** | `docs/` (cross-cutting) | Web/OSS intake, evidence logs, ECR + scorecards | — | Coordinator |
-| **CV-агент (`CV Agent`)** | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
-| **Архитектор AI-приложений (`AI App Architect`)** | `app/`, `core/`, `providers/` | Integration seams, feature flags, determinism constraints | Architecture, Security | Coordinator |
-| **Дата-саентист (`Data Scientist`)** | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
-| **ML-инженер (`ML Engineer`)** | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
-| **Нутрициолог-агент (`Nutritionist Agent`)** | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
-| **CBT-психолог-агент (`CBT Psychologist Agent`)** | `docs/` | CBT-inspired coaching boundaries, safety language | — | Coordinator |
-| **Эпистемолог-агент / Discovery (`Epistemology / Discovery Agent`)** | `docs/` (cross-cutting) | Hypotheses → protocols, negative controls, research-to-PR promotion rules | — | Coordinator, Data Scientist |
-| **Физик-агент / Сенсоры (`Physics / Sensor Agent`)** | `docs/` (cross-cutting) | Sensor priors, multimodal robustness, calibration protocols | — | Coordinator, CV Agent |
+Slug-first: first column = canonical agent slug (aligns with AGENT_INVENTORY.md and routing graph).
+
+| Agent | Display | Primary Layers | Primary Domains | Can Review | Can Delegate To |
+|-------|---------|----------------|-----------------|------------|-----------------|
+| **agent-coordinator** | Coordinator | All | Routing, synthesis, orchestration | All agents | All agents |
+| **backend-engineer** | Backend Engineer | `app/`, `core/` | FastAPI/core implementation, API contracts, policy-safe endpoints | Architecture, Security | Bug Hunter, Architecture |
+| **frontend-engineer** | Frontend Engineer | `frontend/` | Web UI, thin-client rules, contract-safe updates | Architecture | Coordinator |
+| **dev-operator** | Dev Operator | Terminal, CI | `make lint`, `make test-fast`, failure triage, evidence capture | Bug Hunter | Coordinator |
+| **architecture-specialist** | Architecture | `core/`, `app/`, `frontend/`, `ios/` | Design patterns, invariants, layer boundaries | Bug Hunter, Security | AI Innovation, Bug Hunter |
+| **bug-hunter** | Bug Hunter | `tests/`, CI | Test failures, coverage gaps, guard violations | Coordinator, Architecture | Architecture, Security |
+| **security-auditor** | Security | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
+| **ai-app-architect** | AI App Architect | `app/`, `core/`, `providers/` | Integration seams, feature flags, determinism constraints | Architecture, Security | Coordinator |
+| **ai-innovation-specialist** | AI Innovation | `core/`, `providers/` | LLM, RAG, R&D, prototypes | Architecture, Security | Bug Hunter (for testing) |
+| **rag-systems-agent** | RAG Systems Agent | `core/`, `providers/` | Retrieval architecture, recursive verification, budgets/stop conditions | — | Coordinator, Security |
+| **web-research-agent** | Web Research Agent | `docs/` (cross-cutting) | Web/OSS intake, evidence logs, ECR + scorecards | — | Coordinator |
+| **data-scientist-agent** | Data Scientist | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
+| **ml-engineer-agent** | ML Engineer | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
+| **bayesian-uq-agent** | Bayesian / UQ Agent | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
+| **cv-agent** | CV Agent | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
+| **philosophy-agent** | Philosophy Agent | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
+| **logic-agent** | Logic Agent | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
+| **nutritionist-agent** | Nutritionist Agent | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |
+| **cbt-psychologist-agent** | CBT Psychologist Agent | `docs/` | CBT-inspired coaching boundaries, safety language | — | Coordinator |
+| **epistemology-discovery-agent** | Epistemology / Discovery Agent | `docs/` (cross-cutting) | Hypotheses → protocols, negative controls, research-to-PR promotion rules | — | Coordinator, Data Scientist |
+| **physics-sensor-agent** | Physics / Sensor Agent | `docs/` (cross-cutting) | Sensor priors, multimodal robustness, calibration protocols | — | Coordinator, CV Agent |
+| **creative-designer** | Creative Designer | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
+| **designer-artist-agent** | Designer / Artist Agent | `frontend/`, assets | Emblem/logo production: SVG geometry, Figma/Sora/Nano Banana packets | Creative Designer | Coordinator |
+| **sora-prompt-engineer** | Sora Prompt Engineer | assets, `docs/sora/` | Sora prompt specs, anti-drift policy, visual QA gates | Creative Designer | Coordinator |
+| **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
+| **ai-trend-reporter** | AI Trend Reporter | `docs/` | AI market reports (daily/weekly/monthly/quarterly), wellness GTM | — | Coordinator |
+| **generalpurpose** | General Purpose (mcp_task) | — | Research, code search, multi-step tasks | — | — |
+| **explore** | Explore (mcp_task) | — | Fast codebase exploration, file/pattern search | — | — |
+| **shell** | Shell (mcp_task) | — | Git, terminal, CI commands | — | — |
+| **ci-watcher** | CI Watcher (mcp_task) | — | Watch GitHub CI, report pass/fail | — | — |
 
 ---
 
