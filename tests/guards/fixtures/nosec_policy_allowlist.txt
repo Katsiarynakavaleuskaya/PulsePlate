@@ -27,10 +27,12 @@ scripts/normalize_off_version.py:263 remove-by=2026-04-30 ref=PR-985
 scripts/orchestration/check_preflight.py:14 remove-by=2026-04-30 ref=PR-985
 scripts/orchestration/check_preflight.py:33 remove-by=2026-04-30 ref=PR-985
 scripts/orchestration/check_review_threads_disposition.py:62 remove-by=2026-04-30 ref=PR-985
-scripts/orchestration/check_review_threads_disposition.py:103 remove-by=2026-04-30 ref=PR-985
-scripts/orchestration/check_review_threads_disposition.py:188 remove-by=2026-04-30 ref=PR-985
-scripts/orchestration/check_review_threads_disposition.py:306 remove-by=2026-04-30 ref=PR-985
-scripts/orchestration/check_review_threads_disposition.py:348 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:109 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:134 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:156 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:268 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:386 remove-by=2026-04-30 ref=PR-985
+scripts/orchestration/check_review_threads_disposition.py:428 remove-by=2026-04-30 ref=PR-985
 scripts/schedule_food_db_update.py:13 remove-by=2026-04-30 ref=PR-985
 scripts/schedule_food_db_update.py:329 remove-by=2026-04-30 ref=PR-985
 scripts/schedule_food_db_update.py:596 remove-by=2026-04-30 ref=PR-985

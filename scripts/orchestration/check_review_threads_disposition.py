@@ -89,6 +89,12 @@ def _parse_iso_datetime(value: str) -> datetime:
 # Allow only git rev format (7–40 hex chars) so argv is safe (Sourcery / injection)
 _GIT_SHA_RE = re.compile(r"^[a-f0-9]{7,40}$", re.IGNORECASE)
 
+# Trigger-only commit subject patterns (P1: ban mapping to rerun/trigger commits)
+_TRIGGER_SUBJECT_RE = re.compile(
+    r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
+    re.IGNORECASE,
+)
+
 
 def _git_commit_time_iso(commit_sha: str) -> str:
     """
@@ -115,6 +121,80 @@ def _git_commit_time_iso(commit_sha: str) -> str:
     if not out:
         raise RuntimeError(f"git returned empty commit time for sha={commit_sha}")
     return out
+
+
+def _git_commit_subject(commit_sha: str) -> str:
+    """Return commit subject line for a SHA (git show -s --format=%s). SHA validated for safe argv."""
+    sha = commit_sha.strip()
+    if not _GIT_SHA_RE.match(sha):
+        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
+    git_path = shutil.which("git")
+    if not git_path:
+        raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
+    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+        [git_path, "show", "-s", "--format=%s", sha],
+        capture_output=True,
+        text=True,
+        timeout=_GIT_TIMEOUT_SEC,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git show subject failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
+        )
+    return result.stdout.strip()
+
+
+def _git_changed_files(commit_sha: str) -> list[str]:
+    """Return list of files changed in a SHA (git show --name-only). Empty means empty commit. SHA validated."""
+    sha = commit_sha.strip()
+    if not _GIT_SHA_RE.match(sha):
+        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
+    git_path = shutil.which("git")
+    if not git_path:
+        raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
+    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+        [git_path, "show", "--name-only", "--pretty=format:", sha],
+        capture_output=True,
+        text=True,
+        timeout=_GIT_TIMEOUT_SEC,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git show name-only failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
+        )
+    return [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+
+
+def _check_trigger_only_mapping(
+    resolved_threads: list[ResolvedThreadRef],
+    fixed_mapping_section: str,
+) -> list[str]:
+    """
+    Validate that each mapped SHA is not trigger-only (empty commit or rerun/trigger subject).
+    Returns list of violation messages; empty if all pass.
+    """
+    mapping = _parse_mapping_section(fixed_mapping_section)
+    violations: list[str] = []
+    for t in resolved_threads:
+        sha = mapping.get(t.url)
+        if not sha:
+            continue
+        changed_files = _git_changed_files(sha)
+        if not changed_files:
+            violations.append(
+                f"{t.url}: mapped to {sha} but commit is EMPTY (no changed files). "
+                "Trigger-only commits are not valid FIXED proof."
+            )
+            continue
+        subject = _git_commit_subject(sha)
+        if _TRIGGER_SUBJECT_RE.search(subject):
+            violations.append(
+                f"{t.url}: mapped to {sha} but commit subject looks like CI rerun/trigger "
+                f"('{subject}'). Trigger-only commits are not valid FIXED proof."
+            )
+    return violations
 
 
 def _parse_mapping_section(section: str) -> dict[str, str]:
@@ -432,6 +512,17 @@ def main() -> None:
             print(f"  - {v}")
         print(
             "\nFix: Make a code/doc fix commit, then add '- <thread_url> -> <commit_sha>' in Fixed in Commit Mapping."
+        )
+        sys.exit(1)
+
+    # Trigger-only mapping ban (P1): mapping to empty or rerun/trigger subject is not valid FIXED proof
+    trigger_violations = _check_trigger_only_mapping(resolved_threads, section)
+    if trigger_violations:
+        print("ERROR: Trigger-only commit policy violated. Map only real fix commits.\n")
+        for v in trigger_violations:
+            print(f"  - {v}")
+        print(
+            "\nFix: Do not map to empty commits or commits whose subject contains 'trigger ci' / 'rerun ci' / 'rerun checks'."
         )
         sys.exit(1)
 
