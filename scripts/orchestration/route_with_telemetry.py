@@ -75,8 +75,11 @@ def _rewrite_rate(stats: Dict[str, Any]) -> float:
     meta = stats.get("meta", {})
     if not isinstance(meta, dict):
         return 0.0
-    runs = int(meta.get("runs", 0) or 0)
-    rewrites = int(meta.get("decision_REWRITE_REQUIRED", 0) or 0)
+    try:
+        runs = int(meta.get("runs", 0) or 0)
+        rewrites = int(meta.get("decision_REWRITE_REQUIRED", 0) or 0)
+    except (ValueError, TypeError):
+        return 0.0
     if runs <= 0:
         return 0.0
     return rewrites / runs
@@ -139,8 +142,12 @@ def route(
         rationale["primary_reason"] = "no_telemetry_primary_fallback_canonical"
 
     if isinstance(suggested_secondary, str) and suggested_secondary:
-        secondary = suggested_secondary
-        rationale["secondary_reason"] = "telemetry_secondary"
+        ss_stats = _get_agent_stats(telemetry, suggested_secondary)
+        if _is_stable(ss_stats):
+            secondary = suggested_secondary
+            rationale["secondary_reason"] = "telemetry_secondary_stable"
+        else:
+            rationale["secondary_reason"] = "telemetry_secondary_low_data_fallback_canonical"
     else:
         rationale["secondary_reason"] = "fallback_canonical"
 

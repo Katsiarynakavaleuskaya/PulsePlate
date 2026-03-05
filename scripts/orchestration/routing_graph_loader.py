@@ -57,7 +57,7 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
         Dict mapping domain -> DomainRoute(primary, secondary, reviewer).
         Secondary is first agent when comma-separated (e.g. "a, b" -> "a").
     """
-    if not path.exists():
+    if not path.is_file():
         raise FileNotFoundError(f"Routing graph not found: {path}")
 
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -108,6 +108,8 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
             break
         cols = _split_md_row(line)
         if not cols:
+            if routes:
+                break
             continue
         if len(cols) <= max(i_domain, i_primary, i_reviewer):
             continue
@@ -129,6 +131,8 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
             first = secondary_raw.split(",")[0].strip()
             secondary = first if first else None
 
+        if domain in routes:
+            raise ValueError(f"Duplicate domain in routing graph: {domain}")
         routes[domain] = DomainRoute(
             primary=primary,
             secondary=secondary,
