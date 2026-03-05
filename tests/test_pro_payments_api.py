@@ -227,6 +227,22 @@ def test_issuer_helper_supports_empty_api_key() -> None:
     assert _issuer_from_api_key("") == "api_key:anonymous"
 
 
+def test_issuer_helper_returns_stable_marker_for_same_api_key() -> None:
+    from app.routers.pro_payments import _issuer_from_api_key
+
+    first = _issuer_from_api_key("pro-key-issuer-stable")
+    second = _issuer_from_api_key("pro-key-issuer-stable")
+    assert first == second
+
+
+def test_issuer_helper_returns_distinct_markers_for_different_api_keys() -> None:
+    from app.routers.pro_payments import _issuer_from_api_key
+
+    first = _issuer_from_api_key("pro-key-issuer-a")
+    second = _issuer_from_api_key("pro-key-issuer-b")
+    assert first != second
+
+
 def test_get_activation_happy_path(
     client: TestClient,
     pro_headers: dict[str, str],
