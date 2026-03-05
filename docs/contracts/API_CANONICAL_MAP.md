@@ -33,7 +33,9 @@
 ## Payments Canonical Map (P0 baseline, contract-first)
 
 Source of truth for planned payment baseline:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
+- `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:1`
+- `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1`
 
 Canonical source enum:
 - `ios_app_store`
@@ -42,15 +44,18 @@ Canonical source enum:
 
 Planned additive endpoints (non-breaking; finalized in runtime PR):
 
-| Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes |
-|---|---|---:|---|---:|---|
-| Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | none (new) | - | Automated iOS path; server-side verification |
-| RU/BY payment intent | `/api/v1/billing/ru-by/manual-intent` | POST | none (new) | - | Creates manual payment intent and reconciliation state |
-| RU/BY reconciliation | `/api/v1/billing/ru-by/reconcile` | POST | none (new) | - | Manual review/system reconciliation endpoint |
-| RU/BY reconciliation status | `/api/v1/billing/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Read-only status lifecycle surface |
+| Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes | Ledger |
+|---|---|---:|---|---:|---|---|
+| Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | none (new) | - | Automated iOS path; server-side verification | `#ledger-p0-payments-ruby-ios` (owner: @katsiaryna_kavaleuskaya, P0, target: `PR-TBD-PAYMENTS-RUBY-IOS-BASELINE`) |
+| RU/BY payment intent | `/api/v1/billing/ru-by/manual-intent` | POST | none (new) | - | Creates manual payment intent and reconciliation state | `#ledger-p0-payments-ruby-ios` (DoD: reconciliation lifecycle + non-breaking contract) |
+| RU/BY reconciliation | `/api/v1/billing/ru-by/reconcile` | POST | none (new) | - | Manual review/system reconciliation endpoint | `#ledger-p0-payments-ruby-ios` (DoD: deterministic audit + status lifecycle) |
+| RU/BY reconciliation status | `/api/v1/billing/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Read-only status lifecycle surface | `#ledger-p0-payments-ruby-ios` (blocker: runtime handlers not merged yet) |
 
 Compatibility policy:
 1. Existing PRO/VIP activation flows remain unchanged until runtime migration PR.
 2. Payment routes are additive and must preserve current response envelopes for unchanged endpoints.
 3. iOS/Web clients remain thin adapters; no client-side billing decision logic.
 4. This section is implementation-target contract guidance, not a statement that runtime handlers already exist in `app/routers/*`.
+5. Evidence anchors for these assertions are captured in:
+   - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:21`
+   - `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:9`

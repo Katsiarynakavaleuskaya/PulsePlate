@@ -4,6 +4,8 @@
 - Owner: `@katsiaryna_kavaleuskaya`
 - Canonical dependency: `docs/contracts/PRODUCT_TIER_MAP.md`
 - Program phase: P0 revenue continuity baseline.
+- ADR: `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md`
+- Backlog SoT: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
 
 ## 1. Canonical Payment Sources
 
@@ -14,9 +16,9 @@ swift_manual
 ```
 
 Rules:
-1. Payment source is immutable per transaction record.
-2. Any source-specific payload must normalize into one canonical activation decision.
-3. Manual rails (`erip_qr`, `swift_manual`) require reconciliation status lifecycle and explicit audit events.
+1. Payment source is immutable per transaction record (evidence: `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:9`).
+2. Any source-specific payload must normalize into one canonical activation decision (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:32`).
+3. Manual rails (`erip_qr`, `swift_manual`) require reconciliation status lifecycle and explicit audit events (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:63`, `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:14`).
 
 ## 2. Canonical API Surface (additive, non-breaking)
 
@@ -125,3 +127,20 @@ Required runtime PR gates:
 1. Keep existing client contracts intact while additive billing routes roll out.
 2. Feature-flag runtime activation paths until reconciliation flow is validated on staging.
 3. Promote manual rails only after deterministic reconciliation tests are stable.
+
+## 10. Backlog / Action Items (temporary seam control)
+
+1. Primary implementation track: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`.
+2. Apple verify runtime path: `PR-TBD-BILLING-APPLE-VERIFY`.
+3. iOS subscription manager integration path: `PR-TBD-IOS-SUBSCRIPTION-MANAGER`.
+4. Blockers before completion:
+   - runtime handlers are not merged yet,
+   - reconciliation tests are not merged yet,
+   - OpenAPI billing surfaces are not yet generated from runtime code.
+
+## 11. Exit Criteria
+
+1. Runtime implementation PR for `#ledger-p0-payments-ruby-ios` is merged.
+2. Runtime tests listed in section 8 are green in CI.
+3. `make openapi` + `make openapi-check` + `make verify` pass on runtime billing PR.
+4. Backlog item state is updated from in-progress to done with merge evidence.
