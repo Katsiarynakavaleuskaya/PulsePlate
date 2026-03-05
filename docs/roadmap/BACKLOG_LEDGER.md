@@ -80,6 +80,22 @@ If it is not recorded here — it does not exist.
     - Production Caddy fallback vhost for `STAGING_FALLBACK_DOMAIN` is removed
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
+- [ ] P1: Phase 2 — Remove nosec allowlist by migrating legacy suppressions
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-NOSEC-ALLOWLIST-PHASE2
+  - Area: guards / security policy / tech-debt
+  - Finding Type: allowlist TTL enforcement follow-up
+  - Reason: Nosec policy allowlist (Phase 1) has TTL per line; entries must be migrated to full nosec format or removed so allowlist shrinks to zero and guard does not rely on allowlist.
+  - Links:
+    - `tests/guards/test_nosec_policy_guard.py`
+    - `tests/guards/fixtures/nosec_policy_allowlist.txt`
+    - `AGENTS.md` (Bandit / nosec policy)
+  - DoD:
+    - Allowlist reduced to 0 entries (or removed)
+    - Each legacy `# nosec` either removed (fix) or converted to full format (Bxxx:, remove-by: date, ref:)
+    - Guard no longer uses allowlist (or allowlist file removed)
+
 - [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)

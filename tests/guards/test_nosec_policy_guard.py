@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -38,24 +39,50 @@ class NoSecViolation:
     reason: str
 
 
-def _load_allowlist() -> set[tuple[str, int]]:
-    """(path, line_no) allowlist; paths relative to repo root."""
+# Optional per-line TTL: "path:line remove-by=YYYY-MM-DD ref=PR-XXX"
+ALLOWLIST_REMOVE_BY_RE = re.compile(r"\bremove-by=(\d{4}-\d{2}-\d{2})\b", re.IGNORECASE)
+
+
+def _load_allowlist() -> tuple[set[tuple[str, int]], list[tuple[str, int, str]]]:
+    """(allowed_set, expired_list). allowed_set = (path, line_no); expired_list = (path, line_no, remove_by_str)."""
     if not ALLOWLIST_PATH.exists():
-        return set()
-    out: set[tuple[str, int]] = set()
-    for line in ALLOWLIST_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = line.strip()
+        return set(), []
+    allowed: set[tuple[str, int]] = set()
+    expired: list[tuple[str, int, str]] = []
+    today = date.today()
+    for raw in ALLOWLIST_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if ":" in line:
-            path_part, line_part = line.split(":", 1)
-            path_rel = path_part.strip()
+        # Parse "path:line" and optional "remove-by=YYYY-MM-DD ref=..."
+        if ":" not in line:
+            continue
+        path_part, rest = line.split(":", 1)
+        path_rel = path_part.strip()
+        rest = rest.strip()
+        # line_no is the first token (may be followed by remove-by=...)
+        parts = rest.split()
+        if not parts:
+            continue
+        try:
+            line_no = int(parts[0])
+        except ValueError:
+            continue
+        remove_by_m = ALLOWLIST_REMOVE_BY_RE.search(line)
+        if remove_by_m:
             try:
-                line_no = int(line_part.strip())
+                remove_by_date = date.fromisoformat(remove_by_m.group(1))
+                if remove_by_date < today:
+                    expired.append((path_rel, line_no, remove_by_m.group(1)))
+                    continue
             except ValueError:
-                continue
-            out.add((path_rel, line_no))
-    return out
+                pass
+        else:
+            # No remove-by on line → treat as expired (require TTL)
+            expired.append((path_rel, line_no, "(missing remove-by=)"))
+            continue
+        allowed.add((path_rel, line_no))
+    return allowed, expired
 
 
 def _iter_files() -> list[Path]:
@@ -112,8 +139,17 @@ def _validate_nosec_line(line: str) -> tuple[bool, str]:
 
 
 def test_nosec_policy_guard() -> None:
-    """Every # nosec must have Bxxx:, remove-by: date, ref: non-N/A; else FAIL."""
-    allowlist = _load_allowlist()
+    """Every # nosec must have Bxxx:, remove-by: date, ref: non-N/A; else FAIL. Allowlist entries must have TTL."""
+    allowlist, expired = _load_allowlist()
+    if expired:
+        msg = [
+            "Allowlist has expired or missing-TTL entries. Migrate to full nosec format or fix; do not extend allowlist.",
+            "Format per line: path:line remove-by=YYYY-MM-DD ref=PR-XXX",
+            "",
+        ]
+        for path_rel, line_no, remove_by_str in expired:
+            msg.append(f"  {path_rel}:{line_no} {remove_by_str}")
+        raise AssertionError("\n".join(msg))
     violations: list[NoSecViolation] = []
 
     for path in _iter_files():
