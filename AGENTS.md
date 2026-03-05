@@ -100,7 +100,7 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
 3. **Resolved threads must be listed under Fixed in Commit Mapping** with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** with disposition-specific proof (Commit SHA for FIXED; Evidence for NOT-A-BUG; Backlog link for DEFERRED).
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence (no commit required); **DEFERRED** → Backlog link (no commit required).
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 
@@ -408,7 +408,7 @@ make lint
 make fmt-check
 ```
 
-### 5) PR body Phase2 gates (PR metadata contract)
+### 5) PR body Phase 2 gates (PR metadata contract)
 
 ```bash
 python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass

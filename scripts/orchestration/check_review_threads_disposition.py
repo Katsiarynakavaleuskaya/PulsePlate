@@ -26,8 +26,8 @@ from typing import Any
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
 PROOF_RE = re.compile(r"(Commit:|Evidence:|Backlog:)", re.IGNORECASE)
-# Match any heading level (#, ##, ###, ...) Fixed in Commit Mapping then content until next # or end
-FIXED_MAPPING_SECTION_RE = re.compile(r"(?is)#+\s*Fixed in Commit Mapping\s*(.*?)(?:\n#+\s|\Z)")
+# Match Fixed in Commit Mapping heading; section content extracted by level-aware parse (Cubic: avoid stop at ####)
+_FIXED_MAPPING_HEADING_RE = re.compile(r"(?im)^(#+)\s*Fixed in Commit Mapping\s*$")
 
 
 @dataclass(frozen=True)
@@ -46,13 +46,28 @@ _GIT_TIMEOUT_SEC = 15
 _MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
 
 
+def _gh_path() -> str:
+    """Resolved path to gh CLI (B607 / Sourcery: no partial path in subprocess)."""
+    path = shutil.which("gh")
+    if not path:
+        raise RuntimeError("gh CLI not found in PATH")
+    return path
+
+
 def _run(cmd: list[str]) -> str:
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=_RUN_TIMEOUT_SEC
-    )  # nosec B603: fixed argv from callers (remove-by: 2026-04-30, ref: PR-985)
+    # Sourcery: use resolved binary path; argv from callers is fixed (no user input)
+    argv = list(cmd)
+    if argv and argv[0] == "gh":
+        argv = [_gh_path()] + argv[1:]
+    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+        argv,
+        capture_output=True,
+        text=True,
+        timeout=_RUN_TIMEOUT_SEC,
+    )
     if result.returncode != 0:
         raise RuntimeError(
-            f"Command failed: {' '.join(cmd)}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            f"Command failed: {' '.join(argv)}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
     return result.stdout
 
@@ -71,21 +86,27 @@ def _parse_iso_datetime(value: str) -> datetime:
     return dt
 
 
+# Allow only git rev format (7–40 hex chars) so argv is safe (Sourcery / injection)
+_GIT_SHA_RE = re.compile(r"^[a-f0-9]{7,40}$", re.IGNORECASE)
+
+
 def _git_commit_time_iso(commit_sha: str) -> str:
     """
     Return commit committer date in strict ISO 8601 (git %cI).
-    Uses absolute git path (B607-class safe).
+    Uses absolute git path; commit_sha validated so argv is safe (no injection).
     """
+    if not _GIT_SHA_RE.match(commit_sha.strip()):
+        raise RuntimeError(f"Invalid commit SHA format: {commit_sha!r}")
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for commit-after-comment guard")
-    result = subprocess.run(
-        [git_path, "show", "-s", "--format=%cI", commit_sha],
+    result = subprocess.run(  # nosec B603 — git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-04-30, ref: PR-985)
+        [git_path, "show", "-s", "--format=%cI", commit_sha.strip()],
         capture_output=True,
         text=True,
         timeout=_GIT_TIMEOUT_SEC,
         check=False,
-    )  # nosec B603: fixed argv, no user input (remove-by: 2026-04-30, ref: PR-985)
+    )
     if result.returncode != 0:
         raise RuntimeError(
             f"git show failed for sha={commit_sha}: rc={result.returncode} stderr={result.stderr.strip()!r}"
@@ -99,7 +120,7 @@ def _git_commit_time_iso(commit_sha: str) -> str:
 def _parse_mapping_section(section: str) -> dict[str, str]:
     """
     Parse Fixed in Commit Mapping section: lines like "- https://... -> sha".
-    Returns dict mapping url (and url base) -> sha for lookup.
+    Returns dict mapping full URL -> sha only (thread-specific; no base URL to avoid one URL satisfying multiple threads).
     """
     mapping: dict[str, str] = {}
     for line in section.splitlines():
@@ -108,9 +129,6 @@ def _parse_mapping_section(section: str) -> dict[str, str]:
             continue
         url_part, sha = m.group(1).strip(), m.group(2)
         mapping[url_part] = sha
-        base = url_part.split("#")[0]
-        if base not in mapping:
-            mapping[base] = sha
     return mapping
 
 
@@ -129,12 +147,9 @@ def _check_commit_after_comment(
     mapping_by_url = _parse_mapping_section(section)
     violations: list[str] = []
     for t in resolved_threads:
-        thread_base = t.url.split("#")[0]
-        sha = mapping_by_url.get(t.url) or mapping_by_url.get(thread_base)
+        sha = mapping_by_url.get(t.url)
         if not sha:
-            violations.append(
-                f"{t.url}: no commit SHA in mapping (add line '- <url> -> <sha>' in Fixed in Commit Mapping)"
-            )
+            # Thread may be FIXED (needs SHA) or NOT-A-BUG/DEFERRED (Evidence/Backlog only); only FIXED with -> sha is checked here
             continue
         if not t.created_at:
             violations.append(
@@ -168,18 +183,18 @@ def _get_pr_body() -> str:
 
 
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
-    out = _run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-f",
-            f"query={query}",
-            "-f",
-            f"variables={json.dumps(variables)}",
-        ]
+    # Sourcery: no dynamic argv — pass body via stdin (static argv only)
+    body = json.dumps({"query": query, "variables": variables})
+    result = subprocess.run(  # nosec B603 — argv static; body via stdin only (remove-by: 2026-04-30, ref: PR-985)
+        [_gh_path(), "api", "graphql", "--input", "-"],
+        input=body,
+        capture_output=True,
+        text=True,
+        timeout=_RUN_TIMEOUT_SEC,
     )
-    data = json.loads(out)
+    if result.returncode != 0:
+        raise RuntimeError(f"gh api graphql failed: {result.returncode}\nSTDERR:\n{result.stderr}")
+    data = json.loads(result.stdout)
     if "errors" in data:
         raise RuntimeError(f"GraphQL errors: {data['errors']}")
     return data["data"]
@@ -194,24 +209,34 @@ def _get_owner_repo() -> tuple[str, str]:
 
 
 def _extract_fixed_mapping_section(body: str) -> str:
-    """Extract content under ### Fixed in Commit Mapping."""
-    match = FIXED_MAPPING_SECTION_RE.search(body)
+    """
+    Extract content under Fixed in Commit Mapping. Stops at next heading of same or higher level
+    (so #### inside section does not end extraction; Cubic P2).
+    """
+    match = _FIXED_MAPPING_HEADING_RE.search(body)
     if not match:
         return ""
-    return match.group(1).strip()
+    level = len(match.group(1))
+    start = match.end()
+    lines = body[start:].splitlines()
+    content_lines: list[str] = []
+    for line in lines:
+        m = re.match(r"^\s*(#+)\s", line)
+        if m and len(m.group(1)) <= level:
+            break
+        content_lines.append(line)
+    return "\n".join(content_lines).strip()
 
 
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
-    Base URL (without anchor) must appear inside Fixed in Commit Mapping section
-    with Disposition + proof (Commit/Evidence/Backlog) nearby (±12 lines).
-    Match by base URL so #discussion_r... and #pullrequestreview-... both match.
-    Scan all occurrences; return True if any occurrence has a valid window.
+    Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
+    (Commit/Evidence/Backlog) nearby (±12 lines). Scan only lines containing this thread URL
+    so one mapping does not satisfy multiple threads (CodeRabbit/Sourcery/Cubic).
     """
-    thread_base = url.split("#")[0]
     lines = section.splitlines()
     for i, line in enumerate(lines):
-        if thread_base in line:
+        if url in line:
             start = max(0, i - 12)
             end = min(len(lines), i + 13)
             window = "\n".join(lines[start:end])
@@ -276,17 +301,17 @@ def _has_gh_auth() -> bool:
     """True if gh CLI can use a token (env vars or gh auth login)."""
     if (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip():
         return True
-    # Users with `gh auth login` (no env): use resolved path to avoid partial-path execution (B607)
-    gh_path = shutil.which("gh")
-    if not gh_path:
+    # Sourcery/B607: use resolved path only; argv is static
+    try:
+        result = subprocess.run(  # nosec B603 — argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
+            [_gh_path(), "auth", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except RuntimeError:
         return False
-    result = subprocess.run(
-        [gh_path, "auth", "status"],
-        capture_output=True,
-        text=True,
-        timeout=5,
-    )  # nosec B603: fixed argv, no user input (remove-by: 2026-04-30, ref: PR-985)
-    return result.returncode == 0
 
 
 def _env_diagnostic() -> str:
@@ -314,16 +339,18 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
         print("  Then: gh auth status")
         sys.exit(1)
     # GH_TOKEN set — verify gh can use it (preflight before GraphQL)
-    gh_path = shutil.which("gh")
-    if not gh_path:
+    # Sourcery/B607: argv is [resolved_gh_path, "auth", "status"] — no user input
+    try:
+        argv = [_gh_path(), "auth", "status"]
+    except RuntimeError:
         print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
         sys.exit(1)
-    result = subprocess.run(
-        [gh_path, "auth", "status"],
+    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+        argv,
         capture_output=True,
         text=True,
         timeout=10,
-    )  # nosec B603: fixed argv (remove-by: 2026-04-30, ref: PR-985)
+    )
     if result.returncode != 0:
         print("ERROR: GH_TOKEN is set but gh auth status failed. Fix env before running GraphQL.")
         print(f"       Env: {_env_diagnostic()}")
@@ -370,8 +397,7 @@ def main() -> None:
     missing_disposition: list[str] = []
 
     for t in resolved_threads:
-        thread_base = t.url.split("#")[0]
-        if thread_base not in section:
+        if t.url not in section:
             missing_refs.append(t.url)
             continue
         if not _find_disposition_block_in_section(section, t.url):

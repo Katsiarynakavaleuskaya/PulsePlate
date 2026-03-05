@@ -140,7 +140,11 @@ def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
-    # With no env, _has_gh_auth() falls back to gh auth status; mock as not logged in
+    # With no env, _has_gh_auth() uses _gh_path() then gh auth status; mock both
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
     def fake_run(*args: object, **kwargs: object) -> object:
         return type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})()
 
@@ -165,6 +169,10 @@ def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> 
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
     def fake_run(*args: object, **kwargs: object) -> object:
         return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
@@ -172,18 +180,30 @@ def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> 
     assert _has_gh_auth() is True
 
 
-def test_find_disposition_block_matches_by_base_url() -> None:
-    """Body may have #pullrequestreview-xxx while GraphQL returns #discussion_rxxx; base URL match."""
+def test_find_disposition_block_requires_thread_specific_url() -> None:
+    """Thread-specific URL required (CodeRabbit/Cubic): section line must contain this thread URL, not just base."""
     section = """
 - https://github.com/org/repo/pull/5#pullrequestreview-3895
 Disposition: FIXED
 Commit: deadbeef
 Evidence: file.py:10
 """
-    # GraphQL returns discussion URL; section lists review URL — same base
+    # Thread URL #discussion_r... not in section (only #pullrequestreview-3895) → no match
     assert (
         _find_disposition_block_in_section(
             section, "https://github.com/org/repo/pull/5#discussion_r2889026503"
+        )
+        is False
+    )
+    # When section contains this thread URL → match
+    section2 = """
+- https://github.com/org/repo/pull/5#discussion_r2889026503
+Disposition: FIXED
+Commit: deadbeef
+"""
+    assert (
+        _find_disposition_block_in_section(
+            section2, "https://github.com/org/repo/pull/5#discussion_r2889026503"
         )
         is True
     )
@@ -204,6 +224,7 @@ def test_parse_iso_datetime_explicit_utc() -> None:
 
 
 def test_parse_mapping_section_extracts_url_and_sha() -> None:
+    """Mapping is thread-specific: full URL only, no base URL (one URL must not satisfy multiple threads)."""
     section = """
 - https://github.com/org/repo/pull/99#discussion_r1 -> abc1234
 Disposition: FIXED
@@ -212,7 +233,7 @@ Disposition: FIXED
     m = _parse_mapping_section(section)
     assert m.get("https://github.com/org/repo/pull/99#discussion_r1") == "abc1234"
     assert m.get("https://github.com/org/repo/pull/99#discussion_r2") == "deadbeef"
-    assert m.get("https://github.com/org/repo/pull/99") in ("abc1234", "deadbeef")
+    assert m.get("https://github.com/org/repo/pull/99") is None
 
 
 def test_check_commit_after_comment_fail_when_commit_before_comment() -> None:
@@ -259,8 +280,8 @@ Commit: abc1234
     assert violations == []
 
 
-def test_check_commit_after_comment_fail_when_no_sha_in_mapping() -> None:
-    """Thread in section but no '- url -> sha' line → violation."""
+def test_check_commit_after_comment_skips_when_no_sha_in_mapping() -> None:
+    """NOT-A-BUG/DEFERRED may have no commit; only threads with '- url -> sha' are checked for commit-after."""
     thread = ResolvedThreadRef(
         url="https://github.com/org/repo/pull/1#discussion_r1",
         source="comment",
@@ -269,12 +290,11 @@ def test_check_commit_after_comment_fail_when_no_sha_in_mapping() -> None:
     )
     section = """
 - https://github.com/org/repo/pull/1#discussion_r1
-Disposition: FIXED
+Disposition: NOT-A-BUG
 Evidence: file.md:1
 """
     violations = _check_commit_after_comment([thread], section)
-    assert len(violations) == 1
-    assert "no commit SHA in mapping" in violations[0]
+    assert violations == []
 
 
 def test_env_diagnostic_returns_set_or_missing() -> None:
