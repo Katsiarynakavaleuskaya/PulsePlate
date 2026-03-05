@@ -23,7 +23,7 @@ Coordinator may assign agents outside their primary domain if justified.
 
 ## Agent Capabilities
 
-Slug-first: first column = canonical agent slug (aligns with AGENT_INVENTORY.md and routing graph).
+Slug-first: first column = canonical agent slug (aligns with inventory and routing graph). Evidence: `docs/orchestration/AGENT_INVENTORY.md:12` (canonical slug list), `docs/orchestration/AGENT_ROUTING_GRAPH.md:36` (Domains → Agents table).
 
 | Agent | Display | Primary Layers | Primary Domains | Can Review | Can Delegate To |
 |-------|---------|----------------|-----------------|------------|-----------------|
