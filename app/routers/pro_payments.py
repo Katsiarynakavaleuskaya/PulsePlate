@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
 
 from app.middleware.api_tiers import require_pro_tier
-from app.security.llm_monthly_quota import require_server_salt
+from app.security.server_salt import require_server_salt
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     PaymentErrorResponse,
