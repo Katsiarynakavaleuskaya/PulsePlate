@@ -196,12 +196,14 @@ def test_log_retention_manager_properties() -> None:
 
 
 def test_log_retention_cleanup_missing_root_returns_zero(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """cleanup_expired_logs returns 0 when log root does not exist."""
     mgr = log_retention.get_retention_manager()
-    monkeypatch.setenv(mgr.LOG_ROOT_ENV, "/tmp/nonexistent-pulseplate-log-root")
-    with caplog.at_level("WARNING"):
+    missing_root = tmp_path / "missing-retention-root"
+    monkeypatch.setenv(mgr.LOG_ROOT_ENV, str(missing_root))
+    with caplog.at_level("INFO"):
         deleted = mgr.cleanup_expired_logs()
+
     assert deleted == 0
-    assert not any("Cannot delete expired log file" in rec.message for rec in caplog.records)
+    assert any("root directory not found" in rec.message for rec in caplog.records)
