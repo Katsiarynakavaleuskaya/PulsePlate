@@ -80,6 +80,59 @@ If it is not recorded here — it does not exist.
     - Production Caddy fallback vhost for `STAGING_FALLBACK_DOMAIN` is removed
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
+- [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (data correctness)
+  - Target PR: PR #976 (`fix/off-vitd-unit-conversion`)
+  - Status: 🟡 In progress (PR open)
+  - Area: backend / food data normalization
+  - Finding Type: correctness hotfix
+  - Reason: Open Food Facts normalization writes `vitamin-d_100g` without deterministic µg→IU conversion and may ingest nameless rows; this degrades canonical nutrition trust and search quality.
+  - Links:
+    - `core/food_sources/off.py`
+    - `tests/test_food_sources_simple.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - OFF `vitamin-d_100g` is normalized via deterministic `iu_vitd_from_ug(...)`
+    - Nameless rows are skipped fail-closed during OFF import
+    - Deterministic tests cover µg→IU mapping and nameless-row skip behavior
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+- [ ] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (privacy/compliance)
+  - Target PR: PR #978 (`fix/gdpr-log-retention-cleanup`)
+  - Status: 🟡 In progress (PR open)
+  - Area: backend / compliance / operations
+  - Finding Type: compliance hotfix
+  - Reason: `cleanup_expired_logs()` was a non-destructive stub; privacy posture requires real retention enforcement with path safety and deterministic dry-run checks.
+  - Links:
+    - `core/log_retention.py`
+    - `tests/test_log_retention_coverage.py`
+    - `tests/test_fingerprint_and_retention.py`
+  - DoD:
+    - Real mtime-based cleanup is implemented under bounded retention root
+    - Dry-run mode is additive and non-breaking
+    - Deletion outside configured root is blocked (path-safety guard)
+    - Deterministic tests cover dry-run, class filter, stat/unlink errors, and path boundary
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+- [x] P1: Fact-check closure for stale critical claims in external roadmap snapshot (2026-03-05)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (program governance)
+  - Target PR: PR #972, PR #973, PR #974
+  - Status: ✅ Merged (all listed PRs merged on 2026-03-04)
+  - Reason: External document snapshot contained stale “P0 missing” claims for controls that were already implemented in runtime. Ledger now anchors these as completed facts to prevent duplicate emergency scope.
+  - Links:
+    - `app/security/rate_limit.py` (rate limiting baseline)
+    - `app/routers/realtime_ws.py` (WebSocket auth/policy-close baseline)
+    - PR #972 (Philosophy validator core)
+    - PR #973 (Recursive RAG W1 core)
+    - PR #974 (orchestration telemetry/spec package)
+  - DoD:
+    - Stale claims are marked as implemented with repository evidence
+    - Remaining open items track only fact-valid deltas (VitD, GDPR cleanup, RAG technical debt)
+
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -1809,6 +1862,56 @@ If it is not recorded here — it does not exist.
     - docs/db schema doc created
     - `make verify` passes
 
+- [ ] P1: `simple_rag` shared index thread-safety hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime reliability)
+  - Target PR: PR-TBD-RAG-THREAD-SAFETY
+  - Status: 📋 Planned
+  - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `core/rag/simple_rag.py`
+    - `tests/test_rag_simple.py`
+    - `tests/test_insight_rag_response_fields.py`
+  - DoD:
+    - Deterministic thread-safe index initialization strategy is implemented (no double-init races)
+    - Concurrency tests cover parallel read/init behavior
+    - No regression in insight response contract or latency envelope
+
+- [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security + maintainability)
+  - Target PR: PR-TBD-VECTOR-RAG-SQL-REFACTOR
+  - Status: 📋 Planned
+  - Reason: Raw SQL string assembly in vector retrieval path increases maintenance and security review overhead; contract should move to parameterized/ORM-safe composition.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `core/rag/vector_rag.py`
+    - `tests/test_vector_rag.py`
+  - DoD:
+    - Query assembly uses parameterized/ORM-safe path (no ad-hoc SQL string formatting)
+    - Existing vector retrieval behavior remains contract-compatible
+    - Security/static analysis checks pass without local suppressions for this path
+
+- [ ] P2: Stage-4 query-aware contradiction detection alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality improvement)
+  - Target PR: PR-TBD-RAG-STAGE4-QUERY-AWARE
+  - Status: 📋 Planned
+  - Reason: Contradiction checks in Stage-4 should explicitly incorporate active user query semantics to reduce context-irrelevant flags and improve reliability scoring fidelity.
+  - Links:
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/philosophy_pipeline.py`
+    - `core/rag/validation.py`
+    - `tests/test_philosophy_validation_integration.py`
+  - DoD:
+    - Stage-4 contradiction detection consumes query-aware context deterministically
+    - Validation tests cover relevant/irrelevant contradiction scenarios
+    - Reliability fields (`verification_state`, `confidence`) remain backward-compatible
+
 - [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG)
@@ -1855,17 +1958,19 @@ If it is not recorded here — it does not exist.
     - CBT path retrieves context from docs/cbt/ (or configured corpus); context passed to LLM
     - Tier-gated (PRO/VIP); tests; `make verify` passes
 
-- [ ] P2: Multi-hop retrieval + query refinement
+- [x] P2: Multi-hop retrieval + query refinement (W1 core)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG)
-  - Target PR: PR-next-9 (runtime)
-  - Status: Planned
-  - Reason (EN): Implement recursive RAG (max_hops, query refinement) per RECURSIVE_METHODS_LLM_RAG.md; budget MAX_RAG_HOPS=3, RAG_PIPELINE_TIMEOUT_SEC=10.
+  - Target PR: PR #973 (`feat/recursive-rag-w1-core`)
+  - Status: ✅ Merged (PR #973, 2026-03-04)
+  - Reason (EN): Recursive RAG W1 (core-only) is delivered behind feature flag with deterministic budgets and fail-safe fallback; advanced reasoning/refinement phases remain tracked separately in P1 recursive roadmap.
   - Links:
     - `docs/insights/RECURSIVE_METHODS_LLM_RAG.md`
     - `docs/contracts/RAG_CONTRACT.md` (budget)
   - DoD:
-    - retrieve_context supports max_hops>1; timeout enforced; deterministic tests
+    - `retrieve_recursive_context_structured(...)` integrated with feature-flag routing
+    - Budget constants and early-stop behavior enforced deterministically
+    - Fallback to legacy path remains fail-safe on internal errors
     - `make verify` passes
 
 - [x] P2: Philosophy-agent + RAG validation pipeline
@@ -3352,11 +3457,11 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Guard test merged; allowlist exists; fails on blocker phrases; documented marker `pulseplate-allow:blocker-example`
 
-- [ ] P2: Philosophy Validator (runtime LLM output validation)
+- [x] P2: Philosophy Validator (runtime LLM output validation)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (quality / safety)
   - Target PR: PR #972 (`feat/philosophy-validator-core`)
-  - Status: 🔄 IN PROGRESS
+  - Status: ✅ Merged (PR #972, 2026-03-04)
   - Reason (EN): Deterministic runtime validator for LLM outputs used in product copy/coaching. `validate_llm_output(text, domain=None) -> Report`; BLOCKER codes: WELLNESS_MEDICAL_CLAIM_*, WELLNESS_GUARANTEE, NON_FALSIFIABLE_VAGUE, POTENTIAL_CONTRADICTION. No network, regex/rules only. Coordinator can require rewrite before merge.
   - Links:
     - `core/insight/philosophy_validator.py`
@@ -3573,6 +3678,6 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-03-01 (PR-942 CBT agent deferred items: PRO quota, redaction, CorpusNotIndexedError)
+**Last updated:** 2026-03-05 (fact-valid hotfix deltas + RAG quality status sync)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
