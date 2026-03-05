@@ -3274,16 +3274,18 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (program alignment / scope control)
   - Target PR: PR-TBD-MASTER-CHECKLIST-TRIAGE
-  - Status: 🟡 In progress (docs triage)
+  - Status: 🟡 In progress (phase-fit matrix published; execution mapping in progress)
   - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
   - Links:
     - docs/roadmap/BACKLOG_LEDGER.md
     - docs/roadmap/PulsePlate_Master_Checklist_v1.0.md:1
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
     - docs/design/RESTAURANT_INTEGRATION_SPEC.md
   - DoD:
     - Every checklist item is mapped to one of: `Now`, `Next`, `Later`, `Deferred`
+    - Canonical triage matrix artifact exists in-repo and is versioned
     - `Now` items are represented by explicit backlog entries with owner + DoD + target PR
     - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
     - No duplicate or conflicting ownership across active worktrees
@@ -3293,7 +3295,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
   - Target PR: PR-TBD-PAYMENTS-RUBY-IOS-BASELINE
-  - Status: 📋 Planned
+  - Status: 🟡 Prioritized (next execution wave after checklist phase-fit triage)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PRODUCT_TIER_MAP.md
@@ -3307,6 +3309,90 @@ If it is not recorded here — it does not exist.
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
+
+<a id="ledger-p0-session-cookie-hardening"></a>
+- [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security blocker)
+  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING
+  - Status: 📋 Planned
+  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - app/security/auth.py
+    - app/routers/pro_registration.py
+    - frontend/src
+  - DoD:
+    - No sensitive session/auth token persists in browser local storage
+    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
+    - Regression tests cover authenticated flows and logout/invalidation
+
+<a id="ledger-p0-insight-fallback-chain"></a>
+- [ ] P0: Insight fallback chain + echo-mode readiness visibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (VIP reliability)
+  - Target PR: PR-TBD-INSIGHT-FALLBACK-CHAIN
+  - Status: 📋 Planned
+  - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - llm.py
+    - app/routers/vip.py
+    - app/main.py
+  - DoD:
+    - Provider fallback order is deterministic and test-covered
+    - `/ready` exposes fallback/echo-mode state without leaking secrets
+    - Insight response contract remains backward-compatible under fallback
+
+<a id="ledger-p0-rag-input-sanitizer"></a>
+- [ ] P0: RAG input sanitizer integration for markdown/knowledge ingestion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security + data quality)
+  - Target PR: PR-TBD-RAG-INPUT-SANITIZER
+  - Status: 📋 Planned
+  - Reason (EN): Master checklist item #3 flags prompt-injection risk from markdown ingestion path; canonical sanitizer must run before indexing/retrieval enrichment.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - core/data_sanitizer.py
+    - core/rag/simple_rag.py
+    - tests/test_rag_simple.py
+  - DoD:
+    - Sanitization is applied deterministically before RAG indexing and retrieval
+    - Injection-pattern regression tests are added and green
+    - No contract break for current insight endpoints
+
+<a id="ledger-p1-mobile-secret-conformance"></a>
+- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (mobile security correctness)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE
+  - Status: 📋 Planned
+  - Reason (EN): Master checklist items #5 and #6 require platform-appropriate secret storage. iOS conformance is immediate (active rail); Android Keystore validation follows Android monetization wave.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - ios/PulsePlate/Services/KeychainStore.swift
+    - ios/PulsePlate/Services/ProKeyProvider.swift
+  - DoD:
+    - iOS secret paths are verified to use Keychain storage only
+    - Guard tests prevent regression to insecure storage
+    - Android Keystore task is linked as deferred follow-up with explicit trigger
+
+<a id="ledger-p0-pro-vip-depends-guard"></a>
+- [ ] P0: PRO/VIP route `Depends` coverage guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (access-control integrity)
+  - Target PR: PR-TBD-PRO-VIP-DEPENDS-GUARD
+  - Status: 📋 Planned
+  - Reason (EN): Master checklist item #7 requires deterministic proof that all protected endpoints enforce explicit dependency gates and no silent bypass is introduced by future routing changes.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - app/security/api_tiers.py
+    - app/routers
+    - tests/test_api_tiers_db_lookup.py
+  - DoD:
+    - Guard test enumerates canonical PRO/VIP surfaces and fails on missing dependency gate
+    - Legacy aliases are validated as non-bypass paths
+    - CI gate is deterministic and documented in runbook
 
 <a id="ledger-p1-frontend-ai-parity"></a>
 - [ ] P1: Frontend parity for new AI-agent and LLM reliability features
