@@ -5,12 +5,15 @@ Guard: resolved review threads must have explicit Disposition records in PR body
 Strict mode: every resolved thread must be listed under **Fixed in Commit Mapping**
 with Disposition (FIXED | NOT-A-BUG | DEFERRED) and proof (Commit / Evidence / Backlog).
 
-Requires: GitHub CLI `gh` authenticated. Run inside a PR branch.
+Requires: GitHub CLI `gh` authenticated (GH_TOKEN or GITHUB_TOKEN). In CI use --require-auth
+and export GH_TOKEN from secrets.GITHUB_TOKEN. Local without auth: exits 0 (SKIP) unless --require-auth.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import re
 import subprocess  # nosec B404 - fixed gh CLI only, no user input
 import sys
@@ -153,7 +156,32 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
     return list(uniq.values())
 
 
+def _has_gh_auth() -> bool:
+    """True if gh CLI can use a token (GH_TOKEN or GITHUB_TOKEN)."""
+    return bool((os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip())
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Check resolved review threads have disposition in PR body."
+    )
+    parser.add_argument(
+        "--require-auth",
+        action="store_true",
+        help="In CI: fail if GH_TOKEN/GITHUB_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
+    )
+    args = parser.parse_args()
+
+    if not _has_gh_auth():
+        if args.require_auth or os.environ.get("CI") == "true":
+            print(
+                "ERROR: GH_TOKEN (or GITHUB_TOKEN) required for disposition guard. "
+                "In CI export GH_TOKEN from secrets.GITHUB_TOKEN."
+            )
+            sys.exit(1)
+        print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
+        sys.exit(0)
+
     pr_number = _get_pr_number()
     body = _get_pr_body()
     section = _extract_fixed_mapping_section(body)

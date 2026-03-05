@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 
-# Section extraction only; no gh/GraphQL mocks
+# Section extraction and auth only; no gh/GraphQL mocks
 from scripts.orchestration.check_review_threads_disposition import (
     _extract_fixed_mapping_section,
     _find_disposition_block_in_section,
+    _has_gh_auth,
 )
 
 
@@ -120,6 +121,24 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
 """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_has_gh_auth_false_when_no_token(monkeypatch: object) -> None:
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_true_when_gh_token_set(monkeypatch: object) -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert _has_gh_auth() is True
+
+
+def test_has_gh_auth_true_when_github_token_set(monkeypatch: object) -> None:
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "github_secret")
+    assert _has_gh_auth() is True
 
 
 def test_find_disposition_block_matches_by_base_url() -> None:
