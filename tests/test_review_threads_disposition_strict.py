@@ -15,6 +15,7 @@ import scripts.orchestration.check_review_threads_disposition as _disposition_mo
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
     _check_commit_after_comment,
+    _check_trigger_only_mapping,
     _env_diagnostic,
     _extract_fixed_mapping_section,
     _find_disposition_block_in_section,
@@ -334,3 +335,76 @@ def test_require_gh_token_preflight_passes_when_gh_token_set_and_gh_ok(
     fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
     monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
     _require_gh_token_preflight(True, True)
+
+
+def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:
+    """Mapped SHA with no changed files → violation (empty commit)."""
+    monkeypatch.setattr(_disposition_mod, "_git_changed_files", lambda _sha: [])
+    monkeypatch.setattr(_disposition_mod, "_git_commit_subject", lambda _sha: "fix: real change")
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r1",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = "- https://github.com/org/repo/pull/985#discussion_r1 -> abcdef12"
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations
+    assert "EMPTY" in violations[0]
+
+
+def test_trigger_only_mapping_fails_on_rerun_subject(monkeypatch: "MonkeyPatch") -> None:
+    """Mapped SHA with trigger/rerun subject → violation."""
+    monkeypatch.setattr(
+        _disposition_mod, "_git_changed_files", lambda _sha: ["scripts/orchestration/x.py"]
+    )
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_git_commit_subject",
+        lambda _sha: "chore: trigger CI after resolving threads",
+    )
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r2",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = "- https://github.com/org/repo/pull/985#discussion_r2 -> deadbeef"
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations
+    assert "rerun/trigger" in violations[0]
+
+
+def test_trigger_only_mapping_passes_on_normal_commit(monkeypatch: "MonkeyPatch") -> None:
+    """Mapped SHA with real changes and normal subject → no violation."""
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_git_changed_files",
+        lambda _sha: ["scripts/orchestration/check_review_threads_disposition.py"],
+    )
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_git_commit_subject",
+        lambda _sha: "fix(orchestration): enforce mapping proof correctness",
+    )
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r3",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = "- https://github.com/org/repo/pull/985#discussion_r3 -> cafe1234"
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations == []
