@@ -34,9 +34,13 @@ class ResolvedThreadRef:
     is_resolved: bool
 
 
+# Timeout for gh CLI calls to avoid hanging CI (CodeRabbit/Cubic).
+_RUN_TIMEOUT_SEC = 60
+
+
 def _run(cmd: list[str]) -> str:
     result = subprocess.run(
-        cmd, capture_output=True, text=True
+        cmd, capture_output=True, text=True, timeout=_RUN_TIMEOUT_SEC
     )  # nosec B603: fixed argv from callers (remove-by: 2026-04-30, ref: PR-985)
     if result.returncode != 0:
         raise RuntimeError(

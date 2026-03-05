@@ -70,13 +70,19 @@ def _load_allowlist() -> tuple[set[tuple[str, int]], list[tuple[str, int, str]]]
             continue
         remove_by_m = ALLOWLIST_REMOVE_BY_RE.search(line)
         if remove_by_m:
+            val = remove_by_m.group(1)
+            # Strict: only exact YYYY-MM-DD (Cubic P2); malformed → expired (Cubic P2)
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val):
+                expired.append((path_rel, line_no, f"invalid date format: {val!r}"))
+                continue
             try:
-                remove_by_date = date.fromisoformat(remove_by_m.group(1))
+                remove_by_date = date.fromisoformat(val)
                 if remove_by_date < today:
-                    expired.append((path_rel, line_no, remove_by_m.group(1)))
+                    expired.append((path_rel, line_no, val))
                     continue
             except ValueError:
-                pass
+                expired.append((path_rel, line_no, f"malformed date: {val!r}"))
+                continue
         else:
             # No remove-by on line → treat as expired (require TTL)
             expired.append((path_rel, line_no, "(missing remove-by=)"))
@@ -124,8 +130,8 @@ def _validate_nosec_line(line: str) -> tuple[bool, str]:
     val = remove_m.group(1).strip()
     if NA_PATTERN.search(val):
         return False, "remove-by MUST NOT be 'N/A' (use a real date or fix the code)"
-    if not re.match(r"\d{4}-\d{2}-\d{2}", val):
-        return False, "remove-by must be date YYYY-MM-DD"
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val.strip()):
+        return False, "remove-by must be date YYYY-MM-DD (exact, no suffix)"
 
     # 4) must have ref: <issue/pr> (and not N/A)
     ref_m = REF_RE.search(line)
