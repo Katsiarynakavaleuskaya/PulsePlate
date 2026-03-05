@@ -105,6 +105,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
 
+**CI / gh-based gates:** Gates that use GitHub CLI (`gh`) MUST run with `GH_TOKEN` set in CI (export from `secrets.GITHUB_TOKEN`). Local/dev without auth: scripts using `gh` (e.g. disposition guard) may SKIP with exit 0 and a clear message; in CI use `--require-auth` so missing auth fails explicitly.
+
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
