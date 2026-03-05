@@ -19,10 +19,8 @@ from typing import Any
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
 PROOF_RE = re.compile(r"(Commit:|Evidence:|Backlog:)", re.IGNORECASE)
-# Match ### Fixed in Commit Mapping (project convention) then content until next ##/### or end
-FIXED_MAPPING_SECTION_RE = re.compile(
-    r"(?is)###\s*Fixed in Commit Mapping\s*(.*?)(?=\n##|\n###|\Z)"
-)
+# Match any heading level (#, ##, ###, ...) Fixed in Commit Mapping then content until next # or end
+FIXED_MAPPING_SECTION_RE = re.compile(r"(?is)#+\s*Fixed in Commit Mapping\s*(.*?)(?:\n#+\s|\Z)")
 
 
 @dataclass(frozen=True)
@@ -89,12 +87,14 @@ def _extract_fixed_mapping_section(body: str) -> str:
 
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
-    URL must appear inside Fixed in Commit Mapping section
+    Base URL (without anchor) must appear inside Fixed in Commit Mapping section
     with Disposition + proof (Commit/Evidence/Backlog) nearby (±12 lines).
+    Match by base URL so #discussion_r... and #pullrequestreview-... both match.
     """
+    thread_base = url.split("#")[0]
     lines = section.splitlines()
     for i, line in enumerate(lines):
-        if url in line:
+        if thread_base in line:
             start = max(0, i - 12)
             end = min(len(lines), i + 13)
             window = "\n".join(lines[start:end])
@@ -157,20 +157,21 @@ def main() -> None:
     section = _extract_fixed_mapping_section(body)
 
     if not section:
-        print("ERROR: Missing '### Fixed in Commit Mapping' section in PR body.")
+        print("ERROR: Missing 'Fixed in Commit Mapping' section in PR body.")
         sys.exit(1)
 
     resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:
         print("OK: No resolved review threads found (nothing to enforce).")
-        return
+        sys.exit(0)
 
     missing_refs: list[str] = []
     missing_disposition: list[str] = []
 
     for t in resolved_threads:
-        if t.url not in section:
+        thread_base = t.url.split("#")[0]
+        if thread_base not in section:
             missing_refs.append(t.url)
             continue
         if not _find_disposition_block_in_section(section, t.url):

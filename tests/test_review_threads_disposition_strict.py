@@ -31,6 +31,22 @@ Commit: abc123
     assert re.search(r"Disposition:\s*FIXED", section)
 
 
+def test_extract_fixed_mapping_section_accepts_double_hash_heading() -> None:
+    """Section may use ## Fixed in Commit Mapping (any heading level)."""
+    body = """
+## Summary
+## Fixed in Commit Mapping
+- https://github.com/org/repo/pull/99#discussion_r1
+Disposition: FIXED
+Commit: abc
+
+## Discussion Thread Pass
+"""
+    section = _extract_fixed_mapping_section(body)
+    assert "https://github.com/org/repo/pull/99" in section
+    assert re.search(r"Disposition:\s*FIXED", section)
+
+
 def test_extract_fixed_mapping_section_empty_when_missing() -> None:
     body = """
 ## Summary
@@ -104,3 +120,20 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
 """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_matches_by_base_url() -> None:
+    """Body may have #pullrequestreview-xxx while GraphQL returns #discussion_rxxx; base URL match."""
+    section = """
+- https://github.com/org/repo/pull/5#pullrequestreview-3895
+Disposition: FIXED
+Commit: deadbeef
+Evidence: file.py:10
+"""
+    # GraphQL returns discussion URL; section lists review URL — same base
+    assert (
+        _find_disposition_block_in_section(
+            section, "https://github.com/org/repo/pull/5#discussion_r2889026503"
+        )
+        is True
+    )
