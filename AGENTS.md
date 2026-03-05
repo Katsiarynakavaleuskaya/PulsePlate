@@ -39,6 +39,79 @@ Or individually:
 - Merge checklist is mandatory in PR body (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
 
+## Review Governance
+
+Review threads **must not be resolved without an explicit disposition**.
+Every actionable comment must be classified as one of the following:
+
+### FIXED
+
+The issue was corrected in code or documentation.
+
+Required:
+
+* Commit SHA
+* Evidence (`file:line`, test, or command output)
+
+Example:
+
+```
+Disposition: FIXED
+Commit: 7733589a
+Evidence: docs/orchestration/AGENT_CAPABILITY_MATRIX.md:12
+```
+
+### NOT-A-BUG
+
+The comment is valid feedback but the current implementation is correct.
+
+Required:
+
+* Explanation
+* Evidence (`file:line`, contract reference, or test)
+
+Example:
+
+```
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/AGENT_ROUTING_GRAPH.md:36
+Reason: Routing graph already enforces canonical slug usage.
+```
+
+### DEFERRED
+
+The issue is intentionally postponed.
+
+Required:
+
+* Link to backlog item (`BACKLOG_LEDGER.md` or issue)
+* Mention in PR body under **Deferred / Follow-ups**
+
+Example:
+
+```
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
+```
+
+### Enforcement rules
+
+1. **Checkboxes and mapping do not substitute fixes.**
+   Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
+2. **Review threads cannot be resolved without disposition evidence.**
+3. **Resolved threads must be listed under Fixed in Commit Mapping** with Disposition + proof (Commit/Evidence/Backlog).
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence (no commit required); **DEFERRED** → Backlog link (no commit required).
+5. If no disposition can be determined, **the thread remains open**.
+6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
+
+**Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
+
+**CI / gh-based gates (canonical contract):** Any step that runs `gh api` or GraphQL **MUST** run with a token exported. The `gh` CLI accepts both `GH_TOKEN` and `GITHUB_TOKEN` (GH_TOKEN takes precedence). For this repo, CI and the disposition guard preflight **require `GH_TOKEN`** to be set (e.g. GitHub Actions: `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`; shell: `export GH_TOKEN="${GITHUB_TOKEN}"`) so behaviour is consistent and scripts need not probe both. Before any GraphQL call, the disposition guard runs a mandatory preflight: if `--require-auth` or `CI=true`, it requires `GH_TOKEN` and runs `gh auth status`; if either is missing or fails, the script exits 1 with env diagnostic and fix commands (no GraphQL, no mapping/resolve). This prevents agents from wasting iterations on mapping when auth is invalid.
+
+**Bandit / nosec policy (no blind suppressions):** Adding `# nosec` to silence Bandit is **forbidden** when a simple fix exists (e.g. B607 → use `shutil.which()` for full path). `# nosec` is allowed **only** with: (1) rule code (e.g. B607), (2) one-line justification, (3) `(remove-by: YYYY-MM-DD, ref: issue/PR)` on the same comment line, and (4) only when there is no safe code fix. **remove-by and ref MUST NOT be 'N/A'** (policy enforcement). Any subprocess call to external tools (`gh`, `git`, `curl`, `wget`, `ssh`) MUST use an absolute path via `shutil.which()` or config. Enforced by `tests/guards/test_nosec_policy_guard.py` and `tests/guards/test_subprocess_uses_absolute_binaries.py`. Legacy suppressions are allowlisted in `tests/guards/fixtures/nosec_policy_allowlist.txt` (Phase 1); migrate to full format and remove from allowlist over time. **Allowlist entries MUST include remove-by/ref and MUST expire** (format: `path:line remove-by=YYYY-MM-DD ref=PR-XXX`; past date → guard FAIL). **Adding allowlist entries is treated as tech-debt and requires a ledger item.**
+
+**Fix before mapping:** When security/linter checks fail (Bandit, Ruff, MyPy, tests), it is **forbidden** to touch PR-body mapping or resolve review threads first. Fix the root cause (code/docs) first; only then update discussion mapping or resolve threads. Tasks that affect Bandit/Trivy/security gates MUST NOT be done in auto/weak modes.
+
 **Pre-commit hook policy (mandatory before push):**
 
 - **Always run `pre-commit run --all-files` locally before pushing any PR.**
@@ -335,7 +408,7 @@ make lint
 make fmt-check
 ```
 
-### 5) PR body Phase2 gates (PR metadata contract)
+### 5) PR body Phase 2 gates (PR metadata contract)
 
 ```bash
 python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
