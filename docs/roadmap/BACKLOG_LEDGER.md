@@ -1880,7 +1880,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security + maintainability)
-  - Target PR: PR-TBD-VECTOR-RAG-SQL-REFRACTOR
+  - Target PR: PR-TBD-VECTOR-RAG-SQL-REFACTOR
   - Status: 📋 Planned
   - Reason: Raw SQL string assembly in vector retrieval path increases maintenance and security review overhead; contract should move to parameterized/ORM-safe composition.
   - Links:
