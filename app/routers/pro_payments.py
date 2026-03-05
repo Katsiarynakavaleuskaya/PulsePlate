@@ -7,11 +7,10 @@ EN: Baseline PRO endpoints for subscription activation (contract-first, non-brea
 
 from __future__ import annotations
 
-from threading import Lock
-from uuid import uuid4
-
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
+
+from core.fingerprint_security import compute_fingerprint
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.payments import (
@@ -26,23 +25,15 @@ router = APIRouter(
     tags=["pro", "payments"],
 )
 
-_issuer_lock = Lock()
-_issuer_by_api_key: dict[str, str] = {}
-
 
 def _issuer_from_api_key(api_key: str) -> str:
-    """Return process-stable opaque issuer marker from API key."""
+    """Return deterministic opaque issuer marker from API key."""
     if not api_key:
         return "api_key:anonymous"
-    with _issuer_lock:
-        cached = _issuer_by_api_key.get(api_key)
-        if cached is not None:
-            return cached
-        # RU: Не хешируем API key здесь (избегаем weak-hash sink по CodeQL).
-        # EN: Do not hash API keys here (avoid weak-hash sink flagged by CodeQL).
-        marker = f"api_key:{uuid4().hex}"
-        _issuer_by_api_key[api_key] = marker
-        return marker
+    # RU: Используем солёный blake2 fingerprint без хранения raw API key в памяти.
+    # EN: Use salted blake2 fingerprint and avoid storing raw API keys in module state.
+    marker = compute_fingerprint(api_key, truncate=32)
+    return f"api_key:{marker}"
 
 
 @router.post(
