@@ -7,12 +7,13 @@ EN: Baseline PRO endpoints for subscription activation (contract-first, non-brea
 
 from __future__ import annotations
 
-import hashlib
+import hmac
 
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
 
 from app.middleware.api_tiers import require_pro_tier
+from app.security.llm_monthly_quota import require_server_salt
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     PaymentErrorResponse,
@@ -30,7 +31,8 @@ def _issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
     if not api_key:
         return "api_key:anonymous"
-    digest = hashlib.sha3_256(api_key.encode("utf-8")).hexdigest()
+    salt = require_server_salt().encode("utf-8")
+    digest = hmac.digest(salt, api_key.encode("utf-8"), "sha256").hex()
     return f"api_key:{digest}"
 
 
