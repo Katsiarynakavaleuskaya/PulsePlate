@@ -20,7 +20,7 @@ Rules:
 
 ## 2. Canonical API Surface (additive, non-breaking)
 
-Planned endpoints (proposed; final paths locked in runtime PR):
+Planned endpoints (contract-first; final path lock happens in runtime PR):
 
 1. `POST /api/v1/billing/apple/verify-receipt`
 2. `POST /api/v1/billing/ru-by/manual-intent`
@@ -82,6 +82,7 @@ Lifecycle invariants:
    - provider event id (if exists), else
    - deterministic hash of `(source, external_txn_id, plan, amount_minor, currency)`.
 4. Duplicate events return previous activation outcome (no double-upgrade).
+5. Corrections/refunds must use a new provider event id and explicit adjustment type; they must not overwrite prior activation event identity.
 
 ## 6. Error Envelope (canonical)
 
@@ -93,6 +94,10 @@ Lifecycle invariants:
   "request_id": "uuid"
 }
 ```
+
+Semantic note:
+1. In activation responses, `status` is business-state (`activated | pending_reconciliation | rejected`).
+2. In error responses, `status` is transport-state (`error`), while `code` is machine-readable error type.
 
 ## 7. Security and Compliance Notes
 

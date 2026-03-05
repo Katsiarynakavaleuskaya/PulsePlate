@@ -119,6 +119,7 @@ Thin-client rules for payments:
 Planned transport surfaces (runtime PRs):
 - `POST /api/v1/billing/apple/verify-receipt`
 - `POST /api/v1/billing/ru-by/manual-intent`
+- `POST /api/v1/billing/ru-by/reconcile`
 - `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
 
 Testing expectations (runtime PRs):

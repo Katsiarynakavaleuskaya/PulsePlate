@@ -40,7 +40,7 @@ Canonical source enum:
 - `erip_qr`
 - `swift_manual`
 
-Planned additive endpoints (non-breaking):
+Planned additive endpoints (non-breaking; finalized in runtime PR):
 
 | Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes |
 |---|---|---:|---|---:|---|
@@ -53,3 +53,4 @@ Compatibility policy:
 1. Existing PRO/VIP activation flows remain unchanged until runtime migration PR.
 2. Payment routes are additive and must preserve current response envelopes for unchanged endpoints.
 3. iOS/Web clients remain thin adapters; no client-side billing decision logic.
+4. This section is implementation-target contract guidance, not a statement that runtime handlers already exist in `app/routers/*`.
