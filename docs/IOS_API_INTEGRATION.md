@@ -102,3 +102,25 @@ Keep future work out of the canonical networking guide; track it as discrete bac
 - Keychain-backed key storage for PRO/VIP
 - Receipt validation / IAP orchestration
 - Deep-link allowlist and onboarding gates
+
+---
+
+## Payments Transport (P0 baseline policy)
+
+Contract source:
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+
+Thin-client rules for payments:
+1. iOS must use existing `APIClient`/`HTTPClient` seam only.
+2. Receipt/business decision logic stays server-side (`/api/v1/billing/*` contracts).
+3. Client may send transport payload and render server state, but must not infer activation logic locally.
+4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets.
+
+Planned transport surfaces (runtime PRs):
+- `POST /api/v1/billing/apple/verify-receipt`
+- `POST /api/v1/billing/ru-by/manual-intent`
+- `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+
+Testing expectations (runtime PRs):
+- Deterministic service tests with URLProtocol stubs.
+- Contract tests for success/error envelopes and idempotent retries.

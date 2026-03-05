@@ -3294,10 +3294,14 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR-TBD-PAYMENTS-RUBY-IOS-BASELINE
-  - Status: 🟡 Prioritized (next execution wave after checklist phase-fit triage)
+  - Target PR: PR #982 (triage dependency) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-CONTRACT
+  - Status: 🟡 In progress (contract-first docs wave)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+    - docs/contracts/API_CANONICAL_MAP.md
+    - docs/IOS_API_INTEGRATION.md
+    - docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md
     - docs/contracts/PRODUCT_TIER_MAP.md
     - ios/PulsePlate/Services/ProKeyProvider.swift:1
     - app/routers/pro_registration.py:1
@@ -3309,6 +3313,7 @@ If it is not recorded here — it does not exist.
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
+    - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
 <a id="ledger-p0-session-cookie-hardening"></a>
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)

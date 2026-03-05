@@ -29,3 +29,27 @@
 - **PR-509:** Implement `/api/v1/pro/nutrition/targets` + compat alias behavior and contract tests.
 - **PR-510:** Align Plate/Daily contracts and FE usage; keep compat.
 - **PR-511:** Type WeekPlan response models (if needed) + contract tests + FE adjustments.
+
+## Payments Canonical Map (P0 baseline, contract-first)
+
+Source of truth for planned payment baseline:
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+
+Canonical source enum:
+- `ios_app_store`
+- `erip_qr`
+- `swift_manual`
+
+Planned additive endpoints (non-breaking):
+
+| Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes |
+|---|---|---:|---|---:|---|
+| Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | none (new) | - | Automated iOS path; server-side verification |
+| RU/BY payment intent | `/api/v1/billing/ru-by/manual-intent` | POST | none (new) | - | Creates manual payment intent and reconciliation state |
+| RU/BY reconciliation | `/api/v1/billing/ru-by/reconcile` | POST | none (new) | - | Manual review/system reconciliation endpoint |
+| RU/BY reconciliation status | `/api/v1/billing/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Read-only status lifecycle surface |
+
+Compatibility policy:
+1. Existing PRO/VIP activation flows remain unchanged until runtime migration PR.
+2. Payment routes are additive and must preserve current response envelopes for unchanged endpoints.
+3. iOS/Web clients remain thin adapters; no client-side billing decision logic.
