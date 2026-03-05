@@ -13,6 +13,7 @@ from datetime import date
 from typing import Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
+from ..units import iu_vitd_from_ug
 from .base import BaseAdapter, FoodRecord
 
 
@@ -69,11 +70,24 @@ class OFFAdapter(BaseAdapter):
         today = date.today().isoformat()
         for row in self.fetch():
             # Get product name (try multiple fields)
-            raw_name = (
-                row.get("product_name", "")
-                or row.get("generic_name", "")
-                or row.get("product_name_en", "")
-            )
+            raw_name = ""
+            for candidate in (
+                row.get("product_name", ""),
+                row.get("generic_name", ""),
+                row.get("product_name_en", ""),
+            ):
+                if candidate is None:
+                    continue
+                candidate_name = str(candidate).strip()
+                if not candidate_name:
+                    continue
+                # Fail-closed for malformed CSV null markers.
+                if candidate_name.lower() in {"none", "null", "nan"}:
+                    continue
+                raw_name = candidate_name
+                break
+            if not raw_name:
+                continue
             canonical = map_to_canonical(raw_name, locale=self.locale)
             per_g = 100.0
 
@@ -87,7 +101,9 @@ class OFFAdapter(BaseAdapter):
             # Micro nutrients (often empty in OFF)
             Fe_mg = float(row.get("iron_100g", 0) or 0)
             Ca_mg = float(row.get("calcium_100g", 0) or 0)
-            VitD_IU = float(row.get("vitamin-d_100g", 0) or 0)  # May be in µg, needs conversion
+            # OFF vitamin-d_100g is reported in µg; canonical storage is IU.
+            vitd_ug = float(row.get("vitamin-d_100g", 0) or 0)
+            VitD_IU = iu_vitd_from_ug(vitd_ug)
             B12_ug = float(row.get("vitamin-b12_100g", 0) or 0)
             Folate_ug = float(row.get("vitamin-b9_100g", 0) or 0)
             Iodine_ug = float(row.get("iodine_100g", 0) or 0)
