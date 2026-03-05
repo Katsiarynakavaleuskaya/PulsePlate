@@ -162,11 +162,11 @@ If it is not recorded here — it does not exist.
   - Reason: If an exception is ever needed for a trigger-only mapping, add TTL allowlist (same style as nosec: remove-by, ref); empty by default.
   - DoD: Allowlist file exists (or doc); format documented; guard consults allowlist when present.
 
-- [ ] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
+- [x] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
   - Target PR: PR #976 (`fix/off-vitd-unit-conversion`)
-  - Status: 🟡 In progress (PR open)
+  - Status: ✅ Merged (PR #976, 2026-03-05)
   - Area: backend / food data normalization
   - Finding Type: correctness hotfix
   - Reason: Open Food Facts normalization writes `vitamin-d_100g` without deterministic µg→IU conversion and may ingest nameless rows; this degrades canonical nutrition trust and search quality.
@@ -180,11 +180,11 @@ If it is not recorded here — it does not exist.
     - Deterministic tests cover µg→IU mapping and nameless-row skip behavior
     - `pre-commit run --all-files` and `make verify` pass in PR scope
 
-- [ ] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
+- [x] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (privacy/compliance)
   - Target PR: PR #978 (`fix/gdpr-log-retention-cleanup`)
-  - Status: 🟡 In progress (PR open)
+  - Status: ✅ Merged (PR #978, 2026-03-05)
   - Area: backend / compliance / operations
   - Finding Type: compliance hotfix
   - Reason: `cleanup_expired_logs()` was a non-destructive stub; privacy posture requires real retention enforcement with path safety and deterministic dry-run checks.
@@ -213,7 +213,7 @@ If it is not recorded here — it does not exist.
     - PR #974 (orchestration telemetry/spec package)
   - DoD:
     - Stale claims are marked as implemented with repository evidence
-    - Remaining open items track only fact-valid deltas (VitD, GDPR cleanup, RAG technical debt)
+    - Remaining open items track only fact-valid deltas (RAG technical debt + runtime governance follow-ups)
 
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
