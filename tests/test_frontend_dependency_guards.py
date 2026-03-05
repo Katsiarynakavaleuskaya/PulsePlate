@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 from packaging.version import Version
 
@@ -39,5 +40,11 @@ def test_frontend_lock_resolves_dompurify_to_safe_npm_release() -> None:
 
     assert isinstance(lock_version, str), "frontend/package-lock.json: dompurify version missing"
     assert Version(lock_version) >= MIN_DOMPURIFY_VERSION
-    assert isinstance(resolved, str) and "registry.npmjs.org/dompurify" in resolved
+    assert (
+        isinstance(resolved, str) and resolved
+    ), "frontend/package-lock.json: dompurify resolved missing"
+    parsed = urlparse(resolved.removeprefix("git+"))
+    assert parsed.scheme == "https", "dompurify lock resolution must use https"
+    assert parsed.netloc == "registry.npmjs.org", "dompurify must resolve from npm registry"
+    assert parsed.path.startswith("/dompurify/"), "dompurify lock resolution path mismatch"
     assert not resolved.startswith("git+"), "dompurify lock resolution must not use git override"
