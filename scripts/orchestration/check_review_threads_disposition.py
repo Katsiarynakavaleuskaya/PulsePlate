@@ -15,7 +15,8 @@ import argparse
 import json
 import os
 import re
-import subprocess  # nosec B404 - fixed gh CLI only, no user input
+import shutil
+import subprocess  # nosec B404: fixed gh CLI only (remove-by: 2026-04-30, ref: PR-985)
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -34,7 +35,9 @@ class ResolvedThreadRef:
 
 
 def _run(cmd: list[str]) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
+    result = subprocess.run(
+        cmd, capture_output=True, text=True
+    )  # nosec B603: fixed argv from callers (remove-by: 2026-04-30, ref: PR-985)
     if result.returncode != 0:
         raise RuntimeError(
             f"Command failed: {' '.join(cmd)}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
@@ -157,8 +160,20 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
 
 
 def _has_gh_auth() -> bool:
-    """True if gh CLI can use a token (GH_TOKEN or GITHUB_TOKEN)."""
-    return bool((os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip())
+    """True if gh CLI can use a token (env vars or gh auth login)."""
+    if (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip():
+        return True
+    # Users with `gh auth login` (no env): use resolved path to avoid partial-path execution (B607)
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        return False
+    result = subprocess.run(
+        [gh_path, "auth", "status"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )  # nosec B603: fixed argv, no user input (remove-by: 2026-04-30, ref: PR-985)
+    return result.returncode == 0
 
 
 def main() -> None:

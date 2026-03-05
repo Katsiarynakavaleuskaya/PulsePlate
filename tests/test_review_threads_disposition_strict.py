@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 # Section extraction and auth only; no gh/GraphQL mocks
+import scripts.orchestration.check_review_threads_disposition as _disposition_mod
 from scripts.orchestration.check_review_threads_disposition import (
     _extract_fixed_mapping_section,
     _find_disposition_block_in_section,
@@ -126,6 +127,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
 def test_has_gh_auth_false_when_no_token(monkeypatch: object) -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    # With no env, _has_gh_auth() falls back to gh auth status; mock as not logged in
+    def fake_run(*args: object, **kwargs: object) -> object:
+        return type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", fake_run)
     assert _has_gh_auth() is False
 
 
@@ -138,6 +145,18 @@ def test_has_gh_auth_true_when_gh_token_set(monkeypatch: object) -> None:
 def test_has_gh_auth_true_when_github_token_set(monkeypatch: object) -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "github_secret")
+    assert _has_gh_auth() is True
+
+
+def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: object) -> None:
+    """No env vars but gh auth login → full check (Cubic P2 fix)."""
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    def fake_run(*args: object, **kwargs: object) -> object:
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", fake_run)
     assert _has_gh_auth() is True
 
 
