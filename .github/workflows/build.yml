@@ -40,8 +40,9 @@ jobs:
           load: true
           tags: pulseplate:test
           # Omit cache-from to avoid 404 BlobNotFound when GHA cache entry is missing; still write cache for publish job.
-          # mode=min to avoid 30+ min export (mode=max exports every layer → huge upload to GHA).
-          cache-to: type=gha,mode=min
+          # mode=min to avoid 30+ min export (mode=max exports every layer -> huge upload to GHA).
+          # ignore-error=true keeps build green when GHA cache backend is transiently unavailable.
+          cache-to: type=gha,mode=min,ignore-error=true
           target: production
 
       - name: Test Docker image
@@ -181,7 +182,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           # mode=min to match build job and keep cache export/import fast (mode=max can hang 30+ min on export).
-          cache-to: type=gha,mode=min
+          # ignore-error=true prevents publish failure when cache exporter returns transient BlobNotFound.
+          cache-to: type=gha,mode=min,ignore-error=true
           # Disable provenance to prevent GHA cache export errors ("cache entry no longer exists").
           # Trade-off: SLSA attestations disabled; cosign verify-attestation will fail. Re-enable when buildx/GHA fix is available.
           provenance: false
