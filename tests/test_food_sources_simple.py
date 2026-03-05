@@ -177,7 +177,7 @@ class TestOFFAdapter:
         with pytest.raises(FileNotFoundError):
             list(adapter.fetch())
 
-    def test_off_vitamin_d_converts_ug_to_iu(self):
+    def test_off_vitamin_d_converts_ug_to_iu(self) -> None:
         """OFF vitamin-d_100g must convert from µg to IU."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             writer = csv.writer(f)
@@ -193,12 +193,13 @@ class TestOFFAdapter:
 
         os.unlink(f.name)
 
-    def test_off_skips_nameless_rows(self):
+    def test_off_skips_nameless_rows(self) -> None:
         """Rows without product_name/generic_name/product_name_en are skipped."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             writer = csv.writer(f)
             writer.writerow(["product_name", "generic_name", "product_name_en", "energy-kcal_100g"])
             writer.writerow(["", "", "", "50"])  # nameless row should be skipped
+            writer.writerow(["None", "", "", "60"])  # explicit malformed null marker
             writer.writerow(["Named Product", "", "", "120"])
             f.flush()
 
@@ -209,6 +210,34 @@ class TestOFFAdapter:
             assert results[0].name
 
         os.unlink(f.name)
+
+    def test_off_skips_none_name_candidates_from_fetch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """None candidate values should be ignored as nameless input."""
+        adapter = OFFAdapter(csv_path="/tmp/unused.csv")
+
+        def _fake_fetch() -> list[dict[str, object]]:
+            return [
+                {
+                    "product_name": None,
+                    "generic_name": None,
+                    "product_name_en": None,
+                    "energy-kcal_100g": "50",
+                },
+                {
+                    "product_name": None,
+                    "generic_name": "Valid Fallback Name",
+                    "product_name_en": None,
+                    "energy-kcal_100g": "120",
+                },
+            ]
+
+        monkeypatch.setattr(adapter, "fetch", _fake_fetch)
+        results = list(adapter.normalize())
+
+        assert len(results) == 1
+        assert results[0].name
 
 
 class TestBaseAdapter:

@@ -70,18 +70,22 @@ class OFFAdapter(BaseAdapter):
         today = date.today().isoformat()
         for row in self.fetch():
             # Get product name (try multiple fields)
-            raw_name = next(
-                (
-                    str(candidate).strip()
-                    for candidate in (
-                        row.get("product_name", ""),
-                        row.get("generic_name", ""),
-                        row.get("product_name_en", ""),
-                    )
-                    if str(candidate).strip()
-                ),
-                "",
-            )
+            raw_name = ""
+            for candidate in (
+                row.get("product_name", ""),
+                row.get("generic_name", ""),
+                row.get("product_name_en", ""),
+            ):
+                if candidate is None:
+                    continue
+                candidate_name = str(candidate).strip()
+                if not candidate_name:
+                    continue
+                # Fail-closed for malformed CSV null markers.
+                if candidate_name.lower() in {"none", "null", "nan"}:
+                    continue
+                raw_name = candidate_name
+                break
             if not raw_name:
                 continue
             canonical = map_to_canonical(raw_name, locale=self.locale)
