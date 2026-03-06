@@ -2,6 +2,7 @@
   "components": {
     "schemas": {
       "ActivateSubscriptionRequest": {
+        "additionalProperties": false,
         "description": "Activation request payload (contract-first, deterministic).",
         "properties": {
           "client_event_id": {
@@ -27,8 +28,7 @@
           },
           "plan": {
             "$ref": "#/components/schemas/SubscriptionPlan",
-            "default": "pro_monthly",
-            "description": "Canonical plan code for activation intent"
+            "description": "Canonical required plan code for activation intent"
           },
           "source": {
             "$ref": "#/components/schemas/PaymentSource"
@@ -54,6 +54,7 @@
         },
         "required": [
           "source",
+          "plan",
           "client_event_id"
         ],
         "title": "ActivateSubscriptionRequest",
@@ -156,6 +157,7 @@
         "type": "object"
       },
       "AppleReceiptVerificationRequest": {
+        "additionalProperties": false,
         "description": "Request contract for iOS receipt verification.",
         "properties": {
           "client_event_id": {
@@ -2708,6 +2710,7 @@
         "type": "string"
       },
       "ManualRailIntentRequest": {
+        "additionalProperties": false,
         "description": "Request contract for RU/BY manual payment intent creation.",
         "properties": {
           "amount_minor": {
@@ -2723,10 +2726,7 @@
             "type": "string"
           },
           "currency": {
-            "maxLength": 3,
-            "minLength": 3,
-            "title": "Currency",
-            "type": "string"
+            "$ref": "#/components/schemas/RuByCurrency"
           },
           "external_txn_id": {
             "anyOf": [
@@ -2764,6 +2764,7 @@
         "type": "object"
       },
       "ManualRailReconcileRequest": {
+        "additionalProperties": false,
         "description": "Request contract for RU/BY reconciliation transition.",
         "properties": {
           "client_event_id": {
@@ -5359,6 +5360,15 @@
           "not_required"
         ],
         "title": "ReconcileStatus",
+        "type": "string"
+      },
+      "RuByCurrency": {
+        "description": "Currencies allowed in RU/BY manual payment flows.",
+        "enum": [
+          "BYN",
+          "RUB"
+        ],
+        "title": "RuByCurrency",
         "type": "string"
       },
       "SafetyCheckRequest": {

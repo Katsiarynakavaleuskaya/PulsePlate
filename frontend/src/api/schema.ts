@@ -1403,10 +1403,7 @@ export interface components {
              * @description Provider-side transaction or intent ID
              */
             external_txn_id?: string | null;
-            /**
-             * @description Canonical plan code for activation intent
-             * @default pro_monthly
-             */
+            /** @description Canonical required plan code for activation intent */
             plan: components["schemas"]["SubscriptionPlan"];
             source: components["schemas"]["PaymentSource"];
             /**
@@ -2825,8 +2822,7 @@ export interface components {
             amount_minor: number;
             /** Client Event Id */
             client_event_id: string;
-            /** Currency */
-            currency: string;
+            currency: components["schemas"]["RuByCurrency"];
             /** External Txn Id */
             external_txn_id?: string | null;
             plan: components["schemas"]["SubscriptionPlan"];
@@ -3986,6 +3982,12 @@ export interface components {
          * @enum {string}
          */
         ReconcileStatus: "pending" | "verified" | "rejected" | "not_required";
+        /**
+         * RuByCurrency
+         * @description Currencies allowed in RU/BY manual payment flows.
+         * @enum {string}
+         */
+        RuByCurrency: "BYN" | "RUB";
         /**
          * SafetyCheckRequest
          * @description RU: Запрос проверки безопасности целевых значений.

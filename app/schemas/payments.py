@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PaymentSource(str, Enum):
@@ -27,6 +27,13 @@ class ManualPaymentSource(str, Enum):
 
     erip_qr = "erip_qr"
     swift_manual = "swift_manual"
+
+
+class RuByCurrency(str, Enum):
+    """Currencies allowed in RU/BY manual payment flows."""
+
+    byn = "BYN"
+    rub = "RUB"
 
 
 class SubscriptionPlan(str, Enum):
@@ -61,13 +68,19 @@ class ReconcileStatus(str, Enum):
     not_required = "not_required"
 
 
-class ActivateSubscriptionRequest(BaseModel):
+class PaymentRequestModel(BaseModel):
+    """Base request DTO that fails closed on unknown keys."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ActivateSubscriptionRequest(PaymentRequestModel):
     """Activation request payload (contract-first, deterministic)."""
 
     source: PaymentSource
     plan: SubscriptionPlan = Field(
-        default=SubscriptionPlan.pro_monthly,
-        description="Canonical plan code for activation intent",
+        ...,
+        description="Canonical required plan code for activation intent",
     )
     client_event_id: str = Field(
         ...,
@@ -128,7 +141,7 @@ class SubscriptionActivationResponse(BaseModel):
     updated_at: datetime
 
 
-class AppleReceiptVerificationRequest(BaseModel):
+class AppleReceiptVerificationRequest(PaymentRequestModel):
     """Request contract for iOS receipt verification."""
 
     plan: SubscriptionPlan
@@ -157,7 +170,7 @@ class AppleReceiptVerificationRequest(BaseModel):
         return normalized or None
 
 
-class ManualRailIntentRequest(BaseModel):
+class ManualRailIntentRequest(PaymentRequestModel):
     """Request contract for RU/BY manual payment intent creation."""
 
     source: ManualPaymentSource
@@ -165,7 +178,7 @@ class ManualRailIntentRequest(BaseModel):
     client_event_id: str = Field(..., min_length=6, max_length=128)
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
     amount_minor: int = Field(..., ge=1, description="Minor currency units")
-    currency: str = Field(..., min_length=3, max_length=3)
+    currency: RuByCurrency
     verification_payload: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("client_event_id", "currency", mode="before")
@@ -196,7 +209,7 @@ class ReconcileDecision(str, Enum):
     rejected = "rejected"
 
 
-class ManualRailReconcileRequest(BaseModel):
+class ManualRailReconcileRequest(PaymentRequestModel):
     """Request contract for RU/BY reconciliation transition."""
 
     intent_id: str = Field(..., min_length=3, max_length=128)

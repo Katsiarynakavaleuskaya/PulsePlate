@@ -33,13 +33,13 @@
 ## Payments Canonical Map (P0 baseline, implemented in PR #999)
 
 Source of truth for implemented payment baseline:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
-- `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:1`
-- `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1`
-- `app/routers/billing.py:1`
-- `app/schemas/payments.py:1`
-- `app/services/payments_activation.py:1`
-- `app/main.py:1`
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:21`
+- `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:9`
+- `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:37`
+- `app/routers/billing.py:94`
+- `app/schemas/payments.py:61`
+- `app/services/payments_activation.py:194`
+- `app/main.py:29`
 
 Canonical source enum:
 - `ios_app_store`
@@ -62,8 +62,8 @@ Compatibility policy:
 4. Runtime payment surfaces must stay under `/api/v1/pro/*` to satisfy namespace guard policy.
 5. Runtime handlers exist under the canonical PRO namespace and are verified by OpenAPI/tests.
 6. Evidence anchors for these assertions are captured in:
-   - `app/routers/billing.py:1`
-   - `app/services/payments_activation.py:1`
-   - `tests/test_billing_openapi_contract.py:1`
-   - `tests/test_payment_source_contract_api.py:1`
-   - `tests/test_payment_reconciliation_api.py:1`
+   - `app/routers/billing.py:94`
+   - `app/services/payments_activation.py:194`
+   - `tests/test_billing_openapi_contract.py:11`
+   - `tests/test_payment_source_contract_api.py:113`
+   - `tests/test_payment_reconciliation_api.py:53`

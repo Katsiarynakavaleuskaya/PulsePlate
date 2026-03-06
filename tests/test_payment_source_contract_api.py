@@ -104,17 +104,21 @@ def test_manual_intent_rejects_ios_source(
             "plan": "pro_monthly",
             "client_event_id": "evt-manual-invalid-1",
             "amount_minor": 999,
-            "currency": "USD",
+            "currency": "BYN",
         },
     )
     assert response.status_code == 422
 
 
 def test_manual_intent_openapi_contract_is_manual_only() -> None:
-    from app.schemas.payments import ManualRailIntentRequest
+    from app.main import app as canonical_app
 
-    source_annotation = ManualRailIntentRequest.model_fields["source"].annotation
-    assert getattr(source_annotation, "__name__", "") == "ManualPaymentSource"
+    components = canonical_app.openapi()["components"]["schemas"]
+    manual_schema = components["ManualRailIntentRequest"]
+    assert (
+        manual_schema["properties"]["source"]["$ref"] == "#/components/schemas/ManualPaymentSource"
+    )
+    assert manual_schema["properties"]["currency"]["$ref"] == "#/components/schemas/RuByCurrency"
 
 
 def test_payment_request_models_cover_normalization_error_branches() -> None:
@@ -123,6 +127,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
         AppleReceiptVerificationRequest,
         ManualRailIntentRequest,
         ManualRailReconcileRequest,
+        RuByCurrency,
     )
 
     valid_apple = AppleReceiptVerificationRequest.model_validate(
@@ -150,11 +155,11 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
             "plan": "vip_monthly",
             "client_event_id": "evt-manual-validate-1",
             "amount_minor": 2000,
-            "currency": "usd",
+            "currency": "rub",
             "external_txn_id": None,
         }
     )
-    assert valid_manual_intent.currency == "USD"
+    assert valid_manual_intent.currency is RuByCurrency.rub
     assert valid_manual_intent.external_txn_id is None
 
     normalized_manual_intent = ManualRailIntentRequest.model_validate(
@@ -167,7 +172,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
         }
     )
     assert normalized_manual_intent.client_event_id == "evt-manual-before-1"
-    assert normalized_manual_intent.currency == "BYN"
+    assert normalized_manual_intent.currency is RuByCurrency.byn
 
     with pytest.raises(ValidationError):
         ManualRailIntentRequest.model_validate(
@@ -222,6 +227,24 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
         ActivateSubscriptionRequest.model_validate(
             {
                 "source": "ios_app_store",
+                "client_event_id": "evt-activation-missing-plan-1",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-activation-extra-1",
+                "unexpected": "value",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
                 "plan": "pro_monthly",
                 "client_event_id": "evt-activation-typed-1",
                 "external_txn_id": 42,
@@ -248,6 +271,16 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
         )
 
     with pytest.raises(ValidationError):
+        AppleReceiptVerificationRequest.model_validate(
+            {
+                "plan": "pro_monthly",
+                "client_event_id": "evt-apple-extra-1",
+                "receipt": "receipt-token-validated-typed-77777",
+                "reason_key": "unexpected",
+            }
+        )
+
+    with pytest.raises(ValidationError):
         ManualRailIntentRequest.model_validate(
             {
                 "source": "erip_qr",
@@ -265,8 +298,31 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
                 "plan": "pro_monthly",
                 "client_event_id": "evt-manual-typed-2",
                 "amount_minor": 1000,
-                "currency": "USD",
+                "currency": "BYN",
                 "external_txn_id": 7,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailIntentRequest.model_validate(
+            {
+                "source": "erip_qr",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-manual-currency-1",
+                "amount_minor": 1000,
+                "currency": "USD",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailIntentRequest.model_validate(
+            {
+                "source": "erip_qr",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-manual-extra-1",
+                "amount_minor": 1000,
+                "currency": "BYN",
+                "unexpected": "value",
             }
         )
 
@@ -286,6 +342,16 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
                 "client_event_id": "evt-reconcile-typed-2",
                 "decision": "verified",
                 "external_txn_id": 17,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": "intent-extra-1",
+                "client_event_id": "evt-reconcile-extra-1",
+                "decision": "verified",
+                "extra_flag": True,
             }
         )
 
@@ -352,7 +418,7 @@ def test_manual_intent_idempotent_replay_returns_200(
         "client_event_id": "evt-manual-replay-1",
         "external_txn_id": "swift-replay-1",
         "amount_minor": 2999,
-        "currency": "USD",
+        "currency": "BYN",
     }
     first = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
@@ -381,7 +447,7 @@ def test_manual_intent_conflict_returns_409(
             "plan": "vip_monthly",
             "client_event_id": "evt-manual-conflict-1",
             "amount_minor": 2999,
-            "currency": "USD",
+            "currency": "BYN",
             "external_txn_id": "erip-conflict-1",
         },
     )
@@ -393,7 +459,7 @@ def test_manual_intent_conflict_returns_409(
             "plan": "vip_monthly",
             "client_event_id": "evt-manual-conflict-1",
             "amount_minor": 3999,
-            "currency": "USD",
+            "currency": "BYN",
             "external_txn_id": "erip-conflict-2",
         },
     )

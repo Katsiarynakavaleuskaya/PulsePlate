@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -18,7 +20,7 @@ def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source
             "client_event_id": f"evt-{source}-intent-1",
             "external_txn_id": f"{source}-intent-1",
             "amount_minor": 2999,
-            "currency": "USD",
+            "currency": "BYN",
         },
     )
     assert response.status_code == 201, response.text
@@ -37,7 +39,7 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
                 "client_event_id": f"evt-{source}-service-intent-1",
                 "external_txn_id": f"{source}-service-intent-1",
                 "amount_minor": 2999,
-                "currency": "USD",
+                "currency": "BYN",
             }
         )
     )
@@ -406,7 +408,8 @@ def test_activation_state_detail_maps_manual_status_and_unknown_errors() -> None
 
 
 def test_plan_to_tier_rejects_unknown_plan_value() -> None:
+    from app.schemas.payments import SubscriptionPlan
     from app.services import payments_activation
 
     with pytest.raises(ValueError, match="unsupported subscription plan"):
-        payments_activation._plan_to_tier("enterprise")  # type: ignore[arg-type]
+        payments_activation._plan_to_tier(cast(SubscriptionPlan, "enterprise"))

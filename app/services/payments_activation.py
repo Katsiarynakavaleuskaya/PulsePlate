@@ -199,9 +199,9 @@ def build_manual_intent_request(
 ) -> ActivateSubscriptionRequest:
     """Convert manual rail intent request into canonical activation request."""
     verification_payload = {
-        "amount_minor": payload.amount_minor,
-        "currency": payload.currency,
         **payload.verification_payload,
+        "amount_minor": payload.amount_minor,
+        "currency": payload.currency.value,
     }
     return ActivateSubscriptionRequest(
         source=PaymentSource(payload.source.value),

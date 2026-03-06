@@ -13,12 +13,14 @@ pytestmark = pytest.mark.usefixtures("reset_payments_state")
 def _activation_payload(
     *,
     source: str = "ios_app_store",
+    plan: str = "pro_monthly",
     client_event_id: str = "evt-activation-001",
     verification_ok: bool | None = True,
     external_txn_id: str | None = "txn-001",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "source": source,
+        "plan": plan,
         "client_event_id": client_event_id,
         "verification_payload": {"raw": "opaque"},
     }
@@ -102,6 +104,7 @@ def test_activate_subscription_defaults_verification_payload_when_omitted(
         headers=pro_headers,
         json={
             "source": "ios_app_store",
+            "plan": "pro_monthly",
             "client_event_id": "evt-ios-no-payload-1",
             "verification_ok": True,
             "external_txn_id": "txn-no-payload-1",
