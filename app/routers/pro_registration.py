@@ -59,6 +59,10 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
         app.include_router(pro_router_imported)
         pro_router_result = pro_router_imported
 
+    from app.routers.pro_session import router as pro_session_router
+
+    app.include_router(pro_session_router)
+
     # Include PRO nutrition insights router (coverage scoring)
     from app.routers.pro_nutrition_insights import router as pro_nutrition_insights_router
 

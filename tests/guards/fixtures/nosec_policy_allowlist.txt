@@ -2,8 +2,8 @@
 # Entries past remove-by date cause guard FAIL. Phase 2: migrate to full nosec format, shrink to 0.
 # See docs/roadmap/BACKLOG_LEDGER.md "Phase 2: Remove nosec allowlist".
 app/metrics.py:105 remove-by=2026-04-30 ref=PR-985
-app/middleware/api_tiers.py:73 remove-by=2026-04-30 ref=PR-985
-app/middleware/api_tiers.py:74 remove-by=2026-04-30 ref=PR-985
+app/middleware/api_tiers.py:91 remove-by=2026-04-30 ref=PR-985
+app/middleware/api_tiers.py:92 remove-by=2026-04-30 ref=PR-985
 app/middleware/metrics.py:224 remove-by=2026-04-30 ref=PR-985
 app/middleware/metrics.py:238 remove-by=2026-04-30 ref=PR-985
 app/middleware/metrics.py:248 remove-by=2026-04-30 ref=PR-985

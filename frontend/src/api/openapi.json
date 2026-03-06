@@ -5239,6 +5239,134 @@
         "title": "SafetyCheckResponse",
         "type": "object"
       },
+      "SessionExchangeResponse": {
+        "description": "Exchange/refresh response contract.",
+        "properties": {
+          "auth_source": {
+            "description": "Authentication source used for this request",
+            "enum": [
+              "header",
+              "cookie"
+            ],
+            "title": "Auth Source",
+            "type": "string"
+          },
+          "expires_at_epoch": {
+            "description": "Session expiry Unix epoch (UTC)",
+            "minimum": 1.0,
+            "title": "Expires At Epoch",
+            "type": "integer"
+          },
+          "status": {
+            "const": "ok",
+            "description": "Deterministic exchange status",
+            "title": "Status",
+            "type": "string"
+          },
+          "tier": {
+            "description": "Resolved tier stored in session cookie",
+            "enum": [
+              "PRO",
+              "VIP"
+            ],
+            "title": "Tier",
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "description": "Session TTL in seconds",
+            "minimum": 1.0,
+            "title": "Ttl Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "tier",
+          "auth_source",
+          "expires_at_epoch",
+          "ttl_seconds"
+        ],
+        "title": "SessionExchangeResponse",
+        "type": "object"
+      },
+      "SessionLogoutResponse": {
+        "description": "Logout response contract.",
+        "properties": {
+          "logged_out": {
+            "const": true,
+            "description": "Always true for successful logout",
+            "title": "Logged Out",
+            "type": "boolean"
+          },
+          "status": {
+            "const": "ok",
+            "description": "Deterministic logout status",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "logged_out"
+        ],
+        "title": "SessionLogoutResponse",
+        "type": "object"
+      },
+      "SessionStatusResponse": {
+        "description": "Session status response contract.",
+        "properties": {
+          "auth_source": {
+            "description": "Current authentication source",
+            "enum": [
+              "header",
+              "cookie"
+            ],
+            "title": "Auth Source",
+            "type": "string"
+          },
+          "authenticated": {
+            "const": true,
+            "description": "Always true for authorized session",
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "expires_at_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cookie expiry Unix epoch (UTC), null when header auth is used",
+            "title": "Expires At Epoch"
+          },
+          "status": {
+            "const": "ok",
+            "description": "Deterministic status value",
+            "title": "Status",
+            "type": "string"
+          },
+          "tier": {
+            "description": "Current authenticated tier",
+            "enum": [
+              "PRO",
+              "VIP"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "authenticated",
+          "tier",
+          "auth_source"
+        ],
+        "title": "SessionStatusResponse",
+        "type": "object"
+      },
       "ShopAisle": {
         "description": "Stable aisle/category for iOS (do not rename; only extend).\n\nRU: Категории для группировки списка покупок (не переименовывать).",
         "enum": [
@@ -7069,6 +7197,11 @@
         "in": "header",
         "name": "X-API-Key",
         "type": "apiKey"
+      },
+      "CookieSession": {
+        "in": "cookie",
+        "name": "pp_web_session",
+        "type": "apiKey"
       }
     }
   },
@@ -8753,6 +8886,130 @@
         "tags": [
           "pro",
           "restaurants"
+        ]
+      }
+    },
+    "/api/v1/pro/session": {
+      "get": {
+        "description": "Return current auth source and tier for PRO/VIP session.",
+        "operationId": "get_session_status_api_v1_pro_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Session Status",
+        "tags": [
+          "pro",
+          "session"
+        ]
+      }
+    },
+    "/api/v1/pro/session/exchange": {
+      "post": {
+        "description": "Exchange authenticated PRO/VIP session into hardened HttpOnly cookie.",
+        "operationId": "exchange_session_cookie_api_v1_pro_session_exchange_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExchangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Exchange Session Cookie",
+        "tags": [
+          "pro",
+          "session"
+        ]
+      }
+    },
+    "/api/v1/pro/session/logout": {
+      "post": {
+        "description": "Logout by clearing session cookie (idempotent).",
+        "operationId": "logout_session_api_v1_pro_session_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Logout Session",
+        "tags": [
+          "pro",
+          "session"
+        ]
+      }
+    },
+    "/api/v1/pro/session/refresh": {
+      "post": {
+        "description": "Refresh session cookie for currently authenticated PRO/VIP principal.",
+        "operationId": "refresh_session_cookie_api_v1_pro_session_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExchangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Refresh Session Cookie",
+        "tags": [
+          "pro",
+          "session"
         ]
       }
     },

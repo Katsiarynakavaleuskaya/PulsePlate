@@ -6,9 +6,11 @@ EN: Tests for API tier validation middleware.
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 import app.middleware.api_tiers as api_tiers_mod
 from app.middleware.api_tiers import (
+    AuthSource,
     DBLookupResult,
     DBLookupStatus,
     CurrentUser,
@@ -23,6 +25,7 @@ from app.middleware.api_tiers import (
     require_pro_tier,
     require_vip_tier,
 )
+from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
 
 
 class TestSubscriptionTier:
@@ -182,6 +185,24 @@ class _FakeSession:
         self.closed = True
 
 
+def _request_with_cookie(token: str) -> Request:
+    """Build minimal Starlette Request carrying a cookie header."""
+
+    cookie_header = f"{WEB_SESSION_COOKIE_NAME}={token}".encode("utf-8")
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "scheme": "http",
+        "method": "GET",
+        "path": "/",
+        "query_string": b"",
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+        "headers": [(b"cookie", cookie_header)],
+    }
+    return Request(scope)
+
+
 class TestDBLookupHelpers:
     """Test low-level DB tier lookup helpers."""
 
@@ -286,6 +307,71 @@ class TestRequireProTier:
         assert exc_info.value.status_code == 403
         assert "does not have PRO tier access" in exc_info.value.detail
 
+    def test_cookie_fallback_accepts_valid_pro_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test missing header falls back to valid PRO cookie."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        request = _request_with_cookie(issued.token)
+
+        result = require_pro_tier(x_api_key=None, request=request)
+        assert result == TEST_KEY_PRO
+        context = api_tiers_mod.get_request_pro_auth_context(request)
+        assert context is not None
+        assert context.source == AuthSource.COOKIE
+        assert context.tier == SubscriptionTier.PRO
+        assert context.session_expires_at_epoch == issued.claims.expires_at_epoch
+
+    def test_header_precedence_rejects_invalid_header_even_with_valid_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test invalid X-API-Key blocks access even when cookie is valid."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_tier(x_api_key="invalid_key", request=request)
+        assert exc_info.value.status_code == 403
+
+    def test_empty_header_rejected_even_with_valid_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test empty X-API-Key header does not fall back to cookie auth."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_tier(x_api_key="   ", request=request)
+        assert exc_info.value.status_code == 403
+
+    def test_cookie_verifier_runtime_error_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test verifier runtime errors do not bypass PRO guard."""
+
+        def raise_runtime_error(_: str) -> None:
+            raise RuntimeError("bad server salt")
+
+        request = _request_with_cookie("signed-cookie-value")
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "verify_web_session",
+            raise_runtime_error,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_tier(x_api_key=None, request=request)
+        assert exc_info.value.status_code == 401
+
+    def test_get_request_pro_auth_context_returns_none_when_missing(self) -> None:
+        """Test helper returns None when request state has no cached context."""
+
+        request = _request_with_cookie("token")
+        assert api_tiers_mod.get_request_pro_auth_context(request) is None
+
 
 class TestRequireVIPTier:
     """Test require_vip_tier dependency function (sync, runs in threadpool in FastAPI)."""
@@ -321,6 +407,77 @@ class TestRequireVIPTier:
             require_vip_tier(x_api_key="invalid_key")
         assert exc_info.value.status_code == 403
         assert "Upgrade to VIP" in exc_info.value.detail
+
+    def test_cookie_fallback_accepts_valid_vip_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test missing header falls back to valid VIP cookie."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
+        request = _request_with_cookie(issued.token)
+
+        result = require_vip_tier(x_api_key=None, request=request)
+        assert result == TEST_KEY_VIP
+
+    def test_cookie_fallback_rejects_pro_cookie_for_vip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test VIP guard rejects PRO-tier cookie."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_vip_tier(x_api_key=None, request=request)
+        assert exc_info.value.status_code == 403
+
+    def test_cookie_fallback_revalidates_current_key_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test cookie auth rechecks current tier instead of trusting embedded claims."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="VIP")
+        request = _request_with_cookie(issued.token)
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_resolve_authorized_api_key_tier",
+            lambda *_args, **_kwargs: SubscriptionTier.PRO,
+        )
+
+        result = require_pro_tier(x_api_key=None, request=request)
+        assert result == TEST_KEY_PRO
+        context = api_tiers_mod.get_request_pro_auth_context(request)
+        assert context is not None
+        assert context.tier == SubscriptionTier.PRO
+
+    def test_cookie_fallback_fails_closed_when_current_key_tier_revoked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test cookie auth is denied when current tier no longer authorizes access."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
+        request = _request_with_cookie(issued.token)
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_resolve_authorized_api_key_tier",
+            lambda *_args, **_kwargs: None,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_vip_tier(x_api_key=None, request=request)
+        assert exc_info.value.status_code == 403
+
+    def test_empty_header_rejected_for_vip_even_with_valid_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test empty X-API-Key header does not bypass VIP guard via cookie fallback."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_vip_tier(x_api_key=" ", request=request)
+        assert exc_info.value.status_code == 403
 
 
 class TestGetSubscriptionTier:

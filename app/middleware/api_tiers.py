@@ -30,10 +30,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from sqlalchemy import text
 
 from app.routers.api_key import api_key_header
+from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
 
@@ -69,9 +70,26 @@ class DBLookupResult:
     tier: SubscriptionTier | None = None
 
 
-# Test API keys for development/testing (nosec B105)
-TEST_KEY_PRO = "test_pro_key"  # nosec B105
-TEST_KEY_VIP = "test_vip_key"  # nosec B105
+class AuthSource(str, Enum):
+    """Authentication source used for tier resolution."""
+
+    HEADER = "header"
+    COOKIE = "cookie"
+
+
+@dataclass(frozen=True)
+class TierAuthContext:
+    """Resolved authentication context (header or cookie)."""
+
+    api_key: str
+    tier: SubscriptionTier
+    source: AuthSource
+    session_expires_at_epoch: int | None = None
+
+
+# Test API keys for deterministic test/development tier checks.
+TEST_KEY_PRO = "test_pro_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
+TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()
@@ -180,6 +198,49 @@ def _is_production_environment() -> tuple[bool, str]:
     return is_production, app_env
 
 
+def _resolve_authorized_api_key_tier(
+    api_key: str,
+    *,
+    required_tier: SubscriptionTier,
+) -> SubscriptionTier | None:
+    """Resolve authorized tier in a single pass, else None."""
+
+    is_production, app_env = _is_production_environment()
+
+    if _is_subscription_db_enabled():
+        db_lookup = _lookup_tier_from_db(api_key)
+        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
+            if _tier_allows_access(db_lookup.tier, required_tier):
+                return db_lookup.tier
+            return None
+        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
+            return None
+
+    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    if resolved_env_tier is not None:
+        if _tier_allows_access(resolved_env_tier, required_tier):
+            return resolved_env_tier
+        return None
+
+    # In non-production mode with anonymous access enabled, allow any key.
+    if not is_production:
+        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+        if allow_anonymous:
+            logger.warning(
+                "Anonymous API key accepted in %s mode for tier %s",
+                app_env,
+                required_tier.value,
+            )
+            return required_tier
+
+    return None
+
+
 def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> bool:
     """Validate if API key has access to required tier.
 
@@ -197,38 +258,166 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
 
         In production, this should query the subscriptions database.
     """
-    is_production, app_env = _is_production_environment()
+    return _resolve_authorized_api_key_tier(api_key, required_tier=required_tier) is not None
 
-    if _is_subscription_db_enabled():
-        db_lookup = _lookup_tier_from_db(api_key)
-        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
-            return _tier_allows_access(db_lookup.tier, required_tier)
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return False
 
-    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
-    if resolved_env_tier is not None:
-        return _tier_allows_access(resolved_env_tier, required_tier)
+def _request_dependency(request: Request) -> Request:
+    """FastAPI helper to inject Request while preserving direct-call compatibility."""
 
-    # In non-production mode with anonymous access enabled, allow any key.
-    # Check env var dynamically to support testing with mock.patch.dict.
-    if not is_production:
-        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
+    return request
+
+
+def _as_request(request: object | None) -> Request | None:
+    """Return Request instance or None for direct function invocations."""
+
+    return request if isinstance(request, Request) else None
+
+
+def _resolve_cookie_auth_context(
+    *,
+    request: Request | None,
+    required_tier: SubscriptionTier,
+) -> TierAuthContext | None:
+    """Resolve cookie-backed auth context or None."""
+
+    if request is None:
+        return None
+
+    raw_cookie = request.cookies.get(WEB_SESSION_COOKIE_NAME, "")
+    if not raw_cookie:
+        return None
+
+    try:
+        claims = verify_web_session(raw_cookie)
+    except RuntimeError:
+        logger.warning(
+            "Session cookie verification failed due to server configuration", exc_info=True
         )
-        if allow_anonymous:
-            logger.warning(
-                f"Anonymous API key accepted in {app_env} mode for tier {required_tier.value}"
+        return None
+    if claims is None:
+        return None
+
+    resolved_tier = _resolve_authorized_api_key_tier(
+        claims.api_key,
+        required_tier=required_tier,
+    )
+    if resolved_tier is None:
+        return None
+
+    return TierAuthContext(
+        api_key=claims.api_key,
+        tier=resolved_tier,
+        source=AuthSource.COOKIE,
+        session_expires_at_epoch=claims.expires_at_epoch,
+    )
+
+
+def resolve_pro_auth_context(
+    *,
+    x_api_key: Optional[str] = Security(api_key_header),
+    request: Request = Depends(_request_dependency),
+) -> TierAuthContext:
+    """Resolve PRO auth using header-first precedence, then cookie fallback."""
+
+    request_obj = _as_request(request)
+    if x_api_key is not None:
+        normalized_api_key = x_api_key.strip()
+        if not normalized_api_key:
+            logger.warning("Empty X-API-Key header is not allowed for PRO tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have PRO tier access",
             )
-            return True
+        resolved_tier = _resolve_authorized_api_key_tier(
+            normalized_api_key,
+            required_tier=SubscriptionTier.PRO,
+        )
+        if resolved_tier is None:
+            logger.warning("Invalid API key for PRO tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have PRO tier access",
+            )
+        return TierAuthContext(
+            api_key=normalized_api_key,
+            tier=resolved_tier,
+            source=AuthSource.HEADER,
+        )
 
-    return False
+    cookie_context = _resolve_cookie_auth_context(
+        request=request_obj,
+        required_tier=SubscriptionTier.PRO,
+    )
+    if cookie_context is not None:
+        return cookie_context
+
+    logger.warning("PRO endpoint accessed without API key and without valid session cookie")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="API key required for PRO tier access",
+        headers={"WWW-Authenticate": "ApiKey"},
+    )
 
 
-def require_pro_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
+def resolve_vip_auth_context(
+    *,
+    x_api_key: Optional[str] = Security(api_key_header),
+    request: Request = Depends(_request_dependency),
+) -> TierAuthContext:
+    """Resolve VIP auth using header-first precedence, then cookie fallback."""
+
+    request_obj = _as_request(request)
+    if x_api_key is not None:
+        normalized_api_key = x_api_key.strip()
+        if not normalized_api_key:
+            logger.warning("Empty X-API-Key header is not allowed for VIP tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
+            )
+        resolved_tier = _resolve_authorized_api_key_tier(
+            normalized_api_key,
+            required_tier=SubscriptionTier.VIP,
+        )
+        if resolved_tier is None:
+            logger.warning("Invalid API key for VIP tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
+            )
+        return TierAuthContext(
+            api_key=normalized_api_key,
+            tier=resolved_tier,
+            source=AuthSource.HEADER,
+        )
+
+    cookie_context = _resolve_cookie_auth_context(
+        request=request_obj,
+        required_tier=SubscriptionTier.VIP,
+    )
+    if cookie_context is not None:
+        return cookie_context
+
+    logger.warning("VIP endpoint accessed without API key and without valid session cookie")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="VIP access required",
+    )
+
+
+def get_request_pro_auth_context(request: Request) -> TierAuthContext | None:
+    """Return cached PRO auth context stored by require_pro_tier dependency."""
+
+    cached = getattr(request.state, "pro_auth_context", None)
+    if isinstance(cached, TierAuthContext):
+        return cached
+    return None
+
+
+def require_pro_tier(
+    x_api_key: Optional[str] = Security(api_key_header),
+    request: Request = Depends(_request_dependency),
+) -> str:
     """Require PRO tier API key for endpoint access.
 
     RU: Требуется API ключ уровня PRO для доступа к endpoint.
@@ -249,26 +438,21 @@ def require_pro_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str
         async def pro_feature():
             return {"message": "PRO feature accessed"}
     """
-    if not x_api_key:
-        logger.warning("PRO endpoint accessed without API key")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required for PRO tier access",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
-
-    if not _validate_api_key_tier(x_api_key, SubscriptionTier.PRO):
-        logger.warning("Invalid API key for PRO tier")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="API key does not have PRO tier access",
-        )
-
-    logger.debug("PRO tier access granted")
-    return x_api_key
+    context = resolve_pro_auth_context(
+        x_api_key=x_api_key,
+        request=request,
+    )
+    request_obj = _as_request(request)
+    if request_obj is not None:
+        request_obj.state.pro_auth_context = context
+    logger.debug("PRO tier access granted via %s", context.source.value)
+    return context.api_key
 
 
-def require_vip_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
+def require_vip_tier(
+    x_api_key: Optional[str] = Security(api_key_header),
+    request: Request = Depends(_request_dependency),
+) -> str:
     """Require VIP tier API key for endpoint access.
 
     RU: Требуется API ключ уровня VIP для доступа к endpoint.
@@ -289,22 +473,15 @@ def require_vip_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str
         async def vip_feature():
             return {"message": "VIP feature accessed"}
     """
-    if not x_api_key:
-        logger.warning("VIP endpoint accessed without API key")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="VIP access required",
-        )
-
-    if not _validate_api_key_tier(x_api_key, SubscriptionTier.VIP):
-        logger.warning("Invalid API key for VIP tier")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
-        )
-
-    logger.debug("VIP tier access granted")
-    return x_api_key
+    context = resolve_vip_auth_context(
+        x_api_key=x_api_key,
+        request=request,
+    )
+    request_obj = _as_request(request)
+    if request_obj is not None:
+        request_obj.state.vip_auth_context = context
+    logger.debug("VIP tier access granted via %s", context.source.value)
+    return context.api_key
 
 
 def get_subscription_tier(api_key: str) -> SubscriptionTier:
