@@ -181,6 +181,7 @@ If it is not recorded here — it does not exist.
     - Single doc (e.g. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md) is the canonical SoT; AGENTS.md only links to it
     - Doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
     - Linked from AGENTS.md as canonical orchestration governance reference
+  - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
 - [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
