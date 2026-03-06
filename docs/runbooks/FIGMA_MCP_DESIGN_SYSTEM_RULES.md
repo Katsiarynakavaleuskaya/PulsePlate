@@ -67,9 +67,12 @@ export const colors = {
 
 ### Documentation and Storybook
 
-- No Storybook configuration detected in `frontend/`.
-- Component behavior is validated primarily through Vitest + RTL tests under
-  `__tests__/`.
+- Storybook is configured in `frontend/.storybook/` and is the canonical web
+  preview surface for design-system review.
+- Primary stories live under `frontend/src/**/*.stories.tsx` and
+  `frontend/src/**/*.mdx`.
+- Component behavior is still validated through Vitest + RTL tests under
+  `__tests__/`, but visual review should be Storybook-first.
 
 ## 3) Frameworks and Libraries
 
@@ -98,6 +101,8 @@ export const colors = {
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "test": "vitest"
   }
 }
@@ -108,7 +113,7 @@ export const colors = {
 ### Storage and references
 
 - Static/public mocks under `frontend/public/`
-- No dedicated image asset folder in `frontend/src/` found
+- Canonical brand assets live in `frontend/src/assets/brand/`
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization
@@ -186,7 +191,9 @@ import "./index.css";
    new ones.
 4. Keep business logic unchanged in design-only passes.
 5. Validate with targeted tests and `npm run build`.
-6. If runtime/file type does not support screenshot, proceed with context +
+6. Use Storybook as the default visual verification surface for web
+   design-system work.
+7. If runtime/file type does not support screenshot, proceed with context +
    metadata and document the limitation.
 
 ## Quick Validation Checklist
