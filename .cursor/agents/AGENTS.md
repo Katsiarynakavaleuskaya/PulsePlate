@@ -66,16 +66,19 @@ Each agent file (`.cursor/agents/*.md`) must:
 
 ---
 
-## Automatic Invocation Triggers
+## Coordinator Bootstrap Triggers
 
-Coordinator is automatically invoked when:
+Coordinator-first behavior is command-driven through
+`scripts/orchestration/task_bootstrap.py` + `scripts/orchestration/check_preflight.py`.
 
-1. **Task creation:** Any new task is created (coordinator analyzes and routes)
-2. **Agent work completion:** Agent(s) complete work (coordinator reviews and synthesizes)
-3. **PR opened:** PR is opened (coordinator coordinates review across agents)
-4. **Release planned:** Release is planned (coordinator coordinates security + quality checks)
+Use bootstrap when:
 
-**Reference:** See `agent-coordinator.md` (Automatic invocation section) for details.
+1. **Task creation:** build task packet and resolve domain/cluster/routing
+2. **Execution start:** validate task scope and explicit routing in `execute` mode
+3. **PR / merge prep:** validate local evidence and reviewer readiness in `merge` mode
+4. **Release planning:** build release packet for QA + App Store + growth coordination
+
+**Reference:** See `agent-coordinator.md` and `docs/orchestration/workflow.md`.
 
 ---
 

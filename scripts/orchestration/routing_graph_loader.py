@@ -21,6 +21,7 @@ _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
 class DomainRoute:
     """Canonical route for a domain: primary, optional secondary, reviewer."""
 
+    cluster: str
     primary: str
     secondary: Optional[str]
     reviewer: str
@@ -49,9 +50,9 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
     Parse canonical routing table from AGENT_ROUTING_GRAPH.md.
 
     Expects table format:
-    | Domain   | Primary Agent            | Secondary                | Reviewer                |
-    |----------|--------------------------|--------------------------|-------------------------|
-    | safety   | philosophy-agent         | logic-agent             | agent-coordinator       |
+    | Domain   | Cluster | Primary Agent | Secondary | Reviewer |
+    |----------|---------|---------------|-----------|----------|
+    | safety   | safety  | philosophy-agent | logic-agent | agent-coordinator |
 
     Returns:
         Dict mapping domain -> DomainRoute(primary, secondary, reviewer).
@@ -70,7 +71,12 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
             continue
         norm = [c.lower() for c in cols]
         joined = " ".join(norm)
-        if "domain" in norm and "primary" in joined and "reviewer" in joined:
+        if (
+            "domain" in norm
+            and "cluster" in joined
+            and "primary" in joined
+            and "reviewer" in joined
+        ):
             header_idx = i
             header_cols = cols
             break
@@ -91,6 +97,7 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
         raise ValueError(f"Required column missing: {key}")
 
     i_domain = idx_of("domain")
+    i_cluster = idx_of("cluster")
     i_primary = idx_of("primary")
     i_reviewer = idx_of("reviewer")
 
@@ -111,10 +118,11 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
             if routes:
                 break
             continue
-        if len(cols) <= max(i_domain, i_primary, i_reviewer):
+        if len(cols) <= max(i_domain, i_cluster, i_primary, i_reviewer):
             continue
 
         domain = cols[i_domain].strip().lower()
+        cluster = cols[i_cluster].strip().lower()
         primary = cols[i_primary].strip()
         reviewer = cols[i_reviewer].strip()
         secondary_raw = (
@@ -123,7 +131,7 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
 
         if not domain or domain.startswith("-"):
             continue
-        if not primary or not reviewer:
+        if not cluster or not primary or not reviewer:
             continue
 
         secondary: Optional[str] = None
@@ -134,6 +142,7 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
         if domain in routes:
             raise ValueError(f"Duplicate domain in routing graph: {domain}")
         routes[domain] = DomainRoute(
+            cluster=cluster,
             primary=primary,
             secondary=secondary,
             reviewer=reviewer,

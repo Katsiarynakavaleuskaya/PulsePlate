@@ -31,6 +31,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **backend-engineer** | Backend Engineer | `app/`, `core/` | FastAPI/core implementation, API contracts, policy-safe endpoints | Architecture, Security | Bug Hunter, Architecture |
 | **frontend-engineer** | Frontend Engineer | `frontend/` | Web UI, thin-client rules, contract-safe updates | Architecture | Coordinator |
 | **dev-operator** | Dev Operator | Terminal, CI | `make lint`, `make test-fast`, failure triage, evidence capture | Bug Hunter | Coordinator |
+| **qa-engineer-agent** | QA Engineer | `tests/`, cross-surface | Acceptance gates, regression packs, release confidence, independent review | Backend, Frontend, Orchestration | Bug Hunter, Coordinator |
 | **architecture-specialist** | Architecture | `core/`, `app/`, `frontend/`, `ios/` | Design patterns, invariants, layer boundaries | Bug Hunter, Security | AI Innovation, Bug Hunter |
 | **bug-hunter** | Bug Hunter | `tests/`, CI | Test failures, coverage gaps, guard violations | Coordinator, Architecture | Architecture, Security |
 | **security-auditor** | Security | All (cross-cutting) | Vulnerabilities, threats, hardening | Bug Hunter, Architecture | Architecture (for fixes) |
@@ -51,8 +52,13 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **creative-designer** | Creative Designer | `frontend/`, `ios/`, marketing | UI/UX, visuals, brand | Marketing | Coordinator |
 | **designer-artist-agent** | Designer / Artist Agent | `frontend/`, assets | Emblem/logo production: SVG geometry, Figma/Sora/Nano Banana packets | Creative Designer | Coordinator |
 | **sora-prompt-engineer** | Sora Prompt Engineer | assets, `docs/sora/` | Sora prompt specs, anti-drift policy, visual QA gates | Creative Designer | Coordinator |
+| **app-store-release-agent** | App Store Release | `ios/`, `frontend/`, release docs | App Store metadata, screenshots, submission packs, release readiness | QA Engineer, Marketing | Creative Designer, Marketing |
 | **marketing-strategist** | Marketing | `docs/`, marketing materials | ASO/SEO, growth, positioning | Creative Designer | Coordinator |
+| **wellness-analyst-agent** | Wellness Analyst | `docs/`, product strategy | Wellness opportunities, ethics notes, no-license entry ideas | — | Marketing, Business Strategist |
+| **business-strategist-agent** | Business Strategist | `docs/`, roadmap | Market entry, monetization sequencing, low-capex strategy | — | Marketing, Coordinator |
 | **ai-trend-reporter** | AI Trend Reporter | `docs/` | AI market reports (daily/weekly/monthly/quarterly), wellness GTM | — | Coordinator |
+| **cursor-specialist-agent** | Cursor Specialist | `.cursor/agents/`, `scripts/`, `docs/orchestration/` | Task bootstrap, context-pack hygiene, workflow ergonomics | Orchestration, QA Engineer | Dev Operator, Coordinator |
+| **tutor-mentor-agent** | Tutor / Mentor | `docs/`, onboarding artifacts | Explainability, onboarding, training guidance, role review | — | Coordinator |
 | **generalpurpose** | General Purpose (mcp_task) | — | Research, code search, multi-step tasks | — | — |
 | **explore** | Explore (mcp_task) | — | Fast codebase exploration, file/pattern search | — | — |
 | **shell** | Shell (mcp_task) | — | Git, terminal, CI commands | — | — |
@@ -167,5 +173,5 @@ It exists to help the coordinator route work efficiently.
 
 ---
 
-**Last updated:** 2026-02-10 (PR TBD)
+**Last updated:** 2026-03-07 (PR #996)
 **Status:** Advisory

@@ -8,8 +8,8 @@ from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.route_with_telemetry import route
 
 _MINIMAL_TABLE = (
-    "| Domain   | Primary Agent   | Secondary | Reviewer |\n"
-    "|----------|-----------------|-----------|----------|\n"
+    "| Domain   | Cluster | Primary Agent   | Secondary | Reviewer |\n"
+    "|----------|---------|-----------------|-----------|----------|\n"
 )
 
 
@@ -17,6 +17,7 @@ def test_parses_safety_domain() -> None:
     """Safety domain must exist with non-empty primary and reviewer."""
     routes = load_routing_graph()
     assert "safety" in routes
+    assert routes["safety"].cluster == "safety"
     assert routes["safety"].primary
     assert routes["safety"].reviewer
     assert routes["safety"].primary == "philosophy-agent"
@@ -74,8 +75,8 @@ def test_no_routing_rows_raises(tmp_path: Path) -> None:
     empty_table_path = tmp_path / "no_rows.md"
     empty_table_path.write_text(
         "# Routing Graph\n\n"
-        "| domain | primary | secondary | reviewer |\n"
-        "| ------ | ------- | --------- | -------- |\n",
+        "| domain | cluster | primary | secondary | reviewer |\n"
+        "| ------ | ------- | ------- | --------- | -------- |\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="No routing rows parsed from routing graph"):
@@ -87,11 +88,12 @@ def test_secondary_empty_yields_none(tmp_path: Path) -> None:
     table_path = tmp_path / "secondary_test.md"
     table_path.write_text(
         _MINIMAL_TABLE
-        + "| foo | agent-a |           | reviewer-a |\n"
-        + "| bar | agent-b | agent-c    | reviewer-b |\n",
+        + "| foo | ops | agent-a |           | reviewer-a |\n"
+        + "| bar | growth | agent-b | agent-c    | reviewer-b |\n",
         encoding="utf-8",
     )
     routes = load_routing_graph(table_path)
+    assert routes["foo"].cluster == "ops"
     assert routes["foo"].secondary is None
     assert routes["bar"].secondary == "agent-c"
 
@@ -101,8 +103,8 @@ def test_duplicate_domain_raises(tmp_path: Path) -> None:
     dup_path = tmp_path / "duplicate.md"
     dup_path.write_text(
         _MINIMAL_TABLE
-        + "| safety | philosophy-agent | logic-agent | agent-coordinator |\n"
-        + "| safety | backend-engineer  |             | bug-hunter         |\n",
+        + "| safety | safety | philosophy-agent | logic-agent | agent-coordinator |\n"
+        + "| safety | backend | backend-engineer  |             | bug-hunter         |\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Duplicate domain in routing graph: safety"):
@@ -140,6 +142,7 @@ def test_route_normalizes_domain_lookup() -> None:
     d1 = route("Safety", "test", telemetry=None, routing=routing)
     d2 = route("safety", "test", telemetry=None, routing=routing)
     assert d1.primary == d2.primary == "philosophy-agent"
+    assert d1.cluster == d2.cluster == "safety"
 
 
 def test_route_keeps_canonical_primary_when_suggested_primary_not_stable() -> None:
@@ -170,6 +173,25 @@ def test_route_uses_telemetry_secondary_only_when_stable() -> None:
     assert d.rationale["secondary_reason"] == "telemetry_secondary_stable"
 
 
+def test_route_enforces_independent_safety_reviewer() -> None:
+    """Safety routing must keep reviewer independent from the primary agent."""
+    routing = load_routing_graph()
+    telemetry = {
+        "domains": {"safety": {"primary_suggested": "philosophy-agent"}},
+        "agents": {
+            "philosophy-agent": {
+                "stability": "STABLE",
+                "avg_score": 0.3,
+                "meta": {"runs": 8, "decision_REWRITE_REQUIRED": 1},
+            }
+        },
+    }
+    d = route("safety", "test", telemetry=telemetry, routing=routing)
+    assert d.primary == "philosophy-agent"
+    assert d.reviewer == "logic-agent"
+    assert d.reviewer != d.primary
+
+
 def test_route_fallback_canonical_secondary_when_suggested_not_stable() -> None:
     """When suggested_secondary exists but not STABLE, use canonical secondary."""
     routing = load_routing_graph()
@@ -198,7 +220,7 @@ def test_route_escalates_reviewer_on_low_avg_score() -> None:
         },
     }
     d = route("backend", "test", telemetry=telemetry, routing=routing)
-    assert d.reviewer == "architecture-specialist"
+    assert d.reviewer == "security-auditor"
     assert d.rationale["reviewer_reason"] == "primary_avg_score_low"
 
 
@@ -216,7 +238,7 @@ def test_route_escalates_reviewer_on_high_rewrite_rate() -> None:
         },
     }
     d = route("backend", "test", telemetry=telemetry, routing=routing)
-    assert d.reviewer == "architecture-specialist"
+    assert d.reviewer == "security-auditor"
     assert d.rationale["reviewer_reason"] == "primary_rewrite_rate_high"
 
 

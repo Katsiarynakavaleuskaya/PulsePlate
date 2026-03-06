@@ -40,9 +40,21 @@ def test_summary_contains_philosophy_validator_blocker() -> None:
         text=text,
         run_id="fixed_run_id",
         static_scan_docs=False,
+        run_phase="execute",
+        cluster="safety",
+        agents_used=["agent-coordinator", "philosophy-agent"],
+        handoff_count=1,
+        sync_points=1,
+        duration_ms=240,
+        gate_status="pass",
+        retries=0,
+        outcome="pass",
     )
 
+    assert summary["schema_version"] == "2.0"
     assert summary["run_id"] == "fixed_run_id"
+    assert summary["cluster"] == "safety"
+    assert summary["agents_used"] == ["agent-coordinator", "philosophy-agent"]
     assert summary["philosophy_validator"]["ok"] is False
     issues = summary["philosophy_validator"]["issues"]
     assert any(i.get("severity") == "BLOCKER" for i in issues)
@@ -58,7 +70,17 @@ def test_summary_json_is_serializable() -> None:
         text=text,
         run_id=None,
         static_scan_docs=False,
+        run_phase="analyze",
+        cluster="ops",
+        agents_used=["agent-coordinator"],
+        handoff_count=0,
+        sync_points=0,
+        duration_ms=15,
+        gate_status="pass",
+        retries=0,
+        outcome="pass",
     )
     payload = json.dumps(summary, ensure_ascii=False, sort_keys=True)
     assert isinstance(payload, str)
     assert "philosophy_validator" in summary
+    assert summary["gate_status"] == "pass"

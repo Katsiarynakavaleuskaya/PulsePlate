@@ -236,6 +236,100 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### QA Engineer (`qa-engineer-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `RUNBOOK_AGENT.md`
+- `tests/AGENTS.md`
+- nearest touched module `AGENTS.md`
+
+**Must know:**
+
+- Acceptance criteria must map to deterministic commands and artifacts
+- Regression plans must cover both success and fail-closed paths
+
+---
+
+### App Store Release Agent (`app-store-release-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `ios/AGENTS.md`
+- `frontend/AGENTS.md`
+- release/adoption docs for the current task
+
+**Must know:**
+
+- Asset packages must be checklist-driven, not ad-hoc
+- Release metadata must stay aligned with wellness-only positioning
+
+---
+
+### Wellness Analyst (`wellness-analyst-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- `docs/roadmap/BACKLOG_LEDGER.md`
+
+**Must know:**
+
+- No-license / low-capex ideas must include ethics and regulation notes
+- Product framing must stay wellness-first, not medical
+
+---
+
+### Business Strategist (`business-strategist-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `docs/roadmap/BACKLOG_LEDGER.md`
+- growth- and pricing-related docs for the active task
+
+**Must know:**
+
+- Recommendations must include sequencing and tradeoffs, not only ideas
+- Business advice must connect back to current roadmap constraints
+
+---
+
+### Cursor Specialist (`cursor-specialist-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `.cursor/agents/AGENTS.md`
+- `scripts/AGENTS.md`
+- `docs/orchestration/workflow.md`
+- `docs/orchestration/AGENT_CONTEXT_MAP.md`
+
+**Must know:**
+
+- Coordinator-first behavior is command-driven via task bootstrap and preflight
+- Context packs must remain deterministic and scope-aware
+
+---
+
+### Tutor / Mentor (`tutor-mentor-agent`)
+
+**Primary:**
+
+- `AGENTS.md` (root)
+- `RUNBOOK_AGENT.md`
+- nearest module `AGENTS.md` for the topic being explained
+
+**Must know:**
+
+- Explanations must never redefine Source of Truth
+- Training artifacts must separate policy, examples, and open questions
+
+---
+
 ### AI Trend Reporter (`ai-trend-reporter`)
 
 **Primary:**

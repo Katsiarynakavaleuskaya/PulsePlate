@@ -1,9 +1,7 @@
 """Generate deterministic agent run summary artifact (JSON).
 
-Single-path: philosophy_validator + optional static docs scan.
-Exit 0 = PASS, 1 = REWRITE_REQUIRED (BLOCKER or failed static scans).
-
-Run from repo root: python scripts/orchestration/agent_run_summary.py ...
+Operational orchestration metrics are first-class.
+Safety validation remains optional and additive.
 """
 
 from __future__ import annotations
@@ -197,6 +195,15 @@ def build_summary(
     text: str,
     run_id: str | None,
     static_scan_docs: bool,
+    run_phase: str = "execute",
+    cluster: str = "ops",
+    agents_used: list[str] | None = None,
+    handoff_count: int = 0,
+    sync_points: int = 0,
+    duration_ms: int = 0,
+    gate_status: str = "not_run",
+    retries: int = 0,
+    outcome: str = "pass",
 ) -> dict[str, Any]:
     """Build full summary dict (deterministic)."""
     repo_root = _repo_root()
@@ -220,10 +227,20 @@ def build_summary(
     )
 
     return {
+        "schema_version": "2.0",
         "run_id": rid,
         "agent": agent,
         "domain": domain,
+        "cluster": cluster,
         "task_type": task_type,
+        "run_phase": run_phase,
+        "agents_used": sorted(set(agents_used or [agent])),
+        "handoff_count": handoff_count,
+        "sync_points": sync_points,
+        "duration_ms": duration_ms,
+        "gate_status": gate_status,
+        "retries": retries,
+        "outcome": outcome,
         "inputs": {"text_len": len(text)},
         "philosophy_validator": philosophy,
         "static_scans": static_scans,
@@ -239,6 +256,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--agent", required=True)
     p.add_argument("--domain", required=True)
     p.add_argument("--task-type", required=True)
+    p.add_argument("--run-phase", default="execute")
+    p.add_argument("--cluster", default="ops")
+    p.add_argument("--agent-used", action="append", default=[])
+    p.add_argument("--handoff-count", type=int, default=0)
+    p.add_argument("--sync-points", type=int, default=0)
+    p.add_argument("--duration-ms", type=int, default=0)
+    p.add_argument("--gate-status", default="not_run")
+    p.add_argument("--retries", type=int, default=0)
+    p.add_argument("--outcome", default="pass")
     p.add_argument(
         "--run-id",
         default=None,
@@ -270,6 +296,15 @@ def main(argv: list[str] | None = None) -> int:
         text=text,
         run_id=args.run_id,
         static_scan_docs=bool(args.scan_docs),
+        run_phase=args.run_phase,
+        cluster=args.cluster,
+        agents_used=args.agent_used or [args.agent],
+        handoff_count=args.handoff_count,
+        sync_points=args.sync_points,
+        duration_ms=args.duration_ms,
+        gate_status=args.gate_status,
+        retries=args.retries,
+        outcome=args.outcome,
     )
 
     payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True)

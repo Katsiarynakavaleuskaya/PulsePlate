@@ -23,10 +23,14 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | backend-engineer | auto | Backend FastAPI/core implementation with policy and gate compliance | `.cursor/agents/backend-engineer.md` | Backend feature work, API contracts, policy-safe endpoint updates |
 | frontend-engineer | auto | Frontend implementation in PulsePlate style with token SoT and thin-client rules | `.cursor/agents/frontend-engineer.md` | Web UI/features, frontend contract-safe updates |
 | dev-operator | auto | Terminal-first operator for safe command execution and deterministic diagnostics | `.cursor/agents/dev-operator.md` | Local gate runs, failure triage, evidence capture |
+| qa-engineer-agent | auto | Acceptance/regression owner for deterministic verification, release confidence, and independent review | `.cursor/agents/qa-engineer-agent.md` | Release readiness, regression planning, independent reviewer routing |
 | creative-designer | auto | UI/UX design, brand assets, App Store visuals, marketing creatives | `.cursor/agents/creative-designer.md` | Design, visuals, brand assets |
 | designer-artist-agent | auto | Production emblem/logo specialist: drawable SVG geometry + synchronized Figma/Sora/Nano Banana packets | `.cursor/agents/designer-artist-agent.md` | Emblem/logo package production with executable handoff specs |
 | sora-prompt-engineer | auto | Style-locked Sora prompt specs, anti-drift policy, and release QA for generated visual assets | `.cursor/agents/sora-prompt-engineer.md` | Sora prompt frameworks, variation packs, visual QA gates |
+| app-store-release-agent | auto | App Store metadata, screenshot/video packaging, release checklists, and submission readiness | `.cursor/agents/app-store-release-agent.md` | iOS/App Store release prep and packaging |
 | marketing-strategist | auto | ASO/SEO, growth strategy, positioning, conversion optimization | `.cursor/agents/marketing-strategist.md` | Marketing, growth, ASO/SEO |
+| wellness-analyst-agent | auto | Wellness opportunity analysis with low-capex ideas, ethics notes, and no-license entry paths | `.cursor/agents/wellness-analyst-agent.md` | Wellness product scans, easy-entry ideas, ethics framing |
+| business-strategist-agent | auto | Market entry, monetization sequencing, and low-capex business strategy | `.cursor/agents/business-strategist-agent.md` | Business prioritization, market-entry strategy, pricing tradeoffs |
 | ai-trend-reporter | auto | Structured AI market and product reporting across daily/weekly/monthly/quarterly cadences | `.cursor/agents/ai-trend-reporter.md` | Trend reports, wellness AI opportunities, GTM-focused updates |
 | security-auditor | auto | Security reviews, vulnerabilities, threat modeling, compliance checks | `.cursor/agents/security-auditor.md` | Security audits, vulnerability scans |
 | philosophy-agent | auto | Claim semantics, falsifiability, wellness boundaries; blocks unsafe/meaningless claims | `.cursor/agents/philosophy-agent.md` | Safety language, claim quality, “meaning” validation |
@@ -42,6 +46,8 @@ All agents default to `auto`; see `docs/agents/model_policy.md`.
 | cbt-psychologist-agent | auto | CBT-inspired coaching language, safety boundaries (non-therapy) | `.cursor/agents/cbt-psychologist-agent.md` | Habit coaching, psychological safety, disclaimer enforcement |
 | epistemology-discovery-agent | auto | Scientific discovery: falsifiable hypotheses, protocols, negative controls, promotion rules | `.cursor/agents/epistemology-discovery-agent.md` | Research-to-PR conversion, hypothesis/protocol design |
 | physics-sensor-agent | auto | Sensor/physics priors for multimodal robustness and calibration (no “quantum magic”) | `.cursor/agents/physics-sensor-agent.md` | CV/voice robustness, calibration, sensor-grounded UQ |
+| cursor-specialist-agent | auto | Cursor/Codex orchestration ergonomics, task bootstrap, and context-pack hygiene | `.cursor/agents/cursor-specialist-agent.md` | Orchestration tooling and workflow enablement |
+| tutor-mentor-agent | auto | Explainability, onboarding, and training-style guidance without redefining SoT | `.cursor/agents/tutor-mentor-agent.md` | Internal onboarding, explainability, mentoring artifacts |
 
 ---
 
@@ -60,5 +66,5 @@ If an agent file is added/renamed in `.cursor/agents/`, update this index in the
 
 ---
 
-**Last updated:** 2026-02-19 (PR `#817`)
+**Last updated:** 2026-03-07 (PR `#996`)
 **Related:** `AGENTS.md` (Agent Coordination section), `docs/agents/model_policy.md`
