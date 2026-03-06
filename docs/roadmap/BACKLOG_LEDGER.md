@@ -162,6 +162,111 @@ If it is not recorded here — it does not exist.
   - Reason: If an exception is ever needed for a trigger-only mapping, add TTL allowlist (same style as nosec: remove-by, ref); empty by default.
   - DoD: Allowlist file exists (or doc); format documented; guard consults allowlist when present.
 
+### Orchestration governance (wide audit post PR #985, #990)
+
+- [ ] P1: Add canonical orchestration contract matrix for PR governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (docs/orchestration-contract-matrix)
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Rules are split across check_pr_body_phase2_gates.py, check_pr_merge_readiness.py, check_review_threads_disposition.py and AGENTS.md; single source of truth reduces drift.
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `AGENTS.md` (Review Governance)
+  - DoD:
+    - Single doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
+    - Linked from AGENTS.md as canonical orchestration governance reference
+
+- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
+  - Links:
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `AGENTS.md` (Review Governance, Fixed in Commit Mapping)
+  - DoD:
+    - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
+    - PR body optional summary only
+    - Tests updated
+
+- [ ] P1: Document required-check truth for merge (current HEAD only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Merge decision must be based on latest required checks for current HEAD only; cancelled/stale runs ignored to avoid confusion and extra iterations.
+  - Links:
+    - `AGENTS.md` (PR merge readiness)
+    - `scripts/ci/check_pr_merge_readiness.py`
+  - DoD:
+    - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
+    - Referenced from AGENTS.md or orchestration contract doc
+
+- [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required.
+  - Links:
+    - `AGENTS.md` (CI, merge readiness)
+    - `.github/workflows/`
+  - DoD:
+    - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
+    - Examples listed per type
+
+- [ ] P2: Make trigger-only mapping ban path-aware for file-scoped review comments
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: orchestration / review governance
+  - Finding Type: process hardening
+  - Reason: Current empty/rerun checks are heuristic; if thread is file-scoped, mapped SHA should touch same file for stronger proof.
+  - Links:
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `tests/test_review_threads_disposition_strict.py`
+    - `AGENTS.md` (FIXED proof quality)
+  - DoD:
+    - If thread comment is tied to a file path, mapping SHA must change that file
+    - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
+
+- [ ] P2: Replace regex subprocess guard with AST-based multiline and indirection-aware guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: guards / security policy
+  - Finding Type: robustness
+  - Reason: Regex guard can miss multiline subprocess.run/Popen and indirect argv (e.g. cmd = [...]); AST-based scan catches these with low false positives.
+  - Links:
+    - `tests/guards/test_subprocess_uses_absolute_binaries.py`
+    - `AGENTS.md` (subprocess absolute path policy)
+  - DoD:
+    - Guard detects banned binaries when call spans multiple lines
+    - Guard catches simple indirection (e.g. cmd = [...] then subprocess.run(cmd))
+    - Low false positives; no regression on existing codebase
+
+- [ ] P2: Add runbook or CLI helper for resolving review threads
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: operational clarity
+  - Reason: Resolving threads via GraphQL is non-obvious for agents and new contributors; one-command helper or runbook section reduces operator friction.
+  - Links:
+    - `RUNBOOK_AGENT.md`
+    - `scripts/orchestration/check_review_threads_disposition.py`
+  - DoD:
+    - RUNBOOK_AGENT.md section with exact commands for thread resolution, or script scripts/orchestration/resolve_review_threads.py (or equivalent) with documented usage
+
 - [x] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
