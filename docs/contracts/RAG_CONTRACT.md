@@ -115,9 +115,13 @@ def retrieve_context(
     max_hops: int = 1,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> RAGContext:
     ...
 ```
+
+`subject_id` обязателен для любого retrieval из `user_knowledge`. Если `subject_id` отсутствует,
+vector path должен fail-closed и перейти на non-personal fallback, не читая персональный corpus.
 
 ---
 
@@ -164,6 +168,7 @@ MAX_CHUNK_SIZE_CHARS: int = 800
 - `core/rag/vector_rag.py:86` — `_retrieve_vector_postgres()` corpus filtering via parameterized LIKE
 - `core/rag/vector_rag.py:124` — `_retrieve_vector_sqlite()` corpus filtering via parameterized LIKE
 - `core/rag/vector_rag.py:181` — `_retrieve_vector_from_db()` resolves `agent_id` → `corpus_prefixes`
+- `core/rag/vector_rag.py` — vector retrieval from `user_knowledge` requires authenticated `subject_id`; missing subject context must fail closed to non-personal fallback
 - `core/rag/simple_rag.py:157` — Jaccard fallback with `startswith` corpus filtering
 - `app/routers/cbt_insight.py:134` — PRO-gated endpoint using `agent_id="cbt-agent"`
 
@@ -218,6 +223,7 @@ ALTER TABLE user_knowledge ENABLE ROW LEVEL SECURITY;
 Evidence anchors (audit policy: architecture docs must cite `file:line` or mark target-state):
 
 - `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
+- `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py` (subject_id-gated retrieval path), `core/rag/orchestration.py` (subject propagation), `legacy_app.py` (legacy `/insight` safe fallback).
 - `user_knowledge.embedding` изолирован по `user_id` через RLS. **Target-state:** DDL в §7 включает `ENABLE ROW LEVEL SECURITY`; при миграции добавить политику `USING (auth.uid() = user_id)` (или аналог).
 - `rag_feedback.llm_response` не хранится без редактирования (PII). **Target-state:** при реализации записи в `rag_feedback` применять redaction (тот же `core/insight/safety.py` или отдельный redactor) перед сохранением.
 - Rate limit на RAG-эндпоинты (insight) сохраняется. **Evidence:** детерминированные 429-тесты — `tests/test_rate_limit_llm_and_exports_api.py:95-108` (`/api/v1/insight`), `:117-130` (`/insight`); tier-guard — `tests/test_insight_vip_guard_api.py:50-78`.

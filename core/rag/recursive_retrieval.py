@@ -116,6 +116,7 @@ def retrieve_recursive_context_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
     *,
     philo_validation_enabled: bool = False,
 ) -> RAGContext:
@@ -156,6 +157,7 @@ def retrieve_recursive_context_structured(
                 max_chunks=limit,
                 agent_id=agent_id,
                 user_tier=user_tier,
+                subject_id=subject_id,
             )
             if not hop_ctx.chunks:
                 break

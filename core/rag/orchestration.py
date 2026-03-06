@@ -74,6 +74,7 @@ async def retrieve_and_validate_rag(
     *,
     philo_validation_enabled: bool = False,
     recursive_rag_enabled: bool = False,
+    subject_id: int | None = None,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
 
@@ -109,6 +110,7 @@ async def retrieve_and_validate_rag(
             max_chunks,
             philo_validation_enabled,
             recursive_rag_enabled,
+            subject_id,
         )
     except Exception:
         logger.warning(
@@ -123,6 +125,7 @@ async def _run_orchestration(
     max_chunks: int,
     philo_enabled: bool,
     recursive_enabled: bool,
+    subject_id: int | None,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
@@ -135,13 +138,17 @@ async def _run_orchestration(
             retrieve_recursive_context_structured,
             prompt_input,
             max_chunks=max_chunks,
+            subject_id=subject_id,
             philo_validation_enabled=False,
         )
     else:
         from core.rag.vector_rag import retrieve_context_structured
 
         rag_ctx = await asyncio.to_thread(
-            retrieve_context_structured, prompt_input, max_chunks=max_chunks
+            retrieve_context_structured,
+            prompt_input,
+            max_chunks=max_chunks,
+            subject_id=subject_id,
         )
 
     if not rag_ctx.chunks:

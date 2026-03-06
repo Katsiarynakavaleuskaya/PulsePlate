@@ -44,8 +44,10 @@ def _rag_with_medical(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeCtx:
     """Fake RAG returning one medical chunk and one clean chunk."""
+    del subject_id
     return _FakeCtx(
         query=query,
         refined_queries=[query],
@@ -64,8 +66,10 @@ def _rag_all_clean(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeCtx:
     """Fake RAG returning only clean chunks."""
+    del subject_id
     return _FakeCtx(
         query=query,
         refined_queries=[query],
