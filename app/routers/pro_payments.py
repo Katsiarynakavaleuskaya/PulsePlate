@@ -30,6 +30,10 @@ def _issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
     if not api_key:
         return "api_key:anonymous"
+    # RU: Текущий activation store process-local/in-memory, поэтому cross-deploy
+    #     migration старых issuer marker-ов не требуется до появления durable storage.
+    # EN: The current activation store is process-local/in-memory, so cross-deploy
+    #     migration of historical issuer markers is not required until durable storage lands.
     # RU: Используем PBKDF2-based marker без хранения raw API key в module state.
     # EN: Use a PBKDF2-based marker and avoid storing raw API keys in module state.
     marker = compute_secret_marker(api_key, truncate=32)

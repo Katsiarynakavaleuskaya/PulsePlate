@@ -217,6 +217,32 @@ def test_secret_marker_empty_secret_returns_empty_string() -> None:
     assert fingerprint_security.compute_secret_marker("", truncate=16) == ""
 
 
+def test_secret_marker_truncate_zero_returns_full_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """truncate=0 should return the full PBKDF2-HMAC-SHA256 hex digest."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-a")
+    fingerprint_security._get_salt.cache_clear()
+
+    digest = fingerprint_security.compute_secret_marker("api-key-123", truncate=0)
+
+    assert len(digest) == 64
+    fingerprint_security._get_salt.cache_clear()
+
+
+def test_secret_marker_truncate_larger_than_digest_returns_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Large truncate values should still return the full digest."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-a")
+    fingerprint_security._get_salt.cache_clear()
+
+    digest = fingerprint_security.compute_secret_marker("api-key-123", truncate=9999)
+
+    assert len(digest) == 64
+    fingerprint_security._get_salt.cache_clear()
+
+
 def test_secret_marker_negative_truncate_raises_value_error() -> None:
     """Negative truncate must fail fast for secret markers too."""
     with pytest.raises(ValueError, match=r"truncate must be non-negative, got -1"):
