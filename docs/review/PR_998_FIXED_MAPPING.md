@@ -5,4 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982862 -> f0dfde4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982870 -> f0dfde4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982871 -> f0dfde4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982873 -> f0dfde4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906158202 -> f0dfde4f
