@@ -201,7 +201,7 @@ import "./index.css";
 7. If Figma activation is blocked by seat/plan, fall back to
    `docs/design/PENPOT_STORYBOOK_BRIDGE.md` instead of inventing fake node IDs
    or fake Code Connect mappings.
-8. If runtime/file type does not support screenshot, proceed with context +
+8. If runtime/file type does not support screenshots, proceed with context +
    metadata and document the limitation.
 
 ## Quick Validation Checklist
