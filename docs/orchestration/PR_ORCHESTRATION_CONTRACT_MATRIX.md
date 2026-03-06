@@ -18,7 +18,7 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 | 3     | Latest CI run for current HEAD          | merge decision                 |
 | 4     | PR body                                 | human-readable mirror only     |
 
-Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestration/review_mapping_artifact.py:23`, `scripts/ci/check_pr_body_phase2_gates.py:13`, `scripts/ci/check_pr_merge_readiness.py:22`, `scripts/orchestration/check_review_threads_disposition.py:25`; Level 4 — PR body mirror (`AGENTS.md:39`).
+Evidence: Level 2 — this doc + `AGENTS.md:39` (merge checklist), `:102` (Fixed in Commit Mapping), `:435` (mapping validation); Level 2a — `scripts/orchestration/review_mapping_artifact.py:27`, `scripts/ci/check_pr_body_phase2_gates.py:13`, `scripts/ci/check_pr_merge_readiness.py:22`, `scripts/orchestration/check_review_threads_disposition.py:32`; Level 4 — PR body mirror (`AGENTS.md:39`).
 
 ## 3. Governance Phases
 
@@ -31,9 +31,9 @@ Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestratio
 
 ## 4. Phase 2 Contract (Canonical Artifact)
 
-Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body **must mirror** the same sections (`## Discussion Thread Pass`, `## Fixed in Commit Mapping`) as fallback when event has no pr_number; artifact-first when pr_number is available. Fallback is temporary; removal tracked in backlog.
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body **must mirror** the same sections (`## Discussion Thread Pass`, `## Fixed in Commit Mapping` or `### Fixed in Commit Mapping`) as fallback when event has no pr_number; artifact-first when pr_number is available. Fallback is temporary; removal tracked in `docs/roadmap/BACKLOG_LEDGER.md` (P1 Fixed Mapping SoT item); ADR exit criteria: artifact-only path when pr_number always available in CI.
 
-Required sections in artifact:
+Required sections (artifact and PR-body mirror):
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
@@ -44,7 +44,7 @@ Valid mapping forms:
 - `- <url> -> <sha>`
 - `- No actionable review comments`
 
-Evidence: `scripts/orchestration/review_mapping_artifact.py` (read, extract, validate), `scripts/ci/check_pr_body_phase2_gates.py` (artifact-first when pr_number from event).
+Evidence: `scripts/orchestration/review_mapping_artifact.py:44` (read), `:84` (extract), `:110` (validate); `scripts/ci/check_pr_body_phase2_gates.py:162` (artifact-first), `:169` (read_mapping_artifact when pr_number from event).
 
 ## 5. Merge Readiness Contract
 
