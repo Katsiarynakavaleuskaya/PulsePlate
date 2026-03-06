@@ -669,6 +669,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session Status
+         * @description Return current auth source and tier for PRO/VIP session.
+         */
+        get: operations["get_session_status_api_v1_pro_session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/session/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange Session Cookie
+         * @description Exchange authenticated PRO/VIP session into hardened HttpOnly cookie.
+         */
+        post: operations["exchange_session_cookie_api_v1_pro_session_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/session/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout Session
+         * @description Logout by clearing session cookie (idempotent).
+         */
+        post: operations["logout_session_api_v1_pro_session_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/session/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Session Cookie
+         * @description Refresh session cookie for currently authenticated PRO/VIP principal.
+         */
+        post: operations["refresh_session_cookie_api_v1_pro_session_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/shoplist/day": {
         parameters: {
             query?: never;
@@ -3781,6 +3861,93 @@ export interface components {
             warnings: string[];
         };
         /**
+         * SessionExchangeResponse
+         * @description Exchange/refresh response contract.
+         */
+        SessionExchangeResponse: {
+            /**
+             * Auth Source
+             * @description Authentication source used for this request
+             * @enum {string}
+             */
+            auth_source: "header" | "cookie";
+            /**
+             * Expires At Epoch
+             * @description Session expiry Unix epoch (UTC)
+             */
+            expires_at_epoch: number;
+            /**
+             * Status
+             * @default ok
+             * @constant
+             */
+            status: "ok";
+            /**
+             * Tier
+             * @description Resolved tier stored in session cookie
+             * @enum {string}
+             */
+            tier: "PRO" | "VIP";
+            /**
+             * Ttl Seconds
+             * @description Session TTL in seconds
+             */
+            ttl_seconds: number;
+        };
+        /**
+         * SessionLogoutResponse
+         * @description Logout response contract.
+         */
+        SessionLogoutResponse: {
+            /**
+             * Logged Out
+             * @default true
+             * @constant
+             */
+            logged_out: true;
+            /**
+             * Status
+             * @default ok
+             * @constant
+             */
+            status: "ok";
+        };
+        /**
+         * SessionStatusResponse
+         * @description Session status response contract.
+         */
+        SessionStatusResponse: {
+            /**
+             * Auth Source
+             * @description Current authentication source
+             * @enum {string}
+             */
+            auth_source: "header" | "cookie";
+            /**
+             * Authenticated
+             * @default true
+             * @constant
+             */
+            authenticated: true;
+            /**
+             * Expires At Epoch
+             * @description Cookie expiry Unix epoch (UTC), null when header auth is used
+             */
+            expires_at_epoch?: number | null;
+            /**
+             * Status
+             * @default ok
+             * @constant
+             */
+            status: "ok";
+            /**
+             * Tier
+             * @description Current authenticated tier
+             * @enum {string}
+             */
+            tier: "PRO" | "VIP";
+        };
+        /**
          * ShopAisle
          * @description Stable aisle/category for iOS (do not rename; only extend).
          *
@@ -5908,6 +6075,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartnerOrderErrorResponse"];
+                };
+            };
+        };
+    };
+    get_session_status_api_v1_pro_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionStatusResponse"];
+                };
+            };
+        };
+    };
+    exchange_session_cookie_api_v1_pro_session_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionExchangeResponse"];
+                };
+            };
+        };
+    };
+    logout_session_api_v1_pro_session_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionLogoutResponse"];
+                };
+            };
+        };
+    };
+    refresh_session_cookie_api_v1_pro_session_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionExchangeResponse"];
                 };
             };
         };
