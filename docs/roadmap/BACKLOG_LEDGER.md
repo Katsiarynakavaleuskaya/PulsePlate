@@ -112,19 +112,20 @@ If it is not recorded here — it does not exist.
     - workflow.md updated with required step
     - No regression in pre-flight runtime
 
-- [ ] P2: Subprocess guard — multiline subprocess.run/Popen detection
+- [ ] P2: Subprocess guard — multiline and indirection-aware (AST-based) detection
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR-TBD
   - Area: guards / security policy
   - Finding Type: optional improvement (Cubic suggestion)
-  - Reason: Current guard scans single-line subprocess calls; multiline invocations (e.g. `subprocess.run([\n  "gh", ...])`) may escape detection. Extend guard to multiline or AST-based scan.
+  - Reason: Current guard scans single-line subprocess calls; multiline invocations (e.g. `subprocess.run([\n  "gh", ...])`) and simple indirection (e.g. `cmd = [...]` then `subprocess.run(cmd)`) may escape detection. Extend to multiline or AST-based scan.
   - Links:
     - `tests/guards/test_subprocess_uses_absolute_binaries.py`
     - `AGENTS.md` (subprocess absolute path policy)
   - DoD:
     - Guard detects banned binaries when call spans multiple lines, or document limitation
-    - No false negatives on existing codebase
+    - Guard catches simple indirection (e.g. cmd = [...] then subprocess.run(cmd)); AST-based scan preferred
+    - Success criterion: no new failures on current main; no false negatives on existing codebase
 
 - [ ] P1: Disposition guard — ban mapping to trigger-only commits
   - Owner: @katsiaryna_kavaleuskaya
@@ -172,12 +173,13 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Rules are split across check_pr_body_phase2_gates.py, check_pr_merge_readiness.py, check_review_threads_disposition.py and AGENTS.md; single source of truth reduces drift.
   - Links:
-    - `scripts/ci/check_pr_body_phase2_gates.py`
-    - `scripts/ci/check_pr_merge_readiness.py`
-    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `scripts/ci/check_pr_body_phase2_gates.py:11` (Phase 2 contract config)
+    - `scripts/ci/check_pr_merge_readiness.py` (merge readiness logic)
+    - `scripts/orchestration/check_review_threads_disposition.py` (disposition proof)
     - `AGENTS.md` (Review Governance)
   - DoD:
-    - Single doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
+    - Single doc (e.g. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md) is the canonical SoT; AGENTS.md only links to it
+    - Doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
     - Linked from AGENTS.md as canonical orchestration governance reference
 
 - [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
@@ -205,10 +207,10 @@ If it is not recorded here — it does not exist.
   - Reason: Merge decision must be based on latest required checks for current HEAD only; cancelled/stale runs ignored to avoid confusion and extra iterations.
   - Links:
     - `AGENTS.md` (PR merge readiness)
-    - `scripts/ci/check_pr_merge_readiness.py`
+    - `scripts/ci/check_pr_merge_readiness.py` (merge-readiness gate)
   - DoD:
     - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
-    - Referenced from AGENTS.md or orchestration contract doc
+    - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
 
 - [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
@@ -238,21 +240,6 @@ If it is not recorded here — it does not exist.
   - DoD:
     - If thread comment is tied to a file path, mapping SHA must change that file
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
-
-- [ ] P2: Replace regex subprocess guard with AST-based multiline and indirection-aware guard
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD
-  - Area: guards / security policy
-  - Finding Type: robustness
-  - Reason: Regex guard can miss multiline subprocess.run/Popen and indirect argv (e.g. cmd = [...]); AST-based scan catches these with low false positives.
-  - Links:
-    - `tests/guards/test_subprocess_uses_absolute_binaries.py`
-    - `AGENTS.md` (subprocess absolute path policy)
-  - DoD:
-    - Guard detects banned binaries when call spans multiple lines
-    - Guard catches simple indirection (e.g. cmd = [...] then subprocess.run(cmd))
-    - Low false positives; no regression on existing codebase
 
 - [ ] P2: Add runbook or CLI helper for resolving review threads
   - Owner: @katsiaryna_kavaleuskaya
