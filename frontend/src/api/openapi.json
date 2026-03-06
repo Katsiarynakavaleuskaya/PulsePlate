@@ -1809,6 +1809,18 @@
             "title": "Insight",
             "type": "string"
           },
+          "mode": {
+            "default": "auto-safe",
+            "description": "Resolved agent execution mode",
+            "title": "Mode",
+            "type": "string"
+          },
+          "quota_state": {
+            "default": "not_consumed",
+            "description": "Monthly quota state before provider call",
+            "title": "Quota State",
+            "type": "string"
+          },
           "rag_used": {
             "default": false,
             "description": "Whether RAG context was used",
@@ -1821,6 +1833,20 @@
               "$ref": "#/components/schemas/CBTSourceItem"
             },
             "title": "Sources",
+            "type": "array"
+          },
+          "uncertainty": {
+            "default": 1.0,
+            "description": "Uncertainty score derived from confidence",
+            "title": "Uncertainty",
+            "type": "number"
+          },
+          "warnings": {
+            "description": "Operational or retrieval warnings",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
             "type": "array"
           }
         },
