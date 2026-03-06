@@ -17,4 +17,5 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898018197 -> b4fa262d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898018201 -> b4fa262d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898018204 -> b4fa262d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898120167 -> 2dd46aaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898120167 -> 8718f2e1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906305306 -> 22bc6ed5
