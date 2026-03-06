@@ -53,6 +53,8 @@ _GIT_TIMEOUT_SEC = 15
 
 # Mapping line: "- https://... -> sha" or "- https://...#anchor -> sha"
 _MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
+# Relaxed: match mapping-like lines to validate SHA (catches "- url -> notasha")
+_MAPPING_LINE_RELAXED_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*(\S+)", re.IGNORECASE)
 
 
 def _gh_path() -> str:
@@ -298,10 +300,13 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
     Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
     (Commit/Evidence/Backlog) nearby (±12 lines). Scan only lines containing this thread URL
     so one mapping does not satisfy multiple threads (CodeRabbit/Sourcery/Cubic).
+    Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
     lines = section.splitlines()
+    # URL must not be followed by alphanumeric (avoids discussion_r1 matching discussion_r10)
+    url_pattern = re.escape(url) + r"(?![0-9a-zA-Z])"
     for i, line in enumerate(lines):
-        if url in line:
+        if re.search(url_pattern, line):
             start = max(0, i - 12)
             end = min(len(lines), i + 13)
             window = "\n".join(lines[start:end])
@@ -459,15 +464,17 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Reject invalid FIXED mappings (regex-valid SHA) before proceeding
-    mapping = _parse_mapping_section(section)
-    for url, sha in mapping.items():
-        if not _GIT_SHA_RE.match(sha):
-            print(
-                f"ERROR: Invalid FIXED mapping in artifact: {url} -> {sha!r} "
-                "(SHA must be 7–40 hex chars)"
-            )
-            sys.exit(1)
+    # Reject invalid FIXED mappings: validate raw section for any "- url -> X" lines
+    for line in section.splitlines():
+        m = _MAPPING_LINE_RELAXED_RE.search(line.strip())
+        if m:
+            url_part, sha_part = m.group(1), m.group(2).strip()
+            if not _GIT_SHA_RE.match(sha_part):
+                print(
+                    f"ERROR: Invalid FIXED mapping in artifact: {url_part} -> {sha_part!r} "
+                    "(SHA must be 7–40 hex chars)"
+                )
+                sys.exit(1)
 
     resolved_threads = _collect_resolved_threads(pr_number)
 
@@ -479,7 +486,8 @@ def main() -> None:
     missing_disposition: list[str] = []
 
     for t in resolved_threads:
-        if t.url not in section:
+        # Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs r10)
+        if not re.search(re.escape(t.url) + r"(?![0-9a-zA-Z])", section):
             missing_refs.append(t.url)
             continue
         if not _find_disposition_block_in_section(section, t.url):
