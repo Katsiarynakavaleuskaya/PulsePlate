@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
-from app.main import app
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.routers.api_key import api_key_header
 
@@ -19,7 +19,7 @@ LEGACY_HTTP_ALIAS_ALLOWLIST = {
 }
 
 
-def _load_routes() -> list[APIRoute]:
+def _load_routes(app: FastAPI) -> list[APIRoute]:
     return [route for route in app.routes if isinstance(route, APIRoute)]
 
 
@@ -52,8 +52,8 @@ def _canonical_pro_vip_routes(routes: list[APIRoute]) -> list[APIRoute]:
     return canonical
 
 
-def test_canonical_pro_vip_routes_require_expected_tier_dependency() -> None:
-    routes = _canonical_pro_vip_routes(_load_routes())
+def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI) -> None:
+    routes = _canonical_pro_vip_routes(_load_routes(app))
     missing_guards: list[str] = []
     saw_prefixes = {prefix: False for prefix in CANONICAL_PREFIX_GUARD}
 
@@ -81,10 +81,10 @@ def test_canonical_pro_vip_routes_require_expected_tier_dependency() -> None:
     )
 
 
-def test_canonical_vip_routes_keep_api_key_header_dependency() -> None:
+def test_canonical_vip_routes_keep_api_key_header_dependency(app: FastAPI) -> None:
     routes = [
         route
-        for route in _canonical_pro_vip_routes(_load_routes())
+        for route in _canonical_pro_vip_routes(_load_routes(app))
         if route.path.startswith("/api/v1/vip/")
     ]
     missing_header: list[str] = []
@@ -100,8 +100,10 @@ def test_canonical_vip_routes_keep_api_key_header_dependency() -> None:
     )
 
 
-def test_legacy_vip_weekly_plan_alias_is_deprecated_and_not_treated_as_canonical() -> None:
-    routes = _load_routes()
+def test_legacy_vip_weekly_plan_alias_is_deprecated_and_not_treated_as_canonical(
+    app: FastAPI,
+) -> None:
+    routes = _load_routes(app)
     alias_route = next(
         route
         for route in routes
@@ -116,8 +118,8 @@ def test_legacy_vip_weekly_plan_alias_is_deprecated_and_not_treated_as_canonical
     assert api_key_header in flattened_calls
 
 
-def test_legacy_http_alias_allowlist_matches_deprecated_routes() -> None:
-    routes = _load_routes()
+def test_legacy_http_alias_allowlist_matches_deprecated_routes(app: FastAPI) -> None:
+    routes = _load_routes(app)
 
     for method, path in LEGACY_HTTP_ALIAS_ALLOWLIST:
         matching_routes = [
