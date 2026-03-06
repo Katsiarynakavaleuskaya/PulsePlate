@@ -183,21 +183,22 @@ If it is not recorded here — it does not exist.
     - Linked from AGENTS.md as canonical orchestration governance reference
   - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
-- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD
+  - Target PR: PR-TBD (branch: fix/orch-move-fixed-mapping-sot-to-repo-file)
+  - Status: In progress (PR not yet opened)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
-    - `scripts/ci/check_pr_merge_readiness.py:352` (mapped_urls), `:362` (unmapped check)
-    - `scripts/orchestration/check_review_threads_disposition.py:296` (mapping section), `:518` (trigger-only guard)
-    - `AGENTS.md:418` (Fixed in Commit Mapping), `:42` (Review Governance)
+    - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
+    - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
   - DoD:
-    - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
-    - PR body optional summary only
-    - Tests updated
+    - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - [x] PR body optional summary/mirror only
+    - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya

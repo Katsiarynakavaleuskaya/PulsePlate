@@ -187,3 +187,25 @@ def test_extract_pr_body_returns_empty_on_invalid_json(tmp_path: Path) -> None:
     payload_path.write_text("not valid json", encoding="utf-8")
     result = gates._extract_pr_body(payload_path)
     assert result == ""
+
+
+def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
+    """When event has pr_number, Phase2 reads canonical artifact (PR 998 exists in repo)."""
+    import subprocess
+
+    event = {"pull_request": {"number": 998, "body": "minimal"}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            "python",
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0
+    assert "canonical mapping artifact passed" in result.stdout
