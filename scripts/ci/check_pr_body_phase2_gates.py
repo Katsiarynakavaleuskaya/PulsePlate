@@ -36,10 +36,10 @@ def _checkbox_re(label: str) -> re.Pattern[str]:
     return re.compile(rf"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*{escaped}\s*$")
 
 
-DISCUSSION_SECTION_RE = _section_heading_re("##", PHASE2_CONFIG["discussion_heading"])
-MAPPING_SECTION_RE = _section_heading_re("###", PHASE2_CONFIG["mapping_heading"])
-DISCUSSION_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["discussion_checkbox_label"])
-MAPPING_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["mapping_checkbox_label"])
+DISCUSSION_SECTION_RE = _section_heading_re("##", str(PHASE2_CONFIG["discussion_heading"]))
+MAPPING_SECTION_RE = _section_heading_re("###", str(PHASE2_CONFIG["mapping_heading"]))
+DISCUSSION_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["discussion_checkbox_label"]))
+MAPPING_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["mapping_checkbox_label"]))
 
 MAPPING_ENTRY_RE = re.compile(
     r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?([0-9a-f]{7,40})`?\s*$"
