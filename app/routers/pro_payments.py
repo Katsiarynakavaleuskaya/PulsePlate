@@ -30,8 +30,8 @@ def _issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
     if not api_key:
         return "api_key:anonymous"
-    # RU: Используем солёный blake2 fingerprint без хранения raw API key в памяти.
-    # EN: Use salted blake2 fingerprint and avoid storing raw API keys in module state.
+    # RU: Используем солёный fingerprint без хранения raw API key в памяти.
+    # EN: Use a salted fingerprint and avoid storing raw API keys in module state.
     marker = compute_fingerprint(api_key, truncate=32)
     return f"api_key:{marker}"
 

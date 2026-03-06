@@ -21,6 +21,18 @@ def test_fingerprint_uses_env_salt(monkeypatch: pytest.MonkeyPatch) -> None:
     fingerprint_security._get_salt.cache_clear()
 
 
+def test_fingerprint_changes_when_source_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Different inputs must produce different pseudonymous fingerprints."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "stable-salt")
+    fingerprint_security._get_salt.cache_clear()
+
+    first = fingerprint_security.compute_fingerprint("client-ip-a", truncate=16)
+    second = fingerprint_security.compute_fingerprint("client-ip-b", truncate=16)
+
+    assert first != second
+    fingerprint_security._get_salt.cache_clear()
+
+
 def test_fingerprint_creates_salt_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When no env salt is provided, module should create/read a salt file."""
     salt_file = tmp_path / "salt.txt"
@@ -109,9 +121,8 @@ def test_fingerprint_empty_source_returns_empty_string() -> None:
 
 
 def test_fingerprint_truncate_zero_returns_full_digest() -> None:
-    """truncate=0 should return full blake2s hex digest (64 chars)."""
+    """truncate=0 should return the full HMAC-SHA256 hex digest."""
     fp = fingerprint_security.compute_fingerprint("test-data", truncate=0)
-    # blake2s produces 32-byte digest, hexdigest is 64 characters
     assert len(fp) == 64
     assert isinstance(fp, str)
 
@@ -127,7 +138,6 @@ def test_fingerprint_negative_truncate_raises_value_error() -> None:
 
 def test_fingerprint_truncate_larger_than_digest_returns_full() -> None:
     """truncate larger than digest length should return full digest (64 chars)."""
-    # blake2s hexdigest is 64 chars, request 100
     fp = fingerprint_security.compute_fingerprint("test-data", truncate=100)
     assert len(fp) == 64  # Returns full digest, not padded
 
@@ -136,17 +146,18 @@ def test_fingerprint_truncate_larger_than_digest_returns_full() -> None:
     assert len(fp_large) == 64
 
 
-def test_fingerprint_long_salt_hashed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Salt longer than 32 bytes is hashed before use in blake2s."""
-    # Force a very long salt via environment
+def test_fingerprint_long_salt_is_supported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Long salts remain supported and deterministic."""
     long_salt = "a" * 100
 
     monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, long_salt)
     fingerprint_security._get_salt.cache_clear()
 
-    fp = fingerprint_security.compute_fingerprint("test-source", truncate=12)
-    assert isinstance(fp, str)
-    assert len(fp) == 12
+    first = fingerprint_security.compute_fingerprint("test-source", truncate=12)
+    second = fingerprint_security.compute_fingerprint("test-source", truncate=12)
+    assert isinstance(first, str)
+    assert len(first) == 12
+    assert first == second
     fingerprint_security._get_salt.cache_clear()
 
 

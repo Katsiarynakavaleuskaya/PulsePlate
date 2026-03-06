@@ -11,12 +11,13 @@ fails or is disabled), a process-local salt is generated as a last-resort fallba
 Note that this process-local salt is NOT persisted across restarts, so fingerprints
 will not be stable between processes unless a persistent salt is provided via
 environment variable or a successfully written cache file. The fallback salt
-provides 256-bit (32-byte) entropy for enhanced Blake2s keyed-hash security.
+provides 256-bit (32-byte) entropy for HMAC-SHA256 pseudonymous hashing.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -74,43 +75,30 @@ def _load_salt_from_file(path: Path) -> str | None:
     same stable salt being used process-wide via lru_cache.
     """
     try:
-        # Try reading existing salt first
         if path.exists():
             saved = _read_salt(path)
             if saved:
                 return saved
 
-        # Ensure parent directory exists
         _ensure_dir_and_perms(path)
+        generated = secrets.token_hex(32)
 
-        # Generate new salt
-        generated = secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
-
-        # Try exclusive write (creates file only if it doesn't exist)
         if _write_salt_exclusive(path, generated):
-            # Successfully created file, set permissions and return
             _ensure_dir_and_perms(path)
             return generated
 
-        # File was created by another process - try reading it
         saved = _read_salt(path)
         if saved:
             return saved
 
-        # File exists but is empty - attempt to persist generated salt for stability
-        # Note: Race condition possible here; first writer wins, losers will
-        # read their value on next restart. Acceptable for this use case.
         try:
             path.write_text(generated)
         except (OSError, IOError, PermissionError):
-            # If we cannot write, still return the generated value
-            # (process-stable via caller cache)
             logger.debug("Could not persist fingerprint salt", exc_info=True)
 
         _ensure_dir_and_perms(path)
         return generated
     except (OSError, IOError, PermissionError):
-        # Fallback handled by caller - return None if we cannot access filesystem
         return None
 
 
@@ -118,7 +106,7 @@ def _load_salt_from_file(path: Path) -> str | None:
 def _get_salt() -> str:
     """Return a secret salt used for pseudonymous hashing.
 
-    Provides 256-bit (32-byte) entropy for Blake2s keyed-hash security
+    Provides 256-bit (32-byte) entropy for HMAC-SHA256 keyed hashing
     when using fallback generation.
     """
     env_salt = os.getenv(SALT_ENV_VAR)
@@ -130,13 +118,13 @@ def _get_salt() -> str:
     if file_salt:
         return file_salt
 
-    # Last-resort fallback; keeps process-stable but not persisted
-    # Provides 256-bit (32-byte) entropy for Blake2s keyed-hash security
-    return secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
+    # Last-resort fallback; keeps process-stable but not persisted.
+    # Provides 256-bit (32-byte) entropy for HMAC-SHA256 keyed hashing.
+    return secrets.token_hex(32)
 
 
 def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
-    """Return a pseudonymous fingerprint for the given identifier."""
+    """Return a salted pseudonymous fingerprint for the given identifier."""
     if not source:
         return ""
 
@@ -144,12 +132,8 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
         raise ValueError(f"truncate must be non-negative, got {truncate}")
 
     salt = _get_salt().encode("utf-8")
-    # Blake2s key is limited to 32 bytes; hash longer salts
-    if len(salt) > 32:
-        salt = hashlib.blake2s(salt, digest_size=32).digest()
     data = source.encode("utf-8")
-
-    digest = hashlib.blake2s(data, key=salt).hexdigest()
+    digest = hmac.new(salt, data, hashlib.sha256).hexdigest()
     length = truncate if truncate > 0 else len(digest)
     return digest[:length]
 
@@ -194,34 +178,27 @@ def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
     """
     import ipaddress
 
-    # Load trusted proxies from config/env
     trusted_proxies_str = os.getenv("TRUSTED_PROXIES", "")
     trusted_proxies = {proxy.strip() for proxy in trusted_proxies_str.split(",") if proxy.strip()}
 
-    # Get the immediate remote host
     remote_host = request.client.host if request.client else ""
 
-    # Determine the source IP based on trusted proxy configuration
     source = remote_host
     if remote_host in trusted_proxies:
-        # Only trust X-Forwarded-For when the immediate remote host is a trusted proxy
         forwarded_for = request.headers.get("x-forwarded-for", "")
         if forwarded_for:
-            # Split and strip the X-Forwarded-For header to get the client IP
             forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
             if forwarded_ips:
-                # Validate the first IP syntactically
                 try:
                     ipaddress.ip_address(forwarded_ips[0])
                     source = forwarded_ips[0]
                 except ValueError:
-                    # Ignore malformed IP addresses
                     pass
 
     if not source:
         return None
     # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
-    # Uses secure salt storage - see core.fingerprint_security for details
+    # Uses secure salt storage - see core.fingerprint_security for details.
     return compute_fingerprint(source)
 
 
