@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from typing import Any
 
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
+from app.main import app
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.routers.api_key import api_key_header
 
@@ -20,11 +20,6 @@ LEGACY_HTTP_ALIAS_ALLOWLIST = {
 
 
 def _load_routes() -> list[APIRoute]:
-    os.environ.setdefault("VIP_MODULE_ENABLED", "1")
-    os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "0")
-
-    from app.main import app
-
     return [route for route in app.routes if isinstance(route, APIRoute)]
 
 
@@ -119,3 +114,20 @@ def test_legacy_vip_weekly_plan_alias_is_deprecated_and_not_treated_as_canonical
     assert ("POST", alias_route.path) in LEGACY_HTTP_ALIAS_ALLOWLIST
     assert require_vip_tier not in flattened_calls
     assert api_key_header in flattened_calls
+
+
+def test_legacy_http_alias_allowlist_matches_deprecated_routes() -> None:
+    routes = _load_routes()
+
+    for method, path in LEGACY_HTTP_ALIAS_ALLOWLIST:
+        matching_routes = [
+            route
+            for route in routes
+            if path in {route.path, getattr(route, "path_format", route.path)}
+            and method in (route.methods or set())
+            and bool(getattr(route, "deprecated", False))
+        ]
+        assert matching_routes, (
+            f"LEGACY_HTTP_ALIAS_ALLOWLIST entry ({method} {path}) does not map "
+            "to any deprecated alias route in the live router table"
+        )
