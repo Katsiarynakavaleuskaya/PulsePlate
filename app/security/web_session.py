@@ -1,4 +1,4 @@
-"""Stateless web session cookie helpers (HMAC-BLAKE2s, fail-closed).
+"""Stateless web session cookie helpers (PBKDF2-HMAC signature, fail-closed).
 
 RU: Stateless web session cookie для PRO/VIP web-потока.
 EN: Stateless web session cookie for PRO/VIP web flow.
@@ -24,6 +24,7 @@ WEB_SESSION_TTL_ENV = "WEB_SESSION_TTL_SECONDS"
 DEFAULT_WEB_SESSION_TTL_SECONDS = 60 * 60 * 12  # 12h
 _COOKIE_PATH = "/"
 _COOKIE_SAMESITE: Literal["lax"] = "lax"
+_SESSION_SIGNATURE_ITERATIONS = 20_000
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,19 @@ def _normalized_tier(raw_tier: str) -> str:
     return tier
 
 
+def _sign_payload(*, payload_b64: str, secret: str | None = None) -> str:
+    """Return deterministic PBKDF2-HMAC signature for payload string."""
+
+    key = _derive_session_hmac_key(secret)
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        payload_b64.encode("ascii"),
+        key,
+        _SESSION_SIGNATURE_ITERATIONS,
+        dklen=32,
+    ).hex()
+
+
 def issue_web_session(
     *,
     api_key: str,
@@ -135,11 +149,7 @@ def issue_web_session(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
     payload_b64 = _b64url_encode(payload_bytes)
-    signature = hmac.new(
-        _derive_session_hmac_key(secret),
-        payload_b64.encode("ascii"),
-        hashlib.blake2s,
-    ).hexdigest()
+    signature = _sign_payload(payload_b64=payload_b64, secret=secret)
 
     return IssuedWebSession(token=f"{payload_b64}.{signature}", claims=claims)
 
@@ -164,11 +174,7 @@ def verify_web_session(
     if not payload_b64 or not signature:
         return None
 
-    expected_sig = hmac.new(
-        _derive_session_hmac_key(secret),
-        payload_b64.encode("ascii"),
-        hashlib.blake2s,
-    ).hexdigest()
+    expected_sig = _sign_payload(payload_b64=payload_b64, secret=secret)
     if not hmac.compare_digest(expected_sig, signature):
         return None
 

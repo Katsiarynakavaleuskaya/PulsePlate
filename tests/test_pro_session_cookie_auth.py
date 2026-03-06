@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
+from httpx import Response as HTTPXResponse
 from starlette.requests import Request
 
 import app.routers.pro_session as pro_session_mod
@@ -32,7 +34,7 @@ def isolated_client() -> TestClient:
         yield test_client
 
 
-def _assert_json_response(response) -> dict:
+def _assert_json_response(response: HTTPXResponse) -> dict[str, Any]:
     """Assert JSON content type before parsing response body."""
 
     content_type = response.headers.get("content-type", "").lower()

@@ -335,6 +335,18 @@ class TestRequireProTier:
             require_pro_tier(x_api_key="invalid_key", request=request)
         assert exc_info.value.status_code == 403
 
+    def test_empty_header_rejected_even_with_valid_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test empty X-API-Key header does not fall back to cookie auth."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_tier(x_api_key="   ", request=request)
+        assert exc_info.value.status_code == 403
+
     def test_cookie_verifier_runtime_error_fails_closed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -414,6 +426,18 @@ class TestRequireVIPTier:
 
         with pytest.raises(HTTPException) as exc_info:
             require_vip_tier(x_api_key=None, request=request)
+        assert exc_info.value.status_code == 403
+
+    def test_empty_header_rejected_for_vip_even_with_valid_cookie(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test empty X-API-Key header does not bypass VIP guard via cookie fallback."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
+        request = _request_with_cookie(issued.token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_vip_tier(x_api_key=" ", request=request)
         assert exc_info.value.status_code == 403
 
 

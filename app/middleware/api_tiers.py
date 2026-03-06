@@ -317,9 +317,16 @@ def resolve_pro_auth_context(
     """Resolve PRO auth using header-first precedence, then cookie fallback."""
 
     request_obj = _as_request(request)
-    if x_api_key:
+    if x_api_key is not None:
+        normalized_api_key = x_api_key.strip()
+        if not normalized_api_key:
+            logger.warning("Empty X-API-Key header is not allowed for PRO tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have PRO tier access",
+            )
         resolved_tier = _resolve_authorized_api_key_tier(
-            x_api_key,
+            normalized_api_key,
             required_tier=SubscriptionTier.PRO,
         )
         if resolved_tier is None:
@@ -329,7 +336,7 @@ def resolve_pro_auth_context(
                 detail="API key does not have PRO tier access",
             )
         return TierAuthContext(
-            api_key=x_api_key,
+            api_key=normalized_api_key,
             tier=resolved_tier,
             source=AuthSource.HEADER,
         )
@@ -357,9 +364,16 @@ def resolve_vip_auth_context(
     """Resolve VIP auth using header-first precedence, then cookie fallback."""
 
     request_obj = _as_request(request)
-    if x_api_key:
+    if x_api_key is not None:
+        normalized_api_key = x_api_key.strip()
+        if not normalized_api_key:
+            logger.warning("Empty X-API-Key header is not allowed for VIP tier")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
+            )
         resolved_tier = _resolve_authorized_api_key_tier(
-            x_api_key,
+            normalized_api_key,
             required_tier=SubscriptionTier.VIP,
         )
         if resolved_tier is None:
@@ -369,7 +383,7 @@ def resolve_vip_auth_context(
                 detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
             )
         return TierAuthContext(
-            api_key=x_api_key,
+            api_key=normalized_api_key,
             tier=resolved_tier,
             source=AuthSource.HEADER,
         )
