@@ -101,7 +101,7 @@ Evidence: enforced via workflow `required` status; `scripts/ci/check_pr_merge_re
 
 ## 10. Review Thread Lifecycle
 
-```
+```text
 OPEN
 → FIXED / NOT-A-BUG / DEFERRED
 → RESOLVED
