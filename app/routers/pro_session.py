@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security, status
+from fastapi.security import APIKeyCookie
 
 from app.middleware.api_tiers import (
     SubscriptionTier,
@@ -22,6 +23,7 @@ from app.schemas.session import (
     SessionStatusResponse,
 )
 from app.security.web_session import (
+    WEB_SESSION_COOKIE_NAME,
     clear_web_session_cookie,
     issue_web_session,
     require_web_session_ttl_seconds,
@@ -29,6 +31,12 @@ from app.security.web_session import (
 )
 
 logger = logging.getLogger(__name__)
+
+session_cookie_security = APIKeyCookie(
+    name=WEB_SESSION_COOKIE_NAME,
+    scheme_name="CookieSession",
+    auto_error=False,
+)
 
 router = APIRouter(
     prefix="/api/v1/pro",
@@ -110,6 +118,7 @@ def _issue_and_set_cookie(
 def exchange_session_cookie(
     request: Request,
     response: Response,
+    _session_cookie: str | None = Security(session_cookie_security),
     _api_key: str = Depends(require_pro_tier),
 ) -> SessionExchangeResponse:
     """Exchange authenticated PRO/VIP session into hardened HttpOnly cookie."""
@@ -128,6 +137,7 @@ def exchange_session_cookie(
 @router.get("/session", response_model=SessionStatusResponse)
 def get_session_status(
     request: Request,
+    _session_cookie: str | None = Security(session_cookie_security),
     _api_key: str = Depends(require_pro_tier),
 ) -> SessionStatusResponse:
     """Return current auth source and tier for PRO/VIP session."""
@@ -148,6 +158,7 @@ def get_session_status(
 def refresh_session_cookie(
     request: Request,
     response: Response,
+    _session_cookie: str | None = Security(session_cookie_security),
     _api_key: str = Depends(require_pro_tier),
 ) -> SessionExchangeResponse:
     """Refresh session cookie for currently authenticated PRO/VIP principal."""
@@ -166,6 +177,7 @@ def refresh_session_cookie(
 @router.post("/session/logout", response_model=SessionLogoutResponse)
 def logout_session(
     response: Response,
+    _session_cookie: str | None = Security(session_cookie_security),
     _api_key: str = Depends(require_pro_tier),
 ) -> SessionLogoutResponse:
     """Logout by clearing session cookie (idempotent)."""
