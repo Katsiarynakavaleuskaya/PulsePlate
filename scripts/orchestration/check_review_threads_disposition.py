@@ -68,7 +68,7 @@ def _run(cmd: list[str]) -> str:
     argv = list(cmd)
     if argv and argv[0] == "gh":
         argv = [_gh_path()] + argv[1:]
-    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
         argv,
         capture_output=True,
         text=True,
@@ -115,7 +115,7 @@ def _git_commit_time_iso(commit_sha: str) -> str:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for commit-after-comment guard")
-    result = subprocess.run(  # nosec B603 — git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "-s", "--format=%cI", commit_sha.strip()],
         capture_output=True,
         text=True,
@@ -140,7 +140,7 @@ def _git_commit_subject(commit_sha: str) -> str:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "-s", "--format=%s", sha],
         capture_output=True,
         text=True,
@@ -162,7 +162,7 @@ def _git_changed_files(commit_sha: str) -> list[str]:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "--name-only", "--pretty=format:", sha],
         capture_output=True,
         text=True,
@@ -270,7 +270,7 @@ def _get_pr_number() -> int:
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     # Sourcery: no dynamic argv — pass body via stdin (static argv only)
     body = json.dumps({"query": query, "variables": variables})
-    result = subprocess.run(  # nosec B603 — argv static; body via stdin only (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: argv static; body via stdin only (remove-by: 2026-04-30, ref: PR-985)
         [_gh_path(), "api", "graphql", "--input", "-"],
         input=body,
         capture_output=True,
@@ -368,7 +368,7 @@ def _has_gh_auth() -> bool:
         return True
     # Sourcery/B607: use resolved path only; argv is static
     try:
-        result = subprocess.run(  # nosec B603 — argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
+        result = subprocess.run(  # nosec B603: argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
             [_gh_path(), "auth", "status"],
             capture_output=True,
             text=True,
@@ -410,7 +410,7 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
     except RuntimeError:
         print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
         sys.exit(1)
-    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
         argv,
         capture_output=True,
         text=True,
@@ -458,6 +458,16 @@ def main() -> None:
             f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
         )
         sys.exit(1)
+
+    # Reject invalid FIXED mappings (regex-valid SHA) before proceeding
+    mapping = _parse_mapping_section(section)
+    for url, sha in mapping.items():
+        if not _GIT_SHA_RE.match(sha):
+            print(
+                f"ERROR: Invalid FIXED mapping in artifact: {url} -> {sha!r} "
+                "(SHA must be 7–40 hex chars)"
+            )
+            sys.exit(1)
 
     resolved_threads = _collect_resolved_threads(pr_number)
 

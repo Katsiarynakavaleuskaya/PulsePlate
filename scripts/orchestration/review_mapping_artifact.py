@@ -9,15 +9,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REVIEW_DIR = REPO_ROOT / "docs" / "review"
 
 DISCUSSION_THREAD_PASS_HEADING = (
-    "## Discussion Thread Pass"  # nosec B105 - doc heading (remove-by: 2026-06-30, ref: PR-998)
+    "## Discussion Thread Pass"  # nosec B105: doc heading (remove-by: 2026-06-30, ref: PR-998)
 )
 FIXED_MAPPING_HEADING = "## Fixed in Commit Mapping"
 
-CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105 - checkbox label (remove-by: 2026-06-30, ref: PR-998)
+CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105: checkbox label (remove-by: 2026-06-30, ref: PR-998)
 CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
+# Disposition/proof lines allowed in section (disposition guard format)
+DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:")
 
 
 def mapping_artifact_path(pr_number: int) -> Path:
@@ -105,6 +107,8 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         return errors
 
     for line in lines:
+        if any(line.startswith(prefix) for prefix in DETAIL_PREFIXES):
+            continue
         if not MAPPING_LINE_RE.match(line):
             errors.append(f"Invalid mapping line format in canonical artifact: {line}")
 
