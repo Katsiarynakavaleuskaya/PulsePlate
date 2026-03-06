@@ -24,12 +24,12 @@ export function ComponentShowcasePanel({
           >
             View Progress
           </Button>
-          <button
-            type="button"
-            className="w-full rounded-full border border-[rgba(255,93,93,0.18)] bg-[rgba(255,93,93,0.1)] px-6 py-3 text-sm font-semibold text-[var(--pp-red)]"
+          <Button
+            variant="destructive"
+            className="w-full rounded-full px-6 py-3"
           >
             Critical Alert State
-          </button>
+          </Button>
         </div>
         <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
           <Input

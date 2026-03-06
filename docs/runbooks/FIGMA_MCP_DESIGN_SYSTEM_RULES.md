@@ -68,11 +68,15 @@ export const colors = {
 ### Documentation and Storybook
 
 - Storybook is configured in `frontend/.storybook/` and is the canonical web
-  preview surface for design-system review.
+  preview surface for design-system review (`frontend/.storybook/main.ts:4-6`,
+  `frontend/package.json:8-12`).
 - Primary stories live under `frontend/src/**/*.stories.tsx` and
-  `frontend/src/**/*.mdx`.
+  `frontend/src/**/*.mdx` (`frontend/src/components/design-system/DesignSystemOverview.stories.tsx:4-12`,
+  `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx:3-32`).
 - Component behavior is still validated through Vitest + RTL tests under
-  `__tests__/`, but visual review should be Storybook-first.
+  `__tests__/`, but visual review should be Storybook-first
+  (`frontend/src/components/design-system/__tests__/DesignSystemOverview.test.tsx:5-16`,
+  `frontend/src/components/brand/__tests__/BrandAssets.test.tsx:5-30`).
 
 ## 3) Frameworks and Libraries
 
@@ -114,6 +118,8 @@ export const colors = {
 
 - Static/public mocks under `frontend/public/`
 - Canonical brand assets live in `frontend/src/assets/brand/`
+  (`frontend/src/components/brand/PulsePlateLogo.tsx:1-2`,
+  `frontend/src/components/brand/FitChefMascot.tsx:1-2`)
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization
@@ -192,8 +198,9 @@ import "./index.css";
 4. Keep business logic unchanged in design-only passes.
 5. Validate with targeted tests and `npm run build`.
 6. Use Storybook as the default visual verification surface for web
-   design-system work.
-7. If runtime/file type does not support screenshot, proceed with context +
+   design-system work (`frontend/.storybook/main.ts:4-6`,
+   `frontend/src/components/brand/PulsePlateLogo.stories.tsx:5-21`).
+7. If runtime/file type does not support screenshots, proceed with context +
    metadata and document the limitation.
 
 ## Quick Validation Checklist

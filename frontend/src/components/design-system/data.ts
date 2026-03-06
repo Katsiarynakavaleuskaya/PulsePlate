@@ -86,6 +86,9 @@ export const forbiddenDirections = [
 export const governanceLocks = [
   { toneClass: 'bg-[var(--pp-red)]', text: 'EMBLEM_CORE_v1.0_LOCK — icon remains immutable' },
   { toneClass: 'bg-[var(--pp-red)]', text: 'Brand palette lock — use the canonical 5 colors only' },
-  { toneClass: 'bg-[var(--pp-blue)]', text: 'tokens.css stays the source of truth for runtime theming' },
+  {
+    toneClass: 'bg-[var(--pp-blue)]',
+    text: 'frontend/src/styles/tokens.ts and tokens.css stay the source of truth for runtime theming',
+  },
   { toneClass: 'bg-[var(--pp-green)]', text: 'Scope lock — optimize Home, BMI, Setup, Plate, Progress, Profile, Paywall' },
 ] as const;

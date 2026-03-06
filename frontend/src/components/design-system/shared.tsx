@@ -9,7 +9,7 @@ interface PanelShellProps extends PropsWithChildren {
 
 export function DesignSystemCanvas({ children }: PropsWithChildren) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(51,159,255,0.08),transparent_22%),linear-gradient(180deg,#091224_0%,#0f172a_18%,#0b1324_100%)] p-6 sm:p-8">
+    <div className="bg-design-system-canvas min-h-screen p-6 sm:p-8">
       <div className="mx-auto max-w-7xl">{children}</div>
     </div>
   );
