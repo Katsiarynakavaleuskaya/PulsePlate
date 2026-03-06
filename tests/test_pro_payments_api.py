@@ -300,3 +300,33 @@ def test_get_activation_not_found_returns_404(
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "not_found"
+
+
+def test_payments_activation_reset_state_clears_process_local_records() -> None:
+    from app.schemas.payments import ActivateSubscriptionRequest
+    from app.services import payments_activation
+
+    payload = ActivateSubscriptionRequest.model_validate(_activation_payload())
+    activation, created = payments_activation.activate_subscription(
+        issuer="api_key:test-process-local",
+        payload=payload,
+    )
+
+    assert created is True
+    assert (
+        payments_activation.get_activation(
+            activation.activation_id,
+            issuer="api_key:test-process-local",
+        )
+        is not None
+    )
+
+    payments_activation.reset_state()
+
+    assert (
+        payments_activation.get_activation(
+            activation.activation_id,
+            issuer="api_key:test-process-local",
+        )
+        is None
+    )

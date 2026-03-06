@@ -21,6 +21,32 @@ def test_fingerprint_uses_env_salt(monkeypatch: pytest.MonkeyPatch) -> None:
     fingerprint_security._get_salt.cache_clear()
 
 
+def test_fingerprint_changes_when_source_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Different inputs must produce different pseudonymous fingerprints."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "stable-salt")
+    fingerprint_security._get_salt.cache_clear()
+
+    first = fingerprint_security.compute_fingerprint("client-ip-a", truncate=16)
+    second = fingerprint_security.compute_fingerprint("client-ip-b", truncate=16)
+
+    assert first != second
+    fingerprint_security._get_salt.cache_clear()
+
+
+def test_fingerprint_changes_when_salt_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Changing salt must change the fingerprint for the same source."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "salt-a")
+    fingerprint_security._get_salt.cache_clear()
+    first = fingerprint_security.compute_fingerprint("client-ip", truncate=16)
+
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "salt-b")
+    fingerprint_security._get_salt.cache_clear()
+    second = fingerprint_security.compute_fingerprint("client-ip", truncate=16)
+
+    assert first != second
+    fingerprint_security._get_salt.cache_clear()
+
+
 def test_fingerprint_creates_salt_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When no env salt is provided, module should create/read a salt file."""
     salt_file = tmp_path / "salt.txt"
@@ -109,9 +135,8 @@ def test_fingerprint_empty_source_returns_empty_string() -> None:
 
 
 def test_fingerprint_truncate_zero_returns_full_digest() -> None:
-    """truncate=0 should return full blake2s hex digest (64 chars)."""
+    """truncate=0 should return the full HMAC-SHA256 hex digest."""
     fp = fingerprint_security.compute_fingerprint("test-data", truncate=0)
-    # blake2s produces 32-byte digest, hexdigest is 64 characters
     assert len(fp) == 64
     assert isinstance(fp, str)
 
@@ -127,7 +152,6 @@ def test_fingerprint_negative_truncate_raises_value_error() -> None:
 
 def test_fingerprint_truncate_larger_than_digest_returns_full() -> None:
     """truncate larger than digest length should return full digest (64 chars)."""
-    # blake2s hexdigest is 64 chars, request 100
     fp = fingerprint_security.compute_fingerprint("test-data", truncate=100)
     assert len(fp) == 64  # Returns full digest, not padded
 
@@ -136,17 +160,18 @@ def test_fingerprint_truncate_larger_than_digest_returns_full() -> None:
     assert len(fp_large) == 64
 
 
-def test_fingerprint_long_salt_hashed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Salt longer than 32 bytes is hashed before use in blake2s."""
-    # Force a very long salt via environment
+def test_fingerprint_long_salt_is_supported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Long salts remain supported and deterministic."""
     long_salt = "a" * 100
 
     monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, long_salt)
     fingerprint_security._get_salt.cache_clear()
 
-    fp = fingerprint_security.compute_fingerprint("test-source", truncate=12)
-    assert isinstance(fp, str)
-    assert len(fp) == 12
+    first = fingerprint_security.compute_fingerprint("test-source", truncate=12)
+    second = fingerprint_security.compute_fingerprint("test-source", truncate=12)
+    assert isinstance(first, str)
+    assert len(first) == 12
+    assert first == second
     fingerprint_security._get_salt.cache_clear()
 
 
@@ -165,6 +190,63 @@ def test_fingerprint_file_read_exception_fallback(
         assert result is None
 
     fingerprint_security._get_salt.cache_clear()
+
+
+def test_secret_marker_uses_pbkdf2_for_limited_input_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """API-key style markers remain deterministic and salt-sensitive."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-a")
+    fingerprint_security._get_salt.cache_clear()
+    first = fingerprint_security.compute_secret_marker("api-key-123", truncate=32)
+    repeat = fingerprint_security.compute_secret_marker("api-key-123", truncate=32)
+
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-b")
+    fingerprint_security._get_salt.cache_clear()
+    changed = fingerprint_security.compute_secret_marker("api-key-123", truncate=32)
+
+    assert first == repeat
+    assert first != changed
+    assert len(first) == 32
+    fingerprint_security._get_salt.cache_clear()
+
+
+def test_secret_marker_empty_secret_returns_empty_string() -> None:
+    """Empty limited-input secrets should not produce opaque markers."""
+    assert fingerprint_security.compute_secret_marker("") == ""
+    assert fingerprint_security.compute_secret_marker("", truncate=16) == ""
+
+
+def test_secret_marker_truncate_zero_returns_full_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """truncate=0 should return the full PBKDF2-HMAC-SHA256 hex digest."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-a")
+    fingerprint_security._get_salt.cache_clear()
+
+    digest = fingerprint_security.compute_secret_marker("api-key-123", truncate=0)
+
+    assert len(digest) == 64
+    fingerprint_security._get_salt.cache_clear()
+
+
+def test_secret_marker_truncate_larger_than_digest_returns_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Large truncate values should still return the full digest."""
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, "secret-salt-a")
+    fingerprint_security._get_salt.cache_clear()
+
+    digest = fingerprint_security.compute_secret_marker("api-key-123", truncate=9999)
+
+    assert len(digest) == 64
+    fingerprint_security._get_salt.cache_clear()
+
+
+def test_secret_marker_negative_truncate_raises_value_error() -> None:
+    """Negative truncate must fail fast for secret markers too."""
+    with pytest.raises(ValueError, match=r"truncate must be non-negative, got -1"):
+        fingerprint_security.compute_secret_marker("api-key-123", truncate=-1)
 
 
 def test_log_retention_manager_properties() -> None:
