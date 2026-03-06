@@ -94,9 +94,16 @@
   --color-warning: #f59e0b;
   --color-error: var(--pp-red);
   --color-info: var(--pp-blue);
+  --color-destructive: var(--pp-red);
+  --color-destructive-foreground: var(--pp-red);
+  --color-destructive-bg: rgba(255, 93, 93, 0.1);
+  --color-destructive-bg-hover: rgba(255, 93, 93, 0.14);
+  --color-destructive-border: rgba(255, 93, 93, 0.18);
+  --color-destructive-shadow-color: rgba(255, 93, 93, 0.12);
   --color-focus: var(--pp-blue);
   --color-focus-rgb: 51, 159, 255;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
+  --shadow-destructive: 0 12px 32px var(--color-destructive-shadow-color);
   --design-system-canvas-glow: rgba(var(--color-focus-rgb), 0.08);
   --design-system-canvas-top: var(--color-bg-dark);
   --design-system-canvas-mid: var(--color-surface-dark);

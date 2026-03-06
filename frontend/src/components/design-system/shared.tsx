@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { JSX, PropsWithChildren } from 'react';
 import { Card, CardContent } from '../ui';
 
 interface PanelShellProps extends PropsWithChildren {
@@ -7,7 +7,7 @@ interface PanelShellProps extends PropsWithChildren {
   className?: string;
 }
 
-export function DesignSystemCanvas({ children }: PropsWithChildren) {
+export function DesignSystemCanvas({ children }: PropsWithChildren): JSX.Element {
   return (
     <div className="bg-design-system-canvas min-h-screen p-6 sm:p-8">
       <div className="mx-auto max-w-7xl">{children}</div>
@@ -23,7 +23,7 @@ export function OverviewHeader({
   eyebrow: string;
   title: string;
   description: string;
-}) {
+}): JSX.Element {
   return (
     <div className="mb-5">
       <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/35">{eyebrow}</p>
@@ -38,7 +38,7 @@ export function PanelShell({
   subtitle,
   className = '',
   children,
-}: PanelShellProps) {
+}: PanelShellProps): JSX.Element {
   return (
     <Card
       className={[

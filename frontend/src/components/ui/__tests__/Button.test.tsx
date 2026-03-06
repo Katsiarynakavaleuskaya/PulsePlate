@@ -10,9 +10,9 @@ describe('Button', () => {
 
     expect(button).toHaveClass(
       'border',
-      'border-[rgba(255,93,93,0.18)]',
-      'bg-[rgba(255,93,93,0.1)]',
-      'text-[var(--pp-red)]',
+      'border-[color:var(--color-destructive-border)]',
+      'bg-[color:var(--color-destructive-bg)]',
+      'text-[var(--color-destructive-foreground)]',
     );
   });
 });
