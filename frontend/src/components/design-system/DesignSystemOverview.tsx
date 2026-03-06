@@ -25,14 +25,11 @@ export function DesignSystemOverview() {
               PulsePlate Design System
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/68">
-              A production-oriented design system surface built from reusable React panels, canonical brand assets,
-              and Storybook documentation aligned to the current token source of truth.
+              A production-oriented translation of the Figma design system into reusable React panels, canonical brand
+              assets, and Storybook documentation aligned to the current token source of truth.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Repo-native review</span>
-              <span className="rounded-full bg-[rgba(51,159,255,0.14)] px-3 py-2 text-sm text-[var(--pp-blue)]">
-                Penpot-ready handoff
-              </span>
+              <span className="rounded-full bg-white/[0.06] px-3 py-2 text-sm text-white/70">Figma node 96:33</span>
               <span className="rounded-full bg-[rgba(212,175,55,0.12)] px-3 py-2 text-sm text-[var(--pp-gold)]">
                 Real brand assets imported
               </span>

@@ -1292,7 +1292,10 @@ All buttons must have these states designed in Figma:
 | Loading | Spinner icon, 70% opacity, no pointer events | Async operation in progress |
 | Error | Red border, error text below (if applicable) | Failed operation |
 
-**Figma Node ID status:** Design URL/file key now exist, but CTA-level Code Connect activation is still blocked until current node IDs are re-captured and the workspace has a Code Connect-capable seat. See `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` and `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
+**Figma Node ID status:** `blocked_by_node_id_capture` (`missing_node_id`) +
+`blocked_by_plan` (Design URL exists, node IDs pending refresh, Code Connect
+seat unavailable). See `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` and
+`docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
 
 ---
 

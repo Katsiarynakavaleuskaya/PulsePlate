@@ -58,14 +58,14 @@ Reminder: button/icon prompts must stay wellness-safe and must not include medic
 
 ## 4) Button Interaction Matrix
 
+Pilot note: `Design Review Reference` stays tool-neutral, but it is provisional
+for this bridge PR. Placeholder values such as `PP/... (TBD)` are allowed until
+the first Storybook/Penpot review packet lands; final handoff rows must point to
+a real Penpot page/frame, Storybook story/MDX path, or Figma node ID when
+optional Code Connect work is explicitly in scope.
+
 | Platform | Screen | Button/CTA ID | UI Label | Trigger Type | Calls/Invokes | Next Link/Flow | Backend/API Dependency | Feature/Auth Gate | Exists Now | Missing | Implement Needed | QA Coverage | Design Review Reference | Sora Prompt Stub |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-
-`Design Review Reference` is tool-neutral. It may point to:
-
-- Penpot page/frame
-- Storybook story or MDX path
-- Figma node ID when optional Code Connect work is explicitly in scope
 | Web | Home | `web.home.open_setup` | Open setup | `Link` | `frontend/src/pages/Home.tsx:34` -> route `/setup` (`frontend/src/config/routes.ts:26`) | Nutrition Setup form (`frontend/src/pages/NutritionSetup/index.tsx:11`) | Downstream submit hits `/api/v1/premium/bmr`, `/api/v1/pro/nutrition/plate`, `/api/v1/pro/nutrition/targets` (`frontend/src/pages/NutritionSetup/hooks.ts:442`) | No route auth gate | Implemented | No explicit click-through route test | Add navigation/flow test (Home -> Setup -> submit) | Presence check: `frontend/src/pages/__tests__/Home.test.tsx:17` | `PP/Web/Home/QuickActions/OpenSetup/Button/Default (TBD)` | `stub://cta/primary/setup` |
 | Web | Home | `web.home.open_plate` | Open plate | `Link` + guarded route | `frontend/src/pages/Home.tsx:37` + `RequireKey` (`frontend/src/auth/RequireKey.tsx:13`) | `/plate` if API key, else redirect `/enter-key` | No direct API on click; downstream Plate flow | `requiresAuth=true` on `/plate` (`frontend/src/config/routes.ts:28`) | Implemented | No Home-level lock visual/tooltip before redirect | Add optional disabled/locked variant in Home quick actions | No redirect assertion test for this button | `PP/Web/Home/QuickActions/OpenPlate/Button/Default (TBD)` | `stub://cta/secondary/open-plate` |
 | Web | Home | `web.home.open_progress` | Open progress | `Link` + guarded route | `frontend/src/pages/Home.tsx:40` + `RequireKey` (`frontend/src/auth/RequireKey.tsx:13`) | `/progress` if API key, else `/enter-key` | No direct API on click; downstream charts export is local | `requiresAuth=true` on `/progress` (`frontend/src/config/routes.ts:29`) | Implemented | No CTA-specific guard UX hint | Add consistent pre-click guard hint for auth-required CTAs | No redirect assertion test for this button | `PP/Web/Home/QuickActions/OpenProgress/Button/Default (TBD)` | `stub://cta/secondary/open-progress` |

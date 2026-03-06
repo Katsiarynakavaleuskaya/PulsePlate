@@ -59,6 +59,10 @@ Use this template for each new request you plan to pass from Git to Figma AI.
 
 ## Optional Code Connect fields
 
+Evidence for optional status: `docs/design/PENPOT_STORYBOOK_BRIDGE.md:17`,
+`docs/design/PENPOT_STORYBOOK_BRIDGE.md:134`,
+`docs/roadmap/BACKLOG_LEDGER.md:1267`, `docs/roadmap/BACKLOG_LEDGER.md:3001`.
+
 Fill these only when Code Connect is explicitly part of the task:
 
 - Figma Node ID(s):

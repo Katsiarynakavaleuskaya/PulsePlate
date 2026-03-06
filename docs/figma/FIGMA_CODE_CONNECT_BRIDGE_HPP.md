@@ -53,7 +53,8 @@ Define a deterministic, secure, and conflict-safe flow for connecting Figma comp
 | --- | --- | --- |
 | `candidate` | Proposed map exists in registry | Ready for node-level validation |
 | `blocked_by_design_url` | No design file key/node ID yet | Design URL and node IDs provided |
-| `blocked_by_plan` | Workspace seat/tier cannot use Code Connect activation tools | Developer seat on Organization/Enterprise plan available |
+| `blocked_by_node_id_capture` | Design URL/file key exists, but current CTA node IDs are still missing/unverified | Node IDs re-captured and ready for validation |
+| `blocked_by_plan` | Workspace seat/tier blocks activation after row-level capture is current enough to attempt Code Connect | Developer seat on Organization/Enterprise plan available |
 | `validated` | Node-level match confirmed in Figma + site component | Passed consistency review |
 | `active` | Code Connect map persisted and verified | `get_code_connect_map` returns expected map |
 | `stale` | Component API/design changed or previously captured node ID no longer resolves | Re-validated and re-activated |
@@ -82,7 +83,10 @@ If unresolved, record decision in:
 
 - Record blocker in backlog with Owner/DoD/Target PR.
 - Do not claim activation-readiness even if fileKey/nodeId capture is complete.
-- Keep per-row status as candidate/node-capture state and record the workspace-level blocker in notes.
+- If a row is otherwise ready for activation, it may use `blocked_by_plan`.
+- Otherwise keep per-row status as `blocked_by_design_url`,
+  `blocked_by_node_id_capture`, or `stale` and record the workspace-level
+  blocker in notes.
 - Retry activation only after `get_code_connect_suggestions(...)` is no longer plan-blocked.
 
 ### B1: Design file URL/node IDs missing
