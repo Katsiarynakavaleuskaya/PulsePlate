@@ -10,14 +10,15 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 
 ## 2. Source-of-Truth Hierarchy
 
-| Level | Artifact                       | Role                           |
-| ----- | ------------------------------ | ------------------------------ |
-| 1     | Git commit SHA                 | canonical repo state           |
-| 2     | Repository files               | canonical governance artifacts |
-| 3     | Latest CI run for current HEAD | merge decision                 |
-| 4     | PR body                        | human-readable mirror only     |
+| Level | Artifact                                | Role                           |
+| ----- | --------------------------------------- | ------------------------------ |
+| 1     | Git commit SHA                          | canonical repo state           |
+| 2     | Repository files                        | canonical governance artifacts |
+| 2a    | `docs/review/PR_<N>_FIXED_MAPPING.md`    | Fixed in Commit Mapping SoT    |
+| 3     | Latest CI run for current HEAD          | merge decision                 |
+| 4     | PR body                                 | human-readable mirror only     |
 
-Evidence: Level 2 — this doc + `AGENTS.md`; Level 3 — `scripts/ci/check_pr_merge_readiness.py:337`; Level 4 — `scripts/ci/check_pr_body_phase2_gates.py:11`.
+Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestration/review_mapping_artifact.py`, `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py`; Level 4 — PR body mirror.
 
 ## 3. Governance Phases
 
@@ -28,20 +29,22 @@ Evidence: Level 2 — this doc + `AGENTS.md`; Level 3 — `scripts/ci/check_pr_m
 | Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
 | Phase 4 | Disposition proof | script semantics                        | yes          |
 
-## 4. Phase 2 PR Body Contract
+## 4. Phase 2 Contract (Canonical Artifact)
 
-Required sections:
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror/fallback.
+
+Required sections in artifact:
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
-- `### Fixed in Commit Mapping`
+- `## Fixed in Commit Mapping`
 
 Valid mapping forms:
 
 - `- <url> -> <sha>`
 - `- No actionable review comments`
 
-Evidence: `scripts/ci/check_pr_body_phase2_gates.py:11` (discussion_heading, mapping_heading), `:61` (mapping section parser).
+Evidence: `scripts/orchestration/review_mapping_artifact.py` (read, extract, validate), `scripts/ci/check_pr_body_phase2_gates.py` (artifact-first when pr_number from event).
 
 ## 5. Merge Readiness Contract
 
@@ -117,7 +120,7 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:8` (GH_TOKE
 
 ## 12. Roadmap / Future Hardening
 
-- Move Fixed Mapping SoT from PR body to repo file
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Done (PR-TBD)
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof
