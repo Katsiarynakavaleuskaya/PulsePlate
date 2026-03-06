@@ -187,17 +187,13 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/sto
  * @returns Promise<boolean> - true if key is valid
  */
 export async function validateApiKey(): Promise<boolean> {
-  // Validate API base on first use
+  // Validate API base on first use.
   validateApiBase();
 
   try {
-    // Use direct fetch to avoid 401 error handling that clears keys and redirects
-    const res = await fetch(`${getApiBase()}/health`, {
-      method: "GET",
-      headers: mergeHeaders(),
-    });
-    return res.ok;
-  } catch (error) {
+    // Session cookie is canonical web auth source.
+    return await checkProSession();
+  } catch {
     return false;
   }
 }

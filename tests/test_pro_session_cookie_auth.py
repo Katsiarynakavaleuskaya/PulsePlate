@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 import app.routers.pro_session as pro_session_mod
+from app.main import app as main_app
 from app.middleware.api_tiers import AuthSource, SubscriptionTier, TEST_KEY_PRO, TierAuthContext
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
 
@@ -23,10 +24,18 @@ def _session_cookie_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "true")
 
 
-def test_exchange_success_sets_hardened_cookie(client: TestClient) -> None:
+@pytest.fixture
+def isolated_client() -> TestClient:
+    """Isolated TestClient without shared fixture overrides."""
+
+    with TestClient(main_app) as test_client:
+        yield test_client
+
+
+def test_exchange_success_sets_hardened_cookie(isolated_client: TestClient) -> None:
     """Exchange should issue HttpOnly Lax cookie in local mode (Secure off)."""
 
-    response = client.post(
+    response = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
@@ -47,10 +56,10 @@ def test_exchange_success_sets_hardened_cookie(client: TestClient) -> None:
     assert "secure" not in set_cookie.lower()
 
 
-def test_exchange_fail_invalid_key(client: TestClient) -> None:
+def test_exchange_fail_invalid_key(isolated_client: TestClient) -> None:
     """Invalid header key should be rejected at exchange."""
 
-    response = client.post(
+    response = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": "invalid_key"},
     )
@@ -58,16 +67,16 @@ def test_exchange_fail_invalid_key(client: TestClient) -> None:
     assert "PRO tier" in response.json()["detail"]
 
 
-def test_status_uses_cookie_after_exchange(client: TestClient) -> None:
+def test_status_uses_cookie_after_exchange(isolated_client: TestClient) -> None:
     """Status should authenticate with cookie when header is absent."""
 
-    exchange = client.post(
+    exchange = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
     assert exchange.status_code == 200
 
-    response = client.get("/api/v1/pro/session")
+    response = isolated_client.get("/api/v1/pro/session")
     assert response.status_code == 200
     body = response.json()
     assert body["authenticated"] is True
@@ -76,16 +85,16 @@ def test_status_uses_cookie_after_exchange(client: TestClient) -> None:
     assert body["expires_at_epoch"] >= 1
 
 
-def test_header_has_precedence_over_cookie(client: TestClient) -> None:
+def test_header_has_precedence_over_cookie(isolated_client: TestClient) -> None:
     """Invalid header must not fall back to valid cookie (header-first precedence)."""
 
-    exchange = client.post(
+    exchange = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
     assert exchange.status_code == 200
 
-    response = client.get(
+    response = isolated_client.get(
         "/api/v1/pro/session",
         headers={"X-API-Key": "invalid_key"},
     )
@@ -93,33 +102,33 @@ def test_header_has_precedence_over_cookie(client: TestClient) -> None:
     assert "PRO tier" in response.json()["detail"]
 
 
-def test_refresh_and_logout_flow(client: TestClient) -> None:
+def test_refresh_and_logout_flow(isolated_client: TestClient) -> None:
     """Refresh keeps auth valid; logout clears cookie and blocks cookie-only status."""
 
-    exchange = client.post(
+    exchange = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
     assert exchange.status_code == 200
 
-    refreshed = client.post("/api/v1/pro/session/refresh")
+    refreshed = isolated_client.post("/api/v1/pro/session/refresh")
     assert refreshed.status_code == 200
     assert refreshed.json()["status"] == "ok"
     assert refreshed.json()["auth_source"] == "cookie"
     assert f"{WEB_SESSION_COOKIE_NAME}=" in refreshed.headers.get("set-cookie", "")
 
-    logout = client.post("/api/v1/pro/session/logout")
+    logout = isolated_client.post("/api/v1/pro/session/logout")
     assert logout.status_code == 200
     assert logout.json() == {"status": "ok", "logged_out": True}
     clear_cookie = logout.headers.get("set-cookie", "").lower()
     assert f"{WEB_SESSION_COOKIE_NAME}=" in clear_cookie
     assert "max-age=0" in clear_cookie
 
-    status_after_logout = client.get("/api/v1/pro/session")
+    status_after_logout = isolated_client.get("/api/v1/pro/session")
     assert status_after_logout.status_code == 401
 
 
-def test_expired_cookie_is_rejected(client: TestClient) -> None:
+def test_expired_cookie_is_rejected(isolated_client: TestClient) -> None:
     """Expired cookie must be rejected fail-closed."""
 
     issued = issue_web_session(
@@ -128,32 +137,32 @@ def test_expired_cookie_is_rejected(client: TestClient) -> None:
         now=datetime(2020, 1, 1, tzinfo=timezone.utc),
         ttl_seconds=1,
     )
-    client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+    isolated_client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
 
-    response = client.get("/api/v1/pro/session")
+    response = isolated_client.get("/api/v1/pro/session")
     assert response.status_code == 401
     assert "API key required" in response.json()["detail"]
 
 
-def test_invalid_cookie_is_rejected(client: TestClient) -> None:
+def test_invalid_cookie_is_rejected(isolated_client: TestClient) -> None:
     """Malformed/invalid signature cookie must be rejected fail-closed."""
 
-    client.cookies.set(WEB_SESSION_COOKIE_NAME, "bad-token-value", path="/")
-    response = client.get("/api/v1/pro/session")
+    isolated_client.cookies.set(WEB_SESSION_COOKIE_NAME, "bad-token-value", path="/")
+    response = isolated_client.get("/api/v1/pro/session")
     assert response.status_code == 401
     assert "API key required" in response.json()["detail"]
 
 
-def test_vip_endpoint_rejects_pro_cookie(client: TestClient) -> None:
+def test_vip_endpoint_rejects_pro_cookie(isolated_client: TestClient) -> None:
     """VIP endpoint must reject PRO-tier cookie (no privilege escalation)."""
 
-    exchange = client.post(
+    exchange = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
     assert exchange.status_code == 200
 
-    response = client.get("/api/v1/vip/health")
+    response = isolated_client.get("/api/v1/vip/health")
     assert response.status_code == 403
     assert "VIP access required" in response.json()["detail"]
 
@@ -180,8 +189,8 @@ def test_get_cached_context_missing_returns_500() -> None:
     assert exc_info.value.detail == "Missing authentication context"
 
 
-def test_issue_and_set_cookie_normalizes_non_pro_tier_to_pro() -> None:
-    """Defensive normalization should downgrade unexpected tiers to PRO."""
+def test_issue_and_set_cookie_rejects_unexpected_tier() -> None:
+    """Unexpected tier should fail closed (no silent upgrade)."""
 
     response = Response()
     context = TierAuthContext(
@@ -189,14 +198,12 @@ def test_issue_and_set_cookie_normalizes_non_pro_tier_to_pro() -> None:
         tier=SubscriptionTier.FREE,
         source=AuthSource.HEADER,
     )
-    payload = pro_session_mod._issue_and_set_cookie(response=response, context=context)
-    assert payload.tier == "PRO"
-    assert payload.auth_source == "header"
-    assert payload.ttl_seconds >= 1
+    with pytest.raises(RuntimeError):
+        pro_session_mod._issue_and_set_cookie(response=response, context=context)
 
 
 def test_exchange_returns_503_when_cookie_issue_fails(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    isolated_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Exchange endpoint must return deterministic 503 on cookie issuance runtime errors."""
 
@@ -205,7 +212,7 @@ def test_exchange_returns_503_when_cookie_issue_fails(
         "_issue_and_set_cookie",
         lambda **_: (_ for _ in ()).throw(RuntimeError("session unavailable")),
     )
-    response = client.post(
+    response = isolated_client.post(
         "/api/v1/pro/session/exchange",
         headers={"X-API-Key": TEST_KEY_PRO},
     )
@@ -214,7 +221,7 @@ def test_exchange_returns_503_when_cookie_issue_fails(
 
 
 def test_refresh_returns_503_when_cookie_issue_fails(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    isolated_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Refresh endpoint must return deterministic 503 on cookie issuance runtime errors."""
 
@@ -223,7 +230,7 @@ def test_refresh_returns_503_when_cookie_issue_fails(
         "_issue_and_set_cookie",
         lambda **_: (_ for _ in ()).throw(RuntimeError("session unavailable")),
     )
-    response = client.post(
+    response = isolated_client.post(
         "/api/v1/pro/session/refresh",
         headers={"X-API-Key": TEST_KEY_PRO},
     )

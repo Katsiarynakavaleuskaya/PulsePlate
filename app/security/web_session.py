@@ -215,10 +215,10 @@ def verify_web_session(
 
 
 def _is_secure_cookie_environment() -> bool:
-    """Return Secure-cookie mode for staging/production."""
+    """Return Secure-cookie mode (fail-closed by default)."""
 
-    app_env = (os.getenv("APP_ENV") or "local").strip().lower()
-    return app_env in {"production", "prod", "staging"}
+    app_env = (os.getenv("APP_ENV") or "").strip().lower()
+    return app_env not in {"local", "dev", "development", "test"}
 
 
 def set_web_session_cookie(

@@ -198,6 +198,49 @@ def _is_production_environment() -> tuple[bool, str]:
     return is_production, app_env
 
 
+def _resolve_authorized_api_key_tier(
+    api_key: str,
+    *,
+    required_tier: SubscriptionTier,
+) -> SubscriptionTier | None:
+    """Resolve authorized tier in a single pass, else None."""
+
+    is_production, app_env = _is_production_environment()
+
+    if _is_subscription_db_enabled():
+        db_lookup = _lookup_tier_from_db(api_key)
+        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
+            if _tier_allows_access(db_lookup.tier, required_tier):
+                return db_lookup.tier
+            return None
+        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
+            return None
+
+    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    if resolved_env_tier is not None:
+        if _tier_allows_access(resolved_env_tier, required_tier):
+            return resolved_env_tier
+        return None
+
+    # In non-production mode with anonymous access enabled, allow any key.
+    if not is_production:
+        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+        if allow_anonymous:
+            logger.warning(
+                "Anonymous API key accepted in %s mode for tier %s",
+                app_env,
+                required_tier.value,
+            )
+            return required_tier
+
+    return None
+
+
 def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> bool:
     """Validate if API key has access to required tier.
 
@@ -215,35 +258,7 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
 
         In production, this should query the subscriptions database.
     """
-    is_production, app_env = _is_production_environment()
-
-    if _is_subscription_db_enabled():
-        db_lookup = _lookup_tier_from_db(api_key)
-        if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
-            return _tier_allows_access(db_lookup.tier, required_tier)
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return False
-
-    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
-    if resolved_env_tier is not None:
-        return _tier_allows_access(resolved_env_tier, required_tier)
-
-    # In non-production mode with anonymous access enabled, allow any key.
-    # Check env var dynamically to support testing with mock.patch.dict.
-    if not is_production:
-        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
-        )
-        if allow_anonymous:
-            logger.warning(
-                f"Anonymous API key accepted in {app_env} mode for tier {required_tier.value}"
-            )
-            return True
-
-    return False
+    return _resolve_authorized_api_key_tier(api_key, required_tier=required_tier) is not None
 
 
 def _request_dependency(request: Request) -> Request:
@@ -256,15 +271,6 @@ def _as_request(request: object | None) -> Request | None:
     """Return Request instance or None for direct function invocations."""
 
     return request if isinstance(request, Request) else None
-
-
-def _resolve_effective_tier(api_key: str, *, required_tier: SubscriptionTier) -> SubscriptionTier:
-    """Resolve effective tier for a validated key, fail-closed to required tier."""
-
-    resolved = get_subscription_tier(api_key)
-    if _tier_allows_access(resolved, required_tier):
-        return resolved
-    return required_tier
 
 
 def _resolve_cookie_auth_context(
@@ -312,7 +318,11 @@ def resolve_pro_auth_context(
 
     request_obj = _as_request(request)
     if x_api_key:
-        if not _validate_api_key_tier(x_api_key, SubscriptionTier.PRO):
+        resolved_tier = _resolve_authorized_api_key_tier(
+            x_api_key,
+            required_tier=SubscriptionTier.PRO,
+        )
+        if resolved_tier is None:
             logger.warning("Invalid API key for PRO tier")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -320,7 +330,7 @@ def resolve_pro_auth_context(
             )
         return TierAuthContext(
             api_key=x_api_key,
-            tier=_resolve_effective_tier(x_api_key, required_tier=SubscriptionTier.PRO),
+            tier=resolved_tier,
             source=AuthSource.HEADER,
         )
 
@@ -348,7 +358,11 @@ def resolve_vip_auth_context(
 
     request_obj = _as_request(request)
     if x_api_key:
-        if not _validate_api_key_tier(x_api_key, SubscriptionTier.VIP):
+        resolved_tier = _resolve_authorized_api_key_tier(
+            x_api_key,
+            required_tier=SubscriptionTier.VIP,
+        )
+        if resolved_tier is None:
             logger.warning("Invalid API key for VIP tier")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -356,7 +370,7 @@ def resolve_vip_auth_context(
             )
         return TierAuthContext(
             api_key=x_api_key,
-            tier=_resolve_effective_tier(x_api_key, required_tier=SubscriptionTier.VIP),
+            tier=resolved_tier,
             source=AuthSource.HEADER,
         )
 

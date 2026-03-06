@@ -81,7 +81,8 @@ def _issue_and_set_cookie(
 
     resolved_tier = context.tier
     if resolved_tier not in (SubscriptionTier.PRO, SubscriptionTier.VIP):
-        resolved_tier = SubscriptionTier.PRO
+        logger.warning("Unexpected tier in session context: %s", resolved_tier.value)
+        raise RuntimeError("Unexpected tier for web session exchange")
 
     ttl_seconds = require_web_session_ttl_seconds()
     issued = issue_web_session(
