@@ -170,6 +170,18 @@ def test_manual_reconcile_missing_intent_returns_404(
     assert _json(response)["code"] == "not_found"
 
 
+def test_manual_reconcile_status_missing_intent_returns_404(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.get(
+        "/api/v1/pro/payments/ru-by/reconcile/missing-intent",
+        headers=pro_headers,
+    )
+    assert response.status_code == 404
+    assert _json(response)["code"] == "not_found"
+
+
 def test_manual_reconcile_forbidden_for_other_issuer_on_post(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -224,6 +236,35 @@ def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
         )
 
 
+def test_manual_reconcile_rejects_ios_activation_via_api(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json={
+            "plan": "pro_monthly",
+            "client_event_id": "evt-ios-api-1",
+            "receipt": "receipt-token-validated-api-12345",
+        },
+    )
+    assert created.status_code == 201, created.text
+    activation_id = _json(created)["activation_id"]
+
+    response = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": activation_id,
+            "client_event_id": "evt-ios-api-reconcile-1",
+            "decision": "verified",
+        },
+    )
+    assert response.status_code == 422
+    assert _json(response)["code"] == "invalid_reconcile_state"
+
+
 def test_manual_reconcile_rejects_unsupported_state_via_service() -> None:
     from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
@@ -245,3 +286,26 @@ def test_manual_reconcile_rejects_unsupported_state_via_service() -> None:
                 }
             ),
         )
+
+
+def test_manual_reconcile_rejects_unsupported_state_via_api(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+
+    from app.services import payments_activation
+
+    payments_activation._ACTIVATIONS[intent_id]["reconcile_status"] = "unsupported_state"
+
+    response = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=pro_headers,
+        json={
+            "intent_id": intent_id,
+            "client_event_id": "evt-unsupported-api-reconcile-1",
+            "decision": "verified",
+        },
+    )
+    assert response.status_code == 422
+    assert _json(response)["code"] == "invalid_reconcile_state"

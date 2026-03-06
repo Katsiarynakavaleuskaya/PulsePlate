@@ -131,6 +131,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
             "plan": "pro_monthly",
             "client_event_id": "evt-apple-validate-1",
             "receipt": "receipt-token-validated-12345",
+            "external_txn_id": None,
         }
     )
     assert valid_apple.external_txn_id is None
@@ -151,6 +152,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
             "client_event_id": "evt-manual-validate-1",
             "amount_minor": 2000,
             "currency": "usd",
+            "external_txn_id": None,
         }
     )
     assert valid_manual_intent.currency == "USD"
@@ -172,6 +174,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
             "intent_id": "intent-validate-1",
             "client_event_id": "evt-reconcile-validate-1",
             "decision": "verified",
+            "external_txn_id": None,
         }
     )
     assert valid_reconcile.external_txn_id is None
@@ -184,3 +187,115 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
                 "decision": "verified",
             }
         )
+
+
+def test_apple_verify_receipt_idempotent_replay_returns_200(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    payload = {
+        "plan": "vip_monthly",
+        "client_event_id": "evt-ios-replay-1",
+        "receipt": "receipt-token-validated-abcde",
+        "external_txn_id": "ios-replay-1",
+    }
+    first = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json=payload,
+    )
+    second = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json=payload,
+    )
+    assert first.status_code == 201, first.text
+    assert second.status_code == 200, second.text
+    assert _json(first) == _json(second)
+
+
+def test_apple_verify_receipt_conflict_returns_409(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    first = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json={
+            "plan": "pro_monthly",
+            "client_event_id": "evt-ios-conflict-1",
+            "receipt": "receipt-token-validated-abcde",
+        },
+    )
+    conflict = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json={
+            "plan": "pro_monthly",
+            "client_event_id": "evt-ios-conflict-1",
+            "receipt": "receipt-token-validated-xyz987",
+        },
+    )
+    assert first.status_code == 201, first.text
+    assert conflict.status_code == 409, conflict.text
+    assert _json(conflict)["code"] == "idempotency_conflict"
+
+
+def test_manual_intent_idempotent_replay_returns_200(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    payload = {
+        "source": "swift_manual",
+        "plan": "vip_monthly",
+        "client_event_id": "evt-manual-replay-1",
+        "external_txn_id": "swift-replay-1",
+        "amount_minor": 2999,
+        "currency": "USD",
+    }
+    first = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json=payload,
+    )
+    second = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json=payload,
+    )
+    assert first.status_code == 201, first.text
+    assert second.status_code == 200, second.text
+    assert _json(first) == _json(second)
+
+
+def test_manual_intent_conflict_returns_409(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    first = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "plan": "vip_monthly",
+            "client_event_id": "evt-manual-conflict-1",
+            "amount_minor": 2999,
+            "currency": "USD",
+            "external_txn_id": "erip-conflict-1",
+        },
+    )
+    conflict = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "plan": "vip_monthly",
+            "client_event_id": "evt-manual-conflict-1",
+            "amount_minor": 3999,
+            "currency": "USD",
+            "external_txn_id": "erip-conflict-2",
+        },
+    )
+    assert first.status_code == 201, first.text
+    assert conflict.status_code == 409, conflict.text
+    assert _json(conflict)["code"] == "idempotency_conflict"
