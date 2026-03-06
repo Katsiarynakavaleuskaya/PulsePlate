@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import hmac
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -25,15 +24,17 @@ def _b64url_decode(encoded: str) -> bytes:
 
 
 def _derived_key(server_salt: str) -> bytes:
-    return hashlib.sha256(f"web_session_v1::{server_salt}".encode("utf-8")).digest()
+    return hashlib.blake2s(f"web_session_v1::{server_salt}".encode("utf-8")).digest()
 
 
 def _sign_payload(payload_b64: str, *, server_salt: str) -> str:
-    return hmac.new(
-        _derived_key(server_salt),
+    return hashlib.pbkdf2_hmac(
+        "sha256",
         payload_b64.encode("ascii"),
-        hashlib.sha256,
-    ).hexdigest()
+        _derived_key(server_salt),
+        web_session._SESSION_SIGNATURE_ITERATIONS,
+        dklen=32,
+    ).hex()
 
 
 def test_require_web_session_ttl_seconds_default(monkeypatch: pytest.MonkeyPatch) -> None:

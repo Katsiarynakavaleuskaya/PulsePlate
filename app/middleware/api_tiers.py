@@ -297,13 +297,16 @@ def _resolve_cookie_auth_context(
     if claims is None:
         return None
 
-    tier = _parse_tier_value(claims.tier)
-    if tier is None or not _tier_allows_access(tier, required_tier):
+    resolved_tier = _resolve_authorized_api_key_tier(
+        claims.api_key,
+        required_tier=required_tier,
+    )
+    if resolved_tier is None:
         return None
 
     return TierAuthContext(
         api_key=claims.api_key,
-        tier=tier,
+        tier=resolved_tier,
         source=AuthSource.COOKIE,
         session_expires_at_epoch=claims.expires_at_epoch,
     )

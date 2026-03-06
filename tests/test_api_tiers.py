@@ -428,6 +428,42 @@ class TestRequireVIPTier:
             require_vip_tier(x_api_key=None, request=request)
         assert exc_info.value.status_code == 403
 
+    def test_cookie_fallback_revalidates_current_key_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test cookie auth rechecks current tier instead of trusting embedded claims."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="VIP")
+        request = _request_with_cookie(issued.token)
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_resolve_authorized_api_key_tier",
+            lambda *_args, **_kwargs: SubscriptionTier.PRO,
+        )
+
+        result = require_pro_tier(x_api_key=None, request=request)
+        assert result == TEST_KEY_PRO
+        context = api_tiers_mod.get_request_pro_auth_context(request)
+        assert context is not None
+        assert context.tier == SubscriptionTier.PRO
+
+    def test_cookie_fallback_fails_closed_when_current_key_tier_revoked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test cookie auth is denied when current tier no longer authorizes access."""
+        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
+        request = _request_with_cookie(issued.token)
+        monkeypatch.setattr(
+            api_tiers_mod,
+            "_resolve_authorized_api_key_tier",
+            lambda *_args, **_kwargs: None,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_vip_tier(x_api_key=None, request=request)
+        assert exc_info.value.status_code == 403
+
     def test_empty_header_rejected_for_vip_even_with_valid_cookie(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
