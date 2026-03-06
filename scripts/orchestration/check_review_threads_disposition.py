@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Guard: resolved review threads must have explicit Disposition records in PR body.
+Guard: resolved review threads must have explicit Disposition records in canonical artifact.
 
 Strict mode: every resolved thread must be listed under **Fixed in Commit Mapping**
-with Disposition (FIXED | NOT-A-BUG | DEFERRED) and proof (Commit / Evidence / Backlog).
+in docs/review/PR_<N>_FIXED_MAPPING.md with Disposition (FIXED | NOT-A-BUG | DEFERRED)
+and proof (Commit / Evidence / Backlog).
 
 Requires: GitHub CLI `gh` authenticated. **Canonical token: GH_TOKEN.** In CI use --require-auth and
 export GH_TOKEN from secrets.GITHUB_TOKEN. GITHUB_TOKEN alone is not sufficient — gh reads GH_TOKEN.
@@ -22,12 +23,20 @@ import subprocess  # nosec B404: fixed gh CLI only (remove-by: 2026-04-30, ref: 
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_mapping_artifact import (
+    extract_fixed_mapping_section as _artifact_extract_fixed_mapping,
+    read_mapping_artifact,
+)
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
 PROOF_RE = re.compile(r"(Commit:|Evidence:|Backlog:)", re.IGNORECASE)
-# Match Fixed in Commit Mapping heading; section content extracted by level-aware parse (Cubic: avoid stop at ####)
-_FIXED_MAPPING_HEADING_RE = re.compile(r"(?im)^(#+)\s*Fixed in Commit Mapping\s*$")
 
 
 @dataclass(frozen=True)
@@ -258,10 +267,6 @@ def _get_pr_number() -> int:
     return int(out)
 
 
-def _get_pr_body() -> str:
-    return _run(["gh", "pr", "view", "--json", "body", "-q", ".body"])
-
-
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     # Sourcery: no dynamic argv — pass body via stdin (static argv only)
     body = json.dumps({"query": query, "variables": variables})
@@ -286,26 +291,6 @@ def _get_owner_repo() -> tuple[str, str]:
     if not owner or not name:
         raise RuntimeError("Unable to detect owner/repo via gh repo view.")
     return owner, name
-
-
-def _extract_fixed_mapping_section(body: str) -> str:
-    """
-    Extract content under Fixed in Commit Mapping. Stops at next heading of same or higher level
-    (so #### inside section does not end extraction; Cubic P2).
-    """
-    match = _FIXED_MAPPING_HEADING_RE.search(body)
-    if not match:
-        return ""
-    level = len(match.group(1))
-    start = match.end()
-    lines = body[start:].splitlines()
-    content_lines: list[str] = []
-    for line in lines:
-        m = re.match(r"^\s*(#+)\s", line)
-        if m and len(m.group(1)) <= level:
-            break
-        content_lines.append(line)
-    return "\n".join(content_lines).strip()
 
 
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
@@ -441,7 +426,7 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Check resolved review threads have disposition in PR body."
+        description="Check resolved review threads have disposition in canonical artifact."
     )
     parser.add_argument(
         "--require-auth",
@@ -460,11 +445,18 @@ def main() -> None:
             sys.exit(0)
 
     pr_number = _get_pr_number()
-    body = _get_pr_body()
-    section = _extract_fixed_mapping_section(body)
+    try:
+        artifact_text = read_mapping_artifact(pr_number)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+    section = _artifact_extract_fixed_mapping(artifact_text)
 
     if not section:
-        print("ERROR: Missing 'Fixed in Commit Mapping' section in PR body.")
+        print(
+            f"ERROR: Missing '## Fixed in Commit Mapping' section in canonical artifact "
+            f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+        )
         sys.exit(1)
 
     resolved_threads = _collect_resolved_threads(pr_number)
