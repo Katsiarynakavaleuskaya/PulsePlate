@@ -39,6 +39,10 @@ class ActivationAccessForbiddenError(PermissionError):
     """Raised when issuer attempts to read another issuer's activation."""
 
 
+class ActivationNotFoundError(LookupError):
+    """Raised when activation record is missing."""
+
+
 class IdempotencyConflictError(ValueError):
     """Raised when an idempotency key is reused with a different payload."""
 
@@ -79,7 +83,9 @@ def _plan_to_tier(plan: SubscriptionPlan) -> SubscriptionTierValue:
     """Map canonical plan code to canonical subscription tier."""
     if plan is SubscriptionPlan.vip_monthly:
         return SubscriptionTierValue.vip
-    return SubscriptionTierValue.pro
+    if plan is SubscriptionPlan.pro_monthly:
+        return SubscriptionTierValue.pro
+    raise ValueError(f"unsupported subscription plan: {plan}")
 
 
 def issuer_from_api_key(api_key: str) -> str:
@@ -130,6 +136,7 @@ def activate_subscription(
         activation_id = str(uuid4())
         stored: dict[str, Any] = {
             "activation_id": activation_id,
+            "intent_id": activation_id,
             "audit_id": activation_id,
             "issuer": issuer,
             "payment_source": payload.source.value,
@@ -197,7 +204,7 @@ def build_manual_intent_request(
         **payload.verification_payload,
     }
     return ActivateSubscriptionRequest(
-        source=payload.source,
+        source=PaymentSource(payload.source.value),
         plan=payload.plan,
         client_event_id=payload.client_event_id,
         external_txn_id=payload.external_txn_id,
@@ -233,18 +240,14 @@ def reconcile_activation(
 
         stored = _ACTIVATIONS.get(payload.intent_id)
         if stored is None:
-            raise KeyError(payload.intent_id)
+            raise ActivationNotFoundError("activation not found")
         if stored.get("issuer") != issuer:
             raise ActivationAccessForbiddenError("activation access forbidden")
         source = stored.get("payment_source")
         if source == PaymentSource.ios_app_store.value:
             raise ActivationStateError("ios_app_store activation cannot be reconciled manually")
-        if stored.get("reconcile_status") not in {
-            ReconcileStatus.pending.value,
-            ReconcileStatus.verified.value,
-            ReconcileStatus.rejected.value,
-        }:
-            raise ActivationStateError("unsupported reconcile state")
+        if stored.get("reconcile_status") != ReconcileStatus.pending.value:
+            raise ActivationStateError("manual reconcile transition requires pending state")
 
         decision = payload.decision
         status = (

@@ -2698,6 +2698,15 @@
         "title": "LegacyWeekPlanRequest",
         "type": "object"
       },
+      "ManualPaymentSource": {
+        "description": "Manual payment sources allowed in RU/BY intent flow.",
+        "enum": [
+          "erip_qr",
+          "swift_manual"
+        ],
+        "title": "ManualPaymentSource",
+        "type": "string"
+      },
       "ManualRailIntentRequest": {
         "description": "Request contract for RU/BY manual payment intent creation.",
         "properties": {
@@ -2736,7 +2745,7 @@
             "$ref": "#/components/schemas/SubscriptionPlan"
           },
           "source": {
-            "$ref": "#/components/schemas/PaymentSource"
+            "$ref": "#/components/schemas/ManualPaymentSource"
           },
           "verification_payload": {
             "additionalProperties": true,
@@ -6630,6 +6639,10 @@
             ],
             "title": "External Txn Id"
           },
+          "intent_id": {
+            "title": "Intent Id",
+            "type": "string"
+          },
           "payment_source": {
             "$ref": "#/components/schemas/PaymentSource"
           },
@@ -6665,6 +6678,7 @@
         },
         "required": [
           "activation_id",
+          "intent_id",
           "audit_id",
           "payment_source",
           "plan",
@@ -8693,11 +8707,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PaymentErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Reconcile state invalid"
+            "description": "Request validation failed or reconcile state is invalid"
           }
         },
         "security": [
@@ -8762,11 +8783,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PaymentErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request validation failed or reconcile state is invalid"
           }
         },
         "security": [

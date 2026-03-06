@@ -29,6 +29,26 @@ router = APIRouter(prefix="/api/v1/pro/payments", tags=["pro", "payments"])
 
 __all__ = ["register_billing_routes", "router"]
 
+_DETAIL_IDEMPOTENCY_CONFLICT = "existing client_event_id is bound to a different payload"
+_DETAIL_FORBIDDEN = "issuer_access_denied"
+_DETAIL_NOT_FOUND = "activation_not_found"
+_DETAIL_IOS_MANUAL_UNSUPPORTED = "manual_reconciliation_not_supported_for_ios"
+_DETAIL_MANUAL_STATUS_UNSUPPORTED = "manual_status_not_supported_for_ios"
+_DETAIL_PENDING_REQUIRED = "manual_reconcile_transition_requires_pending_state"
+_RESPONSE_422_VALIDATION_OR_PAYMENT = {
+    "description": "Request validation failed or reconcile state is invalid",
+    "content": {
+        "application/json": {
+            "schema": {
+                "oneOf": [
+                    {"$ref": "#/components/schemas/PaymentErrorResponse"},
+                    {"$ref": "#/components/schemas/HTTPValidationError"},
+                ]
+            }
+        }
+    },
+}
+
 
 def register_billing_routes(app: "FastAPI") -> APIRouter:
     """Register canonical billing routes idempotently on the provided app."""
@@ -45,6 +65,30 @@ def register_billing_routes(app: "FastAPI") -> APIRouter:
 def _issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
     return payments_activation.issuer_from_api_key(api_key)
+
+
+def _payment_error_response(
+    *,
+    code: str,
+    message: str,
+    detail: str,
+    status_code: int,
+) -> JSONResponse:
+    """Build deterministic payment error envelope without leaking exception internals."""
+    error = PaymentErrorResponse(code=code, message=message, detail=detail)
+    return JSONResponse(status_code=status_code, content=error.model_dump(mode="json"))
+
+
+def _activation_state_detail(exc: payments_activation.ActivationStateError) -> str:
+    """Map internal state exceptions to stable public error details."""
+    detail = str(exc)
+    if detail == "ios_app_store activation cannot be reconciled manually":
+        return _DETAIL_IOS_MANUAL_UNSUPPORTED
+    if detail == "manual reconciliation status is unavailable for ios_app_store":
+        return _DETAIL_MANUAL_STATUS_UNSUPPORTED
+    if detail == "manual reconcile transition requires pending state":
+        return _DETAIL_PENDING_REQUIRED
+    return "invalid_reconcile_state"
 
 
 @router.post(
@@ -73,15 +117,12 @@ def verify_apple_receipt(
             issuer=_issuer_from_api_key(x_api_key),
             payload=activation_request,
         )
-    except payments_activation.IdempotencyConflictError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.IdempotencyConflictError:
+        return _payment_error_response(
             code="idempotency_conflict",
             message="client_event_id conflict",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_IDEMPOTENCY_CONFLICT,
             status_code=status.HTTP_409_CONFLICT,
-            content=error.model_dump(mode="json"),
         )
     if is_new:
         return activation
@@ -117,15 +158,12 @@ def create_manual_payment_intent(
             issuer=_issuer_from_api_key(x_api_key),
             payload=activation_request,
         )
-    except payments_activation.IdempotencyConflictError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.IdempotencyConflictError:
+        return _payment_error_response(
             code="idempotency_conflict",
             message="client_event_id conflict",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_IDEMPOTENCY_CONFLICT,
             status_code=status.HTTP_409_CONFLICT,
-            content=error.model_dump(mode="json"),
         )
     if is_new:
         return activation
@@ -151,10 +189,7 @@ def create_manual_payment_intent(
             "description": "client_event_id conflict",
             "model": PaymentErrorResponse,
         },
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {
-            "description": "Reconcile state invalid",
-            "model": PaymentErrorResponse,
-        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _RESPONSE_422_VALIDATION_OR_PAYMENT,
     },
 )
 def reconcile_manual_payment_intent(
@@ -167,45 +202,33 @@ def reconcile_manual_payment_intent(
             issuer=_issuer_from_api_key(x_api_key),
             payload=payload,
         )
-    except payments_activation.ActivationAccessForbiddenError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.ActivationAccessForbiddenError:
+        return _payment_error_response(
             code="forbidden",
             message="Activation access forbidden",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_FORBIDDEN,
             status_code=status.HTTP_403_FORBIDDEN,
-            content=error.model_dump(mode="json"),
         )
-    except KeyError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.ActivationNotFoundError:
+        return _payment_error_response(
             code="not_found",
             message="Activation not found",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
-            content=error.model_dump(mode="json"),
         )
-    except payments_activation.IdempotencyConflictError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.IdempotencyConflictError:
+        return _payment_error_response(
             code="idempotency_conflict",
             message="client_event_id conflict",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_IDEMPOTENCY_CONFLICT,
             status_code=status.HTTP_409_CONFLICT,
-            content=error.model_dump(mode="json"),
         )
     except payments_activation.ActivationStateError as exc:
-        error = PaymentErrorResponse(
+        return _payment_error_response(
             code="invalid_reconcile_state",
             message="Reconcile state invalid",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_activation_state_detail(exc),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            content=error.model_dump(mode="json"),
         )
 
 
@@ -221,6 +244,7 @@ def reconcile_manual_payment_intent(
             "description": "Activation not found",
             "model": PaymentErrorResponse,
         },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _RESPONSE_422_VALIDATION_OR_PAYMENT,
     },
 )
 def get_manual_payment_intent_status(
@@ -231,24 +255,25 @@ def get_manual_payment_intent_status(
     issuer = _issuer_from_api_key(x_api_key)
     try:
         activation = payments_activation.get_activation(intent_id, issuer=issuer)
-    except payments_activation.ActivationAccessForbiddenError as exc:
-        error = PaymentErrorResponse(
+    except payments_activation.ActivationAccessForbiddenError:
+        return _payment_error_response(
             code="forbidden",
             message="Activation access forbidden",
-            detail=str(exc),
-        )
-        return JSONResponse(
+            detail=_DETAIL_FORBIDDEN,
             status_code=status.HTTP_403_FORBIDDEN,
-            content=error.model_dump(mode="json"),
         )
     if activation is None:
-        error = PaymentErrorResponse(
+        return _payment_error_response(
             code="not_found",
             message="Activation not found",
-            detail=intent_id,
-        )
-        return JSONResponse(
+            detail=_DETAIL_NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
-            content=error.model_dump(mode="json"),
+        )
+    if activation.payment_source == "ios_app_store":
+        return _payment_error_response(
+            code="invalid_reconcile_state",
+            message="Reconcile state invalid",
+            detail=_DETAIL_MANUAL_STATUS_UNSUPPORTED,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return activation

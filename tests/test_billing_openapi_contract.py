@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import app
+from app.main import app as canonical_app
+
 
 def _paths() -> dict[str, Any]:
-    import app
-
-    return app.app.openapi()["paths"]
+    return canonical_app.openapi()["paths"]
 
 
 def _op(path: str, method: str) -> dict[str, Any]:
@@ -43,3 +44,23 @@ def test_billing_request_schema_refs() -> None:
 def test_billing_security_contract_uses_api_key_header() -> None:
     security = _op("/api/v1/pro/payments/apple/verify-receipt", "post")["security"]
     assert {"APIKeyHeader": []} in security
+
+
+def test_manual_intent_source_is_manual_only_in_openapi() -> None:
+    schema = _op("/api/v1/pro/payments/ru-by/manual-intent", "post")["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    assert schema["$ref"] == "#/components/schemas/ManualRailIntentRequest"
+
+    components = canonical_app.openapi()["components"]["schemas"]
+    manual_schema = components["ManualRailIntentRequest"]
+    source_prop = manual_schema["properties"]["source"]
+    assert source_prop["$ref"] == "#/components/schemas/ManualPaymentSource"
+
+
+def test_reconcile_422_openapi_allows_validation_and_domain_errors() -> None:
+    responses = _op("/api/v1/pro/payments/ru-by/reconcile", "post")["responses"]
+    schema = responses["422"]["content"]["application/json"]["schema"]
+    refs = {entry["$ref"] for entry in schema["oneOf"]}
+    assert "#/components/schemas/HTTPValidationError" in refs
+    assert "#/components/schemas/PaymentErrorResponse" in refs

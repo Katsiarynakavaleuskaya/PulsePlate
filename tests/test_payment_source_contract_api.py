@@ -42,6 +42,7 @@ def test_apple_verify_receipt_happy_path(
     assert payload["status"] == "active"
     assert payload["reconcile_status"] == "verified"
     assert payload["audit_id"] == payload["activation_id"]
+    assert payload["intent_id"] == payload["activation_id"]
 
 
 def test_apple_verify_receipt_short_receipt_rejects(
@@ -99,6 +100,7 @@ def test_manual_intent_happy_path(
     assert payload["status"] == "pending_verification"
     assert payload["reconcile_status"] == "pending"
     assert payload["subscription_tier"] == "pro"
+    assert payload["intent_id"] == payload["activation_id"]
 
 
 def test_manual_intent_rejects_ios_source(
@@ -119,8 +121,16 @@ def test_manual_intent_rejects_ios_source(
     assert response.status_code == 422
 
 
+def test_manual_intent_openapi_contract_is_manual_only() -> None:
+    from app.schemas.payments import ManualRailIntentRequest
+
+    source_annotation = ManualRailIntentRequest.model_fields["source"].annotation
+    assert getattr(source_annotation, "__name__", "") == "ManualPaymentSource"
+
+
 def test_payment_request_models_cover_normalization_error_branches() -> None:
     from app.schemas.payments import (
+        ActivateSubscriptionRequest,
         AppleReceiptVerificationRequest,
         ManualRailIntentRequest,
         ManualRailReconcileRequest,
@@ -158,6 +168,18 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
     assert valid_manual_intent.currency == "USD"
     assert valid_manual_intent.external_txn_id is None
 
+    normalized_manual_intent = ManualRailIntentRequest.model_validate(
+        {
+            "source": "erip_qr",
+            "plan": "pro_monthly",
+            "client_event_id": "  evt-manual-before-1  ",
+            "amount_minor": 1500,
+            "currency": " byn ",
+        }
+    )
+    assert normalized_manual_intent.client_event_id == "evt-manual-before-1"
+    assert normalized_manual_intent.currency == "BYN"
+
     with pytest.raises(ValidationError):
         ManualRailIntentRequest.model_validate(
             {
@@ -179,12 +201,102 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
     )
     assert valid_reconcile.external_txn_id is None
 
+    normalized_reconcile = ManualRailReconcileRequest.model_validate(
+        {
+            "intent_id": "  intent-validate-2  ",
+            "client_event_id": "  evt-reconcile-validate-3  ",
+            "decision": "verified",
+        }
+    )
+    assert normalized_reconcile.intent_id == "intent-validate-2"
+    assert normalized_reconcile.client_event_id == "evt-reconcile-validate-3"
+
     with pytest.raises(ValidationError):
         ManualRailReconcileRequest.model_validate(
             {
                 "intent_id": "   ",
                 "client_event_id": "evt-reconcile-validate-2",
                 "decision": "verified",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+                "client_event_id": 123456,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-activation-typed-1",
+                "external_txn_id": 42,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        AppleReceiptVerificationRequest.model_validate(
+            {
+                "plan": "pro_monthly",
+                "client_event_id": 123456,
+                "receipt": "receipt-token-validated-typed-12345",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        AppleReceiptVerificationRequest.model_validate(
+            {
+                "plan": "pro_monthly",
+                "client_event_id": "evt-apple-typed-3",
+                "receipt": "receipt-token-validated-typed-54321",
+                "external_txn_id": 99,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailIntentRequest.model_validate(
+            {
+                "source": "erip_qr",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-manual-typed-1",
+                "amount_minor": 1000,
+                "currency": 840,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailIntentRequest.model_validate(
+            {
+                "source": "swift_manual",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-manual-typed-2",
+                "amount_minor": 1000,
+                "currency": "USD",
+                "external_txn_id": 7,
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": 1001,
+                "client_event_id": "evt-reconcile-typed-1",
+                "decision": "verified",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": "intent-typed-2",
+                "client_event_id": "evt-reconcile-typed-2",
+                "decision": "verified",
+                "external_txn_id": 17,
             }
         )
 

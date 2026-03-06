@@ -2808,6 +2808,12 @@ export interface components {
             weight_kg?: number | null;
         };
         /**
+         * ManualPaymentSource
+         * @description Manual payment sources allowed in RU/BY intent flow.
+         * @enum {string}
+         */
+        ManualPaymentSource: "erip_qr" | "swift_manual";
+        /**
          * ManualRailIntentRequest
          * @description Request contract for RU/BY manual payment intent creation.
          */
@@ -2824,7 +2830,7 @@ export interface components {
             /** External Txn Id */
             external_txn_id?: string | null;
             plan: components["schemas"]["SubscriptionPlan"];
-            source: components["schemas"]["PaymentSource"];
+            source: components["schemas"]["ManualPaymentSource"];
             /** Verification Payload */
             verification_payload?: {
                 [key: string]: unknown;
@@ -4731,6 +4737,8 @@ export interface components {
             created_at: string;
             /** External Txn Id */
             external_txn_id?: string | null;
+            /** Intent Id */
+            intent_id: string;
             payment_source: components["schemas"]["PaymentSource"];
             plan: components["schemas"]["SubscriptionPlan"];
             reconcile_status: components["schemas"]["ReconcileStatus"];
@@ -5978,13 +5986,13 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description Reconcile state invalid */
+            /** @description Request validation failed or reconcile state is invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                    "application/json": components["schemas"]["PaymentErrorResponse"] | components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6027,13 +6035,13 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Request validation failed or reconcile state is invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["PaymentErrorResponse"] | components["schemas"]["HTTPValidationError"];
                 };
             };
         };

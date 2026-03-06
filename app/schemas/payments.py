@@ -22,6 +22,13 @@ class PaymentSource(str, Enum):
     swift_manual = "swift_manual"
 
 
+class ManualPaymentSource(str, Enum):
+    """Manual payment sources allowed in RU/BY intent flow."""
+
+    erip_qr = "erip_qr"
+    swift_manual = "swift_manual"
+
+
 class SubscriptionPlan(str, Enum):
     """Canonical subscription plans for billing activation."""
 
@@ -83,19 +90,23 @@ class ActivateSubscriptionRequest(BaseModel):
         description="Opaque verification payload. Server remains source of truth.",
     )
 
-    @field_validator("client_event_id")
+    @field_validator("client_event_id", mode="before")
     @classmethod
-    def _normalize_client_event_id(cls, value: str) -> str:
+    def _normalize_client_event_id(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         if not normalized:
             raise ValueError("client_event_id must not be empty")
         return normalized
 
-    @field_validator("external_txn_id")
+    @field_validator("external_txn_id", mode="before")
     @classmethod
-    def _normalize_external_txn_id(cls, value: str | None) -> str | None:
+    def _normalize_external_txn_id(cls, value: Any) -> Any:
         if value is None:
             return None
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         return normalized or None
 
@@ -104,6 +115,7 @@ class SubscriptionActivationResponse(BaseModel):
     """Canonical activation response for all payment sources."""
 
     activation_id: str
+    intent_id: str
     audit_id: str
     payment_source: PaymentSource
     plan: SubscriptionPlan
@@ -124,19 +136,23 @@ class AppleReceiptVerificationRequest(BaseModel):
     receipt: str = Field(..., min_length=8, description="Opaque App Store receipt blob")
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
 
-    @field_validator("client_event_id", "receipt")
+    @field_validator("client_event_id", "receipt", mode="before")
     @classmethod
-    def _normalize_non_empty_str(cls, value: str) -> str:
+    def _normalize_non_empty_str(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         if not normalized:
             raise ValueError("value must not be empty")
         return normalized
 
-    @field_validator("external_txn_id")
+    @field_validator("external_txn_id", mode="before")
     @classmethod
-    def _normalize_optional_txn_id(cls, value: str | None) -> str | None:
+    def _normalize_optional_txn_id(cls, value: Any) -> Any:
         if value is None:
             return None
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         return normalized or None
 
@@ -144,7 +160,7 @@ class AppleReceiptVerificationRequest(BaseModel):
 class ManualRailIntentRequest(BaseModel):
     """Request contract for RU/BY manual payment intent creation."""
 
-    source: PaymentSource
+    source: ManualPaymentSource
     plan: SubscriptionPlan
     client_event_id: str = Field(..., min_length=6, max_length=128)
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
@@ -152,26 +168,23 @@ class ManualRailIntentRequest(BaseModel):
     currency: str = Field(..., min_length=3, max_length=3)
     verification_payload: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("source")
+    @field_validator("client_event_id", "currency", mode="before")
     @classmethod
-    def _validate_manual_source(cls, value: PaymentSource) -> PaymentSource:
-        if value is PaymentSource.ios_app_store:
-            raise ValueError("manual intent source must be erip_qr or swift_manual")
-        return value
-
-    @field_validator("client_event_id", "currency")
-    @classmethod
-    def _normalize_required_str(cls, value: str) -> str:
+    def _normalize_required_str(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         if not normalized:
             raise ValueError("value must not be empty")
         return normalized.upper() if len(normalized) == 3 else normalized
 
-    @field_validator("external_txn_id")
+    @field_validator("external_txn_id", mode="before")
     @classmethod
-    def _normalize_manual_external_txn_id(cls, value: str | None) -> str | None:
+    def _normalize_manual_external_txn_id(cls, value: Any) -> Any:
         if value is None:
             return None
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         return normalized or None
 
@@ -192,19 +205,23 @@ class ManualRailReconcileRequest(BaseModel):
     external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
     verification_payload: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("intent_id", "client_event_id")
+    @field_validator("intent_id", "client_event_id", mode="before")
     @classmethod
-    def _normalize_identifier(cls, value: str) -> str:
+    def _normalize_identifier(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         if not normalized:
             raise ValueError("value must not be empty")
         return normalized
 
-    @field_validator("external_txn_id")
+    @field_validator("external_txn_id", mode="before")
     @classmethod
-    def _normalize_reconcile_txn_id(cls, value: str | None) -> str | None:
+    def _normalize_reconcile_txn_id(cls, value: Any) -> Any:
         if value is None:
             return None
+        if not isinstance(value, str):
+            return value
         normalized = value.strip()
         return normalized or None
 
