@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -107,6 +109,69 @@ def test_verify_audit_envelope_fails_on_tamper(monkeypatch: pytest.MonkeyPatch) 
     envelope = cp.sign_audit_envelope(decision)
     tampered = replace(envelope, target="https://tampered.example.com")
     assert cp.verify_audit_envelope(tampered) is False
+
+
+def test_normalize_execution_mode_defaults_to_auto_safe(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(cp.EXECUTION_MODE_ENV, raising=False)
+    assert cp.normalize_execution_mode() == cp.EXECUTION_MODE_AUTO_SAFE
+
+
+def test_normalize_execution_mode_rejects_unknown_value() -> None:
+    with pytest.raises(RuntimeError, match=cp.EXECUTION_MODE_ENV):
+        cp.normalize_execution_mode("semi-auto")
+
+
+def test_require_execution_mode_blocks_review_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.EXECUTION_MODE_ENV, cp.EXECUTION_MODE_REVIEW_REQUIRED)
+    with pytest.raises(PermissionError, match="review-required"):
+        cp.require_execution_mode()
+
+
+def test_require_execution_mode_accepts_review_required_override() -> None:
+    decision = cp.require_execution_mode(
+        cp.EXECUTION_MODE_REVIEW_REQUIRED,
+        allow_review_required=True,
+    )
+    assert decision.allowed is True
+    assert decision.mode == cp.EXECUTION_MODE_REVIEW_REQUIRED
+
+
+def test_persist_audit_envelope_writes_jsonl_without_raw_query(tmp_path: Path) -> None:
+    decision = cp.PolicyDecision(
+        action="rag.retrieve",
+        target="corpus://cbt-agent",
+        allowed=True,
+        reason="allowlist_match",
+    )
+    envelope = cp.sign_audit_envelope(decision, secret="audit-key")
+
+    log_path = cp.persist_audit_envelope(
+        envelope,
+        metadata={
+            "query": "my raw private question",
+            "query_hash": "already-hashed",
+            "endpoint": "/api/v1/pro/cbt/insight",
+        },
+        log_path=tmp_path / "agent-control.jsonl",
+    )
+
+    payload = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert payload["envelope"]["action"] == "rag.retrieve"
+    assert payload["metadata"]["query"]["length"] == len("my raw private question")
+    assert payload["metadata"]["query"]["sha256"]
+    assert payload["metadata"]["query_hash"] == "already-hashed"
+    assert "my raw private question" not in log_path.read_text(encoding="utf-8")
+
+
+def test_sanitize_metadata_handles_lists_and_tuples() -> None:
+    sanitized = cp._sanitize_metadata(
+        {
+            "prompts": ["secret prompt"],
+            "tuple_data": ("visible", "another"),
+        }
+    )
+    assert isinstance(sanitized["prompts"], list)
+    assert isinstance(sanitized["tuple_data"], list)
 
 
 def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:

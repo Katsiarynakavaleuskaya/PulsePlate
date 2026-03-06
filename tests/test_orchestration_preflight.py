@@ -16,7 +16,9 @@ def test_analyze_mode_allows_dirty_tree(monkeypatch) -> None:
     monkeypatch.setattr(
         preflight,
         "_run",
-        lambda cmd, cwd=None: (0, " M docs/orchestration/workflow.md") if cmd[:2] == ["git", "status"] else (0, ""),
+        lambda cmd, cwd=None: (
+            (0, " M docs/orchestration/workflow.md") if cmd[:2] == ["git", "status"] else (0, "")
+        ),
     )
 
     assert preflight.main(["--mode", "analyze", "--path", "docs/orchestration/workflow.md"]) == 0

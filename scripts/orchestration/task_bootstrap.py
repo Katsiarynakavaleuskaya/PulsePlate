@@ -106,7 +106,9 @@ def main(argv: list[str] | None = None) -> int:
         candidate_paths=args.path,
         telemetry_path=Path(args.telemetry),
     )
-    out_path = Path(args.output) if args.output else TASK_PACKET_DIR / f"{packet['task_packet_id']}.json"
+    out_path = (
+        Path(args.output) if args.output else TASK_PACKET_DIR / f"{packet['task_packet_id']}.json"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

@@ -13,10 +13,12 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+from core.pii_redaction import redact_pii_from_text
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     MAX_CHUNK_SIZE_CHARS,
@@ -28,6 +30,7 @@ ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
 MAX_FILE_SIZE = 256 * 1024  # bytes, skip very large files
 _INDEX: List[Tuple[str, str]] | None = None  # list of (source, chunk)
+_INDEX_LOCK = threading.RLock()
 logger = logging.getLogger(__name__)
 
 
@@ -91,13 +94,22 @@ def _build_index() -> List[Tuple[str, str]]:
 def _get_index() -> List[Tuple[str, str]]:
     global _INDEX
     if _INDEX is None:
-        _INDEX = _build_index()
+        with _INDEX_LOCK:
+            if _INDEX is None:
+                _INDEX = _build_index()
     return _INDEX
 
 
 def invalidate_index() -> None:
     global _INDEX
-    _INDEX = None
+    with _INDEX_LOCK:
+        _INDEX = None
+
+
+def redact_chunk_content(text: str) -> str:
+    """Redact simple PII patterns before prompt/preview exposure."""
+
+    return redact_pii_from_text(text) or ""
 
 
 def _score(query: str, text: str) -> float:
@@ -127,7 +139,7 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
         return ""
     parts = []
     for src, ch, sc in top:
-        parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")
+        parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{redact_chunk_content(ch)}")
     return "\n\n".join(parts)
 
 
@@ -192,7 +204,7 @@ def retrieve_context_structured(
                 if Path(src).is_relative_to(ROOT)
                 else Path(src).name
             ),
-            content=ch[:MAX_CHUNK_SIZE_CHARS],
+            content=redact_chunk_content(ch[:MAX_CHUNK_SIZE_CHARS]),
             score=sc,
             hop=1,
         )

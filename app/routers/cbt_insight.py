@@ -10,6 +10,7 @@ Feature-gated via FEATURE_CBT_AGENT environment variable.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
 
@@ -19,11 +20,22 @@ from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
+from app.security.agent_control_plane import (
+    AUDIT_SIGNING_KEY_ENV,
+    normalize_execution_mode,
+    persist_audit_envelope,
+    require_execution_mode,
+    require_policy_allow,
+    sign_audit_envelope,
+)
+from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
     RATE_LIMIT_INSIGHT,
     limit_if_available,
 )
+from app.security.server_salt import require_server_salt
+from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +43,11 @@ router = APIRouter(prefix="/api/v1/pro/cbt", tags=["CBT", "pro"])
 
 # LLM provider call timeout (seconds) - prevents unbounded requests
 LLM_TIMEOUT_SECONDS: float = 60.0
+CBT_EXECUTION_MODE_ENV = "CBT_AGENT_EXECUTION_MODE"
+CBT_POLICY_ALLOWLIST = {
+    ("rag.retrieve", "corpus://cbt-agent"),
+    ("llm.generate", "provider://default"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +95,16 @@ class CBTInsightResponse(BaseModel):
         description="CBT corpus sources used for context",
     )
     confidence: float = Field(default=0.0, description="RAG retrieval confidence score")
+    uncertainty: float = Field(default=1.0, description="Uncertainty score derived from confidence")
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Operational or retrieval warnings",
+    )
+    mode: str = Field(default="auto-safe", description="Resolved agent execution mode")
+    quota_state: str = Field(
+        default="not_consumed",
+        description="Monthly quota state before provider call",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -115,13 +142,43 @@ USER QUESTION:
 {query}
 
 Provide a helpful, CBT-informed response:"""
-    else:
-        return f"""{system_prompt}
+    return f"""{system_prompt}
 
 USER QUESTION:
 {query}
 
 Provide a helpful, CBT-informed response:"""
+
+
+def _sha256_hex(value: str) -> str:
+    """Return deterministic sha256 hex digest for audit-safe metadata."""
+
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _persist_privileged_action_audit(
+    *,
+    action: str,
+    target: str,
+    mode: str,
+    endpoint: str,
+    metadata: dict[str, object],
+) -> None:
+    """Run policy gate and persist a signed audit envelope before privileged work."""
+
+    decision = require_policy_allow(action, target, allowlist=CBT_POLICY_ALLOWLIST)
+    audit_metadata = {
+        "endpoint": endpoint,
+        "mode": mode,
+        **metadata,
+    }
+    signing_secret = (os.getenv(AUDIT_SIGNING_KEY_ENV) or "").strip() or require_server_salt()
+    envelope = sign_audit_envelope(
+        decision,
+        metadata=audit_metadata,
+        secret=signing_secret,
+    )
+    persist_audit_envelope(envelope, metadata=audit_metadata)
 
 
 # ---------------------------------------------------------------------------
@@ -164,11 +221,41 @@ async def cbt_insight(
             detail="CBT agent feature is not enabled",
         )
 
+    execution_mode = normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV))
+    try:
+        require_execution_mode(execution_mode)
+    except PermissionError:
+        detail = f"agent_execution_{execution_mode.replace('-', '_')}"
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
+
     # Retrieve RAG context with CBT corpus filtering
     rag_context_str = ""
     sources: list[CBTSourceItem] = []
     confidence = 0.0
     rag_used = False
+    quota_state = "not_consumed"
+    warnings: list[str] = []
+    redaction_applied = False
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="rag.retrieve",
+            target="corpus://cbt-agent",
+            mode=execution_mode,
+            endpoint=str(raw_request.url.path),
+            metadata={
+                "method": raw_request.method,
+                "query_hash": _sha256_hex(request.query),
+                "query_length": len(request.query),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("RAG privileged-action gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="rag_retrieval_unavailable",
+        ) from exc
 
     try:
         from core.rag.vector_rag import retrieve_context_structured
@@ -188,15 +275,18 @@ async def cbt_insight(
             # Build context string from chunks
             context_parts = []
             for chunk in rag_ctx.chunks:
-                context_parts.append(f"[{chunk.file}]\n{chunk.content}")
+                sanitized_content = redact_pii_from_text(chunk.content) or ""
+                if sanitized_content != chunk.content:
+                    redaction_applied = True
+                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
                 sources.append(
                     CBTSourceItem(
                         chunk_id=chunk.chunk_id,
                         file=chunk.file,
                         preview=(
-                            chunk.content[:200] + "..."
-                            if len(chunk.content) > 200
-                            else chunk.content
+                            sanitized_content[:200] + "..."
+                            if len(sanitized_content) > 200
+                            else sanitized_content
                         ),
                         score=chunk.score,
                     )
@@ -205,13 +295,43 @@ async def cbt_insight(
 
     except Exception:
         logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
+        warnings.append("rag_retrieval_failed")
         # Continue without RAG context
+
+    if redaction_applied:
+        warnings.append("source_content_redacted")
 
     # Build prompt with RAG context
     prompt = _build_cbt_prompt(request.query, rag_context_str)
 
     # Generate insight via LLM
     try:
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            _api_key,
+            tier="PRO",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
+            )
+        quota_state = "consumed"
+
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="llm.generate",
+            target="provider://default",
+            mode=execution_mode,
+            endpoint=str(raw_request.url.path),
+            metadata={
+                "method": raw_request.method,
+                "prompt_hash": _sha256_hex(prompt),
+                "prompt_length": len(prompt),
+                "rag_used": rag_used,
+                "source_count": len(sources),
+            },
+        )
+
         from llm import get_provider
 
         provider = get_provider()
@@ -247,9 +367,14 @@ async def cbt_insight(
             detail="Failed to generate CBT insight",
         )
 
+    bounded_confidence = min(max(confidence, 0.0), 1.0)
     return CBTInsightResponse(
         insight=insight_text,
         rag_used=rag_used,
         sources=sources,
-        confidence=confidence,
+        confidence=bounded_confidence,
+        uncertainty=round(max(0.0, 1.0 - bounded_confidence), 4),
+        warnings=warnings,
+        mode=execution_mode,
+        quota_state=quota_state,
     )

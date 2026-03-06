@@ -36,6 +36,7 @@ class RoutingDecision:
     """Routing decision: primary, optional secondary, reviewer, rationale."""
 
     domain: str
+    cluster: str
     task_type: str
     primary: str
     secondary: Optional[str]
@@ -88,12 +89,12 @@ def _rewrite_rate(stats: Dict[str, Any]) -> float:
 
 def _canonical_fallback(
     domain: str, routing: Dict[str, DomainRoute]
-) -> Tuple[str, Optional[str], str]:
+) -> Tuple[str, str, Optional[str], str]:
     """Get primary/secondary/reviewer from canonical routing graph."""
     dr = routing.get(domain)
     if dr:
-        return (dr.primary, dr.secondary, dr.reviewer)
-    return ("agent-coordinator", None, "agent-coordinator")
+        return (dr.cluster, dr.primary, dr.secondary, dr.reviewer)
+    return ("ops", "agent-coordinator", None, "agent-coordinator")
 
 
 def route(
@@ -105,29 +106,33 @@ def route(
 ) -> RoutingDecision:
     """Compute routing decision from telemetry (advisory) + canonical graph."""
     domain = domain.strip().lower()
-    canon_primary, canon_secondary, canon_reviewer = _canonical_fallback(domain, routing)
+    canon_cluster, canon_primary, canon_secondary, canon_reviewer = _canonical_fallback(
+        domain, routing
+    )
 
     rationale: Dict[str, Any] = {"source": "canonical_only"}
+    cluster = canon_cluster
     primary = canon_primary
     secondary = canon_secondary
     reviewer = canon_reviewer
 
     if not telemetry:
-        return RoutingDecision(domain, task_type, primary, secondary, reviewer, rationale)
+        return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
     domains = telemetry.get("domains", {})
     if not isinstance(domains, dict):
-        return RoutingDecision(domain, task_type, primary, secondary, reviewer, rationale)
+        return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
     dom = domains.get(domain, {})
     if not isinstance(dom, dict):
-        return RoutingDecision(domain, task_type, primary, secondary, reviewer, rationale)
+        return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
     suggested_primary = dom.get("primary_suggested")
     suggested_secondary = dom.get("secondary_suggested")
 
     rationale = {
         "source": "telemetry+canonical",
+        "cluster": cluster,
         "suggested_primary": suggested_primary,
         "suggested_secondary": suggested_secondary,
     }
@@ -166,8 +171,8 @@ def route(
     escalate = False
     if domain == "safety":
         escalate = True
-        reviewer = "philosophy-agent"
-        rationale["reviewer_reason"] = "domain_safety_forced_philosophy_review"
+        reviewer = "logic-agent" if primary != "logic-agent" else "agent-coordinator"
+        rationale["reviewer_reason"] = "domain_safety_independent_review"
     elif p_stable and p_avg < 0.70:
         escalate = True
         rationale["reviewer_reason"] = "primary_avg_score_low"
@@ -179,13 +184,27 @@ def route(
 
     if escalate and domain != "safety":
         if domain == "backend":
-            reviewer = "architecture-specialist"
-        elif domain in ("ai", "ml"):
-            reviewer = "rag-systems-agent"
+            reviewer = "security-auditor" if primary != "security-auditor" else "qa-engineer-agent"
+        elif cluster == "ml":
+            reviewer = (
+                "architecture-specialist"
+                if primary != "architecture-specialist"
+                else "qa-engineer-agent"
+            )
+        elif cluster == "growth":
+            reviewer = "qa-engineer-agent"
+        elif cluster == "platform":
+            reviewer = "qa-engineer-agent"
         else:
-            reviewer = "agent-coordinator"
+            reviewer = (
+                "agent-coordinator" if primary != "agent-coordinator" else "qa-engineer-agent"
+            )
 
-    return RoutingDecision(domain, task_type, primary, secondary, reviewer, rationale)
+    if reviewer == primary:
+        reviewer = canon_reviewer if canon_reviewer != primary else "qa-engineer-agent"
+        rationale["reviewer_reason"] = "independent_reviewer_enforced"
+
+    return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
 
 def main() -> int:
@@ -203,6 +222,7 @@ def main() -> int:
         json.dumps(
             {
                 "domain": decision.domain,
+                "cluster": decision.cluster,
                 "task_type": decision.task_type,
                 "primary": decision.primary,
                 "secondary": decision.secondary,
