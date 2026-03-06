@@ -24,7 +24,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -282,7 +282,7 @@ def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     data = json.loads(result.stdout)
     if "errors" in data:
         raise RuntimeError(f"GraphQL errors: {data['errors']}")
-    return data["data"]
+    return cast(dict[str, Any], data["data"])
 
 
 def _get_owner_repo() -> tuple[str, str]:
