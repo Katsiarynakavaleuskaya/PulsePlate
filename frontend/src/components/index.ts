@@ -16,5 +16,9 @@ export * from './VipFeature';
 // Paywall components
 export { default as BeforeAfter } from './Paywall/BeforeAfter';
 
+// Brand + design system components
+export * from './brand';
+export * from './design-system';
+
 // UI components
 export * from './ui';
