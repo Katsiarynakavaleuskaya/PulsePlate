@@ -148,6 +148,14 @@ os.environ.setdefault("SERVER_SALT", "test-server-salt")
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture
+def reset_payments_state() -> None:
+    """Reset in-memory payment activation state for deterministic payment tests."""
+    from app.services import payments_activation
+
+    payments_activation.reset_state()
+
+
 # ============================================================================
 # DATABASE INITIALIZATION FOR API TESTS
 # ============================================================================

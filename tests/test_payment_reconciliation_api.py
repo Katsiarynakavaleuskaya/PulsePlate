@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi.testclient import TestClient
 import pytest
 
+from tests.payment_test_utils import json_response_payload as _json
 
-@pytest.fixture(autouse=True)
-def _reset_payments_state() -> None:
-    from app.services import payments_activation
-
-    payments_activation.reset_state()
-
-
-def _json(response: Any) -> dict[str, Any]:
-    assert response.headers.get("content-type", "").startswith("application/json"), response.text
-    payload: dict[str, Any] = response.json()
-    return payload
+pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
 def _create_manual_intent(client: TestClient, headers: dict[str, str], *, source: str) -> str:
