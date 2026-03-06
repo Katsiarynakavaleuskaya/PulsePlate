@@ -186,18 +186,19 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD
+  - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
+  - Status: Open (PR #998, awaiting merge)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
-    - `scripts/ci/check_pr_merge_readiness.py:352` (mapped_urls), `:362` (unmapped check)
-    - `scripts/orchestration/check_review_threads_disposition.py:296` (mapping section), `:518` (trigger-only guard)
-    - `AGENTS.md:418` (Fixed in Commit Mapping), `:42` (Review Governance)
+    - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
+    - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
   - DoD:
-    - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
-    - PR body optional summary only
-    - Tests updated
+    - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - [x] PR body optional summary/mirror only
+    - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2976,11 +2977,13 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
   - Target PR: PR/Figma-CodeConnect-Activation
   - Priority: P1
-  - Status: 🔒 Blocked by dependency
+  - Status: 🔒 Blocked by dependency (seat + node capture)
   - Area: design / frontend / iOS
   - Finding Type: integration dependency
-  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
-    node-level Code Connect cannot be activated without Design file key and node IDs.
+  - Reason: Design file URL is now known, but node-level Code Connect remains blocked
+    because the current P0 node set is incomplete/stale (`web.home.open_setup`
+    old capture `1:72` no longer resolves) and MCP Code Connect activation
+    currently requires a Developer seat in an Organization or Enterprise plan.
   - Links:
     - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
     - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
@@ -2988,11 +2991,34 @@ If it is not recorded here — it does not exist.
     - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
   - DoD:
     - Figma Design file URL is recorded in repo docs
-    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
+    - P0 CTA nodes have current, non-stale `fileKey` and `nodeId`
       (`web.home.open_setup`, `web.plate.premium_gate_cta`,
       `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_suggestions` is no longer plan-blocked for the workspace
     - `get_code_connect_map` returns expected active mappings for P0 set
-    - Matrix `Figma Node ID` column updated for activated rows
+    - Matrix optional design review references are updated for activated rows
+
+- [ ] Penpot + Storybook fallback bridge for design handoff
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: PR/Penpot-Storybook-Bridge
+  - Priority: P1
+  - Status: ▶️ In progress
+  - Area: design / frontend / docs
+  - Finding Type: fallback workflow
+  - Reason: Figma Code Connect is currently blocked by seat/plan, but Storybook
+    and token SoT already exist in repo. We need a low-cost design review and
+    inspect workflow that does not depend on Figma Organization/Enterprise.
+  - Links:
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+    - `frontend/.storybook/main.ts`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+  - DoD:
+    - Penpot bridge is documented as the canonical minimal handoff path for web review
+    - Storybook remains canonical web review surface
+    - Token SoT linkage is explicit in the bridge doc
+    - CTA/design review packet format is defined without Code Connect dependency
+    - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
 
 - [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
   - Owner: @katsiaryna_kavaleuskaya

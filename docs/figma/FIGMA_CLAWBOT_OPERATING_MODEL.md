@@ -65,14 +65,14 @@ Minimum artifact set per run:
 - output block
 - exit code
 - affected docs/files
-- blocker state (`none`, `blocked_by_design_url`, `blocked_by_node_id_capture`, `stale`)
+- blocker state (`none`, `blocked_by_design_url`, `blocked_by_node_id_capture`, `blocked_by_plan`, `stale`)
 
 Required fields in evidence summaries:
 
 - `context_version` (date + commit)
 - `fileKey` (if design-known)
 - `nodeId` (if design-known)
-- mapping status transition (`candidate -> validated -> active` when applicable)
+- mapping status transition (`candidate -> validated -> active` when applicable; seat-level blockers use `blocked_by_plan`)
 
 ## 6) Failure Triage Protocol
 

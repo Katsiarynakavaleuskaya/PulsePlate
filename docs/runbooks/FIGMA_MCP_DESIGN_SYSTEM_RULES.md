@@ -11,6 +11,9 @@ Use this with:
 - `get_metadata(fileKey,nodeId)` for large trees
 - `get_screenshot(fileKey,nodeId)` when supported by file type/runtime
 
+If Figma node-level activation is blocked by plan/seat, use the low-cost
+fallback workflow in `docs/design/PENPOT_STORYBOOK_BRIDGE.md`.
+
 ## 1) Token Definitions
 
 ### Source of truth
@@ -68,15 +71,13 @@ export const colors = {
 ### Documentation and Storybook
 
 - Storybook is configured in `frontend/.storybook/` and is the canonical web
-  preview surface for design-system review (`frontend/.storybook/main.ts:4-6`,
-  `frontend/package.json:8-12`).
+  preview surface for design-system review.
 - Primary stories live under `frontend/src/**/*.stories.tsx` and
-  `frontend/src/**/*.mdx` (`frontend/src/components/design-system/DesignSystemOverview.stories.tsx:4-12`,
-  `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx:3-32`).
+  `frontend/src/**/*.mdx`.
 - Component behavior is still validated through Vitest + RTL tests under
-  `__tests__/`, but visual review should be Storybook-first
-  (`frontend/src/components/design-system/__tests__/DesignSystemOverview.test.tsx:5-16`,
-  `frontend/src/components/brand/__tests__/BrandAssets.test.tsx:5-30`).
+  `__tests__/`, but visual review should be Storybook-first.
+- Penpot may be used as an auxiliary inspect/review surface when Figma Code
+  Connect is blocked, but Storybook stays canonical for web review.
 
 ## 3) Frameworks and Libraries
 
@@ -118,8 +119,6 @@ export const colors = {
 
 - Static/public mocks under `frontend/public/`
 - Canonical brand assets live in `frontend/src/assets/brand/`
-  (`frontend/src/components/brand/PulsePlateLogo.tsx:1-2`,
-  `frontend/src/components/brand/FitChefMascot.tsx:1-2`)
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization
@@ -198,9 +197,11 @@ import "./index.css";
 4. Keep business logic unchanged in design-only passes.
 5. Validate with targeted tests and `npm run build`.
 6. Use Storybook as the default visual verification surface for web
-   design-system work (`frontend/.storybook/main.ts:4-6`,
-   `frontend/src/components/brand/PulsePlateLogo.stories.tsx:5-21`).
-7. If runtime/file type does not support screenshots, proceed with context +
+   design-system work.
+7. If Figma activation is blocked by seat/plan, fall back to
+   `docs/design/PENPOT_STORYBOOK_BRIDGE.md` instead of inventing fake node IDs
+   or fake Code Connect mappings.
+8. If runtime/file type does not support screenshot, proceed with context +
    metadata and document the limitation.
 
 ## Quick Validation Checklist
