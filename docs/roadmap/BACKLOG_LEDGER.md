@@ -192,6 +192,7 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
+    - `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
     - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
     - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
     - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
@@ -199,6 +200,7 @@ If it is not recorded here — it does not exist.
     - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
+    - [x] Temporary PR-body fallback seam documented with ADR + exit criteria
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
