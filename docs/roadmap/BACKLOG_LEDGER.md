@@ -174,9 +174,9 @@ If it is not recorded here — it does not exist.
   - Reason: Rules are split across check_pr_body_phase2_gates.py, check_pr_merge_readiness.py, check_review_threads_disposition.py and AGENTS.md; single source of truth reduces drift.
   - Links:
     - `scripts/ci/check_pr_body_phase2_gates.py:11` (Phase 2 contract config)
-    - `scripts/ci/check_pr_merge_readiness.py` (merge readiness logic)
-    - `scripts/orchestration/check_review_threads_disposition.py` (disposition proof)
-    - `AGENTS.md` (Review Governance)
+    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved threads), `:350` (actionable items)
+    - `scripts/orchestration/check_review_threads_disposition.py:27` (FIXED/NOT-A-BUG/DEFERRED), `:170` (trigger-only ban)
+    - `AGENTS.md:42` (Review Governance), `:103` (FIXED proof), `:418` (Fixed in Commit Mapping)
   - DoD:
     - Single doc (e.g. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md) is the canonical SoT; AGENTS.md only links to it
     - Doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
@@ -190,9 +190,9 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
-    - `scripts/ci/check_pr_merge_readiness.py`
-    - `scripts/orchestration/check_review_threads_disposition.py`
-    - `AGENTS.md` (Review Governance, Fixed in Commit Mapping)
+    - `scripts/ci/check_pr_merge_readiness.py:352` (mapped_urls), `:362` (unmapped check)
+    - `scripts/orchestration/check_review_threads_disposition.py:296` (mapping section), `:518` (trigger-only guard)
+    - `AGENTS.md:418` (Fixed in Commit Mapping), `:42` (Review Governance)
   - DoD:
     - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
     - PR body optional summary only
@@ -206,8 +206,8 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Merge decision must be based on latest required checks for current HEAD only; cancelled/stale runs ignored to avoid confusion and extra iterations.
   - Links:
-    - `AGENTS.md` (PR merge readiness)
-    - `scripts/ci/check_pr_merge_readiness.py` (merge-readiness gate)
+    - `AGENTS.md:31` (PR merge readiness), `:39` (merge checklist)
+    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved_threads), `:344` (errors)
   - DoD:
     - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
     - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
@@ -220,8 +220,8 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required.
   - Links:
-    - `AGENTS.md` (CI, merge readiness)
-    - `.github/workflows/`
+    - `AGENTS.md:31` (merge readiness), `:39` (checklist)
+    - `.github/workflows/` (CI job definitions)
   - DoD:
     - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
     - Examples listed per type
@@ -234,9 +234,9 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Current empty/rerun checks are heuristic; if thread is file-scoped, mapped SHA should touch same file for stronger proof.
   - Links:
-    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `scripts/orchestration/check_review_threads_disposition.py:170` (trigger-only check), `:518` (guard)
     - `tests/test_review_threads_disposition_strict.py`
-    - `AGENTS.md` (FIXED proof quality)
+    - `AGENTS.md:106` (FIXED proof quality, trigger-only ban)
   - DoD:
     - If thread comment is tied to a file path, mapping SHA must change that file
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
@@ -249,8 +249,8 @@ If it is not recorded here — it does not exist.
   - Finding Type: operational clarity
   - Reason: Resolving threads via GraphQL is non-obvious for agents and new contributors; one-command helper or runbook section reduces operator friction.
   - Links:
-    - `RUNBOOK_AGENT.md`
-    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `RUNBOOK_AGENT.md` (pre-merge readiness, merge-readiness script)
+    - `scripts/orchestration/check_review_threads_disposition.py:444` (CLI entry)
   - DoD:
     - RUNBOOK_AGENT.md section with exact commands for thread resolution, or script scripts/orchestration/resolve_review_threads.py (or equivalent) with documented usage
 
