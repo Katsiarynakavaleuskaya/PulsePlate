@@ -3486,7 +3486,7 @@ If it is not recorded here — it does not exist.
 - [ ] P0: PRO/VIP route `Depends` coverage guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (access-control integrity)
-  - Target PR: PR-TBD-PRO-VIP-DEPENDS-GUARD
+  - Target PR: PR #994
   - Status: 🟡 In progress (deterministic live-route guard implementation)
   - Reason (EN): Master checklist item #7 requires deterministic proof that all protected endpoints enforce explicit dependency gates and no silent bypass is introduced by future routing changes.
   - Links:
