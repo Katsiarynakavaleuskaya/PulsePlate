@@ -57,25 +57,31 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
 
 
-def _extract_pr_number(event_path: Path) -> int | None:
-    """Extract PR number from GitHub event payload."""
+def _load_event_pull_request(event_path: Path) -> dict:
+    """Load pull_request dict from GitHub event payload."""
     try:
         payload = json.loads(event_path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
-        return None
-    pr = payload.get("pull_request") or {}
+        return {}
+    return payload.get("pull_request") or {}
+
+
+def _extract_pr_number(event_path: Path) -> int | None:
+    """Extract PR number from GitHub event payload."""
+    pr = _load_event_pull_request(event_path)
     num = pr.get("number")
-    return int(num) if num is not None else None
+    if num is None:
+        return None
+    try:
+        return int(num)
+    except (ValueError, TypeError):
+        return None
 
 
 def _extract_pr_body(event_path: Path) -> str:
-    try:
-        payload = json.loads(event_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return ""
-    except json.JSONDecodeError:
-        return ""
-    return str(payload.get("pull_request", {}).get("body", ""))
+    """Extract PR body from GitHub event payload."""
+    pr = _load_event_pull_request(event_path)
+    return str(pr.get("body", ""))
 
 
 def _extract_mapping_section(text: str) -> str:
@@ -120,6 +126,11 @@ def check_pr_body_phase2_gates(body: str) -> list[str]:
         errors.append(
             "Add at least one mapping entry "
             "(`- <review-comment-url> -> <commit-sha>`) or `- No actionable review comments`."
+        )
+    if has_mapping_entries and has_na_mapping:
+        errors.append(
+            "Invalid mixed mode: 'No actionable review comments' cannot appear "
+            "together with SHA mappings (use one or the other)."
         )
 
     return errors
