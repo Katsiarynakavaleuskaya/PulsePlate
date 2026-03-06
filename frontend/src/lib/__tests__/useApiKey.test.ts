@@ -14,14 +14,14 @@ describe('useApiKey', () => {
   });
   it('returns API key management functions from useAuth', () => {
     const mockApiKey = 'test-api-key';
-    const mockSetApiKey = vi.fn();
-    const mockClearApiKey = vi.fn();
+    const mockSetApiKeyAsync = vi.fn();
+    const mockClearApiKeyAsync = vi.fn();
     const mockIsAuthenticated = true;
 
     vi.mocked(useAuth).mockReturnValue({
       apiKey: mockApiKey,
-      setApiKey: mockSetApiKey,
-      clearApiKey: mockClearApiKey,
+      setApiKey: mockSetApiKeyAsync,
+      clearApiKey: mockClearApiKeyAsync,
       isAuthenticated: mockIsAuthenticated,
       isLoading: false,
       showAuthPrompt: false,
@@ -31,15 +31,17 @@ describe('useApiKey', () => {
     const { result } = renderHook(() => useApiKey());
 
     expect(result.current.apiKey).toBe(mockApiKey);
-    expect(result.current.setApiKey).toBe(mockSetApiKey);
-    expect(result.current.clearApiKey).toBe(mockClearApiKey);
+    expect(result.current.setApiKeyAsync).toBe(mockSetApiKeyAsync);
+    expect(result.current.clearApiKeyAsync).toBe(mockClearApiKeyAsync);
     expect(result.current.isAuthenticated).toBe(mockIsAuthenticated);
 
-    // Validate that only expected properties are returned
+    // Validate that expected compatibility and async keys are returned.
     expect(Object.keys(result.current)).toEqual([
       'apiKey',
       'setApiKey',
       'clearApiKey',
+      'setApiKeyAsync',
+      'clearApiKeyAsync',
       'isAuthenticated'
     ]);
   });
@@ -62,11 +64,13 @@ describe('useApiKey', () => {
     expect(result.current.clearApiKey).toBeDefined();
     expect(result.current.isAuthenticated).toBe(false);
 
-    // Validate that only expected properties are returned
+    // Validate that expected compatibility and async keys are returned.
     expect(Object.keys(result.current)).toEqual([
       'apiKey',
       'setApiKey',
       'clearApiKey',
+      'setApiKeyAsync',
+      'clearApiKeyAsync',
       'isAuthenticated'
     ]);
   });
@@ -86,12 +90,36 @@ describe('useApiKey', () => {
 
     expect(useAuth).toHaveBeenCalledTimes(1);
 
-    // Validate that only expected properties are returned
+    // Validate that expected compatibility and async keys are returned.
     expect(Object.keys(result.current)).toEqual([
       'apiKey',
       'setApiKey',
       'clearApiKey',
+      'setApiKeyAsync',
+      'clearApiKeyAsync',
       'isAuthenticated'
     ]);
+  });
+
+  it('compat wrappers call async auth methods (fire-and-forget)', () => {
+    const mockSetApiKeyAsync = vi.fn().mockResolvedValue(undefined);
+    const mockClearApiKeyAsync = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'test',
+      setApiKey: mockSetApiKeyAsync,
+      clearApiKey: mockClearApiKeyAsync,
+      isAuthenticated: true,
+      isLoading: false,
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useApiKey());
+    result.current.setApiKey('abc', true);
+    result.current.clearApiKey();
+
+    expect(mockSetApiKeyAsync).toHaveBeenCalledWith('abc', true);
+    expect(mockClearApiKeyAsync).toHaveBeenCalledTimes(1);
   });
 });

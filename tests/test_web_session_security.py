@@ -105,6 +105,27 @@ def test_issue_rejects_empty_explicit_secret() -> None:
         web_session.issue_web_session(api_key="k", tier="PRO", secret="   ")
 
 
+def test_issue_and_verify_with_explicit_secret() -> None:
+    """Explicit secret path should work without relying on SERVER_SALT env."""
+
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    issued = web_session.issue_web_session(
+        api_key=TEST_PRO_KEY,
+        tier="PRO",
+        now=now,
+        ttl_seconds=120,
+        secret="explicit-session-secret",  # pragma: allowlist secret
+    )
+    claims = web_session.verify_web_session(
+        issued.token,
+        now=now + timedelta(seconds=30),
+        secret="explicit-session-secret",  # pragma: allowlist secret
+    )
+    assert claims is not None
+    assert claims.api_key == TEST_PRO_KEY
+    assert claims.tier == "PRO"
+
+
 def test_verify_rejects_malformed_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     """Malformed token formats should return None."""
 
@@ -114,6 +135,17 @@ def test_verify_rejects_malformed_tokens(monkeypatch: pytest.MonkeyPatch) -> Non
     assert web_session.verify_web_session("a.b.c") is None
     assert web_session.verify_web_session("a.") is None
     assert web_session.verify_web_session(".b") is None
+
+
+def test_verify_rejects_invalid_base64_payload_with_valid_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Signed token with undecodable payload must fail closed."""
+
+    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    payload = "@@@"
+    sig = _sign_payload(payload, server_salt="session-secret")
+    assert web_session.verify_web_session(f"{payload}.{sig}") is None
 
 
 def test_verify_rejects_bad_signature(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,6 +196,7 @@ def test_verify_rejects_payload_shape(monkeypatch: pytest.MonkeyPatch) -> None:
         b"[]",
         b'{"api_key":"","tier":"PRO","iat":1,"exp":2,"v":1}',
         b'{"api_key":"k","tier":"UNKNOWN","iat":1,"exp":2,"v":1}',
+        b'{"api_key":"k","tier":123,"iat":1,"exp":2,"v":1}',
         b'{"api_key":"k","tier":"PRO","iat":"1","exp":2,"v":1}',
         b'{"api_key":"k","tier":"PRO","iat":1,"exp":"2","v":1}',
         b'{"api_key":"k","tier":"PRO","iat":-1,"exp":2,"v":1}',

@@ -204,7 +204,7 @@ export async function validateApiKey(): Promise<boolean> {
 
 function inferSessionActive(payload: unknown): boolean {
   if (!payload || typeof payload !== "object") {
-    return true;
+    return false;
   }
 
   const source = payload as Record<string, unknown>;
@@ -225,7 +225,7 @@ function inferSessionActive(payload: unknown): boolean {
     }
   }
 
-  return true;
+  return false;
 }
 
 /**

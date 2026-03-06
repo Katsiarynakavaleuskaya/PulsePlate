@@ -211,6 +211,13 @@ describe('API Client Auth', () => {
       await expect(checkProSession()).resolves.toBe(false);
     });
 
+    it('checkProSession fails closed for unknown payload shape', async () => {
+      const { checkProSession } = await import('../client');
+      fetchMock.mockResolvedValueOnce(createMockResponse({ status: 'ok' }, { ok: true, status: 200 }));
+
+      await expect(checkProSession()).resolves.toBe(false);
+    });
+
     it('exchangeApiKeyForSession posts exchange payload and returns true', async () => {
       const { exchangeApiKeyForSession } = await import('../client');
 

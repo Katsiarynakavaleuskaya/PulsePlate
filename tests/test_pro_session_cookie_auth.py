@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
-from app.middleware.api_tiers import TEST_KEY_PRO
+import app.routers.pro_session as pro_session_mod
+from app.middleware.api_tiers import AuthSource, SubscriptionTier, TEST_KEY_PRO, TierAuthContext
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
 
 
@@ -153,3 +156,76 @@ def test_vip_endpoint_rejects_pro_cookie(client: TestClient) -> None:
     response = client.get("/api/v1/vip/health")
     assert response.status_code == 403
     assert "VIP access required" in response.json()["detail"]
+
+
+def test_get_cached_context_missing_returns_500() -> None:
+    """Internal helper should fail closed when dependency did not cache auth context."""
+
+    request = Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "scheme": "http",
+            "method": "GET",
+            "path": "/api/v1/pro/session",
+            "query_string": b"",
+            "headers": [],
+            "client": ("127.0.0.1", 1111),
+            "server": ("testserver", 80),
+        }
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        pro_session_mod._get_cached_pro_context(request)
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Missing authentication context"
+
+
+def test_issue_and_set_cookie_normalizes_non_pro_tier_to_pro() -> None:
+    """Defensive normalization should downgrade unexpected tiers to PRO."""
+
+    response = Response()
+    context = TierAuthContext(
+        api_key=TEST_KEY_PRO,
+        tier=SubscriptionTier.FREE,
+        source=AuthSource.HEADER,
+    )
+    payload = pro_session_mod._issue_and_set_cookie(response=response, context=context)
+    assert payload.tier == "PRO"
+    assert payload.auth_source == "header"
+    assert payload.ttl_seconds >= 1
+
+
+def test_exchange_returns_503_when_cookie_issue_fails(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exchange endpoint must return deterministic 503 on cookie issuance runtime errors."""
+
+    monkeypatch.setattr(
+        pro_session_mod,
+        "_issue_and_set_cookie",
+        lambda **_: (_ for _ in ()).throw(RuntimeError("session unavailable")),
+    )
+    response = client.post(
+        "/api/v1/pro/session/exchange",
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Web session is unavailable"
+
+
+def test_refresh_returns_503_when_cookie_issue_fails(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refresh endpoint must return deterministic 503 on cookie issuance runtime errors."""
+
+    monkeypatch.setattr(
+        pro_session_mod,
+        "_issue_and_set_cookie",
+        lambda **_: (_ for _ in ()).throw(RuntimeError("session unavailable")),
+    )
+    response = client.post(
+        "/api/v1/pro/session/refresh",
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Web session is unavailable"
