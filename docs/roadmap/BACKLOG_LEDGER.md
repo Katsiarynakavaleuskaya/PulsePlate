@@ -3496,8 +3496,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING
-  - Status: 📋 Planned
+  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING-W1 (`feat/p0-session-cookie-hardening-w1`)
+  - Status: 🟡 In progress (Wave W1: cookie transport + session contract hardening)
   - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
@@ -3575,11 +3575,11 @@ If it is not recorded here — it does not exist.
     - Guard tests prevent insecure storage fallback on Android
 
 <a id="ledger-p0-pro-vip-depends-guard"></a>
-- [ ] P0: PRO/VIP route `Depends` coverage guard
+- [x] P0: PRO/VIP route `Depends` coverage guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (access-control integrity)
   - Target PR: PR #994
-  - Status: 🟡 In progress (deterministic live-route guard implementation)
+  - Status: ✅ Merged (PR #994, 2026-03-06)
   - Reason (EN): Master checklist item #7 requires deterministic proof that all protected endpoints enforce explicit dependency gates and no silent bypass is introduced by future routing changes.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
