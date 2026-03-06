@@ -16,7 +16,7 @@ const variantClasses: Record<ButtonVariant, string> = {
     'border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] hover:bg-[var(--color-surface)] hover:shadow-sm',
   ghost: 'bg-transparent text-[var(--color-text)] hover:bg-[var(--color-surface-muted)]',
   destructive:
-    'border border-[color:var(--color-destructive-border)] bg-[color:var(--color-destructive-bg)] text-[var(--color-destructive-foreground)] hover:bg-[color:var(--color-destructive-bg-hover)] hover:shadow-[var(--shadow-destructive)]',
+    'border border-[var(--color-destructive-border)] bg-[var(--color-destructive-bg)] text-[var(--color-destructive-foreground)] hover:bg-[var(--color-destructive-bg-hover)] hover:shadow-[var(--shadow-destructive)]',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
