@@ -352,11 +352,14 @@ class TestRequireProTier:
     ) -> None:
         """Test verifier runtime errors do not bypass PRO guard."""
 
+        def raise_runtime_error(_: str) -> None:
+            raise RuntimeError("bad server salt")
+
         request = _request_with_cookie("signed-cookie-value")
         monkeypatch.setattr(
             api_tiers_mod,
             "verify_web_session",
-            lambda _: (_ for _ in ()).throw(RuntimeError("bad server salt")),
+            raise_runtime_error,
         )
 
         with pytest.raises(HTTPException) as exc_info:
