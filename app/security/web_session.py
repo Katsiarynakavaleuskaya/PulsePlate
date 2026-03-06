@@ -1,4 +1,4 @@
-"""Stateless web session cookie helpers (HMAC-SHA256, fail-closed).
+"""Stateless web session cookie helpers (HMAC-BLAKE2s, fail-closed).
 
 RU: Stateless web session cookie для PRO/VIP web-потока.
 EN: Stateless web session cookie for PRO/VIP web flow.
@@ -70,7 +70,7 @@ def _derive_session_hmac_key(secret: str | None = None) -> bytes:
 
     server_salt = require_server_salt()
     scoped_key = f"web_session_v1::{server_salt}"
-    return hashlib.sha256(scoped_key.encode("utf-8")).digest()
+    return hashlib.blake2s(scoped_key.encode("utf-8")).digest()
 
 
 def _b64url_encode(raw: bytes) -> str:
@@ -138,7 +138,7 @@ def issue_web_session(
     signature = hmac.new(
         _derive_session_hmac_key(secret),
         payload_b64.encode("ascii"),
-        hashlib.sha256,
+        hashlib.blake2s,
     ).hexdigest()
 
     return IssuedWebSession(token=f"{payload_b64}.{signature}", claims=claims)
@@ -167,7 +167,7 @@ def verify_web_session(
     expected_sig = hmac.new(
         _derive_session_hmac_key(secret),
         payload_b64.encode("ascii"),
-        hashlib.sha256,
+        hashlib.blake2s,
     ).hexdigest()
     if not hmac.compare_digest(expected_sig, signature):
         return None

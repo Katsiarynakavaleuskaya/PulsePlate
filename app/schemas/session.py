@@ -23,7 +23,7 @@ class SessionExchangeRequest(BaseModel):
 class SessionExchangeResponse(BaseModel):
     """Exchange/refresh response contract."""
 
-    status: Literal["ok"] = "ok"
+    status: Literal["ok"] = Field(..., description="Deterministic exchange status")
     tier: SessionTier = Field(..., description="Resolved tier stored in session cookie")
     auth_source: SessionSource = Field(
         ...,
@@ -36,8 +36,8 @@ class SessionExchangeResponse(BaseModel):
 class SessionStatusResponse(BaseModel):
     """Session status response contract."""
 
-    status: Literal["ok"] = "ok"
-    authenticated: Literal[True] = True
+    status: Literal["ok"] = Field(..., description="Deterministic status value")
+    authenticated: Literal[True] = Field(..., description="Always true for authorized session")
     tier: SessionTier = Field(..., description="Current authenticated tier")
     auth_source: SessionSource = Field(..., description="Current authentication source")
     expires_at_epoch: int | None = Field(
@@ -49,5 +49,5 @@ class SessionStatusResponse(BaseModel):
 class SessionLogoutResponse(BaseModel):
     """Logout response contract."""
 
-    status: Literal["ok"] = "ok"
-    logged_out: Literal[True] = True
+    status: Literal["ok"] = Field(..., description="Deterministic logout status")
+    logged_out: Literal[True] = Field(..., description="Always true for successful logout")

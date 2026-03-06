@@ -5259,7 +5259,7 @@
           },
           "status": {
             "const": "ok",
-            "default": "ok",
+            "description": "Deterministic exchange status",
             "title": "Status",
             "type": "string"
           },
@@ -5280,6 +5280,7 @@
           }
         },
         "required": [
+          "status",
           "tier",
           "auth_source",
           "expires_at_epoch",
@@ -5293,17 +5294,21 @@
         "properties": {
           "logged_out": {
             "const": true,
-            "default": true,
+            "description": "Always true for successful logout",
             "title": "Logged Out",
             "type": "boolean"
           },
           "status": {
             "const": "ok",
-            "default": "ok",
+            "description": "Deterministic logout status",
             "title": "Status",
             "type": "string"
           }
         },
+        "required": [
+          "status",
+          "logged_out"
+        ],
         "title": "SessionLogoutResponse",
         "type": "object"
       },
@@ -5321,7 +5326,7 @@
           },
           "authenticated": {
             "const": true,
-            "default": true,
+            "description": "Always true for authorized session",
             "title": "Authenticated",
             "type": "boolean"
           },
@@ -5339,7 +5344,7 @@
           },
           "status": {
             "const": "ok",
-            "default": "ok",
+            "description": "Deterministic status value",
             "title": "Status",
             "type": "string"
           },
@@ -5354,6 +5359,8 @@
           }
         },
         "required": [
+          "status",
+          "authenticated",
           "tier",
           "auth_source"
         ],
@@ -7190,6 +7197,11 @@
         "in": "header",
         "name": "X-API-Key",
         "type": "apiKey"
+      },
+      "CookieSession": {
+        "in": "cookie",
+        "name": "pp_web_session",
+        "type": "apiKey"
       }
     }
   },
@@ -7330,6 +7342,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Bmi Pro Legacy Alias",
@@ -7359,6 +7374,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Food Data Attribution",
@@ -7407,6 +7425,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "[DEPRECATED] Legacy PRO BMI endpoint",
@@ -7454,6 +7475,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Calculate BMI with WHR (PRO tier)",
@@ -7516,6 +7540,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Cbt Insight",
@@ -7564,6 +7591,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Generate Shopping List",
@@ -7612,6 +7642,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Generate weekly meal plan (PRO tier)",
@@ -7659,6 +7692,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Nutrient coverage scoring (PRO)",
@@ -7818,6 +7854,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get daily nutrition data (PRO tier)",
@@ -7865,6 +7904,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Close day (PRO)",
@@ -7913,6 +7955,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Food-based deficiency recommendations (PRO)",
@@ -7961,6 +8006,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Log meal event (PRO)",
@@ -8009,6 +8057,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Extended micronutrient targets with ranges (PRO)",
@@ -8057,6 +8108,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Enhanced plate (PRO)",
@@ -8105,6 +8159,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Safety validation of nutrition targets (PRO)",
@@ -8153,6 +8210,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "WHO nutrition targets (PRO)",
@@ -8221,6 +8281,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Activate Subscription",
@@ -8290,6 +8353,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Subscription Activation",
@@ -8358,6 +8424,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Revoke Handoff Share",
@@ -8436,6 +8505,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Handoff Share Status",
@@ -8503,6 +8575,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Create Partner Order",
@@ -8560,6 +8635,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Preview Partner Order From Weekly Plan",
@@ -8607,6 +8685,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Preview Partner Order",
@@ -8685,6 +8766,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Partner Order",
@@ -8783,6 +8867,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Confirm Partner Order",
@@ -8868,6 +8955,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Issue Handoff Share",
@@ -8896,6 +8986,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Session Status",
@@ -8924,6 +9017,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Exchange Session Cookie",
@@ -8952,6 +9048,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Logout Session",
@@ -8980,6 +9079,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Refresh Session Cookie",
@@ -9043,6 +9145,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Shopping list suggestions for a day (MVP placeholder)",
@@ -9073,6 +9178,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Repair Strategies",
@@ -9124,6 +9232,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Manual Repair Suggestions",
@@ -9175,6 +9286,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Auto Repair Weekly Plan",
@@ -9204,6 +9318,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Vip Health",
@@ -9255,6 +9372,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Weekly Menu Plan",
@@ -9306,6 +9426,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Weekly Menu Repair",
@@ -9357,6 +9480,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Synthesize Recipe",
@@ -9386,6 +9512,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Recipe Templates",
@@ -9437,6 +9566,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Synthesize Weekly Recipes",
@@ -9466,6 +9598,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Regions",
@@ -9526,6 +9661,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Compare Product Prices",
@@ -9576,6 +9714,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Region Categories",
@@ -9655,6 +9796,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Search Region Products",
@@ -9705,6 +9849,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Get Region Stores",
@@ -9756,6 +9903,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Daily Shoplist",
@@ -9872,6 +10022,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Export VIP shoplist to CSV or PDF",
@@ -9902,6 +10055,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Available Export Formats",
@@ -9992,6 +10148,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Generate VIP shoplist (deterministic)",
@@ -10035,6 +10194,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "VIP shoplist preview (legacy)",
@@ -10087,6 +10249,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "CookieSession": []
           }
         ],
         "summary": "Weekly Shoplist",

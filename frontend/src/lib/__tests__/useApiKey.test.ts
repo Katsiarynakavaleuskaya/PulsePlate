@@ -8,6 +8,15 @@ vi.mock('../auth', () => ({
   useAuth: vi.fn(),
 }));
 
+const EXPECTED_HOOK_KEYS = [
+  'apiKey',
+  'setApiKey',
+  'clearApiKey',
+  'setApiKeyAsync',
+  'clearApiKeyAsync',
+  'isAuthenticated',
+] as const;
+
 describe('useApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,14 +45,7 @@ describe('useApiKey', () => {
     expect(result.current.isAuthenticated).toBe(mockIsAuthenticated);
 
     // Validate that expected compatibility and async keys are returned.
-    expect(Object.keys(result.current)).toEqual([
-      'apiKey',
-      'setApiKey',
-      'clearApiKey',
-      'setApiKeyAsync',
-      'clearApiKeyAsync',
-      'isAuthenticated'
-    ]);
+    expect(Object.keys(result.current)).toEqual(EXPECTED_HOOK_KEYS);
   });
 
   it('returns null apiKey and defined functions when not authenticated', () => {
@@ -65,14 +67,7 @@ describe('useApiKey', () => {
     expect(result.current.isAuthenticated).toBe(false);
 
     // Validate that expected compatibility and async keys are returned.
-    expect(Object.keys(result.current)).toEqual([
-      'apiKey',
-      'setApiKey',
-      'clearApiKey',
-      'setApiKeyAsync',
-      'clearApiKeyAsync',
-      'isAuthenticated'
-    ]);
+    expect(Object.keys(result.current)).toEqual(EXPECTED_HOOK_KEYS);
   });
 
   it('calls useAuth hook', () => {
@@ -91,14 +86,7 @@ describe('useApiKey', () => {
     expect(useAuth).toHaveBeenCalledTimes(1);
 
     // Validate that expected compatibility and async keys are returned.
-    expect(Object.keys(result.current)).toEqual([
-      'apiKey',
-      'setApiKey',
-      'clearApiKey',
-      'setApiKeyAsync',
-      'clearApiKeyAsync',
-      'isAuthenticated'
-    ]);
+    expect(Object.keys(result.current)).toEqual(EXPECTED_HOOK_KEYS);
   });
 
   it('compat wrappers call async auth methods (fire-and-forget)', () => {

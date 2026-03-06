@@ -49,10 +49,14 @@ export default function EnterKey() {
 
   const handleClear = async () => {
     const hadKey = auth.isAuthenticated || !!value.trim();
-    await auth.clearApiKey();
-    setValue("");
-    if (hadKey) {
-      toast.success(t("onboarding.enterKey.keyCleared"));
+    try {
+      await auth.clearApiKey();
+      setValue("");
+      if (hadKey) {
+        toast.success(t("onboarding.enterKey.keyCleared"));
+      }
+    } catch {
+      toast.error(t("onboarding.enterKey.errorGeneric"));
     }
   };
 

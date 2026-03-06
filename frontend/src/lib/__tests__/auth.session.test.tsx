@@ -56,6 +56,23 @@ describe('AuthProvider session migration', () => {
     expect(result.current.apiKey).not.toBeNull();
   });
 
+  it('clears legacy storage even when exchange fails', async () => {
+    legacyStoredKey = 'legacy-session-key';
+    exchangeApiKeyForSessionMock.mockRejectedValueOnce(new Error('exchange failed'));
+    checkProSessionMock.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(exchangeApiKeyForSessionMock).toHaveBeenCalledWith('legacy-session-key');
+    expect(clearStoredApiKeyMock).toHaveBeenCalled();
+    expect(legacyStoredKey).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.apiKey).toBeNull();
+  });
+
   it('setApiKey exchanges for session and never persists key in storage', async () => {
     checkProSessionMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 

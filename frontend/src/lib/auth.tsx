@@ -63,6 +63,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (legacyKey) {
         try {
           await exchangeApiKeyForSession(legacyKey);
+        } catch {
+          // Fail closed: migration best-effort, auth state is derived from session check below.
         } finally {
           // Always clear legacy persistence even if exchange fails.
           clearStoredApiKey();
@@ -122,7 +124,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const clearApiKey = async () => {
     clearPromptTimeout();
     clearStoredApiKey();
-    await clearProSession();
+    try {
+      await clearProSession();
+    } catch {
+      // Best-effort logout: local auth state is still cleared deterministically.
+    }
     setIsAuthenticated(false);
     setApiKeyState(null);
     scheduleAuthPrompt();

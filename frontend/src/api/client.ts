@@ -203,12 +203,21 @@ function inferSessionActive(payload: unknown): boolean {
     return false;
   }
 
+  const isSuccessStatus = (value: unknown): boolean =>
+    typeof value === "string" && ["ok", "success"].includes(value.trim().toLowerCase());
+
+  const hasSessionIdentity = (source: Record<string, unknown>): boolean =>
+    typeof source.tier === "string" || typeof source.auth_source === "string";
+
   const source = payload as Record<string, unknown>;
   const rootBooleanKeys = ["authenticated", "active", "ok", "has_session", "is_authenticated"];
   for (const key of rootBooleanKeys) {
     if (typeof source[key] === "boolean") {
       return source[key] as boolean;
     }
+  }
+  if (hasSessionIdentity(source) && isSuccessStatus(source.status)) {
+    return true;
   }
 
   const nestedSession = source.session;
@@ -218,6 +227,9 @@ function inferSessionActive(payload: unknown): boolean {
       if (typeof nested[key] === "boolean") {
         return nested[key] as boolean;
       }
+    }
+    if (hasSessionIdentity(nested) && isSuccessStatus(nested.status)) {
+      return true;
     }
   }
 

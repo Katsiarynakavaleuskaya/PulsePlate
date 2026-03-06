@@ -16,11 +16,11 @@ export function useApiKey() {
   } = useAuth();
 
   const setApiKey = (key: string, remember?: boolean): void => {
-    void setApiKeyAsync(key, remember);
+    void setApiKeyAsync(key, remember).catch(() => {});
   };
 
   const clearApiKey = (): void => {
-    void clearApiKeyAsync();
+    void clearApiKeyAsync().catch(() => {});
   };
 
   return {

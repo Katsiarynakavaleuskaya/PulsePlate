@@ -3878,7 +3878,7 @@ export interface components {
             expires_at_epoch: number;
             /**
              * Status
-             * @default ok
+             * @description Deterministic exchange status
              * @constant
              */
             status: "ok";
@@ -3901,13 +3901,13 @@ export interface components {
         SessionLogoutResponse: {
             /**
              * Logged Out
-             * @default true
+             * @description Always true for successful logout
              * @constant
              */
             logged_out: true;
             /**
              * Status
-             * @default ok
+             * @description Deterministic logout status
              * @constant
              */
             status: "ok";
@@ -3925,7 +3925,7 @@ export interface components {
             auth_source: "header" | "cookie";
             /**
              * Authenticated
-             * @default true
+             * @description Always true for authorized session
              * @constant
              */
             authenticated: true;
@@ -3936,7 +3936,7 @@ export interface components {
             expires_at_epoch?: number | null;
             /**
              * Status
-             * @default ok
+             * @description Deterministic status value
              * @constant
              */
             status: "ok";

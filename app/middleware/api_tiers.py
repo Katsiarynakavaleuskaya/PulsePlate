@@ -31,6 +31,7 @@ from enum import Enum
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi.security import APIKeyCookie
 from sqlalchemy import text
 
 from app.routers.api_key import api_key_header
@@ -39,6 +40,12 @@ from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 from app.utils.feature_flags import is_vip_module_enabled
 
 logger = logging.getLogger(__name__)
+
+web_session_cookie = APIKeyCookie(
+    name=WEB_SESSION_COOKIE_NAME,
+    scheme_name="CookieSession",
+    auto_error=False,
+)
 
 
 class SubscriptionTier(str, Enum):
@@ -87,9 +94,9 @@ class TierAuthContext:
     session_expires_at_epoch: int | None = None
 
 
-# Test API keys for development/testing (nosec B105)
-TEST_KEY_PRO = "test_pro_key"  # nosec B105
-TEST_KEY_VIP = "test_vip_key"  # nosec B105
+# Test API keys for deterministic test/development tier checks.
+TEST_KEY_PRO = "test_pro_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
+TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-995)
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()
@@ -277,13 +284,15 @@ def _resolve_cookie_auth_context(
     *,
     request: Request | None,
     required_tier: SubscriptionTier,
+    web_session_token: str | None = None,
 ) -> TierAuthContext | None:
     """Resolve cookie-backed auth context or None."""
 
     if request is None:
         return None
 
-    raw_cookie = request.cookies.get(WEB_SESSION_COOKIE_NAME, "")
+    normalized_token = web_session_token if isinstance(web_session_token, str) else ""
+    raw_cookie = (normalized_token or request.cookies.get(WEB_SESSION_COOKIE_NAME, "")).strip()
     if not raw_cookie:
         return None
 
@@ -312,6 +321,7 @@ def _resolve_cookie_auth_context(
 def resolve_pro_auth_context(
     *,
     x_api_key: Optional[str] = Security(api_key_header),
+    x_web_session: Optional[str] = Security(web_session_cookie),
     request: Request = Depends(_request_dependency),
 ) -> TierAuthContext:
     """Resolve PRO auth using header-first precedence, then cookie fallback."""
@@ -337,6 +347,7 @@ def resolve_pro_auth_context(
     cookie_context = _resolve_cookie_auth_context(
         request=request_obj,
         required_tier=SubscriptionTier.PRO,
+        web_session_token=x_web_session,
     )
     if cookie_context is not None:
         return cookie_context
@@ -352,6 +363,7 @@ def resolve_pro_auth_context(
 def resolve_vip_auth_context(
     *,
     x_api_key: Optional[str] = Security(api_key_header),
+    x_web_session: Optional[str] = Security(web_session_cookie),
     request: Request = Depends(_request_dependency),
 ) -> TierAuthContext:
     """Resolve VIP auth using header-first precedence, then cookie fallback."""
@@ -377,6 +389,7 @@ def resolve_vip_auth_context(
     cookie_context = _resolve_cookie_auth_context(
         request=request_obj,
         required_tier=SubscriptionTier.VIP,
+        web_session_token=x_web_session,
     )
     if cookie_context is not None:
         return cookie_context
@@ -399,6 +412,7 @@ def get_request_pro_auth_context(request: Request) -> TierAuthContext | None:
 
 def require_pro_tier(
     x_api_key: Optional[str] = Security(api_key_header),
+    x_web_session: Optional[str] = Security(web_session_cookie),
     request: Request = Depends(_request_dependency),
 ) -> str:
     """Require PRO tier API key for endpoint access.
@@ -421,7 +435,11 @@ def require_pro_tier(
         async def pro_feature():
             return {"message": "PRO feature accessed"}
     """
-    context = resolve_pro_auth_context(x_api_key=x_api_key, request=request)
+    context = resolve_pro_auth_context(
+        x_api_key=x_api_key,
+        x_web_session=x_web_session,
+        request=request,
+    )
     request_obj = _as_request(request)
     if request_obj is not None:
         request_obj.state.pro_auth_context = context
@@ -431,6 +449,7 @@ def require_pro_tier(
 
 def require_vip_tier(
     x_api_key: Optional[str] = Security(api_key_header),
+    x_web_session: Optional[str] = Security(web_session_cookie),
     request: Request = Depends(_request_dependency),
 ) -> str:
     """Require VIP tier API key for endpoint access.
@@ -453,7 +472,11 @@ def require_vip_tier(
         async def vip_feature():
             return {"message": "VIP feature accessed"}
     """
-    context = resolve_vip_auth_context(x_api_key=x_api_key, request=request)
+    context = resolve_vip_auth_context(
+        x_api_key=x_api_key,
+        x_web_session=x_web_session,
+        request=request,
+    )
     request_obj = _as_request(request)
     if request_obj is not None:
         request_obj.state.vip_auth_context = context
