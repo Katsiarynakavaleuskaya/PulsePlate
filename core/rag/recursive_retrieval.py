@@ -60,7 +60,7 @@ def _tokenize(text: str) -> List[str]:
 def _compute_confidence(chunks: List[RAGChunk]) -> float:
     if not chunks:
         return 0.0
-    return round(sum(chunk.score for chunk in chunks) / len(chunks), 4)
+    return float(round(sum(chunk.score for chunk in chunks) / len(chunks), 4))
 
 
 def _rank_chunks(chunks: Iterable[RAGChunk], limit: int) -> List[RAGChunk]:
@@ -101,14 +101,15 @@ def _apply_verification(
     """Apply deterministic chunk verification pipeline."""
     from core.rag.validation import validate_rag_chunks
 
-    validated = validate_rag_chunks(chunks, agent_id=agent_id).filtered_chunks
+    validated: List[RAGChunk] = validate_rag_chunks(chunks, agent_id=agent_id).filtered_chunks
 
     if not philo_validation_enabled or not validated:
         return validated
 
     from core.rag.philosophy_pipeline import run_pipeline
 
-    return run_pipeline(validated, query=query).filtered_chunks
+    filtered: List[RAGChunk] = run_pipeline(validated, query=query).filtered_chunks
+    return filtered
 
 
 def retrieve_recursive_context_structured(
