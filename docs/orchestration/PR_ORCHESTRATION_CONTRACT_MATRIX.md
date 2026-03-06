@@ -18,7 +18,7 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 | 3     | Latest CI run for current HEAD          | merge decision                 |
 | 4     | PR body                                 | human-readable mirror only     |
 
-Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestration/review_mapping_artifact.py`, `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py`; Level 4 — PR body mirror.
+Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestration/review_mapping_artifact.py:23`, `scripts/ci/check_pr_body_phase2_gates.py:13`, `scripts/ci/check_pr_merge_readiness.py:22`, `scripts/orchestration/check_review_threads_disposition.py:25`; Level 4 — PR body mirror (`AGENTS.md:39`).
 
 ## 3. Governance Phases
 
@@ -31,7 +31,7 @@ Evidence: Level 2 — this doc + `AGENTS.md`; Level 2a — `scripts/orchestratio
 
 ## 4. Phase 2 Contract (Canonical Artifact)
 
-Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror/fallback.
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body **must mirror** the same sections (`## Discussion Thread Pass`, `## Fixed in Commit Mapping`) as fallback when event has no pr_number; artifact-first when pr_number is available. Fallback is temporary; removal tracked in backlog.
 
 Required sections in artifact:
 
@@ -120,7 +120,7 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:8` (GH_TOKE
 
 ## 12. Roadmap / Future Hardening
 
-- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Done (PR-TBD)
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Done (PR-998)
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof

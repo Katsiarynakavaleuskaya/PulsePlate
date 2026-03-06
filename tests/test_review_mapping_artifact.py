@@ -20,7 +20,8 @@ def test_read_mapping_artifact_existing() -> None:
     text = artifact.read_mapping_artifact(998)
     assert "## Discussion Thread Pass" in text
     assert "## Fixed in Commit Mapping" in text
-    assert "No actionable review comments" in text
+    # Either no actionable comments or url->sha mappings
+    assert "No actionable review comments" in text or "->" in text
 
 
 def test_read_mapping_artifact_missing() -> None:

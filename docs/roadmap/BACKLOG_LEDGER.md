@@ -183,11 +183,11 @@ If it is not recorded here — it does not exist.
     - Linked from AGENTS.md as canonical orchestration governance reference
   - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
-- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (branch: fix/orch-move-fixed-mapping-sot-to-repo-file)
-  - Status: In progress (PR not yet opened)
+  - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
+  - Status: Open (PR #998, awaiting merge)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
