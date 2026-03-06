@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 SALT_ENV_VAR: Final[str] = "FINGERPRINT_SALT"
 SALT_FILE_ENV_VAR: Final[str] = "FINGERPRINT_SALT_FILE"
 DEFAULT_SALT_PATH: Final[Path] = Path("cache") / "fingerprint_salt.txt"
+SECRET_MARKER_ITERATIONS: Final[int] = 120_000
 
 
 def _read_salt(path: Path) -> str | None:
@@ -138,6 +139,31 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
     return digest[:length]
 
 
+def compute_secret_marker(secret: str, *, truncate: int = 32) -> str:
+    """Return a PBKDF2-based opaque marker for limited-input secrets.
+
+    RU: Возвращает opaque marker для секретов с ограниченным пространством значений.
+    EN: Returns an opaque marker for limited-input secrets using PBKDF2-HMAC-SHA256.
+    """
+    if not secret:
+        return ""
+
+    if truncate < 0:
+        raise ValueError(f"truncate must be non-negative, got {truncate}")
+
+    salt = _get_salt().encode("utf-8")
+    secret_bytes = secret.encode("utf-8")
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        secret_bytes,
+        salt,
+        SECRET_MARKER_ITERATIONS,
+        dklen=32,
+    ).hex()
+    length = truncate if truncate > 0 else len(digest)
+    return digest[:length]
+
+
 @runtime_checkable
 class _ClientLike(Protocol):
     """Protocol for request.client attribute."""
@@ -202,4 +228,4 @@ def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
     return compute_fingerprint(source)
 
 
-__all__ = ["compute_fingerprint", "_client_fingerprint"]
+__all__ = ["compute_fingerprint", "compute_secret_marker", "_client_fingerprint"]
