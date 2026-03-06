@@ -26,3 +26,51 @@ Evidence: `scripts/orchestration/review_mapping_artifact.py:110`, `scripts/ci/ch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137607 -> 93235703
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137612 -> 93235703
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906324703 -> 93235703
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321290 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321300 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321302 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321305 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321308 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321315 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321320 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321322 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321327 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321331 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321333 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
