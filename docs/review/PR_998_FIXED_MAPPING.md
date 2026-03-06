@@ -63,7 +63,15 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321325 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321327 -> 69e75862
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898321328 -> 69e75862
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr998-orch2-carryover
 
