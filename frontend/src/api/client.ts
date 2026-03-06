@@ -1,8 +1,8 @@
-// RU: API клиент с поддержкой аутентификации. Обрабатывает 401 ошибки, перенаправляя на страницу ввода ключа.
-// EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
+// RU: API клиент с поддержкой серверной cookie-сессии. Обрабатывает 401 ошибки, перенаправляя на страницу входа.
+// EN: API client with server-session cookie support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
-import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
+import { clearStoredApiKey } from "../auth/storage";
 import type { components } from "./schema";
 
 /**
@@ -18,7 +18,7 @@ export interface ApiClientDependencies {
  * Default dependencies using production implementations
  */
 const defaultDependencies: ApiClientDependencies = {
-  getStoredApiKey,
+  getStoredApiKey: () => null,
   clearStoredApiKey,
   apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
 };
@@ -51,7 +51,6 @@ export function setApiClientDependencies(deps: ApiClientDependencies | null): vo
 }
 
 // Extract functions from current dependencies
-const _getStoredApiKey = () => getDependencies().getStoredApiKey();
 const _clearStoredApiKey = () => getDependencies().clearStoredApiKey();
 
 /**
@@ -158,6 +157,9 @@ const forceMock = searchParams.get("mock") === "1";
 // PRO nutrition endpoint paths (canonical)
 export const PRO_NUTRITION_TARGETS_PATH = "/api/v1/pro/nutrition/targets";
 export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
+export const PRO_SESSION_PATH = "/api/v1/pro/session";
+export const PRO_SESSION_EXCHANGE_PATH = "/api/v1/pro/session/exchange";
+export const PRO_SESSION_LOGOUT_PATH = "/api/v1/pro/session/logout";
 
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
@@ -176,8 +178,8 @@ function mockUrl(path: string): string | null {
   return null;
 }
 
-// API Key management moved to auth context
-// Re-export for backward compatibility
+// Legacy API key management exports kept for backward compatibility.
+// Browser persistence is disabled in storage.ts.
 export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 /**
@@ -200,18 +202,121 @@ export async function validateApiKey(): Promise<boolean> {
   }
 }
 
+function inferSessionActive(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") {
+    return true;
+  }
+
+  const source = payload as Record<string, unknown>;
+  const rootBooleanKeys = ["authenticated", "active", "ok", "has_session", "is_authenticated"];
+  for (const key of rootBooleanKeys) {
+    if (typeof source[key] === "boolean") {
+      return source[key] as boolean;
+    }
+  }
+
+  const nestedSession = source.session;
+  if (nestedSession && typeof nestedSession === "object") {
+    const nested = nestedSession as Record<string, unknown>;
+    for (const key of rootBooleanKeys) {
+      if (typeof nested[key] === "boolean") {
+        return nested[key] as boolean;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Check whether server-side PRO session is currently active.
+ * Auth source of truth for web flow.
+ */
+export async function checkProSession(): Promise<boolean> {
+  try {
+    validateApiBase();
+    const response = await fetch(normalizeApiUrl(getApiBase(), PRO_SESSION_PATH), {
+      method: "GET",
+      headers: mergeHeaders(),
+      credentials: "include",
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return false;
+    }
+    if (!response.ok) {
+      return false;
+    }
+
+    const payload = await response.json().catch(() => null);
+    return inferSessionActive(payload);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Exchange a legacy API key for a secure server-side session cookie.
+ * Returns true only when a valid session is established.
+ */
+export async function exchangeApiKeyForSession(apiKey: string): Promise<boolean> {
+  const trimmedKey = apiKey.trim();
+  if (!trimmedKey) {
+    return false;
+  }
+
+  try {
+    validateApiBase();
+
+    const response = await fetch(normalizeApiUrl(getApiBase(), PRO_SESSION_EXCHANGE_PATH), {
+      method: "POST",
+      headers: mergeHeaders(
+        {
+          headers: {
+            "X-API-Key": trimmedKey,
+          },
+        },
+      ),
+      credentials: "include",
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return false;
+    }
+    if (!response.ok) {
+      return false;
+    }
+
+    const payload = await response.json().catch(() => null);
+    return inferSessionActive(payload);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Best-effort server session clear (logout).
+ * Errors are intentionally swallowed to keep UX deterministic.
+ */
+export async function clearProSession(): Promise<void> {
+  try {
+    validateApiBase();
+    await fetch(normalizeApiUrl(getApiBase(), PRO_SESSION_LOGOUT_PATH), {
+      method: "POST",
+      headers: mergeHeaders(),
+      credentials: "include",
+    });
+  } catch {
+    // no-op
+  }
+}
+
 function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   const defaults: Record<string, string> = {
     Accept: "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
   };
-
-  // Add API key if available
-  const apiKey = _getStoredApiKey();
-  if (apiKey) {
-    defaults["X-API-Key"] = apiKey;
-  }
 
   // NOTE: api() сам сериализует body в JSON для методов ≠ GET.
   // Высшим слоям (createPremiumEndpoint, hooks) нужно передавать body как объект.
@@ -337,9 +442,9 @@ export async function api<T = unknown>(
           }
         }
         // Log the auth error
-        logError(new UnauthorizedError(`API key invalid or expired (${res.status}).`));
+        logError(new UnauthorizedError(`Session invalid or expired (${res.status}).`));
         // Throw specific UnauthorizedError so callers can detect auth errors
-        throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+        throw new UnauthorizedError(`Session invalid or expired (${res.status}).`);
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
@@ -400,10 +505,10 @@ function classifyUrl(url: string): 'api' | 'absolute' {
  * EN: Fetch binary data (Blob) from API or external URL.
  *
  * URL Classification:
- * - `/api/...` (API path): Prepends VITE_API_BASE, adds auth headers, handles 401/403
+ * - `/api/...` (API path): Prepends VITE_API_BASE, includes cookie credentials, handles 401/403
  * - `https://...` (External): Pass-through fetch, NO auth headers (signed URLs have token in query)
  *
- * Security: API key is NEVER sent to external URLs to prevent credential leaks.
+ * Security: auth headers are NEVER sent to external URLs to prevent credential leaks.
  *
  * @param url - API path (/api/v1/...) or absolute URL (https://...)
  * @param init - Optional fetch init options
@@ -424,7 +529,7 @@ export async function fetchBlob(
     validateApiBase();
   }
 
-  // For API paths: add auth headers; for external: strip auth and omit credentials
+  // For API paths: include cookies; for external: strip auth headers and omit credentials
   let finalInit: RequestInit;
 
   if (kind === 'api') {
@@ -457,7 +562,7 @@ export async function fetchBlob(
       if (typeof window !== 'undefined') {
         window.location.replace('/enter-key');
       }
-      const authError = new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+      const authError = new UnauthorizedError(`Session invalid or expired (${res.status}).`);
       logError(authError);
       throw authError;
     }

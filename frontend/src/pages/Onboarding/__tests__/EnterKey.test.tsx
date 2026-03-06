@@ -6,6 +6,24 @@ import EnterKey from '../EnterKey';
 import { AuthProvider } from '../../../lib/auth';
 import toast from 'react-hot-toast';
 
+const checkProSessionMock = vi.fn<() => Promise<boolean>>();
+const exchangeApiKeyForSessionMock = vi.fn<(apiKey: string) => Promise<boolean>>();
+const clearProSessionMock = vi.fn<() => Promise<void>>();
+const getStoredApiKeyMock = vi.fn<() => string | null>();
+const clearStoredApiKeyMock = vi.fn<() => void>();
+
+vi.mock('../../../api/client', () => ({
+  checkProSession: (...args: []) => checkProSessionMock(...args),
+  exchangeApiKeyForSession: (apiKey: string) => exchangeApiKeyForSessionMock(apiKey),
+  clearProSession: (...args: []) => clearProSessionMock(...args),
+}));
+
+vi.mock('../../../auth/storage', () => ({
+  getStoredApiKey: (...args: []) => getStoredApiKeyMock(...args),
+  setStoredApiKey: vi.fn(),
+  clearStoredApiKey: (...args: []) => clearStoredApiKeyMock(...args),
+}));
+
 
 // Mock i18next
 vi.mock('react-i18next', () => ({
@@ -30,25 +48,30 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-const renderWithProviders = (component: React.ReactElement) => {
-  // Clear any stored API keys before each test
-  localStorage.removeItem('pulseplate_api_key');
-  sessionStorage.removeItem('pulseplate_api_key');
-
-  return render(
+const renderWithProviders = async (component: React.ReactElement) => {
+  const rendered = render(
     <AuthProvider>
       {component}
     </AuthProvider>
   );
+  await waitFor(() => {
+    expect(checkProSessionMock).toHaveBeenCalled();
+  });
+  return rendered;
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getStoredApiKeyMock.mockReturnValue(null);
+  clearStoredApiKeyMock.mockImplementation(() => {});
+  checkProSessionMock.mockResolvedValue(false);
+  exchangeApiKeyForSessionMock.mockResolvedValue(true);
+  clearProSessionMock.mockResolvedValue(undefined);
 });
 
 describe('EnterKey', () => {
-  it('renders the API key input form', () => {
-    renderWithProviders(<EnterKey />);
+  it('renders the API key input form', async () => {
+    await renderWithProviders(<EnterKey />);
 
     expect(screen.getByText('onboarding.enterKey.title')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('onboarding.enterKey.placeholder')).toBeInTheDocument();
@@ -57,7 +80,7 @@ describe('EnterKey', () => {
   });
 
   it('shows error for empty API key', async () => {
-    renderWithProviders(<EnterKey />);
+    await renderWithProviders(<EnterKey />);
 
     const saveButton = screen.getByText('onboarding.enterKey.save');
     fireEvent.click(saveButton);
@@ -68,7 +91,7 @@ describe('EnterKey', () => {
   });
 
   it('shows error for API key shorter than minimum length', async () => {
-    renderWithProviders(<EnterKey />);
+    await renderWithProviders(<EnterKey />);
 
     const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
     fireEvent.change(input, { target: { value: 'short' } }); // 5 characters, less than minimum
@@ -82,7 +105,9 @@ describe('EnterKey', () => {
   });
 
   it('saves API key when valid', async () => {
-    renderWithProviders(<EnterKey />);
+    checkProSessionMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await renderWithProviders(<EnterKey />);
 
     const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
     fireEvent.change(input, { target: { value: 'sk-test12345678901234567890' } });
@@ -93,10 +118,11 @@ describe('EnterKey', () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('onboarding.enterKey.successSaved');
     });
+    expect(exchangeApiKeyForSessionMock).toHaveBeenCalledWith('sk-test12345678901234567890');
   });
 
   it('clears API key when clear button is clicked', async () => {
-    renderWithProviders(<EnterKey />);
+    await renderWithProviders(<EnterKey />);
 
     const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
     fireEvent.change(input, { target: { value: 'sk-test12345678901234567890' } });
@@ -111,7 +137,7 @@ describe('EnterKey', () => {
   });
 
   it('does not show success message when clearing empty API key', async () => {
-    renderWithProviders(<EnterKey />);
+    await renderWithProviders(<EnterKey />);
 
     const clearButton = screen.getByText('onboarding.enterKey.clear');
     fireEvent.click(clearButton);

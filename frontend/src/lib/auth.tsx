@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../auth/storage';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { getStoredApiKey, clearStoredApiKey } from '../auth/storage';
+import { checkProSession, clearProSession, exchangeApiKeyForSession } from '../api/client';
 
 const MIN_API_KEY_LENGTH = 20;
 const AUTH_PROMPT_DELAY_MS = 500;
+const SESSION_AUTH_SENTINEL = '__session_auth__';
 
 export class AuthError extends Error {
   code: string;
@@ -19,8 +21,8 @@ export interface AuthContextType {
   apiKey: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  setApiKey: (key: string, remember?: boolean) => void;
-  clearApiKey: () => void;
+  setApiKey: (key: string, remember?: boolean) => Promise<void>;
+  clearApiKey: () => Promise<void>;
   showAuthPrompt: boolean;
   setShowAuthPrompt: (show: boolean) => void;
 }
@@ -33,68 +35,102 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const promptTimeoutRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    // Load API key from storage on mount
-    const storedKey = getStoredApiKey();
-    setApiKeyState(storedKey);
-    setIsLoading(false);
-
-    // Show auth prompt if no key is stored
-    if (!storedKey) {
-      // Delay showing prompt to avoid flash on initial load
-      promptTimeoutRef.current = window.setTimeout(() => {
-        // Double-check that no key was set during the delay
-        const currentKey = getStoredApiKey();
-        if (!currentKey) {
-          setShowAuthPrompt(true);
-        }
-      }, AUTH_PROMPT_DELAY_MS);
+  const clearPromptTimeout = useCallback(() => {
+    if (promptTimeoutRef.current !== null) {
+      clearTimeout(promptTimeoutRef.current);
+      promptTimeoutRef.current = null;
     }
-
-    return () => {
-      if (promptTimeoutRef.current !== null) {
-        clearTimeout(promptTimeoutRef.current);
-        promptTimeoutRef.current = null;
-      }
-    };
   }, []);
 
-  const setApiKey = (key: string, remember: boolean = false) => {
+  const scheduleAuthPrompt = useCallback(() => {
+    clearPromptTimeout();
+    promptTimeoutRef.current = window.setTimeout(() => {
+      setShowAuthPrompt(true);
+    }, AUTH_PROMPT_DELAY_MS);
+  }, [clearPromptTimeout]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeAuth = async () => {
+      // One-time migration: exchange legacy browser key for secure server session cookie.
+      const legacyKey = getStoredApiKey();
+      if (legacyKey) {
+        try {
+          await exchangeApiKeyForSession(legacyKey);
+        } finally {
+          // Always clear legacy persistence even if exchange fails.
+          clearStoredApiKey();
+        }
+      }
+
+      const sessionActive = await checkProSession();
+      if (cancelled) {
+        return;
+      }
+
+      setIsAuthenticated(sessionActive);
+      setApiKeyState(sessionActive ? SESSION_AUTH_SENTINEL : null);
+      setIsLoading(false);
+      if (!sessionActive) {
+        scheduleAuthPrompt();
+      } else {
+        clearPromptTimeout();
+        setShowAuthPrompt(false);
+      }
+    };
+
+    void initializeAuth();
+
+    return () => {
+      cancelled = true;
+      clearPromptTimeout();
+    };
+  }, [clearPromptTimeout, scheduleAuthPrompt]);
+
+  const setApiKey = async (key: string, _remember: boolean = false) => {
     const trimmedKey = key.trim();
-    // Validate minimum API key length
     if (trimmedKey.length < MIN_API_KEY_LENGTH) {
       throw new AuthError('API_KEY_TOO_SHORT');
     }
-    // Add format check: only allow alphanumeric, dashes, and underscores
     if (!/^[A-Za-z0-9_-]+$/.test(trimmedKey)) {
       throw new AuthError('API_KEY_INVALID_FORMAT');
     }
-    if (promptTimeoutRef.current !== null) {
-      clearTimeout(promptTimeoutRef.current);
-      promptTimeoutRef.current = null;
+    clearPromptTimeout();
+
+    const exchanged = await exchangeApiKeyForSession(trimmedKey);
+    if (!exchanged) {
+      throw new AuthError('API_KEY_INVALID');
     }
-    setStoredApiKey(trimmedKey, remember);
-    setApiKeyState(trimmedKey);
+
+    const sessionActive = await checkProSession();
+    if (!sessionActive) {
+      throw new AuthError('SESSION_NOT_ESTABLISHED');
+    }
+
+    clearStoredApiKey();
+    setIsAuthenticated(true);
+    setApiKeyState(SESSION_AUTH_SENTINEL);
     setShowAuthPrompt(false);
   };
 
-  const clearApiKey = () => {
-    if (promptTimeoutRef.current !== null) {
-      clearTimeout(promptTimeoutRef.current);
-      promptTimeoutRef.current = null;
-    }
+  const clearApiKey = async () => {
+    clearPromptTimeout();
     clearStoredApiKey();
+    await clearProSession();
+    setIsAuthenticated(false);
     setApiKeyState(null);
-    setShowAuthPrompt(true);
+    scheduleAuthPrompt();
   };
 
   const value: AuthContextType = {
     apiKey,
-    isAuthenticated: !!apiKey,
+    isAuthenticated,
     isLoading,
     setApiKey,
     clearApiKey,

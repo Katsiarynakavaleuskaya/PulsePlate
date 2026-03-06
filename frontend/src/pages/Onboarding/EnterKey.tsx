@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth, AuthError } from "../../lib/auth";
 import { useTranslation } from "react-i18next";
@@ -15,24 +15,19 @@ export default function EnterKey() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [value, setValue] = useState(auth.apiKey || "");
-
-  // Sync value state with auth.apiKey to avoid stale inputs
-  useEffect(() => {
-    setValue(auth.apiKey || "");
-  }, [auth.apiKey]);
+  const [value, setValue] = useState("");
 
   // Get the page user was trying to access
   const from = (location.state as LocationState)?.from?.pathname || "/";
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = value.trim();
     if (!trimmed) {
       toast.error(t("onboarding.enterKey.errorEmpty"));
       return;
     }
     try {
-      auth.setApiKey(trimmed, true); // Remember by default for onboarding
+      await auth.setApiKey(trimmed, true);
       toast.success(t("onboarding.enterKey.successSaved"));
       if (from && from !== "/enter-key" && from !== "/") {
         navigate(from, { replace: true });
@@ -52,9 +47,9 @@ export default function EnterKey() {
     }
   };
 
-  const handleClear = () => {
-    const hadKey = !!value.trim();
-    auth.clearApiKey();
+  const handleClear = async () => {
+    const hadKey = auth.isAuthenticated || !!value.trim();
+    await auth.clearApiKey();
     setValue("");
     if (hadKey) {
       toast.success(t("onboarding.enterKey.keyCleared"));
@@ -70,7 +65,12 @@ export default function EnterKey() {
         </p>
       </header>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSave();
+        }}
+      >
         <div className="space-y-3">
           <label htmlFor="api-key-input" className="sr-only">
             {t("onboarding.enterKey.label")}
@@ -94,7 +94,9 @@ export default function EnterKey() {
             <button
               className="rounded-xl border border-white/15 text-white py-3 px-4"
               type="button"
-              onClick={handleClear}
+              onClick={() => {
+                void handleClear();
+              }}
             >
               {t("onboarding.enterKey.clear")}
             </button>

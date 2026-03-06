@@ -1,6 +1,8 @@
-// API Key management utilities
-// SECURITY NOTE: API keys are stored in plain text in browser storage.
-// This is acceptable only for user-provided keys that can be easily rotated.
+// RU: Legacy API key storage utilities (migration-only).
+// EN: Legacy API key storage utilities (migration-only).
+//
+// SECURITY: Persistent browser storage for auth secrets is deprecated.
+// The app now uses server-side session cookies.
 
 const API_KEY_STORAGE_KEY = 'pulseplate_api_key';
 
@@ -14,13 +16,15 @@ export function getStoredApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
-export function setStoredApiKey(key: string, remember: boolean = false): void {
+/**
+ * @deprecated
+ * RU: Сохранение API-ключа в браузере отключено по security policy.
+ * EN: Browser persistence for API keys is disabled by security policy.
+ */
+export function setStoredApiKey(_key: string, _remember: boolean = false): void {
   if (typeof window === 'undefined') return;
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem(API_KEY_STORAGE_KEY, key);
-  // Clear from other storage
-  const otherStorage = remember ? sessionStorage : localStorage;
-  otherStorage.removeItem(API_KEY_STORAGE_KEY);
+  // Keep behavior deterministic: remove any legacy value instead of persisting new secrets.
+  clearStoredApiKey();
 }
 
 export function clearStoredApiKey(): void {

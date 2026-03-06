@@ -111,16 +111,15 @@ describe('API Client Auth', () => {
       await expect(api('/test-endpoint')).rejects.toThrow('VITE_API_BASE is not set');
     });
 
-    it('includes X-API-Key header when API key is set in storage', async () => {
-      testStorage.getStoredApiKey.mockReturnValue('test-api-key');
-
+    it('does not attach X-API-Key header for regular API calls', async () => {
       const { api } = await import('../client');
 
       fetchMock.mockImplementationOnce((input: any, options?: any) => {
         const url = typeof input === 'string' ? input : input.url;
         expect(url).toBe('http://test-api.com/test-endpoint');
         const requestOptions = typeof input === 'string' ? options : input;
-        expect(requestOptions.headers.get('X-API-Key')).toBe('test-api-key');
+        expect(requestOptions.credentials).toBe('include');
+        expect(requestOptions.headers.get('X-API-Key')).toBeNull();
         return Promise.resolve(createMockResponse({ data: 'test' }, {
           ok: true,
           status: 200,
@@ -139,7 +138,7 @@ describe('API Client Auth', () => {
         status: 401,
       })));
 
-      await expect(api('/test-endpoint')).rejects.toThrow('API key invalid or expired (401).');
+      await expect(api('/test-endpoint')).rejects.toThrow('Session invalid or expired (401).');
 
       expect(testStorage.clearStoredApiKey).toHaveBeenCalled();
       expect(window.location.replace).toHaveBeenCalledWith('/enter-key');
@@ -177,8 +176,6 @@ describe('API Client Auth', () => {
     });
 
     it('resolves successfully on authenticated request', async () => {
-      testStorage.getStoredApiKey.mockReturnValue('valid-api-key');
-
       const { api } = await import('../client');
       const mockResponse = { success: true, data: 'authenticated' };
       fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse(mockResponse, {
@@ -190,6 +187,57 @@ describe('API Client Auth', () => {
 
       expect(result).toEqual(mockResponse);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('server-session helpers', () => {
+    it('checkProSession returns true for authenticated response', async () => {
+      const { checkProSession } = await import('../client');
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        expect(request.url).toBe('http://test-api.com/api/v1/pro/session');
+        expect(request.method).toBe('GET');
+        expect(request.credentials).toBe('include');
+        return createMockResponse({ authenticated: true }, { ok: true, status: 200 });
+      });
+
+      await expect(checkProSession()).resolves.toBe(true);
+    });
+
+    it('checkProSession returns false for unauthorized response', async () => {
+      const { checkProSession } = await import('../client');
+      fetchMock.mockResolvedValueOnce(createMockResponse({}, { ok: false, status: 401 }));
+
+      await expect(checkProSession()).resolves.toBe(false);
+    });
+
+    it('exchangeApiKeyForSession posts exchange payload and returns true', async () => {
+      const { exchangeApiKeyForSession } = await import('../client');
+
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        expect(request.url).toBe('http://test-api.com/api/v1/pro/session/exchange');
+        expect(request.method).toBe('POST');
+        expect(request.credentials).toBe('include');
+        expect(request.headers.get('X-API-Key')).toBe('test-session-key');
+        return createMockResponse({ authenticated: true }, { ok: true, status: 200 });
+      });
+
+      await expect(exchangeApiKeyForSession('test-session-key')).resolves.toBe(true);
+    });
+
+    it('clearProSession calls logout endpoint with POST', async () => {
+      const { clearProSession } = await import('../client');
+
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        expect(request.url).toBe('http://test-api.com/api/v1/pro/session/logout');
+        expect(request.method).toBe('POST');
+        expect(request.credentials).toBe('include');
+        return createMockResponse({ status: 'ok' }, { ok: true, status: 200 });
+      });
+
+      await expect(clearProSession()).resolves.toBeUndefined();
     });
   });
 

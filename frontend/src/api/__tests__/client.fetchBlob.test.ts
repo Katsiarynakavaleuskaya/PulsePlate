@@ -6,7 +6,7 @@
  *
  * These tests verify the critical security invariant:
  * - External URLs MUST NOT receive API credentials (headers or cookies)
- * - API paths MUST include credentials
+ * - API paths MUST include cookie credentials
  * - Auth errors (401/403) on API paths trigger key clearing and redirect
  *
  * Implementation: Uses vi.stubGlobal + setApiClientDependencies (no MSW).
@@ -107,8 +107,8 @@ describe('fetchBlob security contract', () => {
     });
   });
 
-  describe('Test 2: API path — credentials include + auth header present', () => {
-    it('should include credentials, prepend API base, and add auth header for API paths', async () => {
+  describe('Test 2: API path — credentials include + no key header leak', () => {
+    it('should include credentials, prepend API base, and avoid X-API-Key for API paths', async () => {
       // Stub fetch to capture the call and return success
       const mockBlob = new Blob(['api-data']);
       vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
@@ -130,9 +130,9 @@ describe('fetchBlob security contract', () => {
       // Verify credentials default to 'include'
       expect(capturedInit?.credentials).toBe('include');
 
-      // Verify auth header IS present (contrast with Test 1 where it's stripped)
+      // Cookie session transport: do not attach legacy API key header automatically.
       const headers = capturedInit?.headers as Headers;
-      expect(headers.get('X-API-Key')).toBe('test-api-key');
+      expect(headers.get('X-API-Key')).toBeNull();
     });
   });
 
