@@ -22,6 +22,6 @@ Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898018204 -> b4fa262d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898120167 -> 8718f2e1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906305306 -> a91eaf46
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137607 -> 09063994
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137612 -> 09063994
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906324703 -> 09063994
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137607 -> b6149c6c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2898137612 -> b6149c6c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906324703 -> b6149c6c
