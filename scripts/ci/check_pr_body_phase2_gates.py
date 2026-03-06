@@ -3,7 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_mapping_artifact import (
+    read_mapping_artifact,
+    validate_mapping_artifact_text,
+)
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -45,6 +55,17 @@ def _strip_fenced_code_blocks(text: str) -> str:
 
 def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
+
+
+def _extract_pr_number(event_path: Path) -> int | None:
+    """Extract PR number from GitHub event payload."""
+    try:
+        payload = json.loads(event_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    pr = payload.get("pull_request") or {}
+    num = pr.get("number")
+    return int(num) if num is not None else None
 
 
 def _extract_pr_body(event_path: Path) -> str:
@@ -116,12 +137,38 @@ def main() -> int:
         default="",
         help="Explicit PR body text (optional, overrides event body if provided).",
     )
+    parser.add_argument(
+        "--pr-number",
+        type=int,
+        help="PR number for artifact lookup (optional, extracted from event-path if not set).",
+    )
     args = parser.parse_args()
 
     body = args.body
     if not body and args.event_path:
         body = _extract_pr_body(Path(args.event_path))
 
+    # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
+    pr_number = args.pr_number
+    if pr_number is None and args.event_path:
+        pr_number = _extract_pr_number(Path(args.event_path))
+
+    if pr_number is not None:
+        try:
+            artifact_text = read_mapping_artifact(pr_number)
+            errors = validate_mapping_artifact_text(artifact_text)
+            if errors:
+                print("ERROR: phase2 canonical mapping artifact failed:")
+                for item in errors:
+                    print(f"- {item}")
+                return 1
+            print("phase2-pr-body-gates: canonical mapping artifact passed.")
+            return 0
+        except FileNotFoundError as exc:
+            print(f"ERROR: {exc}")
+            return 1
+
+    # Fallback: PR body (when no event-path / pr-number, e.g. local testing)
     if not body.strip():
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
