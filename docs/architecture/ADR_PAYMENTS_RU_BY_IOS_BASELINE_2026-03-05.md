@@ -14,7 +14,7 @@ PulsePlate monetization must support the current operational reality:
 ## Decision
 
 1. Canonical payment source model is fixed to `ios_app_store`, `erip_qr`, `swift_manual` (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:12`, `docs/contracts/API_CANONICAL_MAP.md:40`).
-2. Billing runtime rollout is additive via `/api/v1/billing/*` endpoints (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md:3297`).
+2. Billing runtime rollout is additive via canonical `/api/v1/pro/payments/*` endpoints (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md:3297`).
 3. Activation contract remains source-agnostic (`activate_subscription` normalized decision) (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:34`, `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:52`).
 4. Manual rails require explicit reconciliation lifecycle before entitlement activation (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:65`, `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:75`).
 

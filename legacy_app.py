@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 import secrets
@@ -921,6 +922,25 @@ if _register_vip_routes is not None:
 
 # Register PRO routes (centralized, explicit registration)
 pro_router, premium_week_router = _register_pro_routes(app)
+
+
+def _register_billing_routes_compat() -> None:
+    """Register additive billing routes without breaking legacy startup.
+
+    RU: Регистрирует billing-роутер, но не ломает legacy startup при отсутствии модуля.
+    EN: Registers billing router while preserving legacy startup when the module is unavailable.
+    """
+
+    try:
+        billing_module = importlib.import_module("app.routers.billing")
+    except ImportError as exc:
+        logger.warning("Billing router not loaded: %s", exc)
+        return
+
+    billing_module.register_billing_routes(app)
+
+
+_register_billing_routes_compat()
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:

@@ -24,10 +24,10 @@ Rules:
 
 Planned endpoints (contract-first; final path lock happens in runtime PR):
 
-1. `POST /api/v1/billing/apple/verify-receipt`
-2. `POST /api/v1/billing/ru-by/manual-intent`
-3. `POST /api/v1/billing/ru-by/reconcile`
-4. `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+1. `POST /api/v1/pro/payments/apple/verify-receipt`
+2. `POST /api/v1/pro/payments/ru-by/manual-intent`
+3. `POST /api/v1/pro/payments/ru-by/reconcile`
+4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}`
 
 Legacy behavior remains unchanged until runtime migration is merged.
 
@@ -144,3 +144,10 @@ Required runtime PR gates:
 2. Runtime tests listed in section 8 are green in CI.
 3. `make openapi` + `make openapi-check` + `make verify` pass on runtime billing PR.
 4. Backlog item state is updated from in-progress to done with merge evidence.
+
+## 12. Runtime W1 Namespace Lock
+
+1. Runtime billing surfaces live under `/api/v1/pro/payments/*` to respect the
+   canonical public namespace policy (`/api/v1/bmi`, `/api/v1/pro`, `/api/v1/vip`).
+2. Earlier docs-only drafts used `/api/v1/billing/*`; that path is not canonical
+   under the current namespace guards and must not be reintroduced.

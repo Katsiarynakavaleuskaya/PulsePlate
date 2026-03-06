@@ -25,6 +25,11 @@
             "description": "Provider-side transaction or intent ID",
             "title": "External Txn Id"
           },
+          "plan": {
+            "$ref": "#/components/schemas/SubscriptionPlan",
+            "default": "pro_monthly",
+            "description": "Canonical plan code for activation intent"
+          },
           "source": {
             "$ref": "#/components/schemas/PaymentSource"
           },
@@ -148,6 +153,46 @@
           "needs_more_data"
         ],
         "title": "AdherenceResponse",
+        "type": "object"
+      },
+      "AppleReceiptVerificationRequest": {
+        "description": "Request contract for iOS receipt verification.",
+        "properties": {
+          "client_event_id": {
+            "maxLength": 128,
+            "minLength": 6,
+            "title": "Client Event Id",
+            "type": "string"
+          },
+          "external_txn_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Txn Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SubscriptionPlan"
+          },
+          "receipt": {
+            "description": "Opaque App Store receipt blob",
+            "minLength": 8,
+            "title": "Receipt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "client_event_id",
+          "receipt"
+        ],
+        "title": "AppleReceiptVerificationRequest",
         "type": "object"
       },
       "BMICalculateProRequest": {
@@ -2651,6 +2696,107 @@
           }
         },
         "title": "LegacyWeekPlanRequest",
+        "type": "object"
+      },
+      "ManualRailIntentRequest": {
+        "description": "Request contract for RU/BY manual payment intent creation.",
+        "properties": {
+          "amount_minor": {
+            "description": "Minor currency units",
+            "minimum": 1.0,
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "client_event_id": {
+            "maxLength": 128,
+            "minLength": 6,
+            "title": "Client Event Id",
+            "type": "string"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "external_txn_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Txn Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SubscriptionPlan"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PaymentSource"
+          },
+          "verification_payload": {
+            "additionalProperties": true,
+            "title": "Verification Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "source",
+          "plan",
+          "client_event_id",
+          "amount_minor",
+          "currency"
+        ],
+        "title": "ManualRailIntentRequest",
+        "type": "object"
+      },
+      "ManualRailReconcileRequest": {
+        "description": "Request contract for RU/BY reconciliation transition.",
+        "properties": {
+          "client_event_id": {
+            "maxLength": 128,
+            "minLength": 6,
+            "title": "Client Event Id",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReconcileDecision"
+          },
+          "external_txn_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Txn Id"
+          },
+          "intent_id": {
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Intent Id",
+            "type": "string"
+          },
+          "verification_payload": {
+            "additionalProperties": true,
+            "title": "Verification Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "intent_id",
+          "client_event_id",
+          "decision"
+        ],
+        "title": "ManualRailReconcileRequest",
         "type": "object"
       },
       "MealLogRequest": {
@@ -5186,6 +5332,15 @@
         "title": "RecipeQueryHit",
         "type": "object"
       },
+      "ReconcileDecision": {
+        "description": "Manual reconciliation decisions.",
+        "enum": [
+          "verified",
+          "rejected"
+        ],
+        "title": "ReconcileDecision",
+        "type": "string"
+      },
       "ReconcileStatus": {
         "description": "Reconciliation status for financial audit trail.",
         "enum": [
@@ -6455,6 +6610,10 @@
             "title": "Activation Id",
             "type": "string"
           },
+          "audit_id": {
+            "title": "Audit Id",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -6474,11 +6633,17 @@
           "payment_source": {
             "$ref": "#/components/schemas/PaymentSource"
           },
+          "plan": {
+            "$ref": "#/components/schemas/SubscriptionPlan"
+          },
           "reconcile_status": {
             "$ref": "#/components/schemas/ReconcileStatus"
           },
           "status": {
             "$ref": "#/components/schemas/ActivationStatus"
+          },
+          "subscription_tier": {
+            "$ref": "#/components/schemas/SubscriptionTierValue"
           },
           "updated_at": {
             "format": "date-time",
@@ -6500,7 +6665,10 @@
         },
         "required": [
           "activation_id",
+          "audit_id",
           "payment_source",
+          "plan",
+          "subscription_tier",
           "status",
           "reconcile_status",
           "created_at",
@@ -6508,6 +6676,25 @@
         ],
         "title": "SubscriptionActivationResponse",
         "type": "object"
+      },
+      "SubscriptionPlan": {
+        "description": "Canonical subscription plans for billing activation.",
+        "enum": [
+          "pro_monthly",
+          "vip_monthly"
+        ],
+        "title": "SubscriptionPlan",
+        "type": "string"
+      },
+      "SubscriptionTierValue": {
+        "description": "Lowercase tier value used by billing contracts.",
+        "enum": [
+          "free",
+          "pro",
+          "vip"
+        ],
+        "title": "SubscriptionTierValue",
+        "type": "string"
       },
       "TargetsIn": {
         "description": "Nutrition targets input model.\n\nRU: Входная схема таргетов питания (используется в PRO/Premium эндпоинтах).\nEN: Input schema for nutrition targets (used by PRO/Premium endpoints).",
@@ -8305,6 +8492,289 @@
           }
         ],
         "summary": "Get Subscription Activation",
+        "tags": [
+          "payments",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/apple/verify-receipt": {
+      "post": {
+        "description": "Create or replay iOS receipt activation using deterministic baseline verification.",
+        "operationId": "verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleReceiptVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Verify Apple Receipt",
+        "tags": [
+          "payments",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/ru-by/manual-intent": {
+      "post": {
+        "description": "Create manual RU/BY payment intent with pending reconciliation lifecycle.",
+        "operationId": "create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualRailIntentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create Manual Payment Intent",
+        "tags": [
+          "payments",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/ru-by/reconcile": {
+      "post": {
+        "description": "Apply reconciliation decision to pending manual payment intent.",
+        "operationId": "reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualRailReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation access forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "client_event_id conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Reconcile state invalid"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Reconcile Manual Payment Intent",
+        "tags": [
+          "payments",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/payments/ru-by/reconcile/{intent_id}": {
+      "get": {
+        "description": "Fetch current status of manual payment reconciliation intent.",
+        "operationId": "get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intent_id",
+            "required": true,
+            "schema": {
+              "title": "Intent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation access forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Activation not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Manual Payment Intent Status",
         "tags": [
           "payments",
           "pro"
