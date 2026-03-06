@@ -5,8 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982862 -> f0dfde4f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982870 -> f0dfde4f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982871 -> f0dfde4f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982873 -> f0dfde4f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906158202 -> f0dfde4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982862 -> 9cf2acf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982870 -> 9cf2acf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982871 -> 9cf2acf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#discussion_r2897982873 -> 9cf2acf3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906158202 -> 9cf2acf3
