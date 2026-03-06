@@ -131,6 +131,12 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
    - All violations of the same class should be fixed in this PR
    - If additional violations exist, either fix them or track in `BACKLOG_LEDGER.md`
 
+4. **Route guard check for tiered surfaces:**
+   - When a PR touches canonical `/api/v1/pro/*` or `/api/v1/vip/*` routing,
+     run `pytest -q tests/test_pro_vip_route_dependency_guard.py`
+   - This guard inspects the live `app.main.app` route table and fails on missing
+     `require_pro_tier` / `require_vip_tier` coverage or undocumented alias drift.
+
 **Rationale:** EVMbench scores on comprehensive coverage. Partial fixes (fix one, leave others) result in low scores and technical debt.
 
 ## Oracle / Known-Good Gate Behavior (EVMbench-inspired)
