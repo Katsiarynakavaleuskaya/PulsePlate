@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -194,8 +195,6 @@ def test_extract_pr_body_returns_empty_on_invalid_json(tmp_path: Path) -> None:
 
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
     """When event has pr_number, Phase2 validates artifact and mirrored PR body."""
-    import subprocess
-
     event = {"pull_request": {"number": 998, "body": VALID_BODY_WITH_MAPPING}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
@@ -230,8 +229,6 @@ Commit: abc1234
 
 def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
     """Artifact success must not bypass PR body validation."""
-    import subprocess
-
     event = {"pull_request": {"number": 998, "body": "minimal"}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
@@ -263,3 +260,38 @@ Commit: abc1234
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
     assert "Missing required section" in result.stdout
+
+
+def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> None:
+    """Failure summary should mention only the scope that actually failed."""
+    event = {"pull_request": {"number": 998, "body": "minimal"}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+    assert result.returncode == 1
+    assert "PR body validation failed" in result.stdout
+    assert "canonical mapping artifact validation failed" not in result.stdout

@@ -166,7 +166,8 @@ def main() -> int:
 
     artifact_checked = False
     body_checked = False
-    errors: list[str] = []
+    artifact_errors: list[str] = []
+    body_errors: list[str] = []
 
     if pr_number is not None:
         try:
@@ -175,20 +176,21 @@ def main() -> int:
             print(f"ERROR: {exc}")
             return 1
         artifact_checked = True
-        errors.extend(validate_mapping_artifact_text(artifact_text))
+        artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
 
     if body.strip():
         body_checked = True
-        errors.extend(check_pr_body_phase2_gates(body=body))
+        body_errors.extend(check_pr_body_phase2_gates(body=body))
     elif pr_number is None:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
 
+    errors = [*artifact_errors, *body_errors]
     if errors:
         print("ERROR: phase2 gates failed:")
-        if artifact_checked:
+        if artifact_checked and artifact_errors:
             print("- canonical mapping artifact validation failed")
-        if body_checked:
+        if body_checked and body_errors:
             print("- PR body validation failed")
         for item in errors:
             print(f"- {item}")
