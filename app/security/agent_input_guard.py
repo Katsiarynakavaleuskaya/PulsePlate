@@ -236,7 +236,7 @@ def scan_ai_agent_input(text: str) -> AgentInputScanResult:
     third_party_flag = os.getenv("ENABLE_THIRD_PARTY_AGENT_GUARD", "")
     if ENABLE_THIRD_PARTY_AGENT_GUARD or third_party_flag.lower() in {"1", "true", "yes", "on"}:
         upstream = _try_upstream_scan(text)
-        if upstream is not None:
+        if upstream is not None and not upstream.is_safe:
             return upstream
 
     normalized_text = _normalize_for_detection(text)
