@@ -2076,12 +2076,12 @@ If it is not recorded here — it does not exist.
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
     - Runtime app-layer filtering remains in place (no regression to code-level scoping)
 
-- [ ] P1: `simple_rag` shared index thread-safety hardening
+- [x] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)
-  - Target PR: PR-TBD-RAG-THREAD-SAFETY
-  - Status: 📋 Planned
-  - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason: Thread-safe initialization/refresh semantics and regression coverage were implemented and merged with the Wave 4 runtime closure.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md`
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
@@ -4045,12 +4045,12 @@ If it is not recorded here — it does not exist.
     - Keep backward-compatible rollout/rollback notes linked from audit/docs evidence
     - Update ORM/model references and deterministic quota tests
 
-- [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
+- [x] P2: RAG chunk content redaction helper (PII/sensitive data)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (defense-in-depth; corpus is controlled server docs)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The redaction helper was added and wired into prompt assembly and response previews as part of the Wave 4 runtime closure.
   - Links:
     - `app/routers/cbt_insight.py:186-196` (chunk content usage)
     - `PR #942` CodeRabbit comment (`2868000571`)
@@ -4059,12 +4059,12 @@ If it is not recorded here — it does not exist.
     - Apply to prompt assembly and response previews
     - Unit tests for redaction patterns
 
-- [ ] P2: CorpusNotIndexedError - wire up or remove
+- [x] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
-  - Target PR: feat/wave4-close
-  - Status: 🟡 In progress (implemented in PR #1010, pending merge)
-  - Reason (EN): The dead exception export has been removed in the open PR, but this ledger item must stay open until PR #1010 merges.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The dead exception export was removed and regression coverage landed in the merged Wave 4 closure PR.
   - Links:
     - `core/rag/contracts.py`
     - `core/rag/__init__.py`
@@ -4075,7 +4075,7 @@ If it is not recorded here — it does not exist.
     - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
     - `tests/test_rag_contract_surface.py:10` — regression tests assert the dead export stays removed.
   - DoD:
-    - [ ] Remove the dead exception class/export and update regression tests
+    - [x] Remove the dead exception class/export and update regression tests
 
 ---
 
