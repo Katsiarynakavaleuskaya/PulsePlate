@@ -81,7 +81,8 @@ def register_billing_routes(app: "FastAPI") -> APIRouter:
 
 def _issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
-    return payments_activation.issuer_from_api_key(api_key)
+    issuer: str = payments_activation.issuer_from_api_key(api_key)
+    return issuer
 
 
 def _payment_error_response(
