@@ -1,4 +1,4 @@
-## LLM Unit Economics Guardrails (Hard Policy)
+# LLM Unit Economics Guardrails (Hard Policy)
 
 **Last updated:** 7 March 2026
 **Scope:** Backend only (LLM endpoints, e.g. `/api/v1/insight`, `/api/v1/pro/cbt/insight`).

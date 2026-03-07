@@ -4039,6 +4039,20 @@ If it is not recorded here — it does not exist.
     - [x] CBT insight endpoint calls quota check before provider.generate()
     - [x] Deterministic tests for PRO quota enforcement
 
+- [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR TBD
+  - Status: Planned
+  - Reason (EN): The monthly quota model is tier-scoped, but the persisted table name remains VIP-specific for backward compatibility and needs a dedicated migration.
+  - Links:
+    - `app/models/llm_quota_usage.py`
+    - `app/security/llm_monthly_quota.py`
+  - DoD:
+    - Add DB migration from `vip_llm_monthly_usage` to a tier-neutral table name
+    - Keep backward-compatible rollout/rollback notes
+    - Update ORM/model references and deterministic quota tests
+
 - [x] P2: RAG chunk content redaction helper (PII/sensitive data)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (defense-in-depth; corpus is controlled server docs)
@@ -4062,23 +4076,23 @@ If it is not recorded here — it does not exist.
     - [x] Apply to prompt assembly and response previews
     - [x] Unit tests for redaction patterns
 
-- [x] P2: CorpusNotIndexedError - wire up or remove
+- [ ] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
   - Target PR: feat/wave4-close
-  - Status: ✅ Implemented (dead export removed)
-  - Reason (EN): The dead exception export was removed instead of keeping an unused public symbol with no runtime path.
+  - Status: 🟡 In progress (implemented in PR #1010, pending merge)
+  - Reason (EN): The dead exception export has been removed in the open PR, but this ledger item must stay open until PR #1010 merges.
   - Links:
     - `core/rag/contracts.py`
     - `core/rag/__init__.py`
-    - `tests/test_rag_corpus_filtering.py`
+    - `tests/test_rag_contract_surface.py`
     - PR #942 CodeRabbit comment (2868000574)
   - Evidence:
     - `core/rag/contracts.py:1` — contract surface no longer defines `CorpusNotIndexedError`.
     - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
-    - `tests/test_rag_corpus_filtering.py:49` — regression tests assert the dead export stays removed.
+    - `tests/test_rag_contract_surface.py:10` — regression tests assert the dead export stays removed.
   - DoD:
-    - [x] Remove the dead exception class/export and update regression tests
+    - [ ] Remove the dead exception class/export and update regression tests
 
 ---
 
