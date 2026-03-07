@@ -221,7 +221,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
-  - Status: Done (carryover comments re-evaluated and dispositioned in PR #1000; pending merge to `main`)
+  - Status: Done (carryover comments re-evaluated and dispositioned in merged PR #1000)
   - Area: orchestration / review governance / scope management
   - Finding Type: carryover after scope cleanup
   - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
