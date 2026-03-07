@@ -1,13 +1,15 @@
 # PR 1018 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-Pending initial review.
+Disposition: NOT-A-BUG
+Evidence: mcp_pulseplate_server.py:395, mcp_pulseplate_server.py:429, app/security/agent_input_guard.py:39
+Reason: Tool-level guard preserves the `-32602 Invalid params` contract, while helper-level guard keeps direct helper calls fail-closed outside `_call_tool`; broad install-token regexes are intentionally scoped to AI-agent control surfaces per this PR's security requirement.
 
-No actionable review threads recorded yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#pullrequestreview-3909822861
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
