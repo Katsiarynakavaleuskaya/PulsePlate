@@ -11,16 +11,16 @@ Reason: Docs Phase1 gates explicitly require `file:line` evidence anchors, so re
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909426981
 
 Disposition: FIXED
-Commit: <pending>
+Commit: d4e00cba
 Evidence: app/models/llm_quota_usage.py:17
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340993 -> <pending>
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340993 -> d4e00cba
 
 Disposition: FIXED
-Commit: <pending>
+Commit: d4e00cba
 Evidence: docker-compose.yaml:19
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340994 -> <pending>
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340994 -> d4e00cba
 
 Disposition: FIXED
-Commit: <pending>
+Commit: d4e00cba
 Evidence: tests/test_rag_contract_surface.py:1
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340996 -> <pending>
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340996 -> d4e00cba
