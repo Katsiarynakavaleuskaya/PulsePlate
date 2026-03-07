@@ -53,3 +53,11 @@ Evidence: app/routers/shoplist_export_routes.py:5, app/routers/plan_export.py:37
 Disposition: FIXED
 Commit: ff536aca
 Evidence: app/routers/shoplist_export_routes.py:5, app/routers/shoplist_export.py:67, tests/test_shoplist_export.py:215
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2900273347 -> 01ecc9dc
+Disposition: FIXED
+Commit: 01ecc9dc
+Evidence: tests/test_shoplist_export.py:232
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2900277396 -> 01ecc9dc
+Disposition: FIXED
+Commit: 01ecc9dc
+Evidence: tests/test_shoplist_export.py:232
