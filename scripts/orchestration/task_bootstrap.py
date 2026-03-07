@@ -26,6 +26,7 @@ from scripts.orchestration.context_pack import (
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.skill_router import route_skills
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
@@ -69,6 +70,12 @@ def build_task_packet(
         normalized_paths,
         include_orchestration=decision.cluster == "ops" or len(normalized_paths) != 1,
     )
+    skill_routing = route_skills(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+        domain=decision.domain,
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -82,6 +89,8 @@ def build_task_packet(
         "secondary_agents": [agent for agent in [decision.secondary] if agent],
         "reviewer": decision.reviewer,
         "required_context": context_pack,
+        "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
+        "skill_routing": skill_routing,
         "routing_rationale": decision.rationale,
     }
 
@@ -140,6 +149,11 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    output_ref = (
+        str(out_path.relative_to(REPO_ROOT))
+        if out_path.is_absolute() and REPO_ROOT in out_path.parents
+        else str(out_path)
+    )
     print(
         json.dumps(
             {
@@ -148,7 +162,8 @@ def main(argv: list[str] | None = None) -> int:
                 "cluster": packet["cluster"],
                 "primary_agent": packet["primary_agent"],
                 "reviewer": packet["reviewer"],
-                "output": str(out_path.relative_to(REPO_ROOT)),
+                "recommended_skills": packet["recommended_skills"],
+                "output": output_ref,
             },
             ensure_ascii=False,
             indent=2,

@@ -162,11 +162,15 @@ Coordinator may assign agents outside primary domain if:
 This matrix does not grant “permission” or “rights” to agents.
 It exists to help the coordinator route work efficiently.
 
+Skill selection is a separate step and is governed by
+`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`.
+
 ---
 
 ## Related Documentation
 
 - **Routing Graph (SoT):** `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+- **Skill Routing Policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`

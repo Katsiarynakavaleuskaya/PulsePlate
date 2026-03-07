@@ -75,6 +75,7 @@ When coordinating multi-agent work, use these canonical protocols:
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- Skill routing policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 
 ---
 
@@ -116,7 +117,13 @@ When a task is created:
 2. **Map to agent capabilities**:
    - See "Available Agents" section below for capabilities and canonical docs
 
-3. **Assign task(s)**:
+3. **Map to project-fit skills**:
+   - Start with `pulseplate-workflow`
+   - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+   - Prefer repo-tracked PulsePlate skills before global installed skills
+   - Do not auto-select broad scraping workflows for PulsePlate
+
+4. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
    - Multi-agent: Create workflow with dependencies and handoffs
    - Parallel: Assign independent sub-tasks to multiple agents simultaneously

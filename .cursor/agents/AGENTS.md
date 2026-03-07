@@ -19,6 +19,7 @@ This document defines **scoped rules** specific to Cursor agents in `.cursor/age
 Before doing any work:
 - Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 - Load required context for the invoked role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` when installed skills may materially improve the task or when changing orchestration/agent workflow docs.
 - Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
 
 ---
