@@ -49,6 +49,11 @@ Commit: abc123
     assert re.search(r"Disposition:\s*FIXED", section)
 
 
+def test_get_pr_number_prefers_explicit_cli_value(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(_disposition_mod, "_run", lambda cmd: "999")
+    assert _disposition_mod._get_pr_number(1005) == 1005
+
+
 def test_extract_fixed_mapping_section_accepts_double_hash_heading() -> None:
     """Section uses ## Fixed in Commit Mapping (artifact format)."""
     body = """

@@ -423,7 +423,9 @@ def _check_commit_after_comment(
     return violations
 
 
-def _get_pr_number() -> int:
+def _get_pr_number(pr_number: int | None = None) -> int:
+    if pr_number is not None:
+        return pr_number
     out = _run(["gh", "pr", "view", "--json", "number", "-q", ".number"])
     out = out.strip()
     if not out.isdigit():
@@ -608,6 +610,11 @@ def main() -> None:
         description="Check resolved review threads have disposition in canonical artifact."
     )
     parser.add_argument(
+        "--pr-number",
+        type=int,
+        help="Explicit PR number for local/agent runs (otherwise use gh pr view on current branch).",
+    )
+    parser.add_argument(
         "--require-auth",
         action="store_true",
         help="In CI: fail if GH_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
@@ -623,7 +630,7 @@ def main() -> None:
             print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
             sys.exit(0)
 
-    pr_number = _get_pr_number()
+    pr_number = _get_pr_number(args.pr_number)
     try:
         artifact_text = read_mapping_artifact(pr_number)
     except FileNotFoundError as e:

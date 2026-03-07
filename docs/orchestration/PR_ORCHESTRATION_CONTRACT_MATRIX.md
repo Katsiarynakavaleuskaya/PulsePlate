@@ -33,6 +33,11 @@ Evidence:
 | Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
 | Phase 4 | Disposition proof | script semantics                        | yes          |
 
+Canonical operator entrypoint:
+
+- `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
+- Underlying gate scripts remain authoritative for their own contract semantics.
+
 ## 4. Phase 2 Contract (Canonical Artifact)
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
