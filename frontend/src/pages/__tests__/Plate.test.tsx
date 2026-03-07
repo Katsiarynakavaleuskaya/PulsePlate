@@ -107,8 +107,14 @@ describe('Plate', () => {
     expect(preview).toHaveAttribute('aria-hidden', 'true');
     expect(preview).toHaveClass('pointer-events-none');
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
-    expect(screen.getByRole('link', { name: 'View Progress' })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: 'Configure Setup', hidden: true })).toHaveAttribute(
+      'href',
+      '/setup'
+    );
+    expect(screen.getByRole('link', { name: 'View Progress', hidden: true })).toHaveAttribute(
+      'href',
+      '/progress'
+    );
   });
 
   it('has correct CSS classes', () => {
