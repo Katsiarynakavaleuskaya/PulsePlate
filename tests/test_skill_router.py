@@ -97,6 +97,32 @@ def test_skill_router_selects_report_stack_for_research() -> None:
     assert "notion-research-documentation" in skills
 
 
+def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
+    """Explicit PR-prep tasks should cross the dedicated create-pr threshold."""
+
+    skills = select_recommended_skills(
+        goal="Open PR for the orchestration routing follow-up",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="orchestration",
+    )
+
+    assert "create-pr" in skills
+
+
+def test_skill_router_selects_release_notes_for_release_tasks() -> None:
+    """Explicit release-note work should select the dedicated release skill."""
+
+    skills = select_recommended_skills(
+        goal="Generate release notes for the next wellness launch",
+        task_class="Release",
+        candidate_paths=["docs/dev/CODEX_SKILLS.md"],
+        domain="release",
+    )
+
+    assert "release-notes" in skills
+
+
 def test_skill_router_records_blocked_scraping_patterns() -> None:
     """Low-fit scraping requests should be explicitly blocked in routing metadata."""
 
