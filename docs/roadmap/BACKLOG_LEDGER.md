@@ -4066,6 +4066,26 @@ If it is not recorded here — it does not exist.
     - Decision documented: pursue / defer / won't do for publication track
     - If pursue: venue + outline for one paper; no mandatory timeline
 
+<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
+- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product differentiation + trust/retention)
+  - Target PR: TBD (implementation after mini-PRD approval)
+  - Status: 📋 Planned
+  - Reason (EN): Adopt the strongest fit from modern interactive learning products without turning PulsePlate into an ML academy. The product fit is interactive explainers, learning-cycle progression, and science-backed clarity around existing wellness outputs. MVP must remain deterministic, wellness-safe, and grounded in existing BMI / risk / adherence / weekly-plan data. No new heavy LLM endpoint is allowed on the core path. (RU: Интегрировать понятные explainers и learning cycles поверх текущих wellness-сущностей; без копирования чужого контента, без ML-куррикулума внутри продукта и без нового дорогого AI-контура.)
+  - Links:
+    - docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md
+    - docs/audience_pack/FACTS_CANONICAL.md
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
+    - core/insight/philosophy_validator.py
+    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
+  - DoD:
+    - Backend contract for explainer payloads is documented and implemented using existing product entities only
+    - At least one FREE/PRO explainer surface ships without client-side business logic duplication
+    - Learning cycle unlock rules are deterministic and do not depend on streak-shame mechanics
+    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
+    - Product copy remains wellness-safe and evidence-aligned
+
 - [ ] P1: Agent knowledge library template packs (domain-specific)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability)
