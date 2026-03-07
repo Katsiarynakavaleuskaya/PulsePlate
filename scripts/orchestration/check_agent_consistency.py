@@ -49,6 +49,49 @@ def _safe_load_set(
         return set()
 
 
+def _load_sets_with_fallback() -> tuple[Dict[str, set[str]], set[str], List[str]]:
+    """Load consistency sets or degrade into a structured fallback snapshot."""
+
+    loader_errors: List[str] = []
+
+    try:
+        sets_ = load_agent_sets()
+        sets_map = {
+            "files": sets_.files,
+            "index": sets_.index,
+            "inventory": sets_.inventory,
+            "capability": sets_.capability,
+            "context": sets_.context,
+            "routing": sets_.routing,
+            "routing_clusters": sets_.routing_clusters,
+            "declared_clusters": sets_.declared_clusters,
+            "allowlist": sets_.non_routable,
+        }
+        return sets_map, sets_.system_exceptions, loader_errors
+    except (FileNotFoundError, ValueError) as exc:
+        loader_errors.append(f"agent_sets: {exc}")
+        sets_map = {
+            "files": _safe_load_set("agent_files", load_agent_file_slugs, loader_errors),
+            "index": _safe_load_set("agent_index", load_index_agents, loader_errors),
+            "inventory": _safe_load_set("agent_inventory", load_inventory_agents, loader_errors),
+            "capability": _safe_load_set(
+                "capability_matrix", load_capability_agents, loader_errors
+            ),
+            "context": _safe_load_set("context_map", load_context_agents, loader_errors),
+            "routing": _safe_load_set("routing_agents", load_routing_agents, loader_errors),
+            "routing_clusters": _safe_load_set(
+                "routing_clusters_raw", load_routing_clusters_raw, loader_errors
+            ),
+            "declared_clusters": _safe_load_set(
+                "declared_routing_clusters", load_declared_routing_clusters, loader_errors
+            ),
+            "allowlist": _safe_load_set(
+                "non_routable_allowlist", load_non_routable_agents, loader_errors
+            ),
+        }
+        return sets_map, set(SYSTEM_AGENT_EXCEPTIONS), loader_errors
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_agent_consistency",
@@ -57,38 +100,16 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="Emit JSON report")
     args = ap.parse_args()
 
-    loader_errors: List[str] = []
-
-    try:
-        sets_ = load_agent_sets()
-        files = sets_.files
-        index = sets_.index
-        inventory = sets_.inventory
-        capability = sets_.capability
-        context = sets_.context
-        routing = sets_.routing
-        routing_clusters = sets_.routing_clusters
-        declared_clusters = sets_.declared_clusters
-        allowlist = sets_.non_routable
-        system_exceptions = sets_.system_exceptions
-    except (FileNotFoundError, ValueError) as exc:
-        loader_errors.append(f"agent_sets: {exc}")
-        files = _safe_load_set("agent_files", load_agent_file_slugs, loader_errors)
-        index = _safe_load_set("agent_index", load_index_agents, loader_errors)
-        inventory = _safe_load_set("agent_inventory", load_inventory_agents, loader_errors)
-        capability = _safe_load_set("capability_matrix", load_capability_agents, loader_errors)
-        context = _safe_load_set("context_map", load_context_agents, loader_errors)
-        routing = _safe_load_set("routing_agents", load_routing_agents, loader_errors)
-        routing_clusters = _safe_load_set(
-            "routing_clusters_raw", load_routing_clusters_raw, loader_errors
-        )
-        declared_clusters = _safe_load_set(
-            "declared_routing_clusters", load_declared_routing_clusters, loader_errors
-        )
-        allowlist = _safe_load_set(
-            "non_routable_allowlist", load_non_routable_agents, loader_errors
-        )
-        system_exceptions = set(SYSTEM_AGENT_EXCEPTIONS)
+    sets_map, system_exceptions, loader_errors = _load_sets_with_fallback()
+    files = sets_map["files"]
+    index = sets_map["index"]
+    inventory = sets_map["inventory"]
+    capability = sets_map["capability"]
+    context = sets_map["context"]
+    routing = sets_map["routing"]
+    routing_clusters = sets_map["routing_clusters"]
+    declared_clusters = sets_map["declared_clusters"]
+    allowlist = sets_map["allowlist"]
 
     inventory_file_backed = inventory - system_exceptions
     files_file_backed = files - system_exceptions

@@ -74,7 +74,7 @@
 ## 5. Routing Rules
 
 1. Coordinator selects exactly 1 primary agent.
-2. Canonical routing graph allows at most 1 secondary agent; additional collaborators stay advisory in task analysis or capability guidance.
+2. Canonical routing graph allows exactly 0..1 secondary agent in the `Secondary` column; do not encode comma-separated secondaries here. Additional collaborators stay advisory in task analysis or capability guidance.
 3. Runtime changes require reviewer.
 4. Docs-only tasks may omit reviewer.
 5. Coordinator retains final authority.
