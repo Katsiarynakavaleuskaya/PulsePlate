@@ -84,3 +84,13 @@ Reason: This cubic review summary aggregates the inline artifact-format finding 
 Disposition: FIXED
 Commit: 0ced797a
 Evidence: AGENTS.md:103; scripts/orchestration/review_mapping_artifact.py:152; scripts/ci/check_pr_body_phase2_gates.py:136
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909548730
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/review_mapping_artifact.py:150; scripts/orchestration/review_mapping_artifact.py:155
+Reason: This cubic review summary only aggregates the dead-branch inline finding fixed below; the summary itself needs evidence but no commit proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900442544 -> f5629399
+Disposition: FIXED
+Commit: f5629399
+Evidence: scripts/orchestration/review_mapping_artifact.py:150
