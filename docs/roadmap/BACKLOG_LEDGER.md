@@ -3644,7 +3644,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE (`feat/p1-ios-keychain-conformance`)
+  - Target PR: PR #1011 (`feat/p1-ios-keychain-conformance`)
   - Status: 🟡 In progress
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
