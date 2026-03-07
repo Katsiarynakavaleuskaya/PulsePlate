@@ -204,7 +204,9 @@ describe('Home', () => {
     await user.click(screen.getByRole('button', { name: 'Generate insight' }));
 
     expect(vi.mocked(getCbtInsight)).toHaveBeenCalledWith({ query: 'What should I focus on this week?' });
-    expect(screen.getByText('Focus on consistent protein intake and simpler meal repetition.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Focus on consistent protein intake and simpler meal repetition.')
+    ).toBeInTheDocument();
     expect(screen.getByText('Mode: auto-safe')).toBeInTheDocument();
     expect(screen.getByText('Quota: consumed')).toBeInTheDocument();
     expect(screen.getByText('RAG: Used')).toBeInTheDocument();
@@ -239,7 +241,9 @@ describe('Home', () => {
     await user.type(screen.getByLabelText('Ask one question'), 'Need a quick summary');
     await user.click(screen.getByRole('button', { name: 'Generate insight' }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent('AI insight is temporarily unavailable. Please try again later.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'AI insight is temporarily unavailable. Please try again later.'
+    );
     expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
   });
 
