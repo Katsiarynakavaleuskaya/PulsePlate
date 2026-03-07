@@ -28,6 +28,13 @@ vi.mock('../../components/PremiumGate', () => ({
       </div>
     ) : (
       <div data-testid="premium-gate-locked" data-premium={String(isPremium)} data-source={source}>
+        <div
+          data-testid="premium-gate-preview"
+          aria-hidden="true"
+          className="opacity-60 pointer-events-none"
+        >
+          {children}
+        </div>
         <button type="button">Continue</button>
       </div>
     )
@@ -95,10 +102,13 @@ describe('Plate', () => {
     );
 
     const premiumGate = screen.getByTestId('premium-gate-locked');
+    const preview = screen.getByTestId('premium-gate-preview');
     expect(premiumGate).toHaveAttribute('data-premium', 'false');
+    expect(preview).toHaveAttribute('aria-hidden', 'true');
+    expect(preview).toHaveClass('pointer-events-none');
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Configure Setup' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'View Progress' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup' })).toHaveAttribute('href', '/setup');
+    expect(screen.getByRole('link', { name: 'View Progress' })).toHaveAttribute('href', '/progress');
   });
 
   it('has correct CSS classes', () => {
