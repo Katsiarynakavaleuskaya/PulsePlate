@@ -10,20 +10,20 @@ import pytest
 if TYPE_CHECKING:
     from pytest import MonkeyPatch
 
-# Section extraction and auth only; no gh/GraphQL mocks
+# Section extraction from artifact; auth from disposition
 import scripts.orchestration.check_review_threads_disposition as _disposition_mod
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
     _check_commit_after_comment,
     _check_trigger_only_mapping,
     _env_diagnostic,
-    _extract_fixed_mapping_section,
     _find_disposition_block_in_section,
     _has_gh_auth,
     _parse_iso_datetime,
     _parse_mapping_section,
     _require_gh_token_preflight,
 )
+from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
 
 
 def test_extract_fixed_mapping_section_finds_section() -> None:
@@ -34,20 +34,20 @@ text
 ## Discussion Thread Pass
 - [x] done
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 Thread: https://example.com/1
 Disposition: FIXED
 Commit: abc123
 
 ## Merge Readiness
 """
-    section = _extract_fixed_mapping_section(body)
+    section = extract_fixed_mapping_section(body)
     assert "https://example.com/1" in section
     assert re.search(r"Disposition:\s*FIXED", section)
 
 
 def test_extract_fixed_mapping_section_accepts_double_hash_heading() -> None:
-    """Section may use ## Fixed in Commit Mapping (any heading level)."""
+    """Section uses ## Fixed in Commit Mapping (artifact format)."""
     body = """
 ## Summary
 ## Fixed in Commit Mapping
@@ -57,7 +57,7 @@ Commit: abc
 
 ## Discussion Thread Pass
 """
-    section = _extract_fixed_mapping_section(body)
+    section = extract_fixed_mapping_section(body)
     assert "https://github.com/org/repo/pull/99" in section
     assert re.search(r"Disposition:\s*FIXED", section)
 
@@ -68,13 +68,13 @@ def test_extract_fixed_mapping_section_empty_when_missing() -> None:
 ## Discussion Thread Pass
 ## Merge Readiness
 """
-    section = _extract_fixed_mapping_section(body)
+    section = extract_fixed_mapping_section(body)
     assert section == ""
 
 
 def test_extract_fixed_mapping_section_stops_at_next_heading() -> None:
     body = """
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 - https://github.com/org/repo/pull/1#discussion_r123 -> abc1234
 Disposition: FIXED
 Evidence: file.md:10
@@ -82,7 +82,7 @@ Evidence: file.md:10
 ## Discussion Thread Pass
 - [x] done
 """
-    section = _extract_fixed_mapping_section(body)
+    section = extract_fixed_mapping_section(body)
     assert "https://github.com/org/repo/pull/1" in section
     assert "Discussion Thread Pass" not in section
 
