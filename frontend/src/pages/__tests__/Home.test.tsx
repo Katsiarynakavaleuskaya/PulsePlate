@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Home from '../Home';
 
 describe('Home', () => {
@@ -35,4 +36,20 @@ describe('Home', () => {
     expect(main).toHaveClass('flex-col');
   });
 
+  it('navigates to setup flow from the primary CTA', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/setup" element={<div>Nutrition Setup Flow</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole('link', { name: 'Configure Setup' }));
+
+    expect(screen.getByText('Nutrition Setup Flow')).toBeInTheDocument();
+  });
 });
