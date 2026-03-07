@@ -4745,6 +4745,7 @@ export interface components {
             plan: components["schemas"]["SubscriptionPlan"];
             reconcile_status: components["schemas"]["ReconcileStatus"];
             status: components["schemas"]["ActivationStatus"];
+            /** @description Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier. */
             subscription_tier: components["schemas"]["SubscriptionTierValue"];
             /**
              * Updated At
@@ -4762,10 +4763,10 @@ export interface components {
         SubscriptionPlan: "pro_monthly" | "vip_monthly";
         /**
          * SubscriptionTierValue
-         * @description Lowercase tier value used by billing contracts.
+         * @description Requested paid tier implied by the selected billing plan.
          * @enum {string}
          */
-        SubscriptionTierValue: "free" | "pro" | "vip";
+        SubscriptionTierValue: "pro" | "vip";
         /**
          * TargetsIn
          * @description Nutrition targets input model.
@@ -5868,6 +5869,15 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
             /** @description client_event_id conflict */
             409: {
                 headers: {
@@ -5919,6 +5929,15 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
             /** @description client_event_id conflict */
             409: {
                 headers: {
@@ -5959,6 +5978,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
             /** @description Activation access forbidden */
@@ -6017,6 +6045,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
             /** @description Activation access forbidden */

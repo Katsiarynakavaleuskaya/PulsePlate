@@ -215,10 +215,11 @@ def test_activate_subscription_blank_client_event_id_returns_422(
     assert response.status_code == 422
 
 
-def test_issuer_helper_supports_empty_api_key() -> None:
+def test_issuer_helper_rejects_empty_api_key() -> None:
     from app.routers.pro_payments import _issuer_from_api_key
 
-    assert _issuer_from_api_key("") == "api_key:anonymous"
+    with pytest.raises(ValueError, match="api_key is required"):
+        _issuer_from_api_key("   ")
 
 
 def test_issuer_helper_returns_stable_marker_for_same_api_key() -> None:

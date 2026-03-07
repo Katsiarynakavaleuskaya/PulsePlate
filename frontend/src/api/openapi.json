@@ -6666,7 +6666,8 @@
             "$ref": "#/components/schemas/ActivationStatus"
           },
           "subscription_tier": {
-            "$ref": "#/components/schemas/SubscriptionTierValue"
+            "$ref": "#/components/schemas/SubscriptionTierValue",
+            "description": "Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier."
           },
           "updated_at": {
             "format": "date-time",
@@ -6711,9 +6712,8 @@
         "type": "string"
       },
       "SubscriptionTierValue": {
-        "description": "Lowercase tier value used by billing contracts.",
+        "description": "Requested paid tier implied by the selected billing plan.",
         "enum": [
-          "free",
           "pro",
           "vip"
         ],
@@ -8557,6 +8557,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -8625,6 +8635,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -8682,6 +8702,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
           },
           "403": {
             "content": {
@@ -8768,6 +8798,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
           },
           "403": {
             "content": {

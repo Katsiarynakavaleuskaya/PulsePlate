@@ -54,13 +54,15 @@ Output envelope (source-agnostic):
 ```json
 {
   "status": "activated | pending_reconciliation | rejected",
-  "subscription_tier": "free | pro | vip",
+  "subscription_tier": "pro | vip",
   "source": "ios_app_store | erip_qr | swift_manual",
   "audit_id": "uuid",
   "effective_at": "ISO-8601",
   "reason_code": "optional"
 }
 ```
+
+`subscription_tier` reflects the requested paid tier implied by `plan`, not a fallback effective access tier.
 
 ## 4. Reconciliation Status Lifecycle
 

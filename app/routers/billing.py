@@ -35,6 +35,10 @@ _DETAIL_NOT_FOUND = "activation_not_found"
 _DETAIL_IOS_MANUAL_UNSUPPORTED = "manual_reconciliation_not_supported_for_ios"
 _DETAIL_MANUAL_STATUS_UNSUPPORTED = "manual_status_not_supported_for_ios"
 _DETAIL_PENDING_REQUIRED = "manual_reconcile_transition_requires_pending_state"
+_RESPONSE_401_UNAUTHORIZED = {
+    "description": "Missing or invalid API key",
+    "model": PaymentErrorResponse,
+}
 _RESPONSE_422_VALIDATION_OR_PAYMENT = {
     "description": "Request validation failed or reconcile state is invalid",
     "content": {
@@ -96,6 +100,7 @@ def _activation_state_detail(exc: payments_activation.ActivationStateError) -> s
     response_model=SubscriptionActivationResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
+        status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
         status.HTTP_200_OK: {
             "description": "Idempotent replay",
             "model": SubscriptionActivationResponse,
@@ -137,6 +142,7 @@ def verify_apple_receipt(
     response_model=SubscriptionActivationResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
+        status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
         status.HTTP_200_OK: {
             "description": "Idempotent replay",
             "model": SubscriptionActivationResponse,
@@ -177,6 +183,7 @@ def create_manual_payment_intent(
     "/ru-by/reconcile",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN: {
             "description": "Activation access forbidden",
             "model": PaymentErrorResponse,
@@ -236,6 +243,7 @@ def reconcile_manual_payment_intent(
     "/ru-by/reconcile/{intent_id}",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN: {
             "description": "Activation access forbidden",
             "model": PaymentErrorResponse,

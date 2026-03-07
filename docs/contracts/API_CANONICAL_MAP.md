@@ -50,10 +50,10 @@ Implemented additive endpoints (non-breaking):
 
 | Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes | Ledger |
 |---|---|---:|---|---:|---|---|
-| Apple receipt verification | `/api/v1/pro/payments/apple/verify-receipt` | POST | none (new) | - | Implemented automated iOS verification baseline with deterministic activation contract | `#ledger-p0-payments-ruby-ios` (owner: @katsiaryna_kavaleuskaya, P0, target: `PR #999`) |
-| RU/BY payment intent | `/api/v1/pro/payments/ru-by/manual-intent` | POST | none (new) | - | Implemented manual payment intent creation with pending reconciliation lifecycle | `#ledger-p0-payments-ruby-ios` (DoD: reconciliation lifecycle + non-breaking contract) |
-| RU/BY reconciliation | `/api/v1/pro/payments/ru-by/reconcile` | POST | none (new) | - | Implemented deterministic reconcile transition for manual rails | `#ledger-p0-payments-ruby-ios` (DoD: deterministic audit + status lifecycle) |
-| RU/BY reconciliation status | `/api/v1/pro/payments/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Implemented read-only manual lifecycle status surface | `#ledger-p0-payments-ruby-ios` (OpenAPI + runtime verified) |
+| Apple receipt verification | `/api/v1/pro/payments/apple/verify-receipt` | POST | none (new) | - | Implemented automated iOS verification baseline with deterministic activation contract | `docs/roadmap/BACKLOG_LEDGER.md:3469` (owner: @katsiaryna_kavaleuskaya, P0, target: `PR #999`) |
+| RU/BY payment intent | `/api/v1/pro/payments/ru-by/manual-intent` | POST | none (new) | - | Implemented manual payment intent creation with pending reconciliation lifecycle | `docs/roadmap/BACKLOG_LEDGER.md:3469` (DoD: reconciliation lifecycle + non-breaking contract) |
+| RU/BY reconciliation | `/api/v1/pro/payments/ru-by/reconcile` | POST | none (new) | - | Implemented deterministic reconcile transition for manual rails | `docs/roadmap/BACKLOG_LEDGER.md:3469` (DoD: deterministic audit + status lifecycle) |
+| RU/BY reconciliation status | `/api/v1/pro/payments/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Implemented read-only manual lifecycle status surface | `docs/roadmap/BACKLOG_LEDGER.md:3469` (OpenAPI + runtime verified) |
 
 Compatibility policy:
 1. Existing PRO/VIP activation flows remain backward-compatible; payment routes are additive.

@@ -46,6 +46,17 @@ def test_billing_security_contract_uses_api_key_header() -> None:
     assert {"APIKeyHeader": []} in security
 
 
+def test_billing_routes_document_401_auth_failures() -> None:
+    for path, method in (
+        ("/api/v1/pro/payments/apple/verify-receipt", "post"),
+        ("/api/v1/pro/payments/ru-by/manual-intent", "post"),
+        ("/api/v1/pro/payments/ru-by/reconcile", "post"),
+        ("/api/v1/pro/payments/ru-by/reconcile/{intent_id}", "get"),
+    ):
+        responses = _op(path, method)["responses"]
+        assert "401" in responses, f"Missing 401 response contract for {method.upper()} {path}"
+
+
 def test_manual_intent_source_is_manual_only_in_openapi() -> None:
     schema = _op("/api/v1/pro/payments/ru-by/manual-intent", "post")["requestBody"]["content"][
         "application/json"
@@ -64,3 +75,13 @@ def test_reconcile_422_openapi_allows_validation_and_domain_errors() -> None:
     refs = {entry["$ref"] for entry in schema["oneOf"]}
     assert "#/components/schemas/HTTPValidationError" in refs
     assert "#/components/schemas/PaymentErrorResponse" in refs
+
+
+def test_subscription_tier_openapi_contract_is_explicitly_paid_target_tier() -> None:
+    components = canonical_app.openapi()["components"]["schemas"]
+    tier_schema = components["SubscriptionTierValue"]
+    assert tier_schema["enum"] == ["pro", "vip"]
+
+    response_schema = components["SubscriptionActivationResponse"]
+    tier_description = response_schema["properties"]["subscription_tier"]["description"]
+    assert "requested paid tier" in tier_description.lower()

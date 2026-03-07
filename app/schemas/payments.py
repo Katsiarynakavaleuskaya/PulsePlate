@@ -44,9 +44,8 @@ class SubscriptionPlan(str, Enum):
 
 
 class SubscriptionTierValue(str, Enum):
-    """Lowercase tier value used by billing contracts."""
+    """Requested paid tier implied by the selected billing plan."""
 
-    free = "free"
     pro = "pro"
     vip = "vip"
 
@@ -132,7 +131,13 @@ class SubscriptionActivationResponse(BaseModel):
     audit_id: str
     payment_source: PaymentSource
     plan: SubscriptionPlan
-    subscription_tier: SubscriptionTierValue
+    subscription_tier: SubscriptionTierValue = Field(
+        ...,
+        description=(
+            "Requested paid tier implied by the submitted plan. "
+            "This is the target subscription tier for the activation, not a fallback access tier."
+        ),
+    )
     status: ActivationStatus
     reconcile_status: ReconcileStatus
     external_txn_id: str | None = None

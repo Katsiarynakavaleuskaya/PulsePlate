@@ -92,9 +92,10 @@ def issuer_from_api_key(api_key: str) -> str:
     """Return deterministic opaque issuer marker from API key."""
     from core.fingerprint_security import compute_secret_marker
 
-    if not api_key:
-        return "api_key:anonymous"
-    marker = compute_secret_marker(api_key, truncate=32)
+    normalized_api_key = api_key.strip()
+    if not normalized_api_key:
+        raise ValueError("api_key is required for issuer derivation")
+    marker = compute_secret_marker(normalized_api_key, truncate=32)
     return f"api_key:{marker}"
 
 
