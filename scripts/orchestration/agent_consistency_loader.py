@@ -1,4 +1,4 @@
-"""Load agent name sets from docs, routing graph, and actual agent files.
+"""Load agent name and cluster sets from docs, routing graph, and agent files.
 
 Used by consistency guards to enforce:
 - routing ⊆ inventory
@@ -6,6 +6,7 @@ Used by consistency guards to enforce:
 - inventory ⊆ capability
 - inventory ⊆ context map
 - routable agents must exist in docs layers or explicit allowlist
+- routed clusters must be declared and used
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Set, Tuple
+from typing import Set, Tuple, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_INVENTORY.md"
@@ -62,6 +63,8 @@ class AgentConsistencySets:
     capability: Set[str]
     context: Set[str]
     routing: Set[str]
+    routing_clusters: Set[str]
+    declared_clusters: Set[str]
     non_routable: Set[str]
     system_exceptions: Set[str]
 
@@ -241,6 +244,22 @@ def load_routing_agents() -> Set[str]:
     return out
 
 
+def load_routing_clusters() -> Set[str]:
+    """Extract cluster slugs used by routed domains in the routing graph."""
+
+    from scripts.orchestration.routing_graph_loader import load_routing_graph
+
+    return {route.cluster for route in load_routing_graph().values()}
+
+
+def load_declared_routing_clusters() -> Set[str]:
+    """Extract cluster slugs declared in the routing graph cluster table."""
+
+    from scripts.orchestration.routing_graph_loader import load_declared_clusters as _load
+
+    return cast(Set[str], _load())
+
+
 def load_non_routable_agents(path: Path = NON_ROUTABLE_PATH) -> Set[str]:
     """Extract explicit non-routable agent slugs from markdown list."""
 
@@ -276,6 +295,8 @@ def load_agent_sets() -> AgentConsistencySets:
     capability = load_capability_agents()
     context = load_context_agents()
     routing = load_routing_agents()
+    routing_clusters = load_routing_clusters()
+    declared_clusters = load_declared_routing_clusters()
     non_routable = load_non_routable_agents()
     return AgentConsistencySets(
         files=files,
@@ -284,6 +305,8 @@ def load_agent_sets() -> AgentConsistencySets:
         capability=capability,
         context=context,
         routing=routing,
+        routing_clusters=routing_clusters,
+        declared_clusters=declared_clusters,
         non_routable=non_routable,
         system_exceptions=set(SYSTEM_AGENT_EXCEPTIONS),
     )

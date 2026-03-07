@@ -84,6 +84,8 @@ Evidence:
 - `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md:1`
 - `docs/roadmap/BACKLOG_LEDGER.md:186`
 
+Artifact-only governance findings are fixed in the canonical artifact itself, but the proof block must still cite the validator/runtime enforcement that makes the artifact contract merge-blocking.
+
 ## 5. Merge Readiness Contract
 
 - Unresolved review threads must be zero
