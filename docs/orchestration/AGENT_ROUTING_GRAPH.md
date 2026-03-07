@@ -36,7 +36,20 @@
 
 ---
 
-## 3. Domains → Agents
+## 3. Cluster Definitions
+
+| Cluster  | Purpose |
+|----------|---------|
+| backend  | Core backend implementation and architecture routing for API and domain logic work. |
+| platform | User-surface delivery routing for web, iOS, and design execution tracks. |
+| ops      | Orchestration, documentation, QA, security, and infrastructure coordination routing. |
+| ml       | AI, research, and model-systems routing for experimental and production ML seams. |
+| safety   | Safety-language, logic, and claim-boundary routing for wellness-safe output review. |
+| growth   | Release, wellness, and business routing for distribution and monetization work. |
+
+---
+
+## 4. Domains → Agents
 
 | Domain   | Cluster  | Primary Agent            | Secondary                       | Reviewer                |
 |----------|----------|--------------------------|---------------------------------|-------------------------|
@@ -58,7 +71,7 @@
 
 ---
 
-## 4. Routing Rules
+## 5. Routing Rules
 
 1. Coordinator selects exactly 1 primary agent.
 2. Maximum 2 secondary agents allowed.
@@ -73,7 +86,7 @@
 
 ---
 
-## 5. Mermaid Routing Graph
+## 6. Mermaid Routing Graph
 
 ```mermaid
 flowchart LR

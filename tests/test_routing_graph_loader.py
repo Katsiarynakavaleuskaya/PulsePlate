@@ -4,8 +4,20 @@ from pathlib import Path
 
 import pytest
 
-from scripts.orchestration.routing_graph_loader import DomainRoute, load_routing_graph
+from scripts.orchestration.routing_graph_loader import (
+    DomainRoute,
+    load_declared_clusters,
+    load_routing_graph,
+)
 from scripts.orchestration.route_with_telemetry import route
+
+_MINIMAL_CLUSTER_DEFINITIONS = (
+    "| Cluster | Purpose |\n"
+    "|---------|---------|\n"
+    "| ops     | Operations routing. |\n"
+    "| growth  | Growth routing. |\n"
+    "\n"
+)
 
 _MINIMAL_TABLE = (
     "| Domain   | Cluster | Primary Agent   | Secondary | Reviewer |\n"
@@ -60,10 +72,11 @@ def test_missing_header_raises(tmp_path: Path) -> None:
     bad_path = tmp_path / "no_header.md"
     bad_path.write_text(
         "# Routing Graph\n\n"
-        "Some introductory text, but no routing table header.\n\n"
-        "| something | else |\n"
-        "| --------- | ---- |\n"
-        "| foo       | bar  |\n",
+        + _MINIMAL_CLUSTER_DEFINITIONS
+        + "Some introductory text, but no routing table header.\n\n"
+        + "| something | else |\n"
+        + "| --------- | ---- |\n"
+        + "| foo       | bar  |\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Routing graph table header not found"):
@@ -75,8 +88,9 @@ def test_no_routing_rows_raises(tmp_path: Path) -> None:
     empty_table_path = tmp_path / "no_rows.md"
     empty_table_path.write_text(
         "# Routing Graph\n\n"
-        "| domain | cluster | primary | secondary | reviewer |\n"
-        "| ------ | ------- | ------- | --------- | -------- |\n",
+        + _MINIMAL_CLUSTER_DEFINITIONS
+        + "| domain | cluster | primary | secondary | reviewer |\n"
+        + "| ------ | ------- | ------- | --------- | -------- |\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="No routing rows parsed from routing graph"):
@@ -87,7 +101,8 @@ def test_secondary_empty_yields_none(tmp_path: Path) -> None:
     """Empty secondary cell must yield None; non-empty yields agent name."""
     table_path = tmp_path / "secondary_test.md"
     table_path.write_text(
-        _MINIMAL_TABLE
+        _MINIMAL_CLUSTER_DEFINITIONS
+        + _MINIMAL_TABLE
         + "| foo | ops | agent-a |           | reviewer-a |\n"
         + "| bar | growth | agent-b | agent-c    | reviewer-b |\n",
         encoding="utf-8",
@@ -102,7 +117,12 @@ def test_duplicate_domain_raises(tmp_path: Path) -> None:
     """ValueError when same domain appears twice in routing table."""
     dup_path = tmp_path / "duplicate.md"
     dup_path.write_text(
-        _MINIMAL_TABLE
+        "# Routing Graph\n\n"
+        + "| Cluster | Purpose |\n"
+        + "|---------|---------|\n"
+        + "| safety  | Safety routing. |\n"
+        + "| backend | Backend routing. |\n\n"
+        + _MINIMAL_TABLE
         + "| safety | safety | philosophy-agent | logic-agent | agent-coordinator |\n"
         + "| safety | backend | backend-engineer  |             | bug-hunter         |\n",
         encoding="utf-8",
@@ -134,6 +154,80 @@ def test_domain_normalized_to_lowercase() -> None:
     routes = load_routing_graph()
     for key in routes.keys():
         assert key == key.lower(), f"Domain key must be lowercase: {key!r}"
+
+
+def test_load_declared_clusters_parses_cluster_definition_table() -> None:
+    """Declared cluster table should be readable as its own canonical set."""
+
+    declared = load_declared_clusters()
+    assert declared == {"backend", "platform", "ops", "ml", "safety", "growth"}
+
+
+def test_duplicate_cluster_definition_raises(tmp_path: Path) -> None:
+    """Duplicate cluster rows must fail cluster SoT validation."""
+
+    dup_cluster_path = tmp_path / "duplicate_cluster.md"
+    dup_cluster_path.write_text(
+        "# Routing Graph\n\n"
+        + "| Cluster | Purpose |\n"
+        + "|---------|---------|\n"
+        + "| ops     | Operations routing. |\n"
+        + "| ops     | Duplicate operations routing. |\n\n"
+        + _MINIMAL_TABLE
+        + "| docs | ops | agent-a | | reviewer-a |\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate cluster definition in routing graph: ops"):
+        load_routing_graph(dup_cluster_path)
+
+
+def test_undefined_cluster_reference_raises(tmp_path: Path) -> None:
+    """Routing rows must reference a declared cluster slug."""
+
+    undefined_cluster_path = tmp_path / "undefined_cluster.md"
+    undefined_cluster_path.write_text(
+        "# Routing Graph\n\n"
+        + _MINIMAL_CLUSTER_DEFINITIONS
+        + _MINIMAL_TABLE
+        + "| docs | safety | agent-a | | reviewer-a |\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Routing domain references undefined cluster: docs -> safety",
+    ):
+        load_routing_graph(undefined_cluster_path)
+
+
+def test_missing_cluster_definitions_section_raises(tmp_path: Path) -> None:
+    """Cluster definitions are mandatory before parsing routed domains."""
+
+    missing_clusters_path = tmp_path / "missing_clusters.md"
+    missing_clusters_path.write_text(
+        "# Routing Graph\n\n" + _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Cluster definitions table is missing or empty"):
+        load_routing_graph(missing_clusters_path)
+
+
+def test_unused_declared_cluster_raises(tmp_path: Path) -> None:
+    """Every declared cluster must be referenced by at least one routed domain."""
+
+    unused_cluster_path = tmp_path / "unused_cluster.md"
+    unused_cluster_path.write_text(
+        "# Routing Graph\n\n"
+        + _MINIMAL_CLUSTER_DEFINITIONS
+        + _MINIMAL_TABLE
+        + "| docs | ops | agent-a | | reviewer-a |\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Declared clusters unused in routing graph: growth"):
+        load_routing_graph(unused_cluster_path)
 
 
 def test_route_normalizes_domain_lookup() -> None:

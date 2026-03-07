@@ -115,6 +115,10 @@ When a task is created:
 
 2. **Map to agent capabilities**:
    - See "Available Agents" section below for capabilities and canonical docs
+   - Resolve the canonical cluster from `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+     first; then choose the routed domain primary/secondary/reviewer
+   - Use `docs/orchestration/AGENT_CAPABILITY_MATRIX.md` only as advisory guidance
+     inside the already routed domain; it does not define permissions
 
 3. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent

@@ -40,6 +40,8 @@ def main() -> int:
     capability = sets_.capability
     context = sets_.context
     routing = sets_.routing
+    routing_clusters = sets_.routing_clusters
+    declared_clusters = sets_.declared_clusters
     allowlist = sets_.non_routable
 
     inventory_file_backed = inventory - sets_.system_exceptions
@@ -57,6 +59,8 @@ def main() -> int:
     inventory_not_in_capability = _diff(inventory, capability)
     inventory_not_in_context = _diff(inventory_file_backed, context)
     allowlist_not_in_inventory = _diff(allowlist, inventory)
+    routing_clusters_undefined = _diff(routing_clusters, declared_clusters)
+    declared_clusters_unused = _diff(declared_clusters, routing_clusters)
 
     report: Dict[str, Any] = {
         "counts": {
@@ -66,8 +70,12 @@ def main() -> int:
             "capability": len(capability),
             "context": len(context),
             "routing": len(routing),
+            "routing_clusters": len(routing_clusters),
+            "declared_clusters": len(declared_clusters),
             "non_routable": len(allowlist),
         },
+        "routing_clusters": sorted(routing_clusters),
+        "declared_clusters": sorted(declared_clusters),
         "system_exceptions": sorted(sets_.system_exceptions),
         "files_not_in_index": files_not_in_index,
         "index_not_in_files": index_not_in_files,
@@ -79,6 +87,8 @@ def main() -> int:
         "inventory_missing_in_capability": inventory_not_in_capability,
         "inventory_missing_in_context": inventory_not_in_context,
         "allowlisted_missing_in_inventory": allowlist_not_in_inventory,
+        "routing_clusters_undefined": routing_clusters_undefined,
+        "declared_clusters_unused": declared_clusters_unused,
         "ok": not any(
             (
                 files_not_in_index,
@@ -91,6 +101,8 @@ def main() -> int:
                 inventory_not_in_capability,
                 inventory_not_in_context,
                 allowlist_not_in_inventory,
+                routing_clusters_undefined,
+                declared_clusters_unused,
             )
         ),
     }
@@ -113,6 +125,8 @@ def main() -> int:
                 "inventory_missing_in_capability",
                 "inventory_missing_in_context",
                 "allowlisted_missing_in_inventory",
+                "routing_clusters_undefined",
+                "declared_clusters_unused",
             ):
                 if report[key]:
                     print(f"- {key} ({len(report[key])}):")

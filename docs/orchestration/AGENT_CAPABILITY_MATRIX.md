@@ -19,6 +19,11 @@ This matrix describes **recommended** agent assignments based on:
 **Important:** This is a **routing guide**, not a **permission system**.
 Coordinator may assign agents outside their primary domain if justified.
 
+**Cluster-first contract:** Coordinator resolves the canonical cluster from
+`docs/orchestration/AGENT_ROUTING_GRAPH.md` first, then uses this matrix as an
+advisory guide for agent choice inside the routed domain. The matrix does not
+define cluster ownership, permissions, or authority boundaries.
+
 ---
 
 ## Agent Capabilities

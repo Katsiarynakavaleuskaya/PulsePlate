@@ -19,6 +19,7 @@ import pytest
 import scripts.orchestration.check_agent_consistency as check_agent_consistency
 from scripts.orchestration.agent_consistency_loader import (
     AgentConsistencySets,
+    load_declared_clusters,
     load_agent_file_slugs,
     load_agent_sets,
     load_capability_agents,
@@ -27,6 +28,7 @@ from scripts.orchestration.agent_consistency_loader import (
     load_inventory_agents,
     load_non_routable_agents,
     load_routing_agents,
+    load_routing_clusters,
 )
 
 
@@ -57,6 +59,29 @@ def test_inventory_covers_routable_or_allowlisted_agents() -> None:
     expected = sets_.routing | sets_.non_routable
     missing = expected - sets_.inventory
     assert not missing, f"Inventory missing routable/allowlisted agents: {sorted(missing)}"
+
+
+def test_declared_clusters_non_empty() -> None:
+    """Cluster definitions must exist as a non-empty canonical set."""
+
+    sets_ = load_agent_sets()
+    assert sets_.declared_clusters, "Declared routing clusters must not be empty"
+
+
+def test_routing_clusters_subset_of_declared_clusters() -> None:
+    """Every routed cluster slug must be declared in the routing graph SoT."""
+
+    sets_ = load_agent_sets()
+    missing = sets_.routing_clusters - sets_.declared_clusters
+    assert not missing, f"Routing clusters missing from declarations: {sorted(missing)}"
+
+
+def test_declared_clusters_all_used_by_routed_domains() -> None:
+    """Every declared cluster must be referenced by at least one routed domain."""
+
+    sets_ = load_agent_sets()
+    unused = sets_.declared_clusters - sets_.routing_clusters
+    assert not unused, f"Declared clusters unused by routed domains: {sorted(unused)}"
 
 
 def test_inventory_subset_of_capability() -> None:
@@ -134,6 +159,8 @@ def test_check_agent_consistency_reports_direct_context_invariant(
         capability={"agent-a", "agent-b"},
         context={"agent-b"},
         routing=set(),
+        routing_clusters={"ops"},
+        declared_clusters={"ops", "growth"},
         non_routable=set(),
         system_exceptions=set(),
     )
@@ -146,6 +173,14 @@ def test_check_agent_consistency_reports_direct_context_invariant(
     assert exit_code == 1
     assert report["files_missing_in_context"] == ["agent-a"]
     assert report["index_missing_in_context"] == ["agent-a"]
+    assert report["declared_clusters_unused"] == ["growth"]
+
+
+def test_cluster_loaders_match_routing_graph_contract() -> None:
+    """Dedicated cluster loaders should stay aligned with the routing graph SoT."""
+
+    assert load_routing_clusters() == {"backend", "platform", "ops", "ml", "safety", "growth"}
+    assert load_declared_clusters() == {"backend", "platform", "ops", "ml", "safety", "growth"}
 
 
 def test_missing_inventory_file_raises(tmp_path: Path) -> None:
