@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 import secrets
@@ -117,7 +118,7 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _resolve_app_callable, _short_git_sha
 from app.utils.feature_flags import _is_truthy
-from app.middleware.api_tiers import require_vip_tier
+from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip_tier
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
     require_server_salt,
@@ -2157,7 +2158,11 @@ def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
     return [RAGSourceItem(**d) for d in build_rag_source_dicts(chunks)]
 
 
-async def insight_v1(req: InsightRequest) -> InsightResponse:
+async def insight_v1(
+    req: InsightRequest,
+    *,
+    subject_id: int | None = None,
+) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2200,6 +2205,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
             max_chunks=3,
             philo_validation_enabled=is_philosophy_validation_enabled(),
             recursive_rag_enabled=is_recursive_rag_enabled(),
+            subject_id=subject_id,
         )
         rag_hops = rag_result.hops
         rag_latency_ms = rag_result.latency_ms
@@ -2271,6 +2277,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
             max_chunks=3,
             philo_validation_enabled=is_philosophy_validation_enabled(),
             recursive_rag_enabled=is_recursive_rag_enabled(),
+            subject_id=None,
         )
         rag_hops = rag_result.hops
         rag_latency_ms = rag_result.latency_ms
@@ -2323,7 +2330,8 @@ async def insight_v1_route(
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
-    return await insight_v1(req)
+    subject_id = derive_subject_id_from_api_key(vip_key)
+    return await insight_v1(req, subject_id=subject_id)
 
 
 # Backward-compatible simple insight endpoint (no API key)

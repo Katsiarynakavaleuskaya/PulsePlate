@@ -87,7 +87,9 @@ def test_insight_redacts_rag_source_headers(
         max_chunks: int = 3,
         agent_id: str | None = None,
         user_tier: str | None = None,
+        subject_id: int | None = None,
     ) -> _FakeCtx:
+        del subject_id
         return _FakeCtx(
             query=query,
             refined_queries=[query],
