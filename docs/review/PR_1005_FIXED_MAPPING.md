@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-Disposition: NOT-A-BUG
-Evidence: Initial PR state before external review; no actionable review comments exist yet.
-
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3908029415 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899221320 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899221322 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3908033831 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899222708 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899225117 -> 27fad65c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899225119 -> 27fad65c
