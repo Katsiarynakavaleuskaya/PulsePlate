@@ -11,6 +11,12 @@ Reason: Tool-level guard preserves the `-32602 Invalid params` contract, while h
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#pullrequestreview-3909822861
 
+Disposition: FIXED
+Commit: 7eb0fdbb
+Evidence: mcp_pulseplate_server.py:351, app/security/agent_input_guard.py:151, tests/test_mcp_pulseplate_server_coverage.py:701, tests/test_agent_input_guard.py:248
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#pullrequestreview-3909867179
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
