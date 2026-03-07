@@ -19,3 +19,8 @@ Evidence: Current PR diff excludes `frontend/src/test/setup.ts`; accidental carr
 Reason: The reviewed storage shim change is no longer part of the active PR diff, so there is no in-scope frontend state leak fix to apply in this orchestration PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909448842 -> 649c103f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900362481 -> 649c103f
+
+Disposition: FIXED
+Commit: 11f59297
+Evidence: `scripts/orchestration/check_merge_ready.py:207`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909522152 -> 11f59297
