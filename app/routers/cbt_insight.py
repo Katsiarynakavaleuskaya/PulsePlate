@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from app.middleware.api_tiers import require_pro_tier
+from app.middleware.api_tiers import derive_subject_id_from_api_key, require_pro_tier
 from app.routers.api_key import api_key_header
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -179,6 +179,7 @@ async def cbt_insight(
             max_chunks=5,
             agent_id="cbt-agent",
             user_tier="PRO",
+            subject_id=derive_subject_id_from_api_key(_api_key),
         )
 
         if rag_ctx.chunks:

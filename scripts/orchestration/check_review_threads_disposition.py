@@ -298,17 +298,18 @@ def _get_owner_repo() -> tuple[str, str]:
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
     Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
-    (Commit/Evidence/Backlog) nearby (±12 lines). Scan only lines containing this thread URL
-    so one mapping does not satisfy multiple threads (CodeRabbit/Sourcery/Cubic).
+    (Commit/Evidence/Backlog). For single-block artifacts, Disposition+Proof at top applies to
+    all mapping lines; scan only lines containing this exact thread URL so one mapping does not
+    satisfy multiple threads (CodeRabbit/Sourcery/Cubic). Use a ±25 line window to cover the
+    repo's single-block artifact layout while still keeping the scan local to the matched URL.
     Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
     lines = section.splitlines()
-    # URL must not be followed by alphanumeric (avoids discussion_r1 matching discussion_r10)
     url_pattern = re.escape(url) + r"(?![0-9a-zA-Z])"
     for i, line in enumerate(lines):
         if re.search(url_pattern, line):
-            start = max(0, i - 12)
-            end = min(len(lines), i + 13)
+            start = max(0, i - 25)
+            end = min(len(lines), i + 26)
             window = "\n".join(lines[start:end])
             if DISPOSITION_RE.search(window) and PROOF_RE.search(window):
                 return True
@@ -476,6 +477,19 @@ def main() -> None:
                 )
                 sys.exit(1)
 
+    # Reject invalid FIXED blocks: Commit: value must be valid SHA or known placeholder
+    if re.search(r"Disposition:\s*FIXED\b", section, re.IGNORECASE):
+        commit_re = re.compile(r"Commit:\s*(.+)$", re.IGNORECASE)
+        for line in section.splitlines():
+            mo = commit_re.search(line.strip())
+            if mo:
+                val = mo.group(1).strip()
+                if not _GIT_SHA_RE.match(val) and val.lower() != "see mapping entries below":
+                    print(
+                        f"ERROR: Invalid Commit value in FIXED block: {val!r} "
+                        "(must be 7–40 hex chars or 'see mapping entries below')"
+                    )
+                    sys.exit(1)
     resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:

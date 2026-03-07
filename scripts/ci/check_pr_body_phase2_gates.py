@@ -57,31 +57,39 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
 
 
-def _load_event_pull_request(event_path: Path) -> dict:
+def _load_event_pull_request(event_path: Path) -> dict[str, object]:
     """Load pull_request dict from GitHub event payload."""
     try:
         payload = json.loads(event_path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
-    return payload.get("pull_request") or {}
+    if not isinstance(payload, dict):
+        return {}
+    pull_request = payload.get("pull_request")
+    return pull_request if isinstance(pull_request, dict) else {}
 
 
 def _extract_pr_number(event_path: Path) -> int | None:
     """Extract PR number from GitHub event payload."""
     pr = _load_event_pull_request(event_path)
     num = pr.get("number")
-    if num is None:
+    if isinstance(num, bool) or num is None:
         return None
-    try:
-        return int(num)
-    except (ValueError, TypeError):
-        return None
+    if isinstance(num, int):
+        return num
+    if isinstance(num, str):
+        try:
+            return int(num)
+        except ValueError:
+            return None
+    return None
 
 
 def _extract_pr_body(event_path: Path) -> str:
     """Extract PR body from GitHub event payload."""
     pr = _load_event_pull_request(event_path)
-    return str(pr.get("body", ""))
+    body = pr.get("body")
+    return body if isinstance(body, str) else ""
 
 
 def _extract_mapping_section(text: str) -> str:
@@ -164,32 +172,44 @@ def main() -> int:
     if pr_number is None and args.event_path:
         pr_number = _extract_pr_number(Path(args.event_path))
 
+    artifact_checked = False
+    body_checked = False
+    artifact_errors: list[str] = []
+    body_errors: list[str] = []
+
     if pr_number is not None:
         try:
             artifact_text = read_mapping_artifact(pr_number)
-            errors = validate_mapping_artifact_text(artifact_text)
-            if errors:
-                print("ERROR: phase2 canonical mapping artifact failed:")
-                for item in errors:
-                    print(f"- {item}")
-                return 1
-            print("phase2-pr-body-gates: canonical mapping artifact passed.")
-            return 0
         except FileNotFoundError as exc:
             print(f"ERROR: {exc}")
             return 1
+        artifact_checked = True
+        artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
 
-    # Fallback: PR body (when no event-path / pr-number, e.g. local testing)
-    if not body.strip():
+    if body.strip():
+        body_checked = True
+        body_errors.extend(check_pr_body_phase2_gates(body=body))
+    elif pr_number is None:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
 
-    errors = check_pr_body_phase2_gates(body=body)
+    errors = [*artifact_errors, *body_errors]
     if errors:
-        print("ERROR: phase2 PR body gates failed:")
+        print("ERROR: phase2 gates failed:")
+        if artifact_checked and artifact_errors:
+            print("- canonical mapping artifact validation failed")
+        if body_checked and body_errors:
+            print("- PR body validation failed")
         for item in errors:
             print(f"- {item}")
         return 1
+
+    if artifact_checked and body_checked:
+        print("phase2-pr-body-gates: canonical mapping artifact and PR body passed.")
+        return 0
+    if artifact_checked:
+        print("phase2-pr-body-gates: canonical mapping artifact passed.")
+        return 0
 
     print("phase2-pr-body-gates: passed.")
     return 0

@@ -15,6 +15,8 @@ FIXTURE_ARTIFACT = """# PR 998 — Fixed in Commit Mapping
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
 
@@ -33,6 +35,17 @@ def test_read_mapping_artifact_existing(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "## Discussion Thread Pass" in text
     assert "## Fixed in Commit Mapping" in text
     assert "->" in text
+
+
+def test_mapping_artifact_path_invalid_override_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Non-existent override dir should fail with a clear RuntimeError."""
+    bad_dir = tmp_path / "nonexistent_dir"
+    monkeypatch.setenv("REVIEW_MAPPING_ARTIFACT_DIR", str(bad_dir))
+
+    with pytest.raises(RuntimeError, match="REVIEW_MAPPING_ARTIFACT_DIR"):
+        artifact.mapping_artifact_path(998)
 
 
 def test_read_mapping_artifact_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -103,7 +116,9 @@ def test_validate_mapping_artifact_text_valid() -> None:
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
     errors = artifact.validate_mapping_artifact_text(text)
     assert errors == []
@@ -126,6 +141,19 @@ def test_validate_fixed_mapping_section_invalid_line() -> None:
     assert any("Invalid mapping line" in e for e in errors)
 
 
+def test_validate_fixed_mapping_section_empty() -> None:
+    errors = artifact.validate_fixed_mapping_section("")
+    assert any("Missing" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_mixed_mode() -> None:
+    section = """- No actionable review comments
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("mixed mode" in error.lower() for error in errors)
+
+
 def test_validate_fixed_mapping_section_requires_mapping_or_no_actionable() -> None:
     """Section with only Disposition/Commit lines must have at least one mapping."""
     section = """Disposition: FIXED
@@ -133,3 +161,19 @@ Commit: abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("at least one" in e for e in errors)
+
+
+def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() -> None:
+    section = """Commit: abc1234
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert "Missing 'Disposition:' when SHA mappings are present." in errors
+
+
+def test_validate_fixed_mapping_section_requires_proof_for_sha_mappings() -> None:
+    section = """Disposition: FIXED
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Missing proof detail" in error for error in errors)

@@ -11,9 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
+
+from app.middleware.api_tiers import TEST_KEY_VIP, derive_subject_id_from_api_key
+from core.rag.orchestration import RAGOrchestrationResult
 
 
 @dataclass
@@ -42,6 +46,7 @@ def _vector_fake(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeCtx:
     """Fake that simulates vector retrieval (distinct chunk_id prefix)."""
     return _FakeCtx(
@@ -174,6 +179,7 @@ class TestFeatureFlagIntegration:
             max_chunks: int = 3,
             agent_id: str | None = None,
             user_tier: str | None = None,
+            subject_id: int | None = None,
         ) -> _FakeCtx:
             return _FakeCtx(
                 query=query,
@@ -196,3 +202,69 @@ class TestFeatureFlagIntegration:
         data = resp.json()
         assert data["rag_used"] is True
         assert data["sources"][0]["chunk_id"] == "j:1"
+
+    def test_api_v1_insight_passes_authenticated_subject_id(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Authenticated /api/v1/insight propagates derived subject_id into RAG orchestration."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        rag_result = AsyncMock()
+        rag_result.return_value = RAGOrchestrationResult(
+            chunks=[],
+            formatted_prompt="test",
+            rag_actually_used=False,
+            confidence=None,
+            hops=0,
+            latency_ms=0,
+        )
+        monkeypatch.setattr(
+            "core.rag.orchestration.retrieve_and_validate_rag",
+            rag_result,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert rag_result.await_args.kwargs["subject_id"] == derive_subject_id_from_api_key(
+            TEST_KEY_VIP
+        )
+
+    def test_legacy_insight_uses_safe_fallback_without_subject_id(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Legacy /insight keeps vector user corpus disabled by omitting subject_id."""
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _EchoProvider(), raising=True)
+        rag_result = AsyncMock()
+        rag_result.return_value = RAGOrchestrationResult(
+            chunks=[],
+            formatted_prompt="test",
+            rag_actually_used=False,
+            confidence=None,
+            hops=0,
+            latency_ms=0,
+        )
+        monkeypatch.setattr(
+            "core.rag.orchestration.retrieve_and_validate_rag",
+            rag_result,
+            raising=True,
+        )
+
+        resp = client.post("/insight", json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert rag_result.await_args.kwargs["subject_id"] is None

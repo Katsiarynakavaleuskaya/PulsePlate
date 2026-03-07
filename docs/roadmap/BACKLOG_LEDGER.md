@@ -2058,6 +2058,23 @@ If it is not recorded here — it does not exist.
     - docs/db schema doc created
     - `make verify` passes
 
+- [ ] P1: `user_knowledge` DB-level RLS / policy hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / defense-in-depth)
+  - Target PR: PR-TBD-USER-KNOWLEDGE-RLS
+  - Status: 📋 Planned
+  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but `user_knowledge` still needs explicit DB-level RLS/policy enforcement as defense in depth.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (§7, §8)
+    - `app/models/rag_feedback.py`
+    - `core/rag/vector_rag.py`
+    - `alembic/versions/202602280001_add_rag_feedback_tables.py`
+  - DoD:
+    - Postgres RLS policy exists for `user_knowledge` (and companion policy for `rag_feedback` if required)
+    - Migration + rollback path documented
+    - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
+    - Runtime app-layer filtering remains in place (no regression to code-level scoping)
+
 - [ ] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)

@@ -16,6 +16,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+
 if TYPE_CHECKING:
     from core.rag.contracts import RAGContext
 
@@ -206,6 +208,39 @@ class TestCBTInsightFeatureFlag:
             "llm.get_provider",
             lambda: mock_provider,
         )
+
+
+class TestCBTInsightSubjectIdPropagation:
+    """Tests that CBT endpoint keeps user_knowledge retrieval scoped per subject."""
+
+    def test_cbt_insight_passes_subject_id(
+        self,
+        client: TestClient,
+        pro_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CBT insight derives subject_id from authenticated PRO API key."""
+        monkeypatch.setenv("FEATURE_CBT_AGENT", "true")
+        observed: dict[str, int | None] = {"subject_id": None}
+
+        def _retrieve(*args: object, **kwargs: object) -> object:
+            observed["subject_id"] = kwargs.get("subject_id")
+            return _make_rag_context()
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "CBT response"
+
+        monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _retrieve)
+        monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        response = client.post(
+            "/api/v1/pro/cbt/insight",
+            json={"query": "How do I handle negative thoughts?"},
+            headers=pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert observed["subject_id"] == derive_subject_id_from_api_key(TEST_KEY_PRO)
 
 
 class TestCBTInsightValidation:
