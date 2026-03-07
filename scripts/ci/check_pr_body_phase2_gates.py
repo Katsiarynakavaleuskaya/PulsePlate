@@ -164,32 +164,42 @@ def main() -> int:
     if pr_number is None and args.event_path:
         pr_number = _extract_pr_number(Path(args.event_path))
 
+    artifact_checked = False
+    body_checked = False
+    errors: list[str] = []
+
     if pr_number is not None:
         try:
             artifact_text = read_mapping_artifact(pr_number)
-            errors = validate_mapping_artifact_text(artifact_text)
-            if errors:
-                print("ERROR: phase2 canonical mapping artifact failed:")
-                for item in errors:
-                    print(f"- {item}")
-                return 1
-            print("phase2-pr-body-gates: canonical mapping artifact passed.")
-            return 0
         except FileNotFoundError as exc:
             print(f"ERROR: {exc}")
             return 1
+        artifact_checked = True
+        errors.extend(validate_mapping_artifact_text(artifact_text))
 
-    # Fallback: PR body (when no event-path / pr-number, e.g. local testing)
-    if not body.strip():
+    if body.strip():
+        body_checked = True
+        errors.extend(check_pr_body_phase2_gates(body=body))
+    elif pr_number is None:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
 
-    errors = check_pr_body_phase2_gates(body=body)
     if errors:
-        print("ERROR: phase2 PR body gates failed:")
+        print("ERROR: phase2 gates failed:")
+        if artifact_checked:
+            print("- canonical mapping artifact validation failed")
+        if body_checked:
+            print("- PR body validation failed")
         for item in errors:
             print(f"- {item}")
         return 1
+
+    if artifact_checked and body_checked:
+        print("phase2-pr-body-gates: canonical mapping artifact and PR body passed.")
+        return 0
+    if artifact_checked:
+        print("phase2-pr-body-gates: canonical mapping artifact passed.")
+        return 0
 
     print("phase2-pr-body-gates: passed.")
     return 0

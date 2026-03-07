@@ -15,6 +15,8 @@ FIXTURE_ARTIFACT = """# PR 998 — Fixed in Commit Mapping
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
 
@@ -114,7 +116,9 @@ def test_validate_mapping_artifact_text_valid() -> None:
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
     errors = artifact.validate_mapping_artifact_text(text)
     assert errors == []
@@ -137,6 +141,19 @@ def test_validate_fixed_mapping_section_invalid_line() -> None:
     assert any("Invalid mapping line" in e for e in errors)
 
 
+def test_validate_fixed_mapping_section_empty() -> None:
+    errors = artifact.validate_fixed_mapping_section("")
+    assert any("Missing" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_mixed_mode() -> None:
+    section = """- No actionable review comments
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("mixed mode" in error.lower() for error in errors)
+
+
 def test_validate_fixed_mapping_section_requires_mapping_or_no_actionable() -> None:
     """Section with only Disposition/Commit lines must have at least one mapping."""
     section = """Disposition: FIXED
@@ -144,3 +161,19 @@ Commit: abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("at least one" in e for e in errors)
+
+
+def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() -> None:
+    section = """Commit: abc1234
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert "Missing 'Disposition:' when SHA mappings are present." in errors
+
+
+def test_validate_fixed_mapping_section_requires_proof_for_sha_mappings() -> None:
+    section = """Disposition: FIXED
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Missing proof detail" in error for error in errors)
