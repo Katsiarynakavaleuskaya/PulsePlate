@@ -91,6 +91,12 @@ async def retrieve_and_validate_rag(
         Whether to run philosophy validation on chunks (feature flag).
     recursive_rag_enabled:
         Whether to run recursive multi-hop retrieval path.
+    subject_id:
+        Authenticated tenant/user identifier for personalized retrieval.
+        Pass a concrete value for tenant-scoped `user_knowledge` access.
+        Passing `None` is fail-closed: vector retrieval must not read
+        tenant-scoped data and the pipeline falls back to non-personal
+        retrieval only.
 
     Returns
     -------
@@ -103,6 +109,8 @@ async def retrieve_and_validate_rag(
     - Caller passes feature flag state (keeps core/ decoupled from app/)
     - Lazy imports preserve fail-safe behavior (missing modules don't crash)
     - Confidence is recalculated from filtered chunks when validation enabled
+    - `recursive_rag_enabled` and `philo_validation_enabled` do not weaken
+      tenant isolation; both paths propagate the same `subject_id`
     """
     try:
         return await _run_orchestration(
