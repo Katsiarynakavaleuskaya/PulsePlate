@@ -6,7 +6,7 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 4f09df6d
-Evidence: `tests/test_review_threads_disposition_strict.py:582`, `tests/test_review_threads_disposition_strict.py:610`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909384805 -> 4f09df6d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900303257 -> 4f09df6d
+Commit: 39a2b80f
+Evidence: `tests/test_review_threads_disposition_strict.py:613`, `tests/test_orchestration_merge_ready.py:141`, `scripts/orchestration/check_merge_ready.py:137`, `frontend/src/test/setup.ts:7`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909384805 -> 39a2b80f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900303257 -> 39a2b80f
