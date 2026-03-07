@@ -33,7 +33,7 @@
 The canonical operator entrypoint for merge governance in this repo is:
 
 ```bash
-# From repo root, with GITHUB_TOKEN and GH_TOKEN set for strict local parity.
+# From repo root, for strict local parity with CI.
 export GITHUB_TOKEN="..."
 export GH_TOKEN="${GITHUB_TOKEN}"
 python scripts/orchestration/check_merge_ready.py \
@@ -41,6 +41,11 @@ python scripts/orchestration/check_merge_ready.py \
   --repo Katsiarynakavaleuskaya/PulsePlate \
   --require-auth
 ```
+
+Local mode semantics:
+- Default local runs may stay advisory for the disposition guard when `gh` auth is unavailable.
+- Add `--require-auth` only when you want strict local parity with CI.
+- CI is always strict for the disposition guard and requires `GH_TOKEN`.
 
 - **Exit 0:** Phase 2 body/artifact contract, merge-readiness checks, and disposition proof all pass → PR satisfies merge-governance policy at the time of the run.
 - **Exit 1:** At least one sub-gate failed → PR must **not** be merged until fixed; wrapper prints the failing gate names and their output.

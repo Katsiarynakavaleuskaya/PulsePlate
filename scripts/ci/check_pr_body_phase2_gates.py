@@ -44,6 +44,7 @@ MAPPING_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["mapping_checkbox_label"]))
 MAPPING_ENTRY_RE = re.compile(
     r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?([0-9a-f]{7,40})`?\s*$"
 )
+THREAD_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*$")
 _na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alternatives"])
 MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
 
@@ -128,12 +129,15 @@ def check_pr_body_phase2_gates(body: str) -> list[str]:
         )
 
     mapping_section = _extract_mapping_section(cleaned)
-    has_mapping_entries = bool(MAPPING_ENTRY_RE.search(mapping_section))
+    has_mapping_entries = bool(
+        MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
+    )
     has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
     if not has_mapping_entries and not has_na_mapping:
         errors.append(
-            "Add at least one mapping entry "
-            "(`- <review-comment-url> -> <commit-sha>`) or `- No actionable review comments`."
+            "Add at least one review-thread entry "
+            "(`- <review-comment-url>` or `- <review-comment-url> -> <commit-sha>`) "
+            "or `- No actionable review comments`."
         )
     if has_mapping_entries and has_na_mapping:
         errors.append(

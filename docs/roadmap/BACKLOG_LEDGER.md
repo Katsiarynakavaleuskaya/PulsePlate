@@ -61,6 +61,106 @@ If it is not recorded here — it does not exist.
     - OpenAPI/guard policy updated to remove transitional `/ws` allowance
     - Frontend ws client defaults to canonical path
 
+<a id="ledger-p0-export-signing-hardening"></a>
+- [ ] P0: Harden private export signing secret and signable-path scope
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #1005
+  - Status: Open
+  - Area: backend / security / export signing
+  - Finding Type: auth/config hardening
+  - Reason: `POST /api/v1/export/sign` currently signs client-supplied paths while `settings.py` still exposes a default export token secret. In production or staging this creates a forged-link risk and keeps a security-sensitive path on weak-default config.
+  - Links:
+    - `app/routers/plan_export.py`
+    - `settings.py`
+    - `signed_links.py`
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `tests/test_export_signed.py`
+  - DoD:
+    - Private export signing fails closed when `EXPORT_TOKEN_SECRET` is default/empty in production-like envs
+    - Allowed sign targets are restricted to canonical export routes actually used by product flows
+    - `.env.example` and runtime compose docs/config mention `EXPORT_TOKEN_SECRET`
+    - Deterministic tests cover deny/default-secret and deny/non-allowlisted-path branches
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+<a id="ledger-p1-users-surface-hardening"></a>
+- [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-USERS-SURFACE-HARDENING
+  - Area: backend / auth / data protection
+  - Finding Type: access-control gap
+  - Reason: `app/routers/users.py` exposes create/list/get/delete routes without any auth dependency. Even if the surface is low-traffic, the current contract permits enumeration, spam, and destructive access on a user table.
+  - Links:
+    - `app/routers/users.py`
+    - `app/main.py`
+    - `tests/test_users_api.py`
+    - `tests/test_users_router.py`
+    - `docs/security/SECURITY_POSTURE.md`
+  - DoD:
+    - Route policy is decided explicitly: protect with admin/API-key dependency, move behind internal-only surface, or remove if unused
+    - OpenAPI and tests reflect the chosen access contract
+    - Destructive operations require authenticated/authorized access
+    - If retirement is deferred, production exposure status is documented with owner and date
+
+<a id="ledger-p1-api-key-toggle-guard"></a>
+- [ ] P1: Production fail-fast for anonymous/dev API key toggles
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-API-KEY-TOGGLE-GUARD
+  - Area: backend / security / configuration
+  - Finding Type: misconfiguration hardening
+  - Reason: `ALLOW_ANONYMOUS_API_KEYS` and `ALLOW_DEV_API_KEY` remain env-driven escape hatches. The codebase documents that they must stay off in production, but startup/config guards are still too easy to misconfigure across `APP_ENV` and `ENVIRONMENT`.
+  - Links:
+    - `app/middleware/api_tiers.py`
+    - `app/routers/vip.py`
+    - `legacy_app.py`
+    - `docs/deploy/VIP_API_KEYS.md`
+    - `tests/test_vip_anonymous_api_key_safety.py`
+  - DoD:
+    - Production-like env detection is canonicalized (`APP_ENV` / `ENVIRONMENT` mismatch removed or documented)
+    - App fails closed or logs explicit startup error when anonymous/dev API key toggles are enabled in production-like envs
+    - Tests cover fail-closed behavior for production/staging settings
+    - Deploy docs show the safe production values
+
+<a id="ledger-p1-worker-proxy-hardening"></a>
+- [ ] P1: Lock down Cloudflare worker proxy before any public deployment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-WORKER-PROXY-HARDENING
+  - Area: edge / Cloudflare / security
+  - Finding Type: proxy abuse prevention
+  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. If deployed publicly in its current form it behaves like an open proxy and can leak credentials.
+  - Links:
+    - `worker.js`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `deploy/PRODUCTION.md`
+  - DoD:
+    - Worker path scope is allowlisted or the file is explicitly marked non-deployable/demo-only
+    - Wildcard CORS and header pass-through are removed or bounded to trusted origins
+    - Authorization forwarding policy is documented and tested
+    - Deployment docs state whether worker runtime is supported or forbidden
+
+<a id="ledger-p2-rag-feedback-pii-minimization"></a>
+- [ ] P2: Reassess feedback and RAG preview minimization beyond regex redaction
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-RAG-FEEDBACK-PII-MINIMIZATION
+  - Area: backend / privacy / RAG
+  - Finding Type: privacy hardening follow-up
+  - Reason: Regex-based redaction exists, but feedback storage and RAG source previews still rely on best-effort masking. A focused review should decide whether previews/queries need stronger minimization or retention tightening.
+  - Links:
+    - `app/routers/feedback.py`
+    - `core/pii_redaction.py`
+    - `core/rag/simple_rag.py`
+    - `tests/test_feedback_api.py`
+    - `tests/test_cbt_insight_api.py`
+  - DoD:
+    - Sensitive feedback fields and RAG previews are classified by retention/need-to-store level
+    - Any fields not required for product analytics are minimized or removed
+    - Tests cover the chosen minimization/redaction contract
+    - Security posture doc reflects the final storage policy
+
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -192,7 +292,6 @@ If it is not recorded here — it does not exist.
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
-    - `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
     - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
     - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
     - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
@@ -200,7 +299,6 @@ If it is not recorded here — it does not exist.
     - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
-    - [x] Temporary PR-body fallback seam documented with ADR + exit criteria
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
@@ -234,7 +332,6 @@ If it is not recorded here — it does not exist.
     - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
     - Relevant fixes or explicit dispositions are recorded on PR #1000
     - PR #998 remains limited to canonical Fixed Mapping SoT work
-
 - [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -2078,12 +2175,12 @@ If it is not recorded here — it does not exist.
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
     - Runtime app-layer filtering remains in place (no regression to code-level scoping)
 
-- [ ] P1: `simple_rag` shared index thread-safety hardening
+- [x] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)
-  - Target PR: PR-TBD-RAG-THREAD-SAFETY
-  - Status: 📋 Planned
-  - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason: Thread-safe initialization/refresh semantics and regression coverage were implemented and merged with the Wave 4 runtime closure.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md`
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
@@ -3542,8 +3639,9 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR #999 (runtime baseline)
-  - Status: 🟡 In progress (runtime Wave R1: source-specific `/api/v1/pro/payments/*` billing surfaces)
+  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1
+  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
+  - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
@@ -3558,38 +3656,13 @@ If it is not recorded here — it does not exist.
     - app/services/payments_activation.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
-    - ✅ Unified billing activation service implemented for source-specific receipts
+    - ⏳ Unified billing activation service is finalized for source-specific receipts
   - DoD:
     - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
-    - Runtime payment namespace stays under `/api/v1/pro/payments/*` to satisfy canonical OpenAPI guards
-  - Deferred / Follow-ups:
-    - [ ] P1: Payment persistence hardening
-      - Owner: @katsiaryna_kavaleuskaya
-      - Target PR: PR-TBD-PAYMENTS-PERSISTENCE-HARDENING
-      - Reason: Current baseline is contract/runtime-first and still relies on in-memory activation state; durable persistence must preserve audit + idempotency across restarts.
-      - Links:
-        - app/services/payments_activation.py:1
-        - app/schemas/payments.py:1
-        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
-      - DoD:
-        - Durable storage contract documented and implemented
-        - Reconciliation audit survives process restarts
-        - Idempotency semantics verified against persisted records
-    - [ ] P1: Provider verification and reconciliation automation
-      - Owner: @katsiaryna_kavaleuskaya
-      - Target PR: PR-TBD-PAYMENTS-PROVIDER-AUTOMATION
-      - Reason: Baseline supports manual rails + iOS-first contract, but provider-grade verification and reconciliation automation remain deferred.
-      - Links:
-        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
-        - docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1
-      - DoD:
-        - Apple receipt verification moves from baseline contract to production verification flow
-        - ERIP/SWIFT reconciliation automation policy is documented
-        - Provider/system verification states map into the canonical activation lifecycle
 
 <a id="ledger-p0-session-cookie-hardening"></a>
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
@@ -3646,13 +3719,14 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE
-  - Status: 📋 Planned
+  - Target PR: PR #1011 (`feat/p1-ios-keychain-conformance`)
+  - Status: 🟡 In progress
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
     - ios/PulsePlate/Services/ProKeyProvider.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
@@ -4023,44 +4097,63 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
   - Links:
-    - app/security/llm_monthly_quota.py (VIP-only implementation)
-    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - app/routers/cbt_insight.py (PRO endpoint without monthly quota)
+    - `app/security/llm_monthly_quota.py` (VIP-only implementation)
+    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
+    - `app/routers/cbt_insight.py` (PRO endpoint without monthly quota)
   - DoD:
     - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
     - CBT insight endpoint calls quota check before provider.generate()
     - Deterministic tests for PRO quota enforcement
 
-- [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
+- [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR TBD
+  - Status: Planned
+  - Reason (EN): The monthly quota model is tier-scoped, but the persisted table name remains VIP-specific for backward compatibility and needs a dedicated migration.
+  - Links:
+    - `app/models/llm_quota_usage.py`
+    - `app/security/llm_monthly_quota.py`
+    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
+  - DoD:
+    - Add DB migration from `vip_llm_monthly_usage` to a tier-neutral table name
+    - Keep backward-compatible rollout/rollback notes linked from audit/docs evidence
+    - Update ORM/model references and deterministic quota tests
+
+- [x] P2: RAG chunk content redaction helper (PII/sensitive data)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (defense-in-depth; corpus is controlled server docs)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The redaction helper was added and wired into prompt assembly and response previews as part of the Wave 4 runtime closure.
   - Links:
-    - app/routers/cbt_insight.py:186-196 (chunk content usage)
-    - PR #942 CodeRabbit comment (2868000571)
+    - `app/routers/cbt_insight.py:186-196` (chunk content usage)
+    - `PR #942` CodeRabbit comment (`2868000571`)
   - DoD:
     - Add redact_rag_context_for_insight() helper (or equivalent)
     - Apply to prompt assembly and response previews
     - Unit tests for redaction patterns
 
-- [ ] P2: CorpusNotIndexedError - wire up or remove
+- [x] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CorpusNotIndexedError is defined and exported in core/rag/contracts.py but never raised in production code. Either wire it up in simple_rag.py/vector_rag.py where corpus-not-found warnings are logged, or remove the unused exception to avoid confusion.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The dead exception export was removed and regression coverage landed in the merged Wave 4 closure PR.
   - Links:
-    - core/rag/contracts.py:25-30 (exception definition)
-    - core/rag/simple_rag.py, core/rag/vector_rag.py (warning paths)
+    - `core/rag/contracts.py`
+    - `core/rag/__init__.py`
+    - `tests/test_rag_contract_surface.py`
     - PR #942 CodeRabbit comment (2868000574)
+  - Evidence:
+    - `core/rag/contracts.py:1` — contract surface no longer defines `CorpusNotIndexedError`.
+    - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
+    - `tests/test_rag_contract_surface.py:10` — regression tests assert the dead export stays removed.
   - DoD:
-    - Either: raise CorpusNotIndexedError where appropriate and handle in callers
-    - Or: remove exception class and update tests
+    - [x] Remove the dead exception class/export and update regression tests
 
 ---
 
-**Last updated:** 2026-03-05 (fact-valid hotfix deltas + RAG quality status sync)
+**Last updated:** 2026-03-07 (Wave 4 runtime closure sync)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

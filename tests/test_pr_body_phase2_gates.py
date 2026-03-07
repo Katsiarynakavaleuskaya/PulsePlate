@@ -27,6 +27,15 @@ def test_phase2_guard_accepts_valid_mapping() -> None:
     assert errors == []
 
 
+def test_phase2_guard_accepts_url_only_entry() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "- https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4",
+        "- https://github.com/org/repo/pull/719#issuecomment-123",
+    )
+    errors = gates.check_pr_body_phase2_gates(body=body)
+    assert errors == []
+
+
 def test_phase2_guard_accepts_backticked_url() -> None:
     body = VALID_BODY_WITH_MAPPING.replace(
         "- https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4",
@@ -92,7 +101,7 @@ def test_phase2_guard_rejects_missing_mapping_details() -> None:
         "",
     )
     errors = gates.check_pr_body_phase2_gates(body=body)
-    assert any("Add at least one mapping entry" in error for error in errors)
+    assert any("Add at least one review-thread entry" in error for error in errors)
 
 
 def test_phase2_guard_rejects_mixed_mapping_and_na_marker() -> None:
@@ -112,7 +121,7 @@ def test_phase2_guard_rejects_malformed_mapping_line() -> None:
         "- https://github.com/org/repo/pull/719#issuecomment-123 28069fd4",
     )
     errors = gates.check_pr_body_phase2_gates(body=body)
-    assert any("Add at least one mapping entry" in error for error in errors)
+    assert any("Add at least one review-thread entry" in error for error in errors)
 
 
 def test_phase2_guard_requires_mapping_in_section_not_elsewhere() -> None:
@@ -126,7 +135,7 @@ def test_phase2_guard_requires_mapping_in_section_not_elsewhere() -> None:
         "Phase2 PR body gate implementation.\n- https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4\n\n",
     )
     errors = gates.check_pr_body_phase2_gates(body=body)
-    assert any("Add at least one mapping entry" in error for error in errors)
+    assert any("Add at least one review-thread entry" in error for error in errors)
 
 
 def test_phase2_guard_uses_last_mapping_section_when_multiple_exist() -> None:

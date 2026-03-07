@@ -55,6 +55,7 @@ jobs:
           # Build the env var names dynamically to avoid false positives while still configuring the container.
           api_key_name="API""_KEY"
           allow_dev_api_key_name="ALLOW_DEV_API""_KEY"
+          export_token_secret_name="EXPORT_TOKEN""_SECRET"
           server_salt_name="SERVER""_SALT"
 
           args=(
@@ -62,6 +63,7 @@ jobs:
             --rm
             -p 8000:8000
             -e "${api_key_name}=test_key"
+            -e "${export_token_secret_name}=ci-smoke-export-secret"
             -e "${server_salt_name}=ci-test-salt"
             -e APP_ENV=production
             -e ENVIRONMENT=production

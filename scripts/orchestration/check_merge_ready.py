@@ -134,6 +134,17 @@ def _disposition_args(args: argparse.Namespace) -> list[str]:
     return disposition_args
 
 
+def _disposition_gate_skipped(result: GateResult) -> bool:
+    """True when disposition exited 0 via advisory SKIP instead of strict evidence."""
+
+    if result.name != "review-threads-disposition":
+        return False
+    if result.returncode != 0:
+        return False
+    combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    return "SKIP:" in combined_output
+
+
 def _print_gate_output(result: GateResult) -> None:
     """Render one gate block for deterministic local/CI diagnostics."""
 
@@ -172,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="Require GH_TOKEN for disposition guard even outside CI.",
+        help="Upgrade local disposition checks to strict CI-like auth semantics.",
     )
     parsed = parser.parse_args(argv)
     _validate_args(parsed, parser)
@@ -188,12 +199,19 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     failed = [result.name for result in gate_results if result.returncode != 0]
+    disposition_skipped = any(_disposition_gate_skipped(result) for result in gate_results)
+    if disposition_skipped:
+        failed.append("review-threads-disposition")
     for result in gate_results:
         _print_gate_output(result)
 
     if failed:
+        if "review-threads-disposition" in failed and disposition_skipped:
+            print("ERROR: review-threads-disposition ran in advisory SKIP mode.")
+            print("Re-run with --require-auth and GH_TOKEN for merge-readiness evidence.")
         print("ERROR: orchestration merge-check failed.")
-        print(f"Failing gates: {', '.join(failed)}")
+        unique_failed = list(dict.fromkeys(failed))
+        print(f"Failing gates: {', '.join(unique_failed)}")
         return 1
 
     print("orchestration-merge-check: passed.")

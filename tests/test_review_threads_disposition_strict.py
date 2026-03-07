@@ -315,13 +315,72 @@ def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
 def test_has_gh_auth_true_when_gh_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.setenv("GH_TOKEN", "gh_secret")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
 
 
 def test_has_gh_auth_true_when_github_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "github_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
+
+
+def test_has_gh_auth_false_when_token_present_but_auth_status_fails(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})(),
+    )
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_false_when_gh_auth_times_out(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=5
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_false_when_gh_auth_oserror(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_oserror(*args: object, **kwargs: object) -> object:
+        raise OSError("gh unavailable")
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_oserror)
+    assert _has_gh_auth() is False
 
 
 def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> None:
@@ -513,6 +572,17 @@ def test_require_gh_token_preflight_exits_when_gh_token_missing_in_ci(
     assert exc_info.value.code == 1
 
 
+def test_require_gh_token_preflight_rejects_github_token_only_in_strict_mode(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    """Strict disposition auth requires GH_TOKEN even when GITHUB_TOKEN is present."""
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "github_only")
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, False)
+    assert exc_info.value.code == 1
+
+
 def test_require_gh_token_preflight_skips_when_not_required() -> None:
     """When not require_auth and not CI, preflight does nothing (no exit)."""
     _require_gh_token_preflight(False, False)
@@ -530,6 +600,98 @@ def test_require_gh_token_preflight_passes_when_gh_token_set_and_gh_ok(
     fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
     monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
     _require_gh_token_preflight(True, True)
+
+
+def test_require_gh_token_preflight_prints_diagnostic_on_timeout(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=10
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, True)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "strict preflight" in captured.out
+    assert "Cause:" in captured.out
+
+
+def test_main_skips_in_advisory_local_mode_without_auth(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Default local mode is advisory: no gh auth means SKIP with exit 0."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod, "_has_gh_auth", lambda: False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "advisory local run" in captured.out
+    assert "not merge-readiness evidence" in captured.out
+
+
+def test_main_requires_gh_token_in_ci_mode_without_flag(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode is strict even when --require-auth is omitted."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "GH_TOKEN required for disposition guard" in captured.out
+
+
+def test_main_passes_in_ci_mode_with_valid_gh_token(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode should run successfully when strict auth preflight passes."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None
+    )
+    fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
+    monkeypatch.setattr(_disposition_mod, "_get_pr_number", lambda _value=None: 1009)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "read_mapping_artifact",
+        lambda _pr_number: (
+            "# PR 1009 — Fixed in Commit Mapping\n\n"
+            "## Fixed in Commit Mapping\n"
+            "- No actionable review comments\n"
+        ),
+    )
+    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "OK: No resolved review threads found" in captured.out
 
 
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:

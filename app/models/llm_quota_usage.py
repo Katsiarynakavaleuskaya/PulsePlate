@@ -1,4 +1,4 @@
-"""LLM monthly usage models (VIP hard quota).
+"""LLM monthly usage models (tiered hard quota).
 
 RU: Модели учёта использования LLM по месячным корзинам (для hard quota).
 EN: Models for monthly LLM usage accounting (hard quota enforcement).
@@ -15,10 +15,13 @@ from core.db import Base
 
 
 class VipLlmMonthlyUsage(Base):
-    """Monthly usage counter per VIP key fingerprint.
+    """Monthly usage counter per tier-scoped key fingerprint.
 
-    RU: Счётчик запросов по VIP ключу (fingerprint) и месяцу (UTC calendar month).
-    EN: Usage counter keyed by VIP key fingerprint and UTC calendar month.
+    RU: Счётчик запросов по tier-scoped fingerprint и месяцу (UTC calendar month).
+    EN: Usage counter keyed by tier-scoped fingerprint and UTC calendar month.
+
+    RU: Имя таблицы сохранено legacy-совместимым до отдельной миграции rename.
+    EN: Table name remains legacy-compatible until a dedicated rename migration lands.
     """
 
     __tablename__ = "vip_llm_monthly_usage"
