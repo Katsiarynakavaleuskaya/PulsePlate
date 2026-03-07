@@ -78,8 +78,8 @@ Define the minimum security controls required to operate PulsePlate agent automa
 | C3-a Signed audit | `agent_control_plane.py:212` | - | - | ● | - | - | - | - |
 | C3-b Audit verification | `agent_control_plane.py:254` | - | - | ● | - | - | - | - |
 | C4-a Outbound allowlist | `agent_control_plane.py:106` | ● | - | - | - | - | - | - |
-| C4-b Sandboxed execution | ADR-003 Wave 2 (planned) | ○ | ○ | - | - | ○ | ○ | ● |
-| C5-a Approval model | `AGENTS.md:31` (policy) | - | ● | - | - | - | ○ | ○ |
+| C4-b Sandboxed execution | `app/security/execution_sandbox.py:1` | ○ | ● | - | - | ○ | ○ | ● |
+| C5-a Approval model | `app/security/agent_control_plane.py:239`, `app/routers/cbt_insight.py:238` | - | ● | - | - | - | ○ | ○ |
 
 **Legend:** ● = Primary mitigation, ○ = Secondary/partial mitigation, - = Not applicable
 
@@ -88,7 +88,7 @@ Define the minimum security controls required to operate PulsePlate agent automa
 | Risk | Description | Mitigation Status | Exit Criteria |
 |------|-------------|-------------------|---------------|
 | R1 | Deterministic tokens (no nonce) enable prediction | P2 backlog: nonce-bearing tokens | Tests show distinct tokens for same scope+timestamp |
-| R2 | Sandbox not yet implemented for high-risk actions | P2 backlog: C4-b sandboxed execution | ADR-003 amendment approved, runtime enforcement green |
+| R2 | Sandbox is local and bounded, but not a strong host/container isolation boundary yet | P2 backlog: stronger remote isolation follow-up | Stronger isolated runner boundary approved and green |
 | R3 | Cost monitoring is alerting-only (no hard cap) | P1 backlog: LLM monthly quota | Hard quota test at `tests/test_insight_vip_monthly_quota_api.py` passes |
 | R4 | Prompt injection defense is policy-only (no content filtering) | Accepted risk: policy gate sufficient for MVP | N/A (accepted) |
 
@@ -125,8 +125,8 @@ the anchors below.
 | C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:254` | See "Canonical Security Verification" |
 | C3-c | Incident timeline within 15 min | @katsiaryna_kavaleuskaya | Doc | `RUNBOOK_AGENT.md:139` | Manual: follow containment checklist |
 | C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:106` | See "Canonical Security Verification" |
-| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Planned | ADR-003 Wave 2: `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` | Backlog tracked |
-| C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Doc | `AGENTS.md:31` (PR merge readiness, approval model) | Manual: policy review per ADR-003 |
+| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Impl (local bounded sandbox) | `app/security/execution_sandbox.py:255`, `tests/test_execution_sandbox.py:1` | Deterministic local sandbox tests |
+| C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:239`, `app/routers/cbt_insight.py:238`, `tests/test_agent_control_plane_mvp.py:130` | Runtime enforcement tests |
 
 ### Canonical Security Verification
 
@@ -136,9 +136,11 @@ the controls ownership table, release gate, and RUNBOOK Security Ops checklist.
 ```bash
 # Full agent control plane test suite (all controls)
 pytest tests/test_agent_control_plane_mvp.py -v
+pytest tests/test_execution_sandbox.py -v
 
 # Anchor drift check (compare with ownership table above)
 grep -n "^def " app/security/agent_control_plane.py
+grep -n "^def " app/security/execution_sandbox.py
 ```
 
 Individual control checks (use `-k` filter):

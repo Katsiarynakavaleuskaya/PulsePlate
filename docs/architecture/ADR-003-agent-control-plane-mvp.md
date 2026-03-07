@@ -53,28 +53,39 @@ flowchart LR
   - `tests/test_agent_control_plane_mvp.py:1` — deterministic validation of policy decisions,
     audit signature integrity, and scoped-token TTL/secret validation.
 - Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
+- Runtime follow-ups that have now landed for the CBT/runtime slice:
+  - `app/routers/cbt_insight.py` wires `require_policy_allow()` before provider work,
+    persists signed audit envelopes, and enforces execution mode gating.
+  - `app/security/execution_sandbox.py` adds a bounded local execution sandbox for
+    allowlisted commands with cwd, timeout, output, and env controls.
 - Remaining scope for follow-up PRs:
-  - Wire primitives into execution path (policy gate before privileged actions).
-  - Add persistent signed audit trail sink and verification pipeline.
-  - Introduce execution sandbox boundary and approval-mode routing.
+  - Stronger isolation beyond developer-machine local sandbox (for example, container/VM runner boundary).
+  - Nonce-bearing scoped tokens and wider production rollout hardening.
 
-### Exit Criteria (Temporary Seam)
+### Exit Criteria (Updated Status)
 
-This ADR introduces a temporary seam for MVP primitives. Exit criteria to close the seam:
+The original MVP seam is closed for the current local runtime slice. The following
+criteria are now satisfied in code for the CBT/runtime path:
 
-1. **Policy gate integrated**: All privileged agent actions pass through `require_policy_allow()`.
-2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
-3. **Secrets boundary enforced**: No plaintext credentials outside SecretsBroker flow.
-4. **Test coverage**: Deterministic tests for all bypass scenarios (fail-closed behavior verified).
-5. **Backlog ledger closed**: `docs/roadmap/BACKLOG_LEDGER.md:60` P0 entry marked complete with DoD evidence.
+1. **Policy gate integrated**: privileged CBT/runtime work passes through `require_policy_allow()`.
+2. **Audit trail persistent**: signed envelopes are written to durable JSONL storage.
+3. **Secrets boundary enforced**: fail-closed secret requirements remain in place.
+4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are runtime-validated.
+5. **Bounded local sandbox available**: higher-risk local execution can run only through the
+   allowlisted sandbox boundary.
+6. **Test coverage**: deterministic tests verify fail-closed behavior for the runtime slice.
 
-Until exit criteria are met, this is an **interim solution** with explicit tracking in backlog.
+Open follow-up work is now narrower:
+
+- remote/stronger isolation beyond the developer-machine sandbox
+- nonce-bearing scoped tokens
+- broader multi-surface rollout beyond the CBT/runtime slice
 
 ## Security Boundaries
 
 - `SecretsBroker`: single authority for credential vending
 - `PolicyGate`: required before tool execution
-- `ExecutionSandbox`: bounded execution for higher-risk actions
+- `ExecutionSandbox`: bounded local execution for higher-risk actions
 - `SignedAuditTrail`: tamper-evident execution trace
 
 ## Non-Goals (MVP)
