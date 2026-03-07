@@ -11,6 +11,9 @@ import pytest
 
 from scripts.orchestration import check_preflight as preflight
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PREFLIGHT_CLI_PATH = REPO_ROOT / "scripts" / "orchestration" / "check_preflight.py"
+
 
 def test_analyze_mode_allows_dirty_tree(monkeypatch: pytest.MonkeyPatch) -> None:
     """Analyze mode must pass with dirty tree when other checks pass."""
@@ -168,15 +171,13 @@ def test_check_gate_evidence_resolves_relative_paths_against_root(
     assert preflight.check_gate_evidence(["evidence.log"]) is True
 
 
+@pytest.mark.slow
 def test_cli_invocation_works_without_pythonpath() -> None:
     """Plain script invocation must work from repo root without PYTHONPATH."""
 
-    repo_root = Path(__file__).resolve().parents[1]
-    script_path = repo_root / "scripts" / "orchestration" / "check_preflight.py"
-
     result = subprocess.run(
-        [sys.executable, str(script_path)],
-        cwd=repo_root,
+        [sys.executable, str(PREFLIGHT_CLI_PATH)],
+        cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
