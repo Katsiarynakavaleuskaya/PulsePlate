@@ -20,6 +20,37 @@ function EnterKeyProbe(): JSX.Element {
 }
 
 describe("RequireKey", () => {
+  it("waits for auth bootstrap before redirecting", () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: false,
+      isLoading: true,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/plate"]}>
+        <Routes>
+          <Route
+            path="/plate"
+            element={
+              <RequireKey>
+                <div data-testid="protected-content">protected</div>
+              </RequireKey>
+            }
+          />
+          <Route path="/enter-key" element={<EnterKeyProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("enter-key-probe")).not.toBeInTheDocument();
+  });
+
   it("redirects to /enter-key and preserves source path when key is missing", () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
@@ -51,9 +82,9 @@ describe("RequireKey", () => {
     expect(screen.getByTestId("enter-key-probe")).toHaveTextContent("/plate");
   });
 
-  it("renders children when key exists", () => {
+  it("renders children when cookie session is authenticated", () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: "AAAAAAAAAAAAAAAAAAAAA", // pragma: allowlist secret
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
