@@ -1,7 +1,12 @@
 import type { ButtonHTMLAttributes, JSX } from 'react';
 import { Download } from 'lucide-react';
+import { buttonClasses } from '../ui';
 
-interface ProgressExportPdfButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {}
+/**
+ * Fixed-label export CTA that accepts standard button props such as
+ * onClick, disabled, and className.
+ */
+type ProgressExportPdfButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>;
 
 export function ProgressExportPdfButton({
   className = '',
@@ -11,14 +16,11 @@ export function ProgressExportPdfButton({
   return (
     <button
       type={type}
-      className={[
-        'flex items-center gap-2 rounded-lg px-4 py-2 transition-colors hover:opacity-90',
-        className,
-      ].join(' ').trim()}
-      style={{
-        backgroundColor: 'var(--color-primary)',
-        color: 'var(--color-primary-foreground)',
-      }}
+      className={buttonClasses({
+        variant: 'primary',
+        size: 'sm',
+        className: ['inline-flex items-center gap-2', className].join(' ').trim(),
+      })}
       aria-label="Export progress report as PDF"
       {...props}
     >

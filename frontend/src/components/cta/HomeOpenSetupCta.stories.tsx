@@ -6,14 +6,14 @@ import { HomeOpenSetupCta } from './HomeOpenSetupCta';
 const meta: Meta<typeof HomeOpenSetupCta> = {
   title: 'PulsePlate/Patterns/HomeOpenSetupCta',
   component: HomeOpenSetupCta,
-  render: () => (
+  render: (args) => (
     <MemoryRouter>
       <DesignSystemCanvas>
         <PanelShell
           title="Web home primary CTA"
           subtitle="Pilot review surface for web.home.open_setup with repo-native routing and token styling."
         >
-          <HomeOpenSetupCta />
+          <HomeOpenSetupCta {...args} />
         </PanelShell>
       </DesignSystemCanvas>
     </MemoryRouter>

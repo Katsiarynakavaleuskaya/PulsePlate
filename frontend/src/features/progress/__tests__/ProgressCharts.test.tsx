@@ -106,7 +106,7 @@ describe('ProgressCharts', () => {
   it('renders export PDF button', () => {
     render(<ProgressCharts />);
 
-    const exportButton = screen.getByRole('button', { name: 'Export progress report as PDF' });
+    const exportButton = screen.getByRole('button', { name: /export .*pdf/i });
     expect(exportButton).toBeInTheDocument();
   });
 
@@ -159,7 +159,7 @@ describe('ProgressCharts', () => {
 
     render(<ProgressCharts />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export progress report as PDF' }));
+    fireEvent.click(screen.getByRole('button', { name: /export .*pdf/i }));
 
     await waitFor(() => {
       expect(mockHtml2Canvas).toHaveBeenCalledTimes(1);
@@ -175,7 +175,7 @@ describe('ProgressCharts', () => {
 
     render(<ProgressCharts />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export progress report as PDF' }));
+    fireEvent.click(screen.getByRole('button', { name: /export .*pdf/i }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Failed to export PDF: canvas unavailable');

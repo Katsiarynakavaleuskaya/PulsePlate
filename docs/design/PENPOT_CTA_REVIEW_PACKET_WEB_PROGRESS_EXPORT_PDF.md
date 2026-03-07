@@ -1,6 +1,6 @@
 # CTA Review Packet — `web.progress.export_pdf`
 
-- Status: Review-ready
+- Status: Pilot exception - Storybook-backed, pending Penpot frame capture
 - Date: 2026-03-07
 - Owner: @katsiaryna_kavaleuskaya
 
@@ -13,7 +13,7 @@
 ## 2. Runtime Ownership
 
 - Component: `frontend/src/components/cta/ProgressExportPdfButton.tsx:6`
-- Screen/page: `frontend/src/features/progress/ProgressCharts.tsx:79`
+- Screen/page: `frontend/src/features/progress/ProgressCharts.tsx:145`
 - Route / downstream flow: local client-side export, no backend dependency on click
 
 ## 3. Storybook Review Surface
@@ -36,7 +36,7 @@
 
 - Packet: this document
 - Penpot workspace: `https://design.penpot.app/#/dashboard/recent?team-id=ff0898e1-835b-80ff-8007-ac98b669a273`
-- Penpot page/frame: pending first explicit Progress export CTA board capture in the registered team workspace
+- Penpot page/frame: pilot exception pending first explicit Progress export CTA board capture in the registered team workspace
 - Optional Figma: node ID remains intentionally non-blocking on the bridge path
 
 ## 6. Token + Variant Alignment
@@ -52,7 +52,7 @@
 
 ## 7. Known Gaps
 
-- Review packet does not yet include a Penpot frame URL
+- Review packet does not yet include a Penpot frame URL and therefore remains a documented pilot exception
 - Export CTA still lives inside a larger chart container for runtime behavior, so story coverage is intentionally style-first
 
 ## 8. Release Decision

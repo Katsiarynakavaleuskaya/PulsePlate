@@ -1,2 +1,2 @@
-export * from './HomeOpenSetupCta';
-export * from './ProgressExportPdfButton';
+export { HomeOpenSetupCta } from './HomeOpenSetupCta';
+export { ProgressExportPdfButton } from './ProgressExportPdfButton';
