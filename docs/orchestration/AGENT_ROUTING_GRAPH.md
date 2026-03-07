@@ -53,7 +53,7 @@
 
 | Domain   | Cluster  | Primary Agent            | Secondary                       | Reviewer                |
 |----------|----------|--------------------------|---------------------------------|-------------------------|
-| backend  | backend  | architecture-specialist  | backend-engineer, bug-hunter    | security-auditor        |
+| backend  | backend  | architecture-specialist  | backend-engineer                | security-auditor        |
 | ios      | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
 | frontend | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
 | infra    | ops      | dev-operator             | architecture-specialist         | security-auditor        |
@@ -74,7 +74,7 @@
 ## 5. Routing Rules
 
 1. Coordinator selects exactly 1 primary agent.
-2. Maximum 2 secondary agents allowed.
+2. Canonical routing graph allows at most 1 secondary agent; additional collaborators stay advisory in task analysis or capability guidance.
 3. Runtime changes require reviewer.
 4. Docs-only tasks may omit reviewer.
 5. Coordinator retains final authority.

@@ -184,6 +184,38 @@ def test_cluster_loaders_match_routing_graph_contract() -> None:
     assert load_routing_clusters() == declared_clusters
 
 
+def test_check_agent_consistency_reports_loader_errors_structured(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI JSON should stay structured when routing loader validation fails."""
+
+    monkeypatch.setattr(
+        check_agent_consistency,
+        "load_agent_sets",
+        lambda: (_ for _ in ()).throw(ValueError("routing cluster mismatch")),
+    )
+    monkeypatch.setattr(check_agent_consistency, "load_agent_file_slugs", lambda: {"agent-a"})
+    monkeypatch.setattr(check_agent_consistency, "load_index_agents", lambda: {"agent-a"})
+    monkeypatch.setattr(check_agent_consistency, "load_inventory_agents", lambda: {"agent-a"})
+    monkeypatch.setattr(check_agent_consistency, "load_capability_agents", lambda: {"agent-a"})
+    monkeypatch.setattr(check_agent_consistency, "load_context_agents", lambda: {"agent-a"})
+    monkeypatch.setattr(check_agent_consistency, "load_routing_agents", lambda: set())
+    monkeypatch.setattr(check_agent_consistency, "load_routing_clusters_raw", lambda: {"ops"})
+    monkeypatch.setattr(check_agent_consistency, "load_declared_routing_clusters", lambda: {"ml"})
+    monkeypatch.setattr(check_agent_consistency, "load_non_routable_agents", lambda: set())
+    monkeypatch.setattr(sys, "argv", ["check_agent_consistency", "--json"])
+
+    exit_code = check_agent_consistency.main()
+
+    report = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert report["loader_errors"] == ["agent_sets: routing cluster mismatch"]
+    assert report["routing_clusters"] == ["ops"]
+    assert report["declared_clusters"] == ["ml"]
+    assert report["routing_clusters_undefined"] == ["ops"]
+    assert report["declared_clusters_unused"] == ["ml"]
+
+
 def test_missing_inventory_file_raises(tmp_path: Path) -> None:
     """FileNotFoundError when inventory path does not exist."""
     with pytest.raises(FileNotFoundError, match="Missing inventory file"):

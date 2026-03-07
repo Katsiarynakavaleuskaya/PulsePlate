@@ -20,9 +20,12 @@ This matrix describes **recommended** agent assignments based on:
 Coordinator may assign agents outside their primary domain if justified.
 
 **Cluster-first contract:** Coordinator resolves the canonical cluster from
-`docs/orchestration/AGENT_ROUTING_GRAPH.md` first, then uses this matrix as an
-advisory guide for agent choice inside the routed domain. The matrix does not
-define cluster ownership, permissions, or authority boundaries.
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:39` and applies the routing rule in
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:85`; executable enforcement lives in
+`scripts/orchestration/routing_graph_loader.py:167` and
+`scripts/orchestration/route_with_telemetry.py:96`. This matrix remains an
+advisory guide for agent choice inside the routed domain and does not define
+cluster ownership, permissions, or authority boundaries.
 
 ---
 

@@ -145,6 +145,43 @@ def load_declared_clusters(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
     return _parse_cluster_definitions(lines)
 
 
+def load_routing_clusters_raw(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
+    """Return clusters referenced by routed domains without declared-cluster validation."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Routing graph not found: {path}")
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header_idx, header_cols = _find_table_header(
+        lines, ("domain", "cluster", "primary agent", "reviewer")
+    )
+
+    start = header_idx + 1
+    if start < len(lines) and _is_delimiter_row(lines[start]):
+        start += 1
+
+    i_cluster = _header_index(header_cols, "cluster")
+    routing_clusters: Set[str] = set()
+
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped == "---" or stripped.startswith("##"):
+            break
+        cols = _split_md_row(line)
+        if not cols:
+            if routing_clusters:
+                break
+            continue
+        if len(cols) <= i_cluster:
+            continue
+
+        cluster = cols[i_cluster].strip()
+        if cluster and not cluster.startswith("-"):
+            routing_clusters.add(cluster)
+
+    return routing_clusters
+
+
 def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRoute]:
     """
     Parse canonical routing table from AGENT_ROUTING_GRAPH.md.
@@ -156,7 +193,8 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
 
     Returns:
         Dict mapping domain -> DomainRoute(primary, secondary, reviewer).
-        Secondary is first agent when comma-separated (e.g. "a, b" -> "a").
+        Canonical routing graph defines one secondary; legacy comma-separated
+        cells still collapse to the first agent for backward compatibility.
     """
     if not path.is_file():
         raise FileNotFoundError(f"Routing graph not found: {path}")
