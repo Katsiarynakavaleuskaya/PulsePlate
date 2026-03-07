@@ -3,7 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_mapping_artifact import (
+    read_mapping_artifact,
+    validate_mapping_artifact_text,
+)
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -26,10 +36,10 @@ def _checkbox_re(label: str) -> re.Pattern[str]:
     return re.compile(rf"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*{escaped}\s*$")
 
 
-DISCUSSION_SECTION_RE = _section_heading_re("##", PHASE2_CONFIG["discussion_heading"])
-MAPPING_SECTION_RE = _section_heading_re("###", PHASE2_CONFIG["mapping_heading"])
-DISCUSSION_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["discussion_checkbox_label"])
-MAPPING_CHECKBOX_RE = _checkbox_re(PHASE2_CONFIG["mapping_checkbox_label"])
+DISCUSSION_SECTION_RE = _section_heading_re("##", str(PHASE2_CONFIG["discussion_heading"]))
+MAPPING_SECTION_RE = _section_heading_re("###", str(PHASE2_CONFIG["mapping_heading"]))
+DISCUSSION_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["discussion_checkbox_label"]))
+MAPPING_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["mapping_checkbox_label"]))
 
 MAPPING_ENTRY_RE = re.compile(
     r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?([0-9a-f]{7,40})`?\s*$"
@@ -47,14 +57,31 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
 
 
-def _extract_pr_body(event_path: Path) -> str:
+def _load_event_pull_request(event_path: Path) -> dict:
+    """Load pull_request dict from GitHub event payload."""
     try:
         payload = json.loads(event_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return ""
-    except json.JSONDecodeError:
-        return ""
-    return str(payload.get("pull_request", {}).get("body", ""))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return payload.get("pull_request") or {}
+
+
+def _extract_pr_number(event_path: Path) -> int | None:
+    """Extract PR number from GitHub event payload."""
+    pr = _load_event_pull_request(event_path)
+    num = pr.get("number")
+    if num is None:
+        return None
+    try:
+        return int(num)
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_pr_body(event_path: Path) -> str:
+    """Extract PR body from GitHub event payload."""
+    pr = _load_event_pull_request(event_path)
+    return str(pr.get("body", ""))
 
 
 def _extract_mapping_section(text: str) -> str:
@@ -100,6 +127,11 @@ def check_pr_body_phase2_gates(body: str) -> list[str]:
             "Add at least one mapping entry "
             "(`- <review-comment-url> -> <commit-sha>`) or `- No actionable review comments`."
         )
+    if has_mapping_entries and has_na_mapping:
+        errors.append(
+            "Invalid mixed mode: 'No actionable review comments' cannot appear "
+            "together with SHA mappings (use one or the other)."
+        )
 
     return errors
 
@@ -116,12 +148,38 @@ def main() -> int:
         default="",
         help="Explicit PR body text (optional, overrides event body if provided).",
     )
+    parser.add_argument(
+        "--pr-number",
+        type=int,
+        help="PR number for artifact lookup (optional, extracted from event-path if not set).",
+    )
     args = parser.parse_args()
 
     body = args.body
     if not body and args.event_path:
         body = _extract_pr_body(Path(args.event_path))
 
+    # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
+    pr_number = args.pr_number
+    if pr_number is None and args.event_path:
+        pr_number = _extract_pr_number(Path(args.event_path))
+
+    if pr_number is not None:
+        try:
+            artifact_text = read_mapping_artifact(pr_number)
+            errors = validate_mapping_artifact_text(artifact_text)
+            if errors:
+                print("ERROR: phase2 canonical mapping artifact failed:")
+                for item in errors:
+                    print(f"- {item}")
+                return 1
+            print("phase2-pr-body-gates: canonical mapping artifact passed.")
+            return 0
+        except FileNotFoundError as exc:
+            print(f"ERROR: {exc}")
+            return 1
+
+    # Fallback: PR body (when no event-path / pr-number, e.g. local testing)
     if not body.strip():
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
