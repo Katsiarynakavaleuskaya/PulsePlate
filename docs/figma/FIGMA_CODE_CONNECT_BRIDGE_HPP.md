@@ -22,7 +22,18 @@ Define a deterministic, secure, and conflict-safe flow for connecting Figma comp
 4. Design file key + current node IDs available for activation
    (capture protocol: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`).
 5. Figma workspace has a Code Connect-capable seat:
-   `get_code_connect_suggestions(...)` currently requires a **Developer seat in an Organization or Enterprise plan**.
+   `get_code_connect_suggestions(...)` currently requires a **Full or Dev seat
+   on Organization or Enterprise** per
+   <https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect> and
+   <https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
+   Internal blocker tracking remains in
+   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:20`.
+6. Activation prerequisites remain true:
+   target Figma component is published to a team library and the Design URL
+   includes `node-id` per
+   <https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
+   Internal capture format remains in
+   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:29`.
 
 ## 3) Canonical Tool Flow
 
@@ -53,11 +64,11 @@ Define a deterministic, secure, and conflict-safe flow for connecting Figma comp
 | --- | --- | --- |
 | `candidate` | Proposed map exists in registry | Ready for node-level validation |
 | `blocked_by_design_url` | No design file key/node ID yet | Design URL and node IDs provided |
-| `blocked_by_node_id_capture` | Design URL/file key exists, but current CTA node IDs are still missing/unverified | Node IDs re-captured and ready for validation |
-| `blocked_by_plan` | Workspace seat/tier blocks activation after row-level capture is current enough to attempt Code Connect | Developer seat on Organization/Enterprise plan available |
+| `blocked_by_node_id_capture` | Design URL/file key exists, but current CTA node IDs are still missing/unverified | Node IDs re-captured and ready for validation (`docs/roadmap/BACKLOG_LEDGER.md` → `Design file URL + node IDs required for Code Connect activation (H+P+Pr)`) |
+| `blocked_by_plan` | Workspace seat/tier blocks activation after row-level capture is current enough to attempt Code Connect (ADR: `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`; backlog: `docs/roadmap/BACKLOG_LEDGER.md` → `Penpot + Storybook fallback bridge for design handoff`) | Full or Dev seat on Organization/Enterprise available and fallback seam can retire per ADR exit criteria |
 | `validated` | Node-level match confirmed in Figma + site component | Passed consistency review |
 | `active` | Code Connect map persisted and verified | `get_code_connect_map` returns expected map |
-| `stale` | Component API/design changed or previously captured node ID no longer resolves | Re-validated and re-activated |
+| `stale` | Component API/design changed or previously captured node ID no longer resolves (ADR: `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`; backlog: `docs/roadmap/BACKLOG_LEDGER.md` → `Design file URL + node IDs required for Code Connect activation (H+P+Pr)`) | Re-validated and re-activated under the ADR exit criteria |
 
 ## 6) Conflict Precedence (Non-negotiable)
 
@@ -89,10 +100,13 @@ If unresolved, record decision in:
   blocker in notes.
 - Retry activation only after `get_code_connect_suggestions(...)` is no longer plan-blocked.
 
-### B1: Design file URL/node IDs missing
+### B1: Design file URL or node IDs missing
 
 - Record blocker in backlog with Owner/DoD/Target PR.
-- Keep all rows in candidate registry as `blocked_by_design_url`.
+- If Design URL/file key is missing, keep rows as `blocked_by_design_url`.
+- If Design URL/file key exists but node IDs are missing or unverified, mark rows
+  `blocked_by_node_id_capture`.
+- If a previously captured node ID no longer resolves, mark the row `stale`.
 - Continue Make sync audits and CTA readiness updates without fake node IDs.
 - Run capture protocol:
   `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.

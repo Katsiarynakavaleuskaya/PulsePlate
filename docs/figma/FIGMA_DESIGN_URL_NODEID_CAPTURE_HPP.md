@@ -19,7 +19,9 @@ Therefore, this dependency cannot be auto-closed from Make context alone.
 
 Additional blocker discovered on March 7, 2026:
 `get_code_connect_suggestions(...)` currently fails for this workspace because
-Code Connect requires a **Developer seat in an Organization or Enterprise plan**.
+Code Connect requires a **Full or Dev seat on Organization or Enterprise** per
+<https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect> and
+<https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
 Current MCP `whoami` reports only a `Full` seat on `pro`.
 
 ## 3) Capture Procedure
@@ -64,7 +66,7 @@ Set per-row:
 
 After Step 3, run MCP checks:
 
-1. `whoami` confirms a Code Connect-capable seat (Developer seat in Organization/Enterprise).
+1. `whoami` confirms a Code Connect-capable seat (Full or Dev seat in Organization/Enterprise).
 2. `get_metadata(fileKey=<fileKey>, nodeId=<nodeId>)`
 3. `get_code_connect_suggestions(fileKey=<fileKey>, nodeId=<nodeId>)`
 
@@ -86,7 +88,8 @@ If all three succeed for all P0 rows, blocker is cleared and activation may proc
 
 - MCP `get_metadata(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="1:72")` now returns `The node ID provided was invalid`, so the prior `web.home.open_setup` capture is no longer activation-safe.
 - MCP `get_metadata(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="96:33")` succeeds, which confirms the Design file key is current but the accessible MCP root is a spec/index frame, not the old `1:72` CTA node.
-- MCP `get_code_connect_suggestions(...)` is blocked at plan level until a Developer seat in an Organization or Enterprise plan is available.
+- MCP `get_code_connect_suggestions(...)` is blocked at plan level until a Full
+  or Dev seat in an Organization or Enterprise plan is available.
 
 **Clear note:** Design URL exists, but the P0 set still lacks four current activation-safe node IDs and Code Connect remains blocked by seat/plan.
 

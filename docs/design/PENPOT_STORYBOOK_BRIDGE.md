@@ -133,6 +133,12 @@ insufficient for review. Do not add them preemptively.
 
 ## Exit Criteria For Optional Code Connect
 
+Owning ADR: `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`.
+Canonical backlog items:
+
+- `docs/roadmap/BACKLOG_LEDGER.md` → `Penpot + Storybook fallback bridge for design handoff`
+- `docs/roadmap/BACKLOG_LEDGER.md` → `Design file URL + node IDs required for Code Connect activation (H+P+Pr)`
+
 Penpot remains the required low-cost fallback until all of these are true:
 
 1. `get_code_connect_suggestions(...)` is no longer blocked by plan/seat.
@@ -144,4 +150,5 @@ Penpot remains the required low-cost fallback until all of these are true:
    pilot CTA set.
 
 Once those conditions are met, Penpot becomes optional inspect/docs support
-rather than the required fallback bridge.
+rather than the required fallback bridge defined in
+`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`.
