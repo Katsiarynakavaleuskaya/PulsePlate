@@ -123,6 +123,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 422
 
     def test_app_router_inclusion_users_requires_api_key(self, client: TestClient) -> None:
+        """Тестирует требование API key для users endpoint."""
         response = client.get("/api/v1/users")
         assert response.status_code == 403
 
