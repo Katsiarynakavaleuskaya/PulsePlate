@@ -1,10 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Home from '../Home';
 
+vi.mock('../../lib/auth', () => ({
+  useAuth: vi.fn(),
+}));
+
+import { useAuth } from '../../lib/auth';
+
 describe('Home', () => {
+  beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: false,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+  });
+
   it('renders home page content', () => {
     render(
       <MemoryRouter>
@@ -21,6 +39,29 @@ describe('Home', () => {
     expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
     expect(screen.getByRole('link', { name: 'Progress View' })).toHaveAttribute('href', '/progress');
     expect(screen.getByRole('link', { name: 'Premium Features' })).toHaveAttribute('href', '/pro');
+  });
+
+  it('shows connected API status from authenticated session', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: null,
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Connected')).toBeInTheDocument();
+    expect(
+      screen.getByText('Your secure session is active. Personalized guidance is enabled.')
+    ).toBeInTheDocument();
   });
 
   it('has correct CSS classes', () => {
