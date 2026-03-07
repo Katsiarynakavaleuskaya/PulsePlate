@@ -13,6 +13,8 @@ from unittest.mock import patch, MagicMock, call
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError, IntegrityError
 
+from tests._helpers.api_headers import API_KEY_HEADERS
+
 
 def _wire_session_factory(mock_db: MagicMock, mock_session: MagicMock) -> MagicMock:
     """Make db_module.get_session_factory() return a callable factory.
@@ -244,7 +246,7 @@ class TestUsersEndpointRetryIntegration:
 
         monkeypatch.setattr("app.routers.users._execute_with_retry", always_fail)
 
-        response = test_client.get("/api/v1/users", headers={"X-API-Key": "test_key"})
+        response = test_client.get("/api/v1/users", headers=API_KEY_HEADERS)
 
         # Should fail with 503 (no fallback for list operation)
         assert response.status_code == 503

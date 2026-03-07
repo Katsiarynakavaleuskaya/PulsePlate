@@ -5,21 +5,21 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-USER_HEADERS = {"X-API-Key": "test_key"}
+from tests._helpers.api_headers import API_KEY_HEADERS
 
 
 def test_create_and_get_user(client: TestClient) -> None:
     response = client.post(
         "/api/v1/users",
         json={"email": "ann@example.com", "name": "Ann"},
-        headers=USER_HEADERS,
+        headers=API_KEY_HEADERS,
     )
     assert response.status_code == 201
     payload = response.json()
     assert payload["email"] == "ann@example.com"
     user_id = payload["id"]
 
-    fetched = client.get(f"/api/v1/users/{user_id}", headers=USER_HEADERS)
+    fetched = client.get(f"/api/v1/users/{user_id}", headers=API_KEY_HEADERS)
     assert fetched.status_code == 200
     assert fetched.json()["name"] == "Ann"
 
@@ -36,14 +36,18 @@ def test_list_users_pagination(client: TestClient) -> None:
         resp = client.post(
             "/api/v1/users",
             json={"email": f"{prefix}_user{idx}@example.com", "name": f"User {idx}"},
-            headers=USER_HEADERS,
+            headers=API_KEY_HEADERS,
         )
         created_ids.append(resp.json()["id"])
 
     # Query with offset=1, limit=2 - should skip first user and get next 2
     # But since other tests may have created users, we need to find our users by ID
     # The endpoint returns users ordered by ID, so our 3 users should be consecutive
-    page = client.get("/api/v1/users", params={"limit": 100, "offset": 0}, headers=USER_HEADERS)
+    page = client.get(
+        "/api/v1/users",
+        params={"limit": 100, "offset": 0},
+        headers=API_KEY_HEADERS,
+    )
     assert page.status_code == 200
     all_users = page.json()
 
@@ -66,12 +70,12 @@ def test_create_user_conflict(client: TestClient) -> None:
     client.post(
         "/api/v1/users",
         json={"email": "dup@example.com", "name": "One"},
-        headers=USER_HEADERS,
+        headers=API_KEY_HEADERS,
     )
     duplicate = client.post(
         "/api/v1/users",
         json={"email": "dup@example.com", "name": "Two"},
-        headers=USER_HEADERS,
+        headers=API_KEY_HEADERS,
     )
     assert duplicate.status_code == 409
     assert "Data conflict" in duplicate.json()["detail"]
@@ -79,7 +83,7 @@ def test_create_user_conflict(client: TestClient) -> None:
 
 
 def test_get_user_not_found(client: TestClient) -> None:
-    response = client.get("/api/v1/users/9999", headers=USER_HEADERS)
+    response = client.get("/api/v1/users/9999", headers=API_KEY_HEADERS)
     assert response.status_code == 404
 
 
@@ -88,15 +92,15 @@ def test_delete_user_success_and_idempotent(client: TestClient) -> None:
     created = client.post(
         "/api/v1/users",
         json={"email": "del@example.com", "name": "Del"},
-        headers=USER_HEADERS,
+        headers=API_KEY_HEADERS,
     )
     user_id = created.json()["id"]
 
-    delete_resp = client.delete(f"/api/v1/users/{user_id}", headers=USER_HEADERS)
+    delete_resp = client.delete(f"/api/v1/users/{user_id}", headers=API_KEY_HEADERS)
     assert delete_resp.status_code == 204
 
     # Second delete should also return 204 (idempotent behavior)
-    missing = client.delete(f"/api/v1/users/{user_id}", headers=USER_HEADERS)
+    missing = client.delete(f"/api/v1/users/{user_id}", headers=API_KEY_HEADERS)
     assert missing.status_code == 204
 
 
@@ -105,7 +109,7 @@ def test_create_user_validation_error(client: TestClient) -> None:
     bad = client.post(
         "/api/v1/users",
         json={"email": "not-an-email", "name": ""},
-        headers=USER_HEADERS,
+        headers=API_KEY_HEADERS,
     )
     assert bad.status_code == 422
     # Verify FastAPI validation error structure

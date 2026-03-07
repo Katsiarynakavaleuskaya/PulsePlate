@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import app
+from tests._helpers.api_headers import API_KEY_HEADERS
 
 
 class TestSimpleCoverageBoost:
@@ -59,7 +60,7 @@ class TestSimpleCoverageBoost:
     def test_users_endpoint(self) -> None:
         """Test users endpoint."""
         client = TestClient(app)
-        response = client.get("/api/v1/users", headers={"X-API-Key": "test_key"})
+        response = client.get("/api/v1/users", headers=API_KEY_HEADERS)
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)

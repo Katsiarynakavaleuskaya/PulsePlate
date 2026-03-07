@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 import app.routers.users as users_mod
+from tests._helpers.api_headers import API_KEY_HEADERS
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +44,7 @@ class TestUsersRouter:
         self.app = FastAPI()
         self.app.include_router(router)
         self.client = TestClient(self.app)
-        self.headers = {"X-API-Key": "test_key"}
+        self.headers = API_KEY_HEADERS
 
     def teardown_method(self) -> None:
         """Clean up test client."""
@@ -204,18 +205,10 @@ class TestUsersRouter:
         resp = self.client.get("/api/v1/users")
         assert resp.status_code == 403
 
-    def test_users_api_key_guard_returns_500_when_validator_missing(self) -> None:
-        with patch.object(users_mod, "resolve_attr", return_value=None):
-            with pytest.raises(users_mod.HTTPException) as exc_info:
-                users_mod._require_users_api_key("test_key")
+    @pytest.mark.parametrize("validator", [None, lambda _: object()])
+    def test_users_api_key_guard_fail_closed_behavior(self, validator: object) -> None:
+        with patch.object(users_mod, "resolve_attr", return_value=validator):
+            resp = self.client.get("/api/v1/users", headers=self.headers)
 
-        assert exc_info.value.status_code == 500
-        assert exc_info.value.detail == "API key validation unavailable"
-
-    def test_users_api_key_guard_returns_500_when_validator_returns_non_string(self) -> None:
-        with patch.object(users_mod, "resolve_attr", return_value=lambda _: object()):
-            with pytest.raises(users_mod.HTTPException) as exc_info:
-                users_mod._require_users_api_key("test_key")
-
-        assert exc_info.value.status_code == 500
-        assert exc_info.value.detail == "API key validation unavailable"
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == "API key validation unavailable"
