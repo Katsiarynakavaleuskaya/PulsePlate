@@ -44,6 +44,7 @@ struct AIInsightView: View {
 
     private var composerCard: some View {
         @Bindable var bindableVM = vm
+        let maxAIQueryLength = AIInsightViewModel.maxQueryLength
 
         return GlassCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -70,7 +71,14 @@ struct AIInsightView: View {
                                 .fill(Color.white.opacity(0.08))
                         )
                         .foregroundStyle(Color.textPrimary)
+                        .onChange(of: bindableVM.query) { _, _ in
+                            bindableVM.enforceQueryLimit()
+                        }
                 }
+
+                Text("\(bindableVM.query.count)/\(maxAIQueryLength)")
+                    .font(.caption)
+                    .foregroundStyle(Color.textTertiary)
 
                 Button {
                     vm.submit()

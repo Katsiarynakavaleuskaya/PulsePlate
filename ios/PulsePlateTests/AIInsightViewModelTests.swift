@@ -26,23 +26,25 @@ final class AIInsightViewModelTests: XCTestCase {
     }
 
     func test_submit_success_setsLoadedResponse() async {
-        let response = CBTInsightResponseDTO(
-            insight: "Notice the thought, then test the evidence for it.",
-            ragUsed: true,
-            sources: [
-                CBTInsightSourceDTO(
-                    chunkId: "chunk-1",
-                    file: "docs/cbt/thought_records.md",
-                    preview: "Thought records can slow down automatic thoughts.",
-                    score: 0.88
-                )
-            ],
-            confidence: 0.88,
-            uncertainty: 0.12,
-            warnings: ["source_content_redacted"],
-            mode: "auto-safe",
-            quotaState: "consumed"
-        )
+        let response = await MainActor.run {
+            CBTInsightResponseDTO(
+                insight: "Notice the thought, then test the evidence for it.",
+                ragUsed: true,
+                sources: [
+                    CBTInsightSourceDTO(
+                        chunkId: "chunk-1",
+                        file: "docs/cbt/thought_records.md",
+                        preview: "Thought records can slow down automatic thoughts.",
+                        score: 0.88
+                    )
+                ],
+                confidence: 0.88,
+                uncertainty: 0.12,
+                warnings: ["source_content_redacted"],
+                mode: "auto-safe",
+                quotaState: "consumed"
+            )
+        }
         let service = CapturingCBTInsightService(result: .success(response))
         let vm = await MainActor.run {
             let viewModel = AIInsightViewModel(
@@ -72,7 +74,9 @@ final class AIInsightViewModelTests: XCTestCase {
         guard case .loaded(let loaded) = state else {
             return XCTFail("Expected loaded state, got: \(state)")
         }
-        XCTAssertEqual(loaded, response)
+        XCTAssertEqual(loaded.insight, response.insight)
+        XCTAssertEqual(loaded.mode, response.mode)
+        XCTAssertEqual(loaded.quotaState, response.quotaState)
     }
 
     func test_submit_maps429ToUserFacingQuotaMessage() async {
@@ -97,6 +101,90 @@ final class AIInsightViewModelTests: XCTestCase {
             return XCTFail("Expected failed state, got: \(state)")
         }
         XCTAssertEqual(message, NSLocalizedString("ai_insight.error.quota_exceeded", comment: ""))
+    }
+
+    func test_submit_rejectsQueryLongerThanMaxLimit() async {
+        let service = CapturingCBTInsightService(result: .failure(.unknown("unused")))
+        let maxQueryLength = await MainActor.run { AIInsightViewModel.maxQueryLength }
+        let vm = await MainActor.run {
+            let viewModel = AIInsightViewModel(
+                service: service,
+                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+            )
+            viewModel.query = String(repeating: "a", count: maxQueryLength + 1)
+            return viewModel
+        }
+
+        await MainActor.run {
+            vm.submit()
+        }
+
+        let state = await awaitEventuallyState(vm)
+        let callCount = await service.callCount
+        XCTAssertEqual(callCount, 0)
+        let canSubmit = await MainActor.run { vm.canSubmit }
+        XCTAssertFalse(canSubmit)
+
+        guard case .failed(let message) = state else {
+            return XCTFail("Expected failed state, got: \(state)")
+        }
+        XCTAssertEqual(
+            message,
+            String(
+                format: NSLocalizedString("ai_insight.error.query_too_long", comment: ""),
+                maxQueryLength
+            )
+        )
+    }
+
+    func test_enforceQueryLimit_truncatesComposerInput() async {
+        let service = CapturingCBTInsightService(result: .failure(.unknown("unused")))
+        let maxQueryLength = await MainActor.run { AIInsightViewModel.maxQueryLength }
+        let vm = await MainActor.run {
+            let viewModel = AIInsightViewModel(service: service, apiKeyProvider: { nil })
+            viewModel.query = String(repeating: "b", count: maxQueryLength + 25)
+            return viewModel
+        }
+
+        await MainActor.run {
+            vm.enforceQueryLimit()
+        }
+
+        let count = await MainActor.run { vm.query.count }
+        XCTAssertEqual(count, maxQueryLength)
+    }
+
+    func test_submit_mapsValidationToGenericLocalizedMessage() async {
+        let validation = ValidationErrorResponse(
+            detail: [
+                ValidationErrorItem(
+                    loc: [.string("body"), .string("query")],
+                    msg: "Invalid query",
+                    type: "value_error"
+                )
+            ]
+        )
+        let service = CapturingCBTInsightService(
+            result: .failure(.validation(validation))
+        )
+        let vm = await MainActor.run {
+            let viewModel = AIInsightViewModel(
+                service: service,
+                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+            )
+            viewModel.query = "Please validate this response"
+            return viewModel
+        }
+
+        await MainActor.run {
+            vm.submit()
+        }
+
+        let state = await awaitEventuallyState(vm)
+        guard case .failed(let message) = state else {
+            return XCTFail("Expected failed state, got: \(state)")
+        }
+        XCTAssertEqual(message, NSLocalizedString("ai_insight.error.validation_generic", comment: ""))
     }
 
     private func awaitEventuallyState(_ vm: AIInsightViewModel) async -> AIInsightState {

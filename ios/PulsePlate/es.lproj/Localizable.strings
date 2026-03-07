@@ -142,6 +142,7 @@
 "ai_insight.hero.subtitle" = "Orientación puntual con enfoque CBT usando el endpoint PRO canónico.";
 "ai_insight.input.title" = "Tu pregunta";
 "ai_insight.input.placeholder" = "Describe un patrón de pensamiento, un bloqueo de motivación o un reto de bienestar.";
+"ai_insight.input.counter_format" = "%d/%d";
 "ai_insight.submit" = "Generar insight";
 "ai_insight.submit.loading" = "Generando...";
 "ai_insight.loading.title" = "Generando AI insight";
@@ -166,10 +167,12 @@
 "ai_insight.warning.source_content_redacted" = "Parte del contenido fuente fue ocultado por privacidad.";
 "ai_insight.error.title" = "No se pudo cargar AI insight";
 "ai_insight.error.empty_query" = "Escribe una pregunta antes de solicitar el insight.";
+"ai_insight.error.query_too_long" = "Mantén tu pregunta dentro de %d caracteres.";
 "ai_insight.error.missing_key" = "La clave API PRO no está configurada. Añádela en Debug Tools / Keychain.";
 "ai_insight.error.unauthorized" = "No autorizado (HTTP 401). Revisa tu clave API PRO.";
 "ai_insight.error.forbidden" = "Prohibido (HTTP 403). Es posible que tu cuenta no tenga acceso PRO.";
 "ai_insight.error.quota_exceeded" = "Se alcanzó la cuota mensual de AI (HTTP 429). Inténtalo más tarde.";
+"ai_insight.error.validation_generic" = "No pudimos validar esa pregunta. Reformúlala e inténtalo de nuevo.";
 "ai_insight.error.unavailable" = "AI insight no está disponible ahora mismo (HTTP 503).";
 "ai_insight.error.timeout" = "El proveedor AI agotó el tiempo de espera (HTTP 504). Inténtalo de nuevo.";
 "ai_insight.error.api_format" = "Error del servidor (HTTP %d). Inténtalo más tarde.";

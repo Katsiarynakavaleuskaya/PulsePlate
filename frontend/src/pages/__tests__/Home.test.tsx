@@ -25,6 +25,7 @@ vi.mock('../../api/premium', async () => {
 
 import { useAuth } from '../../lib/auth';
 import { usePremium } from '../../lib/usePremium';
+import { UnauthorizedError } from '../../api/client';
 import { getCbtInsight } from '../../api/premium';
 
 interface EnterKeyLocationState {
@@ -224,7 +225,9 @@ describe('Home', () => {
       setShowAuthPrompt: vi.fn(),
     });
     vi.mocked(usePremium).mockReturnValue(true);
-    vi.mocked(getCbtInsight).mockRejectedValue(new Error('Unable to load AI insight right now.'));
+    vi.mocked(getCbtInsight).mockRejectedValue(
+      new Error('API /api/v1/pro/cbt/insight failed: HTTP 503\nResponse body: internal trace')
+    );
     const user = userEvent.setup();
 
     render(
@@ -236,8 +239,159 @@ describe('Home', () => {
     await user.type(screen.getByLabelText('Ask one question'), 'Need a quick summary');
     await user.click(screen.getByRole('button', { name: 'Generate insight' }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Unable to load AI insight right now.');
+    expect(screen.getByRole('alert')).toHaveTextContent('AI insight is temporarily unavailable. Please try again later.');
     expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
+  });
+
+  it('renders duplicate warnings without collapsing repeated entries', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockResolvedValue({
+      insight: 'Stay consistent with one reliable next step.',
+      confidence: 0.81,
+      uncertainty: 0.19,
+      rag_used: false,
+      sources: [],
+      warnings: ['Repeated warning', 'Repeated warning'],
+      mode: 'auto-safe',
+      quota_state: 'consumed',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Do duplicate warnings render safely?');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getAllByText('Repeated warning')).toHaveLength(2);
+  });
+
+  it('maps rate limit failures to a user-facing message', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockRejectedValue(
+      new Error('API /api/v1/pro/cbt/insight failed: HTTP 429\nResponse body: rate limited')
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Need another AI insight');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'You’ve reached the limit for AI insights. Please try again in a few minutes.'
+    );
+  });
+
+  it('maps validation failures to a user-facing message', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockRejectedValue(
+      new Error('API /api/v1/pro/cbt/insight failed: HTTP 422\nResponse body: invalid query')
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Invalid payload');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'We could not validate that question. Please rephrase it and try again.'
+    );
+  });
+
+  it('maps forbidden failures to a reconnect message', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockRejectedValue(
+      new Error('API /api/v1/pro/cbt/insight failed: HTTP 403\nResponse body: forbidden')
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Need access restored');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your secure session is no longer valid. Reconnect and try again.'
+    );
+  });
+
+  it('maps expired session failures to a reconnect message', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockRejectedValue(new UnauthorizedError('Session invalid or expired (401).'));
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Need a refreshed summary');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Your secure session expired. Reconnect and try again.');
   });
 
   it('has correct CSS classes', () => {

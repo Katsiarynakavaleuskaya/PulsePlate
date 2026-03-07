@@ -142,6 +142,7 @@
 "ai_insight.hero.subtitle" = "Одноразовая CBT-подсказка через каноничный PRO endpoint.";
 "ai_insight.input.title" = "Ваш вопрос";
 "ai_insight.input.placeholder" = "Опишите паттерн мыслей, блок в мотивации или wellness-задачу.";
+"ai_insight.input.counter_format" = "%d/%d";
 "ai_insight.submit" = "Сгенерировать insight";
 "ai_insight.submit.loading" = "Генерация...";
 "ai_insight.loading.title" = "Генерируем AI insight";
@@ -166,10 +167,12 @@
 "ai_insight.warning.source_content_redacted" = "Часть контента источников скрыта из соображений приватности.";
 "ai_insight.error.title" = "Не удалось загрузить AI insight";
 "ai_insight.error.empty_query" = "Введите вопрос перед запросом insight.";
+"ai_insight.error.query_too_long" = "Ограничьте вопрос %d символами.";
 "ai_insight.error.missing_key" = "PRO API key не настроен. Добавьте его в Debug Tools / Keychain.";
 "ai_insight.error.unauthorized" = "Нет авторизации (HTTP 401). Проверьте PRO API key.";
 "ai_insight.error.forbidden" = "Доступ запрещён (HTTP 403). Возможно, у аккаунта нет PRO-доступа.";
 "ai_insight.error.quota_exceeded" = "Месячная AI-квота исчерпана (HTTP 429). Попробуйте позже.";
+"ai_insight.error.validation_generic" = "Не удалось проверить этот вопрос. Переформулируйте его и попробуйте снова.";
 "ai_insight.error.unavailable" = "AI insight сейчас недоступен (HTTP 503).";
 "ai_insight.error.timeout" = "AI-провайдер превысил время ожидания (HTTP 504). Попробуйте ещё раз.";
 "ai_insight.error.api_format" = "Ошибка сервера (HTTP %d). Попробуйте позже.";

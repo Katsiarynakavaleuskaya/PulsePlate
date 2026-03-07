@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCbtInsight, type CbtInsightResponse } from '../api/premium';
+import { UnauthorizedError } from '../api/client';
 import { HomeOpenSetupCta } from '../components/cta';
 import { Card, CardContent, Input, buttonClasses } from '../components/ui';
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
@@ -12,6 +13,37 @@ const MAX_AI_QUERY_LENGTH = 500;
 function basenameFromPath(path: string): string {
   const segments = path.split(/[\\/]/).filter(Boolean);
   return segments.length > 0 ? segments[segments.length - 1] : path;
+}
+
+function mapCbtInsightErrorToMessage(error: unknown): string {
+  const defaultMessage = 'Unable to load AI insight right now.';
+
+  if (error instanceof UnauthorizedError) {
+    return 'Your secure session expired. Reconnect and try again.';
+  }
+
+  const status =
+    error instanceof Error
+      ? Number.parseInt(error.message.match(/HTTP (\d{3})/)?.[1] ?? '', 10)
+      : NaN;
+
+  if (status === 401 || status === 403) {
+    return 'Your secure session is no longer valid. Reconnect and try again.';
+  }
+
+  if (status === 422) {
+    return 'We could not validate that question. Please rephrase it and try again.';
+  }
+
+  if (status === 429) {
+    return 'You’ve reached the limit for AI insights. Please try again in a few minutes.';
+  }
+
+  if (status === 503 || status === 504) {
+    return 'AI insight is temporarily unavailable. Please try again later.';
+  }
+
+  return defaultMessage;
 }
 
 export default function Home() {
@@ -52,9 +84,8 @@ export default function Home() {
       const result = await getCbtInsight({ query: nextQuery });
       setAiResult(result);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to load AI insight right now.';
       setAiResult(null);
-      setAiError(message);
+      setAiError(mapCbtInsightErrorToMessage(error));
     } finally {
       setAiLoading(false);
     }
@@ -221,8 +252,8 @@ export default function Home() {
                             Warnings
                           </p>
                           <ul className="space-y-1 text-sm text-[var(--color-text-muted)]">
-                            {aiResult.warnings.map((warning) => (
-                              <li key={warning}>{warning}</li>
+                            {aiResult.warnings.map((warning, index) => (
+                              <li key={index}>{warning}</li>
                             ))}
                           </ul>
                         </div>

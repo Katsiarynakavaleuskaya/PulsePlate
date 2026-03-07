@@ -126,6 +126,7 @@
 "ai_insight.hero.subtitle" = "One-shot CBT-informed guidance powered by the canonical PRO endpoint.";
 "ai_insight.input.title" = "Your question";
 "ai_insight.input.placeholder" = "Describe a thought pattern, motivation block, or wellness challenge.";
+"ai_insight.input.counter_format" = "%d/%d";
 "ai_insight.submit" = "Generate insight";
 "ai_insight.submit.loading" = "Generating...";
 "ai_insight.loading.title" = "Generating AI insight";
@@ -150,10 +151,12 @@
 "ai_insight.warning.source_content_redacted" = "Some source content was redacted for privacy.";
 "ai_insight.error.title" = "Unable to load AI insight";
 "ai_insight.error.empty_query" = "Enter a question before requesting an insight.";
+"ai_insight.error.query_too_long" = "Keep your question within %d characters.";
 "ai_insight.error.missing_key" = "PRO API key not configured. Add it in Debug Tools / Keychain.";
 "ai_insight.error.unauthorized" = "Unauthorized (HTTP 401). Check your PRO API key.";
 "ai_insight.error.forbidden" = "Forbidden (HTTP 403). Your account may not have PRO access.";
 "ai_insight.error.quota_exceeded" = "Monthly AI quota reached (HTTP 429). Try again later.";
+"ai_insight.error.validation_generic" = "We could not validate that question. Please rephrase it and try again.";
 "ai_insight.error.unavailable" = "AI insight is currently unavailable (HTTP 503).";
 "ai_insight.error.timeout" = "AI provider timed out (HTTP 504). Please try again.";
 "ai_insight.error.api_format" = "Server error (HTTP %d). Please try again later.";

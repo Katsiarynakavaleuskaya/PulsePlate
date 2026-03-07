@@ -16,6 +16,8 @@ public enum AIInsightState: Equatable {
 @MainActor
 @Observable
 public final class AIInsightViewModel {
+    static let maxQueryLength = 500
+
     public var query: String = ""
     public private(set) var state: AIInsightState = .idle
 
@@ -32,13 +34,28 @@ public final class AIInsightViewModel {
     }
 
     public var canSubmit: Bool {
-        !trimmedQuery.isEmpty && !state.isLoading
+        !trimmedQuery.isEmpty && trimmedQuery.count <= Self.maxQueryLength && !state.isLoading
+    }
+
+    public func enforceQueryLimit() {
+        if query.count > Self.maxQueryLength {
+            query = String(query.prefix(Self.maxQueryLength))
+        }
     }
 
     public func submit() {
         let query = trimmedQuery
         guard !query.isEmpty else {
             state = .failed(localized("ai_insight.error.empty_query"))
+            return
+        }
+        guard query.count <= Self.maxQueryLength else {
+            state = .failed(
+                String(
+                    format: localized("ai_insight.error.query_too_long"),
+                    Self.maxQueryLength
+                )
+            )
             return
         }
 
