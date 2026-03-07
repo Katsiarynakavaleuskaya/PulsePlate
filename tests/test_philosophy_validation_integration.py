@@ -86,6 +86,22 @@ class _EchoProvider:
         return text
 
 
+class _ExplodingProvider:
+    name = "explode"
+
+    async def generate(self, text: str) -> str:
+        raise AssertionError(f"provider.generate must not be called: {text}")
+
+
+class _StaticProvider:
+    def __init__(self, response: str) -> None:
+        self.name = "static"
+        self._response = response
+
+    async def generate(self, text: str) -> str:
+        return self._response
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -339,3 +355,123 @@ class TestPhilosophyFlagUnit:
         from app.utils.feature_flags import is_philosophy_validation_enabled
 
         assert is_philosophy_validation_enabled() is False
+
+
+class TestPhilosophicalRuntimeIntegration:
+    """Integration tests for new philosophical runtime metadata and routes."""
+
+    def test_router_medical_query_returns_safe_disclaimer_without_provider_call(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "false")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _ExplodingProvider(), raising=True)
+
+        resp = client.post(
+            "/api/v1/insight",
+            json={"text": "I have symptoms and need diagnosis advice."},
+            headers=vip_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["provider"] == "philosophical_runtime"
+        assert data["route_type"] == "SAFE_WELLNESS_DISCLAIMER"
+        assert data["depth_used"] == 1
+        assert data["optimization_applied"] is True
+        assert "medical diagnosis" in data["insight"]
+
+    def test_router_definition_query_returns_local_direct_answer(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "false")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: _ExplodingProvider(), raising=True)
+
+        resp = client.post("/insight", json={"text": "What is BMI?"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["provider"] == "philosophical_runtime"
+        assert data["route_type"] == "DIRECT_DEFINITION"
+        assert data["depth_used"] == 1
+        assert "BMI stands for body mass index" in data["insight"]
+
+    def test_phase12_populates_runtime_metadata_for_factual_answer(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        import llm
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "false")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_PHASE12", "true")
+        monkeypatch.setattr(
+            llm,
+            "get_provider",
+            lambda: _StaticProvider(
+                "According to WHO, 20-40 grams of protein per meal is a practical range for many adults."
+            ),
+            raising=True,
+        )
+
+        resp = client.post(
+            "/api/v1/insight",
+            json={"text": "How much protein should I eat for recovery?"},
+            headers=vip_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["route_type"] == "RAG_FACTUAL"
+        assert data["verification_rate"] is not None
+        assert data["falsifiability_rate"] is not None
+        assert data["contradiction_count"] == 0
+        assert isinstance(data["reason_codes"], list)
+
+
+class TestPhilosophicalRuntimeFlagUnit:
+    """Unit tests for new philosophy runtime feature flags."""
+
+    @pytest.mark.parametrize(
+        "flag_name",
+        [
+            "FEATURE_PHILOSOPHY_ROUTER",
+            "FEATURE_PHILOSOPHY_PHASE12",
+            "FEATURE_PHILOSOPHY_LINGUISTIC",
+            "FEATURE_PHILOSOPHY_PRAGMATIC",
+        ],
+    )
+    def test_new_runtime_flags_parse_truthy(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        flag_name: str,
+    ) -> None:
+        monkeypatch.setenv(flag_name, "true")
+        from app.utils import feature_flags
+
+        flag_funcs = {
+            "FEATURE_PHILOSOPHY_ROUTER": feature_flags.is_philosophy_router_enabled,
+            "FEATURE_PHILOSOPHY_PHASE12": feature_flags.is_philosophy_phase12_enabled,
+            "FEATURE_PHILOSOPHY_LINGUISTIC": feature_flags.is_philosophy_linguistic_enabled,
+            "FEATURE_PHILOSOPHY_PRAGMATIC": feature_flags.is_philosophy_pragmatic_enabled,
+        }
+        assert flag_funcs[flag_name]() is True

@@ -1186,8 +1186,8 @@ class InsightResponse(BaseModel):
     RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
     EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
 
-    New RAG fields (sources, confidence, rag_used, hops, latency_ms) are all optional
-    with safe defaults so old clients keep working without changes.
+    New RAG/runtime fields are optional with safe defaults so old clients keep
+    working without changes.
     """
 
     provider: str = Field(..., min_length=1)
@@ -1197,6 +1197,13 @@ class InsightResponse(BaseModel):
     rag_used: bool = False
     hops: int = 0
     latency_ms: int = 0
+    route_type: Optional[str] = None
+    depth_used: int = 0
+    verification_rate: Optional[float] = None
+    falsifiability_rate: Optional[float] = None
+    contradiction_count: int = 0
+    reason_codes: list[str] = Field(default_factory=list)
+    optimization_applied: bool = False
 
 
 class BMIRequest(BaseModel):
@@ -2160,6 +2167,69 @@ def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
     return [RAGSourceItem(**d) for d in build_rag_source_dicts(chunks)]
 
 
+def _load_insight_provider() -> Any:
+    """Load configured LLM provider with legacy error contract preserved."""
+    try:
+        get_provider = _load_llm_get_provider()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="LLM module is not available") from e
+
+    provider = get_provider()
+    if provider is None:
+        raise HTTPException(status_code=503, detail="No LLM provider configured")
+    return provider
+
+
+async def _execute_insight_request(req: InsightRequest) -> InsightResponse:
+    """Shared /insight execution path with philosophical runtime support."""
+    require_safe_ai_agent_input(req.text)
+    prompt_input = _ensure_insight_text_length(req.text)
+    provider = _load_insight_provider()
+
+    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
+    from app.utils.feature_flags import (
+        is_philosophy_linguistic_enabled,
+        is_philosophy_phase12_enabled,
+        is_philosophy_pragmatic_enabled,
+        is_philosophy_router_enabled,
+        is_philosophy_validation_enabled,
+        is_recursive_rag_enabled,
+    )
+    from core.insight.philosophical_runtime import PhilosophicalRuntime
+
+    runtime = PhilosophicalRuntime()
+    runtime_result = await runtime.generate_insight(
+        text=prompt_input,
+        lang=None,
+        provider=provider,
+        use_rag=use_rag,
+        philo_validation_enabled=is_philosophy_validation_enabled(),
+        recursive_rag_enabled=is_recursive_rag_enabled(),
+        philosophy_router_enabled=is_philosophy_router_enabled(),
+        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
+        philosophy_linguistic_enabled=is_philosophy_linguistic_enabled(),
+        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
+    )
+    insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
+    source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
+    return InsightResponse(
+        provider=runtime_result.provider_name,
+        insight=insight_text,
+        sources=source_items,
+        confidence=runtime_result.confidence,
+        rag_used=runtime_result.rag_used,
+        hops=runtime_result.hops,
+        latency_ms=runtime_result.latency_ms,
+        route_type=runtime_result.metadata.route_type,
+        depth_used=runtime_result.metadata.depth_used,
+        verification_rate=runtime_result.metadata.verification_rate,
+        falsifiability_rate=runtime_result.metadata.falsifiability_rate,
+        contradiction_count=runtime_result.metadata.contradiction_count,
+        reason_codes=runtime_result.metadata.reason_codes,
+        optimization_applied=runtime_result.metadata.optimization_applied,
+    )
+
+
 async def insight_v1(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
@@ -2171,61 +2241,10 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     if not _is_truthy(flag_value):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
-
-    # отложенный импорт, чтобы не падать, если файла нет
     try:
-        get_provider = _load_llm_get_provider()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
-
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured")
-
-    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    prompt_text = prompt_input
-    rag_sources: list[RAGSourceItem] = []
-    rag_confidence: Optional[float] = None
-    rag_hops: int = 0
-    rag_latency_ms: int = 0
-    rag_actually_used = False
-
-    if use_rag:
-        from app.utils.feature_flags import (
-            is_philosophy_validation_enabled,
-            is_recursive_rag_enabled,
-        )
-        from core.rag.orchestration import retrieve_and_validate_rag
-
-        rag_result = await retrieve_and_validate_rag(
-            prompt_input,
-            max_chunks=3,
-            philo_validation_enabled=is_philosophy_validation_enabled(),
-            recursive_rag_enabled=is_recursive_rag_enabled(),
-        )
-        rag_hops = rag_result.hops
-        rag_latency_ms = rag_result.latency_ms
-        rag_actually_used = rag_result.rag_actually_used
-        rag_confidence = rag_result.confidence
-        prompt_text = rag_result.formatted_prompt
-        if rag_result.chunks:
-            rag_sources = _build_rag_source_items(rag_result.chunks)
-
-    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
-        prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
-    try:
-        insight_text = await provider.generate(prompt_text)
-        return InsightResponse(
-            provider=provider.name,
-            insight=insight_text,
-            sources=rag_sources,
-            confidence=rag_confidence,
-            rag_used=rag_actually_used,
-            hops=rag_hops,
-            latency_ms=rag_latency_ms,
-        )
+        return await _execute_insight_request(req)
+    except HTTPException:
+        raise
     except Exception:
         # Log server-side only; never return exception details to client (privacy/safety).
         logger.exception("Insight provider call failed (/api/v1/insight)")
@@ -2244,60 +2263,10 @@ async def insight(req: InsightRequest) -> InsightResponse:
         # For legacy path, return 503 if feature disabled
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
-
     try:
-        get_provider = _load_llm_get_provider()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
-
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured")
-
-    use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    prompt_text = prompt_input
-    rag_sources: list[RAGSourceItem] = []
-    rag_confidence: Optional[float] = None
-    rag_hops: int = 0
-    rag_latency_ms: int = 0
-    rag_actually_used = False
-
-    if use_rag:
-        from app.utils.feature_flags import (
-            is_philosophy_validation_enabled,
-            is_recursive_rag_enabled,
-        )
-        from core.rag.orchestration import retrieve_and_validate_rag
-
-        rag_result = await retrieve_and_validate_rag(
-            prompt_input,
-            max_chunks=3,
-            philo_validation_enabled=is_philosophy_validation_enabled(),
-            recursive_rag_enabled=is_recursive_rag_enabled(),
-        )
-        rag_hops = rag_result.hops
-        rag_latency_ms = rag_result.latency_ms
-        rag_actually_used = rag_result.rag_actually_used
-        rag_confidence = rag_result.confidence
-        prompt_text = rag_result.formatted_prompt
-        if rag_result.chunks:
-            rag_sources = _build_rag_source_items(rag_result.chunks)
-
-    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
-        prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
-    try:
-        insight_text = await provider.generate(prompt_text)
-        return InsightResponse(
-            provider=provider.name,
-            insight=insight_text,
-            sources=rag_sources,
-            confidence=rag_confidence,
-            rag_used=rag_actually_used,
-            hops=rag_hops,
-            latency_ms=rag_latency_ms,
-        )
+        return await _execute_insight_request(req)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Insight provider call failed (/insight)")
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
