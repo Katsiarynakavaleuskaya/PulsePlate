@@ -5,6 +5,9 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: see mapping entries below
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003#pullrequestreview-3906864499 -> 6fb6229b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003#pullrequestreview-3906865232 -> 6fb6229b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003#discussion_r2898607323 -> 6fb6229b
