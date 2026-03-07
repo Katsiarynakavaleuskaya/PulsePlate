@@ -431,7 +431,7 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
         previous = blocks[index - 1]
         if (
             _block_has_disposition_and_proof(previous)
-            and _block_commit_value(previous) == "see mapping entries below"
+            and (_block_commit_value(previous) or "").lower() == "see mapping entries below"
             and _block_mapping_entries(block).get(url)
         ):
             return True

@@ -175,6 +175,17 @@ Commit: see mapping entries below
 Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
 
 - https://example.com/thread -> deadbeef
+    """
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_accepts_case_insensitive_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: See Mapping Entries Below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
 """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
 
