@@ -6,6 +6,13 @@
 
 ---
 
+## Related Docs
+
+- `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` — public-pattern
+  adaptation note for future explainers and learning-cycle work
+- `docs/roadmap/BACKLOG_LEDGER.md` — canonical execution backlog for follow-up
+- `docs/product/FREE_PRO_SOFT_PAYWALL.md` — current conversion language baseline
+
 ## 🎯 Product Philosophy
 
 **Core principle:**

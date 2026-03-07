@@ -4003,6 +4003,107 @@ If it is not recorded here — it does not exist.
     - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
     - No mandatory code dependency; adopt via normal PR/backlog
 
+<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
+- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product differentiation + trust/retention)
+  - Target PR: PR-TBD-WELLNESS-EXPLAINERS-MVP
+  - Status: 📋 Planned
+  - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `https://www.tensortonic.com/`
+    - `https://www.tensortonic.com/ml-math`
+    - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
+  - DoD:
+    - Backend-owned explainer and learning-cycle direction is documented against existing FREE / PRO / VIP entities
+    - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
+    - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
+    - GTM framing stays clarity-first and wellness-safe
+
+- [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first unblocker)
+  - Target PR: PR-TBD-EXPLAINER-CONTRACT-PAYLOADS
+  - Status: 📋 Planned
+  - Reason (EN): The first implementation slice should lock backend-owned payload shapes before any UI work. PulsePlate needs canonical response shapes for explainer cards that reuse current BMI, interpretation, adherence, and weekly-plan entities instead of inventing client heuristics. (RU: Сначала нужен каноничный backend contract для explainer payloads; UI не должен сам собирать бизнес-логику.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `app/schemas/`
+    - `app/routers/`
+  - DoD:
+    - High-level contract documents backend-owned `explainer_card` fields for FREE / PRO / VIP
+    - Existing product entities are mapped to explainer payload sources without client-side business logic duplication
+    - No runtime implementation is required in the design PR
+
+- [ ] P2: Rules-first learning-cycle engine and unlock semantics
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product behavior foundation)
+  - Target PR: PR-TBD-LEARNING-CYCLE-ENGINE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate needs deterministic unlock rules based on current BMI, interpretation, adherence, and weekly-plan signals. The cycle model must reward understanding and adjustment, not streak preservation or social pressure. (RU: Нужны детерминированные unlock rules для learning cycles без streak-shame и без social ranking.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `core/`
+    - `app/routers/pro.py`
+    - `app/routers/vip.py`
+  - DoD:
+    - Canonical `learning_cycle_state` fields are documented
+    - Unlock rules use existing backend signals only
+    - Design explicitly bans public leaderboards, addictive streak loops, and ranking mechanics in MVP
+
+- [ ] P2: Frontend and iOS explainer surfaces on current journey pages
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (rendering follow-up)
+  - Target PR: PR-TBD-EXPLAINER-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): After the backend contract exists, explainers should be rendered on existing BMI, PRO interpretation, progress, and weekly-plan surfaces. Delivery must remain thin-client on web and iOS. (RU: После contract phase explainers нужно отрисовать на текущих user journey surfaces без дублирования бизнес-логики на клиентах.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/`
+    - `ios/`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+  - DoD:
+    - Surface map is defined for web and iOS on current FREE / PRO / VIP pages
+    - Rendering remains presentation-only; business logic stays on backend
+    - Copy stays wellness-safe and aligned with the trust-based funnel
+
+- [ ] P2: Explainer progress telemetry and experimentation package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (measurement follow-up)
+  - Target PR: PR-TBD-EXPLAINER-TELEMETRY
+  - Status: 📋 Planned
+  - Reason (EN): Explainers and learning cycles need completion and unlock telemetry so the product can measure trust, retention, and progression. This should reuse existing progress/live-indicator patterns instead of creating a parallel growth system. (RU: Для explainers и learning cycles нужна телеметрия completion/unlock, но она должна переиспользовать текущие progress patterns и оставаться privacy-safe.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/src/features/progress/`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical `explainer_progress_event` fields are documented
+    - Telemetry design is low-cardinality and privacy-safe
+    - Experimentation scope is additive and does not introduce a new gamification system in MVP
+
+- [ ] P2: Optional interactive simulator micro-surfaces for wellness understanding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional product clarity)
+  - Target PR: PR-TBD-WELLNESS-SIMULATOR-MICRO-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): TensorTonic's strongest reusable learning mechanic is the combination of explanation, scenario, pitfalls, and interactive simulation. PulsePlate can selectively adapt this for wellness-safe cases such as adherence confidence stability or interpretation confidence with more data, but only as deterministic micro-surfaces grounded in current product logic. (RU: Самая полезная механика для адаптации — explanation + scenario + pitfalls + simulator; у нас это допустимо только для wellness-safe и rules-first micro-surfaces.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`
+    - `core/`
+  - DoD:
+    - Candidate simulator cases are documented and validated as wellness-safe
+    - Simulator logic is deterministic and local to existing product rules
+    - No new heavy LLM endpoint or public gamification mechanics are introduced
+
 - [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
