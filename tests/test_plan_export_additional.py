@@ -104,3 +104,12 @@ def test_export_token_secret_rejects_documented_placeholder_in_production(
 
     with pytest.raises(RuntimeError, match="EXPORT_TOKEN_SECRET"):
         settings.get_export_token_secret()
+
+
+def test_export_token_ttl_rejects_non_positive_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EXPORT_TOKEN_TTL_SECONDS", "0")
+
+    with pytest.raises(RuntimeError, match="EXPORT_TOKEN_TTL_SECONDS"):
+        settings.get_export_token_ttl_seconds()

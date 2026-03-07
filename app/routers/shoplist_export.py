@@ -272,7 +272,7 @@ def get_shoplist(request: Request) -> ShoplistResponse:
     return ShoplistResponse(**_demo_shoplist())
 
 
-@router.get("/export.csv", responses=RATE_LIMIT_429_RESPONSES)
+@router.get(SHOPLIST_EXPORT_CSV_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_shoplist_csv(request: Request) -> Response:
     """Export the current shoplist as a CSV attachment."""
@@ -294,7 +294,7 @@ def export_shoplist_csv(request: Request) -> Response:
     )
 
 
-@router.get("/export.pdf", responses=RATE_LIMIT_429_RESPONSES)
+@router.get(SHOPLIST_EXPORT_PDF_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_shoplist_pdf(request: Request) -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
@@ -309,4 +309,10 @@ def export_shoplist_pdf(request: Request) -> Response:
     )
 
 
-__all__ = ["router"]
+__all__ = [
+    "SHOPLIST_EXPORT_CSV_PATH",
+    "SHOPLIST_EXPORT_CSV_ROUTE",
+    "SHOPLIST_EXPORT_PDF_PATH",
+    "SHOPLIST_EXPORT_PDF_ROUTE",
+    "router",
+]

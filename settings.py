@@ -53,6 +53,19 @@ def get_export_token_secret() -> str:
     return secret
 
 
+def get_export_token_ttl_seconds() -> int:
+    """Return export-signing TTL or raise on invalid config.
+
+    RU: Валидирует TTL подписанных export-ссылок и запрещает нулевые/отрицательные значения.
+    EN: Validates signed-export TTL and rejects zero/negative values.
+    """
+
+    ttl_seconds = int(os.getenv("EXPORT_TOKEN_TTL_SECONDS", "900").strip())
+    if ttl_seconds <= 0:
+        raise RuntimeError("EXPORT_TOKEN_TTL_SECONDS must be a positive integer.")
+    return ttl_seconds
+
+
 EXPORT_TOKEN_SECRET: str = get_export_token_secret()
-EXPORT_TOKEN_TTL_SECONDS: int = int(os.getenv("EXPORT_TOKEN_TTL_SECONDS", "900"))
+EXPORT_TOKEN_TTL_SECONDS: int = get_export_token_ttl_seconds()
 PRIVATE_EXPORTS_ENABLED: bool = is_private_exports_enabled()
