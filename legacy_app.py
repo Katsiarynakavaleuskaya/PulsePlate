@@ -2148,6 +2148,9 @@ INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please t
 from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
 )
+from app.security.agent_input_guard import (  # noqa: E402
+    require_safe_ai_agent_input,
+)
 
 
 def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
@@ -2168,6 +2171,7 @@ async def insight_v1(req: InsightRequest) -> InsightResponse:
     if not _is_truthy(flag_value):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
+    require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
 
     # отложенный импорт, чтобы не падать, если файла нет
@@ -2240,6 +2244,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
         # For legacy path, return 503 if feature disabled
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
+    require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
 
     try:
@@ -2322,6 +2327,7 @@ async def insight_v1_route(
 ) -> InsightResponse:
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+    require_safe_ai_agent_input(req.text)
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight_v1(req)
 
@@ -2340,6 +2346,7 @@ async def insight_route(
 ) -> InsightResponse:
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+    require_safe_ai_agent_input(req.text)
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight(req)
 
