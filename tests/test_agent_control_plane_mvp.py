@@ -86,18 +86,21 @@ def test_sign_and_verify_audit_envelope(monkeypatch: pytest.MonkeyPatch) -> None
         reason="allowlist_match",
     )
     ts = datetime(2026, 2, 21, 12, 0, tzinfo=timezone.utc)
+    metadata = {
+        "path": "/api/v1/insight",
+        "method": "POST",
+        "query": "sample sensitive prompt",
+    }
     envelope = cp.sign_audit_envelope(
         decision,
-        metadata={"path": "/api/v1/insight", "method": "POST"},
+        metadata=metadata,
         timestamp=ts,
     )
 
     assert envelope.action == "tool.exec"
     assert envelope.allowed is True
     assert envelope.timestamp_utc == "2026-02-21T12:00:00+00:00"
-    assert envelope.metadata_hash == cp._metadata_hash(
-        cp._sanitize_metadata({"path": "/api/v1/insight", "method": "POST"})
-    )
+    assert envelope.metadata_hash == cp._metadata_hash(cp._sanitize_metadata(metadata))
     assert cp.verify_audit_envelope(envelope) is True
 
 
@@ -127,6 +130,12 @@ def test_normalize_execution_mode_rejects_unknown_value() -> None:
 def test_require_execution_mode_blocks_review_required(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(cp.EXECUTION_MODE_ENV, cp.EXECUTION_MODE_REVIEW_REQUIRED)
     with pytest.raises(PermissionError, match="review-required"):
+        cp.require_execution_mode()
+
+
+def test_require_execution_mode_blocks_blocked_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(cp.EXECUTION_MODE_ENV, cp.EXECUTION_MODE_BLOCKED)
+    with pytest.raises(PermissionError, match="Execution mode blocked"):
         cp.require_execution_mode()
 
 
@@ -185,12 +194,15 @@ def test_persist_audit_envelope_rejects_metadata_hash_mismatch(tmp_path: Path) -
         secret="audit-key",  # pragma: allowlist secret
     )
 
-    with pytest.raises(RuntimeError, match="metadata_hash"):
+    log_path = tmp_path / "agent-control.jsonl"
+    with pytest.raises(RuntimeError, match="metadata_hash") as excinfo:
         cp.persist_audit_envelope(
             envelope,
             metadata={"prompt_text": "different prompt"},
-            log_path=tmp_path / "agent-control.jsonl",
+            log_path=log_path,
         )
+    assert "different prompt" not in str(excinfo.value)
+    assert not log_path.exists() or log_path.read_text(encoding="utf-8") == ""
 
 
 def test_sanitize_metadata_handles_lists_and_tuples() -> None:

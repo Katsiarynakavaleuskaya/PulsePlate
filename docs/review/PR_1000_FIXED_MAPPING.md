@@ -44,6 +44,7 @@ Evidence: `app/routers/cbt_insight.py:90`, `scripts/orchestration/check_review_t
 
 Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1000_FIXED_MAPPING.md:1`
+Reason: Mapping artifact already documents the current thread URL and no code change was required for this self-referential review note.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898512106 -> 4b45687d
 

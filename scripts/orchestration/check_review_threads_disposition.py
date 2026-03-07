@@ -36,7 +36,11 @@ from scripts.orchestration.review_mapping_artifact import (
 )
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
-PROOF_RE = re.compile(r"(Commit:|Evidence:|Backlog:)", re.IGNORECASE)
+_LINE_RE_FLAGS = re.IGNORECASE | re.MULTILINE
+COMMIT_RE = re.compile(r"^Commit:\s*(.*)$", _LINE_RE_FLAGS)
+EVIDENCE_RE = re.compile(r"^Evidence:\s*(.+)$", _LINE_RE_FLAGS)
+BACKLOG_RE = re.compile(r"^Backlog:\s*(.+)$", _LINE_RE_FLAGS)
+REASON_RE = re.compile(r"^Reason:\s*(.+)$", _LINE_RE_FLAGS)
 
 
 @dataclass(frozen=True)
@@ -249,9 +253,16 @@ def _url_in_block(block: str, url: str) -> bool:
 
 
 def _block_has_disposition_and_proof(block: str) -> bool:
-    """True when a block carries both disposition and proof markers."""
+    """True when a block carries the disposition-specific proof markers."""
 
-    return bool(DISPOSITION_RE.search(block) and PROOF_RE.search(block))
+    disposition = _block_disposition(block)
+    if disposition == "FIXED":
+        return bool(_block_commit_value(block) is not None and EVIDENCE_RE.search(block))
+    if disposition == "NOT-A-BUG":
+        return bool(EVIDENCE_RE.search(block) and REASON_RE.search(block))
+    if disposition == "DEFERRED":
+        return bool(BACKLOG_RE.search(block))
+    return False
 
 
 def _is_mapping_only_block(block: str) -> bool:
@@ -269,9 +280,8 @@ def _is_mapping_only_block(block: str) -> bool:
 def _block_commit_value(block: str) -> str | None:
     """Return the normalized Commit value from a block, if present."""
 
-    commit_re = re.compile(r"^Commit:\s*(.*)$", re.IGNORECASE)
     for raw_line in block.splitlines():
-        match = commit_re.search(raw_line.strip())
+        match = COMMIT_RE.search(raw_line.strip())
         if match:
             return match.group(1).strip()
     return None
@@ -425,6 +435,14 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
         if not _url_in_block(block, url):
             continue
         if _block_has_disposition_and_proof(block):
+            if (
+                _block_disposition(block) == "FIXED"
+                and (_block_commit_value(block) or "").lower() == "see mapping entries below"
+            ):
+                next_block = blocks[index + 1] if index + 1 < len(blocks) else ""
+                return _is_mapping_only_block(next_block) and bool(
+                    _block_mapping_entries(next_block).get(url)
+                )
             return True
         if index == 0 or not _is_mapping_only_block(block):
             continue

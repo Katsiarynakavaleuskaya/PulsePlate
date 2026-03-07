@@ -104,6 +104,20 @@ Evidence: docs/foo.md:12
     )
 
 
+def test_find_disposition_block_in_section_requires_reason_for_not_a_bug() -> None:
+    section = """
+- https://github.com/org/repo/pull/2#discussion_r456
+Disposition: NOT-A-BUG
+Evidence: docs/foo.md:12
+"""
+    assert (
+        _find_disposition_block_in_section(
+            section, "https://github.com/org/repo/pull/2#discussion_r456"
+        )
+        is False
+    )
+
+
 def test_find_disposition_block_in_section_fails_without_proof() -> None:
     section = """
 - https://github.com/org/repo/pull/3#discussion_r789
@@ -164,7 +178,7 @@ Commit: deadbeef
 Evidence: docs/file.md:10
 - https://example.com/2
 """
-    assert _find_disposition_block_in_section(section, "https://example.com/1") is True
+    assert _find_disposition_block_in_section(section, "https://example.com/1") is False
     assert _find_disposition_block_in_section(section, "https://example.com/2") is False
 
 
@@ -177,6 +191,16 @@ Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
 - https://example.com/thread -> deadbeef
     """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_requires_matching_sha_mapping_for_placeholder_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://example.com/thread
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
 
 
 def test_find_disposition_block_accepts_case_insensitive_mapping_placeholder() -> None:
@@ -297,6 +321,7 @@ Evidence: file.py:10
 - https://github.com/org/repo/pull/5#discussion_r2889026503
 Disposition: FIXED
 Commit: deadbeef
+Evidence: file.py:10
 """
     assert (
         _find_disposition_block_in_section(

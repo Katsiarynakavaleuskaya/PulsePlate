@@ -133,3 +133,13 @@ Commit: abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("at least one" in e for e in errors)
+
+
+def test_validate_fixed_mapping_section_accepts_not_a_bug_reason_line() -> None:
+    section = """Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+Reason: Existing behavior already matches the contract.
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
