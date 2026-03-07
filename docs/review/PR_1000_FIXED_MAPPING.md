@@ -47,7 +47,18 @@ Evidence: `docs/review/PR_1000_FIXED_MAPPING.md:1`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898512106 -> 4b45687d
 
-Disposition: DEFERRED
-Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr1000-ledger-docs-followup
+Disposition: FIXED
+Commit: 3c5521e0
+Evidence: `scripts/orchestration/check_review_threads_disposition.py:251`, `app/security/agent_control_plane.py:319`, `docs/orchestration/AGENT_CONTEXT_MAP.md:243`, `docs/orchestration/AGENT_ROUTING_GRAPH.md:70`, `docs/roadmap/BACKLOG_LEDGER.md:186`, `scripts/orchestration/check_preflight.py:190`, `app/routers/cbt_insight.py:94`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3906750067 -> c55e7ed0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3906750067 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3906820171 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3906822349 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898569032 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571722 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571726 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571727 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571729 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571732 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571734 -> 3c5521e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571735 -> 3c5521e0
