@@ -1,3 +1,4 @@
+import type { ComponentProps, JSX } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { MemoryRouter } from 'react-router-dom';
 import { DesignSystemCanvas, PanelShell } from '../design-system/shared';
@@ -6,7 +7,7 @@ import { HomeOpenSetupCta } from './HomeOpenSetupCta';
 const meta: Meta<typeof HomeOpenSetupCta> = {
   title: 'PulsePlate/Patterns/HomeOpenSetupCta',
   component: HomeOpenSetupCta,
-  render: (args) => (
+  render: (args: ComponentProps<typeof HomeOpenSetupCta>): JSX.Element => (
     <MemoryRouter>
       <DesignSystemCanvas>
         <PanelShell
