@@ -3490,8 +3490,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1
-  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
+  - Target PR: PR #983 (contract docs) -> PR #999 (runtime baseline)
+  - Status: 🟡 In progress (runtime Wave R1: source-specific `/api/v1/pro/payments/*` billing surfaces)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
@@ -3506,13 +3506,38 @@ If it is not recorded here — it does not exist.
     - app/services/payments_activation.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
-    - ⏳ Unified billing activation service is finalized for source-specific receipts
+    - ✅ Unified billing activation service implemented for source-specific receipts
   - DoD:
     - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
+    - Runtime payment namespace stays under `/api/v1/pro/payments/*` to satisfy canonical OpenAPI guards
+  - Deferred / Follow-ups:
+    - [ ] P1: Payment persistence hardening
+      - Owner: @katsiaryna_kavaleuskaya
+      - Target PR: PR-TBD-PAYMENTS-PERSISTENCE-HARDENING
+      - Reason: Current baseline is contract/runtime-first and still relies on in-memory activation state; durable persistence must preserve audit + idempotency across restarts.
+      - Links:
+        - app/services/payments_activation.py:1
+        - app/schemas/payments.py:1
+        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
+      - DoD:
+        - Durable storage contract documented and implemented
+        - Reconciliation audit survives process restarts
+        - Idempotency semantics verified against persisted records
+    - [ ] P1: Provider verification and reconciliation automation
+      - Owner: @katsiaryna_kavaleuskaya
+      - Target PR: PR-TBD-PAYMENTS-PROVIDER-AUTOMATION
+      - Reason: Baseline supports manual rails + iOS-first contract, but provider-grade verification and reconciliation automation remain deferred.
+      - Links:
+        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
+        - docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1
+      - DoD:
+        - Apple receipt verification moves from baseline contract to production verification flow
+        - ERIP/SWIFT reconciliation automation policy is documented
+        - Provider/system verification states map into the canonical activation lifecycle
 
 <a id="ledger-p0-session-cookie-hardening"></a>
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
