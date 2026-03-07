@@ -57,13 +57,16 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
 
 
-def _load_event_pull_request(event_path: Path) -> dict:
+def _load_event_pull_request(event_path: Path) -> dict[str, object]:
     """Load pull_request dict from GitHub event payload."""
     try:
         payload = json.loads(event_path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
-    return payload.get("pull_request") or {}
+    if not isinstance(payload, dict):
+        return {}
+    pull_request = payload.get("pull_request")
+    return pull_request if isinstance(pull_request, dict) else {}
 
 
 def _extract_pr_number(event_path: Path) -> int | None:
@@ -81,7 +84,8 @@ def _extract_pr_number(event_path: Path) -> int | None:
 def _extract_pr_body(event_path: Path) -> str:
     """Extract PR body from GitHub event payload."""
     pr = _load_event_pull_request(event_path)
-    return str(pr.get("body", ""))
+    body = pr.get("body")
+    return body if isinstance(body, str) else ""
 
 
 def _extract_mapping_section(text: str) -> str:

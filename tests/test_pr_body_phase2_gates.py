@@ -193,6 +193,20 @@ def test_extract_pr_body_returns_empty_on_invalid_json(tmp_path: Path) -> None:
     assert result == ""
 
 
+def test_extract_pr_body_returns_empty_for_non_object_payload(tmp_path: Path) -> None:
+    payload_path = tmp_path / "event.json"
+    payload_path.write_text("[]", encoding="utf-8")
+    assert gates._extract_pr_body(payload_path) == ""
+    assert gates._extract_pr_number(payload_path) is None
+
+
+def test_extract_pr_body_returns_empty_for_non_object_pull_request(tmp_path: Path) -> None:
+    payload_path = tmp_path / "event.json"
+    payload_path.write_text(json.dumps({"pull_request": []}), encoding="utf-8")
+    assert gates._extract_pr_body(payload_path) == ""
+    assert gates._extract_pr_number(payload_path) is None
+
+
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
     """When event has pr_number, Phase2 validates artifact and mirrored PR body."""
     event = {"pull_request": {"number": 998, "body": VALID_BODY_WITH_MAPPING}}
