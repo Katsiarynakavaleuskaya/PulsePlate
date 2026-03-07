@@ -61,3 +61,11 @@ Evidence: tests/test_shoplist_export.py:232
 Disposition: FIXED
 Commit: 01ecc9dc
 Evidence: tests/test_shoplist_export.py:232
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3909349646 -> 01ecc9dc
+Disposition: FIXED
+Commit: 01ecc9dc
+Evidence: tests/test_shoplist_export.py:232
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3909353373 -> 01ecc9dc
+Disposition: FIXED
+Commit: 01ecc9dc
+Evidence: tests/test_shoplist_export.py:232
