@@ -62,6 +62,7 @@ class TestSimpleCoverageBoost:
         client = TestClient(app)
         response = client.get("/api/v1/users", headers=API_KEY_HEADERS)
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert isinstance(data, list)
 
