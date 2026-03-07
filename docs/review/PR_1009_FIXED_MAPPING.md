@@ -13,3 +13,8 @@ Evidence: `scripts/orchestration/check_merge_ready.py:137`, `scripts/orchestrati
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909394845 -> 39a2b80f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900312158 -> 39a2b80f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900312160 -> 39a2b80f
+
+Disposition: NOT-A-BUG
+Evidence: Current PR diff excludes `frontend/src/test/setup.ts`; accidental carryover was removed in `2a40b10d`, so this thread no longer applies to the active orchestration-only scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#pullrequestreview-3909448842
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1009#discussion_r2900362481
