@@ -2997,11 +2997,13 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
   - Target PR: PR/Figma-CodeConnect-Activation
   - Priority: P1
-  - Status: 🔒 Blocked by dependency
+  - Status: Optional follow-up (auxiliary to Penpot + Storybook)
   - Area: design / frontend / iOS
   - Finding Type: integration dependency
-  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
-    node-level Code Connect cannot be activated without Design file key and node IDs.
+  - Reason: Web review is now canonical via Storybook + Penpot bridge, while
+    Code Connect activation remains an optional auxiliary mapping path once the
+    current P0 node set is complete/non-stale and the workspace has a Code
+    Connect-capable seat.
   - Links:
     - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
     - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
@@ -3009,11 +3011,38 @@ If it is not recorded here — it does not exist.
     - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
   - DoD:
     - Figma Design file URL is recorded in repo docs
-    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
+    - P0 CTA nodes have current, non-stale `fileKey` and `nodeId`
       (`web.home.open_setup`, `web.plate.premium_gate_cta`,
       `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_suggestions` is no longer plan-blocked for the workspace
     - `get_code_connect_map` returns expected active mappings for P0 set
-    - Matrix `Figma Node ID` column updated for activated rows
+    - Matrix optional design review references are updated for activated rows
+    - Optional activation path does not redefine the canonical Storybook-first
+      web review workflow
+
+- [ ] Penpot + Storybook fallback bridge for design handoff
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: PR/Penpot-Storybook-Bridge
+  - Priority: P1
+  - Status: ▶️ In progress (Primary web-review path)
+  - Area: design / frontend / docs
+  - Finding Type: fallback workflow
+  - Reason: Storybook and token SoT already exist in repo, so this bridge is the
+    canonical low-cost design review path for web. Figma Code Connect remains an
+    optional auxiliary mapping workflow rather than a gating dependency.
+  - Links:
+    - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+    - `frontend/.storybook/main.ts`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+  - DoD:
+    - Penpot bridge is documented as the canonical minimal handoff path for web review
+    - Storybook remains canonical web review surface
+    - Seam ADR remains linked from this ledger item and owns explicit exit criteria
+    - Token SoT linkage is explicit in the bridge doc
+    - CTA/design review packet format is defined without Code Connect dependency
+    - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
 
 - [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
   - Owner: @katsiaryna_kavaleuskaya
