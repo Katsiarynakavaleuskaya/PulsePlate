@@ -21,6 +21,7 @@ ORCHESTRATION_CONTEXT_FILES = (
     "docs/orchestration/AGENT_CONTEXT_MAP.md",
     "docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
     "docs/orchestration/AGENT_ROUTING_GRAPH.md",
+    "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
 )
 
 TASK_CLASS_DOMAIN_HINTS: dict[str, str] = {

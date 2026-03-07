@@ -70,6 +70,7 @@
 8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks default to primary domain of most relevant agent per capability matrix.
 9. **Independent reviewer invariant:** reviewer must never equal the selected primary agent after telemetry/advisory overrides.
 10. **Cluster-first routing:** coordinator resolves `cluster` first for metrics and packaging, then selects domain-level primary/secondary/reviewer.
+11. **Skills after routing:** once primary domain is resolved, coordinator selects `recommended_skills` via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and task bootstrap artifacts.
 
 ---
 
@@ -90,6 +91,7 @@ Reviewer --> MergeDecision
 ## Related Documentation
 
 - Capability Matrix: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+- Skill Routing Policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 

@@ -13,14 +13,17 @@ import subprocess  # nosec B404: fixed git commands only, no user input (remove-
 import sys
 from pathlib import Path
 
-from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
-
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
     "docs/orchestration/AGENT_CONTEXT_MAP.md",
     "docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+    "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
     "docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
     "docs/roadmap/BACKLOG_LEDGER.md",
     "AGENTS.md",
