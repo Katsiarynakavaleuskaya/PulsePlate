@@ -159,7 +159,7 @@ final class ThinClientGuardsTests: XCTestCase {
             includeDirs: [includeDir],
             excludeSubpaths: excludeSubpaths,
             allowedExtensions: Set(["swift"])
-        )
+        ).sorted { $0.path < $1.path }
 
         XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
 
@@ -172,6 +172,8 @@ final class ThinClientGuardsTests: XCTestCase {
                 sourceLabel: relativePath(file, root: root)
             ))
         }
+
+        hits.sort()
 
         XCTAssertTrue(
             hits.isEmpty,
@@ -219,6 +221,29 @@ final class ThinClientGuardsTests: XCTestCase {
         private let store: UserDefaults
 
         func cache(_ token: String) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesUserDefaultsParameters() throws {
+        let snippet = """
+        func cache(token: String, using store: UserDefaults) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+
+        func clear(_ store: UserDefaults) {
+            store.set("", forKey: StorageKeys.pro.secretKey)
+        }
+
+        func update(token: String, inout store: UserDefaults) {
             store.set(token, forKey: StorageKeys.pro.secretKey)
         }
         """
@@ -323,7 +348,7 @@ private func collectTextFiles(
         }
     }
 
-    return results
+    return results.sorted { $0.path < $1.path }
 }
 
 private func guardedSourceExcludeSubpaths() -> [String] {
@@ -387,6 +412,7 @@ private func extractUserDefaultsAliases(from content: String) -> Set<String> {
     let patterns = [
         #"\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*UserDefaults(?:\?)?)?(?:\s*=\s*UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*))"#,
         #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
+        #"(?:\(|,)\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*|_)\s+)?(?:inout\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
     ]
     var aliases: Set<String> = []
     let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
