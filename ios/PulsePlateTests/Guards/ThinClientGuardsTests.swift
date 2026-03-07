@@ -217,6 +217,23 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertFalse(userDefaultsHits.isEmpty)
     }
 
+    func test_secretStorageGuardDoesNotMatchNonUserDefaultsStorage() throws {
+        let forbiddenRegex = try secretStorageForbiddenRegexes()
+
+        let nonUserDefaultsSnippet = """
+        let secureStore = SomeOtherStore()
+        secureStore.set(token, forKey: StorageKeys.pro.secretKey)
+        """
+
+        let hits = secretStorageGuardHits(
+            in: nonUserDefaultsSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+
+        XCTAssertTrue(hits.isEmpty)
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))
@@ -316,7 +333,7 @@ private func secretStorageForbiddenRegexes() throws -> [(String, NSRegularExpres
         (
             "userdefaults-secret-key",
             try NSRegularExpression(
-                pattern: #"\b(?:UserDefaults(?:\s*\([^)]*\)|\.\w+)?|[A-Za-z_][A-Za-z0-9_]*)\b[\s\S]{0,120}?forKey:\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)"#,
+                pattern: #"\b(?:UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*)|[A-Za-z_][A-Za-z0-9_]*defaults[A-Za-z0-9_]*)\b[\s\S]{0,120}?forKey:\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)"#,
                 options: [.caseInsensitive]
             )
         ),
