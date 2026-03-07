@@ -7,7 +7,7 @@
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909426981
 Disposition: NOT-A-BUG
-Evidence: AGENTS.md:349
+Evidence: AGENTS.md:103
 Reason: Docs Phase1 gates explicitly require `file:line` evidence anchors, so replacing them with only section anchors would violate the current canonical docs contract.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900340993 -> d4e00cba
@@ -74,3 +74,13 @@ Evidence: docs/roadmap/BACKLOG_LEDGER.md:4042
 Disposition: NOT-A-BUG
 Evidence: tests/test_rag_contract_surface.py:13; docs/roadmap/BACKLOG_LEDGER.md:2079; docs/roadmap/BACKLOG_LEDGER.md:4042; PR #1010 body (`Select one change type` reclassified to `Refactor`)
 Reason: This review summary aggregates one inline test hardening fix, two backlog fixes, and one PR classification correction already dispositioned above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909519747
+Disposition: NOT-A-BUG
+Evidence: AGENTS.md:103; scripts/orchestration/review_mapping_artifact.py:152; scripts/ci/check_pr_body_phase2_gates.py:136
+Reason: This cubic review summary aggregates the inline artifact-format finding fixed below; once URL-only thread entries are canonical for NOT-A-BUG and DEFERRED, the summary itself needs evidence but no commit proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900418091 -> 0ced797a
+Disposition: FIXED
+Commit: 0ced797a
+Evidence: AGENTS.md:103; scripts/orchestration/review_mapping_artifact.py:152; scripts/ci/check_pr_body_phase2_gates.py:136
