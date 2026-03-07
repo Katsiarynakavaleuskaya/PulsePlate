@@ -92,3 +92,11 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:37`, `scrip
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118660 -> 0707cd49
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118661 -> 0707cd49
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118662 -> 0707cd49
+
+Disposition: FIXED
+Commit: 9fb12174
+Evidence: `docs/review/PR_1000_FIXED_MAPPING.md:45`, `scripts/orchestration/check_review_threads_disposition.py:214`, `scripts/orchestration/check_review_threads_disposition.py:346`, `tests/test_review_threads_disposition_strict.py:250`, `tests/test_review_threads_disposition_strict.py:376`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3907817201 -> 9fb12174
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899126689 -> 9fb12174
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899126693 -> 9fb12174
