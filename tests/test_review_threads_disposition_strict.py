@@ -179,6 +179,17 @@ Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
 
 
+def test_find_disposition_block_rejects_unrelated_previous_detail_block() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/other -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
+
+
 def test_validate_fixed_commit_blocks_rejects_empty_commit() -> None:
     section = """
 Disposition: FIXED
@@ -187,6 +198,18 @@ Commit:
 """
     errors = _validate_fixed_commit_blocks(section)
     assert any("empty" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_requires_sha_mapping_for_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("no valid SHA mappings" in error for error in errors)
 
 
 def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:

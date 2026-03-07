@@ -266,6 +266,29 @@ def _is_mapping_only_block(block: str) -> bool:
     return all(line.startswith("- http") for line in lines)
 
 
+def _block_commit_value(block: str) -> str | None:
+    """Return the normalized Commit value from a block, if present."""
+
+    commit_re = re.compile(r"^Commit:\s*(.*)$", re.IGNORECASE)
+    for raw_line in block.splitlines():
+        match = commit_re.search(raw_line.strip())
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _block_mapping_entries(block: str) -> dict[str, str]:
+    """Parse mapping entries from a single block only."""
+
+    mapping: dict[str, str] = {}
+    for line in block.splitlines():
+        match = _MAPPING_LINE_RE.search(line.strip())
+        if not match:
+            continue
+        mapping[match.group(1).strip()] = match.group(2)
+    return mapping
+
+
 def _block_disposition(block: str) -> str | None:
     """Return normalized disposition for a contiguous block, if present."""
 
@@ -280,32 +303,41 @@ def _validate_fixed_commit_blocks(section: str) -> list[str]:
     """Return validation errors for FIXED blocks with invalid Commit proof."""
 
     errors: list[str] = []
-    commit_re = re.compile(r"^Commit:\s*(.*)$", re.IGNORECASE)
-    for block in _iter_disposition_blocks(section):
+    blocks = _iter_disposition_blocks(section)
+    for index, block in enumerate(blocks):
         if _block_disposition(block) != "FIXED":
             continue
-        saw_commit = False
-        for raw_line in block.splitlines():
-            match = commit_re.search(raw_line.strip())
-            if not match:
-                continue
-            saw_commit = True
-            value = match.group(1).strip()
-            if not value:
-                errors.append(
-                    "Invalid Commit value in FIXED block: empty "
-                    "(must be 7–40 hex chars or 'see mapping entries below')"
-                )
-                continue
-            if not _GIT_SHA_RE.match(value) and value.lower() != "see mapping entries below":
-                errors.append(
-                    f"Invalid Commit value in FIXED block: {value!r} "
-                    "(must be 7–40 hex chars or 'see mapping entries below')"
-                )
-        if not saw_commit:
+        value = _block_commit_value(block)
+        if value is None:
             errors.append(
                 "FIXED block missing Commit proof "
                 "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if not value:
+            errors.append(
+                "Invalid Commit value in FIXED block: empty "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if _GIT_SHA_RE.match(value):
+            continue
+        if value.lower() != "see mapping entries below":
+            errors.append(
+                f"Invalid Commit value in FIXED block: {value!r} "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if index + 1 >= len(blocks) or not _is_mapping_only_block(blocks[index + 1]):
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but has no "
+                "following mapping block with '- <thread_url> -> <sha>' entries"
+            )
+            continue
+        if not _block_mapping_entries(blocks[index + 1]):
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but the "
+                "following mapping block has no valid SHA mappings"
             )
     return errors
 
@@ -396,7 +428,12 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
             return True
         if index == 0 or not _is_mapping_only_block(block):
             continue
-        if _block_has_disposition_and_proof(blocks[index - 1]):
+        previous = blocks[index - 1]
+        if (
+            _block_has_disposition_and_proof(previous)
+            and _block_commit_value(previous) == "see mapping entries below"
+            and _block_mapping_entries(block).get(url)
+        ):
             return True
     return False
 

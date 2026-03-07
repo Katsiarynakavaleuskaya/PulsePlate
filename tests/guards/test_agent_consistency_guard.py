@@ -92,13 +92,13 @@ def test_repo_backed_agents_have_files_and_index_entries() -> None:
     assert not (expected - sets_.index)
 
 
-def test_agent_file_loader_ignores_non_agent_markdown(tmp_path: Path) -> None:
-    """Only frontmatter-backed agent docs contribute to the repo-backed agent set."""
+def test_agent_file_loader_uses_frontmatter_slug_when_filename_matches(tmp_path: Path) -> None:
+    """Frontmatter-backed agent docs use the canonical slug declared in frontmatter."""
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
     (agents_dir / "AGENTS.md").write_text("# scoped instructions\n", encoding="utf-8")
     (agents_dir / "notes.md").write_text("# not an agent doc\n", encoding="utf-8")
-    (agents_dir / "alias.md").write_text(
+    (agents_dir / "canonical-agent.md").write_text(
         "---\nname: canonical-agent\nmodel: auto\n---\n# Alias Agent\n",
         encoding="utf-8",
     )
@@ -107,7 +107,20 @@ def test_agent_file_loader_ignores_non_agent_markdown(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert load_agent_file_slugs(agents_dir) == {"alias"}
+    assert load_agent_file_slugs(agents_dir) == {"canonical-agent"}
+
+
+def test_agent_file_loader_rejects_filename_frontmatter_mismatch(tmp_path: Path) -> None:
+    """Agent docs must keep filename and frontmatter slug aligned."""
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "alias.md").write_text(
+        "---\nname: canonical-agent\nmodel: auto\n---\n# Alias Agent\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="filename/frontmatter mismatch"):
+        load_agent_file_slugs(agents_dir)
 
 
 def test_check_agent_consistency_reports_direct_context_invariant(

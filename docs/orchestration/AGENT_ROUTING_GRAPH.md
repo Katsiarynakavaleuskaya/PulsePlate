@@ -78,11 +78,13 @@
 ```mermaid
 flowchart LR
 
-Task --> Domain
+Task --> Cluster
+Cluster --> Domain
 Domain --> PrimaryAgent
-Domain --> SecondaryAgents
+PrimaryAgent --> SecondaryAgents
 PrimaryAgent --> Reviewer
 Reviewer --> MergeDecision
+SecondaryAgents --> Reviewer
 ```
 
 ---

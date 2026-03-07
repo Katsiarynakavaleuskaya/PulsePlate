@@ -125,8 +125,16 @@ def load_agent_file_slugs(path: Path = AGENTS_DIR) -> Set[str]:
     for agent_doc in path.glob("*.md"):
         if agent_doc.name == "AGENTS.md":
             continue
-        if _load_agent_frontmatter_name(agent_doc):
-            agents.add(agent_doc.stem.lower())
+        frontmatter_name = _load_agent_frontmatter_name(agent_doc)
+        if not frontmatter_name:
+            continue
+        file_slug = agent_doc.stem.lower()
+        if file_slug != frontmatter_name:
+            raise ValueError(
+                f"Agent doc filename/frontmatter mismatch: {agent_doc.name} declares "
+                f"{frontmatter_name!r}"
+            )
+        agents.add(frontmatter_name)
     return agents
 
 

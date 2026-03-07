@@ -259,6 +259,7 @@ This map reduces “missing context” failures by making required inputs explic
 - `AGENTS.md:31-40` (merge/readiness policy)
 - `ios/AGENTS.md:15-24` (iOS coordination and release-facing visual guidance)
 - `frontend/AGENTS.md:15-18` (frontend schema-sync contract for release packaging)
+- `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md:1-54` (canonical iOS + frontend coordination playbook for release work)
 - `.cursor/agents/app-store-release-agent.md:16-39` (canonical release-packet index for metadata, screenshots, and checklist outputs)
 
 **Must know:**

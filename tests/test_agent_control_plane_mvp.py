@@ -208,9 +208,10 @@ def test_sanitize_metadata_handles_lists_and_tuples() -> None:
     assert sanitized["prompt_list"][0]["length"] == len("sample prompt")
     assert sanitized["prompt_tuple"][0]["sha256"]
     assert sanitized["prompt_tuple"][1]["prompt_text"]["length"] == len("nested sample")
-    assert "secret prompt" not in json.dumps(sanitized, sort_keys=True)
-    assert "secret tuple" not in json.dumps(sanitized, sort_keys=True)
-    assert "nested secret" not in json.dumps(sanitized, sort_keys=True)
+    dumped = json.dumps(sanitized, sort_keys=True)
+    assert "sample prompt" not in dumped
+    assert "sample tuple" not in dumped
+    assert "nested sample" not in dumped
 
 
 def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
