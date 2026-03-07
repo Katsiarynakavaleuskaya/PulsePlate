@@ -698,6 +698,24 @@ class TestMcpPulseplateServerCoverage:
                 mock_generate.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_call_tool_rejects_non_string_guarded_field(self) -> None:
+        """Guarded text fields must reject non-string JSON values."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                params = {"name": "chatgpt_query", "arguments": {"query": ["unsafe list"]}}
+
+                with patch.object(server, "_chatgpt_query") as mock_chatgpt:
+                    response = await server._call_tool(params)
+
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32602
+                assert response.message == "Invalid params"
+                assert response.data == {"error": "invalid_field_type", "field": "query"}
+                mock_chatgpt.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_call_tool_rejects_non_dict_arguments(self) -> None:
         """JSON-RPC tool arguments must be an object."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -804,6 +822,18 @@ class TestMcpPulseplateServerCoverage:
                 )
 
                 assert response == {"error": "unsafe_ai_input"}
+
+    @pytest.mark.asyncio
+    async def test_chatgpt_query_direct_call_rejects_non_string_query(self) -> None:
+        """Direct helper call must reject non-string query values."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI") as mock_openai:
+                mock_openai.return_value = MagicMock()
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                response = await server._chatgpt_query({"query": ["unsafe list"]})
+
+                assert response == {"error": "invalid_field_type"}
 
     @pytest.mark.asyncio
     async def test_code_review_success(self):

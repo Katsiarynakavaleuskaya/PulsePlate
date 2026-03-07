@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import cast
 import unicodedata
 
 from fastapi import HTTPException, status
@@ -143,7 +144,18 @@ def _normalize_for_detection(text: str) -> str:
     """Normalize text for pattern matching without mutating user payload."""
 
     normalized = unicodedata.normalize("NFKC", text)
+    normalized = _ZERO_WIDTH_OR_BIDI_RE.sub("", normalized)
     return normalized.translate(_CYRILLIC_HOMOGLYPHS)
+
+
+def _load_upstream_agent_guard_class() -> type[object] | None:
+    """Load optional third-party AgentGuard class when present."""
+
+    try:
+        from agent_guard import AgentGuard as upstream_agent_guard
+    except Exception:
+        return None
+    return cast(type[object], upstream_agent_guard)
 
 
 def _try_upstream_scan(text: str) -> AgentInputScanResult | None:
@@ -155,13 +167,12 @@ def _try_upstream_scan(text: str) -> AgentInputScanResult | None:
     `scan(...)->result.is_safe` contract is accepted.
     """
 
-    try:
-        from agent_guard import AgentGuard as UpstreamAgentGuard
-    except Exception:
+    upstream_agent_guard = _load_upstream_agent_guard_class()
+    if upstream_agent_guard is None:
         return None
 
     try:
-        guard = UpstreamAgentGuard()
+        guard = upstream_agent_guard()
     except Exception:
         return None
 

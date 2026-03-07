@@ -349,7 +349,15 @@ class PulsePlateMCPServer:
         text_fields = text_fields_by_tool.get(tool_name, ())
         for field_name in text_fields:
             value = arguments.get(field_name, "")
-            if not isinstance(value, str) or not value.strip():
+            if value == "":
+                continue
+            if not isinstance(value, str):
+                return RpcError(
+                    code=-32602,
+                    message="Invalid params",
+                    data={"error": "invalid_field_type", "field": field_name},
+                )
+            if not value.strip():
                 continue
             scan_result = scan_ai_agent_input(value)
             if not scan_result.is_safe:

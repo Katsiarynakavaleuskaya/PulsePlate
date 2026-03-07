@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import builtins
+import os
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -21,34 +22,6 @@ from app.security.goplus_agentguard_bridge import (
     GoPlusAgentGuardScanResult,
     scan_text_with_goplus_agentguard,
 )
-
-
-def _mock_agent_guard_import(
-    monkeypatch: pytest.MonkeyPatch,
-    agent_guard_class: type[object] | None,
-) -> None:
-    """Patch agent_guard import without mutating sys.modules.
-
-    RU: Перехватываем только import `agent_guard`, чтобы не трогать sys.modules.
-    EN: Intercept only `agent_guard` import so tests avoid sys.modules mutation.
-    """
-
-    original_import = builtins.__import__
-
-    def fake_import(
-        name: str,
-        globals_dict: object | None = None,
-        locals_dict: object | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "agent_guard":
-            if agent_guard_class is None:
-                raise ImportError("agent_guard missing")
-            return SimpleNamespace(AgentGuard=agent_guard_class)
-        return original_import(name, globals_dict, locals_dict, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
 
 
 def test_scan_ai_agent_input_allows_benign_wellness_prompt() -> None:
@@ -168,7 +141,9 @@ def test_try_upstream_scan_returns_none_when_agent_guard_missing(
 ) -> None:
     """Missing third-party package must degrade safely."""
 
-    _mock_agent_guard_import(monkeypatch, None)
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(guard_mod, "_load_upstream_agent_guard_class", lambda: None)
 
     assert _try_upstream_scan("test payload") is None
 
@@ -182,7 +157,13 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
         def __init__(self) -> None:
             raise RuntimeError("boom")
 
-    _mock_agent_guard_import(monkeypatch, FailingAgentGuard)
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(
+        guard_mod,
+        "_load_upstream_agent_guard_class",
+        lambda: FailingAgentGuard,
+    )
 
     assert _try_upstream_scan("test payload") is None
 
@@ -238,7 +219,13 @@ def test_try_upstream_scan_validates_contract_and_maps_result(
 ) -> None:
     """Only compatible scan contracts may influence the final decision."""
 
-    _mock_agent_guard_import(monkeypatch, agent_guard_class)
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(
+        guard_mod,
+        "_load_upstream_agent_guard_class",
+        lambda: agent_guard_class,
+    )
 
     result = _try_upstream_scan("payload")
 
@@ -254,6 +241,44 @@ def test_try_upstream_scan_validates_contract_and_maps_result(
         assert len(result.threats) == 1
         assert result.threats[0].category == "third_party_agent_guard"
         assert result.threats[0].reason == "upstream_scan_blocked"
+
+
+def test_load_upstream_agent_guard_class_reads_temp_module(
+    tmp_path: Path,
+) -> None:
+    """Optional upstream loader should accept a real temp module on the import path."""
+
+    package_dir = tmp_path / "agent_guard"
+    package_dir.mkdir()
+    (package_dir / "__init__.py").write_text(
+        "class AgentGuard:\n"
+        "    def scan(self, text):\n"
+        "        return type('ScanResult', (), {'is_safe': True})()\n",
+        encoding="utf-8",
+    )
+
+    repo_root = Path(__file__).resolve().parents[1]
+    pythonpath = os.pathsep.join(
+        part for part in (str(repo_root), os.environ.get("PYTHONPATH", "")) if part
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from app.security.agent_input_guard import _load_upstream_agent_guard_class; "
+                "cls = _load_upstream_agent_guard_class(); "
+                "print(cls.__name__ if cls else 'NONE')"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": pythonpath},
+        text=True,
+    )
+
+    assert completed.stdout.strip() == "AgentGuard"
 
 
 def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failures(
