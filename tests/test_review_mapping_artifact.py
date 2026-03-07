@@ -35,6 +35,17 @@ def test_read_mapping_artifact_existing(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "->" in text
 
 
+def test_mapping_artifact_path_invalid_override_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Non-existent override dir should fail with a clear RuntimeError."""
+    bad_dir = tmp_path / "nonexistent_dir"
+    monkeypatch.setenv("REVIEW_MAPPING_ARTIFACT_DIR", str(bad_dir))
+
+    with pytest.raises(RuntimeError, match="REVIEW_MAPPING_ARTIFACT_DIR"):
+        artifact.mapping_artifact_path(998)
+
+
 def test_read_mapping_artifact_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure FileNotFoundError when artifact absent; isolate from REVIEW_MAPPING_ARTIFACT_DIR."""
     monkeypatch.delenv("REVIEW_MAPPING_ARTIFACT_DIR", raising=False)
