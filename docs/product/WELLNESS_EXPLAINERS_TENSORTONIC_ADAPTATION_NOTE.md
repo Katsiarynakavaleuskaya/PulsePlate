@@ -122,7 +122,7 @@ These interfaces remain backend-owned and rules-first:
 - Frontend and iOS render payloads only.
 - No new heavy LLM endpoint is introduced on the core path.
 - Any optional AI-assisted copy must remain behind current safety, quota, and
-  economics controls.
+  economic controls.
 - Any telemetry must remain low-cardinality and privacy-safe.
 
 ## GTM Positioning
