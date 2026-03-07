@@ -3050,6 +3050,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
     - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_HOME_OPEN_SETUP.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md`
     - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
     - `frontend/.storybook/main.ts`
     - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
