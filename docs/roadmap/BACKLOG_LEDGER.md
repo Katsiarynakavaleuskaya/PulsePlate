@@ -3993,6 +3993,7 @@ If it is not recorded here — it does not exist.
     - Decision documented: pursue / defer / won't do for publication track
     - If pursue: venue + outline for one paper; no mandatory timeline
 
+<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
 - [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (product differentiation + trust/retention)

@@ -1,7 +1,7 @@
 # Wellness Explainers + Learning Cycles (Mini-PRD)
 
 **Status:** Proposed
-**Last updated:** 8 March 2026
+**Last updated:** 7 March 2026
 **Scope:** Product specification for a rules-first MVP
 
 ---
@@ -58,7 +58,7 @@ use into visible learning progress, and strengthens the trust-based funnel.
 ### Non-goals
 
 - No ML curriculum, algorithm catalog, or external educational track.
-- No diagnosis, treatment, or medical claims.
+- No clinical or curative positioning.
 - No new public heavy LLM endpoint for explainers.
 - No leaderboard, social pressure, or anxiety-producing streak mechanics in MVP.
 - No client-side business logic duplication.
@@ -69,8 +69,8 @@ use into visible learning progress, and strengthens the trust-based funnel.
 
 ### 1. Wellness-only language
 
-Explainers must stay educational and wellness-safe. They must not claim diagnosis,
-treatment, cure, or guaranteed outcomes.
+Explainers must stay educational and wellness-safe. They must not use clinical,
+curative, or guaranteed-outcome framing.
 Use the canonical disclaimer in `docs/safety/WELLNESS_DISCLAIMER_CANONICAL.md`.
 
 ### 2. Scientific clarity without false precision
@@ -135,6 +135,15 @@ Each cycle should answer:
 - which existing signals unlocked the cycle,
 - what the next useful action is.
 
+### Learning cycle rule table
+
+| Cycle ID | Label | Required signals | Deterministic unlock rule |
+| --- | --- | --- | --- |
+| `baseline` | Baseline | BMI result rendered | Unlock when a valid FREE result is produced. |
+| `risk_context` | Risk Context | BMI interpretation plus at least one PRO context field | Unlock when `interpretation_v1` or `waist_risk` is present. |
+| `consistency_pattern` | Consistency Pattern | Adherence event history or weekly adherence score | Unlock when adherence data exists and confidence is not marked as low-data only. |
+| `plan_adjustment` | Plan Adjustment | VIP weekly-plan output plus plan-fit explanation | Unlock when a weekly plan and its explainer payload are both available. |
+
 ### Surface C: Progress Signals
 
 Represent progress as:
@@ -184,6 +193,15 @@ MVP progress must be local to the product journey. No public ranking and no soci
 - Confidence should be surfaced carefully: low-confidence states should say "needs more
   data", not imply certainty.
 
+#### Score normalization rule
+
+- Event-level adherence from `app/schemas/nutrition_log.py` uses a `0.0..1.0` scale.
+- Weekly-plan adherence from `core/menu_engine.py` and `core/weekly_plan_new.py` uses a
+  `0..100` scale.
+- Any shared explainer or learning-cycle threshold must normalize these sources before
+  comparison. Canonical MVP rule: convert weekly-plan scores to `0.0..1.0` before using
+  shared progression logic.
+
 ---
 
 ## Rules-First MVP Contract
@@ -210,6 +228,27 @@ If a future version uses AI-assisted rewriting for tone or personalization, it m
 - pass wellness-safe validation,
 - obey quota / rate-limit / cost guardrails,
 - degrade safely to deterministic copy.
+
+### Minimal explainer payload example
+
+```json
+{
+  "entity": "bmi_result",
+  "tier": "free",
+  "title": "BMI is a starting point",
+  "what_this_means": "This result gives a broad orientation based on height and weight.",
+  "what_is_missing": [
+    "fat_distribution",
+    "muscle_context"
+  ],
+  "next_step": "pro",
+  "learning_cycle_id": "baseline",
+  "signals": {
+    "bmi": 26.4,
+    "category": "overweight"
+  }
+}
+```
 
 ---
 
