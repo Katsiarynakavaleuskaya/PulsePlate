@@ -384,7 +384,9 @@ def main() -> int:
         if unmapped:
             errors.append(
                 "Unmapped actionable bot comments found in canonical artifact "
-                "`docs/review/PR_<N>_FIXED_MAPPING.md` (add `<review-comment-url> -> <commit-sha>` entries)."
+                "`docs/review/PR_<N>_FIXED_MAPPING.md` "
+                "(add `<review-comment-url>` entries for NOT-A-BUG/DEFERRED or "
+                "`<review-comment-url> -> <commit-sha>` for FIXED)."
             )
             for item in unmapped:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")

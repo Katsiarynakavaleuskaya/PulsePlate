@@ -243,13 +243,26 @@ Run before merge after latest commit and latest bot/review activity:
 - Under **### Fixed in Commit Mapping**: either list each bot comment as `- <comment-url> -> <commit-sha>`, or use exactly (no extra text): `- No actionable review comments`.
 - Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
 
-**Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the merge-readiness script so both unresolved threads and unmapped actionable bot comments are checked. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
+**Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the orchestration wrapper so Phase 2, merge-readiness, and disposition proof are checked together. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
 
 ```bash
-# From repo root; requires GITHUB_TOKEN (e.g. gh auth token).
-python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate
+# Local default: advisory disposition auth, strict PR API auth.
+export GITHUB_TOKEN="..."
+python scripts/orchestration/check_merge_ready.py \
+  --pr-number <PR_NUMBER> \
+  --repo Katsiarynakavaleuskaya/PulsePlate
 ```
-Exit 0 = zero comments (0 unresolved threads + all actionables mapped). Exit 1 = do not merge; fix and re-run.
+
+```bash
+# Local strict parity with CI for the disposition guard.
+export GITHUB_TOKEN="..."
+export GH_TOKEN="${GITHUB_TOKEN}"
+python scripts/orchestration/check_merge_ready.py \
+  --pr-number <PR_NUMBER> \
+  --repo Katsiarynakavaleuskaya/PulsePlate \
+  --require-auth
+```
+Exit 0 = Phase 2 + merge-readiness + disposition proof all pass. Exit 1 = do not merge; fix and re-run.
 
 **Optional: unresolved thread count only** (not sufficient alone):
 
@@ -268,7 +281,7 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 
 1. **Commit** (fixes for code/docs); **push** to PR branch.
 2. **Watch CI:** `gh run list --branch "$(git branch --show-current)" --limit 3` then `gh run watch <RUN_ID> --exit-status` (or wait for run completion).
-3. **Check comments:** `python scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate`. If exit 1 → unmapped actionables and/or unresolved threads.
+3. **Check comments/governance:** `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`. If exit 1 → inspect the failing sub-gate output and fix before re-running.
 4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to PR body under `### Fixed in Commit Mapping` as `- <url> -> <commit-sha>`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping.
 5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
 

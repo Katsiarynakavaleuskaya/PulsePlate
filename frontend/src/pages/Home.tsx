@@ -1,14 +1,22 @@
 import { Link } from 'react-router-dom';
-import { getStoredApiKey } from '../auth/storage';
+import { HomeOpenSetupCta } from '../components/cta';
 import { Card, CardContent, buttonClasses } from '../components/ui';
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
+import { useAuth } from '../lib/auth';
 import { usePremium } from '../lib/usePremium';
 
 export default function Home() {
   const isPremium = usePremium();
-  const hasApiKey = getStoredApiKey() !== null;
+  const { isAuthenticated, isLoading } = useAuth();
+  const hasSession = isAuthenticated;
   const premiumLabel = isPremium === undefined ? 'Checking…' : isPremium ? 'Active' : 'Inactive';
   const statusTone = isPremium === true ? 'text-[var(--color-success)]' : 'text-text';
+  const apiStatusLabel = isLoading ? 'Checking…' : hasSession ? 'Connected' : 'Not Set';
+  const apiStatusDescription = isLoading
+    ? 'Verifying your secure session state with the server.'
+    : hasSession
+      ? 'Your secure session is active. Personalized guidance is enabled.'
+      : 'Configure your API key once to establish a secure session and unlock personalized insights.';
 
   return (
     <main className="flex min-h-screen flex-col bg-[var(--color-bg)]">
@@ -39,13 +47,11 @@ export default function Home() {
                 API Connection
               </p>
               <p className="mt-3 text-2xl font-semibold text-[var(--color-text)]">
-                {hasApiKey ? 'Connected' : 'Not Set'}
+                {apiStatusLabel}
               </p>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-muted)]">
-              {hasApiKey
-                ? 'Your API key is configured. Personalized guidance is enabled.'
-                : 'Configure your API key to unlock personalized nutrition insights and cloud sync.'}
+              {apiStatusDescription}
             </p>
             </CardContent>
           </Card>
@@ -92,12 +98,7 @@ export default function Home() {
 
           {/* Primary Action */}
           <div className="mb-4">
-            <Link
-              to="/setup"
-              className={buttonClasses({ variant: 'primary', size: 'lg', fullWidth: true, className: 'block text-center' })}
-            >
-              Configure Setup
-            </Link>
+            <HomeOpenSetupCta />
           </div>
 
           {/* Secondary Actions Grid */}

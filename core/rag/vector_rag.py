@@ -87,6 +87,7 @@ def _retrieve_vector_postgres(
     query_embedding: list[float],
     limit: int,
     session: Any,
+    subject_id: int,
     corpus_prefixes: list[str] | None = None,
 ) -> list[tuple[Any, float]]:
     """Retrieve similar rows via pgvector cosine distance operator.
@@ -101,8 +102,12 @@ def _retrieve_vector_postgres(
     qvec_text = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
     # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL"
-    params: dict[str, Any] = {"qvec": qvec_text, "lim": limit}
+    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    params: dict[str, Any] = {
+        "qvec": qvec_text,
+        "lim": limit,
+        "subject_id": subject_id,
+    }
 
     if corpus_prefixes:
         # Build OR conditions for each prefix using LIKE
@@ -115,7 +120,7 @@ def _retrieve_vector_postgres(
             where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
 
     # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608
+    sql = f"SELECT id, content, source, 1 - (embedding <=> :qvec::vector) AS similarity FROM user_knowledge {where_clause} ORDER BY embedding <=> :qvec::vector LIMIT :lim"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
     stmt = text(sql)
     rows = session.execute(stmt, params).fetchall()
     return [(row, row.similarity) for row in rows]
@@ -125,6 +130,7 @@ def _retrieve_vector_sqlite(
     query_embedding: list[float],
     limit: int,
     session: Any,
+    subject_id: int,
     corpus_prefixes: list[str] | None = None,
 ) -> list[tuple[Any, float]]:
     """Retrieve similar rows via application-level cosine (SQLite tests).
@@ -135,8 +141,8 @@ def _retrieve_vector_sqlite(
     from sqlalchemy import text
 
     # Build WHERE clause with optional corpus filtering
-    where_clause = "WHERE embedding IS NOT NULL"
-    params: dict[str, Any] = {}
+    where_clause = "WHERE embedding IS NOT NULL AND user_id = :subject_id"
+    params: dict[str, Any] = {"subject_id": subject_id}
 
     if corpus_prefixes:
         prefix_conditions = []
@@ -148,7 +154,7 @@ def _retrieve_vector_sqlite(
             where_clause += " AND (" + " OR ".join(prefix_conditions) + ")"
 
     # Safe: where_clause built from hardcoded AGENT_CORPUS_MAP, values use placeholders
-    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608
+    sql = f"SELECT id, content, source, embedding FROM user_knowledge {where_clause}"  # nosec B608: where_clause is built from fixed predicates and bound params only (remove-by: 2026-04-30, ref: PR-TBD-RAG-TENANT-SCOPE)
     rows = session.execute(
         text(sql),
         params,
@@ -183,6 +189,7 @@ def _retrieve_vector_from_db(
     max_chunks: int,
     agent_id: str | None,
     user_tier: str | None,
+    subject_id: int | None,
 ) -> RAGContext:
     """Core vector retrieval: encode query, search DB, return RAGContext.
 
@@ -190,6 +197,10 @@ def _retrieve_vector_from_db(
     corpus paths. Otherwise, queries all indexed content.
     """
     start = time.perf_counter()
+
+    if subject_id is None:
+        logger.debug("Vector retrieval skipped because subject_id is missing")
+        return _empty_context(query, agent_id, user_tier, start)
 
     # Get corpus prefixes for agent-specific filtering
     corpus_prefixes = AGENT_CORPUS_MAP.get(agent_id) if agent_id else None
@@ -207,9 +218,21 @@ def _retrieve_vector_from_db(
         limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
 
         if dialect == "postgresql":
-            results = _retrieve_vector_postgres(query_embedding, limit, session, corpus_prefixes)
+            results = _retrieve_vector_postgres(
+                query_embedding,
+                limit,
+                session,
+                subject_id=subject_id,
+                corpus_prefixes=corpus_prefixes,
+            )
         else:
-            results = _retrieve_vector_sqlite(query_embedding, limit, session, corpus_prefixes)
+            results = _retrieve_vector_sqlite(
+                query_embedding,
+                limit,
+                session,
+                subject_id=subject_id,
+                corpus_prefixes=corpus_prefixes,
+            )
 
     # Filter by minimum score and build RAGChunks
     chunks: list[RAGChunk] = []
@@ -278,6 +301,7 @@ def retrieve_context_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> RAGContext:
     """Vector retrieval with automatic fallback to Jaccard.
 
@@ -290,7 +314,13 @@ def retrieve_context_structured(
     """
     if is_rag_vector_enabled():
         try:
-            ctx = _retrieve_vector_from_db(query, max_chunks, agent_id, user_tier)
+            ctx = _retrieve_vector_from_db(
+                query,
+                max_chunks,
+                agent_id,
+                user_tier,
+                subject_id,
+            )
             # If vector found results, return them
             if ctx.chunks:
                 return ctx

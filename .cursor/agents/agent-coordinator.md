@@ -192,6 +192,14 @@ Terminal-first autonomous operator for safe command execution and deterministic 
 
 ---
 
+### qa-engineer-agent
+
+Acceptance criteria, regression packs, independent review, and release confidence.
+
+**Canonical doc:** `.cursor/agents/qa-engineer-agent.md`
+
+---
+
 ### creative-designer
 
 UI/UX design, brand assets, App Store visuals, and marketing creatives.
@@ -223,6 +231,46 @@ Sora prompt-engineering owner for PulsePlate visual assets: style-lock templates
 ASO/SEO, growth strategy, positioning, and conversion optimization.
 
 **Canonical doc:** `.cursor/agents/marketing-strategist.md`
+
+---
+
+### app-store-release-agent
+
+App Store metadata, submission packaging, screenshot/video readiness, and release checklist ownership.
+
+**Canonical doc:** `.cursor/agents/app-store-release-agent.md`
+
+---
+
+### wellness-analyst-agent
+
+Wellness market opportunity analysis with ethics/regulatory framing and low-capex entry ideas.
+
+**Canonical doc:** `.cursor/agents/wellness-analyst-agent.md`
+
+---
+
+### business-strategist-agent
+
+Market entry, monetization sequencing, and business decision framing for growth cluster work.
+
+**Canonical doc:** `.cursor/agents/business-strategist-agent.md`
+
+---
+
+### cursor-specialist-agent
+
+Task bootstrap ergonomics, context-pack hygiene, and Cursor/Codex workflow quality.
+
+**Canonical doc:** `.cursor/agents/cursor-specialist-agent.md`
+
+---
+
+### tutor-mentor-agent
+
+Explainability, onboarding guidance, and training-style artifacts without redefining SoT.
+
+**Canonical doc:** `.cursor/agents/tutor-mentor-agent.md`
 
 ---
 
@@ -364,12 +412,12 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 - Coordinator-first rule: `AGENTS.md` (Agent Coordination section)
 
-**Automatic invocation:**
+**Command-driven bootstrap:**
 
-- Any task is created (analyze and route)
-- Agent work completes (review and synthesize)
-- PR is opened (coordinate review across agents)
-- Release is planned (coordinate security + quality checks)
+- `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
+- `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
+
+These commands are the executable implementation of coordinator-first behavior for task start, execution handoff, and merge prep.
 
 ## Runbook Reference
 

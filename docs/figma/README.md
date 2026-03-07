@@ -67,12 +67,14 @@ Purpose: single Git folder for everything you pass to Figma AI.
 4. If Design URL/node IDs are missing, run
    `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`.
 5. Update CTA map candidates in `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`.
-6. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
-7. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
-8. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
-9. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
-10. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
-11. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
+6. If Code Connect is blocked by seat/plan, pivot to
+   `docs/design/PENPOT_STORYBOOK_BRIDGE.md` for low-cost design handoff.
+7. Add request via `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md`.
+8. Align request with `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`.
+9. Validate ops evidence via `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`.
+10. Validate output via `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md`.
+11. Run QA pass/fail checks in `docs/sora/SORA_STYLE_QA_CHECKLIST.md`.
+12. If session is complex, record decisions in `docs/figma/orchestration/sessions/`.
 
 ## Canonical project links
 
@@ -82,3 +84,4 @@ Purpose: single Git folder for everything you pass to Figma AI.
 - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
 - `docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md`
 - `docs/sora/PULSEPLATE_SORA_BUTTON_VARIANTS_HPP.md`
+- `docs/design/PENPOT_STORYBOOK_BRIDGE.md`

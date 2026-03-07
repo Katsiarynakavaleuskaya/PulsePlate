@@ -8,12 +8,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Scan whole app source tree; exclude tests/fixtures/mocks.
         let includeDir = "ios/PulsePlate"
-        let excludeSubpaths = [
-            "/PulsePlateTests/",
-            "/Tests/",
-            "/Fixtures/",
-            "/Mocks/"
-        ]
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
 
         let swiftFiles = try collectSwiftFiles(
             root: root,
@@ -98,12 +93,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Scan whole app source tree; exclude tests/fixtures/mocks.
         let includeDir = "ios/PulsePlate"
-        let excludeSubpaths = [
-            "/PulsePlateTests/",
-            "/Tests/",
-            "/Fixtures/",
-            "/Mocks/"
-        ]
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
 
         let textFiles = try collectTextFiles(
             root: root,
@@ -156,6 +146,131 @@ final class ThinClientGuardsTests: XCTestCase {
             \(hits.joined(separator: "\n"))
             """
         )
+    }
+
+    func test_noSensitiveSecretsPersistedOutsideKeychain() throws {
+        let root = try repoRoot(from: #filePath)
+
+        let includeDir = "ios/PulsePlate"
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
+
+        let swiftFiles = try collectTextFiles(
+            root: root,
+            includeDirs: [includeDir],
+            excludeSubpaths: excludeSubpaths,
+            allowedExtensions: Set(["swift"])
+        ).sorted { $0.path < $1.path }
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            hits.append(contentsOf: try secretStorageGuardHits(
+                in: content,
+                sourceLabel: relativePath(file, root: root)
+            ))
+        }
+
+        hits.sort()
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: sensitive keys are persisted outside Keychain.
+
+            Fix:
+            - Store secrets only via Keychain-backed helpers.
+            - Do not persist API keys/tokens/secrets/passwords with AppStorage or UserDefaults.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_secretStorageGuardMatchesIndirectKeyForms() throws {
+        let forbiddenRegex = try secretStorageForbiddenRegexes(userDefaultsAliases: ["defaults", "cache"])
+
+        let appStorageSnippet = """
+        @AppStorage(StorageKeys.proToken) private var cachedToken: String = ""
+        """
+        let userDefaultsSnippet = """
+        let defaults = UserDefaults(suiteName: "group.dev")
+        defaults?.set(token, forKey: StorageKeys.pro.secretKey)
+        """
+
+        let appStorageHits = try secretStorageGuardHits(
+            in: appStorageSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+        let userDefaultsHits = try secretStorageGuardHits(
+            in: userDefaultsSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+
+        XCTAssertFalse(appStorageHits.isEmpty)
+        XCTAssertFalse(userDefaultsHits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesAliasedUserDefaultsVariables() throws {
+        let snippet = """
+        private let store: UserDefaults
+
+        func cache(_ token: String) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesUserDefaultsParameters() throws {
+        let snippet = """
+        func cache(token: String, using store: UserDefaults) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+
+        func clear(_ store: UserDefaults) {
+            store.set("", forKey: StorageKeys.pro.secretKey)
+        }
+
+        func update(token: String, inout store: UserDefaults) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardDoesNotMatchNonUserDefaultsStorage() throws {
+        let forbiddenRegex = try secretStorageForbiddenRegexes()
+
+        let nonUserDefaultsSnippet = """
+        let secureStore = SomeOtherStore()
+        secureStore.set(token, forKey: StorageKeys.pro.secretKey)
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: nonUserDefaultsSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+
+        XCTAssertTrue(hits.isEmpty)
     }
 
     func test_fixturesContainBackendThresholds() throws {
@@ -233,7 +348,125 @@ private func collectTextFiles(
         }
     }
 
-    return results
+    return results.sorted { $0.path < $1.path }
+}
+
+private func guardedSourceExcludeSubpaths() -> [String] {
+    [
+        "/PulsePlateTests/",
+        "/Tests/",
+        "/Fixtures/",
+        "/Mocks/",
+    ]
+}
+
+private func secretStorageForbiddenRegexes(
+    userDefaultsAliases: Set<String> = []
+) throws -> [(String, NSRegularExpression)] {
+    let aliasAlternation = userDefaultsAliasAlternation(userDefaultsAliases)
+
+    return [
+        (
+            "appstorage-secret-key",
+            try NSRegularExpression(
+                pattern: #"@AppStorage\(\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\)"#,
+                options: [.caseInsensitive]
+            )
+        ),
+        (
+            "userdefaults-secret-key",
+            try NSRegularExpression(
+                pattern: #"\b(?:UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*)"# + aliasAlternation + #")\b[\s\S]{0,120}?forKey:\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)"#,
+                options: [.caseInsensitive]
+            )
+        ),
+    ]
+}
+
+private func secretStorageGuardHits(
+    in content: String,
+    sourceLabel: String,
+    forbiddenRegex: [(String, NSRegularExpression)]? = nil
+) throws -> [String] {
+    let scanContent = stripSwiftComments(from: content)
+    let regexes = try forbiddenRegex ?? secretStorageForbiddenRegexes(
+        userDefaultsAliases: extractUserDefaultsAliases(from: scanContent)
+    )
+    let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+    var hits: [String] = []
+
+    for (name, regex) in regexes {
+        let matches = regex.matches(in: scanContent, options: [], range: range)
+        for match in matches {
+            let location = lineAndSnippet(for: match.range, in: scanContent)
+            hits.append(
+                "\(sourceLabel):\(location.line): forbidden regex '\(name)' -> \(location.snippet)"
+            )
+        }
+    }
+
+    return hits
+}
+
+private func extractUserDefaultsAliases(from content: String) -> Set<String> {
+    let patterns = [
+        #"\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*UserDefaults(?:\?)?)?(?:\s*=\s*UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*))"#,
+        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
+        #"(?:\(|,)\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*|_)\s+)?(?:inout\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
+    ]
+    var aliases: Set<String> = []
+    let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
+
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            continue
+        }
+        for match in regex.matches(in: content, options: [], range: searchRange) {
+            guard
+                match.numberOfRanges > 1,
+                let aliasRange = Range(match.range(at: 1), in: content)
+            else {
+                continue
+            }
+            aliases.insert(String(content[aliasRange]))
+        }
+    }
+
+    return aliases
+}
+
+private func userDefaultsAliasAlternation(_ aliases: Set<String>) -> String {
+    guard !aliases.isEmpty else {
+        return ""
+    }
+
+    let escapedAliases = aliases
+        .sorted()
+        .map(NSRegularExpression.escapedPattern(for:))
+        .joined(separator: "|")
+
+    return "|(?:\(escapedAliases))"
+}
+
+private func lineAndSnippet(for range: NSRange, in content: String) -> (line: Int, snippet: String) {
+    guard
+        let swiftRange = Range(range, in: content)
+    else {
+        return (line: 1, snippet: "<unavailable>")
+    }
+
+    let prefix = content[..<swiftRange.lowerBound]
+    let line = prefix.reduce(into: 1) { partial, character in
+        if character == "\n" {
+            partial += 1
+        }
+    }
+
+    let snippet = content[swiftRange]
+        .replacingOccurrences(of: "\n", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return (line: line, snippet: snippet)
 }
 
 private func stripSwiftComments(from source: String) -> String {

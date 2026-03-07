@@ -14,14 +14,17 @@ if TYPE_CHECKING:
 import scripts.orchestration.check_review_threads_disposition as _disposition_mod
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
+    _block_thread_urls,
     _check_commit_after_comment,
     _check_trigger_only_mapping,
     _env_diagnostic,
     _find_disposition_block_in_section,
     _has_gh_auth,
+    _iter_disposition_blocks,
     _parse_iso_datetime,
     _parse_mapping_section,
     _require_gh_token_preflight,
+    _validate_fixed_commit_blocks,
 )
 from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
 
@@ -44,6 +47,16 @@ Commit: abc123
     section = extract_fixed_mapping_section(body)
     assert "https://example.com/1" in section
     assert re.search(r"Disposition:\s*FIXED", section)
+
+
+def test_get_pr_number_prefers_explicit_cli_value(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(_disposition_mod, "_run", lambda cmd: "999")
+    assert _disposition_mod._get_pr_number(1005) == 1005
+
+
+def test_get_pr_number_rejects_non_positive_cli_value() -> None:
+    with pytest.raises(RuntimeError, match="must be > 0"):
+        _disposition_mod._get_pr_number(0)
 
 
 def test_extract_fixed_mapping_section_accepts_double_hash_heading() -> None:
@@ -102,6 +115,20 @@ Evidence: docs/foo.md:12
     )
 
 
+def test_find_disposition_block_in_section_requires_reason_for_not_a_bug() -> None:
+    section = """
+- https://github.com/org/repo/pull/2#discussion_r456
+Disposition: NOT-A-BUG
+Evidence: docs/foo.md:12
+"""
+    assert (
+        _find_disposition_block_in_section(
+            section, "https://github.com/org/repo/pull/2#discussion_r456"
+        )
+        is False
+    )
+
+
 def test_find_disposition_block_in_section_fails_without_proof() -> None:
     section = """
 - https://github.com/org/repo/pull/3#discussion_r789
@@ -137,6 +164,138 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
 
 
+def test_iter_disposition_blocks_splits_on_blank_lines() -> None:
+    section = """
+- https://example.com/1
+Disposition: FIXED
+Commit: deadbeef
+
+- https://example.com/2
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+"""
+    blocks = _iter_disposition_blocks(section)
+    assert len(blocks) == 2
+    assert "https://example.com/1" in blocks[0]
+    assert "https://example.com/2" in blocks[1]
+
+
+def test_find_disposition_block_does_not_cross_block_boundaries() -> None:
+    section = """
+Disposition: FIXED
+Commit: deadbeef
+- https://example.com/1
+
+Evidence: docs/file.md:10
+- https://example.com/2
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/1") is False
+    assert _find_disposition_block_in_section(section, "https://example.com/2") is False
+
+
+def test_find_disposition_block_accepts_mapping_block_after_detail_header() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
+    """
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_requires_matching_sha_mapping_for_placeholder_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://example.com/thread
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
+
+
+def test_find_disposition_block_accepts_case_insensitive_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: See Mapping Entries Below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_rejects_unrelated_previous_detail_block() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/other -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
+
+
+def test_validate_fixed_commit_blocks_rejects_empty_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit:
+- https://example.com/thread -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("empty" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_requires_sha_mapping_for_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("no valid SHA mappings" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_requires_mapping_for_every_placeholder_url() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://github.com/org/repo/pull/1000#discussion_r1
+- https://github.com/org/repo/pull/1000#discussion_r2
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("missing SHA mappings for" in error for error in errors)
+    assert any("discussion_r2" in error for error in errors)
+
+
+def test_block_thread_urls_accepts_review_thread_anchors_only() -> None:
+    block = """
+- https://github.com/org/repo/pull/1000#discussion_r123
+- https://github.com/org/repo/pull/1000#pullrequestreview-456
+- https://github.com/org/repo/pull/1000/files
+- https://example.com/not-a-thread
+"""
+    assert _block_thread_urls(block) == [
+        "https://github.com/org/repo/pull/1000#discussion_r123",
+        "https://github.com/org/repo/pull/1000#pullrequestreview-456",
+    ]
+
+
+def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:
+    section = """
+Disposition: DEFERRED
+Commit:
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+- https://example.com/thread
+"""
+    assert _validate_fixed_commit_blocks(section) == []
+
+
 def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -156,13 +315,72 @@ def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
 def test_has_gh_auth_true_when_gh_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.setenv("GH_TOKEN", "gh_secret")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
 
 
 def test_has_gh_auth_true_when_github_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "github_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
+
+
+def test_has_gh_auth_false_when_token_present_but_auth_status_fails(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})(),
+    )
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_false_when_gh_auth_times_out(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=5
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_false_when_gh_auth_oserror(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_oserror(*args: object, **kwargs: object) -> object:
+        raise OSError("gh unavailable")
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_oserror)
+    assert _has_gh_auth() is False
 
 
 def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> None:
@@ -201,6 +419,7 @@ Evidence: file.py:10
 - https://github.com/org/repo/pull/5#discussion_r2889026503
 Disposition: FIXED
 Commit: deadbeef
+Evidence: file.py:10
 """
     assert (
         _find_disposition_block_in_section(
@@ -235,6 +454,19 @@ Disposition: FIXED
     assert m.get("https://github.com/org/repo/pull/99#discussion_r1") == "abc1234"
     assert m.get("https://github.com/org/repo/pull/99#discussion_r2") == "deadbeef"
     assert m.get("https://github.com/org/repo/pull/99") is None
+
+
+def test_parse_mapping_section_extracts_inline_fixed_commit_sha() -> None:
+    section = """
+- https://github.com/org/repo/pull/99#discussion_r1
+- https://github.com/org/repo/pull/99#discussion_r2
+Disposition: FIXED
+Commit: deadbeef
+Evidence: docs/file.md:10
+"""
+    mapping = _parse_mapping_section(section)
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r1"] == "deadbeef"
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r2"] == "deadbeef"
 
 
 def test_check_commit_after_comment_fail_when_commit_before_comment() -> None:
@@ -281,6 +513,28 @@ Commit: abc1234
     assert violations == []
 
 
+def test_check_commit_after_comment_uses_inline_fixed_commit_sha() -> None:
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = """
+- https://github.com/org/repo/pull/1#discussion_r1
+Disposition: FIXED
+Commit: abc1234
+Evidence: file.md:10
+"""
+
+    def fake_git_time(sha: str) -> str:
+        assert sha == "abc1234"
+        return "2026-02-27T13:00:00+00:00"
+
+    violations = _check_commit_after_comment([thread], section, _git_commit_time_fn=fake_git_time)
+    assert violations == []
+
+
 def test_check_commit_after_comment_skips_when_no_sha_in_mapping() -> None:
     """NOT-A-BUG/DEFERRED may have no commit; only threads with '- url -> sha' are checked for commit-after."""
     thread = ResolvedThreadRef(
@@ -318,6 +572,17 @@ def test_require_gh_token_preflight_exits_when_gh_token_missing_in_ci(
     assert exc_info.value.code == 1
 
 
+def test_require_gh_token_preflight_rejects_github_token_only_in_strict_mode(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    """Strict disposition auth requires GH_TOKEN even when GITHUB_TOKEN is present."""
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "github_only")
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, False)
+    assert exc_info.value.code == 1
+
+
 def test_require_gh_token_preflight_skips_when_not_required() -> None:
     """When not require_auth and not CI, preflight does nothing (no exit)."""
     _require_gh_token_preflight(False, False)
@@ -335,6 +600,98 @@ def test_require_gh_token_preflight_passes_when_gh_token_set_and_gh_ok(
     fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
     monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
     _require_gh_token_preflight(True, True)
+
+
+def test_require_gh_token_preflight_prints_diagnostic_on_timeout(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=10
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, True)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "strict preflight" in captured.out
+    assert "Cause:" in captured.out
+
+
+def test_main_skips_in_advisory_local_mode_without_auth(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Default local mode is advisory: no gh auth means SKIP with exit 0."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod, "_has_gh_auth", lambda: False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "advisory local run" in captured.out
+    assert "not merge-readiness evidence" in captured.out
+
+
+def test_main_requires_gh_token_in_ci_mode_without_flag(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode is strict even when --require-auth is omitted."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "GH_TOKEN required for disposition guard" in captured.out
+
+
+def test_main_passes_in_ci_mode_with_valid_gh_token(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode should run successfully when strict auth preflight passes."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None
+    )
+    fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
+    monkeypatch.setattr(_disposition_mod, "_get_pr_number", lambda _value=None: 1009)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "read_mapping_artifact",
+        lambda _pr_number: (
+            "# PR 1009 — Fixed in Commit Mapping\n\n"
+            "## Fixed in Commit Mapping\n"
+            "- No actionable review comments\n"
+        ),
+    )
+    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "OK: No resolved review threads found" in captured.out
 
 
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:
@@ -408,3 +765,27 @@ def test_trigger_only_mapping_passes_on_normal_commit(monkeypatch: "MonkeyPatch"
 
     violations = _check_trigger_only_mapping(threads, section)
     assert violations == []
+
+
+def test_trigger_only_mapping_checks_inline_fixed_commit_sha(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setattr(_disposition_mod, "_git_changed_files", lambda _sha: [])
+    monkeypatch.setattr(_disposition_mod, "_git_commit_subject", lambda _sha: "fix: real change")
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r4",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = """
+- https://github.com/org/repo/pull/985#discussion_r4
+Disposition: FIXED
+Commit: deadbeef
+Evidence: file.md:10
+"""
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations
+    assert "EMPTY" in violations[0]

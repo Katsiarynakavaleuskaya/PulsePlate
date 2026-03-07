@@ -1846,7 +1846,6 @@
         "description": "Response schema for CBT insight endpoint.",
         "properties": {
           "confidence": {
-            "default": 0.0,
             "description": "RAG retrieval confidence score",
             "title": "Confidence",
             "type": "number"
@@ -1856,8 +1855,26 @@
             "title": "Insight",
             "type": "string"
           },
+          "mode": {
+            "description": "Resolved agent execution mode",
+            "enum": [
+              "auto-safe",
+              "review-required",
+              "blocked"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "quota_state": {
+            "description": "Monthly quota state before provider call",
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
           "rag_used": {
-            "default": false,
             "description": "Whether RAG context was used",
             "title": "Rag Used",
             "type": "boolean"
@@ -1869,10 +1886,32 @@
             },
             "title": "Sources",
             "type": "array"
+          },
+          "uncertainty": {
+            "description": "Uncertainty score derived from confidence",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Uncertainty",
+            "type": "number"
+          },
+          "warnings": {
+            "description": "Operational or retrieval warnings",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
-          "insight"
+          "insight",
+          "rag_used",
+          "sources",
+          "confidence",
+          "uncertainty",
+          "warnings",
+          "mode",
+          "quota_state"
         ],
         "title": "CBTInsightResponse",
         "type": "object"

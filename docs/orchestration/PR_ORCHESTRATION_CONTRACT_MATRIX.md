@@ -33,6 +33,11 @@ Evidence:
 | Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
 | Phase 4 | Disposition proof | script semantics                        | yes          |
 
+Canonical operator entrypoint:
+
+- `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
+- Underlying gate scripts remain authoritative for their own contract semantics.
+
 ## 4. Phase 2 Contract (Canonical Artifact)
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
@@ -66,6 +71,7 @@ Required sections (artifact and PR-body mirror):
 Valid mapping forms:
 
 - `- <url> -> <sha>`
+- `- <url>`
 - `- No actionable review comments`
 
 Evidence:
@@ -104,11 +110,13 @@ Evidence:
 ### NOT-A-BUG
 
 - Requires written reasoning/evidence
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
 ### DEFERRED
 
 - Requires ledger reference
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
 Evidence:
@@ -175,9 +183,25 @@ Evidence:
 - `scripts/orchestration/check_review_threads_disposition.py:394`
 - `AGENTS.md:120`
 
-## 12. Roadmap / Future Hardening
+## 12. Auth Mode Semantics
 
-- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Implemented in PR #998 (pending merge)
+- **Local default / advisory:** disposition guard may skip when no usable `gh` auth is available.
+- **Local strict parity:** `--require-auth` upgrades the disposition guard to CI-like behavior and requires `GH_TOKEN`.
+- **CI strict:** `CI=true` requires `GH_TOKEN` and `gh auth status` before any GraphQL.
+- `GITHUB_TOKEN` remains the merge-readiness sub-gate token; `GH_TOKEN` is the canonical disposition/GraphQL token.
+- Advisory `SKIP` is not merge evidence; operators must use enforced mode before claiming strict local parity.
+
+Evidence:
+- `AGENTS.md:120`
+- `RUNBOOK_AGENT.md:246`
+- `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:45`
+- `scripts/orchestration/check_review_threads_disposition.py:9`
+- `scripts/orchestration/check_review_threads_disposition.py:623`
+- `scripts/ci/check_pr_merge_readiness.py:308`
+
+## 13. Roadmap / Future Hardening
+
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Merged via PR #998 on 2026-03-07
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate agent_run_summary artifacts into reliability scores and routing recommendations.
+"""Aggregate agent_run_summary artifacts into orchestration reliability scores.
 
 Advisory only: no auto-routing writes, no CI blocking.
 Output: artifacts/orchestration/telemetry_rollup.json (gitignored).
@@ -31,14 +31,23 @@ MIN_RUNS_FOR_STABLE = 5
 class RunSignal:
     """Extracted signal from one agent run summary JSON."""
 
+    schema_version: str
     agent: str
     domain: str
+    cluster: str
     task_type: str
+    run_phase: str
     decision: str
     max_severity: str
     blocker_count: int
     issues_count: int
     static_fail: bool
+    handoff_count: int
+    sync_points: int
+    duration_ms: int
+    gate_status: str
+    retries: int
+    outcome: str
 
 
 def _iter_json_files(root: Path) -> Iterable[Path]:
@@ -49,9 +58,10 @@ def _iter_json_files(root: Path) -> Iterable[Path]:
 
 def _safe_read_json(path: Path) -> dict[str, Any] | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _max_severity(issues: list[dict[str, Any]]) -> str:
@@ -68,6 +78,8 @@ def _extract_signal(payload: dict[str, Any]) -> RunSignal | None:
     agent = str(payload.get("agent", "")).strip()
     domain = str(payload.get("domain", "")).strip()
     task_type = str(payload.get("task_type", "")).strip()
+    cluster = str(payload.get("cluster", "ops")).strip() or "ops"
+    run_phase = str(payload.get("run_phase", "execute")).strip() or "execute"
     decision = str(payload.get("decision", {}).get("action", "")).strip()
 
     if not agent or not domain or not task_type or decision not in DECISION_PENALTY:
@@ -91,13 +103,22 @@ def _extract_signal(payload: dict[str, Any]) -> RunSignal | None:
 
     return RunSignal(
         agent=agent,
+        schema_version=str(payload.get("schema_version", "1.0")).strip() or "1.0",
         domain=domain,
+        cluster=cluster,
         task_type=task_type,
+        run_phase=run_phase,
         decision=decision,
         max_severity=max_sev,
         blocker_count=blocker_count,
         issues_count=issues_count,
         static_fail=static_fail,
+        handoff_count=int(payload.get("handoff_count", 0) or 0),
+        sync_points=int(payload.get("sync_points", 0) or 0),
+        duration_ms=int(payload.get("duration_ms", 0) or 0),
+        gate_status=str(payload.get("gate_status", "not_run")).strip() or "not_run",
+        retries=int(payload.get("retries", 0) or 0),
+        outcome=str(payload.get("outcome", "pass")).strip() or "pass",
     )
 
 
@@ -110,6 +131,14 @@ def _score_run(sig: RunSignal) -> float:
         penalty += 0.25
     if sig.blocker_count >= 2:
         penalty += 0.15
+    if sig.outcome not in {"pass", "partial"}:
+        penalty += 0.25
+    if sig.gate_status not in {"pass", "not_run"}:
+        penalty += 0.2
+    penalty += min(sig.retries * 0.05, 0.2)
+    penalty += min(sig.handoff_count * 0.02, 0.1)
+    if sig.duration_ms > 0:
+        penalty += min(sig.duration_ms / 600000.0, 0.1)
     penalty = min(1.0, penalty)
     return max(0.0, 1.0 - penalty)
 
@@ -118,15 +147,24 @@ def _aggregate(signals: list[RunSignal]) -> dict[str, Any]:
     per_agent_scores: dict[str, list[float]] = defaultdict(list)
     per_agent_meta: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     per_domain_agent_scores: dict[tuple[str, str], list[float]] = defaultdict(list)
+    per_cluster_agent_scores: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     for s in signals:
         sc = _score_run(s)
         per_agent_scores[s.agent].append(sc)
         per_domain_agent_scores[(s.domain, s.agent)].append(sc)
+        per_cluster_agent_scores[(s.cluster, s.agent)].append(sc)
 
         per_agent_meta[s.agent]["runs"] += 1
         per_agent_meta[s.agent][f"decision_{s.decision}"] += 1
         per_agent_meta[s.agent][f"maxsev_{s.max_severity}"] += 1
+        per_agent_meta[s.agent][f"phase_{s.run_phase}"] += 1
+        per_agent_meta[s.agent][f"outcome_{s.outcome}"] += 1
+        per_agent_meta[s.agent][f"gate_{s.gate_status}"] += 1
+        per_agent_meta[s.agent]["handoff_total"] += s.handoff_count
+        per_agent_meta[s.agent]["sync_points_total"] += s.sync_points
+        per_agent_meta[s.agent]["duration_ms_total"] += s.duration_ms
+        per_agent_meta[s.agent]["retries_total"] += s.retries
         if s.static_fail:
             per_agent_meta[s.agent]["static_fail"] += 1
         if s.blocker_count:
@@ -147,6 +185,12 @@ def _aggregate(signals: list[RunSignal]) -> dict[str, Any]:
             "avg_score": avg,
             "weight": weight,
             "stability": stability,
+            "avg_duration_ms": (
+                round(per_agent_meta[agent]["duration_ms_total"] / runs, 2) if runs else 0.0
+            ),
+            "avg_handoffs": (
+                round(per_agent_meta[agent]["handoff_total"] / runs, 2) if runs else 0.0
+            ),
             "meta": dict(per_agent_meta[agent]),
         }
 
@@ -171,10 +215,20 @@ def _aggregate(signals: list[RunSignal]) -> dict[str, Any]:
             "ranked": rows[:5],
         }
 
+    cluster_map: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for (cluster, agent), scores in per_cluster_agent_scores.items():
+        cluster_map[cluster].append(
+            {"agent": agent, "avg_score": mean(scores), "runs": len(scores)}
+        )
+    for rows in cluster_map.values():
+        rows.sort(key=lambda r: (r["avg_score"], r["runs"]), reverse=True)
+
     return {
+        "schema_version": "2.0",
         "signals_count": len(signals),
         "agents": agent_table,
         "domains": recommendations,
+        "clusters": dict(cluster_map),
     }
 
 

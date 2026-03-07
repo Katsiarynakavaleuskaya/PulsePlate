@@ -221,7 +221,7 @@ Fields:
 - `Platform`
 - `Screen`
 - `State set`
-- `Figma Node ID` (or `TBD`)
+- `Design Review Reference` (tool-neutral; optional Figma node ID when Code Connect is in scope)
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
