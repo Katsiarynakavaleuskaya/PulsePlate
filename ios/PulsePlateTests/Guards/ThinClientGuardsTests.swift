@@ -169,7 +169,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
         for file in swiftFiles {
             let content = try String(contentsOf: file, encoding: .utf8)
-            hits.append(contentsOf: try secretStorageGuardHits(
+            hits.append(contentsOf: secretStorageGuardHits(
                 in: content,
                 sourceLabel: relativePath(file, root: root),
                 forbiddenRegex: forbiddenRegex
@@ -202,12 +202,12 @@ final class ThinClientGuardsTests: XCTestCase {
         defaults?.set(token, forKey: StorageKeys.pro.secretKey)
         """
 
-        let appStorageHits = try secretStorageGuardHits(
+        let appStorageHits = secretStorageGuardHits(
             in: appStorageSnippet,
             sourceLabel: "snippet.swift",
             forbiddenRegex: forbiddenRegex
         )
-        let userDefaultsHits = try secretStorageGuardHits(
+        let userDefaultsHits = secretStorageGuardHits(
             in: userDefaultsSnippet,
             sourceLabel: "snippet.swift",
             forbiddenRegex: forbiddenRegex
@@ -327,7 +327,7 @@ private func secretStorageGuardHits(
     in content: String,
     sourceLabel: String,
     forbiddenRegex: [(String, NSRegularExpression)]
-) throws -> [String] {
+) -> [String] {
     let scanContent = stripSwiftComments(from: content)
     let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
     var hits: [String] = []
