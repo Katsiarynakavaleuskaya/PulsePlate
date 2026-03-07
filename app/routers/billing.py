@@ -37,7 +37,20 @@ _DETAIL_MANUAL_STATUS_UNSUPPORTED = "manual_status_not_supported_for_ios"
 _DETAIL_PENDING_REQUIRED = "manual_reconcile_transition_requires_pending_state"
 _RESPONSE_401_UNAUTHORIZED = {
     "description": "Missing or invalid API key",
-    "model": PaymentErrorResponse,
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "required": ["detail"],
+                "properties": {
+                    "detail": {
+                        "type": "string",
+                        "description": "FastAPI auth error detail from tier guard",
+                    }
+                },
+            }
+        }
+    },
 }
 _RESPONSE_422_VALIDATION_OR_PAYMENT = {
     "description": "Request validation failed or reconcile state is invalid",

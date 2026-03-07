@@ -8561,7 +8561,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
                 }
               }
             },
@@ -8639,7 +8648,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
                 }
               }
             },
@@ -8707,7 +8725,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
                 }
               }
             },
@@ -8803,7 +8830,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
                 }
               }
             },
