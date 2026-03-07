@@ -36,3 +36,8 @@ Evidence: `frontend/src/components/cta/ProgressExportPdfButton.tsx:5`, `frontend
 Disposition: FIXED
 Commit: 67a11f66
 Evidence: `frontend/src/components/cta/ProgressExportPdfButton.tsx:5`, `frontend/src/components/cta/ProgressExportPdfButton.tsx:19`, `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx:9`, `frontend/src/components/cta/index.ts:1`, `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx:162`, `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md:3`, `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md:16`, `python3 scripts/ci/check_docs_phase1_gates.py --files docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md docs/design/PENPOT_STORYBOOK_BRIDGE.md docs/review/PR_1006_FIXED_MAPPING.md`, `pre-commit run --all-files`, `make verify`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1006#pullrequestreview-3908117585 -> d1860094
+Disposition: FIXED
+Commit: d1860094
+Evidence: `docs/review/PR_1006_FIXED_MAPPING.md:10`, `docs/review/PR_1006_FIXED_MAPPING.md:15`, `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx:1`, `frontend/src/components/cta/HomeOpenSetupCta.stories.tsx:10`
