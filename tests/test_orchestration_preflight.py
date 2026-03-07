@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from scripts.orchestration import check_preflight as preflight
 
 
-def test_analyze_mode_allows_dirty_tree(monkeypatch) -> None:
+def test_analyze_mode_allows_dirty_tree(monkeypatch: pytest.MonkeyPatch) -> None:
     """Analyze mode must pass with dirty tree when other checks pass."""
 
     monkeypatch.setattr(preflight, "check_sot_files", lambda: True)
@@ -24,7 +28,7 @@ def test_analyze_mode_allows_dirty_tree(monkeypatch) -> None:
     assert preflight.main(["--mode", "analyze", "--path", "docs/orchestration/workflow.md"]) == 0
 
 
-def test_execute_mode_fails_when_dirty_tree_outside_scope(monkeypatch) -> None:
+def test_execute_mode_fails_when_dirty_tree_outside_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute mode must fail when repo dirt exists outside explicit task scope."""
 
     monkeypatch.setattr(preflight, "check_sot_files", lambda: True)
@@ -55,7 +59,7 @@ def test_execute_mode_fails_when_dirty_tree_outside_scope(monkeypatch) -> None:
     )
 
 
-def test_merge_mode_requires_gate_evidence(monkeypatch, tmp_path) -> None:
+def test_merge_mode_requires_gate_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Merge mode must fail when gate evidence file is missing."""
 
     monkeypatch.setattr(preflight, "check_sot_files", lambda: True)

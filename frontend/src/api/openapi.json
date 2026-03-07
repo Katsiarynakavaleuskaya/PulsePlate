@@ -1810,7 +1810,6 @@
             "type": "string"
           },
           "mode": {
-            "default": "auto-safe",
             "description": "Resolved agent execution mode",
             "enum": [
               "auto-safe",
@@ -1821,8 +1820,11 @@
             "type": "string"
           },
           "quota_state": {
-            "default": "not_consumed",
             "description": "Monthly quota state before provider call",
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
             "title": "Quota State",
             "type": "string"
           },
@@ -1841,8 +1843,9 @@
             "type": "array"
           },
           "uncertainty": {
-            "default": 1.0,
             "description": "Uncertainty score derived from confidence",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Uncertainty",
             "type": "number"
           },
@@ -1856,7 +1859,11 @@
           }
         },
         "required": [
-          "insight"
+          "insight",
+          "uncertainty",
+          "warnings",
+          "mode",
+          "quota_state"
         ],
         "title": "CBTInsightResponse",
         "type": "object"

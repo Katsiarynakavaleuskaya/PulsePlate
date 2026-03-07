@@ -50,6 +50,7 @@ CBT_POLICY_ALLOWLIST = {
     ("llm.generate", "provider://default"),
 }
 CBTExecutionMode = Literal["auto-safe", "review-required", "blocked"]
+CBTQuotaState = Literal["not_consumed", "consumed"]
 
 
 # ---------------------------------------------------------------------------
@@ -97,17 +98,22 @@ class CBTInsightResponse(BaseModel):
         description="CBT corpus sources used for context",
     )
     confidence: float = Field(default=0.0, description="RAG retrieval confidence score")
-    uncertainty: float = Field(default=1.0, description="Uncertainty score derived from confidence")
+    uncertainty: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Uncertainty score derived from confidence",
+    )
     warnings: list[str] = Field(
-        default_factory=list,
+        ...,
         description="Operational or retrieval warnings",
     )
     mode: CBTExecutionMode = Field(
-        default="auto-safe",
+        ...,
         description="Resolved agent execution mode",
     )
-    quota_state: str = Field(
-        default="not_consumed",
+    quota_state: CBTQuotaState = Field(
+        ...,
         description="Monthly quota state before provider call",
     )
 

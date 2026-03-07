@@ -9,6 +9,7 @@ Modes:
 
 from __future__ import annotations
 
+import shutil
 import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-06-30, ref: PR-996)
 import sys
 from pathlib import Path
@@ -20,6 +21,9 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
 
 ROOT = REPO_ROOT
+GIT_BIN = shutil.which("git")
+if GIT_BIN is None:
+    raise RuntimeError("git executable not found on PATH")
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
@@ -35,6 +39,8 @@ VALID_MODES = {"analyze", "execute", "merge"}
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+    if cmd and cmd[0] == "git":
+        cmd = [GIT_BIN, *cmd[1:]]
     r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-06-30, ref: PR-996)
         cmd,
         cwd=cwd or ROOT,
