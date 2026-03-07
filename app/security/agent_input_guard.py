@@ -9,6 +9,7 @@ Unicode-based bypasses before RAG, quota, and provider.generate().
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import re
 from typing import cast
 import unicodedata
@@ -18,6 +19,7 @@ from fastapi import HTTPException, status
 from app.security.goplus_agentguard_bridge import scan_text_with_goplus_agentguard
 
 UNSAFE_AI_INPUT_DETAIL = "unsafe_ai_input"
+ENABLE_THIRD_PARTY_AGENT_GUARD = False
 
 _ZERO_WIDTH_OR_BIDI_RE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 _COMMAND_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -231,9 +233,11 @@ def scan_ai_agent_input(text: str) -> AgentInputScanResult:
         if goplus_threats:
             return AgentInputScanResult(is_safe=False, threats=goplus_threats)
 
-    upstream = _try_upstream_scan(text)
-    if upstream is not None:
-        return upstream
+    third_party_flag = os.getenv("ENABLE_THIRD_PARTY_AGENT_GUARD", "")
+    if ENABLE_THIRD_PARTY_AGENT_GUARD or third_party_flag.lower() in {"1", "true", "yes", "on"}:
+        upstream = _try_upstream_scan(text)
+        if upstream is not None:
+            return upstream
 
     normalized_text = _normalize_for_detection(text)
     threats: list[AgentInputThreat] = []

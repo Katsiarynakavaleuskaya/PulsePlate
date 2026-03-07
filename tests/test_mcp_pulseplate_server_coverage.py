@@ -822,6 +822,7 @@ class TestMcpPulseplateServerCoverage:
                 )
 
                 assert response == {"error": "unsafe_ai_input"}
+                mock_openai.return_value.chat.completions.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_chatgpt_query_direct_call_rejects_non_string_query(self) -> None:
@@ -834,6 +835,7 @@ class TestMcpPulseplateServerCoverage:
                 response = await server._chatgpt_query({"query": ["unsafe list"]})
 
                 assert response == {"error": "invalid_field_type"}
+                mock_openai.return_value.chat.completions.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_code_review_success(self):
@@ -958,6 +960,7 @@ class TestMcpPulseplateServerCoverage:
                 )
 
                 assert response == {"error": "unsafe_ai_input"}
+                mock_openai.return_value.chat.completions.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_main_function_success(self) -> None:

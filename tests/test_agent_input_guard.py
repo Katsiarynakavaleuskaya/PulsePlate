@@ -130,10 +130,31 @@ def test_scan_ai_agent_input_returns_upstream_result_when_available(
     upstream_result = AgentInputScanResult(is_safe=True, threats=())
     monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
     monkeypatch.setattr(guard_mod, "_try_upstream_scan", lambda text: upstream_result)
+    monkeypatch.setenv("ENABLE_THIRD_PARTY_AGENT_GUARD", "true")
 
     result = scan_ai_agent_input("benign text")
 
     assert result is upstream_result
+
+
+def test_scan_ai_agent_input_skips_third_party_scanner_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optional third-party Python scanner must stay off unless explicitly enabled."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.delenv("ENABLE_THIRD_PARTY_AGENT_GUARD", raising=False)
+    monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
+    monkeypatch.setattr(
+        guard_mod,
+        "_try_upstream_scan",
+        lambda text: pytest.fail("third-party scanner should be disabled by default"),
+    )
+
+    result = scan_ai_agent_input("How can I build a steady breakfast habit?")
+
+    assert result.is_safe is True
 
 
 def test_try_upstream_scan_returns_none_when_agent_guard_missing(

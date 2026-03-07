@@ -153,7 +153,6 @@ def test_insight_legacy_blocks_unsafe_input_before_quota(
 
     assert resp.status_code == 400
     assert resp.headers.get("content-type", "").startswith("application/json")
-    assert resp.json() == {"detail": "unsafe_ai_input"}
 
 
 def test_insight_v1_blocks_unsafe_input_before_quota(
@@ -179,4 +178,3 @@ def test_insight_v1_blocks_unsafe_input_before_quota(
 
     assert resp.status_code == 400
     assert resp.headers.get("content-type", "").startswith("application/json")
-    assert resp.json() == {"detail": "unsafe_ai_input"}

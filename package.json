@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
   "dependencies": {
-    "@goplus/agentguard": "^1.0.4"
+    "@goplus/agentguard": "1.0.4"
   },
   "devDependencies": {
     "@cspell/dict-data-science": "^2.0.9",
