@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Home from '../Home';
 import { RequireKey } from '../../auth/RequireKey';
+import { routes, type RoutePath } from '../../config/routes';
 
 vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
@@ -22,29 +23,33 @@ function EnterKeyProbe(): JSX.Element {
   return <div data-testid="enter-key-probe">{fromPath}</div>;
 }
 
+function renderConfiguredRoute(path: RoutePath, element: JSX.Element): JSX.Element {
+  const routeConfig = routes.find((route) => route.path === path);
+  if (!routeConfig) {
+    throw new Error(`Missing route config for ${path}`);
+  }
+
+  return routeConfig.requiresAuth ? <RequireKey>{element}</RequireKey> : element;
+}
+
 function renderHomeRoutes(): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/setup" element={<div data-testid="setup-route">Nutrition Setup Flow</div>} />
+        <Route path="/" element={renderConfiguredRoute('/', <Home />)} />
+        <Route
+          path="/setup"
+          element={renderConfiguredRoute('/setup', <div data-testid="setup-route">Nutrition Setup Flow</div>)}
+        />
         <Route
           path="/plate"
-          element={
-            <RequireKey>
-              <div data-testid="plate-route">Plate route</div>
-            </RequireKey>
-          }
+          element={renderConfiguredRoute('/plate', <div data-testid="plate-route">Plate route</div>)}
         />
         <Route
           path="/progress"
-          element={
-            <RequireKey>
-              <div data-testid="progress-route">Progress route</div>
-            </RequireKey>
-          }
+          element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
         />
-        <Route path="/enter-key" element={<EnterKeyProbe />} />
+        <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
       </Routes>
     </MemoryRouter>
   );
