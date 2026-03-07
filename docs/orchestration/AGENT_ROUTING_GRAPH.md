@@ -47,6 +47,8 @@
 | safety   | Safety-language, logic, and claim-boundary routing for wellness-safe output review. |
 | growth   | Release, wellness, and business routing for distribution and monetization work. |
 
+Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `scripts/orchestration/routing_graph_loader.py:181-316`, `tests/guards/test_agent_consistency_guard.py:64-85`.
+
 ---
 
 ## 4. Domains → Agents
@@ -83,6 +85,8 @@
 8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks escalate to `agent-coordinator` for adjudication.
 9. **Independent reviewer invariant:** reviewer must never equal the selected primary agent after telemetry/advisory overrides.
 10. **Cluster-first routing:** coordinator resolves `cluster` first for metrics and packaging, then selects domain-level primary/secondary/reviewer.
+
+Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.
 
 ---
 

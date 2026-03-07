@@ -170,6 +170,11 @@ def test_parses_all_known_domains() -> None:
         "design",
         "research",
         "safety",
+        "qa",
+        "release",
+        "wellness",
+        "business",
+        "orchestration",
     }
     assert expected.issubset(set(routes.keys()))
 
