@@ -4,6 +4,7 @@ import { checkProSession, clearProSession, exchangeApiKeyForSession } from '../a
 
 const MIN_API_KEY_LENGTH = 20;
 const AUTH_PROMPT_DELAY_MS = 500;
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 5000;
 const SESSION_AUTH_SENTINEL = '__session_auth__';
 
 export class AuthError extends Error {
@@ -31,6 +32,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  return await new Promise<T>((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      resolve(fallbackValue);
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch(() => {
+        window.clearTimeout(timeoutId);
+        resolve(fallbackValue);
+      });
+  });
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -71,7 +90,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      const sessionActive = await checkProSession();
+      const sessionActive = await withTimeout(
+        checkProSession(),
+        SESSION_BOOTSTRAP_TIMEOUT_MS,
+        false,
+      );
       if (cancelled) {
         return;
       }

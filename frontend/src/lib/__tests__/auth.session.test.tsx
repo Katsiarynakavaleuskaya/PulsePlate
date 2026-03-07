@@ -28,6 +28,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 describe('AuthProvider session migration', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     legacyStoredKey = null;
     getStoredApiKeyMock.mockImplementation(() => legacyStoredKey);
@@ -89,5 +90,24 @@ describe('AuthProvider session migration', () => {
     expect(clearStoredApiKeyMock).toHaveBeenCalled();
     expect(legacyStoredKey).toBeNull();
     expect(result.current.isAuthenticated).toBe(true);
+  });
+
+  it('fails closed when bootstrap session check stalls', async () => {
+    vi.useFakeTimers();
+    checkProSessionMock.mockImplementation(() => new Promise<boolean>(() => {}));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAuthenticated).toBe(false);
+    vi.useRealTimers();
   });
 });
