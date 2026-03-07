@@ -9,10 +9,18 @@
 PulsePlate already has repo-native review sources of truth for web UI:
 
 - `frontend/.storybook/` (`frontend/.storybook/main.ts:4`)
+  introduced in `7cb488eba4664345da7990db7783d2b3862d9308`
+  (`feat(hpp): bootstrap visual workflow matrix (Storybook + Playwright + token parity) (#828)`)
 - `frontend/src/styles/tokens.css` (`frontend/src/styles/tokens.css:8`)
+  introduced in `671638d462c9d9875922f7901d11114b32744c69`
+  (`docs(audit): add CP3 no-op audit and execution plan (#775)`)
 - `frontend/src/styles/tokens.ts` (`frontend/src/styles/tokens.ts:12`)
+  introduced in `671638d462c9d9875922f7901d11114b32744c69`
+  (`docs(audit): add CP3 no-op audit and execution plan (#775)`)
 - CTA behavior contracts in `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
   (`docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`)
+  introduced in `a210f0dbd69c34edabb746d73266a6d5c8da163c`
+  (`docs(visual): add CTA action prompt matrix SoT`)
 
 Figma Code Connect is currently non-canonical for this workflow because the
 workspace is blocked by plan/seat and the critical CTA node captures are still

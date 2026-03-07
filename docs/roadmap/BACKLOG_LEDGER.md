@@ -3031,6 +3031,7 @@ If it is not recorded here — it does not exist.
     canonical low-cost design review path for web. Figma Code Connect remains an
     optional auxiliary mapping workflow rather than a gating dependency.
   - Links:
+    - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
     - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
     - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
     - `frontend/.storybook/main.ts`
@@ -3038,6 +3039,7 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Penpot bridge is documented as the canonical minimal handoff path for web review
     - Storybook remains canonical web review surface
+    - Seam ADR remains linked from this ledger item and owns explicit exit criteria
     - Token SoT linkage is explicit in the bridge doc
     - CTA/design review packet format is defined without Code Connect dependency
     - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
