@@ -16,7 +16,9 @@ description: Explainability and onboarding specialist for PulsePlate. Turns arch
 ## Required pre-flight (SoT)
 
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
-- Load `AGENTS.md`, `RUNBOOK_AGENT.md`, and relevant module `AGENTS.md` for the topic being explained.
+- Load role context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `AGENTS.md`, `.cursor/agents/AGENTS.md`, `docs/ENGINEERING_LESSONS.md`, and `RUNBOOK_AGENT.md`.
+- Load the nearest scoped `AGENTS.md` for the topic being explained.
 
 ## Mission
 

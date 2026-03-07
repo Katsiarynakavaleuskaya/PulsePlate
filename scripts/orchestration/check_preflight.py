@@ -13,9 +13,13 @@ import subprocess  # nosec B404: fixed git commands only, no user input (remove-
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
@@ -229,7 +233,23 @@ def check_gate_evidence(files: list[str]) -> bool:
             print(f"  - {path}")
         return False
 
-    empty = [path for path in files if not Path(path).read_text(encoding="utf-8").strip()]
+    unreadable: list[str] = []
+    empty: list[str] = []
+    for raw_path in files:
+        try:
+            content = Path(raw_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            unreadable.append(raw_path)
+            continue
+        if not content.strip():
+            empty.append(raw_path)
+
+    if unreadable:
+        print("FAIL: gate evidence files must be readable UTF-8 text:")
+        for path in unreadable:
+            print(f"  - {path}")
+        return False
+
     if empty:
         print("FAIL: gate evidence files must be non-empty:")
         for path in empty:

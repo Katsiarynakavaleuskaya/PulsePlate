@@ -97,6 +97,23 @@ def _canonical_fallback(
     return ("ops", "agent-coordinator", None, "agent-coordinator")
 
 
+def _select_independent_reviewer(
+    primary: str,
+    *,
+    canonical_secondary: Optional[str],
+    canonical_reviewer: str,
+) -> str:
+    """Choose an independent reviewer from canonical routing first."""
+
+    if canonical_secondary and canonical_secondary != primary:
+        return canonical_secondary
+    if canonical_reviewer != primary:
+        return canonical_reviewer
+    if primary != "qa-engineer-agent":
+        return "qa-engineer-agent"
+    return "agent-coordinator"
+
+
 def route(
     domain: str,
     task_type: str,
@@ -123,8 +140,8 @@ def route(
     if not isinstance(domains, dict):
         return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
-    dom = domains.get(domain, {})
-    if not isinstance(dom, dict):
+    dom = domains.get(domain)
+    if not isinstance(dom, dict) or not dom:
         return RoutingDecision(domain, cluster, task_type, primary, secondary, reviewer, rationale)
 
     suggested_primary = dom.get("primary_suggested")
@@ -171,7 +188,11 @@ def route(
     escalate = False
     if domain == "safety":
         escalate = True
-        reviewer = "logic-agent" if primary != "logic-agent" else "agent-coordinator"
+        reviewer = _select_independent_reviewer(
+            primary,
+            canonical_secondary=canon_secondary,
+            canonical_reviewer=canon_reviewer,
+        )
         rationale["reviewer_reason"] = "domain_safety_independent_review"
     elif p_stable and p_avg < 0.70:
         escalate = True

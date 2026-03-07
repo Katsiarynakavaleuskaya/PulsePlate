@@ -571,5 +571,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-20 (PR `#822`)
+**Last updated:** 2026-03-07 (PR `#1000`)
 **Status:** Canonical

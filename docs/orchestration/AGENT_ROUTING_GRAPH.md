@@ -95,4 +95,4 @@ Reviewer --> MergeDecision
 
 ---
 
-**Last updated:** 2026-03-07 (PR #996)
+**Last updated:** 2026-03-07 (routing graph refresh)

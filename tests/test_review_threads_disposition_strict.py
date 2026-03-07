@@ -19,9 +19,11 @@ from scripts.orchestration.check_review_threads_disposition import (
     _env_diagnostic,
     _find_disposition_block_in_section,
     _has_gh_auth,
+    _iter_disposition_blocks,
     _parse_iso_datetime,
     _parse_mapping_section,
     _require_gh_token_preflight,
+    _validate_fixed_commit_blocks,
 )
 from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
 
@@ -135,6 +137,55 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
 """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_iter_disposition_blocks_splits_on_blank_lines() -> None:
+    section = """
+- https://example.com/1
+Disposition: FIXED
+Commit: deadbeef
+
+- https://example.com/2
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+"""
+    blocks = _iter_disposition_blocks(section)
+    assert len(blocks) == 2
+    assert "https://example.com/1" in blocks[0]
+    assert "https://example.com/2" in blocks[1]
+
+
+def test_find_disposition_block_does_not_cross_block_boundaries() -> None:
+    section = """
+Disposition: FIXED
+Commit: deadbeef
+- https://example.com/1
+
+Evidence: docs/file.md:10
+- https://example.com/2
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/1") is True
+    assert _find_disposition_block_in_section(section, "https://example.com/2") is False
+
+
+def test_validate_fixed_commit_blocks_rejects_empty_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit:
+- https://example.com/thread -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("empty" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:
+    section = """
+Disposition: DEFERRED
+Commit:
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+- https://example.com/thread
+"""
+    assert _validate_fixed_commit_blocks(section) == []
 
 
 def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:

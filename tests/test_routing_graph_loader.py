@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.routing_graph_loader import DomainRoute, load_routing_graph
 from scripts.orchestration.route_with_telemetry import route
 
 _MINIMAL_TABLE = (
@@ -192,6 +192,33 @@ def test_route_enforces_independent_safety_reviewer() -> None:
     assert d.reviewer != d.primary
 
 
+def test_route_uses_canonical_safety_secondary_for_reviewer() -> None:
+    """Safety reviewer should come from canonical routing, not hardcoded agent names."""
+
+    routing = {
+        "safety": DomainRoute(
+            cluster="safety",
+            primary="philosophy-agent",
+            secondary="safety-reviewer-agent",
+            reviewer="agent-coordinator",
+        )
+    }
+    telemetry = {
+        "domains": {"safety": {"primary_suggested": "philosophy-agent"}},
+        "agents": {
+            "philosophy-agent": {
+                "stability": "STABLE",
+                "avg_score": 0.95,
+                "meta": {"runs": 12, "decision_REWRITE_REQUIRED": 0},
+            }
+        },
+    }
+
+    d = route("safety", "test", telemetry=telemetry, routing=routing)
+    assert d.reviewer == "safety-reviewer-agent"
+    assert d.rationale["reviewer_reason"] == "domain_safety_independent_review"
+
+
 def test_route_fallback_canonical_secondary_when_suggested_not_stable() -> None:
     """When suggested_secondary exists but not STABLE, use canonical secondary."""
     routing = load_routing_graph()
@@ -240,6 +267,30 @@ def test_route_escalates_reviewer_on_high_rewrite_rate() -> None:
     d = route("backend", "test", telemetry=telemetry, routing=routing)
     assert d.reviewer == "security-auditor"
     assert d.rationale["reviewer_reason"] == "primary_rewrite_rate_high"
+
+
+def test_route_keeps_unknown_domain_coordinator_fallback_when_telemetry_missing_domain() -> None:
+    """Unknown domains should keep canonical coordinator fallback untouched."""
+
+    routing = load_routing_graph()
+    telemetry = {
+        "domains": {
+            "backend": {"primary_suggested": "architecture-specialist"},
+        },
+        "agents": {
+            "architecture-specialist": {
+                "stability": "STABLE",
+                "avg_score": 0.99,
+                "meta": {"runs": 5, "decision_REWRITE_REQUIRED": 0},
+            }
+        },
+    }
+
+    d = route("unknown-domain", "test", telemetry=telemetry, routing=routing)
+    assert d.cluster == "ops"
+    assert d.primary == "agent-coordinator"
+    assert d.reviewer == "agent-coordinator"
+    assert d.rationale == {"source": "canonical_only"}
 
 
 def test_route_ignores_non_numeric_rewrite_meta_without_crashing() -> None:

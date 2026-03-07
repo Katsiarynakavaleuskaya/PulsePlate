@@ -63,8 +63,17 @@ def normalize_repo_path(raw_path: str | Path) -> str:
 
     candidate = Path(raw_path)
     if candidate.is_absolute():
-        candidate = candidate.resolve().relative_to(REPO_ROOT)
-    return candidate.as_posix().lstrip("./")
+        absolute_candidate = candidate.expanduser()
+        resolved = absolute_candidate.resolve()
+        try:
+            return resolved.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            return absolute_candidate.as_posix()
+
+    normalized = candidate.as_posix()
+    if normalized.startswith("./"):
+        return normalized[2:]
+    return normalized
 
 
 def repo_relative_paths(raw_paths: list[str] | tuple[str, ...]) -> list[str]:
@@ -78,6 +87,8 @@ def find_nearest_agents_file(raw_path: str | Path) -> str | None:
     """Return nearest scoped AGENTS.md for a repo-relative path."""
 
     rel_path = normalize_repo_path(raw_path)
+    if Path(rel_path).is_absolute():
+        return None
     candidate = REPO_ROOT / rel_path
     current = candidate if candidate.is_dir() else candidate.parent
 
@@ -85,7 +96,7 @@ def find_nearest_agents_file(raw_path: str | Path) -> str | None:
         maybe_agents = current / "AGENTS.md"
         if maybe_agents.is_file():
             return maybe_agents.relative_to(REPO_ROOT).as_posix()
-        if current == REPO_ROOT:
+        if current == REPO_ROOT or current.parent == current:
             return None
         current = current.parent
 

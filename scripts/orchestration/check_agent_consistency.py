@@ -43,6 +43,8 @@ def main() -> int:
     allowlist = sets_.non_routable
 
     inventory_file_backed = inventory - sets_.system_exceptions
+    files_file_backed = files - sets_.system_exceptions
+    index_file_backed = index - sets_.system_exceptions
     repo_backed_expected = routing | allowlist
 
     files_not_in_index = _diff(files, index)
@@ -50,6 +52,8 @@ def main() -> int:
     routing_not_in_inventory = _diff(routing, inventory)
     routing_missing_in_files = _diff(repo_backed_expected, files)
     routing_missing_in_index = _diff(repo_backed_expected, index)
+    files_not_in_context = _diff(files_file_backed, context)
+    index_not_in_context = _diff(index_file_backed, context)
     inventory_not_in_capability = _diff(inventory, capability)
     inventory_not_in_context = _diff(inventory_file_backed, context)
     allowlist_not_in_inventory = _diff(allowlist, inventory)
@@ -70,6 +74,8 @@ def main() -> int:
         "routing_missing_in_inventory": routing_not_in_inventory,
         "routing_missing_in_files": routing_missing_in_files,
         "routing_missing_in_index": routing_missing_in_index,
+        "files_missing_in_context": files_not_in_context,
+        "index_missing_in_context": index_not_in_context,
         "inventory_missing_in_capability": inventory_not_in_capability,
         "inventory_missing_in_context": inventory_not_in_context,
         "allowlisted_missing_in_inventory": allowlist_not_in_inventory,
@@ -80,6 +86,8 @@ def main() -> int:
                 routing_not_in_inventory,
                 routing_missing_in_files,
                 routing_missing_in_index,
+                files_not_in_context,
+                index_not_in_context,
                 inventory_not_in_capability,
                 inventory_not_in_context,
                 allowlist_not_in_inventory,
@@ -100,6 +108,8 @@ def main() -> int:
                 "routing_missing_in_inventory",
                 "routing_missing_in_files",
                 "routing_missing_in_index",
+                "files_missing_in_context",
+                "index_missing_in_context",
                 "inventory_missing_in_capability",
                 "inventory_missing_in_context",
                 "allowlisted_missing_in_inventory",

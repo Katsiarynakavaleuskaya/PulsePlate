@@ -223,6 +223,75 @@ def _parse_mapping_section(section: str) -> dict[str, str]:
     return mapping
 
 
+def _iter_disposition_blocks(section: str) -> list[str]:
+    """Split mapping section into contiguous non-empty disposition blocks."""
+
+    blocks: list[str] = []
+    current: list[str] = []
+    for raw_line in section.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            if current:
+                blocks.append("\n".join(current))
+                current = []
+            continue
+        current.append(line)
+    if current:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+def _url_in_block(block: str, url: str) -> bool:
+    """True when a block contains the exact thread URL."""
+
+    url_pattern = re.escape(url) + r"(?![0-9a-zA-Z])"
+    return any(re.search(url_pattern, line) for line in block.splitlines())
+
+
+def _block_disposition(block: str) -> str | None:
+    """Return normalized disposition for a contiguous block, if present."""
+
+    for line in block.splitlines():
+        match = DISPOSITION_RE.search(line.strip())
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+def _validate_fixed_commit_blocks(section: str) -> list[str]:
+    """Return validation errors for FIXED blocks with invalid Commit proof."""
+
+    errors: list[str] = []
+    commit_re = re.compile(r"^Commit:\s*(.*)$", re.IGNORECASE)
+    for block in _iter_disposition_blocks(section):
+        if _block_disposition(block) != "FIXED":
+            continue
+        saw_commit = False
+        for raw_line in block.splitlines():
+            match = commit_re.search(raw_line.strip())
+            if not match:
+                continue
+            saw_commit = True
+            value = match.group(1).strip()
+            if not value:
+                errors.append(
+                    "Invalid Commit value in FIXED block: empty "
+                    "(must be 7–40 hex chars or 'see mapping entries below')"
+                )
+                continue
+            if not _GIT_SHA_RE.match(value) and value.lower() != "see mapping entries below":
+                errors.append(
+                    f"Invalid Commit value in FIXED block: {value!r} "
+                    "(must be 7–40 hex chars or 'see mapping entries below')"
+                )
+        if not saw_commit:
+            errors.append(
+                "FIXED block missing Commit proof "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+    return errors
+
+
 def _check_commit_after_comment(
     resolved_threads: list[ResolvedThreadRef],
     section: str,
@@ -298,22 +367,12 @@ def _get_owner_repo() -> tuple[str, str]:
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
     Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
-    (Commit/Evidence/Backlog). For single-block artifacts, Disposition+Proof at top applies to
-    all mapping lines; scan only lines containing this thread URL so one mapping does not satisfy
-    multiple threads (CodeRabbit/Sourcery/Cubic), and use ±25 lines to cover typical artifact
-    layout.
+    (Commit/Evidence/Backlog) inside the same contiguous block separated by blank lines.
     Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
-    lines = section.splitlines()
-    # URL must not be followed by alphanumeric (avoids discussion_r1 matching discussion_r10)
-    url_pattern = re.escape(url) + r"(?![0-9a-zA-Z])"
-    for i, line in enumerate(lines):
-        if re.search(url_pattern, line):
-            start = max(0, i - 25)
-            end = min(len(lines), i + 26)
-            window = "\n".join(lines[start:end])
-            if DISPOSITION_RE.search(window) and PROOF_RE.search(window):
-                return True
+    for block in _iter_disposition_blocks(section):
+        if _url_in_block(block, url) and DISPOSITION_RE.search(block) and PROOF_RE.search(block):
+            return True
     return False
 
 
@@ -478,19 +537,11 @@ def main() -> None:
                 )
                 sys.exit(1)
 
-    # Reject invalid FIXED blocks: Commit: value must be valid SHA or known placeholder
-    if re.search(r"Disposition:\s*FIXED\b", section, re.IGNORECASE):
-        commit_re = re.compile(r"Commit:\s*(.+)$", re.IGNORECASE)
-        for line in section.splitlines():
-            mo = commit_re.search(line.strip())
-            if mo:
-                val = mo.group(1).strip()
-                if not _GIT_SHA_RE.match(val) and val.lower() != "see mapping entries below":
-                    print(
-                        f"ERROR: Invalid Commit value in FIXED block: {val!r} "
-                        "(must be 7–40 hex chars or 'see mapping entries below')"
-                    )
-                    sys.exit(1)
+    fixed_block_errors = _validate_fixed_commit_blocks(section)
+    if fixed_block_errors:
+        for error in fixed_block_errors:
+            print(f"ERROR: {error}")
+        sys.exit(1)
     resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:

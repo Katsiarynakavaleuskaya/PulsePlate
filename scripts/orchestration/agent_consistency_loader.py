@@ -25,6 +25,7 @@ CONTEXT_MAP_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_CONTEXT_MAP.md"
 SYSTEM_AGENT_EXCEPTIONS = frozenset({"generalpurpose", "explore", "shell", "ci-watcher"})
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
+_AGENT_NAME_RE = re.compile(r"^name:\s*(?P<name>[a-z0-9][a-z0-9\-]*)\s*$")
 
 # Map capability matrix first-column display names to canonical slugs (inventory/routing).
 _CAPABILITY_DISPLAY_TO_SLUG: dict[str, str] = {
@@ -115,11 +116,36 @@ def load_inventory_agents(path: Path = INVENTORY_PATH) -> Set[str]:
 
 
 def load_agent_file_slugs(path: Path = AGENTS_DIR) -> Set[str]:
-    """Extract agent slugs from actual .cursor/agents/*.md files."""
+    """Extract canonical slugs from frontmatter-backed agent docs only."""
 
     if not path.is_dir():
         raise FileNotFoundError(f"Missing agent directory: {path}")
-    return {p.stem for p in path.glob("*.md") if p.name != "AGENTS.md"}
+
+    agents: Set[str] = set()
+    for agent_doc in path.glob("*.md"):
+        if agent_doc.name == "AGENTS.md":
+            continue
+        slug = _load_agent_frontmatter_name(agent_doc)
+        if slug:
+            agents.add(slug)
+    return agents
+
+
+def _load_agent_frontmatter_name(path: Path) -> str | None:
+    """Return canonical slug from agent frontmatter or None for non-agent docs."""
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return None
+        match = _AGENT_NAME_RE.match(stripped)
+        if match:
+            return match.group("name")
+    return None
 
 
 def load_index_agents(path: Path = INDEX_PATH) -> Set[str]:

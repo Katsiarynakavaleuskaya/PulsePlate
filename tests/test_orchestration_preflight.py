@@ -87,3 +87,41 @@ def test_merge_mode_requires_gate_evidence(monkeypatch, tmp_path) -> None:
         )
         == 1
     )
+
+
+def test_merge_mode_fails_cleanly_on_unreadable_evidence(monkeypatch, tmp_path, capsys) -> None:
+    """Unreadable evidence files must fail with a clean message, not a traceback."""
+
+    evidence = tmp_path / "evidence.log"
+    evidence.write_bytes(b"\xff\xfe\x00")
+
+    monkeypatch.setattr(preflight, "check_sot_files", lambda: True)
+    monkeypatch.setattr(preflight, "check_worktrees_untracked", lambda: True)
+    monkeypatch.setattr(preflight, "check_agent_consistency", lambda: True)
+    monkeypatch.setattr(preflight, "check_artifact_gitignore", lambda: True)
+    monkeypatch.setattr(preflight, "check_scoped_agents_exist", lambda _paths: True)
+    monkeypatch.setattr(preflight, "check_working_tree_clean", lambda: True)
+    monkeypatch.setattr(
+        preflight,
+        "_run",
+        lambda cmd, cwd=None: (0, " M docs/orchestration/workflow.md"),
+    )
+
+    exit_code = preflight.main(
+        [
+            "--mode",
+            "merge",
+            "--path",
+            "docs/orchestration",
+            "--primary",
+            "agent-coordinator",
+            "--reviewer",
+            "architecture-specialist",
+            "--evidence-file",
+            str(evidence),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "FAIL: gate evidence files must be readable UTF-8 text:" in captured.out
