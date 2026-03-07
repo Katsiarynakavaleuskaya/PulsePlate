@@ -33,7 +33,7 @@ CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
-DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:")
+DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
 
 
 def mapping_artifact_path(pr_number: int) -> Path:
@@ -135,7 +135,7 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         if line.startswith("Disposition:"):
             saw_disposition = True
             continue
-        if any(line.startswith(prefix) for prefix in ("Commit:", "Evidence:", "Backlog:")):
+        if any(line.startswith(prefix) for prefix in DETAIL_PREFIXES[1:]):
             saw_proof = True
             continue
         if MAPPING_LINE_RE.match(line):

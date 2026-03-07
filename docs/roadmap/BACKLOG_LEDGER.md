@@ -183,11 +183,11 @@ If it is not recorded here — it does not exist.
     - Linked from AGENTS.md as canonical orchestration governance reference
   - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
-- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
-  - Status: Open (PR #998, awaiting merge)
+  - Status: ✅ Merged (PR #998, 2026-03-07)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
@@ -217,11 +217,11 @@ If it is not recorded here — it does not exist.
     - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
 
 <a id="ledger-pr998-orch2-carryover"></a>
-- [ ] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
+- [x] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
-  - Status: Open (scope removed from PR #998; review follows the moved code)
+  - Status: Done (carryover comments re-evaluated and dispositioned in PR #1000; pending merge to `main`)
   - Area: orchestration / review governance / scope management
   - Finding Type: carryover after scope cleanup
   - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
@@ -229,6 +229,7 @@ If it is not recorded here — it does not exist.
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584`
+    - `docs/review/PR_1000_FIXED_MAPPING.md`
   - DoD:
     - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
     - Relevant fixes or explicit dispositions are recorded on PR #1000

@@ -177,7 +177,7 @@ Evidence:
 
 ## 12. Roadmap / Future Hardening
 
-- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Implemented in PR #998 (pending merge)
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Merged via PR #998 on 2026-03-07
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof

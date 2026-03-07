@@ -236,6 +236,103 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
+### QA Engineer (`qa-engineer-agent`)
+
+**Primary:**
+
+- `AGENTS.md:31-40` (merge/readiness policy)
+- `RUNBOOK_AGENT.md:105-162` (quality-gate procedure)
+- `tests/AGENTS.md:8-27` (test isolation and deterministic command contract)
+- nearest touched module `AGENTS.md` (`AGENTS.md:265-269`, `.cursor/agents/qa-engineer-agent.md:16-20`)
+
+**Must know:**
+
+- Acceptance criteria must map to deterministic commands and artifacts (`.cursor/agents/qa-engineer-agent.md:22-40`)
+- Regression plans must cover both success and fail-closed paths (`.cursor/agents/qa-engineer-agent.md:22-40`)
+
+---
+
+### App Store Release Agent (`app-store-release-agent`)
+
+**Primary:**
+
+- `AGENTS.md:31-40` (merge/readiness policy)
+- `ios/AGENTS.md:15-24` (iOS coordination and release-facing visual guidance)
+- `frontend/AGENTS.md:15-18` (frontend schema-sync contract for release packaging)
+- `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md:1-54` (canonical iOS + frontend coordination playbook for release work)
+- `.cursor/agents/app-store-release-agent.md:16-39` (canonical release-packet index for metadata, screenshots, and checklist outputs)
+
+**Must know:**
+
+- Asset packages must be checklist-driven, not ad-hoc (`.cursor/agents/app-store-release-agent.md:21-39`)
+- Release metadata must stay aligned with wellness-only positioning (`.cursor/agents/app-store-release-agent.md:21-39`)
+
+---
+
+### Wellness Analyst (`wellness-analyst-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md:1-48` (bounded research intake and promotion rules)
+- `docs/roadmap/BACKLOG_LEDGER.md:1-40` (current roadmap constraints)
+- `.cursor/agents/wellness-analyst-agent.md:16-40` (role-specific context and output contract)
+
+**Must know:**
+
+- No-license / low-capex ideas must include ethics and regulation notes (`.cursor/agents/wellness-analyst-agent.md:23-40`)
+- Product framing must stay wellness-first, not medical (`.cursor/agents/wellness-analyst-agent.md:23-40`)
+
+---
+
+### Business Strategist (`business-strategist-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `docs/roadmap/BACKLOG_LEDGER.md:1-40` (roadmap constraints and target PR planning)
+- `docs/analytics/README.md:14-29` (canonical analytics/growth index)
+- `.cursor/agents/business-strategist-agent.md:16-41` (canonical business-context index for pricing and GTM inputs)
+
+**Must know:**
+
+- Recommendations must include sequencing and tradeoffs, not only ideas (`.cursor/agents/business-strategist-agent.md:23-41`)
+- Business advice must connect back to current roadmap constraints (`.cursor/agents/business-strategist-agent.md:23-41`)
+
+---
+
+### Cursor Specialist (`cursor-specialist-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `.cursor/agents/AGENTS.md:17-23` (scoped pre-flight invariant)
+- `docs/orchestration/workflow.md:68-115` (canonical pre-flight checklist)
+- `docs/orchestration/AGENT_CONTEXT_MAP.md:1-24` (context-pack SoT)
+- `.cursor/agents/cursor-specialist-agent.md:16-40` (role-specific workflow contract)
+
+**Must know:**
+
+- Coordinator-first behavior is command-driven via task bootstrap and preflight (`.cursor/agents/cursor-specialist-agent.md:23-40`, `.cursor/agents/AGENTS.md:69-81`)
+- Context packs must remain deterministic and scope-aware (`.cursor/agents/cursor-specialist-agent.md:23-40`)
+
+---
+
+### Tutor / Mentor (`tutor-mentor-agent`)
+
+**Primary:**
+
+- `AGENTS.md:265-269` (required reading + nearest scoped AGENTS)
+- `RUNBOOK_AGENT.md:9-15` (canonical policy links and quality gates)
+- `.cursor/agents/tutor-mentor-agent.md:16-21` (role-specific pre-flight)
+
+**Must know:**
+
+- Explanations must never redefine Source of Truth (`.cursor/agents/tutor-mentor-agent.md:23-41`)
+- Training artifacts must separate policy, examples, and open questions (`.cursor/agents/tutor-mentor-agent.md:23-41`)
+
+---
+
 ### AI Trend Reporter (`ai-trend-reporter`)
 
 **Primary:**
@@ -477,5 +574,5 @@ This map reduces “missing context” failures by making required inputs explic
 
 ---
 
-**Last updated:** 2026-02-20 (PR `#822`)
+**Last updated:** 2026-03-07 (PR `#1000`)
 **Status:** Canonical

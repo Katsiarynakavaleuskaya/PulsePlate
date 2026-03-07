@@ -14,14 +14,17 @@ if TYPE_CHECKING:
 import scripts.orchestration.check_review_threads_disposition as _disposition_mod
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
+    _block_thread_urls,
     _check_commit_after_comment,
     _check_trigger_only_mapping,
     _env_diagnostic,
     _find_disposition_block_in_section,
     _has_gh_auth,
+    _iter_disposition_blocks,
     _parse_iso_datetime,
     _parse_mapping_section,
     _require_gh_token_preflight,
+    _validate_fixed_commit_blocks,
 )
 from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
 
@@ -102,6 +105,20 @@ Evidence: docs/foo.md:12
     )
 
 
+def test_find_disposition_block_in_section_requires_reason_for_not_a_bug() -> None:
+    section = """
+- https://github.com/org/repo/pull/2#discussion_r456
+Disposition: NOT-A-BUG
+Evidence: docs/foo.md:12
+"""
+    assert (
+        _find_disposition_block_in_section(
+            section, "https://github.com/org/repo/pull/2#discussion_r456"
+        )
+        is False
+    )
+
+
 def test_find_disposition_block_in_section_fails_without_proof() -> None:
     section = """
 - https://github.com/org/repo/pull/3#discussion_r789
@@ -135,6 +152,138 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#xyz
 """
     assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_iter_disposition_blocks_splits_on_blank_lines() -> None:
+    section = """
+- https://example.com/1
+Disposition: FIXED
+Commit: deadbeef
+
+- https://example.com/2
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+"""
+    blocks = _iter_disposition_blocks(section)
+    assert len(blocks) == 2
+    assert "https://example.com/1" in blocks[0]
+    assert "https://example.com/2" in blocks[1]
+
+
+def test_find_disposition_block_does_not_cross_block_boundaries() -> None:
+    section = """
+Disposition: FIXED
+Commit: deadbeef
+- https://example.com/1
+
+Evidence: docs/file.md:10
+- https://example.com/2
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/1") is False
+    assert _find_disposition_block_in_section(section, "https://example.com/2") is False
+
+
+def test_find_disposition_block_accepts_mapping_block_after_detail_header() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
+    """
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_requires_matching_sha_mapping_for_placeholder_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://example.com/thread
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
+
+
+def test_find_disposition_block_accepts_case_insensitive_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: See Mapping Entries Below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
+def test_find_disposition_block_rejects_unrelated_previous_detail_block() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/other -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is False
+
+
+def test_validate_fixed_commit_blocks_rejects_empty_commit() -> None:
+    section = """
+Disposition: FIXED
+Commit:
+- https://example.com/thread -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("empty" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_requires_sha_mapping_for_mapping_placeholder() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("no valid SHA mappings" in error for error in errors)
+
+
+def test_validate_fixed_commit_blocks_requires_mapping_for_every_placeholder_url() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://github.com/org/repo/pull/1000#discussion_r1
+- https://github.com/org/repo/pull/1000#discussion_r2
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("missing SHA mappings for" in error for error in errors)
+    assert any("discussion_r2" in error for error in errors)
+
+
+def test_block_thread_urls_accepts_review_thread_anchors_only() -> None:
+    block = """
+- https://github.com/org/repo/pull/1000#discussion_r123
+- https://github.com/org/repo/pull/1000#pullrequestreview-456
+- https://github.com/org/repo/pull/1000/files
+- https://example.com/not-a-thread
+"""
+    assert _block_thread_urls(block) == [
+        "https://github.com/org/repo/pull/1000#discussion_r123",
+        "https://github.com/org/repo/pull/1000#pullrequestreview-456",
+    ]
+
+
+def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:
+    section = """
+Disposition: DEFERRED
+Commit:
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#x
+- https://example.com/thread
+"""
+    assert _validate_fixed_commit_blocks(section) == []
 
 
 def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
@@ -201,6 +350,7 @@ Evidence: file.py:10
 - https://github.com/org/repo/pull/5#discussion_r2889026503
 Disposition: FIXED
 Commit: deadbeef
+Evidence: file.py:10
 """
     assert (
         _find_disposition_block_in_section(
@@ -235,6 +385,19 @@ Disposition: FIXED
     assert m.get("https://github.com/org/repo/pull/99#discussion_r1") == "abc1234"
     assert m.get("https://github.com/org/repo/pull/99#discussion_r2") == "deadbeef"
     assert m.get("https://github.com/org/repo/pull/99") is None
+
+
+def test_parse_mapping_section_extracts_inline_fixed_commit_sha() -> None:
+    section = """
+- https://github.com/org/repo/pull/99#discussion_r1
+- https://github.com/org/repo/pull/99#discussion_r2
+Disposition: FIXED
+Commit: deadbeef
+Evidence: docs/file.md:10
+"""
+    mapping = _parse_mapping_section(section)
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r1"] == "deadbeef"
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r2"] == "deadbeef"
 
 
 def test_check_commit_after_comment_fail_when_commit_before_comment() -> None:
@@ -275,6 +438,28 @@ Commit: abc1234
 """
 
     def fake_git_time(sha: str) -> str:
+        return "2026-02-27T13:00:00+00:00"
+
+    violations = _check_commit_after_comment([thread], section, _git_commit_time_fn=fake_git_time)
+    assert violations == []
+
+
+def test_check_commit_after_comment_uses_inline_fixed_commit_sha() -> None:
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = """
+- https://github.com/org/repo/pull/1#discussion_r1
+Disposition: FIXED
+Commit: abc1234
+Evidence: file.md:10
+"""
+
+    def fake_git_time(sha: str) -> str:
+        assert sha == "abc1234"
         return "2026-02-27T13:00:00+00:00"
 
     violations = _check_commit_after_comment([thread], section, _git_commit_time_fn=fake_git_time)
@@ -408,3 +593,27 @@ def test_trigger_only_mapping_passes_on_normal_commit(monkeypatch: "MonkeyPatch"
 
     violations = _check_trigger_only_mapping(threads, section)
     assert violations == []
+
+
+def test_trigger_only_mapping_checks_inline_fixed_commit_sha(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setattr(_disposition_mod, "_git_changed_files", lambda _sha: [])
+    monkeypatch.setattr(_disposition_mod, "_git_commit_subject", lambda _sha: "fix: real change")
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r4",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = """
+- https://github.com/org/repo/pull/985#discussion_r4
+Disposition: FIXED
+Commit: deadbeef
+Evidence: file.md:10
+"""
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations
+    assert "EMPTY" in violations[0]

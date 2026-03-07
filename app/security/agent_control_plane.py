@@ -17,16 +17,30 @@ import hashlib
 import hmac
 import json
 import os
+from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 ALLOWLIST_ENV = "AGENT_CONTROL_ALLOWLIST"
 AUDIT_SIGNING_KEY_ENV = "AGENT_CONTROL_AUDIT_SIGNING_KEY"
 BROKER_HMAC_KEY_ENV = "AGENT_CONTROL_BROKER_HMAC_KEY"
 SCOPED_TTL_ENV = "AGENT_CONTROL_SCOPED_TTL_SECONDS"
+AUDIT_LOG_PATH_ENV = "AGENT_CONTROL_AUDIT_LOG_PATH"
+EXECUTION_MODE_ENV = "AGENT_CONTROL_EXECUTION_MODE"
 
 DEFAULT_SCOPED_TOKEN_TTL_SECONDS = 300
+DEFAULT_AUDIT_LOG_PATH = Path("artifacts/orchestration/agent_control_audit.jsonl")
+EXECUTION_MODE_AUTO_SAFE = "auto-safe"
+EXECUTION_MODE_REVIEW_REQUIRED = "review-required"
+EXECUTION_MODE_BLOCKED = "blocked"
+EXECUTION_MODES = {
+    EXECUTION_MODE_AUTO_SAFE,
+    EXECUTION_MODE_REVIEW_REQUIRED,
+    EXECUTION_MODE_BLOCKED,
+}
+_SENSITIVE_METADATA_TOKENS = ("prompt", "query", "text", "content")
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,15 @@ class IssuedScopedToken:
     token: str
     issued_at_utc: str
     expires_at_utc: str
+
+
+@dataclass(frozen=True)
+class ExecutionModeDecision:
+    """Validated execution mode for privileged agent work."""
+
+    mode: str
+    allowed: bool
+    reason: str
 
 
 def _to_utc(value: datetime) -> datetime:
@@ -202,11 +225,74 @@ def require_scoped_token_ttl_seconds() -> int:
     return value
 
 
+def normalize_execution_mode(mode: str | None = None) -> str:
+    """Return normalized execution mode or raise for invalid values."""
+
+    raw = (mode if mode is not None else os.getenv(EXECUTION_MODE_ENV) or "").strip().lower()
+    normalized = raw or EXECUTION_MODE_AUTO_SAFE
+    if normalized not in EXECUTION_MODES:
+        allowed = ", ".join(sorted(EXECUTION_MODES))
+        raise RuntimeError(f"{EXECUTION_MODE_ENV} must be one of: {allowed}.")
+    return normalized
+
+
+def require_execution_mode(
+    mode: str | None = None,
+    *,
+    allow_review_required: bool = False,
+) -> ExecutionModeDecision:
+    """Fail closed when execution mode blocks or requires review."""
+
+    normalized = normalize_execution_mode(mode)
+    if normalized == EXECUTION_MODE_AUTO_SAFE:
+        return ExecutionModeDecision(mode=normalized, allowed=True, reason="auto_safe")
+    if normalized == EXECUTION_MODE_REVIEW_REQUIRED and allow_review_required:
+        return ExecutionModeDecision(
+            mode=normalized,
+            allowed=True,
+            reason="review_required_allowed",
+        )
+    if normalized == EXECUTION_MODE_REVIEW_REQUIRED:
+        raise PermissionError("Execution mode review-required blocks autonomous execution.")
+    raise PermissionError("Execution mode blocked.")
+
+
 def _metadata_hash(metadata: Mapping[str, Any] | None) -> str:
     """Return deterministic hash for metadata payload."""
 
     payload = json.dumps(metadata or {}, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _redact_sensitive_string(key: str, value: str) -> dict[str, Any] | str:
+    """Hash sensitive free-form strings to avoid raw prompt/query leakage."""
+
+    lowered = key.lower()
+    if lowered.endswith("_hash") or not any(
+        token in lowered for token in _SENSITIVE_METADATA_TOKENS
+    ):
+        return value
+    return {
+        "sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "length": len(value),
+    }
+
+
+def _sanitize_metadata(value: Any, *, key: str = "") -> Any:
+    """Recursively sanitize metadata before persistence."""
+
+    if isinstance(value, Mapping):
+        return {
+            str(item_key): _sanitize_metadata(item_value, key=str(item_key))
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_metadata(item, key=key) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_metadata(item, key=key) for item in value]
+    if isinstance(value, str):
+        return _redact_sensitive_string(key, value)
+    return value
 
 
 def sign_audit_envelope(
@@ -230,7 +316,8 @@ def sign_audit_envelope(
     else:
         signing_secret = require_audit_secret()
     issued_at = _iso8601_utc(timestamp or datetime.now(timezone.utc))
-    meta_hash = _metadata_hash(metadata)
+    sanitized_metadata = _sanitize_metadata(metadata or {})
+    meta_hash = _metadata_hash(sanitized_metadata)
     payload = (
         f"{decision.action}|{decision.target}|{int(decision.allowed)}|"
         f"{decision.reason}|{meta_hash}|{issued_at}"
@@ -271,6 +358,35 @@ def verify_audit_envelope(envelope: SignedAuditEnvelope, *, secret: str | None =
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected_signature, envelope.signature)
+
+
+def persist_audit_envelope(
+    envelope: SignedAuditEnvelope,
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    log_path: str | Path | None = None,
+) -> Path:
+    """Persist a signed audit envelope as JSONL for local tamper-evident traces."""
+
+    target_path = Path(
+        log_path
+        if log_path is not None
+        else os.getenv(AUDIT_LOG_PATH_ENV) or DEFAULT_AUDIT_LOG_PATH
+    )
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    sanitized_metadata = _sanitize_metadata(metadata or {})
+    if envelope.metadata_hash != _metadata_hash(sanitized_metadata):
+        raise RuntimeError("Sanitized metadata does not match envelope.metadata_hash.")
+
+    payload = {
+        "schema_version": "1.0",
+        "envelope": asdict(envelope),
+        "metadata": sanitized_metadata,
+    }
+    jsonl_line = f"{json.dumps(payload, ensure_ascii=True, sort_keys=True)}\n"
+    with target_path.open("a", encoding="utf-8") as handle:
+        handle.write(jsonl_line)
+    return target_path
 
 
 def issue_scoped_token(

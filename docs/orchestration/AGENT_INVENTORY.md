@@ -21,6 +21,7 @@
 | **frontend-engineer** | Web UI, frontend contract-safe updates, thin-client rules |
 | **bug-hunter** | Bug detection, CI failures, guard violations, coverage gaps |
 | **dev-operator** | Terminal-first: `make lint`, `make test-fast`, failure triage, evidence capture |
+| **qa-engineer-agent** | Acceptance criteria, regression packs, release-readiness verification, independent review |
 
 ---
 
@@ -68,8 +69,20 @@
 | **creative-designer** | UI/UX, brand assets, App Store visuals, marketing creatives |
 | **designer-artist-agent** | Emblem/logo production: SVG geometry, Figma/Sora/Nano Banana packets |
 | **sora-prompt-engineer** | Sora prompt specs, anti-drift policy, visual QA gates |
+| **app-store-release-agent** | App Store metadata, submission packaging, release checklists, asset readiness |
 | **marketing-strategist** | ASO/SEO, growth, positioning, conversion optimization |
+| **wellness-analyst-agent** | Wellness opportunity analysis, low-capex product ideas, ethics/regulatory notes |
+| **business-strategist-agent** | Market entry, monetization sequencing, low-capex business strategy |
 | **ai-trend-reporter** | AI market reports (daily/weekly/monthly/quarterly), wellness GTM |
+
+---
+
+## Enablement & Workflow
+
+| Agent | Function |
+|-------|----------|
+| **cursor-specialist-agent** | Coordinator bootstrap ergonomics, context-pack hygiene, prompt packet conventions |
+| **tutor-mentor-agent** | Onboarding explanations, role review, internal enablement guidance |
 
 ---
 
@@ -93,4 +106,4 @@
 
 ---
 
-**Last updated:** 2026-03-04 (PR TBD)
+**Last updated:** 2026-03-07 (PR #996)

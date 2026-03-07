@@ -8,6 +8,7 @@ Covers:
 
 from __future__ import annotations
 
+import concurrent.futures
 import importlib
 import os
 import sys
@@ -46,3 +47,32 @@ def test_retrieve_basic_markdown(tmp_path: Path):
     assert out != ""
     assert "# Source: test.md" in out
     assert "banana" in out.lower()
+
+
+def test_retrieve_structured_redacts_pii(tmp_path: Path):
+    content = (
+        "# Support Note\n\n" "Contact me at test@example.com or 555-123-4567 about banana habits.\n"
+    )
+    (tmp_path / "support.md").write_text(content, encoding="utf-8")
+
+    rag = _reload_with_root(tmp_path)
+    result = rag.retrieve_context_structured("banana", max_chunks=1)
+
+    assert result.chunks
+    assert "[EMAIL_REDACTED]" in result.chunks[0].content
+    assert "[PHONE_REDACTED]" in result.chunks[0].content
+
+
+def test_get_index_is_thread_safe(tmp_path: Path):
+    content = "# Doc\n\nBanana focus text.\n"
+    (tmp_path / "thread-safe.md").write_text(content, encoding="utf-8")
+
+    rag = _reload_with_root(tmp_path)
+    rag.invalidate_index()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(
+            executor.map(lambda _: rag.retrieve_context("banana", max_chunks=1), range(8))
+        )
+
+    assert all("# Source: thread-safe.md" in result for result in results)

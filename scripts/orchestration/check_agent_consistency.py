@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI to verify agent docs consistency: routing ⊆ inventory ⊆ capability.
+"""CLI to verify agent docs consistency across all canonical layers.
 
 Exit 0 = PASS, 1 = FAIL. Run before merge readiness.
 Usage:
@@ -28,48 +28,96 @@ def _diff(a: set[str], b: set[str]) -> List[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_agent_consistency",
-        description="Verify agent docs: routing ⊆ inventory ⊆ capability.",
+        description="Verify agent docs and files stay aligned across canonical layers.",
     )
     ap.add_argument("--json", action="store_true", help="Emit JSON report")
     args = ap.parse_args()
 
     sets_ = load_agent_sets()
-    inv = sets_.inventory
-    cap = sets_.capability
-    rt = sets_.routing
+    files = sets_.files
+    index = sets_.index
+    inventory = sets_.inventory
+    capability = sets_.capability
+    context = sets_.context
+    routing = sets_.routing
+    allowlist = sets_.non_routable
 
-    routing_not_in_inventory = _diff(rt, inv)
-    inventory_not_in_capability = _diff(inv, cap)
+    inventory_file_backed = inventory - sets_.system_exceptions
+    files_file_backed = files - sets_.system_exceptions
+    index_file_backed = index - sets_.system_exceptions
+    repo_backed_expected = routing | allowlist
 
-    # Required: routing ⊆ inventory. Advisory: inventory ⊆ capability (warn only until matrix updated).
+    files_not_in_index = _diff(files, index)
+    index_not_in_files = _diff(index, files)
+    routing_not_in_inventory = _diff(routing, inventory)
+    routing_missing_in_files = _diff(repo_backed_expected, files)
+    routing_missing_in_index = _diff(repo_backed_expected, index)
+    files_not_in_context = _diff(files_file_backed, context)
+    index_not_in_context = _diff(index_file_backed, context)
+    inventory_not_in_capability = _diff(inventory, capability)
+    inventory_not_in_context = _diff(inventory_file_backed, context)
+    allowlist_not_in_inventory = _diff(allowlist, inventory)
+
     report: Dict[str, Any] = {
-        "counts": {"inventory": len(inv), "capability": len(cap), "routing": len(rt)},
+        "counts": {
+            "files": len(files),
+            "index": len(index),
+            "inventory": len(inventory),
+            "capability": len(capability),
+            "context": len(context),
+            "routing": len(routing),
+            "non_routable": len(allowlist),
+        },
+        "system_exceptions": sorted(sets_.system_exceptions),
+        "files_not_in_index": files_not_in_index,
+        "index_not_in_files": index_not_in_files,
         "routing_missing_in_inventory": routing_not_in_inventory,
+        "routing_missing_in_files": routing_missing_in_files,
+        "routing_missing_in_index": routing_missing_in_index,
+        "files_missing_in_context": files_not_in_context,
+        "index_missing_in_context": index_not_in_context,
         "inventory_missing_in_capability": inventory_not_in_capability,
-        "ok": not routing_not_in_inventory,
+        "inventory_missing_in_context": inventory_not_in_context,
+        "allowlisted_missing_in_inventory": allowlist_not_in_inventory,
+        "ok": not any(
+            (
+                files_not_in_index,
+                index_not_in_files,
+                routing_not_in_inventory,
+                routing_missing_in_files,
+                routing_missing_in_index,
+                files_not_in_context,
+                index_not_in_context,
+                inventory_not_in_capability,
+                inventory_not_in_context,
+                allowlist_not_in_inventory,
+            )
+        ),
     }
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     else:
         if report["ok"]:
-            print("OK: routing ⊆ inventory.")
-            if report["inventory_missing_in_capability"]:
-                print(
-                    f"WARN: {len(report['inventory_missing_in_capability'])} inventory agents not in capability matrix (advisory)."
-                )
+            print("OK: agent docs and files are consistent.")
         else:
-            print("FAIL: routing ⊆ inventory violated.")
-            if report["routing_missing_in_inventory"]:
-                print(
-                    f"- routing_missing_in_inventory ({len(report['routing_missing_in_inventory'])}):"
-                )
-                for item in report["routing_missing_in_inventory"]:
-                    print(f"  - {item}")
-        if report["inventory_missing_in_capability"] and not report["ok"]:
-            print(
-                f"WARN: inventory_missing_in_capability ({len(report['inventory_missing_in_capability'])})."
-            )
+            print("FAIL: agent consistency violations detected.")
+            for key in (
+                "files_not_in_index",
+                "index_not_in_files",
+                "routing_missing_in_inventory",
+                "routing_missing_in_files",
+                "routing_missing_in_index",
+                "files_missing_in_context",
+                "index_missing_in_context",
+                "inventory_missing_in_capability",
+                "inventory_missing_in_context",
+                "allowlisted_missing_in_inventory",
+            ):
+                if report[key]:
+                    print(f"- {key} ({len(report[key])}):")
+                    for item in report[key]:
+                        print(f"  - {item}")
 
     return 0 if report["ok"] else 1
 
