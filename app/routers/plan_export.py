@@ -34,7 +34,7 @@ from reportlab.platypus.tables import Table as RLTable
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
-from app.routers.shoplist_export import SHOPLIST_EXPORT_CSV_PATH, SHOPLIST_EXPORT_PDF_PATH
+from app.routers.shoplist_export_routes import SHOPLIST_EXPORT_CSV_PATH, SHOPLIST_EXPORT_PDF_PATH
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 
 # Export Table for backward compatibility with tests

@@ -1,5 +1,6 @@
 """Tests for the public shoplist export endpoints."""
 
+from types import SimpleNamespace
 import logging
 from pathlib import Path
 from typing import List
@@ -7,7 +8,34 @@ from typing import List
 import pytest
 
 from app.routers import shoplist_export as export
-from reportlab.pdfbase.ttfonts import TTFError
+
+
+class FakeTTFError(Exception):
+    """Local stand-in for reportlab's TTFError in lazy-import tests."""
+
+
+def _patch_lazy_reportlab(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    registered_names: List[str] | None = None,
+    register_font=None,
+    tt_font=None,
+) -> List[str]:
+    """Patch lazy reportlab loading with a controllable in-memory fake."""
+
+    seen_names = registered_names if registered_names is not None else []
+    fake_pdfmetrics = SimpleNamespace(
+        getRegisteredFontNames=lambda: seen_names.copy(),
+        registerFont=register_font or (lambda font: seen_names.append(export.FONT_NAME)),
+    )
+    fake_tt_font = tt_font or (lambda name, path: (name, path))
+    fake_canvas = SimpleNamespace(Canvas=object)
+    monkeypatch.setattr(
+        export,
+        "_lazy_reportlab",
+        lambda: (object(), fake_pdfmetrics, fake_tt_font, FakeTTFError, fake_canvas),
+    )
+    return seen_names
 
 
 def test_shoplist_json_structure(client):
@@ -81,18 +109,7 @@ def test_register_font_returns_custom(monkeypatch, tmp_path) -> None:
     font_file.write_bytes(b"fake-font")
 
     monkeypatch.setattr(export, "FONT_PATH", font_file)
-
-    registered: List[str] = []
-
-    def fake_get_names() -> List[str]:
-        return registered.copy()
-
-    def fake_register(tt_font) -> None:  # pragma: no cover - simple state mutation
-        registered.append(export.FONT_NAME)
-
-    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", fake_get_names)
-    monkeypatch.setattr(export.pdfmetrics, "registerFont", fake_register)
-    monkeypatch.setattr(export, "TTFont", lambda name, path: (name, path))
+    registered = _patch_lazy_reportlab(monkeypatch)
 
     result = export._register_font_if_available()  # type: ignore[access-private-member]
     assert result == export.FONT_NAME
@@ -141,13 +158,10 @@ def test_register_font_fallback_on_ttfont_error(
     font_file = tmp_path / "dummy.ttf"
     font_file.write_bytes(b"fake-font")
     monkeypatch.setattr(export, "FONT_PATH", font_file)
-
-    # Mock TTFont to raise TTFError
-    def raise_ttf_error(name: str, path: str) -> None:
-        raise TTFError("Invalid font file")
-
-    monkeypatch.setattr(export, "TTFont", raise_ttf_error)
-    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
+    _patch_lazy_reportlab(
+        monkeypatch,
+        tt_font=lambda name, path: (_ for _ in ()).throw(FakeTTFError("Invalid font file")),
+    )
 
     with caplog.at_level(logging.WARNING):
         result = export._register_font_if_available()  # type: ignore[access-private-member]
@@ -164,13 +178,10 @@ def test_register_font_fallback_on_oserror(
     font_file = tmp_path / "dummy.ttf"
     font_file.write_bytes(b"fake-font")
     monkeypatch.setattr(export, "FONT_PATH", font_file)
-
-    # Mock TTFont to raise OSError
-    def raise_os_error(name: str, path: str) -> None:
-        raise OSError("Font file cannot be opened")
-
-    monkeypatch.setattr(export, "TTFont", raise_os_error)
-    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
+    _patch_lazy_reportlab(
+        monkeypatch,
+        tt_font=lambda name, path: (_ for _ in ()).throw(OSError("Font file cannot be opened")),
+    )
 
     with caplog.at_level(logging.WARNING):
         result = export._register_font_if_available()  # type: ignore[access-private-member]
@@ -187,14 +198,11 @@ def test_register_font_fallback_on_valueerror(
     font_file = tmp_path / "dummy.ttf"
     font_file.write_bytes(b"fake-font")
     monkeypatch.setattr(export, "FONT_PATH", font_file)
-
-    # Mock pdfmetrics.registerFont to raise ValueError
-    def raise_value_error(tt_font: object) -> None:
-        raise ValueError("Font registration failed")
-
-    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
-    monkeypatch.setattr(export.pdfmetrics, "registerFont", raise_value_error)
-    monkeypatch.setattr(export, "TTFont", lambda name, path: object())
+    _patch_lazy_reportlab(
+        monkeypatch,
+        register_font=lambda tt_font: (_ for _ in ()).throw(ValueError("Font registration failed")),
+        tt_font=lambda name, path: object(),
+    )
 
     with caplog.at_level(logging.WARNING):
         result = export._register_font_if_available()  # type: ignore[access-private-member]
@@ -202,3 +210,23 @@ def test_register_font_fallback_on_valueerror(
     assert result == "Helvetica"
     assert "Font registration failed" in caplog.text
     assert "falling back to Helvetica" in caplog.text
+
+
+def test_export_pdf_returns_501_when_reportlab_missing(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PDF endpoint must fail closed with 501 when optional deps are unavailable."""
+
+    monkeypatch.setattr(
+        export,
+        "_lazy_reportlab",
+        lambda: (_ for _ in ()).throw(ImportError("reportlab is missing")),
+    )
+
+    response = client.get(
+        "/api/v1/shoplist/export.pdf",
+        headers={"X-API-Key": "test_key"},
+    )
+
+    assert response.status_code == 501
+    assert response.json()["detail"] == "PDF export is not available"
