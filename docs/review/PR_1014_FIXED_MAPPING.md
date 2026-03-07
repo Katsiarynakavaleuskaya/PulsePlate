@@ -34,3 +34,28 @@ Evidence: tests/test_app_endpoints_coverage.py:145; tests/test_app_router_inclus
 Disposition: FIXED
 Commit: d70a1761
 Evidence: tests/test_app_endpoints_coverage.py:145; tests/test_app_router_inclusion_coverage.py:118
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#discussion_r2900468135 -> 059a6daf
+Disposition: FIXED
+Commit: 059a6daf
+Evidence: tests/test_simple_coverage_boost.py:64
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#pullrequestreview-3909576475 -> 059a6daf
+Disposition: FIXED
+Commit: 059a6daf
+Evidence: tests/test_simple_coverage_boost.py:64
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#discussion_r2900510761 -> 184a2f64
+Disposition: FIXED
+Commit: 184a2f64
+Evidence: tests/test_app_endpoints_coverage.py:145
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#discussion_r2900510762 -> 184a2f64
+Disposition: FIXED
+Commit: 184a2f64
+Evidence: tests/test_app_router_inclusion_coverage.py:117; tests/test_app_router_inclusion_coverage.py:124
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#pullrequestreview-3909615592 -> 184a2f64
+Disposition: FIXED
+Commit: 184a2f64
+Evidence: tests/test_app_endpoints_coverage.py:145; tests/test_app_router_inclusion_coverage.py:117; tests/test_app_router_inclusion_coverage.py:124
