@@ -716,6 +716,26 @@ class TestMcpPulseplateServerCoverage:
                 mock_chatgpt.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_call_tool_ignores_whitespace_only_guarded_field(self) -> None:
+        """Whitespace-only optional guarded fields should not block helper execution."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                params = {
+                    "name": "chatgpt_query",
+                    "arguments": {"query": "safe query", "context": "   "},
+                }
+
+                with patch.object(server, "_chatgpt_query") as mock_chatgpt:
+                    mock_chatgpt.return_value = {"result": "ok"}
+                    response = await server._call_tool(params)
+
+                assert isinstance(response, mcp_pulseplate_server.RpcOk)
+                assert response.result == {"result": "ok"}
+                mock_chatgpt.assert_called_once_with(params["arguments"])
+
+    @pytest.mark.asyncio
     async def test_call_tool_rejects_non_dict_arguments(self) -> None:
         """JSON-RPC tool arguments must be an object."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):

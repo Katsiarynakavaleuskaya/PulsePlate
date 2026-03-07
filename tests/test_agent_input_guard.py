@@ -13,8 +13,10 @@ from fastapi import HTTPException
 
 from app.security.agent_input_guard import (
     AgentInputScanResult,
+    AgentInputThreat,
     UNSAFE_AI_INPUT_DETAIL,
     _try_upstream_scan,
+    prepare_safe_ai_prompt_input,
     require_safe_ai_agent_input,
     scan_ai_agent_input,
 )
@@ -139,6 +141,32 @@ def test_scan_ai_agent_input_keeps_local_fallback_after_safe_upstream_verdict(
     assert any(threat.category == "prompt_injection" for threat in result.threats)
 
 
+def test_scan_ai_agent_input_returns_unsafe_upstream_result_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unsafe upstream verdict may still block before local fallback runs."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    upstream_result = AgentInputScanResult(
+        is_safe=False,
+        threats=(
+            AgentInputThreat(
+                category="third_party_agent_guard",
+                severity="critical",
+                reason="upstream_scan_blocked",
+            ),
+        ),
+    )
+    monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
+    monkeypatch.setattr(guard_mod, "_try_upstream_scan", lambda text: upstream_result)
+    monkeypatch.setenv("ENABLE_THIRD_PARTY_AGENT_GUARD", "true")
+
+    result = scan_ai_agent_input("benign text")
+
+    assert result is upstream_result
+
+
 def test_scan_ai_agent_input_skips_third_party_scanner_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -189,6 +217,26 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
     )
 
     assert _try_upstream_scan("test payload") is None
+
+
+def test_load_upstream_agent_guard_class_reads_temp_module_inline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct loader path should resolve a temp module without subprocess indirection."""
+
+    package_dir = tmp_path / "agent_guard"
+    package_dir.mkdir()
+    (package_dir / "__init__.py").write_text("class AgentGuard:\n    pass\n", encoding="utf-8")
+
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    loaded_class = guard_mod._load_upstream_agent_guard_class()
+
+    assert loaded_class is not None
+    assert loaded_class.__name__ == "AgentGuard"
 
 
 @pytest.mark.parametrize(
@@ -302,6 +350,16 @@ def test_load_upstream_agent_guard_class_reads_temp_module(
     )
 
     assert completed.stdout.strip() == "AgentGuard"
+
+
+def test_prepare_safe_ai_prompt_input_enforces_max_length() -> None:
+    """Shared helper must preserve the legacy 413 contract for oversized text."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        prepare_safe_ai_prompt_input("x" * 6, max_length=5)
+
+    assert exc_info.value.status_code == 413
+    assert exc_info.value.detail == "Insight text too long"
 
 
 def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failures(

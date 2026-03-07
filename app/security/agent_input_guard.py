@@ -311,7 +311,7 @@ def prepare_safe_ai_prompt_input(text: str, *, max_length: int | None = None) ->
     safe_text = require_safe_ai_agent_input(text)
     if max_length is not None and len(safe_text) > max_length:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Insight text too long",
         )
     return safe_text
