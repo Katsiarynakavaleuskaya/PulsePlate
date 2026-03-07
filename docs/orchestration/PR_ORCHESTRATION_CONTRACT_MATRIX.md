@@ -180,7 +180,23 @@ Evidence:
 - `scripts/orchestration/check_review_threads_disposition.py:394`
 - `AGENTS.md:120`
 
-## 12. Roadmap / Future Hardening
+## 12. Auth Mode Semantics
+
+- **Local default / advisory:** disposition guard may skip when no usable `gh` auth is available.
+- **Local strict parity:** `--require-auth` upgrades the disposition guard to CI-like behavior and requires `GH_TOKEN`.
+- **CI strict:** `CI=true` requires `GH_TOKEN` and `gh auth status` before any GraphQL.
+- `GITHUB_TOKEN` remains the merge-readiness sub-gate token; `GH_TOKEN` is the canonical disposition/GraphQL token.
+- Advisory `SKIP` is not merge evidence; operators must use enforced mode before claiming strict local parity.
+
+Evidence:
+- `AGENTS.md:120`
+- `RUNBOOK_AGENT.md:246`
+- `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:45`
+- `scripts/orchestration/check_review_threads_disposition.py:9`
+- `scripts/orchestration/check_review_threads_disposition.py:623`
+- `scripts/ci/check_pr_merge_readiness.py:308`
+
+## 13. Roadmap / Future Hardening
 
 - ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Merged via PR #998 on 2026-03-07
 - Stabilize allowlist keys
