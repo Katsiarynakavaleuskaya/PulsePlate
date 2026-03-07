@@ -43,8 +43,8 @@ Evidence: `app/routers/cbt_insight.py:90`, `scripts/orchestration/check_review_t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898512138 -> 43f4041c
 
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1000_FIXED_MAPPING.md:1`
-Reason: Mapping artifact already documents the current thread URL and no code change was required for this self-referential review note.
+Reason: The reviewed note was self-referential; the current artifact already contains an explicit rationale, and the parser treats `NOT-A-BUG` as valid only when both `Reason:` and `Evidence:` are present.
+Evidence: `scripts/orchestration/review_mapping_artifact.py:32`, `tests/test_review_mapping_artifact.py:68`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898512106 -> 4b45687d
 

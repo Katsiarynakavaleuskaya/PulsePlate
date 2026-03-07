@@ -214,16 +214,22 @@ def _check_trigger_only_mapping(
 
 def _parse_mapping_section(section: str) -> dict[str, str]:
     """
-    Parse Fixed in Commit Mapping section: lines like "- https://... -> sha".
-    Returns dict mapping full URL -> sha only (thread-specific; no base URL to avoid one URL satisfying multiple threads).
+    Parse Fixed in Commit Mapping section into thread-specific URL -> sha mappings.
+
+    Supports both:
+    - explicit mapping lines: "- https://... -> sha"
+    - inline FIXED blocks with "Commit: <sha>"
     """
     mapping: dict[str, str] = {}
-    for line in section.splitlines():
-        m = _MAPPING_LINE_RE.search(line)
-        if not m:
+    for block in _iter_disposition_blocks(section):
+        mapping.update(_block_mapping_entries(block))
+        if _block_disposition(block) != "FIXED":
             continue
-        url_part, sha = m.group(1).strip(), m.group(2)
-        mapping[url_part] = sha
+        commit_value = _block_commit_value(block) or ""
+        if not _GIT_SHA_RE.match(commit_value):
+            continue
+        for thread_url in _block_thread_urls(block):
+            mapping.setdefault(thread_url, commit_value)
     return mapping
 
 
@@ -299,6 +305,18 @@ def _block_mapping_entries(block: str) -> dict[str, str]:
     return mapping
 
 
+def _block_thread_urls(block: str) -> list[str]:
+    """Extract thread-specific GitHub URLs referenced by bullet lines in a block."""
+
+    urls: list[str] = []
+    url_re = re.compile(r"^\s*-\s*(https://[^\s]+)")
+    for line in block.splitlines():
+        match = url_re.search(line.strip())
+        if match:
+            urls.append(match.group(1).strip())
+    return urls
+
+
 def _block_disposition(block: str) -> str | None:
     """Return normalized disposition for a contiguous block, if present."""
 
@@ -344,10 +362,23 @@ def _validate_fixed_commit_blocks(section: str) -> list[str]:
                 "following mapping block with '- <thread_url> -> <sha>' entries"
             )
             continue
-        if not _block_mapping_entries(blocks[index + 1]):
+        mapping_entries = _block_mapping_entries(blocks[index + 1])
+        if not mapping_entries:
             errors.append(
                 "FIXED block uses 'Commit: see mapping entries below' but the "
                 "following mapping block has no valid SHA mappings"
+            )
+            continue
+        missing_urls = [
+            thread_url
+            for thread_url in _block_thread_urls(block)
+            if thread_url not in mapping_entries
+        ]
+        if missing_urls:
+            missing_display = ", ".join(missing_urls)
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but the "
+                f"following mapping block is missing SHA mappings for: {missing_display}"
             )
     return errors
 

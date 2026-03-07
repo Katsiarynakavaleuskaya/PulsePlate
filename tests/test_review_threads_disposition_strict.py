@@ -247,6 +247,21 @@ Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
     assert any("no valid SHA mappings" in error for error in errors)
 
 
+def test_validate_fixed_commit_blocks_requires_mapping_for_every_placeholder_url() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://example.com/thread-1
+- https://example.com/thread-2
+
+- https://example.com/thread-1 -> deadbeef
+"""
+    errors = _validate_fixed_commit_blocks(section)
+    assert any("missing SHA mappings for" in error for error in errors)
+    assert any("thread-2" in error for error in errors)
+
+
 def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:
     section = """
 Disposition: DEFERRED
@@ -358,6 +373,19 @@ Disposition: FIXED
     assert m.get("https://github.com/org/repo/pull/99") is None
 
 
+def test_parse_mapping_section_extracts_inline_fixed_commit_sha() -> None:
+    section = """
+- https://github.com/org/repo/pull/99#discussion_r1
+- https://github.com/org/repo/pull/99#discussion_r2
+Disposition: FIXED
+Commit: deadbeef
+Evidence: docs/file.md:10
+"""
+    mapping = _parse_mapping_section(section)
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r1"] == "deadbeef"
+    assert mapping["https://github.com/org/repo/pull/99#discussion_r2"] == "deadbeef"
+
+
 def test_check_commit_after_comment_fail_when_commit_before_comment() -> None:
     """Commit time <= comment time → violation."""
     thread = ResolvedThreadRef(
@@ -396,6 +424,28 @@ Commit: abc1234
 """
 
     def fake_git_time(sha: str) -> str:
+        return "2026-02-27T13:00:00+00:00"
+
+    violations = _check_commit_after_comment([thread], section, _git_commit_time_fn=fake_git_time)
+    assert violations == []
+
+
+def test_check_commit_after_comment_uses_inline_fixed_commit_sha() -> None:
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = """
+- https://github.com/org/repo/pull/1#discussion_r1
+Disposition: FIXED
+Commit: abc1234
+Evidence: file.md:10
+"""
+
+    def fake_git_time(sha: str) -> str:
+        assert sha == "abc1234"
         return "2026-02-27T13:00:00+00:00"
 
     violations = _check_commit_after_comment([thread], section, _git_commit_time_fn=fake_git_time)
@@ -529,3 +579,27 @@ def test_trigger_only_mapping_passes_on_normal_commit(monkeypatch: "MonkeyPatch"
 
     violations = _check_trigger_only_mapping(threads, section)
     assert violations == []
+
+
+def test_trigger_only_mapping_checks_inline_fixed_commit_sha(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setattr(_disposition_mod, "_git_changed_files", lambda _sha: [])
+    monkeypatch.setattr(_disposition_mod, "_git_commit_subject", lambda _sha: "fix: real change")
+
+    threads = [
+        ResolvedThreadRef(
+            url="https://github.com/org/repo/pull/985#discussion_r4",
+            source="comment",
+            is_resolved=True,
+            created_at="2026-03-01T00:00:00Z",
+        )
+    ]
+    section = """
+- https://github.com/org/repo/pull/985#discussion_r4
+Disposition: FIXED
+Commit: deadbeef
+Evidence: file.md:10
+"""
+
+    violations = _check_trigger_only_mapping(threads, section)
+    assert violations
+    assert "EMPTY" in violations[0]
