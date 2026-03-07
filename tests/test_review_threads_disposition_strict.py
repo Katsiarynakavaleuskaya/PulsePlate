@@ -513,6 +513,17 @@ def test_require_gh_token_preflight_exits_when_gh_token_missing_in_ci(
     assert exc_info.value.code == 1
 
 
+def test_require_gh_token_preflight_rejects_github_token_only_in_strict_mode(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    """Strict disposition auth requires GH_TOKEN even when GITHUB_TOKEN is present."""
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "github_only")
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, False)
+    assert exc_info.value.code == 1
+
+
 def test_require_gh_token_preflight_skips_when_not_required() -> None:
     """When not require_auth and not CI, preflight does nothing (no exit)."""
     _require_gh_token_preflight(False, False)
@@ -530,6 +541,42 @@ def test_require_gh_token_preflight_passes_when_gh_token_set_and_gh_ok(
     fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
     monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
     _require_gh_token_preflight(True, True)
+
+
+def test_main_skips_in_advisory_local_mode_without_auth(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Default local mode is advisory: no gh auth means SKIP with exit 0."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod, "_has_gh_auth", lambda: False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "advisory local run" in captured.out
+    assert "not merge-readiness evidence" in captured.out
+
+
+def test_main_requires_gh_token_in_ci_mode_without_flag(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode is strict even when --require-auth is omitted."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "GH_TOKEN required for disposition guard" in captured.out
 
 
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:

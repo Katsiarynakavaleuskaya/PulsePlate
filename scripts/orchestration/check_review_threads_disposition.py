@@ -6,10 +6,13 @@ Strict mode: every resolved thread must be listed under **Fixed in Commit Mappin
 in docs/review/PR_<N>_FIXED_MAPPING.md with Disposition (FIXED | NOT-A-BUG | DEFERRED)
 and proof (Commit / Evidence / Backlog).
 
-Requires: GitHub CLI `gh` authenticated. **Canonical token: GH_TOKEN.** In CI use --require-auth and
-export GH_TOKEN from secrets.GITHUB_TOKEN. GITHUB_TOKEN alone is not sufficient — gh reads GH_TOKEN.
-Preflight: when --require-auth or CI=true, script requires GH_TOKEN and exits 1 with diagnostic before
-any GraphQL; no mapping/resolve attempts without valid auth.
+Auth modes:
+- Local default: advisory; without usable `gh` auth the script may SKIP (exit 0).
+- Local strict: pass --require-auth and export GH_TOKEN before any GraphQL.
+- CI strict: CI=true requires GH_TOKEN before any GraphQL.
+
+Canonical GraphQL token: GH_TOKEN. GITHUB_TOKEN alone does not satisfy the strict
+disposition preflight, although other PR gates may still use it for REST/API access.
 """
 
 from __future__ import annotations
@@ -571,8 +574,9 @@ def _env_diagnostic() -> str:
 
 def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
     """
-    When require_auth or CI: require GH_TOKEN and optional gh auth status. Exit 1 with
-    diagnostic and fix commands before any GraphQL. Single source of token: GH_TOKEN.
+    In local strict mode (--require-auth) or CI: require GH_TOKEN and gh auth status.
+    Exit 1 with diagnostic and fix commands before any GraphQL. Single source of
+    strict GraphQL auth: GH_TOKEN.
     """
     if not require_auth and not in_ci:
         return
@@ -619,7 +623,10 @@ def main() -> None:
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="In CI: fail if GH_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
+        help=(
+            "Escalate local advisory mode to strict auth. Without this flag, local runs may "
+            "SKIP (exit 0) when gh auth is unavailable; CI is always strict."
+        ),
     )
     args = parser.parse_args()
 
@@ -629,7 +636,11 @@ def main() -> None:
         _require_gh_token_preflight(args.require_auth, in_ci)
     else:
         if not _has_gh_auth():
-            print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
+            print("SKIP: no usable gh auth for advisory local run.")
+            print(
+                "      This is not merge-readiness evidence. "
+                "For strict parity use --require-auth with GH_TOKEN, or run gh auth login."
+            )
             sys.exit(0)
 
     pr_number = _get_pr_number(args.pr_number)

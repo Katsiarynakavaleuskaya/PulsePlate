@@ -172,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="Require GH_TOKEN for disposition guard even outside CI.",
+        help="Upgrade local disposition checks to strict CI-like auth semantics.",
     )
     parsed = parser.parse_args(argv)
     _validate_args(parsed, parser)

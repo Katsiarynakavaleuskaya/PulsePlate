@@ -246,7 +246,17 @@ Run before merge after latest commit and latest bot/review activity:
 **Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the orchestration wrapper so Phase 2, merge-readiness, and disposition proof are checked together. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
 
 ```bash
-# From repo root; requires GITHUB_TOKEN and GH_TOKEN for full strict coverage.
+# Local default: advisory disposition auth, strict PR API auth.
+export GITHUB_TOKEN="..."
+python scripts/orchestration/check_merge_ready.py \
+  --pr-number <PR_NUMBER> \
+  --repo Katsiarynakavaleuskaya/PulsePlate
+```
+
+```bash
+# Local strict parity with CI for the disposition guard.
+export GITHUB_TOKEN="..."
+export GH_TOKEN="${GITHUB_TOKEN}"
 python scripts/orchestration/check_merge_ready.py \
   --pr-number <PR_NUMBER> \
   --repo Katsiarynakavaleuskaya/PulsePlate \
