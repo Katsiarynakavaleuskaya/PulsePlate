@@ -9,6 +9,7 @@
 Disposition: FIXED
 Commit: 12490211
 Evidence: `scripts/orchestration/routing_graph_loader.py:50`, `scripts/orchestration/routing_graph_loader.py:75`, `tests/test_routing_graph_loader.py:161`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#pullrequestreview-3909696386 -> 12490211
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900565718 -> 12490211
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900565723 -> 12490211
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900565730 -> 12490211
@@ -16,6 +17,7 @@ Evidence: `scripts/orchestration/routing_graph_loader.py:50`, `scripts/orchestra
 Disposition: FIXED
 Commit: 19cea9b9
 Evidence: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md:22`, `docs/orchestration/AGENT_ROUTING_GRAPH.md:77`, `scripts/orchestration/check_agent_consistency.py:52`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#pullrequestreview-3909734896 -> 19cea9b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576656 -> 19cea9b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576658 -> 19cea9b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576660 -> 19cea9b9
@@ -23,4 +25,5 @@ Evidence: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md:22`, `docs/orchestratio
 Disposition: FIXED
 Commit: 891a4872
 Evidence: `docs/review/PR_1016_FIXED_MAPPING.md:7`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#pullrequestreview-3909917688 -> 891a4872
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900645669 -> 891a4872
