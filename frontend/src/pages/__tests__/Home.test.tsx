@@ -1,14 +1,59 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { JSX } from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Home from '../Home';
+import { RequireKey } from '../../auth/RequireKey';
+import { routes, type RoutePath } from '../../config/routes';
 
 vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
 }));
 
 import { useAuth } from '../../lib/auth';
+
+interface EnterKeyLocationState {
+  from?: { pathname?: string };
+}
+
+function EnterKeyProbe(): JSX.Element {
+  const location = useLocation();
+  const fromPath = (location.state as EnterKeyLocationState | null)?.from?.pathname ?? 'none';
+  return <div data-testid="enter-key-probe">{fromPath}</div>;
+}
+
+function renderConfiguredRoute(path: RoutePath, element: JSX.Element): JSX.Element {
+  const routeConfig = routes.find((route) => route.path === path);
+  if (!routeConfig) {
+    throw new Error(`Missing route config for ${path}`);
+  }
+
+  return routeConfig.requiresAuth ? <RequireKey>{element}</RequireKey> : element;
+}
+
+function renderHomeRoutes(): ReturnType<typeof render> {
+  return render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="/" element={renderConfiguredRoute('/', <Home />)} />
+        <Route
+          path="/setup"
+          element={renderConfiguredRoute('/setup', <div data-testid="setup-route">Nutrition Setup Flow</div>)}
+        />
+        <Route
+          path="/plate"
+          element={renderConfiguredRoute('/plate', <div data-testid="plate-route">Plate route</div>)}
+        />
+        <Route
+          path="/progress"
+          element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
+        />
+        <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
 
 describe('Home', () => {
   beforeEach(() => {
@@ -21,6 +66,11 @@ describe('Home', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
   });
 
   it('renders home page content', () => {
@@ -80,17 +130,46 @@ describe('Home', () => {
   it('navigates to setup flow from the primary CTA', async () => {
     const user = userEvent.setup();
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/setup" element={<div>Nutrition Setup Flow</div>} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderHomeRoutes();
 
     await user.click(screen.getByRole('link', { name: 'Configure Setup' }));
 
-    expect(screen.getByText('Nutrition Setup Flow')).toBeInTheDocument();
+    expect(screen.getByTestId('setup-route')).toBeInTheDocument();
+    expect(screen.queryByTestId('enter-key-probe')).not.toBeInTheDocument();
+  });
+
+  it('redirects Home auth-gated CTAs to enter-key when session key is missing', async () => {
+    const user = userEvent.setup();
+
+    const firstRender = renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: 'Nutrition Plate' }));
+    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/plate');
+    firstRender.unmount();
+
+    renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: 'Progress View' }));
+    expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
+  });
+
+  it('opens Home auth-gated CTAs when session key exists', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    const firstRender = renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: 'Nutrition Plate' }));
+    expect(screen.getByTestId('plate-route')).toBeInTheDocument();
+    firstRender.unmount();
+
+    renderHomeRoutes();
+    await user.click(screen.getByRole('link', { name: 'Progress View' }));
+    expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 });
