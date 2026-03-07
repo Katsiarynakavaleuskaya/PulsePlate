@@ -3767,19 +3767,23 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Frontend parity for new AI-agent and LLM reliability features
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (quality visibility)
-  - Target PR: PR-TBD-FRONTEND-AI-PARITY
-  - Status: 📋 Planned
+  - Target PR: PR-TBD (`feat/frontend-ai-reliability-parity-w1`)
+  - Status: 🟡 In progress (wave 1: Home + iOS Home entry + typed `/api/v1/pro/cbt/insight` parity)
   - Reason (EN): Backend quality features (RAG confidence, verification pipeline, recursive/philosophical controls) must be visible in web/iOS UX; otherwise quality work remains opaque and user trust/conversion suffers. (RU: Новые quality-фичи ИИ должны быть отражены во фронтенде; иначе улучшения качества не видны пользователю и не влияют на доверие/конверсию.)
   - Links:
     - frontend/src/api/openapi.json
     - frontend/src/api/schema.ts
+    - frontend/src/api/premium/cbt-insight.ts
+    - frontend/src/pages/Home.tsx
+    - ios/PulsePlate/Views/HomeView.swift
+    - ios/PulsePlate/Views/AIInsightView.swift
     - docs/design/NUTRITION_COACHING_DESIGN.md
     - docs/contracts/RAG_CONTRACT.md
   - DoD:
-    - UI contracts for `sources[]`, confidence, verification state are aligned with backend schema
-    - Frontend/iOS screens for AI assistant reflect reliability state (validated / partial / fallback)
-    - Thin-client guards remain green; no business logic duplication on clients
-    - Deterministic contract tests added for new AI-quality response fields
+    - [ ] UI contracts for `sources[]`, confidence, verification state are aligned with backend schema
+    - [ ] Frontend/iOS screens for AI assistant reflect reliability state (validated / partial / fallback)
+    - [ ] Thin-client guards remain green; no business logic duplication on clients
+    - [ ] Deterministic contract tests added for new AI-quality response fields
 
 <a id="ledger-p1-scientific-reliability-pipeline"></a>
 - [ ] P1: Scientific reliability publication pipeline (blog + evidence artifacts)

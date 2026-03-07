@@ -126,6 +126,8 @@
 "home.action.weekly_plan_reader.subtitle" = "Просмотр каноничного ответа /api/v1/pro/meal/weekly";
 "home.action.shopping_list.title" = "Генератор списка покупок";
 "home.action.shopping_list.subtitle" = "Соберите список через /api/v1/pro/meal/shopping-list";
+"home.action.ai_insight.title" = "AI Insight";
+"home.action.ai_insight.subtitle" = "Задайте один вопрос через /api/v1/pro/cbt/insight";
 "home.navigation.title" = "Главная";
 "home.accessibility.screen_label" = "Экран главной";
 "home.hero.title" = "PulsePlate";
@@ -133,3 +135,49 @@
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Сначала сгенерируйте недельный план, чтобы собрать список покупок.";
+
+/* AI Insight */
+"ai_insight.navigation.title" = "AI Insight";
+"ai_insight.hero.title" = "PRO AI Insight";
+"ai_insight.hero.subtitle" = "Одноразовая CBT-подсказка через каноничный PRO endpoint.";
+"ai_insight.input.title" = "Ваш вопрос";
+"ai_insight.input.placeholder" = "Опишите паттерн мыслей, блок в мотивации или wellness-задачу.";
+"ai_insight.input.counter_format" = "%d/%d";
+"ai_insight.submit" = "Сгенерировать insight";
+"ai_insight.submit.loading" = "Генерация...";
+"ai_insight.loading.title" = "Генерируем AI insight";
+"ai_insight.result.title" = "Ответ";
+"ai_insight.metadata.title" = "Метаданные надёжности";
+"ai_insight.metadata.confidence" = "Уверенность";
+"ai_insight.metadata.uncertainty" = "Неопределённость";
+"ai_insight.metadata.rag_used" = "RAG-контекст";
+"ai_insight.metadata.mode" = "Режим выполнения";
+"ai_insight.metadata.quota_state" = "Состояние квоты";
+"ai_insight.sources.title" = "Источники";
+"ai_insight.source.score_format" = "Оценка источника: %.0f%%";
+"ai_insight.warnings.title" = "Предупреждения";
+"ai_insight.boolean.yes" = "Да";
+"ai_insight.boolean.no" = "Нет";
+"ai_insight.mode.auto_safe" = "Auto-safe";
+"ai_insight.mode.review_required" = "Нужна проверка";
+"ai_insight.mode.blocked" = "Заблокирован";
+"ai_insight.quota_state.consumed" = "Списана";
+"ai_insight.quota_state.not_consumed" = "Не списана";
+"ai_insight.warning.rag_retrieval_failed" = "RAG-поиск не сработал, поэтому ответ может быть менее опорным.";
+"ai_insight.warning.source_content_redacted" = "Часть контента источников скрыта из соображений приватности.";
+"ai_insight.error.title" = "Не удалось загрузить AI insight";
+"ai_insight.error.empty_query" = "Введите вопрос перед запросом insight.";
+"ai_insight.error.query_too_long" = "Ограничьте вопрос %d символами.";
+"ai_insight.error.missing_key" = "PRO API key не настроен. Добавьте его в Debug Tools / Keychain.";
+"ai_insight.error.unauthorized" = "Нет авторизации (HTTP 401). Проверьте PRO API key.";
+"ai_insight.error.forbidden" = "Доступ запрещён (HTTP 403). Возможно, у аккаунта нет PRO-доступа.";
+"ai_insight.error.quota_exceeded" = "Месячная AI-квота исчерпана (HTTP 429). Попробуйте позже.";
+"ai_insight.error.validation_generic" = "Не удалось проверить этот вопрос. Переформулируйте его и попробуйте снова.";
+"ai_insight.error.unavailable" = "AI insight сейчас недоступен (HTTP 503).";
+"ai_insight.error.timeout" = "AI-провайдер превысил время ожидания (HTTP 504). Попробуйте ещё раз.";
+"ai_insight.error.api_format" = "Ошибка сервера (HTTP %d). Попробуйте позже.";
+"ai_insight.error.transport_generic" = "Не удалось связаться с сервером. Проверьте интернет и попробуйте ещё раз.";
+"ai_insight.error.decoding_generic" = "Сервер вернул неожиданный ответ. Попробуйте ещё раз.";
+"ai_insight.error.empty_response" = "AI-сервис вернул пустой ответ. Попробуйте ещё раз.";
+"ai_insight.error.unknown_generic" = "Произошла непредвиденная ошибка. Попробуйте ещё раз.";
+"ai_insight.retry" = "Повторить";
