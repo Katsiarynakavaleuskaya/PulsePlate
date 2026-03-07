@@ -45,3 +45,11 @@ Evidence: settings.py:52, tests/test_plan_export_additional.py:108
 Disposition: FIXED
 Commit: a310e641
 Evidence: docs/review/PR_1005_FIXED_MAPPING.md:35, settings.py:52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#discussion_r2899315521 -> ff536aca
+Disposition: FIXED
+Commit: ff536aca
+Evidence: app/routers/shoplist_export_routes.py:5, app/routers/plan_export.py:37, app/routers/shoplist_export.py:67, app/routers/shoplist_export.py:318, tests/test_shoplist_export.py:215
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3908179791 -> ff536aca
+Disposition: FIXED
+Commit: ff536aca
+Evidence: app/routers/shoplist_export_routes.py:5, app/routers/shoplist_export.py:67, tests/test_shoplist_export.py:215
