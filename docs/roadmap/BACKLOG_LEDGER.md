@@ -187,11 +187,12 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
-  - Status: Open (PR #998, awaiting merge)
+  - Status: ✅ Merged (PR #998, 2026-03-07)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
+    - `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
     - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
     - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
     - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
@@ -199,6 +200,7 @@ If it is not recorded here — it does not exist.
     - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
+    - [x] Temporary PR-body fallback seam documented with ADR + exit criteria
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
@@ -213,6 +215,24 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
     - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
+
+<a id="ledger-pr998-orch2-carryover"></a>
+- [ ] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
+  - Status: Open (scope removed from PR #998; review follows the moved code)
+  - Area: orchestration / review governance / scope management
+  - Finding Type: carryover after scope cleanup
+  - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584`
+  - DoD:
+    - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
+    - Relevant fixes or explicit dispositions are recorded on PR #1000
+    - PR #998 remains limited to canonical Fixed Mapping SoT work
 
 - [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
