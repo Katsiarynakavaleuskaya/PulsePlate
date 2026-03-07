@@ -41,3 +41,7 @@ Evidence: docs/review/PR_1005_FIXED_MAPPING.md:8, docs/review/PR_1005_FIXED_MAPP
 Disposition: FIXED
 Commit: c1df1946
 Evidence: settings.py:52, tests/test_plan_export_additional.py:108
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1005#pullrequestreview-3908115853 -> a310e641
+Disposition: FIXED
+Commit: a310e641
+Evidence: docs/review/PR_1005_FIXED_MAPPING.md:35, settings.py:52
