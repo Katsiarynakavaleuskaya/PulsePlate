@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from scripts.orchestration import check_merge_ready as merge_ready
@@ -49,9 +52,11 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_event_mode_passes_require_auth_only_to_disposition(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"pull_request": {"number": 1007}}), encoding="utf-8")
 
     def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
         calls.append((name, extra_args))
@@ -62,16 +67,16 @@ def test_event_mode_passes_require_auth_only_to_disposition(
     exit_code = merge_ready.main(
         [
             "--event-path",
-            "/tmp/github-event.json",
+            str(event_path),
             "--require-auth",
         ]
     )
 
     assert exit_code == 0
     assert calls == [
-        ("phase2-pr-body-gates", ["--event-path", "/tmp/github-event.json"]),
-        ("merge-readiness-gate", ["--event-path", "/tmp/github-event.json"]),
-        ("review-threads-disposition", ["--require-auth"]),
+        ("phase2-pr-body-gates", ["--event-path", str(event_path)]),
+        ("merge-readiness-gate", ["--event-path", str(event_path)]),
+        ("review-threads-disposition", ["--pr-number", "1007", "--require-auth"]),
     ]
 
 

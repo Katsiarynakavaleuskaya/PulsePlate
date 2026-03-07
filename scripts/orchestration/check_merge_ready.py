@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-06-30, ref: PR-1005)
 import sys
 from dataclasses import dataclass
@@ -85,10 +86,37 @@ def _merge_gate_args(args: argparse.Namespace) -> list[str]:
     return ["--pr-number", str(args.pr_number), "--repo", args.repo]
 
 
+def _event_pr_number(event_path: str) -> int | None:
+    """Extract PR number from a GitHub event payload for deterministic CI routing."""
+
+    if not event_path.strip():
+        return None
+    try:
+        payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return None
+    pr_number = pull_request.get("number")
+    if isinstance(pr_number, bool) or pr_number is None:
+        return None
+    if isinstance(pr_number, int):
+        return pr_number
+    if isinstance(pr_number, str) and pr_number.isdigit():
+        return int(pr_number)
+    return None
+
+
 def _disposition_args(args: argparse.Namespace) -> list[str]:
     disposition_args: list[str] = []
-    if args.pr_number is not None:
-        disposition_args.extend(["--pr-number", str(args.pr_number)])
+    disposition_pr_number = args.pr_number
+    if disposition_pr_number is None:
+        disposition_pr_number = _event_pr_number(args.event_path)
+    if disposition_pr_number is not None:
+        disposition_args.extend(["--pr-number", str(disposition_pr_number)])
     if args.require_auth:
         disposition_args.append("--require-auth")
     return disposition_args
