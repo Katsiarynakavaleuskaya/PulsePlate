@@ -253,7 +253,7 @@ async def cbt_insight(
     sources: list[CBTSourceItem] = []
     confidence = 0.0
     rag_used = False
-    quota_state = "not_consumed"
+    quota_state: CBTQuotaState = "not_consumed"
     warnings: list[str] = []
     redaction_applied = False
 
