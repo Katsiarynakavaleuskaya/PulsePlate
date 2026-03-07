@@ -2121,12 +2121,6 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     return legacy_result
 
 
-def _ensure_insight_text_length(text: str) -> str:
-    if len(text) > INSIGHT_TEXT_MAX_LENGTH:
-        raise HTTPException(status_code=413, detail="Insight text too long")
-    return text
-
-
 def _build_insight_prompt(text: str, context: Optional[str]) -> str:
     if not context:
         return text
@@ -2142,6 +2136,14 @@ def _build_insight_prompt(text: str, context: Optional[str]) -> str:
     return prompt_text
 
 
+def _ensure_insight_text_length(text: str) -> str:
+    """Legacy compatibility shim for length validation."""
+
+    if len(text) > INSIGHT_TEXT_MAX_LENGTH:
+        raise HTTPException(status_code=413, detail="Insight text too long")
+    return text
+
+
 INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
@@ -2150,7 +2152,7 @@ from core.insight.llm_provider_loader import (  # noqa: E402
     load_llm_get_provider as _load_llm_get_provider,
 )
 from app.security.agent_input_guard import (  # noqa: E402
-    require_safe_ai_agent_input,
+    prepare_safe_ai_prompt_input,
 )
 
 
@@ -2165,6 +2167,7 @@ async def insight_v1(
     req: InsightRequest,
     *,
     subject_id: int | None = None,
+    prepared_text: str | None = None,
 ) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
@@ -2176,8 +2179,10 @@ async def insight_v1(
     if not _is_truthy(flag_value):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
+    prompt_input = prepared_text or prepare_safe_ai_prompt_input(
+        req.text,
+        max_length=INSIGHT_TEXT_MAX_LENGTH,
+    )
 
     # отложенный импорт, чтобы не падать, если файла нет
     try:
@@ -2238,7 +2243,7 @@ async def insight_v1(
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
-async def insight(req: InsightRequest) -> InsightResponse:
+async def insight(req: InsightRequest, *, prepared_text: str | None = None) -> InsightResponse:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2250,8 +2255,10 @@ async def insight(req: InsightRequest) -> InsightResponse:
         # For legacy path, return 503 if feature disabled
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
-    require_safe_ai_agent_input(req.text)
-    prompt_input = _ensure_insight_text_length(req.text)
+    prompt_input = prepared_text or prepare_safe_ai_prompt_input(
+        req.text,
+        max_length=INSIGHT_TEXT_MAX_LENGTH,
+    )
 
     try:
         get_provider = _load_llm_get_provider()
@@ -2334,10 +2341,10 @@ async def insight_v1_route(
 ) -> InsightResponse:
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-    require_safe_ai_agent_input(req.text)
+    prompt_input = prepare_safe_ai_prompt_input(req.text, max_length=INSIGHT_TEXT_MAX_LENGTH)
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     subject_id = derive_subject_id_from_api_key(vip_key)
-    return await insight_v1(req, subject_id=subject_id)
+    return await insight_v1(req, subject_id=subject_id, prepared_text=prompt_input)
 
 
 # Backward-compatible simple insight endpoint (no API key)
@@ -2354,9 +2361,9 @@ async def insight_route(
 ) -> InsightResponse:
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-    require_safe_ai_agent_input(req.text)
+    prompt_input = prepare_safe_ai_prompt_input(req.text, max_length=INSIGHT_TEXT_MAX_LENGTH)
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
-    return await insight(req)
+    return await insight(req, prepared_text=prompt_input)
 
 
 MenuEngineCallable = Callable[..., Any]

@@ -297,3 +297,21 @@ def require_safe_ai_agent_input(text: str) -> str:
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=UNSAFE_AI_INPUT_DETAIL,
     )
+
+
+def prepare_safe_ai_prompt_input(text: str, *, max_length: int | None = None) -> str:
+    """Validate AI-bound text and enforce prompt limits for thin callers.
+
+    RU: Централизует fail-closed guard и проверку длины prompt, чтобы thin
+    callers использовали общий helper, а не собирали политику локально.
+    EN: Centralizes the fail-closed guard and prompt-length validation so thin
+    callers use a shared helper instead of assembling policy inline.
+    """
+
+    safe_text = require_safe_ai_agent_input(text)
+    if max_length is not None and len(safe_text) > max_length:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Insight text too long",
+        )
+    return safe_text
