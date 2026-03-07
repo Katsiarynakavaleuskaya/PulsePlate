@@ -2997,13 +2997,13 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
   - Target PR: PR/Figma-CodeConnect-Activation
   - Priority: P1
-  - Status: 🔒 Blocked by dependency (seat + node capture)
+  - Status: Optional follow-up (auxiliary to Penpot + Storybook)
   - Area: design / frontend / iOS
   - Finding Type: integration dependency
-  - Reason: Design file URL is now known, but node-level Code Connect remains blocked
-    because the current P0 node set is incomplete/stale (`web.home.open_setup`
-    old capture `1:72` no longer resolves) and MCP Code Connect activation
-    currently requires a Developer seat in an Organization or Enterprise plan.
+  - Reason: Web review is now canonical via Storybook + Penpot bridge, while
+    Code Connect activation remains an optional auxiliary mapping path once the
+    current P0 node set is complete/non-stale and the workspace has a Code
+    Connect-capable seat.
   - Links:
     - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
     - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
@@ -3017,17 +3017,19 @@ If it is not recorded here — it does not exist.
     - `get_code_connect_suggestions` is no longer plan-blocked for the workspace
     - `get_code_connect_map` returns expected active mappings for P0 set
     - Matrix optional design review references are updated for activated rows
+    - Optional activation path does not redefine the canonical Storybook-first
+      web review workflow
 
 - [ ] Penpot + Storybook fallback bridge for design handoff
   - Owner: @katsiaryna_kavaleuskaya (Design + FE)
   - Target PR: PR/Penpot-Storybook-Bridge
   - Priority: P1
-  - Status: ▶️ In progress
+  - Status: ▶️ In progress (Primary web-review path)
   - Area: design / frontend / docs
   - Finding Type: fallback workflow
-  - Reason: Figma Code Connect is currently blocked by seat/plan, but Storybook
-    and token SoT already exist in repo. We need a low-cost design review and
-    inspect workflow that does not depend on Figma Organization/Enterprise.
+  - Reason: Storybook and token SoT already exist in repo, so this bridge is the
+    canonical low-cost design review path for web. Figma Code Connect remains an
+    optional auxiliary mapping workflow rather than a gating dependency.
   - Links:
     - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
     - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`

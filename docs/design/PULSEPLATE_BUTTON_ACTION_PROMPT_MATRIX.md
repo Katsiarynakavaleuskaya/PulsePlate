@@ -59,10 +59,14 @@ Reminder: button/icon prompts must stay wellness-safe and must not include medic
 ## 4) Button Interaction Matrix
 
 Pilot note: `Design Review Reference` stays tool-neutral, but it is provisional
-for this bridge PR. Placeholder values such as `PP/... (TBD)` are allowed until
-the first Storybook/Penpot review packet lands; final handoff rows must point to
-a real Penpot page/frame, Storybook story/MDX path, or Figma node ID when
-optional Code Connect work is explicitly in scope.
+for this bridge PR under
+`docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md` and
+`docs/roadmap/BACKLOG_LEDGER.md` → `Penpot + Storybook fallback bridge for
+design handoff`. Placeholder values such as `PP/... (TBD)` are allowed until
+the first Storybook/Penpot review packet lands; this exception retires when the
+ADR exit criteria are met and active handoff rows point to a real Penpot
+page/frame, Storybook story/MDX path, or Figma node ID when optional Code
+Connect work is explicitly in scope.
 
 | Platform | Screen | Button/CTA ID | UI Label | Trigger Type | Calls/Invokes | Next Link/Flow | Backend/API Dependency | Feature/Auth Gate | Exists Now | Missing | Implement Needed | QA Coverage | Design Review Reference | Sora Prompt Stub |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
