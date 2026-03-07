@@ -5,7 +5,6 @@ Verifies:
 - Corpus filtering extracts correct prefixes for agent_id
 - Corpus filtering logic in vector_rag.py correctly filters by source prefix
 - Corpus filtering logic in simple_rag.py (Jaccard fallback) correctly filters
-- CorpusNotIndexedError is properly defined
 """
 
 from __future__ import annotations
@@ -44,24 +43,6 @@ class TestAgentCorpusMapConstant:
         from core.rag.contracts import AGENT_CORPUS_MAP
 
         assert "unknown-agent" not in AGENT_CORPUS_MAP
-
-
-class TestCorpusNotIndexedError:
-    """Tests for CorpusNotIndexedError exception."""
-
-    def test_exception_exists(self) -> None:
-        """CorpusNotIndexedError exception exists."""
-        from core.rag.contracts import CorpusNotIndexedError
-
-        assert issubclass(CorpusNotIndexedError, Exception)
-
-    def test_exception_message(self) -> None:
-        """CorpusNotIndexedError includes agent_id in message."""
-        from core.rag.contracts import CorpusNotIndexedError
-
-        err = CorpusNotIndexedError("test-agent")
-        assert "test-agent" in str(err)
-        assert err.agent_id == "test-agent"
 
 
 class TestCorpusPrefixMatching:

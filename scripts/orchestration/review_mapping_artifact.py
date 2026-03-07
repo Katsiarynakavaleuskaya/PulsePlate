@@ -31,6 +31,7 @@ CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B10
 CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")
+THREAD_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
 DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
@@ -128,7 +129,7 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             )
         return errors
 
-    saw_mapping_line = False
+    saw_thread_line = False
     saw_disposition = False
     saw_proof = False
     for line in lines:
@@ -139,20 +140,23 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             saw_proof = True
             continue
         if MAPPING_LINE_RE.match(line):
-            saw_mapping_line = True
+            saw_thread_line = True
+            continue
+        if THREAD_LINE_RE.match(line):
+            saw_thread_line = True
             continue
         errors.append(f"Invalid mapping line format in canonical artifact: {line}")
 
-    if not errors and not saw_mapping_line:
+    if not errors and not saw_thread_line:
         errors.append(
-            "Fixed in Commit Mapping must contain at least one '- <url> -> <sha>' line "
-            "or '- No actionable review comments'."
+            "Fixed in Commit Mapping must contain at least one '- <url>' or "
+            "'- <url> -> <sha>' line, or '- No actionable review comments'."
         )
-    if not errors and saw_mapping_line and not saw_disposition:
-        errors.append("Missing 'Disposition:' when SHA mappings are present.")
-    if not errors and saw_mapping_line and not saw_proof:
+    if not errors and saw_thread_line and not saw_disposition:
+        errors.append("Missing 'Disposition:' when review-thread entries are present.")
+    if not errors and saw_thread_line and not saw_proof:
         errors.append(
-            "Missing proof detail (Commit:/Evidence:/Backlog:) when SHA mappings are present."
+            "Missing proof detail (Commit:/Evidence:/Backlog:) when review-thread entries are present."
         )
 
     return errors
@@ -173,8 +177,8 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
 
 def parse_fixed_mapping_entries(section: str) -> dict[str, str]:
     """
-    Parse mapping lines: - <url> -> <sha>
-    Returns {url: sha}
+    Parse review-thread lines.
+    Returns {url: sha_or_empty_string}
     """
     entries: dict[str, str] = {}
 
@@ -184,11 +188,14 @@ def parse_fixed_mapping_entries(section: str) -> dict[str, str]:
             continue
 
         match = MAPPING_LINE_RE.match(line)
-        if not match:
+        if match:
+            url, sha = match.groups()
+            entries[url] = sha
             continue
 
-        url, sha = match.groups()
-        entries[url] = sha
+        url_only_match = THREAD_LINE_RE.match(line)
+        if url_only_match:
+            entries[url_only_match.group(1)] = ""
 
     return entries
 

@@ -4021,13 +4021,28 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
   - Links:
-    - app/security/llm_monthly_quota.py (VIP-only implementation)
-    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - app/routers/cbt_insight.py (PRO endpoint without monthly quota)
+    - `app/security/llm_monthly_quota.py` (VIP-only implementation)
+    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
+    - `app/routers/cbt_insight.py` (PRO endpoint without monthly quota)
   - DoD:
     - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
     - CBT insight endpoint calls quota check before provider.generate()
     - Deterministic tests for PRO quota enforcement
+
+- [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR TBD
+  - Status: Planned
+  - Reason (EN): The monthly quota model is tier-scoped, but the persisted table name remains VIP-specific for backward compatibility and needs a dedicated migration.
+  - Links:
+    - `app/models/llm_quota_usage.py`
+    - `app/security/llm_monthly_quota.py`
+    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
+  - DoD:
+    - Add DB migration from `vip_llm_monthly_usage` to a tier-neutral table name
+    - Keep backward-compatible rollout/rollback notes linked from audit/docs evidence
+    - Update ORM/model references and deterministic quota tests
 
 - [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
   - Owner: @katsiaryna_kavaleuskaya
@@ -4036,8 +4051,8 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Planned
   - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
   - Links:
-    - app/routers/cbt_insight.py:186-196 (chunk content usage)
-    - PR #942 CodeRabbit comment (2868000571)
+    - `app/routers/cbt_insight.py:186-196` (chunk content usage)
+    - `PR #942` CodeRabbit comment (`2868000571`)
   - DoD:
     - Add redact_rag_context_for_insight() helper (or equivalent)
     - Apply to prompt assembly and response previews
@@ -4046,19 +4061,23 @@ If it is not recorded here — it does not exist.
 - [ ] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CorpusNotIndexedError is defined and exported in core/rag/contracts.py but never raised in production code. Either wire it up in simple_rag.py/vector_rag.py where corpus-not-found warnings are logged, or remove the unused exception to avoid confusion.
+  - Target PR: feat/wave4-close
+  - Status: 🟡 In progress (implemented in PR #1010, pending merge)
+  - Reason (EN): The dead exception export has been removed in the open PR, but this ledger item must stay open until PR #1010 merges.
   - Links:
-    - core/rag/contracts.py:25-30 (exception definition)
-    - core/rag/simple_rag.py, core/rag/vector_rag.py (warning paths)
+    - `core/rag/contracts.py`
+    - `core/rag/__init__.py`
+    - `tests/test_rag_contract_surface.py`
     - PR #942 CodeRabbit comment (2868000574)
+  - Evidence:
+    - `core/rag/contracts.py:1` — contract surface no longer defines `CorpusNotIndexedError`.
+    - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
+    - `tests/test_rag_contract_surface.py:10` — regression tests assert the dead export stays removed.
   - DoD:
-    - Either: raise CorpusNotIndexedError where appropriate and handle in callers
-    - Or: remove exception class and update tests
+    - [ ] Remove the dead exception class/export and update regression tests
 
 ---
 
-**Last updated:** 2026-03-05 (fact-valid hotfix deltas + RAG quality status sync)
+**Last updated:** 2026-03-07 (Wave 4 runtime closure sync)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

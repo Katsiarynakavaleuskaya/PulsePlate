@@ -3,7 +3,6 @@
 from core.rag import simple_rag
 from core.rag.contracts import (
     AGENT_CORPUS_MAP,
-    CorpusNotIndexedError,
     RAGChunk,
     RAGContext,
 )
@@ -32,7 +31,6 @@ from core.rag.rag_constants import (
 
 __all__ = [
     "AGENT_CORPUS_MAP",
-    "CorpusNotIndexedError",
     "RAGChunk",
     "RAGContext",
     "RAGOrchestrationResult",
