@@ -64,12 +64,24 @@ def test_secondary_optional_supported() -> None:
             assert len(dr.secondary) > 0
 
 
-def test_secondary_comma_separated_takes_first() -> None:
-    """When secondary column has 'a, b', we take first agent."""
-    routes = load_routing_graph()
-    backend = routes.get("backend")
-    assert backend is not None
-    assert backend.secondary == "backend-engineer"
+def test_multi_secondary_raises_on_canonical_graph(tmp_path: Path) -> None:
+    """Canonical routing loader must reject comma-separated secondary agents."""
+
+    invalid_secondary_path = tmp_path / "invalid_secondary.md"
+    invalid_secondary_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | agent-b, agent-c | reviewer-a |\n",
+            prelude="",
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Routing domain declares multiple secondary agents: docs -> agent-b, agent-c",
+    ):
+        load_routing_graph(invalid_secondary_path)
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:
@@ -116,6 +128,25 @@ def test_no_routing_rows_raises(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="No routing rows parsed from routing graph"):
         load_routing_graph(empty_table_path)
+
+
+def test_incomplete_routing_row_raises(tmp_path: Path) -> None:
+    """Partially populated routing rows must fail instead of being skipped."""
+
+    incomplete_row_path = tmp_path / "incomplete_row.md"
+    incomplete_row_path.write_text(
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops |  | | reviewer-a |\n",
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Incomplete routing row: domain='docs', cluster='ops', primary='', reviewer='reviewer-a'",
+    ):
+        load_routing_graph(incomplete_row_path)
 
 
 def test_secondary_empty_yields_none(tmp_path: Path) -> None:

@@ -230,8 +230,7 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
 
     Returns:
         Dict mapping domain -> DomainRoute(primary, secondary, reviewer).
-        Canonical routing graph defines one secondary; legacy comma-separated
-        cells still collapse to the first agent for backward compatibility.
+        Canonical routing graph defines zero or one secondary agent only.
     """
     if not path.is_file():
         raise FileNotFoundError(f"Routing graph not found: {path}")
@@ -284,9 +283,17 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
             cols[i_secondary].strip() if i_secondary is not None and i_secondary < len(cols) else ""
         )
 
-        if not domain or domain.startswith("-"):
+        if domain.startswith("-"):
             continue
-        if not cluster or not primary or not reviewer:
+        populated_fields = [domain, cluster, primary, reviewer, secondary_raw]
+        required_fields = [domain, cluster, primary, reviewer]
+        if any(populated_fields) and not all(required_fields):
+            raise ValueError(
+                "Incomplete routing row: "
+                f"domain={domain!r}, cluster={cluster!r}, "
+                f"primary={primary!r}, reviewer={reviewer!r}"
+            )
+        if not domain:
             continue
         if not _CLUSTER_SLUG_RE.fullmatch(cluster):
             raise ValueError(f"Invalid cluster slug in routing graph: {cluster}")
@@ -295,8 +302,12 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
 
         secondary: Optional[str] = None
         if secondary_raw:
-            first = secondary_raw.split(",")[0].strip()
-            secondary = first if first else None
+            if "," in secondary_raw:
+                raise ValueError(
+                    "Routing domain declares multiple secondary agents: "
+                    f"{domain} -> {secondary_raw}"
+                )
+            secondary = secondary_raw
 
         if domain in routes:
             raise ValueError(f"Duplicate domain in routing graph: {domain}")
