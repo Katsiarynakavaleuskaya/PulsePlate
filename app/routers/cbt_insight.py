@@ -29,6 +29,7 @@ from app.security.agent_control_plane import (
     require_policy_allow,
     sign_audit_envelope,
 )
+from app.security.agent_input_guard import require_safe_ai_agent_input
 from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -201,6 +202,7 @@ def _persist_privileged_action_audit(
     "/insight",
     response_model=CBTInsightResponse,
     responses={
+        400: {"description": "Unsafe agent input blocked"},
         200: {"description": "CBT insight generated successfully"},
         401: {"description": "API key required for PRO tier access"},
         403: {"description": "API key does not have PRO tier access"},
@@ -248,6 +250,8 @@ async def cbt_insight(
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
 
+    safe_query = require_safe_ai_agent_input(request.query)
+
     # Retrieve RAG context with CBT corpus filtering
     rag_context_str = ""
     sources: list[CBTSourceItem] = []
@@ -266,8 +270,8 @@ async def cbt_insight(
             endpoint=str(raw_request.url.path),
             metadata={
                 "method": raw_request.method,
-                "query_hash": _sha256_hex(request.query),
-                "query_length": len(request.query),
+                "query_hash": _sha256_hex(safe_query),
+                "query_length": len(safe_query),
             },
         )
     except (PermissionError, RuntimeError) as exc:
@@ -282,7 +286,7 @@ async def cbt_insight(
 
         rag_ctx = await run_in_threadpool(
             retrieve_context_structured,
-            request.query,
+            safe_query,
             max_chunks=5,
             agent_id="cbt-agent",
             user_tier="PRO",
@@ -323,7 +327,7 @@ async def cbt_insight(
         warnings.append("source_content_redacted")
 
     # Build prompt with RAG context
-    prompt = _build_cbt_prompt(request.query, rag_context_str)
+    prompt = _build_cbt_prompt(safe_query, rag_context_str)
 
     # Generate insight via LLM
     try:
