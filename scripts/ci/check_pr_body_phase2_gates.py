@@ -73,12 +73,16 @@ def _extract_pr_number(event_path: Path) -> int | None:
     """Extract PR number from GitHub event payload."""
     pr = _load_event_pull_request(event_path)
     num = pr.get("number")
-    if num is None:
+    if isinstance(num, bool) or num is None:
         return None
-    try:
-        return int(num)
-    except (ValueError, TypeError):
-        return None
+    if isinstance(num, int):
+        return num
+    if isinstance(num, str):
+        try:
+            return int(num)
+        except ValueError:
+            return None
+    return None
 
 
 def _extract_pr_body(event_path: Path) -> str:
