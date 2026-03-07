@@ -12,7 +12,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -37,7 +37,9 @@ def _diff(a: set[str], b: set[str]) -> List[str]:
     return sorted(a - b)
 
 
-def _safe_load_set(loader_name: str, loader: Any, loader_errors: List[str]) -> set[str]:
+def _safe_load_set(
+    loader_name: str, loader: Callable[[], set[str]], loader_errors: List[str]
+) -> set[str]:
     """Best-effort set loader used for structured CLI output on loader failures."""
 
     try:
