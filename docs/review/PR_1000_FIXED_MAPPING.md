@@ -62,3 +62,16 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:251`, `app/
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571732 -> 3c5521e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571734 -> 3c5521e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2898571735 -> 3c5521e0
+
+Disposition: FIXED
+Commit: 26c606ee
+Evidence: `docs/orchestration/AGENT_CONTEXT_MAP.md:259`, `docs/orchestration/AGENT_ROUTING_GRAPH.md:78`, `scripts/orchestration/agent_consistency_loader.py:128`, `scripts/orchestration/check_review_threads_disposition.py:303`, `tests/test_agent_control_plane_mvp.py:199`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3907650044 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3907650942 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066142 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066143 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066144 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066146 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066458 -> 26c606ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899066464 -> 26c606ee
