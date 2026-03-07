@@ -13,7 +13,8 @@ import {
   Bar
 } from 'recharts';
 import { useMemo, useCallback } from 'react';
-import { Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import { ProgressExportPdfButton } from '../../components/cta';
 import { showError } from '../../components/ui';
 
 const chartTokens = {
@@ -141,15 +142,7 @@ export default function ProgressCharts({ windowRange = 'MONTH' }: ProgressCharts
           <h2 className="text-2xl font-bold" style={{ color: chartTokens.text }}>Progress Tracking</h2>
           <p style={{ color: chartTokens.muted }}>Monitor your health journey ({windowRange})</p>
         </div>
-        <button
-          onClick={handleExportToPdf}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:opacity-90"
-          style={{ backgroundColor: chartTokens.primary, color: chartTokens.surface }}
-          aria-label="Export progress report as PDF"
-        >
-          <Download className="w-4 h-4" />
-          Export PDF
-        </button>
+        <ProgressExportPdfButton onClick={handleExportToPdf} />
       </div>
 
       <div className="rounded-lg p-6 shadow-sm" style={{ backgroundColor: chartTokens.surface, border: `1px solid ${chartTokens.border}` }}>
