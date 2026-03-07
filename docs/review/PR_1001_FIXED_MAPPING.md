@@ -35,3 +35,11 @@ Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1001#pullrequestreview-3906840185 -> 93ce9118
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1001#discussion_r2899088552 -> 3bb892c3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1001#pullrequestreview-3907706725 -> 3bb892c3
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1001#discussion_r2899138246
+Disposition: NOT-A-BUG
+Evidence: `git log --diff-filter=A --format='%H %s' -- frontend/src/styles/tokens.css` and `git log --diff-filter=A --format='%H %s' -- frontend/src/styles/tokens.ts` both resolve to `671638d462c9d9875922f7901d11114b32744c69`; `git show --name-status 671638d462c9d9875922f7901d11114b32744c69 -- frontend/src/styles/tokens.css frontend/src/styles/tokens.ts` shows both files as `A`, which matches `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:14` and `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:17`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1001#pullrequestreview-3907842915
+Disposition: NOT-A-BUG
+Evidence: `git log --diff-filter=A --format='%H %s' -- frontend/src/styles/tokens.css` and `git log --diff-filter=A --format='%H %s' -- frontend/src/styles/tokens.ts` both resolve to `671638d462c9d9875922f7901d11114b32744c69`; `git show --name-status 671638d462c9d9875922f7901d11114b32744c69 -- frontend/src/styles/tokens.css frontend/src/styles/tokens.ts` shows both files as `A`, which matches `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:14` and `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md:17`.
