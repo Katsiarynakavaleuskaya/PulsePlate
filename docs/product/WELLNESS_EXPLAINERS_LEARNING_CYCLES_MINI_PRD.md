@@ -140,7 +140,7 @@ Each cycle should answer:
 | Cycle ID | Label | Required signals | Deterministic unlock rule |
 | --- | --- | --- | --- |
 | `baseline` | Baseline | BMI result rendered | Unlock when a valid FREE result is produced. |
-| `risk_context` | Risk Context | BMI interpretation plus at least one PRO context field | Unlock when `interpretation_v1` or `waist_risk` is present. |
+| `risk_context` | Risk Context | BMI interpretation plus at least one PRO context field | Unlock when `interpretation_v1` is present and at least one PRO context field (for example `waist_risk`) is present. |
 | `consistency_pattern` | Consistency Pattern | Adherence event history or weekly adherence score | Unlock when adherence data exists and confidence is not marked as low-data only. |
 | `plan_adjustment` | Plan Adjustment | VIP weekly-plan output plus plan-fit explanation | Unlock when a weekly plan and its explainer payload are both available. |
 
