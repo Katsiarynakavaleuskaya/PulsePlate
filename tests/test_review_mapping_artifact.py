@@ -105,6 +105,16 @@ def test_parse_fixed_mapping_entries_no_actionable() -> None:
     assert entries == {}
 
 
+def test_parse_fixed_mapping_entries_accepts_url_only_not_a_bug_entry() -> None:
+    section = """- https://github.com/org/repo/pull/1#discussion_r1
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+Reason: Existing behavior already matches the contract.
+"""
+    entries = artifact.parse_fixed_mapping_entries(section)
+    assert entries["https://github.com/org/repo/pull/1#discussion_r1"] == ""
+
+
 def test_has_no_actionable_marker() -> None:
     assert artifact.has_no_actionable_marker("- No actionable review comments") is True
     assert artifact.has_no_actionable_marker("- https://x -> abc1234") is False
@@ -167,7 +177,7 @@ def test_validate_fixed_mapping_section_accepts_not_a_bug_reason_line() -> None:
     section = """Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
 Reason: Existing behavior already matches the contract.
-- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+- https://github.com/org/repo/pull/1000#discussion_r1
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert errors == []
@@ -178,12 +188,20 @@ def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() 
 - https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
-    assert "Missing 'Disposition:' when SHA mappings are present." in errors
+    assert "Missing 'Disposition:' when review-thread entries are present." in errors
 
 
 def test_validate_fixed_mapping_section_requires_proof_for_sha_mappings() -> None:
     section = """Disposition: FIXED
 - https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Missing proof detail" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_requires_proof_for_url_only_entries() -> None:
+    section = """Disposition: NOT-A-BUG
+- https://github.com/org/repo/pull/1#discussion_r1
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("Missing proof detail" in error for error in errors)

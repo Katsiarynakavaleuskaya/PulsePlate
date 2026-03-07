@@ -1,6 +1,8 @@
+import type { JSX, ReactNode } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Plate from '../Plate';
 import { PREMIUM_GATE_SOURCES } from '../../config/constants';
 
@@ -11,14 +13,46 @@ vi.mock('../../lib/usePremium', () => ({
 
 // Mock PremiumGate component
 vi.mock('../../components/PremiumGate', () => ({
-  default: ({ children, isPremium, source }: { children: React.ReactNode; isPremium: boolean; source: string }) => (
-    <div data-testid="premium-gate" data-premium={isPremium} data-source={source}>
-      {children}
-    </div>
-  )
+  default: ({
+    children,
+    isPremium,
+    source,
+  }: {
+    children: ReactNode;
+    isPremium: boolean;
+    source: string;
+  }): JSX.Element =>
+    isPremium ? (
+      <div data-testid="premium-gate" data-premium={String(isPremium)} data-source={source}>
+        {children}
+      </div>
+    ) : (
+      <div data-testid="premium-gate-locked" data-premium={String(isPremium)} data-source={source}>
+        <div
+          data-testid="premium-gate-preview"
+          aria-hidden="true"
+          className="opacity-60 pointer-events-none"
+        >
+          {children}
+        </div>
+        <button type="button">Continue</button>
+      </div>
+    )
 }));
 
 import { usePremium } from '../../lib/usePremium';
+
+function renderPlateRoutes(): ReturnType<typeof render> {
+  return render(
+    <MemoryRouter initialEntries={['/plate']}>
+      <Routes>
+        <Route path="/plate" element={<Plate />} />
+        <Route path="/setup" element={<div data-testid="setup-route">Setup route</div>} />
+        <Route path="/progress" element={<div data-testid="progress-route">Progress route</div>} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
 
 describe('Plate', () => {
   afterEach(() => {
@@ -67,8 +101,20 @@ describe('Plate', () => {
       </MemoryRouter>
     );
 
-    const premiumGate = screen.getByTestId('premium-gate');
+    const premiumGate = screen.getByTestId('premium-gate-locked');
+    const preview = screen.getByTestId('premium-gate-preview');
     expect(premiumGate).toHaveAttribute('data-premium', 'false');
+    expect(preview).toHaveAttribute('aria-hidden', 'true');
+    expect(preview).toHaveClass('pointer-events-none');
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Configure Setup', hidden: true })).toHaveAttribute(
+      'href',
+      '/setup'
+    );
+    expect(screen.getByRole('link', { name: 'View Progress', hidden: true })).toHaveAttribute(
+      'href',
+      '/progress'
+    );
   });
 
   it('has correct CSS classes', () => {
@@ -97,5 +143,19 @@ describe('Plate', () => {
 
     const premiumGate = screen.getByTestId('premium-gate');
     expect(premiumGate).toHaveAttribute('data-source', PREMIUM_GATE_SOURCES.PLATE_PAGE);
+  });
+
+  it('routes premium Plate CTAs to setup and progress screens', async () => {
+    vi.mocked(usePremium).mockReturnValue(true);
+    const user = userEvent.setup();
+
+    const firstRender = renderPlateRoutes();
+    await user.click(screen.getByRole('link', { name: 'Configure Setup' }));
+    expect(screen.getByTestId('setup-route')).toBeInTheDocument();
+    firstRender.unmount();
+
+    renderPlateRoutes();
+    await user.click(screen.getByRole('link', { name: 'View Progress' }));
+    expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 });

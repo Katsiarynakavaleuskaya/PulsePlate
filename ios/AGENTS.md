@@ -221,6 +221,12 @@
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
+## Secret storage conformance (iOS)
+
+- Sensitive values on iOS (`PRO_API_KEY`, auth/session tokens, passwords, secrets) must use Keychain-backed storage only.
+- `UserDefaults` / `@AppStorage` are allowed for non-sensitive UX state and profile inputs, but forbidden for secret-like keys.
+- Guard coverage for this rule lives in `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift`.
+
 **Local iOS test targeting (Makefile):**
 
 - `make ios-test IOS_ONLY_TESTING="PulsePlateTests/PlateViewTests"`

@@ -52,34 +52,44 @@ flowchart LR
     and `IssuedScopedToken` helpers with fail-closed secret requirements.
   - `tests/test_agent_control_plane_mvp.py:1` — deterministic validation of policy decisions,
     audit signature integrity, and scoped-token TTL/secret validation.
-- Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
-- Runtime follow-ups that have now landed for the CBT/runtime slice:
-  - `app/routers/cbt_insight.py` wires `require_policy_allow()` before provider work,
-    persists signed audit envelopes, and enforces execution mode gating.
-  - `app/security/execution_sandbox.py` adds a bounded local execution sandbox for
-    allowlisted commands with cwd, timeout, output, and env controls.
-- Remaining scope for follow-up PRs:
-  - Stronger isolation beyond developer-machine local sandbox (for example, container/VM runner boundary).
+- Runtime integration slice landed for privileged CBT/RAG work:
+  - `app/routers/cbt_insight.py:218` — execution mode resolved fail-closed before privileged work.
+  - `app/routers/cbt_insight.py:261` — policy gate + signed audit persisted before `rag.retrieve`.
+  - `app/routers/cbt_insight.py:340` — policy gate + signed audit persisted before `llm.generate`.
+  - `app/routers/cbt_insight.py:352` — PRO monthly quota enforced before provider call.
+  - `core/rag/simple_rag.py:109` — chunk content redacted before preview/prompt exposure.
+  - `tests/test_cbt_insight_api.py:680` — deterministic blocked/misconfigured mode coverage.
+  - `tests/test_cbt_insight_api.py:710` — deterministic PRO quota enforcement coverage.
+- Local execution sandbox foundation landed for higher-risk developer-machine actions:
+  - `app/security/execution_sandbox.py:1` — bounded local sandbox for allowlisted commands with cwd,
+    timeout, output, and env controls.
+  - `tests/test_execution_sandbox.py:1` — deterministic coverage for allowlist, cwd, timeout,
+    output-budget, and fail-closed validation.
+- Tracking items and status live in `docs/roadmap/BACKLOG_LEDGER.md` (`Agent Control Plane MVP`,
+  `simple_rag` thread safety, PRO quota parity, and RAG redaction follow-ups).
+- Remaining follow-up after this closure is intentionally narrow:
+  - Introduce stronger isolation beyond the developer-machine local sandbox
+    (for example, container/VM runner boundary).
   - Nonce-bearing scoped tokens and wider production rollout hardening.
+  - Expand control-plane wiring beyond the current privileged CBT/RAG slice when new agent runtimes land.
 
 ### Exit Criteria (Updated Status)
 
-The original MVP seam is closed for the current local runtime slice. The following
-criteria are now satisfied in code for the CBT/runtime path:
+This ADR introduced a temporary seam for MVP primitives. For the current privileged
+CBT/RAG execution slice, the operational closure criteria are now met:
 
-1. **Policy gate integrated**: privileged CBT/runtime work passes through `require_policy_allow()`.
-2. **Audit trail persistent**: signed envelopes are written to durable JSONL storage.
+1. **Policy gate integrated**: all privileged agent actions pass through `require_policy_allow()`.
+2. **Audit trail persistent**: signed envelopes are written to durable storage (not just in-memory).
 3. **Secrets boundary enforced**: fail-closed secret requirements remain in place.
-4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are runtime-validated.
-5. **Bounded local sandbox available**: higher-risk local execution can run only through the
-   allowlisted sandbox boundary.
-6. **Test coverage**: deterministic tests verify fail-closed behavior for the runtime slice.
+4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
+5. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
+6. **Bounded local sandbox available**: higher-risk developer-machine execution now runs only through
+   the allowlisted sandbox boundary.
+7. **Test coverage**: deterministic tests verify bypass, timeout, quota, mode, and sandbox failure paths.
 
-Open follow-up work is now narrower:
-
-- remote/stronger isolation beyond the developer-machine sandbox
-- nonce-bearing scoped tokens
-- broader multi-surface rollout beyond the CBT/runtime slice
+The broader `ExecutionSandbox` box in the architecture diagram remains a future
+stronger-isolation expansion boundary, but it is no longer a blocker for the
+current control-plane MVP slice.
 
 ## Security Boundaries
 
