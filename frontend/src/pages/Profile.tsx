@@ -6,6 +6,16 @@ export default function Profile() {
   const { isAuthenticated, isLoading } = useAuth();
   const hasSession = isAuthenticated;
   const connectionLabel = isLoading ? 'Checking' : hasSession ? 'Connected' : 'Missing';
+  const connectionTone = isLoading
+    ? 'bg-[var(--color-text-muted)] text-white'
+    : hasSession
+      ? 'bg-[var(--color-success)] text-white'
+      : 'bg-[var(--color-error)] text-white';
+  const apiKeyActionLabel = isLoading
+    ? 'Checking Session'
+    : hasSession
+      ? 'Update API Key'
+      : 'Configure API Key';
 
   return (
     <main className="flex min-h-screen flex-col bg-[var(--color-bg)]">
@@ -47,11 +57,7 @@ export default function Profile() {
                     Required for personalized guidance
                   </p>
                 </div>
-                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                  hasSession
-                    ? 'bg-[var(--color-success)] text-white'
-                    : 'bg-[var(--color-error)] text-white'
-                }`}>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${connectionTone}`}>
                   {connectionLabel}
                 </span>
               </div>
@@ -78,7 +84,7 @@ export default function Profile() {
               to="/enter-key"
               className="block w-full rounded-xl bg-[var(--color-primary)] px-6 py-4 text-center font-semibold text-[var(--color-primary-foreground)] transition-all hover:shadow-md hover:opacity-95 active:scale-95"
             >
-              {hasSession ? 'Update API Key' : 'Configure API Key'}
+              {apiKeyActionLabel}
             </Link>
           </div>
 

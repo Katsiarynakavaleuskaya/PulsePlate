@@ -9,17 +9,27 @@ vi.mock('../../lib/auth', () => ({
 
 import { useAuth } from '../../lib/auth';
 
+function mockAuthState({
+  isAuthenticated = false,
+  isLoading = false,
+}: {
+  isAuthenticated?: boolean;
+  isLoading?: boolean;
+} = {}) {
+  vi.mocked(useAuth).mockReturnValue({
+    apiKey: null,
+    isAuthenticated,
+    isLoading,
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
+    showAuthPrompt: false,
+    setShowAuthPrompt: vi.fn(),
+  });
+}
+
 describe('Profile', () => {
   beforeEach(() => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: false,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
+    mockAuthState();
   });
 
   it('renders profile page content', () => {
@@ -37,15 +47,7 @@ describe('Profile', () => {
   });
 
   it('shows connected status for authenticated cookie session', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      apiKey: null,
-      isAuthenticated: true,
-      isLoading: false,
-      setApiKey: vi.fn(),
-      clearApiKey: vi.fn(),
-      showAuthPrompt: false,
-      setShowAuthPrompt: vi.fn(),
-    });
+    mockAuthState({ isAuthenticated: true });
 
     render(
       <MemoryRouter>
@@ -55,6 +57,20 @@ describe('Profile', () => {
 
     expect(screen.getByText('Connected')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Update API Key' })).toHaveAttribute('href', '/enter-key');
+  });
+
+  it('shows neutral loading state during session bootstrap', () => {
+    mockAuthState({ isLoading: true });
+
+    render(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Checking')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Checking Session' })).toHaveAttribute('href', '/enter-key');
+    expect(screen.queryByRole('link', { name: 'Configure API Key' })).not.toBeInTheDocument();
   });
 
   it('has correct CSS classes', () => {
