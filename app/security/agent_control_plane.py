@@ -378,9 +378,9 @@ def persist_audit_envelope(
         "envelope": asdict(envelope),
         "metadata": _sanitize_metadata(metadata or {}),
     }
+    jsonl_line = f"{json.dumps(payload, ensure_ascii=True, sort_keys=True)}\n"
     with target_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=True, sort_keys=True))
-        handle.write("\n")
+        handle.write(jsonl_line)
     return target_path
 
 

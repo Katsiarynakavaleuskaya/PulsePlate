@@ -166,12 +166,21 @@ def test_persist_audit_envelope_writes_jsonl_without_raw_query(tmp_path: Path) -
 def test_sanitize_metadata_handles_lists_and_tuples() -> None:
     sanitized = cp._sanitize_metadata(
         {
-            "prompts": ["secret prompt"],
-            "tuple_data": ("visible", "another"),
+            "prompt_list": ["secret prompt"],
+            "prompt_tuple": (
+                "secret tuple",
+                {"prompt_text": "nested secret"},
+            ),
         }
     )
-    assert isinstance(sanitized["prompts"], list)
-    assert isinstance(sanitized["tuple_data"], list)
+    assert isinstance(sanitized["prompt_list"], list)
+    assert isinstance(sanitized["prompt_tuple"], list)
+    assert sanitized["prompt_list"][0]["length"] == len("secret prompt")
+    assert sanitized["prompt_tuple"][0]["sha256"]
+    assert sanitized["prompt_tuple"][1]["prompt_text"]["length"] == len("nested secret")
+    assert "secret prompt" not in json.dumps(sanitized, sort_keys=True)
+    assert "secret tuple" not in json.dumps(sanitized, sort_keys=True)
+    assert "nested secret" not in json.dumps(sanitized, sort_keys=True)
 
 
 def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:

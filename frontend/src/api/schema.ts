@@ -2449,8 +2449,9 @@ export interface components {
              * Mode
              * @description Resolved agent execution mode
              * @default auto-safe
+             * @enum {string}
              */
-            mode: string;
+            mode: "auto-safe" | "review-required" | "blocked";
             /**
              * Quota State
              * @description Monthly quota state before provider call

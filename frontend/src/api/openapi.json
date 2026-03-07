@@ -1812,6 +1812,11 @@
           "mode": {
             "default": "auto-safe",
             "description": "Resolved agent execution mode",
+            "enum": [
+              "auto-safe",
+              "review-required",
+              "blocked"
+            ],
             "title": "Mode",
             "type": "string"
           },

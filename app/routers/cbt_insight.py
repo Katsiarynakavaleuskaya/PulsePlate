@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import logging
 import os
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
@@ -48,6 +49,7 @@ CBT_POLICY_ALLOWLIST = {
     ("rag.retrieve", "corpus://cbt-agent"),
     ("llm.generate", "provider://default"),
 }
+CBTExecutionMode = Literal["auto-safe", "review-required", "blocked"]
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +102,10 @@ class CBTInsightResponse(BaseModel):
         default_factory=list,
         description="Operational or retrieval warnings",
     )
-    mode: str = Field(default="auto-safe", description="Resolved agent execution mode")
+    mode: CBTExecutionMode = Field(
+        default="auto-safe",
+        description="Resolved agent execution mode",
+    )
     quota_state: str = Field(
         default="not_consumed",
         description="Monthly quota state before provider call",
@@ -221,9 +226,18 @@ async def cbt_insight(
             detail="CBT agent feature is not enabled",
         )
 
-    execution_mode = normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV))
     try:
+        execution_mode = cast(
+            CBTExecutionMode,
+            normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV)),
+        )
         require_execution_mode(execution_mode)
+    except RuntimeError as exc:
+        logger.error("CBT execution mode misconfigured", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="agent_execution_mode_misconfigured",
+        ) from exc
     except PermissionError:
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
@@ -306,17 +320,6 @@ async def cbt_insight(
 
     # Generate insight via LLM
     try:
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            _api_key,
-            tier="PRO",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
-            )
-        quota_state = "consumed"
-
         await run_in_threadpool(
             _persist_privileged_action_audit,
             action="llm.generate",
@@ -331,6 +334,23 @@ async def cbt_insight(
                 "source_count": len(sources),
             },
         )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("LLM privileged-action gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_generation_unavailable",
+        ) from exc
+    try:
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            _api_key,
+            tier="PRO",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
+            )
+        quota_state = "consumed"
 
         from llm import get_provider
 
