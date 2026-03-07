@@ -59,3 +59,8 @@ Evidence: tests/test_app_router_inclusion_coverage.py:117; tests/test_app_router
 Disposition: FIXED
 Commit: 184a2f64
 Evidence: tests/test_app_endpoints_coverage.py:145; tests/test_app_router_inclusion_coverage.py:117; tests/test_app_router_inclusion_coverage.py:124
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1014#pullrequestreview-3909741350 -> 28777741
+Disposition: FIXED
+Commit: 28777741
+Evidence: tests/test_app_router_inclusion_coverage.py:126
