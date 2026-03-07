@@ -34,6 +34,31 @@ def test_apple_verify_receipt_happy_path(
     assert payload["intent_id"] == payload["activation_id"]
 
 
+def test_apple_verify_receipt_vip_headers_are_tier_compatible(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=vip_headers,
+        json={
+            "plan": "vip_monthly",
+            "client_event_id": "evt-ios-billing-vip-1",
+            "receipt": "receipt-token-validated-98765",
+            "external_txn_id": "ios-vip-txn-1",
+        },
+    )
+    assert response.status_code == 201, response.text
+    payload = _json(response)
+    assert payload["payment_source"] == "ios_app_store"
+    assert payload["plan"] == "vip_monthly"
+    assert payload["subscription_tier"] == "vip"
+    assert payload["status"] == "active"
+    assert payload["reconcile_status"] == "verified"
+    assert payload["audit_id"] == payload["activation_id"]
+    assert payload["intent_id"] == payload["activation_id"]
+
+
 def test_apple_verify_receipt_short_receipt_rejects(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -89,6 +114,32 @@ def test_manual_intent_happy_path(
     assert payload["status"] == "pending_verification"
     assert payload["reconcile_status"] == "pending"
     assert payload["subscription_tier"] == "pro"
+    assert payload["intent_id"] == payload["activation_id"]
+
+
+def test_manual_intent_vip_headers_are_tier_compatible(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/ru-by/manual-intent",
+        headers=vip_headers,
+        json={
+            "source": "swift_manual",
+            "plan": "vip_monthly",
+            "client_event_id": "evt-swift-intent-vip-1",
+            "external_txn_id": "swift-intent-vip-1",
+            "amount_minor": 2999,
+            "currency": "rub",
+            "verification_payload": {"comment": "invoice-vip-1"},
+        },
+    )
+    assert response.status_code == 201, response.text
+    payload = _json(response)
+    assert payload["payment_source"] == "swift_manual"
+    assert payload["status"] == "pending_verification"
+    assert payload["reconcile_status"] == "pending"
+    assert payload["subscription_tier"] == "vip"
     assert payload["intent_id"] == payload["activation_id"]
 
 

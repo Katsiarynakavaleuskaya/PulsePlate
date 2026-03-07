@@ -149,10 +149,12 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def reset_payments_state() -> None:
+def reset_payments_state() -> Generator[None, None, None]:
     """Reset in-memory payment activation state for deterministic payment tests."""
     from app.services import payments_activation
 
+    payments_activation.reset_state()
+    yield
     payments_activation.reset_state()
 
 

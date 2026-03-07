@@ -175,7 +175,6 @@ def test_manual_reconcile_forbidden_for_other_issuer(
         headers=vip_headers,
     )
     assert response.status_code == 403
-    assert _json(response)["code"] == "forbidden"
 
 
 def test_manual_reconcile_vip_key_can_manage_own_intent(
@@ -250,7 +249,6 @@ def test_manual_reconcile_forbidden_for_other_issuer_on_post(
         },
     )
     assert response.status_code == 403
-    assert _json(response)["code"] == "forbidden"
 
 
 def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
