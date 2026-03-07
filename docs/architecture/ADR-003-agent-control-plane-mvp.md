@@ -80,16 +80,18 @@ flowchart LR
 This ADR introduced a temporary seam for MVP primitives. For the current privileged
 CBT/RAG execution slice, the operational closure criteria are now met:
 
-1. **Policy gate integrated**: All privileged agent actions pass through `require_policy_allow()`.
-2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
-3. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
-4. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
-5. **Bounded local sandbox available**: higher-risk local execution can run only through the
-   allowlisted local sandbox boundary with explicit cwd/env/output limits.
-6. **Test coverage**: deterministic tests verify bypass/timeout/quota/mode failure paths.
+1. **Policy gate integrated**: all privileged agent actions pass through `require_policy_allow()`.
+2. **Audit trail persistent**: signed envelopes are written to durable storage (not just in-memory).
+3. **Secrets boundary enforced**: fail-closed secret requirements remain in place.
+4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
+5. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
+6. **Bounded local sandbox available**: higher-risk developer-machine execution now runs only through
+   the allowlisted sandbox boundary with explicit cwd/env/output limits.
+7. **Test coverage**: deterministic tests verify bypass, timeout, quota, mode, and sandbox failure paths.
 
-The broader `ExecutionSandbox` box in the architecture diagram remains a future expansion
-boundary, but it is no longer a blocker for the current control-plane MVP slice.
+The broader `ExecutionSandbox` box in the architecture diagram remains a future
+stronger-isolation expansion boundary, but it is no longer a blocker for the
+current control-plane MVP slice.
 
 Open follow-up work is now narrower:
 
