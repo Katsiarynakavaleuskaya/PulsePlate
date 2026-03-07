@@ -83,3 +83,12 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:430`, `test
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3907785753 -> 3fd868c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899115757 -> 3fd868c9
+
+Disposition: FIXED
+Commit: 0707cd49
+Evidence: `scripts/orchestration/check_review_threads_disposition.py:37`, `scripts/orchestration/check_review_threads_disposition.py:434`, `scripts/orchestration/review_mapping_artifact.py:32`, `tests/test_agent_control_plane_mvp.py:73`, `tests/test_agent_control_plane_mvp.py:127`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3907794329 -> 0707cd49
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118660 -> 0707cd49
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118661 -> 0707cd49
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#discussion_r2899118662 -> 0707cd49
