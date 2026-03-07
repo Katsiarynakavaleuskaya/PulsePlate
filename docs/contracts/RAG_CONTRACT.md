@@ -168,7 +168,8 @@ MAX_CHUNK_SIZE_CHARS: int = 800
 - `core/rag/vector_rag.py:86` — `_retrieve_vector_postgres()` corpus filtering via parameterized LIKE
 - `core/rag/vector_rag.py:124` — `_retrieve_vector_sqlite()` corpus filtering via parameterized LIKE
 - `core/rag/vector_rag.py:181` — `_retrieve_vector_from_db()` resolves `agent_id` → `corpus_prefixes`
-- `core/rag/vector_rag.py` — vector retrieval from `user_knowledge` requires authenticated `subject_id`; missing subject context must fail closed to non-personal fallback
+- `core/rag/vector_rag.py:201` — vector retrieval fails closed when `subject_id` is missing
+- `core/rag/vector_rag.py:317` — public vector path falls back to non-personal Jaccard retrieval when vector path returns no chunks or errors
 - `core/rag/simple_rag.py:157` — Jaccard fallback with `startswith` corpus filtering
 - `app/routers/cbt_insight.py:134` — PRO-gated endpoint using `agent_id="cbt-agent"`
 
@@ -223,8 +224,8 @@ ALTER TABLE user_knowledge ENABLE ROW LEVEL SECURITY;
 Evidence anchors (audit policy: architecture docs must cite `file:line` or mark target-state):
 
 - `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
-- `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py` (subject_id-gated retrieval path), `core/rag/orchestration.py` (subject propagation), `legacy_app.py` (legacy `/insight` safe fallback).
-- `user_knowledge.embedding` изолирован по `user_id` через RLS. **Target-state:** DDL в §7 включает `ENABLE ROW LEVEL SECURITY`; при миграции добавить политику `USING (auth.uid() = user_id)` (или аналог).
+- `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py:201` (fail-closed on missing `subject_id`), `core/rag/vector_rag.py:317` (fallback to Jaccard on empty/error vector path), `core/rag/orchestration.py:137` and `core/rag/orchestration.py:147` (subject propagation into recursive/vector retrieval), `legacy_app.py:2202` and `legacy_app.py:2332` (authenticated `/api/v1/insight` derives and forwards `subject_id`), `legacy_app.py:2274` (legacy `/insight` passes `subject_id=None`), `app/routers/cbt_insight.py:176` (PRO CBT endpoint derives and forwards `subject_id`).
+- `user_knowledge.embedding` изолирован по `user_id` через RLS. **Target-state:** DDL в §7 включает `ENABLE ROW LEVEL SECURITY`; при миграции добавить политику `USING (auth.uid() = user_id)` (или аналог). **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md:2040`.
 - `rag_feedback.llm_response` не хранится без редактирования (PII). **Target-state:** при реализации записи в `rag_feedback` применять redaction (тот же `core/insight/safety.py` или отдельный redactor) перед сохранением.
 - Rate limit на RAG-эндпоинты (insight) сохраняется. **Evidence:** детерминированные 429-тесты — `tests/test_rate_limit_llm_and_exports_api.py:95-108` (`/api/v1/insight`), `:117-130` (`/insight`); tier-guard — `tests/test_insight_vip_guard_api.py:50-78`.
 
