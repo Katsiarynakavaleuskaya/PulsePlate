@@ -19,3 +19,8 @@ Evidence: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md:22`, `docs/orchestratio
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576656 -> 19cea9b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576658 -> 19cea9b9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900576660 -> 19cea9b9
+
+Disposition: FIXED
+Commit: 891a4872
+Evidence: `docs/review/PR_1016_FIXED_MAPPING.md:7`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1016#discussion_r2900645669 -> 891a4872
