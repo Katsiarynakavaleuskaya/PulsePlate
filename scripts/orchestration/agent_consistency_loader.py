@@ -125,9 +125,8 @@ def load_agent_file_slugs(path: Path = AGENTS_DIR) -> Set[str]:
     for agent_doc in path.glob("*.md"):
         if agent_doc.name == "AGENTS.md":
             continue
-        slug = _load_agent_frontmatter_name(agent_doc)
-        if slug:
-            agents.add(slug)
+        if _load_agent_frontmatter_name(agent_doc):
+            agents.add(agent_doc.stem.lower())
     return agents
 
 

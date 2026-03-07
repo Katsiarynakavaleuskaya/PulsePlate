@@ -129,3 +129,37 @@ def test_merge_mode_fails_cleanly_on_unreadable_evidence(monkeypatch, tmp_path, 
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "FAIL: gate evidence files must be readable UTF-8 text:" in captured.out
+
+
+def test_check_scoped_agents_exist_fails_when_any_path_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preflight,
+        "find_nearest_agents_file",
+        lambda path: (
+            "scripts/AGENTS.md" if path == "scripts/orchestration/check_preflight.py" else None
+        ),
+    )
+    monkeypatch.setattr(preflight, "collect_scoped_agents", lambda paths: ["scripts/AGENTS.md"])
+
+    assert (
+        preflight.check_scoped_agents_exist(
+            [
+                "scripts/orchestration/check_preflight.py",
+                "docs/orchestration/AGENT_CONTEXT_MAP.md",
+            ]
+        )
+        is False
+    )
+
+
+def test_check_gate_evidence_resolves_relative_paths_against_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    evidence = tmp_path / "evidence.log"
+    evidence.write_text("ok\n", encoding="utf-8")
+    monkeypatch.setattr(preflight, "ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path.parent)
+
+    assert preflight.check_gate_evidence(["evidence.log"]) is True

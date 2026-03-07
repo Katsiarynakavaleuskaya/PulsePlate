@@ -168,6 +168,17 @@ Evidence: docs/file.md:10
     assert _find_disposition_block_in_section(section, "https://example.com/2") is False
 
 
+def test_find_disposition_block_accepts_mapping_block_after_detail_header() -> None:
+    section = """
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+
+- https://example.com/thread -> deadbeef
+"""
+    assert _find_disposition_block_in_section(section, "https://example.com/thread") is True
+
+
 def test_validate_fixed_commit_blocks_rejects_empty_commit() -> None:
     section = """
 Disposition: FIXED

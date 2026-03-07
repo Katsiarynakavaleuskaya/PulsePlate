@@ -18,7 +18,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
+from scripts.orchestration.context_pack import (
+    collect_scoped_agents,
+    find_nearest_agents_file,
+    repo_relative_paths,
+)
 
 ROOT = REPO_ROOT
 GIT_BIN = shutil.which("git")
@@ -191,11 +195,16 @@ def check_scoped_agents_exist(task_paths: list[str]) -> bool:
         print("FAIL: preflight requires at least one --path to resolve scoped AGENTS")
         return False
 
-    scoped_agents = collect_scoped_agents(normalized_paths)
-    if not scoped_agents:
-        print("FAIL: no scoped AGENTS.md files resolved for candidate paths")
+    missing_resolution = [
+        path for path in normalized_paths if find_nearest_agents_file(path) is None
+    ]
+    if missing_resolution:
+        print("FAIL: nearest scoped AGENTS.md missing for candidate paths:")
+        for path in missing_resolution:
+            print(f"  - {path}")
         return False
 
+    scoped_agents = collect_scoped_agents(normalized_paths)
     missing = [path for path in scoped_agents if not (ROOT / path).is_file()]
     if missing:
         print("FAIL: resolved scoped AGENTS.md paths missing:")
@@ -233,7 +242,15 @@ def check_gate_evidence(files: list[str]) -> bool:
         print("FAIL: merge mode requires at least one --evidence-file")
         return False
 
-    missing = [path for path in files if not Path(path).is_file()]
+    resolved_paths = [
+        Path(raw_path) if Path(raw_path).is_absolute() else ROOT / raw_path for raw_path in files
+    ]
+
+    missing = [
+        raw_path
+        for raw_path, resolved_path in zip(files, resolved_paths)
+        if not resolved_path.is_file()
+    ]
     if missing:
         print("FAIL: gate evidence files missing:")
         for path in missing:
@@ -242,9 +259,9 @@ def check_gate_evidence(files: list[str]) -> bool:
 
     unreadable: list[str] = []
     empty: list[str] = []
-    for raw_path in files:
+    for raw_path, resolved_path in zip(files, resolved_paths):
         try:
-            content = Path(raw_path).read_text(encoding="utf-8")
+            content = resolved_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             unreadable.append(raw_path)
             continue

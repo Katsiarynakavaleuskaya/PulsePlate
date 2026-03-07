@@ -95,6 +95,9 @@ def test_sign_and_verify_audit_envelope(monkeypatch: pytest.MonkeyPatch) -> None
     assert envelope.action == "tool.exec"
     assert envelope.allowed is True
     assert envelope.timestamp_utc == "2026-02-21T12:00:00+00:00"
+    assert envelope.metadata_hash == cp._metadata_hash(
+        cp._sanitize_metadata({"path": "/api/v1/insight", "method": "POST"})
+    )
     assert cp.verify_audit_envelope(envelope) is True
 
 
@@ -143,15 +146,20 @@ def test_persist_audit_envelope_writes_jsonl_without_raw_query(tmp_path: Path) -
         allowed=True,
         reason="allowlist_match",
     )
-    envelope = cp.sign_audit_envelope(decision, secret="audit-key")
+    metadata = {
+        "query": "my raw private question",
+        "query_hash": "already-hashed",
+        "endpoint": "/api/v1/pro/cbt/insight",
+    }
+    envelope = cp.sign_audit_envelope(
+        decision,
+        metadata=metadata,
+        secret="audit-key",  # pragma: allowlist secret
+    )
 
     log_path = cp.persist_audit_envelope(
         envelope,
-        metadata={
-            "query": "my raw private question",
-            "query_hash": "already-hashed",
-            "endpoint": "/api/v1/pro/cbt/insight",
-        },
+        metadata=metadata,
         log_path=tmp_path / "agent-control.jsonl",
     )
 
@@ -160,24 +168,46 @@ def test_persist_audit_envelope_writes_jsonl_without_raw_query(tmp_path: Path) -
     assert payload["metadata"]["query"]["length"] == len("my raw private question")
     assert payload["metadata"]["query"]["sha256"]
     assert payload["metadata"]["query_hash"] == "already-hashed"
+    assert payload["envelope"]["metadata_hash"] == cp._metadata_hash(payload["metadata"])
     assert "my raw private question" not in log_path.read_text(encoding="utf-8")
+
+
+def test_persist_audit_envelope_rejects_metadata_hash_mismatch(tmp_path: Path) -> None:
+    decision = cp.PolicyDecision(
+        action="llm.generate",
+        target="provider://default",
+        allowed=True,
+        reason="allowlist_match",
+    )
+    envelope = cp.sign_audit_envelope(
+        decision,
+        metadata={"prompt_text": "sample prompt"},
+        secret="audit-key",  # pragma: allowlist secret
+    )
+
+    with pytest.raises(RuntimeError, match="metadata_hash"):
+        cp.persist_audit_envelope(
+            envelope,
+            metadata={"prompt_text": "different prompt"},
+            log_path=tmp_path / "agent-control.jsonl",
+        )
 
 
 def test_sanitize_metadata_handles_lists_and_tuples() -> None:
     sanitized = cp._sanitize_metadata(
         {
-            "prompt_list": ["secret prompt"],
+            "prompt_list": ["sample prompt"],
             "prompt_tuple": (
-                "secret tuple",
-                {"prompt_text": "nested secret"},
+                "sample tuple",
+                {"prompt_text": "nested sample"},
             ),
         }
     )
     assert isinstance(sanitized["prompt_list"], list)
     assert isinstance(sanitized["prompt_tuple"], list)
-    assert sanitized["prompt_list"][0]["length"] == len("secret prompt")
+    assert sanitized["prompt_list"][0]["length"] == len("sample prompt")
     assert sanitized["prompt_tuple"][0]["sha256"]
-    assert sanitized["prompt_tuple"][1]["prompt_text"]["length"] == len("nested secret")
+    assert sanitized["prompt_tuple"][1]["prompt_text"]["length"] == len("nested sample")
     assert "secret prompt" not in json.dumps(sanitized, sort_keys=True)
     assert "secret tuple" not in json.dumps(sanitized, sort_keys=True)
     assert "nested secret" not in json.dumps(sanitized, sort_keys=True)
@@ -268,6 +298,9 @@ def test_sign_audit_envelope_rejects_empty_string_secret() -> None:
 def test_verify_audit_envelope_rejects_empty_string_secret() -> None:
     """Fail-closed: explicitly passing empty-string secret must raise."""
     decision = cp.PolicyDecision(action="agent.exec", target="*", allowed=True, reason="test")
-    envelope = cp.sign_audit_envelope(decision, secret="test-secret")
+    envelope = cp.sign_audit_envelope(
+        decision,
+        secret="test-secret",  # pragma: allowlist secret
+    )
     with pytest.raises(RuntimeError, match="non-empty"):
         cp.verify_audit_envelope(envelope, secret="")

@@ -183,7 +183,7 @@ If it is not recorded here — it does not exist.
     - Linked from AGENTS.md as canonical orchestration governance reference
   - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
-- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
@@ -201,22 +201,6 @@ If it is not recorded here — it does not exist.
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
     - [x] Temporary PR-body fallback seam documented with ADR + exit criteria
-
-<a id="ledger-pr1000-ledger-docs-followup"></a>
-- [ ] P2: Normalize merged backlog closure bookkeeping for PR #998 in a docs-only follow-up
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: docs-only follow-up after PR #1000
-  - Status: Open
-  - Area: documentation / review governance
-  - Finding Type: docs consistency follow-up
-  - Reason: CodeRabbit flagged that the merged PR #998 ledger item mixes an open checkbox with `Status: ✅ Merged`. Keep PR #1000 focused on orchestration/runtime fixes and normalize the historical closure entry in a docs-only follow-up.
-  - Links:
-    - `docs/roadmap/BACKLOG_LEDGER.md` (merged PR #998 item above)
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000#pullrequestreview-3906750067`
-  - DoD:
-    - Docs-only follow-up updates the merged PR #998 ledger item to a single consistent closed state
-    - Closure bookkeeping keeps checkbox/status semantics aligned with the merged PR reference and date
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya

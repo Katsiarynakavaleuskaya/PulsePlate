@@ -107,7 +107,7 @@ def test_agent_file_loader_ignores_non_agent_markdown(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert load_agent_file_slugs(agents_dir) == {"canonical-agent"}
+    assert load_agent_file_slugs(agents_dir) == {"alias"}
 
 
 def test_check_agent_consistency_reports_direct_context_invariant(

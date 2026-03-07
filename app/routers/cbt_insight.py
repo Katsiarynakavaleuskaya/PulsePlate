@@ -92,12 +92,12 @@ class CBTInsightResponse(BaseModel):
     """Response schema for CBT insight endpoint."""
 
     insight: str = Field(..., description="CBT-informed response from LLM")
-    rag_used: bool = Field(default=False, description="Whether RAG context was used")
+    rag_used: bool = Field(..., description="Whether RAG context was used")
     sources: list[CBTSourceItem] = Field(
-        default_factory=list,
+        ...,
         description="CBT corpus sources used for context",
     )
-    confidence: float = Field(default=0.0, description="RAG retrieval confidence score")
+    confidence: float = Field(..., description="RAG retrieval confidence score")
     uncertainty: float = Field(
         ...,
         ge=0.0,

@@ -2437,7 +2437,6 @@ export interface components {
             /**
              * Confidence
              * @description RAG retrieval confidence score
-             * @default 0
              */
             confidence: number;
             /**
@@ -2460,14 +2459,13 @@ export interface components {
             /**
              * Rag Used
              * @description Whether RAG context was used
-             * @default false
              */
             rag_used: boolean;
             /**
              * Sources
              * @description CBT corpus sources used for context
              */
-            sources?: components["schemas"]["CBTSourceItem"][];
+            sources: components["schemas"]["CBTSourceItem"][];
             /**
              * Uncertainty
              * @description Uncertainty score derived from confidence

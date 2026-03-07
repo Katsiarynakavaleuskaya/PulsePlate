@@ -248,6 +248,24 @@ def _url_in_block(block: str, url: str) -> bool:
     return any(re.search(url_pattern, line) for line in block.splitlines())
 
 
+def _block_has_disposition_and_proof(block: str) -> bool:
+    """True when a block carries both disposition and proof markers."""
+
+    return bool(DISPOSITION_RE.search(block) and PROOF_RE.search(block))
+
+
+def _is_mapping_only_block(block: str) -> bool:
+    """True for URL mapping blocks without their own detail headers."""
+
+    detail_prefixes = ("Disposition:", "Commit:", "Evidence:", "Backlog:")
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if not lines:
+        return False
+    if any(line.startswith(detail_prefixes) for line in lines):
+        return False
+    return all(line.startswith("- http") for line in lines)
+
+
 def _block_disposition(block: str) -> str | None:
     """Return normalized disposition for a contiguous block, if present."""
 
@@ -370,8 +388,15 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
     (Commit/Evidence/Backlog) inside the same contiguous block separated by blank lines.
     Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
-    for block in _iter_disposition_blocks(section):
-        if _url_in_block(block, url) and DISPOSITION_RE.search(block) and PROOF_RE.search(block):
+    blocks = _iter_disposition_blocks(section)
+    for index, block in enumerate(blocks):
+        if not _url_in_block(block, url):
+            continue
+        if _block_has_disposition_and_proof(block):
+            return True
+        if index == 0 or not _is_mapping_only_block(block):
+            continue
+        if _block_has_disposition_and_proof(blocks[index - 1]):
             return True
     return False
 
