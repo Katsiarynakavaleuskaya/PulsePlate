@@ -3644,13 +3644,14 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE
-  - Status: 📋 Planned
+  - Target PR: PR #1011 (`feat/p1-ios-keychain-conformance`)
+  - Status: 🟡 In progress
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
     - ios/PulsePlate/Services/ProKeyProvider.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
