@@ -16,7 +16,6 @@ class TestDeadExceptionCleanup:
 
         assert not hasattr(contracts, "CorpusNotIndexedError")
         assert "CorpusNotIndexedError" not in getattr(contracts, "__all__", ())
-        assert "CorpusNotIndexedError" not in getattr(contracts, "__all__", ())
 
     def test_package_surface_does_not_reexport_dead_exception(self) -> None:
         """core.rag package surface should not expose removed dead exceptions."""
