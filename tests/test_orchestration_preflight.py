@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -163,3 +166,21 @@ def test_check_gate_evidence_resolves_relative_paths_against_root(
     monkeypatch.chdir(tmp_path.parent)
 
     assert preflight.check_gate_evidence(["evidence.log"]) is True
+
+
+def test_cli_invocation_works_without_pythonpath() -> None:
+    """Plain script invocation must work from repo root without PYTHONPATH."""
+
+    repo_root = Path(__file__).resolve().parents[1]
+    script_path = repo_root / "scripts" / "orchestration" / "check_preflight.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+    )
+
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
