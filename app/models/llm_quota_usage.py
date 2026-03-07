@@ -19,6 +19,9 @@ class VipLlmMonthlyUsage(Base):
 
     RU: Счётчик запросов по tier-scoped fingerprint и месяцу (UTC calendar month).
     EN: Usage counter keyed by tier-scoped fingerprint and UTC calendar month.
+
+    RU: Имя таблицы сохранено legacy-совместимым до отдельной миграции rename.
+    EN: Table name remains legacy-compatible until a dedicated rename migration lands.
     """
 
     __tablename__ = "vip_llm_monthly_usage"

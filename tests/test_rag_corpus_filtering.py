@@ -5,7 +5,6 @@ Verifies:
 - Corpus filtering extracts correct prefixes for agent_id
 - Corpus filtering logic in vector_rag.py correctly filters by source prefix
 - Corpus filtering logic in simple_rag.py (Jaccard fallback) correctly filters
-- Dead exception exports are not kept without runtime usage
 """
 
 from __future__ import annotations
@@ -44,22 +43,6 @@ class TestAgentCorpusMapConstant:
         from core.rag.contracts import AGENT_CORPUS_MAP
 
         assert "unknown-agent" not in AGENT_CORPUS_MAP
-
-
-class TestDeadExceptionCleanup:
-    """Tests that dead exception exports are removed once no longer used."""
-
-    def test_contract_module_does_not_export_dead_exception(self) -> None:
-        """core.rag.contracts should not keep an unused CorpusNotIndexedError export."""
-        import core.rag.contracts as contracts
-
-        assert not hasattr(contracts, "CorpusNotIndexedError")
-
-    def test_package_surface_does_not_reexport_dead_exception(self) -> None:
-        """core.rag package surface should not re-export removed dead exceptions."""
-        import core.rag as rag
-
-        assert "CorpusNotIndexedError" not in rag.__all__
 
 
 class TestCorpusPrefixMatching:

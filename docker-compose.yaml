@@ -19,9 +19,10 @@ services:
       - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
       - PRO_LLM_INSIGHT_REQUESTS_PER_MONTH=${PRO_LLM_INSIGHT_REQUESTS_PER_MONTH:-20}
       - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
-      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-artifacts/orchestration/agent_control_audit.jsonl}
+      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
     volumes:
       - ./data:/app/data:ro
+      - artifacts-volume:/app/artifacts:rw
       - cache-volume:/app/cache:rw
       - logs-volume:/app/logs:rw
     restart: unless-stopped
@@ -52,7 +53,7 @@ services:
       - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
       - PRO_LLM_INSIGHT_REQUESTS_PER_MONTH=${PRO_LLM_INSIGHT_REQUESTS_PER_MONTH:-20}
       - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
-      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-artifacts/orchestration/agent_control_audit.jsonl}
+      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
     volumes:
       - .:/app:rw
       - /app/__pycache__
@@ -102,6 +103,8 @@ volumes:
   cache-volume:
     driver: local
   logs-volume:
+    driver: local
+  artifacts-volume:
     driver: local
 
 networks:
