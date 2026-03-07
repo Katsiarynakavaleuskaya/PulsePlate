@@ -53,7 +53,13 @@ class ShoplistResponse(BaseModel):
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
+SHOPLIST_ROUTE_PREFIX = "/api/v1/shoplist"
+SHOPLIST_EXPORT_CSV_ROUTE = "/export.csv"
+SHOPLIST_EXPORT_PDF_ROUTE = "/export.pdf"
+SHOPLIST_EXPORT_CSV_PATH = f"{SHOPLIST_ROUTE_PREFIX}{SHOPLIST_EXPORT_CSV_ROUTE}"
+SHOPLIST_EXPORT_PDF_PATH = f"{SHOPLIST_ROUTE_PREFIX}{SHOPLIST_EXPORT_PDF_ROUTE}"
+
+router = APIRouter(prefix=SHOPLIST_ROUTE_PREFIX, tags=["shoplist"])
 
 FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"

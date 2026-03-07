@@ -61,10 +61,12 @@ If it is not recorded here — it does not exist.
     - OpenAPI/guard policy updated to remove transitional `/ws` allowance
     - Frontend ws client defaults to canonical path
 
+<a id="ledger-p0-export-signing-hardening"></a>
 - [ ] P0: Harden private export signing secret and signable-path scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING
+  - Target PR: PR #1005
+  - Status: Open
   - Area: backend / security / export signing
   - Finding Type: auth/config hardening
   - Reason: `POST /api/v1/export/sign` currently signs client-supplied paths while `settings.py` still exposes a default export token secret. In production or staging this creates a forged-link risk and keeps a security-sensitive path on weak-default config.
@@ -81,6 +83,7 @@ If it is not recorded here — it does not exist.
     - Deterministic tests cover deny/default-secret and deny/non-allowlisted-path branches
     - `pre-commit run --all-files` and `make verify` pass in PR scope
 
+<a id="ledger-p1-users-surface-hardening"></a>
 - [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -100,6 +103,7 @@ If it is not recorded here — it does not exist.
     - Destructive operations require authenticated/authorized access
     - If retirement is deferred, production exposure status is documented with owner and date
 
+<a id="ledger-p1-api-key-toggle-guard"></a>
 - [ ] P1: Production fail-fast for anonymous/dev API key toggles
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -119,6 +123,7 @@ If it is not recorded here — it does not exist.
     - Tests cover fail-closed behavior for production/staging settings
     - Deploy docs show the safe production values
 
+<a id="ledger-p1-worker-proxy-hardening"></a>
 - [ ] P1: Lock down Cloudflare worker proxy before any public deployment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -136,6 +141,7 @@ If it is not recorded here — it does not exist.
     - Authorization forwarding policy is documented and tested
     - Deployment docs state whether worker runtime is supported or forbidden
 
+<a id="ledger-p2-rag-feedback-pii-minimization"></a>
 - [ ] P2: Reassess feedback and RAG preview minimization beyond regex redaction
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -3564,7 +3570,7 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1
+  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1
   - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:

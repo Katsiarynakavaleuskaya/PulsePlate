@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import os
 
-_EXPORT_SIGNING_PLACEHOLDER = "__set_me__"
+_EXPORT_SIGNING_PLACEHOLDERS = frozenset(
+    {
+        "__set_me__",
+        "replace_me",
+        "replace_me_with_export_secret",
+    }
+)
 
 
 def get_runtime_env_name() -> str:
@@ -35,10 +41,11 @@ def get_export_token_secret() -> str:
     EN: Returns export-signing secret and fails on unsafe production-like config.
     """
 
-    secret = os.getenv("EXPORT_TOKEN_SECRET", _EXPORT_SIGNING_PLACEHOLDER).strip()
+    secret = os.getenv("EXPORT_TOKEN_SECRET", "__set_me__").strip()
+    normalized_secret = secret.lower()
     runtime_env = get_runtime_env_name()
     if is_private_exports_enabled() and runtime_env in {"production", "prod", "staging"}:
-        if not secret or secret == _EXPORT_SIGNING_PLACEHOLDER:
+        if not secret or normalized_secret in _EXPORT_SIGNING_PLACEHOLDERS:
             raise RuntimeError(
                 "EXPORT_TOKEN_SECRET must be set to a non-default secret when "
                 "PRIVATE_EXPORTS_ENABLED=true in production/staging."
