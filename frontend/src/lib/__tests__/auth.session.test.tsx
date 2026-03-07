@@ -99,14 +99,28 @@ describe('AuthProvider session migration', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
-      vi.advanceTimersByTime(5000);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(5000);
     });
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('fails closed when legacy key exchange stalls during bootstrap', async () => {
+    vi.useFakeTimers();
+    legacyStoredKey = 'legacy-session-key';
+    exchangeApiKeyForSessionMock.mockImplementation(() => new Promise<boolean>(() => {}));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
     });
 
+    expect(exchangeApiKeyForSessionMock).toHaveBeenCalledWith('legacy-session-key');
+    expect(clearStoredApiKeyMock).toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
     expect(result.current.isAuthenticated).toBe(false);
     vi.useRealTimers();
   });

@@ -50,6 +50,8 @@ describe("RequireKey", () => {
     expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
     expect(screen.queryByTestId("enter-key-probe")).not.toBeInTheDocument();
     expect(screen.getByTestId("auth-bootstrap-state")).toHaveTextContent("Checking secure session...");
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByRole('status')).toHaveAttribute('aria-atomic', 'true');
   });
 
   it("redirects to /enter-key and preserves source path when key is missing", () => {

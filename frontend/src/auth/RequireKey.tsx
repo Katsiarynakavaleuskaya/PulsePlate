@@ -14,6 +14,9 @@ export const RequireKey: React.FC<RequireKeyProps> = ({ children }) => {
     return (
       <div
         data-testid="auth-bootstrap-state"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
         className="flex min-h-[40vh] items-center justify-center px-6 text-sm font-medium text-[var(--color-text-muted)]"
       >
         Checking secure session...

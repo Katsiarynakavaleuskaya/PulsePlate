@@ -35,21 +35,27 @@ interface AuthProviderProps {
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
-  return await new Promise<T>((resolve) => {
-    const timeoutId = window.setTimeout(() => {
+  let timeoutId: number | null = null;
+  const guardedPromise = (async (): Promise<T> => {
+    try {
+      return await promise;
+    } catch {
+      return fallbackValue;
+    }
+  })();
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => {
       resolve(fallbackValue);
     }, timeoutMs);
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch(() => {
-        window.clearTimeout(timeoutId);
-        resolve(fallbackValue);
-      });
   });
+
+  try {
+    return await Promise.race([guardedPromise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -81,7 +87,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const legacyKey = getStoredApiKey();
       if (legacyKey) {
         try {
-          await exchangeApiKeyForSession(legacyKey);
+          await withTimeout(
+            exchangeApiKeyForSession(legacyKey),
+            SESSION_BOOTSTRAP_TIMEOUT_MS,
+            false,
+          );
         } catch {
           // Fail closed: migration best-effort, auth state is derived from session check below.
         } finally {
