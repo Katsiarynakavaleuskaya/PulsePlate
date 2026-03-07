@@ -1,0 +1,32 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="PulsePlate/Brand/Design System Guidelines" />
+
+# PulsePlate Design System Guidelines
+
+## Canonical review surface
+
+- Storybook is the primary review surface for the web design system.
+- Product routes are not the source of truth for design-system preview or governance docs.
+- Figma node `96:33` is the current visual input for the Storybook-first translation.
+
+## Asset canon
+
+- Canonical web brand assets live under `frontend/src/assets/brand/`.
+- `pulseplate-brand-mark.png` is the canonical brand mark for web lockups and compact signatures.
+- `fitchef-static.png` and `fitchef-wink.png` are the approved mascot variants for current web docs.
+- `ecg-line.svg` is the supporting accent asset for lockups and branded surfaces.
+
+## Token and component rules
+
+- Use token SoT from `frontend/src/styles/tokens.ts` and `frontend/src/styles/tokens.css`.
+- Reuse primitives from `frontend/src/components/ui/` before adding design-only wrappers.
+- Keep visual direction luxury-clean, calm, and wellness-safe.
+- Avoid clinical imagery, cyberpunk/neon treatments, glossy purple blobs, and decorative drift.
+
+## Storybook coverage intent
+
+- `PulsePlate/Brand/*` covers canonical brand assets and lockups.
+- `PulsePlate/Tokens/*` covers palette, typography, spacing, and radius.
+- `PulsePlate/Patterns/*` covers brand identity, governance, platform inventory, and overview composition.
+- `PulsePlate/Components/*` covers token-aware component showcase surfaces built from current primitives.

@@ -94,9 +94,20 @@
   --color-warning: #f59e0b;
   --color-error: var(--pp-red);
   --color-info: var(--pp-blue);
+  --color-destructive: var(--pp-red);
+  --color-destructive-foreground: var(--pp-red);
+  --color-destructive-bg: rgba(255, 93, 93, 0.1);
+  --color-destructive-bg-hover: rgba(255, 93, 93, 0.14);
+  --color-destructive-border: rgba(255, 93, 93, 0.18);
+  --color-destructive-shadow-color: rgba(255, 93, 93, 0.12);
   --color-focus: var(--pp-blue);
   --color-focus-rgb: 51, 159, 255;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
+  --shadow-destructive: 0 12px 32px var(--color-destructive-shadow-color);
+  --design-system-canvas-glow: rgba(var(--color-focus-rgb), 0.08);
+  --design-system-canvas-top: var(--color-bg-dark);
+  --design-system-canvas-mid: var(--color-surface-dark);
+  --design-system-canvas-bottom: var(--pp-navy);
 
   /* Legacy aliases (deprecated, keep until PR-2 migration) */
   --pp-primary: var(--pp-blue);
@@ -284,6 +295,17 @@ html[data-theme="dark"] {
   --shadow-md: var(--shadow-md-dark);
   --shadow-lg: var(--shadow-lg-dark);
   --shadow-xl: var(--shadow-xl-dark);
+}
+
+.bg-design-system-canvas {
+  background:
+    radial-gradient(circle at top, var(--design-system-canvas-glow), transparent 22%),
+    linear-gradient(
+      180deg,
+      var(--design-system-canvas-top) 0%,
+      var(--design-system-canvas-mid) 18%,
+      var(--design-system-canvas-bottom) 100%
+    );
 }
 
 /* Explicit light mode forcing */

@@ -10,14 +10,19 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 
 ## 2. Source-of-Truth Hierarchy
 
-| Level | Artifact                       | Role                           |
-| ----- | ------------------------------ | ------------------------------ |
-| 1     | Git commit SHA                 | canonical repo state           |
-| 2     | Repository files               | canonical governance artifacts |
-| 3     | Latest CI run for current HEAD | merge decision                 |
-| 4     | PR body                        | human-readable mirror only     |
+| Level | Artifact                                | Role                           |
+| ----- | --------------------------------------- | ------------------------------ |
+| 1     | Git commit SHA                          | canonical repo state           |
+| 2     | Repository files                        | canonical governance artifacts |
+| 2a    | `docs/review/PR_<N>_FIXED_MAPPING.md`    | Fixed in Commit Mapping SoT    |
+| 3     | Latest CI run for current HEAD          | merge decision                 |
+| 4     | PR body                                 | human-readable mirror only     |
 
-Evidence: Level 2 — this doc + `AGENTS.md`; Level 3 — `scripts/ci/check_pr_merge_readiness.py:337`; Level 4 — `scripts/ci/check_pr_body_phase2_gates.py:11`.
+Evidence:
+- Level 2: `AGENTS.md:39`, `AGENTS.md:102`, `AGENTS.md:103`, `AGENTS.md:434`, `AGENTS.md:435`
+- Level 2a: `scripts/orchestration/review_mapping_artifact.py:24`, `scripts/orchestration/review_mapping_artifact.py:84`, `scripts/orchestration/review_mapping_artifact.py:110`
+- Level 3: `scripts/ci/check_pr_merge_readiness.py:349`, `scripts/ci/check_pr_merge_readiness.py:369`, `scripts/ci/check_pr_merge_readiness.py:400`
+- Level 4: `scripts/ci/check_pr_body_phase2_gates.py:162`, `scripts/ci/check_pr_body_phase2_gates.py:182`
 
 ## 3. Governance Phases
 
@@ -28,20 +33,50 @@ Evidence: Level 2 — this doc + `AGENTS.md`; Level 3 — `scripts/ci/check_pr_m
 | Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
 | Phase 4 | Disposition proof | script semantics                        | yes          |
 
-## 4. Phase 2 PR Body Contract
+## 4. Phase 2 Contract (Canonical Artifact)
 
-Required sections:
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
+
+PR body **must mirror** the same review-governance sections for human review and fallback runs:
+
+- `## Discussion Thread Pass`
+- `### Fixed in Commit Mapping`
+- completed checkboxes matching the artifact
+
+Canonical runtime behavior is artifact-first when `pr_number` is available.
+PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context.
+
+Temporary seam tracking:
+
+- ADR: `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md:186`
+
+Exit criteria for removing PR-body fallback:
+
+1. CI/event paths always provide `pr_number` for Phase 2 and merge-readiness flows.
+2. Local tooling supports deterministic artifact lookup without PR-body parsing.
+3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
+
+Required sections (artifact and PR-body mirror):
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
-- `### Fixed in Commit Mapping`
+- `## Fixed in Commit Mapping`
 
 Valid mapping forms:
 
 - `- <url> -> <sha>`
 - `- No actionable review comments`
 
-Evidence: `scripts/ci/check_pr_body_phase2_gates.py:11` (discussion_heading, mapping_heading), `:61` (mapping section parser).
+Evidence:
+- `scripts/orchestration/review_mapping_artifact.py:44`
+- `scripts/orchestration/review_mapping_artifact.py:84`
+- `scripts/orchestration/review_mapping_artifact.py:110`
+- `scripts/ci/check_pr_body_phase2_gates.py:162`
+- `scripts/ci/check_pr_body_phase2_gates.py:169`
+- `scripts/ci/check_pr_body_phase2_gates.py:182`
+- `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md:1`
+- `docs/roadmap/BACKLOG_LEDGER.md:186`
 
 ## 5. Merge Readiness Contract
 
@@ -49,7 +84,13 @@ Evidence: `scripts/ci/check_pr_body_phase2_gates.py:11` (discussion_heading, map
 - Actionable bot comments must be mapped
 - Cancelled/stale runs do not define mergeability
 
-Evidence: `scripts/ci/check_pr_merge_readiness.py:1` (gate purpose), `:123` (unresolved threads), `:207` (actionable items), `:337` (unresolved check), `:350` (actionable mapping check), `:355` (mapped_urls).
+Evidence:
+- `scripts/ci/check_pr_merge_readiness.py:1`
+- `scripts/ci/check_pr_merge_readiness.py:135`
+- `scripts/ci/check_pr_merge_readiness.py:219`
+- `scripts/ci/check_pr_merge_readiness.py:349`
+- `scripts/ci/check_pr_merge_readiness.py:369`
+- `scripts/ci/check_pr_merge_readiness.py:383`
 
 ## 6. FIXED / NOT-A-BUG / DEFERRED Semantics
 
@@ -70,14 +111,24 @@ Evidence: `scripts/ci/check_pr_merge_readiness.py:1` (gate purpose), `:123` (unr
 - Requires ledger reference
 - No commit proof required
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:27` (DISPOSITION_RE), `:232` (FIXED mapping check), `AGENTS.md:46` (FIXED), `:63` (NOT-A-BUG), `:80` (DEFERRED).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:38`
+- `scripts/orchestration/check_review_threads_disposition.py:298`
+- `scripts/orchestration/check_review_threads_disposition.py:467`
+- `AGENTS.md:47`
+- `AGENTS.md:64`
+- `AGENTS.md:81`
 
 ## 7. Trigger-only Commit Ban
 
 - Empty commit = invalid FIXED proof
 - Rerun/trigger subject = invalid FIXED proof
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:175` (trigger-only validation), `:188` (invalid proof error), `:518` (mapping ban), `AGENTS.md:103` (trigger-only ban).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:181`
+- `scripts/orchestration/check_review_threads_disposition.py:197`
+- `scripts/orchestration/check_review_threads_disposition.py:528`
+- `AGENTS.md:103`
 
 ## 8. Required-check Truth
 
@@ -94,11 +145,15 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:175` (trigg
 | Soft gate | advisory quality signal   | no                          |
 | External  | third-party review signal | only if explicitly required |
 
-Evidence: enforced via workflow `required` status; `scripts/ci/check_pr_merge_readiness.py` (hard gate), `scripts/ci/check_pr_body_phase2_gates.py` (Phase 2 hard gate).
+Evidence:
+- `scripts/ci/check_pr_merge_readiness.py:349`
+- `scripts/ci/check_pr_merge_readiness.py:400`
+- `scripts/ci/check_pr_body_phase2_gates.py:162`
+- `scripts/ci/check_pr_body_phase2_gates.py:182`
 
 ## 10. Review Thread Lifecycle
 
-```
+```text
 OPEN
 → FIXED / NOT-A-BUG / DEFERRED
 → RESOLVED
@@ -113,11 +168,16 @@ OPEN
 - No blind `# nosec`
 - Allowlist discipline
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:8` (GH_TOKEN canonical), `:50` (shutil.which for gh), `:106` (shutil.which for git), `:411` (GH_TOKEN preflight), `AGENTS.md:110` (Bandit/nosec policy, subprocess).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:8`
+- `scripts/orchestration/check_review_threads_disposition.py:60`
+- `scripts/orchestration/check_review_threads_disposition.py:117`
+- `scripts/orchestration/check_review_threads_disposition.py:394`
+- `AGENTS.md:120`
 
 ## 12. Roadmap / Future Hardening
 
-- Move Fixed Mapping SoT from PR body to repo file
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Implemented in PR #998 (pending merge)
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof
