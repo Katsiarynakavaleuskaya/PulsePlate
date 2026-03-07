@@ -28,7 +28,7 @@ from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
 
 SCHEMA_VERSION = "2.0"
-TASK_PACKET_DIR = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
+TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -90,7 +90,7 @@ def _resolve_output_path(raw_output: str | None, packet_id: str) -> Path:
     """Resolve output path relative to repo root and reject out-of-repo writes."""
 
     if not raw_output:
-        return TASK_PACKET_DIR / f"{packet_id}.json"
+        return (TASK_PACKET_DIR / f"{packet_id}.json").resolve()
 
     candidate = Path(raw_output)
     if not candidate.is_absolute():

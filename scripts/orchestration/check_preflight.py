@@ -24,6 +24,7 @@ ROOT = REPO_ROOT
 GIT_BIN = shutil.which("git")
 if GIT_BIN is None:
     raise RuntimeError("git executable not found on PATH")
+GIT_EXECUTABLE: str = GIT_BIN
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
@@ -40,7 +41,7 @@ VALID_MODES = {"analyze", "execute", "merge"}
 
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
     if cmd and cmd[0] == "git":
-        cmd = [GIT_BIN, *cmd[1:]]
+        cmd = [GIT_EXECUTABLE, *cmd[1:]]
     r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-06-30, ref: PR-996)
         cmd,
         cwd=cwd or ROOT,
