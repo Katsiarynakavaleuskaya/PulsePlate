@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Design URL + Node ID Capture Protocol (H+P+Pr)
 
-**Date:** February 19, 2026
+**Date:** March 7, 2026
 **Scope:** unblock Code Connect activation for Home + Plate + Progress CTA mappings
 
 ## 1) Purpose
@@ -16,6 +16,14 @@ MCP tools for Code Connect (`get_code_connect_suggestions`, `get_metadata`,
 `get_code_connect_map`) are supported for **Figma Design** files only.
 
 Therefore, this dependency cannot be auto-closed from Make context alone.
+
+Additional blocker discovered on March 7, 2026:
+`get_code_connect_suggestions(...)` currently fails for this workspace because
+Code Connect requires a **Full or Dev seat on Organization or Enterprise** per
+<https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect> and
+<https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
+Current MCP `whoami` reports only a `Full` seat on `pro`
+(`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:3`).
 
 ## 3) Capture Procedure
 
@@ -59,41 +67,61 @@ Set per-row:
 
 After Step 3, run MCP checks:
 
-1. `get_metadata(fileKey=<fileKey>, nodeId=<nodeId>)`
-2. `get_code_connect_suggestions(fileKey=<fileKey>, nodeId=<nodeId>)`
+1. `whoami` confirms a Code Connect-capable seat (Full or Dev seat in Organization/Enterprise).
+2. `get_metadata(fileKey=<fileKey>, nodeId=<nodeId>)`
+3. `get_code_connect_suggestions(fileKey=<fileKey>, nodeId=<nodeId>)`
 
-If both succeed for all P0 rows, blocker is cleared and activation may proceed via:
+If all three succeed for all P0 rows, blocker is cleared and activation may proceed via:
 `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 
 ## 4) P0 Capture Table (fill-in contract)
 
 | Button/CTA ID | Design URL | fileKey | nodeId | Captured by | Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `web.home.open_setup` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System?node-id=1-72` | `umcCk7TtO760DJ3N6M7mvh` | `1:72` | OpenClaw (browser capture) | 2026-02-19 | validated |
+| `web.home.open_setup` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System?node-id=1-72` | `umcCk7TtO760DJ3N6M7mvh` | `1:72` (stale) | OpenClaw (browser capture, invalidated by MCP re-check) | 2026-03-07 | stale |
 | `web.plate.premium_gate_cta` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
 | `web.progress.export_pdf` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
 | `ios.plate.issue_action_dynamic` | `https://www.figma.com/design/umcCk7TtO760DJ3N6M7mvh/PulsePlate-Design-System` | `umcCk7TtO760DJ3N6M7mvh` | TBD | OpenClaw (browser search) | 2026-02-19 | blocked_by_node_id_capture |
 
 **Capture note (2026-02-19):** in public browser session, `Find` with scope `All pages` returned `No results in this file` for `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic`; only `web.home.open_setup` resolved to `node-id=1-72`.
 
-**Clear note:** Design URL exists, node IDs missing in design file.
+**Refresh note (2026-03-07):**
+
+- MCP `get_metadata(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="1:72")` now returns `The node ID provided was invalid`, so the prior `web.home.open_setup` capture is no longer activation-safe (`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:6`).
+- MCP `get_metadata(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="96:33")` succeeds, which confirms the Design file key is current but the accessible MCP root is a spec/index frame, not the old `1:72` CTA node (`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:8`).
+- MCP `get_code_connect_suggestions(...)` is blocked at plan level until a Full
+  or Dev seat in an Organization or Enterprise plan is available
+  (`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:4`, `docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:6`).
+
+**Clear note:** Design URL exists, but the P0 set still lacks four current activation-safe node IDs and Code Connect remains blocked by seat/plan (`docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:6`, `docs/figma/orchestration/sessions/2026-03-07_code_connect_blocker_evidence/01_MCP_STATUS.md:10`).
 
 ## Next action for designer
 
-Add/restore the following node names in Design file `umcCk7TtO760DJ3N6M7mvh` and provide selection URLs with node IDs:
+Re-capture/add the following node names in Design file `umcCk7TtO760DJ3N6M7mvh` and provide selection URLs with current node IDs:
 
+- `web.home.open_setup`
 - `web.plate.premium_gate_cta`
 - `web.progress.export_pdf`
 - `ios.plate.issue_action_dynamic`
 
 ## 5) Done Criteria
 
-Dependency is considered closed only when:
+### Capture complete
+
+Capture dependency is considered closed when:
 
 1. Design URL is recorded in repo docs.
-2. All four P0 rows have non-`TBD` `fileKey` and `nodeId`.
-3. MCP verification succeeds for all four rows.
-4. Mapping registry status is updated out of `blocked_by_node_id_capture` / `missing_node_id`.
+2. All four P0 rows have current, non-stale `fileKey` and `nodeId`.
+3. Mapping registry status is updated out of `blocked_by_node_id_capture` /
+   `missing_node_id` / `stale`.
+
+### Activation unblocked
+
+Code Connect activation is unblocked only when, in addition:
+
+1. A Code Connect-capable Figma seat is available (`whoami` +
+   `get_code_connect_suggestions` no longer plan-blocked).
+2. MCP verification succeeds for all four rows.
 
 ## 6) Canonical links
 

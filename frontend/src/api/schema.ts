@@ -2535,7 +2535,6 @@ export interface components {
             /**
              * Confidence
              * @description RAG retrieval confidence score
-             * @default 0
              */
             confidence: number;
             /**
@@ -2544,16 +2543,37 @@ export interface components {
              */
             insight: string;
             /**
+             * Mode
+             * @description Resolved agent execution mode
+             * @enum {string}
+             */
+            mode: "auto-safe" | "review-required" | "blocked";
+            /**
+             * Quota State
+             * @description Monthly quota state before provider call
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
              * Rag Used
              * @description Whether RAG context was used
-             * @default false
              */
             rag_used: boolean;
             /**
              * Sources
              * @description CBT corpus sources used for context
              */
-            sources?: components["schemas"]["CBTSourceItem"][];
+            sources: components["schemas"]["CBTSourceItem"][];
+            /**
+             * Uncertainty
+             * @description Uncertainty score derived from confidence
+             */
+            uncertainty: number;
+            /**
+             * Warnings
+             * @description Operational or retrieval warnings
+             */
+            warnings: string[];
         };
         /**
          * CBTSourceItem

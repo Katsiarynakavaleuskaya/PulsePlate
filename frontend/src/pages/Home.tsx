@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { HomeOpenSetupCta } from '../components/cta';
 import { Card, CardContent, buttonClasses } from '../components/ui';
 import LiveProgressIndicator from '../features/progress/LiveProgressIndicator';
 import { useAuth } from '../lib/auth';
@@ -97,12 +98,7 @@ export default function Home() {
 
           {/* Primary Action */}
           <div className="mb-4">
-            <Link
-              to="/setup"
-              className={buttonClasses({ variant: 'primary', size: 'lg', fullWidth: true, className: 'block text-center' })}
-            >
-              Configure Setup
-            </Link>
+            <HomeOpenSetupCta />
           </div>
 
           {/* Secondary Actions Grid */}

@@ -1,7 +1,11 @@
-"""Load agent name sets from AGENT_INVENTORY, AGENT_CAPABILITY_MATRIX, and routing graph.
+"""Load agent name sets from docs, routing graph, and actual agent files.
 
-Used by check_agent_consistency.py to enforce: routing ⊆ inventory ⊆ capability.
-Canonical paths: docs/orchestration/AGENT_INVENTORY.md, AGENT_CAPABILITY_MATRIX.md, AGENT_ROUTING_GRAPH.md.
+Used by consistency guards to enforce:
+- routing ⊆ inventory
+- index == actual agent files
+- inventory ⊆ capability
+- inventory ⊆ context map
+- routable agents must exist in docs layers or explicit allowlist
 """
 
 from __future__ import annotations
@@ -14,8 +18,14 @@ from typing import Set, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_INVENTORY.md"
 CAPABILITY_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_CAPABILITY_MATRIX.md"
+INDEX_PATH = REPO_ROOT / "docs" / "agents" / "index.md"
+AGENTS_DIR = REPO_ROOT / ".cursor" / "agents"
+NON_ROUTABLE_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_NON_ROUTABLE_SPECIALISTS.md"
+CONTEXT_MAP_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_CONTEXT_MAP.md"
+SYSTEM_AGENT_EXCEPTIONS = frozenset({"generalpurpose", "explore", "shell", "ci-watcher"})
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
+_AGENT_NAME_RE = re.compile(r"^name:\s*(?P<name>[a-z0-9][a-z0-9\-]*)\s*$")
 
 # Map capability matrix first-column display names to canonical slugs (inventory/routing).
 _CAPABILITY_DISPLAY_TO_SLUG: dict[str, str] = {
@@ -44,11 +54,16 @@ _CAPABILITY_DISPLAY_TO_SLUG: dict[str, str] = {
 
 @dataclass(frozen=True)
 class AgentConsistencySets:
-    """Three agent sets: inventory (reference), capability (matrix), routing (graph)."""
+    """Canonical agent sets used by repo guards."""
 
+    files: Set[str]
+    index: Set[str]
     inventory: Set[str]
     capability: Set[str]
+    context: Set[str]
     routing: Set[str]
+    non_routable: Set[str]
+    system_exceptions: Set[str]
 
 
 def _split_md_row(line: str) -> Tuple[str, ...]:
@@ -71,20 +86,100 @@ def _is_table_delimiter_row(line: str) -> bool:
 
 
 def load_inventory_agents(path: Path = INVENTORY_PATH) -> Set[str]:
-    """Extract agent slugs from AGENT_INVENTORY.md (all tables with Agent/Type column)."""
+    """Extract canonical agent slugs from AGENT_INVENTORY.md.
+
+    Utility `mcp_task` rows under the `Type` table are not canonical Cursor agents
+    and are intentionally excluded from the consistency set.
+    """
     if not path.is_file():
         raise FileNotFoundError(f"Missing inventory file: {path}")
     text = path.read_text(encoding="utf-8")
     agents: Set[str] = set()
+    in_agent_table = False
     for line in text.splitlines():
         cols = _split_md_row(line)
         if not cols:
             continue
-        if cols[0].lower() in {"agent", "type"}:
+        header = cols[0].lower()
+        if header == "agent":
+            in_agent_table = True
+            continue
+        if header == "type":
+            in_agent_table = False
+            continue
+        if not in_agent_table or _is_table_delimiter_row(line):
             continue
         candidate = _normalize_slug(cols[0])
         if candidate and re.fullmatch(r"[a-z0-9][a-z0-9\-]*", candidate):
             agents.add(candidate)
+    return agents
+
+
+def load_agent_file_slugs(path: Path = AGENTS_DIR) -> Set[str]:
+    """Extract canonical slugs from frontmatter-backed agent docs only."""
+
+    if not path.is_dir():
+        raise FileNotFoundError(f"Missing agent directory: {path}")
+
+    agents: Set[str] = set()
+    for agent_doc in path.glob("*.md"):
+        if agent_doc.name == "AGENTS.md":
+            continue
+        frontmatter_name = _load_agent_frontmatter_name(agent_doc)
+        if not frontmatter_name:
+            continue
+        file_slug = agent_doc.stem.lower()
+        if file_slug != frontmatter_name:
+            raise ValueError(
+                f"Agent doc filename/frontmatter mismatch: {agent_doc.name} declares "
+                f"{frontmatter_name!r}"
+            )
+        agents.add(frontmatter_name)
+    return agents
+
+
+def _load_agent_frontmatter_name(path: Path) -> str | None:
+    """Return canonical slug from agent frontmatter or None for non-agent docs."""
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return None
+        match = _AGENT_NAME_RE.match(stripped)
+        if match:
+            return match.group("name")
+    return None
+
+
+def load_index_agents(path: Path = INDEX_PATH) -> Set[str]:
+    """Extract agent slugs from docs/agents/index.md first column."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing agent index: {path}")
+    text = path.read_text(encoding="utf-8")
+    agents: Set[str] = set()
+    header_found = False
+    for line in text.splitlines():
+        cols = _split_md_row(line)
+        if not cols:
+            if header_found:
+                break
+            continue
+        first = cols[0].strip().lower()
+        if first == "agent":
+            header_found = True
+            continue
+        if header_found and _is_table_delimiter_row(line):
+            continue
+        if not header_found:
+            continue
+        slug = _normalize_slug(cols[0])
+        if slug:
+            agents.add(slug)
     return agents
 
 
@@ -146,9 +241,49 @@ def load_routing_agents() -> Set[str]:
     return out
 
 
+def load_non_routable_agents(path: Path = NON_ROUTABLE_PATH) -> Set[str]:
+    """Extract explicit non-routable agent slugs from markdown list."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing non-routable allowlist: {path}")
+    out: Set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- `") and stripped.endswith("`"):
+            out.add(stripped[3:-1])
+    return out
+
+
+def load_context_agents(path: Path = CONTEXT_MAP_PATH) -> Set[str]:
+    """Extract canonical agent slugs from AGENT_CONTEXT_MAP.md headings."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing context map: {path}")
+
+    agents: Set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^### .*?`(?P<slug>[a-z0-9][a-z0-9\-]*)`", line.strip())
+        if match:
+            agents.add(match.group("slug"))
+    return agents
+
+
 def load_agent_sets() -> AgentConsistencySets:
-    """Load all three sets. Invariant: routing ⊆ inventory ⊆ capability."""
+    """Load canonical agent sets for consistency checks."""
+    files = load_agent_file_slugs()
+    index = load_index_agents()
     inventory = load_inventory_agents()
     capability = load_capability_agents()
+    context = load_context_agents()
     routing = load_routing_agents()
-    return AgentConsistencySets(inventory=inventory, capability=capability, routing=routing)
+    non_routable = load_non_routable_agents()
+    return AgentConsistencySets(
+        files=files,
+        index=index,
+        inventory=inventory,
+        capability=capability,
+        context=context,
+        routing=routing,
+        non_routable=non_routable,
+        system_exceptions=set(SYSTEM_AGENT_EXCEPTIONS),
+    )

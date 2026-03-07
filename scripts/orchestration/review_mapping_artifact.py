@@ -33,7 +33,7 @@ CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
 MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f]{7,40})\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
-DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:")
+DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
 
 
 def mapping_artifact_path(pr_number: int) -> Path:
@@ -129,8 +129,14 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         return errors
 
     saw_mapping_line = False
+    saw_disposition = False
+    saw_proof = False
     for line in lines:
-        if any(line.startswith(prefix) for prefix in DETAIL_PREFIXES):
+        if line.startswith("Disposition:"):
+            saw_disposition = True
+            continue
+        if any(line.startswith(prefix) for prefix in DETAIL_PREFIXES[1:]):
+            saw_proof = True
             continue
         if MAPPING_LINE_RE.match(line):
             saw_mapping_line = True
@@ -141,6 +147,12 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         errors.append(
             "Fixed in Commit Mapping must contain at least one '- <url> -> <sha>' line "
             "or '- No actionable review comments'."
+        )
+    if not errors and saw_mapping_line and not saw_disposition:
+        errors.append("Missing 'Disposition:' when SHA mappings are present.")
+    if not errors and saw_mapping_line and not saw_proof:
+        errors.append(
+            "Missing proof detail (Commit:/Evidence:/Backlog:) when SHA mappings are present."
         )
 
     return errors

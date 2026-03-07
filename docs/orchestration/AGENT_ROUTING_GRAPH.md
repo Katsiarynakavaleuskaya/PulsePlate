@@ -28,23 +28,33 @@
 | Documentation  | docs     |
 | Research       | research |
 | Safety / Philosophy / Logic | safety  |
+| QA             | qa       |
+| Release        | release  |
+| Wellness       | wellness |
+| Business       | business |
+| Orchestration  | orchestration |
 
 ---
 
 ## 3. Domains → Agents
 
-| Domain   | Primary Agent            | Secondary                | Reviewer                |
-|----------|--------------------------|--------------------------|-------------------------|
-| backend  | architecture-specialist  | backend-engineer, bug-hunter | security-auditor        |
-| ios      | frontend-engineer        | creative-designer        | bug-hunter              |
-| frontend | frontend-engineer        | creative-designer        | bug-hunter              |
-| infra    | dev-operator             | architecture-specialist | security-auditor        |
-| security | security-auditor         | architecture-specialist  | agent-coordinator       |
-| ml       | ai-innovation-specialist| web-research-agent       | architecture-specialist |
-| docs     | web-research-agent       | agent-coordinator        | bug-hunter              |
-| design   | creative-designer        | frontend-engineer        | agent-coordinator       |
-| research | web-research-agent       | ai-innovation-specialist| agent-coordinator       |
-| safety   | philosophy-agent         | logic-agent             | agent-coordinator       |
+| Domain   | Cluster  | Primary Agent            | Secondary                       | Reviewer                |
+|----------|----------|--------------------------|---------------------------------|-------------------------|
+| backend  | backend  | architecture-specialist  | backend-engineer, bug-hunter    | security-auditor        |
+| ios      | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
+| frontend | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
+| infra    | ops      | dev-operator             | architecture-specialist         | security-auditor        |
+| security | ops      | security-auditor         | architecture-specialist         | agent-coordinator       |
+| ml       | ml       | ai-innovation-specialist | rag-systems-agent               | architecture-specialist |
+| docs     | ops      | web-research-agent       | cursor-specialist-agent         | qa-engineer-agent       |
+| design   | platform | creative-designer        | frontend-engineer               | qa-engineer-agent       |
+| research | ml       | web-research-agent       | ai-innovation-specialist        | agent-coordinator       |
+| safety   | safety   | philosophy-agent         | logic-agent                     | agent-coordinator       |
+| qa       | ops      | qa-engineer-agent        | bug-hunter                      | agent-coordinator       |
+| release  | growth   | app-store-release-agent  | marketing-strategist            | qa-engineer-agent       |
+| wellness | growth   | wellness-analyst-agent   | marketing-strategist            | business-strategist-agent |
+| business | growth   | business-strategist-agent | marketing-strategist           | agent-coordinator       |
+| orchestration | ops | cursor-specialist-agent  | dev-operator                    | architecture-specialist |
 
 ---
 
@@ -57,7 +67,9 @@
 5. Coordinator retains final authority.
 6. **Domain `safety`** = wellness language boundaries + claim semantics + contradiction checks (single definition; do not duplicate elsewhere).
 7. **Reviewer** in this graph = process/merge reviewer, not formal security review (formal review semantics live in `AGENT_CAPABILITY_MATRIX.md`).
-8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks default to primary domain of most relevant agent per capability matrix.
+8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks escalate to `agent-coordinator` for adjudication.
+9. **Independent reviewer invariant:** reviewer must never equal the selected primary agent after telemetry/advisory overrides.
+10. **Cluster-first routing:** coordinator resolves `cluster` first for metrics and packaging, then selects domain-level primary/secondary/reviewer.
 
 ---
 
@@ -66,11 +78,13 @@
 ```mermaid
 flowchart LR
 
-Task --> Domain
+Task --> Cluster
+Cluster --> Domain
 Domain --> PrimaryAgent
-Domain --> SecondaryAgents
+PrimaryAgent --> SecondaryAgents
 PrimaryAgent --> Reviewer
 Reviewer --> MergeDecision
+SecondaryAgents --> Reviewer
 ```
 
 ---
@@ -83,4 +97,4 @@ Reviewer --> MergeDecision
 
 ---
 
-**Last updated:** 2026-03-04 (PR #967)
+**Last updated:** 2026-03-07 (routing graph refresh)

@@ -183,11 +183,11 @@ If it is not recorded here — it does not exist.
     - Linked from AGENTS.md as canonical orchestration governance reference
   - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 
-- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
+- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
-  - Status: Open (PR #998, awaiting merge)
+  - Status: ✅ Merged (PR #998, 2026-03-07)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
@@ -217,11 +217,11 @@ If it is not recorded here — it does not exist.
     - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
 
 <a id="ledger-pr998-orch2-carryover"></a>
-- [ ] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
+- [x] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
-  - Status: Open (scope removed from PR #998; review follows the moved code)
+  - Status: Done (carryover comments re-evaluated and dispositioned in merged PR #1000)
   - Area: orchestration / review governance / scope management
   - Finding Type: carryover after scope cleanup
   - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
@@ -229,6 +229,7 @@ If it is not recorded here — it does not exist.
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584`
+    - `docs/review/PR_1000_FIXED_MAPPING.md`
   - DoD:
     - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
     - Relevant fixes or explicit dispositions are recorded on PR #1000
@@ -2058,6 +2059,23 @@ If it is not recorded here — it does not exist.
     - docs/db schema doc created
     - `make verify` passes
 
+- [ ] P1: `user_knowledge` DB-level RLS / policy hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / defense-in-depth)
+  - Target PR: PR-TBD-USER-KNOWLEDGE-RLS
+  - Status: 📋 Planned
+  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but `user_knowledge` still needs explicit DB-level RLS/policy enforcement as defense in depth.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (§7, §8)
+    - `app/models/rag_feedback.py`
+    - `core/rag/vector_rag.py`
+    - `alembic/versions/202602280001_add_rag_feedback_tables.py`
+  - DoD:
+    - Postgres RLS policy exists for `user_knowledge` (and companion policy for `rag_feedback` if required)
+    - Migration + rollback path documented
+    - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
+    - Runtime app-layer filtering remains in place (no regression to code-level scoping)
+
 - [ ] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)
@@ -2997,11 +3015,13 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
   - Target PR: PR/Figma-CodeConnect-Activation
   - Priority: P1
-  - Status: 🔒 Blocked by dependency
+  - Status: Optional follow-up (auxiliary to Penpot + Storybook)
   - Area: design / frontend / iOS
   - Finding Type: integration dependency
-  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
-    node-level Code Connect cannot be activated without Design file key and node IDs.
+  - Reason: Web review is now canonical via Storybook + Penpot bridge, while
+    Code Connect activation remains an optional auxiliary mapping path once the
+    current P0 node set is complete/non-stale and the workspace has a Code
+    Connect-capable seat.
   - Links:
     - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
     - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
@@ -3009,11 +3029,41 @@ If it is not recorded here — it does not exist.
     - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
   - DoD:
     - Figma Design file URL is recorded in repo docs
-    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
+    - P0 CTA nodes have current, non-stale `fileKey` and `nodeId`
       (`web.home.open_setup`, `web.plate.premium_gate_cta`,
       `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_suggestions` is no longer plan-blocked for the workspace
     - `get_code_connect_map` returns expected active mappings for P0 set
-    - Matrix `Figma Node ID` column updated for activated rows
+    - Matrix optional design review references are updated for activated rows
+    - Optional activation path does not redefine the canonical Storybook-first
+      web review workflow
+
+- [ ] Penpot + Storybook fallback bridge for design handoff
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: PR/Penpot-Storybook-Bridge
+  - Priority: P1
+  - Status: ▶️ In progress (Primary web-review path)
+  - Area: design / frontend / docs
+  - Finding Type: fallback workflow
+  - Reason: Storybook and token SoT already exist in repo, so this bridge is the
+    canonical low-cost design review path for web. Figma Code Connect remains an
+    optional auxiliary mapping workflow rather than a gating dependency.
+  - Links:
+    - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_HOME_OPEN_SETUP.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+    - `frontend/.storybook/main.ts`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+  - DoD:
+    - Penpot bridge is documented as the canonical minimal handoff path for web review
+    - Storybook remains canonical web review surface
+    - Seam ADR remains linked from this ledger item and owns explicit exit criteria
+    - Token SoT linkage is explicit in the bridge doc
+    - CTA/design review packet format is defined without Code Connect dependency
+    - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
 
 - [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
   - Owner: @katsiaryna_kavaleuskaya
