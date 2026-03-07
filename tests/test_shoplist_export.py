@@ -229,4 +229,5 @@ def test_export_pdf_returns_501_when_reportlab_missing(
     )
 
     assert response.status_code == 501
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"] == "PDF export is not available"
