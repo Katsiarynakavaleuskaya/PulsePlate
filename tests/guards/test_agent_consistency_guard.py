@@ -19,7 +19,7 @@ import pytest
 import scripts.orchestration.check_agent_consistency as check_agent_consistency
 from scripts.orchestration.agent_consistency_loader import (
     AgentConsistencySets,
-    load_declared_clusters,
+    load_declared_routing_clusters,
     load_agent_file_slugs,
     load_agent_sets,
     load_capability_agents,
@@ -179,8 +179,9 @@ def test_check_agent_consistency_reports_direct_context_invariant(
 def test_cluster_loaders_match_routing_graph_contract() -> None:
     """Dedicated cluster loaders should stay aligned with the routing graph SoT."""
 
-    assert load_routing_clusters() == {"backend", "platform", "ops", "ml", "safety", "growth"}
-    assert load_declared_clusters() == {"backend", "platform", "ops", "ml", "safety", "growth"}
+    declared_clusters = load_declared_routing_clusters()
+    assert declared_clusters
+    assert load_routing_clusters() == declared_clusters
 
 
 def test_missing_inventory_file_raises(tmp_path: Path) -> None:

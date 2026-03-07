@@ -47,20 +47,48 @@ def _is_delimiter_row(line: str) -> bool:
     return bool(content and set(content) <= {"-", ":", " "})
 
 
+def _normalize_header_tokens(column: str) -> set[str]:
+    """Normalize a markdown header cell into lowercase word tokens."""
+
+    text = re.sub(r"[^\w\s]", " ", column.strip().lower())
+    return {token for token in text.split() if token}
+
+
 def _find_table_header(
     lines: list[str], required_columns: tuple[str, ...]
 ) -> tuple[int, Tuple[str, ...]]:
-    """Locate the first markdown table header that contains the required columns."""
+    """Locate a markdown table header using whole-token column matching."""
+
+    required_token_sets = tuple(_normalize_header_tokens(column) for column in required_columns)
 
     for index, line in enumerate(lines):
         cols = _split_md_row(line)
         if not cols:
             continue
-        normalized = tuple(col.strip().lower() for col in cols)
-        if all(any(required in column for column in normalized) for required in required_columns):
+        header_tokens = tuple(_normalize_header_tokens(column) for column in cols)
+        if all(required in header_tokens for required in required_token_sets):
             return index, cols
     required = ", ".join(required_columns)
     raise ValueError(f"Routing graph table header not found for columns: {required}")
+
+
+def _header_index(header_cols: Tuple[str, ...], required_header: str) -> int:
+    """Return the exact header index for a required column token set."""
+
+    required_tokens = _normalize_header_tokens(required_header)
+    matches = [
+        position
+        for position, column in enumerate(header_cols)
+        if _normalize_header_tokens(column) == required_tokens
+    ]
+    if not matches:
+        raise ValueError(f"Required column missing: {required_header}")
+    if len(matches) > 1:
+        matched_headers = [header_cols[position] for position in matches]
+        raise ValueError(
+            f"Ambiguous column '{required_header}' matched multiple headers: {matched_headers}"
+        )
+    return matches[0]
 
 
 def _parse_cluster_definitions(lines: list[str]) -> Set[str]:
@@ -74,16 +102,8 @@ def _parse_cluster_definitions(lines: list[str]) -> Set[str]:
     if start < len(lines) and _is_delimiter_row(lines[start]):
         start += 1
 
-    header_norm = [col.strip().lower() for col in header_cols]
-
-    def idx_of(key: str) -> int:
-        for position, column in enumerate(header_norm):
-            if key in column:
-                return position
-        raise ValueError(f"Required column missing: {key}")
-
-    i_cluster = idx_of("cluster")
-    i_purpose = idx_of("purpose")
+    i_cluster = _header_index(header_cols, "cluster")
+    i_purpose = _header_index(header_cols, "purpose")
     declared_clusters: Set[str] = set()
 
     for line in lines[start:]:
@@ -145,29 +165,21 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
     declared_clusters = _parse_cluster_definitions(lines)
 
     header_idx, header_cols = _find_table_header(
-        lines, ("domain", "cluster", "primary", "reviewer")
+        lines, ("domain", "cluster", "primary agent", "reviewer")
     )
 
     start = header_idx + 1
     if start < len(lines) and _is_delimiter_row(lines[start]):
         start += 1
 
-    header_norm = [c.strip().lower() for c in header_cols]
-
-    def idx_of(key: str) -> int:
-        for j, h in enumerate(header_norm):
-            if key in h:
-                return j
-        raise ValueError(f"Required column missing: {key}")
-
-    i_domain = idx_of("domain")
-    i_cluster = idx_of("cluster")
-    i_primary = idx_of("primary")
-    i_reviewer = idx_of("reviewer")
+    i_domain = _header_index(header_cols, "domain")
+    i_cluster = _header_index(header_cols, "cluster")
+    i_primary = _header_index(header_cols, "primary agent")
+    i_reviewer = _header_index(header_cols, "reviewer")
 
     i_secondary: Optional[int] = None
-    for j, h in enumerate(header_norm):
-        if "secondary" in h:
+    for j, header in enumerate(header_cols):
+        if _normalize_header_tokens(header) == _normalize_header_tokens("secondary"):
             i_secondary = j
             break
 

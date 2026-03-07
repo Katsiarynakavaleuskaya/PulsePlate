@@ -24,6 +24,8 @@ _MINIMAL_TABLE = (
     "|----------|---------|-----------------|-----------|----------|\n"
 )
 
+_EXPECTED_DECLARED_CLUSTERS = {"backend", "platform", "ops", "ml", "safety", "growth"}
+
 
 def test_parses_safety_domain() -> None:
     """Safety domain must exist with non-empty primary and reviewer."""
@@ -89,8 +91,8 @@ def test_no_routing_rows_raises(tmp_path: Path) -> None:
     empty_table_path.write_text(
         "# Routing Graph\n\n"
         + _MINIMAL_CLUSTER_DEFINITIONS
-        + "| domain | cluster | primary | secondary | reviewer |\n"
-        + "| ------ | ------- | ------- | --------- | -------- |\n",
+        + "| domain | cluster | primary agent | secondary | reviewer |\n"
+        + "| ------ | ------- | ------------- | --------- | -------- |\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="No routing rows parsed from routing graph"):
@@ -160,7 +162,14 @@ def test_load_declared_clusters_parses_cluster_definition_table() -> None:
     """Declared cluster table should be readable as its own canonical set."""
 
     declared = load_declared_clusters()
-    assert declared == {"backend", "platform", "ops", "ml", "safety", "growth"}
+    assert declared == _EXPECTED_DECLARED_CLUSTERS
+
+
+def test_load_declared_clusters_raises_for_missing_file(tmp_path: Path) -> None:
+    """Declared cluster loader should surface FileNotFoundError for missing path."""
+
+    with pytest.raises(FileNotFoundError, match="Routing graph not found"):
+        load_declared_clusters(tmp_path / "missing.md")
 
 
 def test_duplicate_cluster_definition_raises(tmp_path: Path) -> None:

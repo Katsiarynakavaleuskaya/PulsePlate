@@ -252,7 +252,7 @@ def load_routing_clusters() -> Set[str]:
     return {route.cluster for route in load_routing_graph().values()}
 
 
-def load_declared_clusters() -> Set[str]:
+def load_declared_routing_clusters() -> Set[str]:
     """Extract cluster slugs declared in the routing graph cluster table."""
 
     from scripts.orchestration.routing_graph_loader import load_declared_clusters as _load
@@ -296,7 +296,7 @@ def load_agent_sets() -> AgentConsistencySets:
     context = load_context_agents()
     routing = load_routing_agents()
     routing_clusters = load_routing_clusters()
-    declared_clusters = load_declared_clusters()
+    declared_clusters = load_declared_routing_clusters()
     non_routable = load_non_routable_agents()
     return AgentConsistencySets(
         files=files,
