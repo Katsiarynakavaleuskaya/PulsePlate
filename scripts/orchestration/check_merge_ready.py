@@ -199,15 +199,14 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     failed = [result.name for result in gate_results if result.returncode != 0]
-    if any(_disposition_gate_skipped(result) for result in gate_results):
+    disposition_skipped = any(_disposition_gate_skipped(result) for result in gate_results)
+    if disposition_skipped:
         failed.append("review-threads-disposition")
     for result in gate_results:
         _print_gate_output(result)
 
     if failed:
-        if "review-threads-disposition" in failed and any(
-            _disposition_gate_skipped(result) for result in gate_results
-        ):
+        if "review-threads-disposition" in failed and disposition_skipped:
             print("ERROR: review-threads-disposition ran in advisory SKIP mode.")
             print("Re-run with --require-auth and GH_TOKEN for merge-readiness evidence.")
         print("ERROR: orchestration merge-check failed.")
