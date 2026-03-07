@@ -243,6 +243,14 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Feature flags MUST be checked **before** quota consumption (no charging when a feature is disabled).
 - CI container smoke-start MUST set `SERVER_SALT` (dummy value allowed) so app startup can pass fail-fast requirements.
 
+**AI agent input guard policy (Hard rule):**
+
+- AI-facing insight and MCP entrypoints MUST screen text with shared helpers in `app/security/agent_input_guard.py` before quota, RAG, provider calls, or tool execution.
+- Legacy compatibility routes MUST stay thin: use shared helpers such as `prepare_safe_ai_prompt_input(...)` instead of inlining guard enforcement inside `legacy_app.py`.
+- MCP tool-level blocking MUST preserve JSON-RPC contract: reject unsafe or malformed guarded fields with `-32602 Invalid params` from `_call_tool`.
+- Direct helper paths that bypass `_call_tool` MUST still fail closed before the provider call and return the stable local error shape already covered by tests.
+- Broad fallback regexes are intentionally scoped to AI-agent control surfaces; do not reuse them for general educational/free-form developer text without a separate contract review.
+
 **Rationale:**
 
 - LLM endpoints: $72k/month abuse risk (documented in `BACKLOG_LEDGER.md`).
