@@ -244,7 +244,7 @@ class TestUsersEndpointRetryIntegration:
 
         monkeypatch.setattr("app.routers.users._execute_with_retry", always_fail)
 
-        response = test_client.get("/api/v1/users")
+        response = test_client.get("/api/v1/users", headers={"X-API-Key": "test_key"})
 
         # Should fail with 503 (no fallback for list operation)
         assert response.status_code == 503

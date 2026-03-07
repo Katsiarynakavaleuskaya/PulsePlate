@@ -59,7 +59,7 @@ class TestSimpleCoverageBoost:
     def test_users_endpoint(self) -> None:
         """Test users endpoint."""
         client = TestClient(app)
-        response = client.get("/api/v1/users")
+        response = client.get("/api/v1/users", headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)

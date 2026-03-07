@@ -115,10 +115,10 @@ class TestAppRouterInclusionCoverage:
         """Тест покрытия app.py users router inclusion"""
         # Тестируем users router inclusion
         response = client.get("/api/v1/users")
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code in [200, 403, 404, 405]
 
         response = client.post("/api/v1/users", json={})
-        assert response.status_code in [200, 404, 405, 422]
+        assert response.status_code in [200, 403, 404, 405, 422]
 
     def test_app_router_inclusion_premium_week_coverage(self, client):
         """Тест покрытия app.py premium week router inclusion"""
