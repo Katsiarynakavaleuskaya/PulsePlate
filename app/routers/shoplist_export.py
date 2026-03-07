@@ -9,18 +9,22 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime, timezone
+from functools import lru_cache
 import logging
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont, TTFError
-from reportlab.pdfgen import canvas
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
+from app.routers.shoplist_export_routes import (
+    SHOPLIST_EXPORT_CSV_PATH,
+    SHOPLIST_EXPORT_CSV_ROUTE,
+    SHOPLIST_EXPORT_PDF_PATH,
+    SHOPLIST_EXPORT_PDF_ROUTE,
+    SHOPLIST_ROUTE_PREFIX,
+)
 
 
 class ShoplistItem(BaseModel):
@@ -53,11 +57,26 @@ class ShoplistResponse(BaseModel):
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
+router = APIRouter(prefix=SHOPLIST_ROUTE_PREFIX, tags=["shoplist"])
 
 FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
 FONT_NAME = "DejaVuSans"
+
+
+@lru_cache(maxsize=1)
+def _lazy_reportlab() -> tuple[Any, Any, Any, Any, Any]:
+    """
+    RU: Лениво импортирует reportlab, чтобы router оставался import-safe.
+    EN: Lazily imports reportlab so the router stays import-safe.
+    """
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFError, TTFont
+    from reportlab.pdfgen import canvas
+
+    return A4, pdfmetrics, TTFont, TTFError, canvas
 
 
 def _export_timestamp() -> str:
@@ -176,6 +195,7 @@ def _register_font_if_available() -> str:
     """Register the bundled DejaVuSans font to support Cyrillic text."""
 
     if FONT_PATH.exists():
+        _, pdfmetrics, TTFont, TTFError, _ = _lazy_reportlab()
         try:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
@@ -192,6 +212,7 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
     """Render a printable PDF representation of *shop*."""
 
     buf = BytesIO()
+    A4, _, _, _, canvas = _lazy_reportlab()
     page_w, page_h = A4
     font = _register_font_if_available()
 
@@ -202,7 +223,7 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
     meta = f"Store: {shop.get('store', '-')}  |  Currency: {shop.get('currency', '')}"
     total = shop.get("total_estimated")
 
-    def draw_table_head(current_canvas: canvas.Canvas, ypos: float) -> float:
+    def draw_table_head(current_canvas: Any, ypos: float) -> float:
         current_canvas.setFont(font, 11)
         current_canvas.drawString(40, ypos, "Aisle")
         current_canvas.drawString(160, ypos, "Item")
@@ -266,7 +287,7 @@ def get_shoplist(request: Request) -> ShoplistResponse:
     return ShoplistResponse(**_demo_shoplist())
 
 
-@router.get("/export.csv", responses=RATE_LIMIT_429_RESPONSES)
+@router.get(SHOPLIST_EXPORT_CSV_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_shoplist_csv(request: Request) -> Response:
     """Export the current shoplist as a CSV attachment."""
@@ -288,13 +309,20 @@ def export_shoplist_csv(request: Request) -> Response:
     )
 
 
-@router.get("/export.pdf", responses=RATE_LIMIT_429_RESPONSES)
+@router.get(SHOPLIST_EXPORT_PDF_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_shoplist_pdf(request: Request) -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
 
     shop = _demo_shoplist()
-    pdf_bytes = _render_pdf(shop)
+    try:
+        pdf_bytes = _render_pdf(shop)
+    except ImportError as exc:
+        logger.exception("PDF export is not available")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="PDF export is not available",
+        ) from exc
     filename = f"shoplist_{_export_timestamp()}.pdf"
     return Response(
         content=pdf_bytes,
@@ -303,4 +331,10 @@ def export_shoplist_pdf(request: Request) -> Response:
     )
 
 
-__all__ = ["router"]
+__all__ = [
+    "SHOPLIST_EXPORT_CSV_PATH",
+    "SHOPLIST_EXPORT_CSV_ROUTE",
+    "SHOPLIST_EXPORT_PDF_PATH",
+    "SHOPLIST_EXPORT_PDF_ROUTE",
+    "router",
+]
