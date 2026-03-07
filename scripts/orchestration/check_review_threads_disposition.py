@@ -549,10 +549,7 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
 
 
 def _has_gh_auth() -> bool:
-    """True if gh CLI can use a token (env vars or gh auth login)."""
-    if (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip():
-        return True
-    # Sourcery/B607: use resolved path only; argv is static
+    """True if gh CLI auth is actually usable for API calls."""
     try:
         result = subprocess.run(  # nosec B603: argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
             [_gh_path(), "auth", "status"],

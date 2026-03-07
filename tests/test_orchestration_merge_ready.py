@@ -138,6 +138,49 @@ def test_wrapper_surfaces_failing_gate_names(
     assert "ERROR: unresolved review threads" in captured.out
 
 
+def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = {
+        "phase2-pr-body-gates": merge_ready.GateResult(
+            name="phase2-pr-body-gates",
+            argv=[],
+            returncode=0,
+            stdout="phase2 ok",
+            stderr="",
+        ),
+        "merge-readiness-gate": merge_ready.GateResult(
+            name="merge-readiness-gate",
+            argv=[],
+            returncode=0,
+            stdout="merge ok",
+            stderr="",
+        ),
+        "review-threads-disposition": merge_ready.GateResult(
+            name="review-threads-disposition",
+            argv=[],
+            returncode=0,
+            stdout="SKIP: no usable gh auth for advisory local run.",
+            stderr="",
+        ),
+    }
+
+    monkeypatch.setattr(
+        merge_ready,
+        "_run_gate",
+        lambda name, script_path, extra_args: results[name],
+    )
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "review-threads-disposition ran in advisory SKIP mode" in captured.out
+    assert "Failing gates: review-threads-disposition" in captured.out
+
+
 def test_wrapper_requires_complete_local_context() -> None:
     with pytest.raises(SystemExit):
         merge_ready.main(["--pr-number", "1005"])

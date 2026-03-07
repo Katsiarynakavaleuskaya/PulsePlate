@@ -315,13 +315,44 @@ def test_has_gh_auth_false_when_no_token(monkeypatch: "MonkeyPatch") -> None:
 def test_has_gh_auth_true_when_gh_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.setenv("GH_TOKEN", "gh_secret")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
 
 
 def test_has_gh_auth_true_when_github_token_set(monkeypatch: "MonkeyPatch") -> None:
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN", "github_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
     assert _has_gh_auth() is True
+
+
+def test_has_gh_auth_false_when_token_present_but_auth_status_fails(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    monkeypatch.setattr(
+        _disposition_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})(),
+    )
+    assert _has_gh_auth() is False
 
 
 def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> None:
@@ -600,40 +631,6 @@ def test_main_passes_in_ci_mode_with_valid_gh_token(
             "## Fixed in Commit Mapping\n"
             "- No actionable review comments\n"
         ),
-    )
-    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
-
-    with pytest.raises(SystemExit) as exc_info:
-        _disposition_mod.main()
-
-    captured = capsys.readouterr()
-    assert exc_info.value.code == 0
-    assert "OK: No resolved review threads found" in captured.out
-
-
-def test_main_passes_in_ci_mode_when_gh_token_and_auth_are_available(
-    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
-) -> None:
-    """CI mode proceeds when strict GH_TOKEN preflight succeeds."""
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
-    monkeypatch.setattr(
-        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
-    )
-    fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-    monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
-    monkeypatch.setattr(_disposition_mod, "_get_pr_number", lambda _=None: 1009)
-    monkeypatch.setattr(
-        _disposition_mod,
-        "read_mapping_artifact",
-        lambda _pr_number: "## Fixed in Commit Mapping\n- No actionable review comments\n",
-    )
-    monkeypatch.setattr(
-        _disposition_mod,
-        "_artifact_extract_fixed_mapping",
-        lambda _artifact_text: "- No actionable review comments",
     )
     monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
 
