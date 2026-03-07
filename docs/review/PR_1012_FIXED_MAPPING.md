@@ -5,6 +5,16 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1012#pullrequestreview-3909552921 -> 18357638
+Disposition: FIXED
+Commit: 18357638
+Evidence: `frontend/src/pages/__tests__/Plate.test.tsx:110`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1012#discussion_r2900446271 -> 18357638
+Disposition: FIXED
+Commit: 18357638
+Evidence: `frontend/src/pages/__tests__/Plate.test.tsx:110`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1012#pullrequestreview-3909519678 -> 4b783800
 Disposition: FIXED
 Commit: 4b783800
