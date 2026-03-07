@@ -4,16 +4,15 @@ import { useAuth } from '../lib/auth';
 
 export default function Profile() {
   const { isAuthenticated, isLoading } = useAuth();
-  const hasSession = isAuthenticated;
-  const connectionLabel = isLoading ? 'Checking' : hasSession ? 'Connected' : 'Missing';
+  const connectionLabel = isLoading ? 'Checking' : isAuthenticated ? 'Connected' : 'Missing';
   const connectionTone = isLoading
     ? 'bg-[var(--color-text-muted)] text-white'
-    : hasSession
+    : isAuthenticated
       ? 'bg-[var(--color-success)] text-white'
       : 'bg-[var(--color-error)] text-white';
   const apiKeyActionLabel = isLoading
     ? 'Checking Session'
-    : hasSession
+    : isAuthenticated
       ? 'Update API Key'
       : 'Configure API Key';
 
