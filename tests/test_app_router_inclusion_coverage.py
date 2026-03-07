@@ -9,6 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._helpers.api_headers import API_KEY_HEADERS
+
 
 @pytest.fixture()
 def client(test_environment):
@@ -111,14 +113,19 @@ class TestAppRouterInclusionCoverage:
         response = client.post("/api/v1/recipes", json={})
         assert response.status_code in [200, 404, 405, 422]
 
-    def test_app_router_inclusion_users_coverage(self, client):
+    def test_app_router_inclusion_users_coverage(self, client: TestClient) -> None:
         """Тест покрытия app.py users router inclusion"""
         # Тестируем users router inclusion
-        response = client.get("/api/v1/users")
-        assert response.status_code in [200, 404, 405]
+        response = client.get("/api/v1/users", headers=API_KEY_HEADERS)
+        assert response.status_code == 200
 
-        response = client.post("/api/v1/users", json={})
-        assert response.status_code in [200, 404, 405, 422]
+        response = client.post("/api/v1/users", json={}, headers=API_KEY_HEADERS)
+        assert response.status_code == 422
+
+    def test_app_router_inclusion_users_requires_api_key(self, client: TestClient) -> None:
+        """Тестирует требование API key для users endpoint."""
+        response = client.get("/api/v1/users")
+        assert response.status_code == 403
 
     def test_app_router_inclusion_premium_week_coverage(self, client):
         """Тест покрытия app.py premium week router inclusion"""

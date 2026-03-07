@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 import app.routers.users as users_mod
+from tests._helpers.api_headers import API_KEY_HEADERS
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +44,7 @@ class TestUsersRouter:
         self.app = FastAPI()
         self.app.include_router(router)
         self.client = TestClient(self.app)
+        self.headers = API_KEY_HEADERS
 
     def teardown_method(self) -> None:
         """Clean up test client."""
@@ -55,7 +57,7 @@ class TestUsersRouter:
             mock_session.execute.return_value.scalars.return_value.all.return_value = []
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users")
+            resp = self.client.get("/api/v1/users", headers=self.headers)
 
             assert resp.status_code == 200
             data = resp.json()
@@ -68,18 +70,18 @@ class TestUsersRouter:
             mock_session.execute.return_value.scalars.return_value.all.return_value = []
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users?limit=10&offset=5")
+            resp = self.client.get("/api/v1/users?limit=10&offset=5", headers=self.headers)
 
             assert resp.status_code == 200
 
     def test_list_users_invalid_pagination_422(self) -> None:
         """GET /api/v1/users with invalid pagination returns 422."""
         # limit too high
-        resp = self.client.get("/api/v1/users?limit=2000")
+        resp = self.client.get("/api/v1/users?limit=2000", headers=self.headers)
         assert resp.status_code == 422
 
         # negative offset
-        resp = self.client.get("/api/v1/users?offset=-1")
+        resp = self.client.get("/api/v1/users?offset=-1", headers=self.headers)
         assert resp.status_code == 422
 
     def test_create_user_success(self) -> None:
@@ -99,18 +101,19 @@ class TestUsersRouter:
                 resp = self.client.post(
                     "/api/v1/users",
                     json={"email": "test@example.com", "name": "Test User"},
+                    headers=self.headers,
                 )
 
                 assert resp.status_code == 201
 
     def test_create_user_missing_email_422(self) -> None:
         """POST /api/v1/users without email returns 422."""
-        resp = self.client.post("/api/v1/users", json={"name": "Test User"})
+        resp = self.client.post("/api/v1/users", json={"name": "Test User"}, headers=self.headers)
         assert resp.status_code == 422
 
     def test_create_user_empty_payload_422(self) -> None:
         """POST /api/v1/users with empty payload returns 422."""
-        resp = self.client.post("/api/v1/users", json={})
+        resp = self.client.post("/api/v1/users", json={}, headers=self.headers)
         assert resp.status_code == 422
 
     def test_get_user_not_found_404(self) -> None:
@@ -120,7 +123,7 @@ class TestUsersRouter:
             mock_session.get.return_value = None  # User not found
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users/999")
+            resp = self.client.get("/api/v1/users/999", headers=self.headers)
 
             assert resp.status_code == 404
             assert "not found" in resp.json()["detail"].lower()
@@ -136,7 +139,7 @@ class TestUsersRouter:
             mock_session.get.return_value = mock_user
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users/1")
+            resp = self.client.get("/api/v1/users/1", headers=self.headers)
 
             assert resp.status_code == 200
             data = resp.json()
@@ -152,7 +155,7 @@ class TestUsersRouter:
             mock_session.get.return_value = mock_user
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.delete("/api/v1/users/1")
+            resp = self.client.delete("/api/v1/users/1", headers=self.headers)
 
             assert resp.status_code == 204
 
@@ -163,7 +166,7 @@ class TestUsersRouter:
             mock_session.get.return_value = None  # User not found
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.delete("/api/v1/users/999")
+            resp = self.client.delete("/api/v1/users/999", headers=self.headers)
 
             # Idempotent delete design per docstring
             assert resp.status_code == 204
@@ -176,7 +179,7 @@ class TestUsersRouter:
             mock_session.execute.side_effect = OperationalError("DB locked", None, None)
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users")
+            resp = self.client.get("/api/v1/users", headers=self.headers)
 
             assert resp.status_code == 503
             assert "unavailable" in resp.json()["detail"].lower()
@@ -193,7 +196,19 @@ class TestUsersRouter:
             ]
             mock_factory.return_value = lambda: mock_session
 
-            resp = self.client.get("/api/v1/users")
+            resp = self.client.get("/api/v1/users", headers=self.headers)
 
             assert resp.status_code == 200
             assert resp.json() == []
+
+    def test_users_surface_requires_api_key(self) -> None:
+        resp = self.client.get("/api/v1/users")
+        assert resp.status_code == 403
+
+    @pytest.mark.parametrize("validator", [None, lambda _: object()])
+    def test_users_api_key_guard_fail_closed_behavior(self, validator: object) -> None:
+        with patch.object(users_mod, "resolve_attr", return_value=validator):
+            resp = self.client.get("/api/v1/users", headers=self.headers)
+
+        assert resp.status_code == 500
+        assert resp.json()["detail"] == "API key validation unavailable"
