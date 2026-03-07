@@ -11,7 +11,21 @@ vi.mock('../../lib/auth', () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock('../../lib/usePremium', () => ({
+  usePremium: vi.fn(),
+}));
+
+vi.mock('../../api/premium', async () => {
+  const actual = await vi.importActual<typeof import('../../api/premium')>('../../api/premium');
+  return {
+    ...actual,
+    getCbtInsight: vi.fn(),
+  };
+});
+
 import { useAuth } from '../../lib/auth';
+import { usePremium } from '../../lib/usePremium';
+import { getCbtInsight } from '../../api/premium';
 
 interface EnterKeyLocationState {
   from?: { pathname?: string };
@@ -66,6 +80,8 @@ describe('Home', () => {
       showAuthPrompt: false,
       setShowAuthPrompt: vi.fn(),
     });
+    vi.mocked(usePremium).mockReturnValue(false);
+    vi.mocked(getCbtInsight).mockReset();
   });
 
   afterEach(() => {
@@ -112,6 +128,116 @@ describe('Home', () => {
     expect(
       screen.getByText('Your secure session is active. Personalized guidance is enabled.')
     ).toBeInTheDocument();
+  });
+
+  it('shows AI session CTA when user is not authenticated', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('heading', { level: 2, name: 'AI Insight' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Connect secure session' })).toHaveAttribute('href', '/enter-key');
+  });
+
+  it('shows upgrade CTA for authenticated non-premium users', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(false);
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Upgrade to Pro' })).toHaveAttribute('href', '/pro');
+    expect(screen.queryByRole('button', { name: 'Generate insight' })).not.toBeInTheDocument();
+  });
+
+  it('lets premium users submit AI query and renders reliability metadata', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockResolvedValue({
+      insight: 'Focus on consistent protein intake and simpler meal repetition.',
+      confidence: 0.93,
+      uncertainty: 0.07,
+      rag_used: true,
+      sources: [
+        {
+          chunk_id: 'chunk-1',
+          file: 'docs/cbt/foundation.md',
+          preview: 'Track the trigger before rewriting the pattern.',
+          score: 0.98,
+        },
+      ],
+      warnings: ['Monitor stress-linked snacking patterns.'],
+      mode: 'auto-safe',
+      quota_state: 'consumed',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'What should I focus on this week?');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(vi.mocked(getCbtInsight)).toHaveBeenCalledWith({ query: 'What should I focus on this week?' });
+    expect(screen.getByText('Focus on consistent protein intake and simpler meal repetition.')).toBeInTheDocument();
+    expect(screen.getByText('Mode: auto-safe')).toBeInTheDocument();
+    expect(screen.getByText('Quota: consumed')).toBeInTheDocument();
+    expect(screen.getByText('RAG: Used')).toBeInTheDocument();
+    expect(screen.getByText('Confidence: 0.93')).toBeInTheDocument();
+    expect(screen.getByText('Uncertainty: 0.07')).toBeInTheDocument();
+    expect(screen.getByText('Monitor stress-linked snacking patterns.')).toBeInTheDocument();
+    expect(screen.getByText('foundation.md: Track the trigger before rewriting the pattern.')).toBeInTheDocument();
+  });
+
+  it('renders friendly AI error state without breaking existing CTAs', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      isAuthenticated: true,
+      isLoading: false,
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      showAuthPrompt: false,
+      setShowAuthPrompt: vi.fn(),
+    });
+    vi.mocked(usePremium).mockReturnValue(true);
+    vi.mocked(getCbtInsight).mockRejectedValue(new Error('Unable to load AI insight right now.'));
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('Ask one question'), 'Need a quick summary');
+    await user.click(screen.getByRole('button', { name: 'Generate insight' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to load AI insight right now.');
+    expect(screen.getByRole('link', { name: 'Nutrition Plate' })).toHaveAttribute('href', '/plate');
   });
 
   it('has correct CSS classes', () => {
