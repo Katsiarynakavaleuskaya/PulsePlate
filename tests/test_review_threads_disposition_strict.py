@@ -579,6 +579,72 @@ def test_main_requires_gh_token_in_ci_mode_without_flag(
     assert "GH_TOKEN required for disposition guard" in captured.out
 
 
+def test_main_passes_in_ci_mode_with_valid_gh_token(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode should run successfully when strict auth preflight passes."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None
+    )
+    fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
+    monkeypatch.setattr(_disposition_mod, "_get_pr_number", lambda _value=None: 1009)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "read_mapping_artifact",
+        lambda _pr_number: (
+            "# PR 1009 — Fixed in Commit Mapping\n\n"
+            "## Fixed in Commit Mapping\n"
+            "- No actionable review comments\n"
+        ),
+    )
+    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "OK: No resolved review threads found" in captured.out
+
+
+def test_main_passes_in_ci_mode_when_gh_token_and_auth_are_available(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CI mode proceeds when strict GH_TOKEN preflight succeeds."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["check_review_threads_disposition.py"])
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+    fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
+    monkeypatch.setattr(_disposition_mod, "_get_pr_number", lambda _=None: 1009)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "read_mapping_artifact",
+        lambda _pr_number: "## Fixed in Commit Mapping\n- No actionable review comments\n",
+    )
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_artifact_extract_fixed_mapping",
+        lambda _artifact_text: "- No actionable review comments",
+    )
+    monkeypatch.setattr(_disposition_mod, "_collect_resolved_threads", lambda _pr_number: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "OK: No resolved review threads found" in captured.out
+
+
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:
     """Mapped SHA with no changed files → violation (empty commit)."""
     monkeypatch.setattr(_disposition_mod, "_git_changed_files", lambda _sha: [])
