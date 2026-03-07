@@ -8,7 +8,7 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `scripts/ci/check_pr_body_phase2_gates.py:167`, `scripts/ci/check_pr_body_phase2_gates.py:188`, `scripts/orchestration/review_mapping_artifact.py:131`, `scripts/orchestration/review_mapping_artifact.py:151`, `tests/test_pr_body_phase2_gates.py:195`, `tests/test_pr_body_phase2_gates.py:265`, `tests/test_review_mapping_artifact.py:144`, `tests/test_review_mapping_artifact.py:166`
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py:60`, `scripts/ci/check_pr_body_phase2_gates.py:167`, `scripts/ci/check_pr_body_phase2_gates.py:188`, `scripts/orchestration/review_mapping_artifact.py:131`, `scripts/orchestration/review_mapping_artifact.py:151`, `tests/test_pr_body_phase2_gates.py:196`, `tests/test_pr_body_phase2_gates.py:265`, `tests/test_review_mapping_artifact.py:144`, `tests/test_review_mapping_artifact.py:166`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2898456843 -> d38b5c9b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3906682857 -> 41b03fbc
@@ -17,7 +17,10 @@ Evidence: `scripts/ci/check_pr_body_phase2_gates.py:167`, `scripts/ci/check_pr_b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2899055272 -> ae46cf08
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2899055273 -> ae46cf08
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2899060242 -> ae46cf08
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2899075633 -> f61600e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3907615629 -> ae46cf08
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3907626291 -> ae46cf08
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3907674786 -> f61600e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3907678300 -> f61600e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#discussion_r2899097191 -> c1ce5ccb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1002#pullrequestreview-3907732593 -> c1ce5ccb
