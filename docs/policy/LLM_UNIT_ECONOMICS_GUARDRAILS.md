@@ -1,7 +1,7 @@
 ## LLM Unit Economics Guardrails (Hard Policy)
 
-**Last updated:** 5 February 2026
-**Scope:** Backend only (LLM endpoints, e.g. `/api/v1/insight`).
+**Last updated:** 7 March 2026
+**Scope:** Backend only (LLM endpoints, e.g. `/api/v1/insight`, `/api/v1/pro/cbt/insight`).
 **Goal:** Guarantee **positive unit economics under worst-case usage**.
 
 ---
@@ -35,9 +35,9 @@ When quota is exceeded:
 - The server must **hard-stop** the LLM call (no provider request).
 - The API must return a deterministic, non-leaky error response (e.g. `429`).
 
-**Note:** VIP-only + rate limiting are necessary but not sufficient. Until a monthly hard quota is enforced,
-LLM endpoints remain **economically unsafe** by this policy and must be tracked as an open P0 security item in
-`docs/roadmap/BACKLOG_LEDGER.md`.
+**Current state:** The production LLM surfaces in this repo now enforce a monthly hard quota before
+provider calls. That closes the original open P0 item for currently shipped insight endpoints.
+Any new LLM endpoint remains **economically unsafe** until it lands with the same server-side quota layer.
 
 ### 4) Budget formula (upper bound)
 
@@ -107,9 +107,9 @@ VIP пользователь (или атакующий с VIP ключом) м�
 - сервер **не делает** вызов провайдера (hard-stop),
 - API возвращает детерминированную ошибку без утечек (например `429`).
 
-**Примечание:** VIP-only + rate limiting необходимы, но недостаточны. Пока не введена monthly hard quota,
-LLM endpoints остаются **экономически небезопасными** по этой политике и должны быть отражены как открытый
-P0 security item в `docs/roadmap/BACKLOG_LEDGER.md`.
+**Текущее состояние:** текущие production LLM surfaces в этом репозитории уже enforce monthly hard quota
+до provider call. Это закрывает исходный open P0 item для shipped insight endpoints.
+Любой новый LLM endpoint остаётся **экономически небезопасным**, пока не придёт с тем же server-side quota слоем.
 
 ### 4) Формула бюджета (upper bound)
 

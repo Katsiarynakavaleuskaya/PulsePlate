@@ -5,7 +5,7 @@ Verifies:
 - Corpus filtering extracts correct prefixes for agent_id
 - Corpus filtering logic in vector_rag.py correctly filters by source prefix
 - Corpus filtering logic in simple_rag.py (Jaccard fallback) correctly filters
-- CorpusNotIndexedError is properly defined
+- Dead exception exports are not kept without runtime usage
 """
 
 from __future__ import annotations
@@ -46,22 +46,20 @@ class TestAgentCorpusMapConstant:
         assert "unknown-agent" not in AGENT_CORPUS_MAP
 
 
-class TestCorpusNotIndexedError:
-    """Tests for CorpusNotIndexedError exception."""
+class TestDeadExceptionCleanup:
+    """Tests that dead exception exports are removed once no longer used."""
 
-    def test_exception_exists(self) -> None:
-        """CorpusNotIndexedError exception exists."""
-        from core.rag.contracts import CorpusNotIndexedError
+    def test_contract_module_does_not_export_dead_exception(self) -> None:
+        """core.rag.contracts should not keep an unused CorpusNotIndexedError export."""
+        import core.rag.contracts as contracts
 
-        assert issubclass(CorpusNotIndexedError, Exception)
+        assert not hasattr(contracts, "CorpusNotIndexedError")
 
-    def test_exception_message(self) -> None:
-        """CorpusNotIndexedError includes agent_id in message."""
-        from core.rag.contracts import CorpusNotIndexedError
+    def test_package_surface_does_not_reexport_dead_exception(self) -> None:
+        """core.rag package surface should not re-export removed dead exceptions."""
+        import core.rag as rag
 
-        err = CorpusNotIndexedError("test-agent")
-        assert "test-agent" in str(err)
-        assert err.agent_id == "test-agent"
+        assert "CorpusNotIndexedError" not in rag.__all__
 
 
 class TestCorpusPrefixMatching:

@@ -2076,22 +2076,27 @@ If it is not recorded here — it does not exist.
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
     - Runtime app-layer filtering remains in place (no regression to code-level scoping)
 
-- [ ] P1: `simple_rag` shared index thread-safety hardening
+- [x] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability)
-  - Target PR: PR-TBD-RAG-THREAD-SAFETY
-  - Status: 📋 Planned
-  - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
+  - Target PR: PR #1000
+  - Status: ✅ Implemented (thread-safe init + concurrency coverage)
+  - Reason: Shared `simple_rag` index now uses deterministic locked initialization/invalidation semantics, closing the concurrent double-init race in the fallback retrieval path.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md`
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
     - `core/rag/simple_rag.py`
     - `tests/test_rag_simple.py`
     - `tests/test_insight_rag_response_fields.py`
+  - Evidence:
+    - `core/rag/simple_rag.py:22` — `_INDEX_LOCK = threading.RLock()` guards shared index lifecycle.
+    - `core/rag/simple_rag.py:76` — `_get_index()` uses double-checked locking for deterministic init.
+    - `core/rag/simple_rag.py:84` — `invalidate_index()` resets shared state under the same lock.
+    - `tests/test_rag_simple.py:66` — concurrent retrieval test covers parallel read/init behavior.
   - DoD:
-    - Deterministic thread-safe index initialization strategy is implemented (no double-init races)
-    - Concurrency tests cover parallel read/init behavior
-    - No regression in insight response contract or latency envelope
+    - [x] Deterministic thread-safe index initialization strategy is implemented (no double-init races)
+    - [x] Concurrency tests cover parallel read/init behavior
+    - [x] No regression in insight response contract or latency envelope
 
 - [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
   - Owner: @katsiaryna_kavaleuskaya
@@ -4011,51 +4016,72 @@ If it is not recorded here — it does not exist.
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
-- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
+- [x] P1: PRO monthly quota for LLM endpoints (parity with VIP)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
-  - Status: 📋 Planned
-  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
+  - Target PR: PR #1000
+  - Status: ✅ Implemented (tiered quota contract)
+  - Reason (EN): Monthly hard quota now supports both VIP and PRO through one tier-aware server-side contract, and CBT insight consumes PRO quota before any provider call.
   - Links:
-    - app/security/llm_monthly_quota.py (VIP-only implementation)
+    - `app/security/llm_monthly_quota.py`
     - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - app/routers/cbt_insight.py (PRO endpoint without monthly quota)
+    - `app/routers/cbt_insight.py`
+    - `tests/test_cbt_insight_api.py`
+    - `tests/test_llm_monthly_quota_config_validation.py`
+  - Evidence:
+    - `app/security/llm_monthly_quota.py:34` — tier env/default maps include both `VIP` and `PRO`.
+    - `app/security/llm_monthly_quota.py:88` — key fingerprint is tier-scoped to keep counters separate.
+    - `app/security/llm_monthly_quota.py:117` — atomic quota consumption accepts `tier=...`.
+    - `app/routers/cbt_insight.py:352` — PRO quota is enforced before `provider.generate(...)`.
+    - `tests/test_cbt_insight_api.py:710` — deterministic `429 quota_exceeded` coverage for PRO path.
   - DoD:
-    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
-    - CBT insight endpoint calls quota check before provider.generate()
-    - Deterministic tests for PRO quota enforcement
+    - [x] Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
+    - [x] CBT insight endpoint calls quota check before provider.generate()
+    - [x] Deterministic tests for PRO quota enforcement
 
-- [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
+- [x] P2: RAG chunk content redaction helper (PII/sensitive data)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (defense-in-depth; corpus is controlled server docs)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
+  - Target PR: PR #1000
+  - Status: ✅ Implemented (defense-in-depth redaction)
+  - Reason (EN): RAG chunk content is now redacted before preview and prompt exposure, providing defense-in-depth for future corpora with sensitive content.
   - Links:
-    - app/routers/cbt_insight.py:186-196 (chunk content usage)
+    - `core/rag/simple_rag.py`
+    - `app/routers/cbt_insight.py`
+    - `tests/test_rag_simple.py`
+    - `tests/test_cbt_insight_api.py`
     - PR #942 CodeRabbit comment (2868000571)
+  - Evidence:
+    - `core/rag/simple_rag.py:109` — `redact_chunk_content()` centralizes chunk redaction.
+    - `core/rag/simple_rag.py:142` — raw fallback context uses redacted chunk content.
+    - `core/rag/simple_rag.py:207` — structured chunk payloads are redacted before exposure.
+    - `app/routers/cbt_insight.py:290` — CBT source previews and prompt context use redacted content.
+    - `tests/test_rag_simple.py:45` and `tests/test_cbt_insight_api.py:542` — deterministic redaction tests.
   - DoD:
-    - Add redact_rag_context_for_insight() helper (or equivalent)
-    - Apply to prompt assembly and response previews
-    - Unit tests for redaction patterns
+    - [x] Add redact_rag_context_for_insight() helper (or equivalent)
+    - [x] Apply to prompt assembly and response previews
+    - [x] Unit tests for redaction patterns
 
-- [ ] P2: CorpusNotIndexedError - wire up or remove
+- [x] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CorpusNotIndexedError is defined and exported in core/rag/contracts.py but never raised in production code. Either wire it up in simple_rag.py/vector_rag.py where corpus-not-found warnings are logged, or remove the unused exception to avoid confusion.
+  - Target PR: feat/wave4-close
+  - Status: ✅ Implemented (dead export removed)
+  - Reason (EN): The dead exception export was removed instead of keeping an unused public symbol with no runtime path.
   - Links:
-    - core/rag/contracts.py:25-30 (exception definition)
-    - core/rag/simple_rag.py, core/rag/vector_rag.py (warning paths)
+    - `core/rag/contracts.py`
+    - `core/rag/__init__.py`
+    - `tests/test_rag_corpus_filtering.py`
     - PR #942 CodeRabbit comment (2868000574)
+  - Evidence:
+    - `core/rag/contracts.py:1` — contract surface no longer defines `CorpusNotIndexedError`.
+    - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
+    - `tests/test_rag_corpus_filtering.py:49` — regression tests assert the dead export stays removed.
   - DoD:
-    - Either: raise CorpusNotIndexedError where appropriate and handle in callers
-    - Or: remove exception class and update tests
+    - [x] Remove the dead exception class/export and update regression tests
 
 ---
 
-**Last updated:** 2026-03-05 (fact-valid hotfix deltas + RAG quality status sync)
+**Last updated:** 2026-03-07 (Wave 4 runtime closure sync)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
