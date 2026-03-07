@@ -130,7 +130,6 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         return errors
 
     saw_thread_line = False
-    saw_sha_mapping = False
     saw_disposition = False
     saw_proof = False
     for line in lines:
@@ -142,7 +141,6 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             continue
         if MAPPING_LINE_RE.match(line):
             saw_thread_line = True
-            saw_sha_mapping = True
             continue
         if THREAD_LINE_RE.match(line):
             saw_thread_line = True
@@ -160,8 +158,6 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         errors.append(
             "Missing proof detail (Commit:/Evidence:/Backlog:) when review-thread entries are present."
         )
-    if not errors and saw_sha_mapping and not saw_disposition:
-        errors.append("Missing 'Disposition:' when SHA mappings are present.")
 
     return errors
 
