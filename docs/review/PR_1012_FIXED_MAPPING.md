@@ -5,6 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1012#pullrequestreview-3909613791 -> 27c9c721
+Disposition: FIXED
+Commit: 27c9c721
+Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:77`, `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:78`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1012#pullrequestreview-3909552921 -> 18357638
 Disposition: FIXED
 Commit: 18357638
