@@ -31,7 +31,11 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.tables import Table as RLTable
 
-from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
+from settings import (
+    EXPORT_TOKEN_TTL_SECONDS,
+    PRIVATE_EXPORTS_ENABLED,
+    get_export_token_secret,
+)
 from signed_links import sign, verify
 
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
@@ -60,6 +64,12 @@ SLOGAN = {
     "de": "Immer am Puls von dir",
 }
 DEFAULT_LANG = "en"
+SIGNABLE_EXPORT_PATHS = frozenset(
+    {
+        "/api/v1/plan/week/export.csv",
+        "/api/v1/plan/week/export.pdf",
+    }
+)
 
 
 class SignRequest(BaseModel):
@@ -342,6 +352,7 @@ def _iter_rows(week: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
 def _require_valid_token(request: Request) -> None:
     if not PRIVATE_EXPORTS_ENABLED:
         return
+    secret = get_export_token_secret()
     exp = request.query_params.get("exp")
     sig = request.query_params.get("sig")
     if not exp or not sig:
@@ -350,7 +361,7 @@ def _require_valid_token(request: Request) -> None:
         exp_ts = int(exp)
     except ValueError as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=403, detail="bad token") from exc
-    if not verify(EXPORT_TOKEN_SECRET, request.url.path, exp_ts, sig):
+    if not verify(secret, request.url.path, exp_ts, sig):
         raise HTTPException(status_code=403, detail="invalid or expired token")
 
 
@@ -577,13 +588,16 @@ def export_week_pdf(
 
 def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
     path = payload.path
-    if not path.startswith("/api/"):
-        raise HTTPException(status_code=400, detail="path must start with /api/")
+    if path not in SIGNABLE_EXPORT_PATHS:
+        raise HTTPException(status_code=400, detail="path is not signable")
     ttl = int(payload.ttl_seconds or EXPORT_TOKEN_TTL_SECONDS)
     if ttl <= 0:
         raise HTTPException(status_code=400, detail="ttl must be positive")
+    if ttl > EXPORT_TOKEN_TTL_SECONDS:
+        raise HTTPException(status_code=400, detail="ttl exceeds configured max")
+    secret = get_export_token_secret()
     exp_ts = int((datetime.now(timezone.utc) + timedelta(seconds=ttl)).timestamp())
-    signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
+    signature = sign(secret, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
 

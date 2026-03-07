@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.routers import plan_export
+import settings
 
 
 def test_slogan_default() -> None:
@@ -38,11 +39,50 @@ def test_require_valid_token_invalid_signature(monkeypatch: pytest.MonkeyPatch) 
 
 def test_sign_export_link_invalid_path() -> None:
     payload = plan_export.SignRequest(path="/foo", ttl_seconds=10)
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException, match="path is not signable"):
         plan_export.sign_export_link(payload)
 
 
 def test_sign_export_link_invalid_ttl() -> None:
-    payload = plan_export.SignRequest(path="/api/demo", ttl_seconds=-1)
-    with pytest.raises(HTTPException):
+    payload = plan_export.SignRequest(path="/api/v1/plan/week/export.csv", ttl_seconds=-1)
+    with pytest.raises(HTTPException, match="ttl must be positive"):
         plan_export.sign_export_link(payload)
+
+
+def test_sign_export_link_rejects_non_allowlisted_path() -> None:
+    payload = plan_export.SignRequest(path="/api/v1/users", ttl_seconds=10)
+    with pytest.raises(HTTPException, match="path is not signable"):
+        plan_export.sign_export_link(payload)
+
+
+def test_sign_export_link_rejects_ttl_above_configured_max(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_export, "EXPORT_TOKEN_TTL_SECONDS", 900, raising=False)
+    payload = plan_export.SignRequest(path="/api/v1/plan/week/export.csv", ttl_seconds=901)
+    with pytest.raises(HTTPException, match="ttl exceeds configured max"):
+        plan_export.sign_export_link(payload)
+
+
+def test_export_token_secret_requires_non_default_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("PRIVATE_EXPORTS_ENABLED", "true")
+    monkeypatch.delenv("EXPORT_TOKEN_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="EXPORT_TOKEN_SECRET"):
+        settings.get_export_token_secret()
+
+
+def test_export_token_secret_checks_environment_fallback_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    monkeypatch.setenv("PRIVATE_EXPORTS_ENABLED", "true")
+    monkeypatch.delenv("EXPORT_TOKEN_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="EXPORT_TOKEN_SECRET"):
+        settings.get_export_token_secret()

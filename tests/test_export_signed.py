@@ -36,3 +36,13 @@ def test_missing_token_rejected(export_client: TestClient) -> None:
         return
     response = export_client.get("/api/v1/plan/week/export.csv")
     assert response.status_code == 403
+
+
+def test_sign_route_rejects_non_allowlisted_path(export_client: TestClient) -> None:
+    response = export_client.post(
+        "/api/v1/export/sign",
+        json={"path": "/api/v1/users", "ttl_seconds": 60},
+        headers={"X-API-Key": "test_key"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "path is not signable"
