@@ -186,18 +186,21 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD
+  - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
+  - Status: Open (PR #998, awaiting merge)
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
   - Links:
-    - `scripts/ci/check_pr_merge_readiness.py:352` (mapped_urls), `:362` (unmapped check)
-    - `scripts/orchestration/check_review_threads_disposition.py:296` (mapping section), `:518` (trigger-only guard)
-    - `AGENTS.md:418` (Fixed in Commit Mapping), `:42` (Review Governance)
+    - `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
+    - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
+    - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
   - DoD:
-    - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
-    - PR body optional summary only
-    - Tests updated
+    - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - [x] PR body optional summary/mirror only
+    - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
+    - [x] Temporary PR-body fallback seam documented with ADR + exit criteria
 
 - [ ] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
@@ -212,6 +215,24 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
     - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
+
+<a id="ledger-pr998-orch2-carryover"></a>
+- [ ] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
+  - Status: Open (scope removed from PR #998; review follows the moved code)
+  - Area: orchestration / review governance / scope management
+  - Finding Type: carryover after scope cleanup
+  - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584`
+  - DoD:
+    - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
+    - Relevant fixes or explicit dispositions are recorded on PR #1000
+    - PR #998 remains limited to canonical Fixed Mapping SoT work
 
 - [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
   - Owner: @katsiaryna_kavaleuskaya
@@ -3486,8 +3507,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1
-  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
+  - Target PR: PR #983 (contract docs) -> PR #999 (runtime baseline)
+  - Status: 🟡 In progress (runtime Wave R1: source-specific `/api/v1/pro/payments/*` billing surfaces)
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
     - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
@@ -3502,13 +3523,38 @@ If it is not recorded here — it does not exist.
     - app/services/payments_activation.py:1
   - Prerequisites:
     - ✅ Tier activation contract exists (FREE/PRO/VIP)
-    - ⏳ Unified billing activation service is finalized for source-specific receipts
+    - ✅ Unified billing activation service implemented for source-specific receipts
   - DoD:
     - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
     - `activate_subscription()` contract supports all three sources with deterministic audit trail
     - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
+    - Runtime payment namespace stays under `/api/v1/pro/payments/*` to satisfy canonical OpenAPI guards
+  - Deferred / Follow-ups:
+    - [ ] P1: Payment persistence hardening
+      - Owner: @katsiaryna_kavaleuskaya
+      - Target PR: PR-TBD-PAYMENTS-PERSISTENCE-HARDENING
+      - Reason: Current baseline is contract/runtime-first and still relies on in-memory activation state; durable persistence must preserve audit + idempotency across restarts.
+      - Links:
+        - app/services/payments_activation.py:1
+        - app/schemas/payments.py:1
+        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
+      - DoD:
+        - Durable storage contract documented and implemented
+        - Reconciliation audit survives process restarts
+        - Idempotency semantics verified against persisted records
+    - [ ] P1: Provider verification and reconciliation automation
+      - Owner: @katsiaryna_kavaleuskaya
+      - Target PR: PR-TBD-PAYMENTS-PROVIDER-AUTOMATION
+      - Reason: Baseline supports manual rails + iOS-first contract, but provider-grade verification and reconciliation automation remain deferred.
+      - Links:
+        - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1
+        - docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1
+      - DoD:
+        - Apple receipt verification moves from baseline contract to production verification flow
+        - ERIP/SWIFT reconciliation automation policy is documented
+        - Provider/system verification states map into the canonical activation lifecycle
 
 <a id="ledger-p0-session-cookie-hardening"></a>
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)

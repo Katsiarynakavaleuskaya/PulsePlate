@@ -299,7 +299,9 @@ def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
     Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
     (Commit/Evidence/Backlog). For single-block artifacts, Disposition+Proof at top applies to
-    all mapping lines; use ±25 line window to cover typical artifact layout.
+    all mapping lines; scan only lines containing this exact thread URL so one mapping does not
+    satisfy multiple threads (CodeRabbit/Sourcery/Cubic). Use a ±25 line window to cover the
+    repo's single-block artifact layout while still keeping the scan local to the matched URL.
     Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
     lines = section.splitlines()
@@ -488,7 +490,6 @@ def main() -> None:
                         "(must be 7–40 hex chars or 'see mapping entries below')"
                     )
                     sys.exit(1)
-
     resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:

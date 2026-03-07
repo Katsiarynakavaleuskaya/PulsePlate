@@ -5,29 +5,22 @@ from typing import Any
 from fastapi.testclient import TestClient
 import pytest
 
+from tests.payment_test_utils import json_response_payload as _json
 
-@pytest.fixture(autouse=True)
-def _reset_payments_state() -> None:
-    from app.services import payments_activation
-
-    payments_activation.reset_state()
-
-
-def _json(response: Any) -> dict[str, Any]:
-    assert response.headers.get("content-type", "").startswith("application/json"), response.text
-    payload: dict[str, Any] = response.json()
-    return payload
+pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
 def _activation_payload(
     *,
     source: str = "ios_app_store",
+    plan: str = "pro_monthly",
     client_event_id: str = "evt-activation-001",
     verification_ok: bool | None = True,
     external_txn_id: str | None = "txn-001",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "source": source,
+        "plan": plan,
         "client_event_id": client_event_id,
         "verification_payload": {"raw": "opaque"},
     }
@@ -111,6 +104,7 @@ def test_activate_subscription_defaults_verification_payload_when_omitted(
         headers=pro_headers,
         json={
             "source": "ios_app_store",
+            "plan": "pro_monthly",
             "client_event_id": "evt-ios-no-payload-1",
             "verification_ok": True,
             "external_txn_id": "txn-no-payload-1",
@@ -221,10 +215,11 @@ def test_activate_subscription_blank_client_event_id_returns_422(
     assert response.status_code == 422
 
 
-def test_issuer_helper_supports_empty_api_key() -> None:
+def test_issuer_helper_rejects_empty_api_key() -> None:
     from app.routers.pro_payments import _issuer_from_api_key
 
-    assert _issuer_from_api_key("") == "api_key:anonymous"
+    with pytest.raises(ValueError, match="api_key is required"):
+        _issuer_from_api_key("   ")
 
 
 def test_issuer_helper_returns_stable_marker_for_same_api_key() -> None:

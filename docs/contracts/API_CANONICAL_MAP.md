@@ -30,32 +30,40 @@
 - **PR-510:** Align Plate/Daily contracts and FE usage; keep compat.
 - **PR-511:** Type WeekPlan response models (if needed) + contract tests + FE adjustments.
 
-## Payments Canonical Map (P0 baseline, contract-first)
+## Payments Canonical Map (P0 baseline, implemented in PR #999)
 
-Source of truth for planned payment baseline:
-- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:1`
-- `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:1`
-- `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1`
+Source of truth for implemented payment baseline:
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:21`
+- `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:9`
+- `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:37`
+- `app/routers/billing.py:94`
+- `app/schemas/payments.py:61`
+- `app/services/payments_activation.py:194`
+- `app/main.py:29`
 
 Canonical source enum:
 - `ios_app_store`
 - `erip_qr`
 - `swift_manual`
 
-Planned additive endpoints (non-breaking; finalized in runtime PR):
+Implemented additive endpoints (non-breaking):
 
 | Feature | Canonical endpoint | Method | Compat (legacy) endpoint | Method | Notes | Ledger |
 |---|---|---:|---|---:|---|---|
-| Apple receipt verification | `/api/v1/billing/apple/verify-receipt` | POST | none (new) | - | Automated iOS path; server-side verification | `#ledger-p0-payments-ruby-ios` (owner: @katsiaryna_kavaleuskaya, P0, target: `PR-TBD-PAYMENTS-RUBY-IOS-BASELINE`) |
-| RU/BY payment intent | `/api/v1/billing/ru-by/manual-intent` | POST | none (new) | - | Creates manual payment intent and reconciliation state | `#ledger-p0-payments-ruby-ios` (DoD: reconciliation lifecycle + non-breaking contract) |
-| RU/BY reconciliation | `/api/v1/billing/ru-by/reconcile` | POST | none (new) | - | Manual review/system reconciliation endpoint | `#ledger-p0-payments-ruby-ios` (DoD: deterministic audit + status lifecycle) |
-| RU/BY reconciliation status | `/api/v1/billing/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Read-only status lifecycle surface | `#ledger-p0-payments-ruby-ios` (blocker: runtime handlers not merged yet) |
+| Apple receipt verification | `/api/v1/pro/payments/apple/verify-receipt` | POST | none (new) | - | Implemented automated iOS verification baseline with deterministic activation contract | `docs/roadmap/BACKLOG_LEDGER.md:3469` (owner: @katsiaryna_kavaleuskaya, P0, target: `PR #999`) |
+| RU/BY payment intent | `/api/v1/pro/payments/ru-by/manual-intent` | POST | none (new) | - | Implemented manual payment intent creation with pending reconciliation lifecycle | `docs/roadmap/BACKLOG_LEDGER.md:3469` (DoD: reconciliation lifecycle + non-breaking contract) |
+| RU/BY reconciliation | `/api/v1/pro/payments/ru-by/reconcile` | POST | none (new) | - | Implemented deterministic reconcile transition for manual rails | `docs/roadmap/BACKLOG_LEDGER.md:3469` (DoD: deterministic audit + status lifecycle) |
+| RU/BY reconciliation status | `/api/v1/pro/payments/ru-by/reconcile/{intent_id}` | GET | none (new) | - | Implemented read-only manual lifecycle status surface | `docs/roadmap/BACKLOG_LEDGER.md:3469` (OpenAPI + runtime verified) |
 
 Compatibility policy:
-1. Existing PRO/VIP activation flows remain unchanged until runtime migration PR.
+1. Existing PRO/VIP activation flows remain backward-compatible; payment routes are additive.
 2. Payment routes are additive and must preserve current response envelopes for unchanged endpoints.
 3. iOS/Web clients remain thin adapters; no client-side billing decision logic.
-4. This section is implementation-target contract guidance, not a statement that runtime handlers already exist in `app/routers/*`.
-5. Evidence anchors for these assertions are captured in:
-   - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:21`
-   - `docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:9`
+4. Runtime payment surfaces must stay under `/api/v1/pro/*` to satisfy namespace guard policy.
+5. Runtime handlers exist under the canonical PRO namespace and are verified by OpenAPI/tests.
+6. Evidence anchors for these assertions are captured in:
+   - `app/routers/billing.py:94`
+   - `app/services/payments_activation.py:194`
+   - `tests/test_billing_openapi_contract.py:11`
+   - `tests/test_payment_source_contract_api.py:113`
+   - `tests/test_payment_reconciliation_api.py:53`

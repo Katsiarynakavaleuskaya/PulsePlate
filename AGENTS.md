@@ -36,7 +36,7 @@ Or individually:
 - Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
 - Required checks must be PASS with no pending required jobs.
 - Mandatory wait-window: after the latest bot/review activity, do one final check pass and wait at least one review cycle before merge (never merge on the first green tick).
-- Merge checklist is mandatory in PR body (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness`).
+- Merge checklist is mandatory: canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` (Fixed in Commit Mapping SoT) plus PR body mirror (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
 
 ## Review Governance
@@ -99,8 +99,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 1. **Checkboxes and mapping do not substitute fixes.**
    Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
-3. **Resolved threads must be listed under Fixed in Commit Mapping** with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence (no commit required); **DEFERRED** → Backlog link (no commit required).
+3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog).
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence (no commit required); **DEFERRED** → Backlog link (no commit required).
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 7. **FIXED proof quality (trigger-only ban):** A commit SHA used as FIXED proof (`- <thread_url> -> <commit_sha>`) MUST NOT be a trigger-only commit. **Trigger-only** means: (a) **empty commit** (no changed files), or (b) commit subject containing `trigger ci`, `rerun ci`, or `rerun checks` (case-insensitive). Such SHAs are invalid FIXED proof and fail the merge readiness gate. Exceptions only via allowlist with TTL (empty by default; P2 if needed).
@@ -121,7 +121,7 @@ This document is the canonical governance reference and must stay aligned with:
 
 **Bandit / nosec policy (no blind suppressions):** Adding `# nosec` to silence Bandit is **forbidden** when a simple fix exists (e.g. B607 → use `shutil.which()` for full path). `# nosec` is allowed **only** with: (1) rule code (e.g. B607), (2) one-line justification, (3) `(remove-by: YYYY-MM-DD, ref: issue/PR)` on the same comment line, and (4) only when there is no safe code fix. **remove-by and ref MUST NOT be 'N/A'** (policy enforcement). Any subprocess call to external tools (`gh`, `git`, `curl`, `wget`, `ssh`) MUST use an absolute path via `shutil.which()` or config. Enforced by `tests/guards/test_nosec_policy_guard.py` and `tests/guards/test_subprocess_uses_absolute_binaries.py`. Legacy suppressions are allowlisted in `tests/guards/fixtures/nosec_policy_allowlist.txt` (Phase 1); migrate to full format and remove from allowlist over time. **Allowlist entries MUST include remove-by/ref and MUST expire** (format: `path:line remove-by=YYYY-MM-DD ref=PR-XXX`; past date → guard FAIL). **Adding allowlist entries is treated as tech-debt and requires a ledger item.**
 
-**Fix before mapping:** When security/linter checks fail (Bandit, Ruff, MyPy, tests), it is **forbidden** to touch PR-body mapping or resolve review threads first. Fix the root cause (code/docs) first; only then update discussion mapping or resolve threads. Tasks that affect Bandit/Trivy/security gates MUST NOT be done in auto/weak modes.
+**Fix before mapping:** When security/linter checks fail (Bandit, Ruff, MyPy, tests), it is **forbidden** to touch artifact mapping or resolve review threads first. Fix the root cause (code/docs) first; only then update `docs/review/PR_<N>_FIXED_MAPPING.md` or resolve threads. Tasks that affect Bandit/Trivy/security gates MUST NOT be done in auto/weak modes.
 
 **Pre-commit hook policy (mandatory before push):**
 
@@ -421,18 +421,18 @@ make fmt-check
 
 ### 5) PR body Phase 2 gates (PR metadata contract)
 
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact). PR body is mirror/fallback when event has no pr_number.
+
 ```bash
-python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
-### Fixed in Commit Mapping
-- No actionable review comments"
+python scripts/ci/check_pr_body_phase2_gates.py --event-path /path/to/event.json
+# or with body fallback:
+python scripts/ci/check_pr_body_phase2_gates.py --body "..."
 ```
 
 **Rules:**
 
-- Scope: PR body must include required headings + checked checklist + mapping details.
-- Mapping validation is scoped to content under `### Fixed in Commit Mapping` only.
+- Scope: Canonical artifact must include required headings + checked checklist + mapping details. PR body may mirror for human readability.
+- Mapping validation is scoped to content under `## Fixed in Commit Mapping` in artifact (or body when used as fallback).
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
 
