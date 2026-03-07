@@ -6,6 +6,10 @@ This runbook describes the cheapest practical way to run the PulsePlate agent
 execution sandbox on a developer machine before any remote runner platform is
 introduced.
 
+Related integration spec:
+
+- `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+
 ## Current Scope
 
 The local sandbox is intentionally narrow:
