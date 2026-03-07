@@ -58,9 +58,10 @@ def _iter_json_files(root: Path) -> Iterable[Path]:
 
 def _safe_read_json(path: Path) -> dict[str, Any] | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _max_severity(issues: list[dict[str, Any]]) -> str:

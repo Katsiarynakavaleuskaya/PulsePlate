@@ -104,6 +104,15 @@ Minimum acceptable handoff packet:
 - Penpot page/frame reference
 - CTA mapping note if the surface is interactive
 
+Canonical template:
+
+- `docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`
+
+Pilot packets:
+
+- `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_HOME_OPEN_SETUP.md`
+- `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md`
+
 ## Tooling Policy
 
 ### Required now

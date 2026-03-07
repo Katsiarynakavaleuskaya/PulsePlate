@@ -3053,6 +3053,9 @@ If it is not recorded here — it does not exist.
   - Links:
     - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
     - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_HOME_OPEN_SETUP.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md`
     - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
     - `frontend/.storybook/main.ts`
     - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
@@ -3592,8 +3595,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING-W1 (`feat/p0-session-cookie-hardening-w1`)
-  - Status: 🟡 In progress (Wave W1: cookie transport + session contract hardening)
+  - Target PR: PR #1003 (`feat/p0-session-cookie-hardening-w1`)
+  - Status: 🟡 In progress (PR #1003; Wave W1: cookie transport + session contract hardening)
   - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
