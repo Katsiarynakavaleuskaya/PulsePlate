@@ -309,7 +309,9 @@ def _block_thread_urls(block: str) -> list[str]:
     """Extract thread-specific GitHub URLs referenced by bullet lines in a block."""
 
     urls: list[str] = []
-    url_re = re.compile(r"^\s*-\s*(https://[^\s]+)")
+    url_re = re.compile(
+        r"^\s*-\s*(https://github\.com/[^/\s]+/[^/\s]+/pull/\d+#(?:discussion_r\d+|pullrequestreview-\d+))\b"
+    )
     for line in block.splitlines():
         match = url_re.search(line.strip())
         if match:

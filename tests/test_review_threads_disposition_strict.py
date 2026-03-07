@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 import scripts.orchestration.check_review_threads_disposition as _disposition_mod
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
+    _block_thread_urls,
     _check_commit_after_comment,
     _check_trigger_only_mapping,
     _env_diagnostic,
@@ -252,14 +253,27 @@ def test_validate_fixed_commit_blocks_requires_mapping_for_every_placeholder_url
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
-- https://example.com/thread-1
-- https://example.com/thread-2
+- https://github.com/org/repo/pull/1000#discussion_r1
+- https://github.com/org/repo/pull/1000#discussion_r2
 
-- https://example.com/thread-1 -> deadbeef
+- https://github.com/org/repo/pull/1000#discussion_r1 -> deadbeef
 """
     errors = _validate_fixed_commit_blocks(section)
     assert any("missing SHA mappings for" in error for error in errors)
-    assert any("thread-2" in error for error in errors)
+    assert any("discussion_r2" in error for error in errors)
+
+
+def test_block_thread_urls_accepts_review_thread_anchors_only() -> None:
+    block = """
+- https://github.com/org/repo/pull/1000#discussion_r123
+- https://github.com/org/repo/pull/1000#pullrequestreview-456
+- https://github.com/org/repo/pull/1000/files
+- https://example.com/not-a-thread
+"""
+    assert _block_thread_urls(block) == [
+        "https://github.com/org/repo/pull/1000#discussion_r123",
+        "https://github.com/org/repo/pull/1000#pullrequestreview-456",
+    ]
 
 
 def test_validate_fixed_commit_blocks_ignores_deferred_commit_lines() -> None:
