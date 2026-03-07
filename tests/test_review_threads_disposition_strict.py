@@ -355,6 +355,34 @@ def test_has_gh_auth_false_when_token_present_but_auth_status_fails(
     assert _has_gh_auth() is False
 
 
+def test_has_gh_auth_false_when_gh_auth_times_out(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=5
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+    assert _has_gh_auth() is False
+
+
+def test_has_gh_auth_false_when_gh_auth_oserror(monkeypatch: "MonkeyPatch") -> None:
+    monkeypatch.setenv("GH_TOKEN", "gh_secret")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_oserror(*args: object, **kwargs: object) -> object:
+        raise OSError("gh unavailable")
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_oserror)
+    assert _has_gh_auth() is False
+
+
 def test_has_gh_auth_true_when_gh_auth_status_ok(monkeypatch: "MonkeyPatch") -> None:
     """No env vars but gh auth login → full check (Cubic P2 fix)."""
     monkeypatch.delenv("GH_TOKEN", raising=False)
@@ -572,6 +600,30 @@ def test_require_gh_token_preflight_passes_when_gh_token_set_and_gh_ok(
     fake_ok = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
     monkeypatch.setattr(_disposition_mod.subprocess, "run", lambda *a, **k: fake_ok)
     _require_gh_token_preflight(True, True)
+
+
+def test_require_gh_token_preflight_prints_diagnostic_on_timeout(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "ghp_test_dummy")
+    monkeypatch.setattr(
+        _disposition_mod.shutil, "which", lambda x: "/usr/bin/gh" if x == "gh" else None
+    )
+
+    def raise_timeout(*args: object, **kwargs: object) -> object:
+        raise _disposition_mod.subprocess.TimeoutExpired(
+            cmd=["/usr/bin/gh", "auth", "status"], timeout=10
+        )
+
+    monkeypatch.setattr(_disposition_mod.subprocess, "run", raise_timeout)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _require_gh_token_preflight(True, True)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "strict preflight" in captured.out
+    assert "Cause:" in captured.out
 
 
 def test_main_skips_in_advisory_local_mode_without_auth(

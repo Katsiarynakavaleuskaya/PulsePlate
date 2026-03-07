@@ -558,7 +558,7 @@ def _has_gh_auth() -> bool:
             timeout=5,
         )
         return result.returncode == 0
-    except RuntimeError:
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
         return False
 
 
@@ -594,12 +594,19 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
     except RuntimeError:
         print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
         sys.exit(1)
-    result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
-        argv,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    try:
+        result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print("ERROR: GH_TOKEN is set but gh auth status failed during strict preflight.")
+        print(f"       Env: {_env_diagnostic()}")
+        print(f"       Cause: {exc}")
+        print("  gh auth status  # run manually to see reason")
+        sys.exit(1)
     if result.returncode != 0:
         print("ERROR: GH_TOKEN is set but gh auth status failed. Fix env before running GraphQL.")
         print(f"       Env: {_env_diagnostic()}")

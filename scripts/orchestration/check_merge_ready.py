@@ -139,6 +139,8 @@ def _disposition_gate_skipped(result: GateResult) -> bool:
 
     if result.name != "review-threads-disposition":
         return False
+    if result.returncode != 0:
+        return False
     combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
     return "SKIP:" in combined_output
 

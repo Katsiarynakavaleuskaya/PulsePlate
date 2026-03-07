@@ -181,6 +181,18 @@ def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
     assert "Failing gates: review-threads-disposition" in captured.out
 
 
+def test_disposition_gate_skipped_ignores_failed_skip_output() -> None:
+    result = merge_ready.GateResult(
+        name="review-threads-disposition",
+        argv=[],
+        returncode=1,
+        stdout="SKIP: auth unavailable",
+        stderr="",
+    )
+
+    assert merge_ready._disposition_gate_skipped(result) is False
+
+
 def test_wrapper_requires_complete_local_context() -> None:
     with pytest.raises(SystemExit):
         merge_ready.main(["--pr-number", "1005"])
