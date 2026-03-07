@@ -55,7 +55,7 @@ Disposition: NOT-A-BUG
 Evidence: docker-compose.yaml:22; docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md:1; docs/roadmap/BACKLOG_LEDGER.md:4079; .env.example:63
 Reason: This review summary aggregates inline findings already dispositioned above; the outside-diff `.env.example` note does not indicate a docs-only violation because PR #1010 intentionally includes runtime/config changes.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900386318
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#discussion_r2900386318 -> 2f87ba4f
 Disposition: NOT-A-BUG
 Evidence: PR #1010 body (`Select one change type` reclassified to `Refactor`; `Notes` explicitly list runtime/config scope)
 Reason: The finding is valid only for a docs-only PR. PR #1010 is reclassified as a runtime/refactor change and no longer claims docs-only scope.
@@ -70,7 +70,7 @@ Disposition: FIXED
 Commit: 3b77d30a
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:4042
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909480064
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1010#pullrequestreview-3909480064 -> 2f87ba4f
 Disposition: NOT-A-BUG
 Evidence: tests/test_rag_contract_surface.py:13; docs/roadmap/BACKLOG_LEDGER.md:2079; docs/roadmap/BACKLOG_LEDGER.md:4042; PR #1010 body (`Select one change type` reclassified to `Refactor`)
 Reason: This review summary aggregates one inline test hardening fix, two backlog fixes, and one PR classification correction already dispositioned above.
