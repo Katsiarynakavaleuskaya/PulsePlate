@@ -24,3 +24,5 @@ Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#discussion_r2900416600 -> c3a8150b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#pullrequestreview-3909534520 -> 7c9b7898
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#discussion_r2900430049 -> 7c9b7898
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#pullrequestreview-3909552567 -> 962b8c5b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#discussion_r2900445883 -> 962b8c5b
