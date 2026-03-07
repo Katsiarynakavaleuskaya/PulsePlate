@@ -48,3 +48,7 @@ Commit: see mapping entries below
   Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:157, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:176, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:314
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#discussion_r2900460465 -> 4e56a324
   Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:236, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:403
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#discussion_r2900460459 -> cd573101
+  Evidence: docs/review/PR_1011_FIXED_MAPPING.md:1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1011#pullrequestreview-3909568859 -> cd573101
+  Evidence: docs/review/PR_1011_FIXED_MAPPING.md:1
