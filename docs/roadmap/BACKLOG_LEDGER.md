@@ -283,7 +283,7 @@ If it is not recorded here — it does not exist.
   - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
   - Area: orchestration / research / product governance
   - Finding Type: capability expansion
-  - Reason: PR #1020 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
+  - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
   - Links:
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
     - `scripts/orchestration/skill_router.py`

@@ -47,11 +47,44 @@ def test_skill_router_selects_backend_contract_skills() -> None:
     assert "pulseplate-gates" in skills
 
 
+def test_skill_router_matches_punctuated_keywords_after_normalization() -> None:
+    """Punctuated lexemes should survive normalization and still route skills."""
+
+    skills = select_recommended_skills(
+        goal="Refresh AGENTS.md guidance and regenerate schema.ts after a Figma node-id review",
+        task_class="Orchestration",
+        candidate_paths=[
+            ".cursor/agents/agent-coordinator.md",
+            "frontend/src/api/schema.ts",
+        ],
+        domain="orchestration",
+    )
+
+    assert "agents-md" in skills
+    assert "pulseplate-openapi-sync" in skills
+
+
+def test_skill_router_does_not_match_partial_keyword_substrings() -> None:
+    """Short lexemes should not match inside unrelated larger words."""
+
+    decision = route_skills(
+        goal="Document docker entrypoint behavior for onboarding",
+        task_class="Docs",
+        candidate_paths=["README.md"],
+        domain="docs",
+    )
+
+    docs_sync = next(item for item in decision["recommended"] if item["skill"] == "docs-sync")
+    joined_reasons = " ".join(docs_sync["reasons"])
+    assert "lexeme:doc(" not in joined_reasons
+    assert "lexeme:doc," not in joined_reasons
+
+
 def test_skill_router_selects_report_stack_for_research() -> None:
     """Research/report work should use the report pipeline instead of generic scraping."""
 
     skills = select_recommended_skills(
-        goal="Prepare weekly wellness AI report with Notion research notes",
+        goal="Prepare weekly wellness AI report with a Notion research note",
         task_class="Research",
         candidate_paths=[
             "docs/audience_pack/ENGINEERING_OVERVIEW.md",

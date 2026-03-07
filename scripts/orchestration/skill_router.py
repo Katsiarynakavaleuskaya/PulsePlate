@@ -286,8 +286,29 @@ def _normalize_text(goal: str, task_class: str, normalized_paths: list[str]) -> 
     return " ".join(raw.split())
 
 
+def _normalize_lexeme(value: str) -> str:
+    """Normalize keyword phrases with the same rules as task text."""
+
+    normalized = value.strip().lower()
+    for token in ("/", "_", "-", ".", ":", "(", ")", ","):
+        normalized = normalized.replace(token, " ")
+    return " ".join(normalized.split())
+
+
 def _has_prefix(path: str, prefix: str) -> bool:
     return path == prefix.rstrip("/") or path.startswith(prefix)
+
+
+def _match_keywords(keywords: tuple[str, ...], normalized_text: str) -> list[str]:
+    """Return keywords whose normalized phrases match on token boundaries."""
+
+    padded_text = f" {normalized_text} "
+    matched: list[str] = []
+    for keyword in keywords:
+        normalized_keyword = _normalize_lexeme(keyword)
+        if normalized_keyword and f" {normalized_keyword} " in padded_text:
+            matched.append(keyword)
+    return matched
 
 
 def _score_rule(
@@ -327,13 +348,13 @@ def _score_rule(
         score += prefix_score
         reasons.append(f"path:{', '.join(matched_prefixes)}(+{prefix_score})")
 
-    matched_keywords = [keyword for keyword in rule.keywords if keyword in normalized_text]
+    matched_keywords = _match_keywords(rule.keywords, normalized_text)
     if matched_keywords:
         keyword_score = min(len(matched_keywords), 3) * 2
         score += keyword_score
         reasons.append(f"lexeme:{', '.join(matched_keywords[:3])}(+{keyword_score})")
 
-    matched_negative = [keyword for keyword in rule.negative_keywords if keyword in normalized_text]
+    matched_negative = _match_keywords(rule.negative_keywords, normalized_text)
     if matched_negative:
         penalty = len(matched_negative) * 2
         score -= penalty

@@ -149,11 +149,10 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    output_ref = (
-        str(out_path.relative_to(REPO_ROOT))
-        if out_path.is_absolute() and REPO_ROOT in out_path.parents
-        else str(out_path)
-    )
+    try:
+        output_ref = str(out_path.relative_to(REPO_ROOT))
+    except ValueError:
+        output_ref = str(out_path)
     print(
         json.dumps(
             {

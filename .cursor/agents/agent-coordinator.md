@@ -118,7 +118,8 @@ When a task is created:
    - See "Available Agents" section below for capabilities and canonical docs
 
 3. **Map to project-fit skills**:
-   - Start with `pulseplate-workflow`
+   - If the task packet already includes `recommended_skills` / `skill_routing`, use those outputs as authoritative
+   - Otherwise start with `pulseplate-workflow`
    - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
    - Prefer repo-tracked PulsePlate skills before global installed skills
    - Do not auto-select broad scraping workflows for PulsePlate

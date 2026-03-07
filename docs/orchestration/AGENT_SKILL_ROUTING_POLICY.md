@@ -33,7 +33,11 @@
 4. Add global installed skills only when the task explicitly matches their scope.
 5. Exclude low-fit or high-risk skills even if installed.
 
-`scripts/orchestration/task_bootstrap.py` is the deterministic bootstrap entrypoint for this selection.
+`scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for this selection.
+The packet contract is materialized at `scripts/orchestration/task_bootstrap.py:80`,
+with routing outputs populated from `scripts/orchestration/task_bootstrap.py:73`.
+Deterministic coverage lives in `tests/test_task_bootstrap.py:16` and
+`tests/test_task_bootstrap.py:105`.
 
 The bootstrap packet should expose:
 
@@ -54,7 +58,7 @@ This keeps routing explainable without relying on hidden reasoning.
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
 | Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs` |
-| Design / media / launch assets | `figma`, `figma-implement-design` | `sora`, `imagegen`, `speech`, `app-store-release-agent` companion workflows |
+| Design / media / launch assets | `figma`, `figma-implement-design` | `sora`, `imagegen`, `speech`, `screenshot` |
 
 ---
 
