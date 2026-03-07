@@ -54,14 +54,41 @@ def _normalize_header_tokens(column: str) -> set[str]:
     return {token for token in text.split() if token}
 
 
+def _find_section_bounds(lines: list[str], section_title: str) -> tuple[int, int]:
+    """Return the line slice for a markdown section body."""
+
+    header = f"## {section_title}"
+    start_index: Optional[int] = None
+    for index, line in enumerate(lines):
+        if line.strip() == header:
+            start_index = index + 1
+            break
+
+    if start_index is None:
+        raise ValueError(f"Routing graph section not found: {section_title}")
+
+    end_index = len(lines)
+    for index in range(start_index, len(lines)):
+        if lines[index].startswith("## "):
+            end_index = index
+            break
+
+    return start_index, end_index
+
+
 def _find_table_header(
-    lines: list[str], required_columns: tuple[str, ...]
+    lines: list[str],
+    required_columns: tuple[str, ...],
+    start_index: int = 0,
+    end_index: Optional[int] = None,
 ) -> tuple[int, Tuple[str, ...]]:
     """Locate a markdown table header using whole-token column matching."""
 
     required_token_sets = tuple(_normalize_header_tokens(column) for column in required_columns)
+    stop_index = len(lines) if end_index is None else end_index
 
-    for index, line in enumerate(lines):
+    for index in range(start_index, stop_index):
+        line = lines[index]
         cols = _split_md_row(line)
         if not cols:
             continue
@@ -95,7 +122,13 @@ def _parse_cluster_definitions(lines: list[str]) -> Set[str]:
     """Parse canonical cluster definitions from the routing graph SoT."""
 
     try:
-        header_idx, header_cols = _find_table_header(lines, ("cluster", "purpose"))
+        section_start, section_end = _find_section_bounds(lines, "3. Cluster Definitions")
+        header_idx, header_cols = _find_table_header(
+            lines,
+            ("cluster", "purpose"),
+            start_index=section_start,
+            end_index=section_end,
+        )
     except ValueError as exc:
         raise ValueError("Cluster definitions table is missing or empty") from exc
     start = header_idx + 1
@@ -152,8 +185,12 @@ def load_routing_clusters_raw(path: Path = DEFAULT_ROUTING_GRAPH) -> Set[str]:
         raise FileNotFoundError(f"Routing graph not found: {path}")
 
     lines = path.read_text(encoding="utf-8").splitlines()
+    section_start, section_end = _find_section_bounds(lines, "4. Domains → Agents")
     header_idx, header_cols = _find_table_header(
-        lines, ("domain", "cluster", "primary agent", "reviewer")
+        lines,
+        ("domain", "cluster", "primary agent", "reviewer"),
+        start_index=section_start,
+        end_index=section_end,
     )
 
     start = header_idx + 1
@@ -201,9 +238,13 @@ def load_routing_graph(path: Path = DEFAULT_ROUTING_GRAPH) -> Dict[str, DomainRo
 
     lines = path.read_text(encoding="utf-8").splitlines()
     declared_clusters = _parse_cluster_definitions(lines)
+    section_start, section_end = _find_section_bounds(lines, "4. Domains → Agents")
 
     header_idx, header_cols = _find_table_header(
-        lines, ("domain", "cluster", "primary agent", "reviewer")
+        lines,
+        ("domain", "cluster", "primary agent", "reviewer"),
+        start_index=section_start,
+        end_index=section_end,
     )
 
     start = header_idx + 1

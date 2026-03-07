@@ -27,6 +27,23 @@ _MINIMAL_TABLE = (
 _EXPECTED_DECLARED_CLUSTERS = {"backend", "platform", "ops", "ml", "safety", "growth"}
 
 
+def _build_routing_doc(
+    cluster_definitions: str,
+    routing_table: str,
+    *,
+    prelude: str = "# Routing Graph\n\n",
+) -> str:
+    """Build a minimal routing graph doc with canonical section headers."""
+
+    return (
+        prelude
+        + "## 3. Cluster Definitions\n\n"
+        + cluster_definitions
+        + "## 4. Domains → Agents\n\n"
+        + routing_table
+    )
+
+
 def test_parses_safety_domain() -> None:
     """Safety domain must exist with non-empty primary and reviewer."""
     routes = load_routing_graph()
@@ -73,12 +90,13 @@ def test_missing_header_raises(tmp_path: Path) -> None:
     """ValueError when the routing table header row is missing."""
     bad_path = tmp_path / "no_header.md"
     bad_path.write_text(
-        "# Routing Graph\n\n"
-        + _MINIMAL_CLUSTER_DEFINITIONS
-        + "Some introductory text, but no routing table header.\n\n"
-        + "| something | else |\n"
-        + "| --------- | ---- |\n"
-        + "| foo       | bar  |\n",
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            "Some introductory text, but no routing table header.\n\n"
+            + "| something | else |\n"
+            + "| --------- | ---- |\n"
+            + "| foo       | bar  |\n",
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Routing graph table header not found"):
@@ -89,10 +107,11 @@ def test_no_routing_rows_raises(tmp_path: Path) -> None:
     """ValueError when header exists but no routing rows are parsed."""
     empty_table_path = tmp_path / "no_rows.md"
     empty_table_path.write_text(
-        "# Routing Graph\n\n"
-        + _MINIMAL_CLUSTER_DEFINITIONS
-        + "| domain | cluster | primary agent | secondary | reviewer |\n"
-        + "| ------ | ------- | ------------- | --------- | -------- |\n",
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            "| domain | cluster | primary agent | secondary | reviewer |\n"
+            + "| ------ | ------- | ------------- | --------- | -------- |\n",
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="No routing rows parsed from routing graph"):
@@ -103,10 +122,13 @@ def test_secondary_empty_yields_none(tmp_path: Path) -> None:
     """Empty secondary cell must yield None; non-empty yields agent name."""
     table_path = tmp_path / "secondary_test.md"
     table_path.write_text(
-        _MINIMAL_CLUSTER_DEFINITIONS
-        + _MINIMAL_TABLE
-        + "| foo | ops | agent-a |           | reviewer-a |\n"
-        + "| bar | growth | agent-b | agent-c    | reviewer-b |\n",
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE
+            + "| foo | ops | agent-a |           | reviewer-a |\n"
+            + "| bar | growth | agent-b | agent-c    | reviewer-b |\n",
+            prelude="",
+        ),
         encoding="utf-8",
     )
     routes = load_routing_graph(table_path)
@@ -119,14 +141,15 @@ def test_duplicate_domain_raises(tmp_path: Path) -> None:
     """ValueError when same domain appears twice in routing table."""
     dup_path = tmp_path / "duplicate.md"
     dup_path.write_text(
-        "# Routing Graph\n\n"
-        + "| Cluster | Purpose |\n"
-        + "|---------|---------|\n"
-        + "| safety  | Safety routing. |\n"
-        + "| backend | Backend routing. |\n\n"
-        + _MINIMAL_TABLE
-        + "| safety | safety | philosophy-agent | logic-agent | agent-coordinator |\n"
-        + "| safety | backend | backend-engineer  |             | bug-hunter         |\n",
+        _build_routing_doc(
+            "| Cluster | Purpose |\n"
+            + "|---------|---------|\n"
+            + "| safety  | Safety routing. |\n"
+            + "| backend | Backend routing. |\n\n",
+            _MINIMAL_TABLE
+            + "| safety | safety | philosophy-agent | logic-agent | agent-coordinator |\n"
+            + "| safety | backend | backend-engineer  |             | bug-hunter         |\n",
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Duplicate domain in routing graph: safety"):
@@ -177,13 +200,13 @@ def test_duplicate_cluster_definition_raises(tmp_path: Path) -> None:
 
     dup_cluster_path = tmp_path / "duplicate_cluster.md"
     dup_cluster_path.write_text(
-        "# Routing Graph\n\n"
-        + "| Cluster | Purpose |\n"
-        + "|---------|---------|\n"
-        + "| ops     | Operations routing. |\n"
-        + "| ops     | Duplicate operations routing. |\n\n"
-        + _MINIMAL_TABLE
-        + "| docs | ops | agent-a | | reviewer-a |\n",
+        _build_routing_doc(
+            "| Cluster | Purpose |\n"
+            + "|---------|---------|\n"
+            + "| ops     | Operations routing. |\n"
+            + "| ops     | Duplicate operations routing. |\n\n",
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+        ),
         encoding="utf-8",
     )
 
@@ -196,10 +219,10 @@ def test_undefined_cluster_reference_raises(tmp_path: Path) -> None:
 
     undefined_cluster_path = tmp_path / "undefined_cluster.md"
     undefined_cluster_path.write_text(
-        "# Routing Graph\n\n"
-        + _MINIMAL_CLUSTER_DEFINITIONS
-        + _MINIMAL_TABLE
-        + "| docs | safety | agent-a | | reviewer-a |\n",
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | safety | agent-a | | reviewer-a |\n",
+        ),
         encoding="utf-8",
     )
 
@@ -215,7 +238,10 @@ def test_missing_cluster_definitions_section_raises(tmp_path: Path) -> None:
 
     missing_clusters_path = tmp_path / "missing_clusters.md"
     missing_clusters_path.write_text(
-        "# Routing Graph\n\n" + _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+        "# Routing Graph\n\n"
+        + "## 4. Domains → Agents\n\n"
+        + _MINIMAL_TABLE
+        + "| docs | ops | agent-a | | reviewer-a |\n",
         encoding="utf-8",
     )
 
@@ -228,15 +254,42 @@ def test_unused_declared_cluster_raises(tmp_path: Path) -> None:
 
     unused_cluster_path = tmp_path / "unused_cluster.md"
     unused_cluster_path.write_text(
-        "# Routing Graph\n\n"
-        + _MINIMAL_CLUSTER_DEFINITIONS
-        + _MINIMAL_TABLE
-        + "| docs | ops | agent-a | | reviewer-a |\n",
+        _build_routing_doc(
+            _MINIMAL_CLUSTER_DEFINITIONS,
+            _MINIMAL_TABLE + "| docs | ops | agent-a | | reviewer-a |\n",
+        ),
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="Declared clusters unused in routing graph: growth"):
         load_routing_graph(unused_cluster_path)
+
+
+def test_loader_ignores_matching_tables_outside_canonical_sections(tmp_path: Path) -> None:
+    """Section-bounded parsing should ignore decoy tables outside the SoT sections."""
+
+    decoy_path = tmp_path / "decoy_tables.md"
+    decoy_path.write_text(
+        "# Routing Graph\n\n"
+        + "## Appendix\n\n"
+        + "| Cluster | Purpose |\n"
+        + "|---------|---------|\n"
+        + "| wrong   | Decoy cluster table. |\n\n"
+        + "| Domain | Cluster | Primary Agent | Secondary | Reviewer |\n"
+        + "|--------|---------|---------------|-----------|----------|\n"
+        + "| wrong-domain | wrong | wrong-agent | | wrong-reviewer |\n\n"
+        + "## 3. Cluster Definitions\n\n"
+        + _MINIMAL_CLUSTER_DEFINITIONS
+        + "## 4. Domains → Agents\n\n"
+        + _MINIMAL_TABLE
+        + "| docs | ops | agent-a | | reviewer-a |\n"
+        + "| marketing | growth | agent-b | | reviewer-b |\n",
+        encoding="utf-8",
+    )
+
+    routes = load_routing_graph(decoy_path)
+    assert set(routes.keys()) == {"docs", "marketing"}
+    assert load_declared_clusters(decoy_path) == {"ops", "growth"}
 
 
 def test_route_normalizes_domain_lookup() -> None:
