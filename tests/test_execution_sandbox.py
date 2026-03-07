@@ -54,6 +54,55 @@ def test_parse_allowed_binaries_rejects_paths() -> None:
         sandbox.parse_allowed_binaries("/usr/bin/python3")
 
 
+def test_parse_positive_int_rejects_non_integer() -> None:
+    with pytest.raises(RuntimeError, match="integer >= 1"):
+        sandbox._parse_positive_int("abc", env_name="TEST_ENV", default=1)
+
+
+def test_parse_positive_int_rejects_zero() -> None:
+    with pytest.raises(RuntimeError, match="integer >= 1"):
+        sandbox._parse_positive_int("0", env_name="TEST_ENV", default=1)
+
+
+def test_load_allowed_binaries_rejects_empty_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, ", , ,")
+    with pytest.raises(RuntimeError, match="must contain at least one binary"):
+        sandbox.load_allowed_binaries()
+
+
+def test_resolve_sandbox_root_rejects_missing_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_root = tmp_path / "missing-root"
+    monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(missing_root))
+    with pytest.raises(RuntimeError, match="missing path"):
+        sandbox.resolve_sandbox_root()
+
+
+def test_resolve_sandbox_root_rejects_file_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    not_a_dir = tmp_path / "sandbox.txt"
+    not_a_dir.write_text("sandbox")
+    monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(not_a_dir))
+    with pytest.raises(RuntimeError, match="must point to a directory"):
+        sandbox.resolve_sandbox_root()
+
+
+def test_resolve_sandbox_cwd_defaults_to_root(sandbox_root: Path) -> None:
+    assert sandbox.resolve_sandbox_cwd(None, root=sandbox_root) == sandbox_root
+
+
+def test_resolve_sandbox_cwd_accepts_relative_child(sandbox_root: Path) -> None:
+    child_dir = sandbox_root / "child"
+    child_dir.mkdir()
+    assert sandbox.resolve_sandbox_cwd("child", root=sandbox_root) == child_dir
+
+
 def test_resolve_sandbox_cwd_rejects_escape(
     sandbox_root: Path,
 ) -> None:
@@ -62,10 +111,43 @@ def test_resolve_sandbox_cwd_rejects_escape(
         sandbox.resolve_sandbox_cwd(outside_dir, root=sandbox_root)
 
 
+def test_resolve_sandbox_cwd_rejects_missing_directory(sandbox_root: Path) -> None:
+    with pytest.raises(RuntimeError, match="does not exist"):
+        sandbox.resolve_sandbox_cwd("missing", root=sandbox_root)
+
+
+def test_resolve_sandbox_cwd_rejects_file_path(sandbox_root: Path) -> None:
+    file_path = sandbox_root / "payload.txt"
+    file_path.write_text("payload")
+    with pytest.raises(RuntimeError, match="must be a directory"):
+        sandbox.resolve_sandbox_cwd(file_path, root=sandbox_root)
+
+
 def test_sanitize_sandbox_env_rejects_sensitive_keys() -> None:
     suspicious_key = "_".join(("OPENAI", "API", "KEY"))
     with pytest.raises(PermissionError, match="Sensitive env key"):
         sandbox.sanitize_sandbox_env({suspicious_key: "secret"})
+
+
+def test_sanitize_sandbox_env_keeps_safe_extra_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", "/tmp/home")
+    sanitized = sandbox.sanitize_sandbox_env({"SAFE_FLAG": "1"})
+    assert sanitized["HOME"] == "/tmp/home"
+    assert sanitized["SAFE_FLAG"] == "1"
+
+
+def test_resolve_allowed_binary_rejects_missing_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: None)
+    with pytest.raises(RuntimeError, match="not found on PATH"):
+        sandbox.resolve_allowed_binary("python3", allowed_binaries=("python3",))
+
+
+def test_coerce_output_decodes_bytes() -> None:
+    assert sandbox._coerce_output(b"hello") == "hello"
 
 
 def test_run_local_sandbox_executes_allowlisted_python(
