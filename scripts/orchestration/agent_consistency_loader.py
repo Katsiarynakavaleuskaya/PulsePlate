@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Set, Tuple
+from typing import Set, Tuple, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_INVENTORY.md"
@@ -257,7 +257,7 @@ def load_declared_clusters() -> Set[str]:
 
     from scripts.orchestration.routing_graph_loader import load_declared_clusters as _load
 
-    return _load()
+    return cast(Set[str], _load())
 
 
 def load_non_routable_agents(path: Path = NON_ROUTABLE_PATH) -> Set[str]:
