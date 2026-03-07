@@ -158,6 +158,72 @@ final class ThinClientGuardsTests: XCTestCase {
         )
     }
 
+    func test_noSensitiveSecretsPersistedOutsideKeychain() throws {
+        let root = try repoRoot(from: #filePath)
+
+        let includeDir = "ios/PulsePlate"
+        let excludeSubpaths = [
+            "/PulsePlateTests/",
+            "/Tests/",
+            "/Fixtures/",
+            "/Mocks/",
+        ]
+
+        let swiftFiles = try collectTextFiles(
+            root: root,
+            includeDirs: [includeDir],
+            excludeSubpaths: excludeSubpaths,
+            allowedExtensions: Set(["swift"])
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        let forbiddenRegex: [(String, NSRegularExpression)] = [
+            (
+                "appstorage-secret-key",
+                try NSRegularExpression(
+                    pattern: #"@AppStorage\(\s*"[^"]*(api[_-]?key|token|secret|password)[^"]*"\s*\)"#,
+                    options: [.caseInsensitive]
+                )
+            ),
+            (
+                "userdefaults-secret-key",
+                try NSRegularExpression(
+                    pattern: #"UserDefaults(?:\.standard)?\s*\.\s*(?:set|setValue|string|data|object|dictionary|array|value)\s*\([^)]*forKey:\s*"[^"]*(api[_-]?key|token|secret|password)[^"]*""#,
+                    options: [.caseInsensitive]
+                )
+            ),
+        ]
+
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+
+            for (name, regex) in forbiddenRegex {
+                if regex.firstMatch(in: scanContent, options: [], range: range) != nil {
+                    hits.append("\(relativePath(file, root: root)): forbidden regex '\(name)'")
+                }
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: sensitive keys are persisted outside Keychain.
+
+            Fix:
+            - Store secrets only via Keychain-backed helpers.
+            - Do not persist API keys/tokens/secrets/passwords with AppStorage or UserDefaults.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))
