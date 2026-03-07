@@ -80,6 +80,20 @@ def test_event_mode_passes_require_auth_only_to_disposition(
     ]
 
 
+def test_event_pr_number_accepts_numeric_string(tmp_path: Path) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"pull_request": {"number": "1008"}}), encoding="utf-8")
+
+    assert merge_ready._event_pr_number(str(event_path)) == 1008
+
+
+def test_event_pr_number_returns_none_for_invalid_payload(tmp_path: Path) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"pull_request": {"number": "bad"}}), encoding="utf-8")
+
+    assert merge_ready._event_pr_number(str(event_path)) is None
+
+
 def test_wrapper_surfaces_failing_gate_names(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
