@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 PHASE2_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_body_phase2_gates.py"
 MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
+RUN_TIMEOUT_SEC = 120
 
 
 @dataclass(frozen=True)
@@ -55,13 +56,24 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     """Run a gate script and capture its output without mutating its behavior."""
 
     argv = [sys.executable, str(script_path), *extra_args]
-    result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-06-30, ref: PR-1005)
-        argv,
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-06-30, ref: PR-1005)
+            argv,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=RUN_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = (exc.stdout or "").strip() if isinstance(exc.stdout, str) else ""
+        return GateResult(
+            name=name,
+            argv=argv,
+            returncode=1,
+            stdout=stdout,
+            stderr=f"Timed out after {RUN_TIMEOUT_SEC}s while running {script_path.name}: {exc}",
+        )
     return GateResult(
         name=name,
         argv=argv,

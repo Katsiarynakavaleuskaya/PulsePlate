@@ -54,6 +54,11 @@ def test_get_pr_number_prefers_explicit_cli_value(monkeypatch: MonkeyPatch) -> N
     assert _disposition_mod._get_pr_number(1005) == 1005
 
 
+def test_get_pr_number_rejects_non_positive_cli_value() -> None:
+    with pytest.raises(RuntimeError, match="must be > 0"):
+        _disposition_mod._get_pr_number(0)
+
+
 def test_extract_fixed_mapping_section_accepts_double_hash_heading() -> None:
     """Section uses ## Fixed in Commit Mapping (artifact format)."""
     body = """

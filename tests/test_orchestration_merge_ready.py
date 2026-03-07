@@ -141,3 +141,27 @@ def test_wrapper_rejects_mixed_event_and_local_modes() -> None:
                 "Katsiarynakavaleuskaya/PulsePlate",
             ]
         )
+
+
+def test_run_gate_returns_failure_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_timeout(*args, **kwargs) -> None:
+        raise merge_ready.subprocess.TimeoutExpired(
+            cmd=["python3", "scripts/orchestration/check_merge_ready.py"],
+            timeout=merge_ready.RUN_TIMEOUT_SEC,
+            output="partial output",
+        )
+
+    monkeypatch.setattr(merge_ready.subprocess, "run", raise_timeout)
+
+    result = merge_ready._run_gate(
+        "merge-readiness-gate",
+        merge_ready.MERGE_GATE,
+        ["--pr-number", "1007", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == "partial output"
+    assert "Timed out after" in result.stderr
+    assert merge_ready.MERGE_GATE.name in result.stderr

@@ -425,6 +425,8 @@ def _check_commit_after_comment(
 
 def _get_pr_number(pr_number: int | None = None) -> int:
     if pr_number is not None:
+        if pr_number <= 0:
+            raise RuntimeError(f"Invalid PR number: {pr_number!r} (must be > 0)")
         return pr_number
     out = _run(["gh", "pr", "view", "--json", "number", "-q", ".number"])
     out = out.strip()
