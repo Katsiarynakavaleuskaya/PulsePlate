@@ -71,6 +71,7 @@ Required sections (artifact and PR-body mirror):
 Valid mapping forms:
 
 - `- <url> -> <sha>`
+- `- <url>`
 - `- No actionable review comments`
 
 Evidence:
@@ -109,11 +110,13 @@ Evidence:
 ### NOT-A-BUG
 
 - Requires written reasoning/evidence
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
 ### DEFERRED
 
 - Requires ledger reference
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
 Evidence:
