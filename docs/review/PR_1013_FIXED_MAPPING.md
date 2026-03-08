@@ -50,6 +50,18 @@ Disposition: FIXED
 Commit: ea7c7f47
 Evidence: docs/review/PR_1013_FIXED_MAPPING.md:53
 
+Disposition: FIXED
+Commit: 8dc14d69
+Evidence: docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:81
+Evidence: scripts/orchestration/run_local_sandbox.py:17
+Evidence: scripts/orchestration/run_local_sandbox.py:86
+Evidence: tests/test_execution_sandbox.py:345
+Evidence: tests/test_execution_sandbox.py:375
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901843676 -> 8dc14d69
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901843680 -> 8dc14d69
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911469968 -> 8dc14d69
+
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
 - [ ] All required checks are green on latest commit (no pending/rerun required)
