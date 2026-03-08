@@ -48,7 +48,7 @@ Reason: Stream-aware output budget enforcement remains intentionally deferred ou
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901821247 -> ea7c7f47
 Disposition: FIXED
 Commit: ea7c7f47
-Evidence: docs/review/PR_1013_FIXED_MAPPING.md:53
+Evidence: docs/review/PR_1013_FIXED_MAPPING.md:65
 
 Disposition: FIXED
 Commit: 8dc14d69
@@ -61,6 +61,28 @@ Evidence: tests/test_execution_sandbox.py:375
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901843676 -> 8dc14d69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901843680 -> 8dc14d69
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911469968 -> 8dc14d69
+
+Disposition: FIXED
+Commit: 3a19d3b6
+Evidence: .env.example:90
+Evidence: app/security/execution_sandbox.py:42
+Evidence: app/security/execution_sandbox.py:188
+Evidence: docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md:45
+Evidence: docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md:56
+Evidence: docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md:104
+Evidence: docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:128
+Evidence: scripts/orchestration/run_local_sandbox.py:11
+Evidence: scripts/orchestration/run_local_sandbox.py:87
+Evidence: tests/test_execution_sandbox.py:64
+Evidence: tests/test_execution_sandbox.py:92
+Evidence: tests/test_execution_sandbox.py:158
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901871647 -> 3a19d3b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901871650 -> 3a19d3b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875670 -> 3a19d3b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875671 -> 3a19d3b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875672 -> 3a19d3b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911493177 -> 3a19d3b6
 
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
