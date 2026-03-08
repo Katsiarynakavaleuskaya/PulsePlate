@@ -2987,19 +2987,20 @@ If it is not recorded here — it does not exist.
     - Consistent error handling via APIError
     - No dual-path networking
 
-- [ ] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
+- [x] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract — completed in PR #1035 (merged 2026-03-08)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR `#1035` (`feat/export-signing-hardening`)
-  - Status: In progress
+  - Status: ✅ Merged
   - Priority: P2
   - Area: backend / OpenAPI / frontend contract
   - Finding Type: contract-clarification
   - Location: `app/routers/plan_export.py`, `frontend/src/lib/sharedLinks.ts`
-  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. PR `#1035` moved export signing away from static `EXPORT_TOKEN_SECRET` import-time access to the runtime accessor in `settings.py`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type. Ledger policy keeps this item open until the implementing PR is merged or explicitly closed as won't-do.
+  - Reason: `/api/v1/export/sign` remains intentionally hidden from canonical public OpenAPI, so public-schema typing would widen the contract incorrectly. PR `#1035` moved export signing away from static `EXPORT_TOKEN_SECRET` import-time access to the runtime accessor in `settings.py`, preserved the stable signed-link JSON shape, and documented the internal web adapter boundary.
   - Links:
     - `app/routers/plan_export.py`
     - `frontend/src/lib/sharedLinks.ts`
     - `legacy_app.py`
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1035>
   - DoD:
     - Backend keeps `SignedLinkResponse` as the runtime response model
     - `POST /api/v1/export/sign` keeps the stable JSON shape `{url, exp, ttl}` with regression coverage
