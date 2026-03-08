@@ -774,8 +774,8 @@ If it is not recorded here — it does not exist.
 - [ ] P2: C4-b Sandboxed execution boundary for high-risk agent actions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
-  - Status: Planned
+  - Target PR: PR #1013 (`feat/local-sandbox-foundation`) + PR-TBD-WAVE2-GOVERNANCE (Wave 2)
+  - Status: 🟡 In progress (sandbox foundation exists in draft PR #1013; Wave 2 governance work still pending)
   - Area: security / agent control plane
   - Finding Type: security hardening
   - Locations:
@@ -783,6 +783,9 @@ If it is not recorded here — it does not exist.
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md:77` (`ExecutionSandbox` boundary)
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
   - Reason: MVP defers sandboxed execution to Wave 2. High-risk agent actions currently rely on policy gate only; bounded execution environment not yet implemented.
+  - Execution Notes:
+    - 2026-03-08: PR #1013 reviewed as a separate local execution sandbox track; it is not closed by PR #1018 or PR #1022.
+    - 2026-03-08: Current blocker is draft/governance promotion and final wait-cycle, not merge conflicts or unresolved review threads.
   - Links:
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
@@ -3864,7 +3867,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (high impact on reliability)
   - Target PR: PR-TBD-LLM-PHILOSOPHY-W1
-  - Status: 🟡 Prioritized (quality wave W1)
+  - Status: 🟡 In progress (runtime foundation wave active in PR #1024; benchmark/telemetry rollout still pending)
   - Dependencies:
     - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
     - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
@@ -3880,6 +3883,9 @@ If it is not recorded here — it does not exist.
     - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
     - ⏳ Master checklist phase-fit triage approved
     - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
+  - Execution Notes:
+    - 2026-03-08: Aristotelian and Analytical runtime/helper exposure is already present in the active PR #1024 recovery wave; this is branch-scoped until PR #1024 finishes GitHub CI and merges.
+    - 2026-03-08: Unified rollout remains incomplete until benchmark evidence, telemetry follow-ups, and the integrated prompt-builder/validator pass are captured in canonical artifacts.
   - DoD:
     - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
     - Phase 2: Analytical philosophy implemented (verification, falsification)
