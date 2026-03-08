@@ -212,8 +212,8 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 /api/v1/business/*   (Internal) ⚠️ No protection
 ```
 
-`/api/v1/users/*` is intentionally excluded from the mobile client contract.
-It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
+> **Security Note**: `/api/v1/users/*` is intentionally excluded from the mobile client contract.
+> It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
 
 ---
 
@@ -227,11 +227,6 @@ It remains a runtime-only internal surface and must not be called directly by fi
 /api/v1/foods/search    - Browse food database
 /api/v1/recipes/search  - Browse recipe database
 ```
-
-### Internal-only note
-
-`/api/v1/users/*` is intentionally excluded from the mobile client contract.
-It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
 
 ### Tier 2: PRO (API Key Required - Level 1)
 
