@@ -7749,6 +7749,26 @@
             },
             "description": "CBT insight generated successfully"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "description": "Stable unsafe-input error detail",
+                      "example": "unsafe_ai_input",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unsafe agent input blocked"
+          },
           "401": {
             "description": "API key required for PRO tier access"
           },

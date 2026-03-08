@@ -21,6 +21,9 @@
     "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues"
   },
   "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
+  "dependencies": {
+    "@goplus/agentguard": "1.0.4"
+  },
   "devDependencies": {
     "@cspell/dict-data-science": "^2.0.9",
     "@cspell/dict-es-es": "^3.0.8",

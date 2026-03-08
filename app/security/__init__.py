@@ -6,6 +6,14 @@ EN: Security module exports.
 
 from __future__ import annotations
 
+from app.security.agent_input_guard import (
+    UNSAFE_AI_INPUT_DETAIL,
+    AgentInputScanResult,
+    AgentInputThreat,
+    prepare_safe_ai_prompt_input,
+    require_safe_ai_agent_input,
+    scan_ai_agent_input,
+)
 from app.security.agent_control_plane import (
     ALLOWLIST_ENV,
     AUDIT_SIGNING_KEY_ENV,
@@ -53,6 +61,12 @@ __all__ = [
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
     "RATE_LIMIT_429_RESPONSES",
+    "UNSAFE_AI_INPUT_DETAIL",
+    "AgentInputThreat",
+    "AgentInputScanResult",
+    "scan_ai_agent_input",
+    "prepare_safe_ai_prompt_input",
+    "require_safe_ai_agent_input",
     "ALLOWLIST_ENV",
     "AUDIT_SIGNING_KEY_ENV",
     "AUDIT_LOG_PATH_ENV",
