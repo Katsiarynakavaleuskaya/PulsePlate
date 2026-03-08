@@ -15,7 +15,7 @@ Use these sources in order:
 ## Rules
 
 1. Repo-wide canonical namespaces are `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), and `/api/v1/vip/*` (VIP); `/api/v1/insight` is a VIP-only canonical exception outside the tier namespace families.
-2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier and must delegate to canonical paths.
+2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier and must delegate to canonical paths when a canonical replacement exists.
 3. Planned routes must stay marked as planned or additive until runtime rollout and OpenAPI exposure are real.
 4. README may summarize capability areas, but this file is the operator-facing route map.
 5. Web and iOS remain thin adapters and must not invent alternative route semantics.
@@ -43,7 +43,7 @@ These routes are the current canonical operator surface.
 
 ## Deprecated Alias / Proxy-Only Surface
 
-These routes remain for compatibility and migration. They must not be described as an alternative canonical namespace.
+These routes remain for compatibility and migration. They must not be described as an alternative canonical namespace. When no canonical replacement is documented yet, keep the route marked as legacy-compatible rather than inventing a target path.
 
 | Compatibility route | Method | Current tier semantics | Canonical target | Status |
 |---|---:|---|---|---|
