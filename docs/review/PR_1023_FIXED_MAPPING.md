@@ -99,6 +99,21 @@ Disposition: FIXED
 Commit: 8b306e21
 Evidence: docs/review/PR_1023_FIXED_MAPPING.md:69
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901381133 -> 0d23c5dc
+Disposition: FIXED
+Commit: 0d23c5dc
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:44
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901381136 -> 0d23c5dc
+Disposition: FIXED
+Commit: 0d23c5dc
+Evidence: docs/product/FREE_PRO_CONTRACT.md:68
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901381138 -> 0d23c5dc
+Disposition: FIXED
+Commit: 0d23c5dc
+Evidence: docs/product/FREE_PRO_CONTRACT.md:174
+
 ## Merge Readiness
 
 - [x] PR is non-draft only when truly ready for merge
