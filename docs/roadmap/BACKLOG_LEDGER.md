@@ -88,7 +88,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-USERS-SURFACE-HARDENING
+  - Target PR: PR #1038
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
   - Status: In progress

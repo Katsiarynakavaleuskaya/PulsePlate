@@ -80,11 +80,11 @@ def test_openapi_tags_and_description_do_not_advertise_users_surface() -> None:
     """Canonical public OpenAPI copy must not advertise internalized users CRUD."""
     schema = app.openapi()
 
-    tag_names = {str(tag.get("name", "")) for tag in schema.get("tags", [])}
-    description = str(schema.get("info", {}).get("description", ""))
+    tag_names = {str(tag.get("name", "")).lower() for tag in schema.get("tags", [])}
+    description = str(schema.get("info", {}).get("description", "")).lower()
 
     assert "users" not in tag_names
-    assert "user management" not in description.lower()
+    assert "user management" not in description
 
 
 def test_ws_routes_not_in_openapi_schema() -> None:
