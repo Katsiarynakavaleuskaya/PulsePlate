@@ -243,6 +243,15 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Feature flags MUST be checked **before** quota consumption (no charging when a feature is disabled).
 - CI container smoke-start MUST set `SERVER_SALT` (dummy value allowed) so app startup can pass fail-fast requirements.
 
+**AI agent input guard policy (Hard rule):**
+
+- AI-facing insight and MCP entrypoints MUST screen text with shared helpers in `app/security/agent_input_guard.py` before quota, RAG, provider calls, or tool execution.
+- Legacy compatibility routes MUST stay thin: use shared helpers such as `prepare_safe_ai_prompt_input(...)` instead of inlining guard enforcement inside `legacy_app.py`.
+- MCP tool-level blocking MUST preserve JSON-RPC contract: reject unsafe or malformed guarded fields with `-32602 Invalid params` from `_call_tool`.
+- Direct helper paths that bypass `_call_tool` MUST still fail closed before the provider call and return the stable local error shape already covered by tests.
+- Broad fallback regexes are intentionally scoped to AI-agent control surfaces; do not reuse them for general educational/free-form developer text without a separate contract review.
+- See: `app/security/agent_input_guard.py` (`prepare_safe_ai_prompt_input`, `scan_ai_agent_input`), `mcp_pulseplate_server.py` (`_call_tool`, `_find_blocked_tool_argument`), `legacy_app.py` (`/insight`, `/api/v1/insight`), `tests/test_agent_input_guard.py`, `tests/test_mcp_pulseplate_server_coverage.py`, `tests/test_insight_error_hygiene.py`.
+
 **Rationale:**
 
 - LLM endpoints: $72k/month abuse risk (documented in `BACKLOG_LEDGER.md`).
@@ -935,6 +944,30 @@ Source of truth:
 
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
 - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
+- `docs/contracts/API_CANONICAL_MAP.md` — operator-facing route map (current namespace and compatibility surface)
+- `docs/runbooks/ENGINEER_QUICKPATH.md` — short execution path for day-to-day engineering work
+
+## Canonical Maps And Quick Paths
+
+Use this section as a navigation index only.
+Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
+
+### API and OpenAPI workflow
+
+- Canonical API route map: `docs/contracts/API_CANONICAL_MAP.md`
+- `make openapi` remains the canonical combined OpenAPI command.
+- Backend/frontend OpenAPI split targets are tracked as follow-up workflow hardening in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`.
+
+### Operator quick path
+
+- Daily operator runbook: `docs/runbooks/ENGINEER_QUICKPATH.md`
+- CI/debug triage: `RUNBOOK_AGENT.md`
+- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`.
+
+### AI bounded context
+
+- AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
+- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`.
 
 ## OpenAPI generation (determinism requirement)
 
@@ -944,6 +977,7 @@ Source of truth:
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
 - **OpenAPI generation policy**: OpenAPI must be generated via `make openapi` (never direct `python scripts/generate_openapi.py`). CI and local must use the same entrypoint.
+- Workflow follow-up: backend/frontend split OpenAPI targets remain tracked work until they are implemented in the canonical Make workflow (`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`).
 - `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)

@@ -252,6 +252,7 @@ def test_insight_prompt_helpers_cover_limits() -> None:
     with pytest.raises(HTTPException) as exc:
         legacy_app._ensure_insight_text_length(too_long)
     assert exc.value.status_code == 413
+    assert legacy_app._ensure_insight_text_length("ok") == "ok"
 
     # Build prompt with context trimming
     text = "hello"

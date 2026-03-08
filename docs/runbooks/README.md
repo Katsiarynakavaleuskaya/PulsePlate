@@ -6,6 +6,7 @@ operational tasks.
 ## Start here
 
 - Root triage: [`../../RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md)
+- Daily quick path: [`ENGINEER_QUICKPATH.md`](ENGINEER_QUICKPATH.md)
 
 ## CI / Testing
 
