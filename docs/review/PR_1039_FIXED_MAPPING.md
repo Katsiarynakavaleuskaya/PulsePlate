@@ -10,6 +10,7 @@ Commit: a573999c
 Evidence: docs/review/PR_1039_FIXED_MAPPING.md:10
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2901979966 -> a573999c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#pullrequestreview-3911592887 -> a573999c
 
 Disposition: FIXED
 Commit: a573999c
