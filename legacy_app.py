@@ -2137,6 +2137,19 @@ def _load_insight_provider() -> Any:
     return provider
 
 
+def _require_ai_generated_insight_notice() -> dict[str, object]:
+    """Return the required transparency notice or fail closed."""
+    from core.compliance import get_transparency_registry
+
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise HTTPException(
+            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        )
+    return transparency_notice
+
+
 class _DirectInsightProviderStub:
     """Provider stub used when the runtime can answer locally without an LLM call."""
 
@@ -2152,7 +2165,6 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-    from core.compliance import get_transparency_registry
 
     require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
@@ -2177,9 +2189,7 @@ async def _execute_insight_request(
         router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
         use_rag=use_rag,
     )
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
-        raise RuntimeError("Transparency registry missing ai_generated_insight surface.")
+    transparency_notice = _require_ai_generated_insight_notice()
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )
@@ -2290,6 +2300,7 @@ async def insight_v1_route(
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
     require_safe_ai_agent_input(req.text)
+    _require_ai_generated_insight_notice()
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     subject_id = derive_subject_id_from_api_key(vip_key)
     return await insight_v1(req, subject_id=subject_id)
@@ -2310,6 +2321,7 @@ async def insight_route(
     if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
     require_safe_ai_agent_input(req.text)
+    _require_ai_generated_insight_notice()
     await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
     return await insight(req)
 

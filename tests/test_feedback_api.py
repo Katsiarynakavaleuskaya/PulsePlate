@@ -256,10 +256,10 @@ def test_hash_only_minimization_uses_server_salt(monkeypatch: pytest.MonkeyPatch
     """Hash-only policy must use keyed hashing to avoid raw SHA-256 markers."""
     from core.compliance import minimize_free_text, sanitize_audit_string
 
-    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     value = "private provider prompt"
     expected = hmac.new(
-        b"test-server-salt",
+        b"StrongServerSaltForTests123456789!",
         value.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()

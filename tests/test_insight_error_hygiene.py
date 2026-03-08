@@ -180,3 +180,63 @@ def test_insight_v1_blocks_unsafe_input_before_quota(
     assert resp.status_code == 400
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "unsafe_ai_input"}
+
+
+def test_insight_legacy_blocks_transparency_failure_before_quota(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+) -> None:
+    """Transparency failures must fail before quota on /insight."""
+
+    import legacy_app
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setattr(
+        legacy_app,
+        "_require_ai_generated_insight_notice",
+        lambda: (_ for _ in ()).throw(
+            legacy_app.HTTPException(status_code=503, detail="transparency_registry_unavailable")
+        ),
+        raising=True,
+    )
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: pytest.fail("quota should not run for transparency failure"),
+        raising=True,
+    )
+
+    resp = client.post("/insight", json={"text": "hello"}, headers=vip_headers)
+
+    assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    assert resp.json() == {"detail": "transparency_registry_unavailable"}
+
+
+def test_insight_v1_blocks_transparency_failure_before_quota(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+) -> None:
+    """Transparency failures must fail before quota on /api/v1/insight."""
+
+    import legacy_app
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setattr(
+        legacy_app,
+        "_require_ai_generated_insight_notice",
+        lambda: (_ for _ in ()).throw(
+            legacy_app.HTTPException(status_code=503, detail="transparency_registry_unavailable")
+        ),
+        raising=True,
+    )
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: pytest.fail("quota should not run for transparency failure"),
+        raising=True,
+    )
+
+    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+
+    assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    assert resp.json() == {"detail": "transparency_registry_unavailable"}

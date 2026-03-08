@@ -931,8 +931,16 @@ class TestCBTInsightLLMIntegration:
         quota_calls: list[str] = []
 
         self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
             "app.routers.cbt_insight.get_transparency_registry",
             lambda: {},
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("llm.get_provider called in registry-failure test"),
         )
 
         def _track_quota(*args: object, **kwargs: object) -> bool:

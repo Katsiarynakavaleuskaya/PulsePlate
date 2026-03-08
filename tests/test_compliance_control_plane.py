@@ -35,7 +35,7 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     wellness_inputs = next(
         item for item in processing_categories if item["category_id"] == "wellness_profile_inputs"
     )
-    endpoints = cast(tuple[str, ...], wellness_inputs["endpoints"])
+    endpoints = cast(list[str], wellness_inputs["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
     assert "/api/v1/premium/plate" in endpoints
 
@@ -50,7 +50,7 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     ai_generated_insight = registry["ai_generated_insight"]
     assert ai_generated_insight["analysis_kind"] == "automated AI-assisted analysis"
     nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
-    nutrition_endpoints = cast(tuple[str, ...], nutrition_surface["endpoints"])
+    nutrition_endpoints = cast(list[str], nutrition_surface["endpoints"])
     assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
 
 

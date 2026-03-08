@@ -120,6 +120,7 @@ def _canonical_field_name(field_name: str) -> str:
     lowered_tokens = {
         token for token in re.split(r"[^a-z0-9]+", lowered.replace("_", " ")) if token
     }
+    # Match priority: exact alias -> suffix alias (e.g. "home_query") -> token inclusion.
     for alias, canonical in _ALIAS_TO_CANONICAL.items():
         if lowered == alias or lowered.endswith(f"_{alias}"):
             return canonical
