@@ -47,6 +47,8 @@ contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_P
 
 Source contract for this split lives in:
 
+- `docs/sora/SORA_STYLE_QA_CHECKLIST.md` (authoritative for web token SoT,
+  staged migration, and raw-hex allowlist rules)
 - `docs/design/TOKENS_SOT.md`
 - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
 
