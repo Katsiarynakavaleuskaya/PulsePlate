@@ -242,6 +242,7 @@ function formatCss(tokens) {
   for (const key of breakpointKeys) {
     lines.push(`  --breakpoint-${key}: ${token(tokens, "breakpoint", key)};`);
   }
+  lines.push("", "  /* Native control highlight */");
   lines.push(`  accent-color: ${token(tokens, "platform", "web", "nativeAccentColor")};`);
   lines.push("}", "", ":root {");
 

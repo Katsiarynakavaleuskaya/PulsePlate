@@ -5,7 +5,7 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
+import { fileURLToPath, URL as NodeURL } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import {
   colors,
@@ -177,7 +177,7 @@ describe('Design Tokens', () => {
     });
 
     it('should retain destructive compatibility aliases in runtime CSS', () => {
-      const cssPath = path.resolve(__dirname, '../tokens.css');
+      const cssPath = fileURLToPath(new NodeURL('../tokens.css', import.meta.url));
       const css = fs.readFileSync(cssPath, 'utf8');
 
       expect(css).toContain('--color-destructive-bg:');

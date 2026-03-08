@@ -9,6 +9,7 @@ concurrency:
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
