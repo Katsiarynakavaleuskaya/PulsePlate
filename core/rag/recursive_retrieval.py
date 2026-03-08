@@ -11,6 +11,7 @@ import re
 import time
 from typing import Dict, Iterable, List
 
+from core.data_sanitizer import sanitize_rag_markdown
 from core.rag.contracts import RAGChunk, RAGContext
 from core.rag.rag_constants import (
     MAX_RAG_HOPS,
@@ -74,7 +75,8 @@ def _refine_query(query: str, chunks: List[RAGChunk]) -> str:
     frequencies: Dict[str, int] = {}
 
     for chunk in chunks:
-        for token in _tokenize(chunk.content):
+        sanitized_content = sanitize_rag_markdown(chunk.content)
+        for token in _tokenize(sanitized_content):
             if len(token) < 4:
                 continue
             if token in query_tokens or token in _STOPWORDS:

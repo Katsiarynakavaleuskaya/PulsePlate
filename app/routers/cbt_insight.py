@@ -37,6 +37,7 @@ from app.security.rate_limit import (
     limit_if_available,
 )
 from app.security.server_salt import require_server_salt
+from core.data_sanitizer import sanitize_rag_markdown
 from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,7 @@ async def cbt_insight(
     quota_state: CBTQuotaState = "not_consumed"
     warnings: list[str] = []
     redaction_applied = False
+    sanitization_applied = False
 
     try:
         await run_in_threadpool(
@@ -294,15 +296,17 @@ async def cbt_insight(
         )
 
         if rag_ctx.chunks:
-            rag_used = True
-            confidence = rag_ctx.confidence
-
             # Build context string from chunks
             context_parts = []
             for chunk in rag_ctx.chunks:
-                sanitized_content = redact_pii_from_text(chunk.content) or ""
-                if sanitized_content != chunk.content:
+                sanitized_chunk = sanitize_rag_markdown(chunk.content)
+                if sanitized_chunk != chunk.content:
+                    sanitization_applied = True
+                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
+                if sanitized_content != sanitized_chunk:
                     redaction_applied = True
+                if not sanitized_content.strip():
+                    continue
                 context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
                 sources.append(
                     CBTSourceItem(
@@ -316,12 +320,18 @@ async def cbt_insight(
                         score=chunk.score,
                     )
                 )
-            rag_context_str = "\n\n".join(context_parts)
+            if context_parts:
+                rag_used = True
+                confidence = rag_ctx.confidence
+                rag_context_str = "\n\n".join(context_parts)
 
     except Exception:
         logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
         warnings.append("rag_retrieval_failed")
         # Continue without RAG context
+
+    if sanitization_applied:
+        warnings.append("source_content_sanitized")
 
     if redaction_applied:
         warnings.append("source_content_redacted")

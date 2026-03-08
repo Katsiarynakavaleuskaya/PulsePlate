@@ -33,12 +33,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security + data quality)
   - Target PR: PR-TBD-RAG-INPUT-SANITIZER
-  - Status: 📋 Planned
-  - Reason (EN): Master checklist item #3 flags prompt-injection risk from markdown ingestion path; canonical sanitizer must run before indexing/retrieval enrichment.
+  - Status: 🟡 In progress
+  - Reason (EN): Query-level AI input blocking already exists in `app/security/agent_input_guard.py`, but markdown/knowledge ingestion and retrieval content still need a canonical sanitizer seam. `simple_rag` indexes raw markdown and `vector_rag` can return raw stored chunk content; both paths must sanitize instruction-like prompt-injection content deterministically before indexing/retrieval enrichment.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - core/data_sanitizer.py
     - core/rag/simple_rag.py
+    - core/rag/vector_rag.py
+    - app/security/agent_input_guard.py
     - tests/test_rag_simple.py
   - DoD:
     - Sanitization is applied deterministically before RAG indexing and retrieval
