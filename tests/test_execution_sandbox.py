@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import IO
+from typing import cast
 
 import pytest
 
@@ -219,7 +221,7 @@ def test_drain_stream_ignores_oserror_and_closes_stream() -> None:
 
     stream = _BrokenStream()
     collector = sandbox._StreamingOutputBuffer(budget=sandbox._SharedOutputBudget(max_bytes=8))
-    sandbox._drain_stream(stream, collector=collector)  # type: ignore[arg-type]
+    sandbox._drain_stream(cast(IO[bytes], stream), collector=collector)
     assert stream.closed is True
 
 
@@ -236,7 +238,7 @@ def test_terminate_sandbox_process_uses_kill_on_non_posix(
 
     process = _DummyProcess()
     monkeypatch.setattr(sandbox.os, "name", "nt", raising=False)
-    sandbox._terminate_sandbox_process(process)  # type: ignore[arg-type]
+    sandbox._terminate_sandbox_process(cast(subprocess.Popen[bytes], process))
     assert process.killed is True
 
 
@@ -251,7 +253,7 @@ def test_terminate_sandbox_process_ignores_missing_posix_process_group(
 
     monkeypatch.setattr(sandbox.os, "name", "posix", raising=False)
     monkeypatch.setattr(sandbox.os, "killpg", _raise_process_lookup)
-    sandbox._terminate_sandbox_process(_DummyProcess())  # type: ignore[arg-type]
+    sandbox._terminate_sandbox_process(cast(subprocess.Popen[bytes], _DummyProcess()))
 
 
 def test_join_drain_thread_closes_stream_when_reader_stays_alive() -> None:
@@ -274,7 +276,11 @@ def test_join_drain_thread_closes_stream_when_reader_stays_alive() -> None:
 
     thread = _DummyThread()
     stream = _DummyStream()
-    sandbox._join_drain_thread(thread, stream=stream, timeout_seconds=2)  # type: ignore[arg-type]
+    sandbox._join_drain_thread(
+        cast(sandbox.threading.Thread, thread),
+        stream=cast(IO[bytes], stream),
+        timeout_seconds=2,
+    )
     assert thread.join_calls == [2.0, sandbox._STREAM_JOIN_GRACE_SECONDS]
     assert stream.closed is True
 
