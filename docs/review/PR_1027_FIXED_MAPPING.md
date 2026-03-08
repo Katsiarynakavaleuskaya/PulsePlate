@@ -25,3 +25,5 @@ Evidence: `docs/runbooks/ENGINEER_QUICKPATH.md:4`, `docs/contracts/API_CANONICAL
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900925872 -> 5a091521
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#pullrequestreview-3910350475 -> 5a091521
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#pullrequestreview-3910385555 -> 5a091521
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900959286 -> d21b9832
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#pullrequestreview-3910394792 -> d21b9832
