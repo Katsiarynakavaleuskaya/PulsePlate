@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1048#pullrequestreview-3912136575 -> 83e3e3c4
+Disposition: FIXED
+Commit: 83e3e3c4
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now removes the ambiguous inline-code title formatting and standardizes the PR #1047 traceability fields by separating `Status`, `Foundation PR`, and `Merge SHA`.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
