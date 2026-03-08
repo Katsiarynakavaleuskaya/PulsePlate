@@ -24,8 +24,8 @@ from app.middleware.api_tiers import (
     derive_subject_id_from_api_key,
     api_key_header,
 )
+from core.compliance import minimize_free_text, sanitize_chunk_preview
 from core.db import get_session
-from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +53,17 @@ class RAGFeedbackRequest(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
     hops: Optional[int] = Field(None, ge=0)
 
+    @field_validator("query", mode="before")
+    @classmethod
+    def minimize_query(cls, v: Optional[str]) -> Optional[str]:
+        """Minimize raw user query before persistence."""
+        return minimize_free_text(v, field_name="query") if v else None
+
     @field_validator("llm_response", "user_correction", mode="before")
     @classmethod
     def redact_pii(cls, v: Optional[str]) -> Optional[str]:
-        """Redact PII from text fields before storage."""
-        return redact_pii_from_text(v) if v else None
+        """Minimize free-form text fields before storage."""
+        return minimize_free_text(v, field_name="llm_response") if v else None
 
 
 class RAGFeedbackResponse(BaseModel):
@@ -103,7 +109,7 @@ def submit_rag_feedback(
     Submit feedback on a RAG (Retrieval-Augmented Generation) response.
 
     **Security**: PII in llm_response and user_correction is automatically
-    redacted before storage.
+    redacted and minimized before storage.
 
     **Fields**:
     - **query**: User's original query (required)
@@ -121,7 +127,7 @@ def submit_rag_feedback(
             {
                 "chunk_id": c.chunk_id,
                 "file": c.file,
-                "preview": c.preview,
+                "preview": sanitize_chunk_preview(c.preview),
                 "score": c.score,
             }
             for c in feedback.retrieved_chunks
@@ -134,9 +140,9 @@ def submit_rag_feedback(
         agent_id=feedback.agent_id,
         query=feedback.query,
         retrieved_chunks=chunks_data,
-        llm_response=feedback.llm_response,  # Already redacted by validator
+        llm_response=feedback.llm_response,  # Already minimized by validator
         user_rating=feedback.user_rating,
-        user_correction=feedback.user_correction,  # Already redacted by validator
+        user_correction=feedback.user_correction,  # Already minimized by validator
         confidence=feedback.confidence,
         hops=feedback.hops,
     )

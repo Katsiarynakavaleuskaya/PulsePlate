@@ -38,6 +38,7 @@ from app.security.rate_limit import (
 )
 from app.security.server_salt import require_server_salt
 from core.data_sanitizer import sanitize_rag_markdown
+from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,18 @@ class CBTInsightResponse(BaseModel):
     quota_state: CBTQuotaState = Field(
         ...,
         description="Monthly quota state before provider call",
+    )
+    automated_analysis: bool = Field(
+        default=True,
+        description="Whether the response was generated through automated wellness analysis",
+    )
+    transparency_notice_id: str = Field(
+        default="ai_generated_insight",
+        description="Canonical transparency registry id for this AI surface",
+    )
+    wellness_boundary: str = Field(
+        default="Wellness coaching only; not therapy, diagnosis, or clinical decision support.",
+        description="High-level wellness boundary for this AI surface",
     )
 
 
@@ -312,11 +325,7 @@ async def cbt_insight(
                     CBTSourceItem(
                         chunk_id=chunk.chunk_id,
                         file=chunk.file,
-                        preview=(
-                            sanitized_content[:200] + "..."
-                            if len(sanitized_content) > 200
-                            else sanitized_content
-                        ),
+                        preview=sanitize_chunk_preview(sanitized_content) or "",
                         score=chunk.score,
                     )
                 )
@@ -337,6 +346,7 @@ async def cbt_insight(
         warnings.append("source_content_redacted")
 
     # Build prompt with RAG context
+    transparency_notice = get_transparency_registry()["ai_generated_insight"]
     prompt = _build_cbt_prompt(safe_query, rag_context_str)
 
     # Generate insight via LLM
@@ -418,4 +428,7 @@ async def cbt_insight(
         warnings=warnings,
         mode=execution_mode,
         quota_state=quota_state,
+        automated_analysis=True,
+        transparency_notice_id=str(transparency_notice["surface_id"]),
+        wellness_boundary=str(transparency_notice["boundary"]),
     )

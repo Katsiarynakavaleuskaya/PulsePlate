@@ -46,9 +46,9 @@ class RAGFeedback(Base):
     - PII redacted before storage via core.pii_redaction.redact_pii_from_text()
 
     Fields:
-    - query: The user's original query text
+    - query: Minimized user query text
     - retrieved_chunks: JSON array of {chunk_id, file, preview, score}
-    - llm_response: LLM response text (PII redacted)
+    - llm_response: Minimized LLM response text
     - user_rating: 1-5 satisfaction rating
     - user_correction: User's corrected/expected response (PII redacted)
     - confidence: RAG confidence score (0.0-1.0)
@@ -84,7 +84,7 @@ class RAGFeedback(Base):
         JSONEncodedDict, nullable=True
     )
 
-    # PII redaction applied before storage
+    # Minimization/redaction applied before storage
     llm_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     user_rating: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     user_correction: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

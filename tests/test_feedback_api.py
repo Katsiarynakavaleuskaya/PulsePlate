@@ -125,6 +125,43 @@ class TestRAGFeedbackPIIRedaction:
 
         assert response.status_code == 201
 
+    def test_query_and_preview_are_minimized_before_storage(self) -> None:
+        """Query and chunk previews are minimized before persistence."""
+        payload = {
+            "query": "Reach me at person@example.com " + "q" * 700,
+            "retrieved_chunks": [
+                {
+                    "chunk_id": "c1",
+                    "file": "docs/private.md",
+                    "preview": "Contact person@example.com for detailed history " + "p" * 400,
+                    "score": 0.9,
+                }
+            ],
+        }
+
+        response = self.client.post(self.url, json=payload, headers=self.headers)
+
+        assert response.status_code == 201
+
+        from app.models import RAGFeedback
+        from core.db import SessionLocal
+
+        assert SessionLocal is not None
+        session = SessionLocal()
+        try:
+            record = session.query(RAGFeedback).order_by(RAGFeedback.id.desc()).first()
+            assert record is not None
+            assert "[EMAIL_REDACTED]" in record.query
+            assert "person@example.com" not in record.query
+            assert len(record.query) <= 512
+            assert record.retrieved_chunks is not None
+            preview = record.retrieved_chunks[0]["preview"]
+            assert "[EMAIL_REDACTED]" in preview
+            assert "person@example.com" not in preview
+            assert len(preview) <= 240
+        finally:
+            session.close()
+
 
 class TestRAGFeedbackValidation:
     """Tests for request validation."""

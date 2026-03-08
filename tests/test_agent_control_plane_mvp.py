@@ -213,17 +213,36 @@ def test_sanitize_metadata_handles_lists_and_tuples() -> None:
                 "sample tuple",
                 {"prompt_text": "nested sample"},
             ),
+            "prompts": ["secret prompt"],
+            "tuple_data": ("visible", "another"),
+            "user_profile": "weight=82kg;height=171cm",
+            "source_preview": "private@example.com asked about calories",
         }
     )
+    assert isinstance(sanitized["prompts"], list)
+    assert isinstance(sanitized["tuple_data"], list)
+    assert isinstance(sanitized["user_profile"], dict)
+    assert sanitized["user_profile"]["length"] == len("weight=82kg;height=171cm")
     assert isinstance(sanitized["prompt_list"], list)
     assert isinstance(sanitized["prompt_tuple"], list)
     assert sanitized["prompt_list"][0]["length"] == len("sample prompt")
     assert sanitized["prompt_tuple"][0]["sha256"]
     assert sanitized["prompt_tuple"][1]["prompt_text"]["length"] == len("nested sample")
-    dumped = json.dumps(sanitized, sort_keys=True)
+    dumped = json.dumps(sanitized, sort_keys=True, ensure_ascii=True)
+    assert "private@example.com" not in dumped
     assert "sample prompt" not in dumped
     assert "sample tuple" not in dumped
     assert "nested sample" not in dumped
+
+
+def test_redact_sensitive_string_handles_none_and_passthrough(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cp, "sanitize_audit_string", lambda _key, _value: None)
+    assert cp._redact_sensitive_string("source_preview", "secret") == ""
+
+    monkeypatch.setattr(cp, "sanitize_audit_string", lambda _key, _value: "hashed-marker")
+    assert cp._redact_sensitive_string("source_preview", "secret") == "hashed-marker"
 
 
 def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:

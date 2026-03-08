@@ -23,6 +23,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from core.compliance import sanitize_audit_string
+
 ALLOWLIST_ENV = "AGENT_CONTROL_ALLOWLIST"
 AUDIT_SIGNING_KEY_ENV = "AGENT_CONTROL_AUDIT_SIGNING_KEY"
 BROKER_HMAC_KEY_ENV = "AGENT_CONTROL_BROKER_HMAC_KEY"
@@ -40,7 +42,17 @@ EXECUTION_MODES = {
     EXECUTION_MODE_REVIEW_REQUIRED,
     EXECUTION_MODE_BLOCKED,
 }
-_SENSITIVE_METADATA_TOKENS = ("prompt", "query", "text", "content")
+_SENSITIVE_METADATA_TOKENS = (
+    "prompt",
+    "query",
+    "text",
+    "content",
+    "preview",
+    "profile",
+    "response",
+    "correction",
+    "trace",
+)
 
 
 @dataclass(frozen=True)
@@ -264,7 +276,7 @@ def _metadata_hash(metadata: Mapping[str, Any] | None) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _redact_sensitive_string(key: str, value: str) -> dict[str, Any] | str:
+def _redact_sensitive_string(key: str, value: str) -> dict[str, object] | str:
     """Hash sensitive free-form strings to avoid raw prompt/query leakage."""
 
     lowered = key.lower()
@@ -272,10 +284,12 @@ def _redact_sensitive_string(key: str, value: str) -> dict[str, Any] | str:
         token in lowered for token in _SENSITIVE_METADATA_TOKENS
     ):
         return value
-    return {
-        "sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
-        "length": len(value),
-    }
+    sanitized = sanitize_audit_string(lowered, value)
+    if sanitized is None:
+        return ""
+    if isinstance(sanitized, dict):
+        return dict(sanitized)
+    return sanitized
 
 
 def _sanitize_metadata(value: Any, *, key: str = "") -> Any:

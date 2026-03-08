@@ -1205,6 +1205,9 @@ class InsightResponse(BaseModel):
     contradiction_count: int = 0
     reason_codes: list[str] = Field(default_factory=list)
     optimization_applied: bool = False
+    automated_analysis: bool = False
+    transparency_notice_id: Optional[str] = None
+    wellness_boundary: Optional[str] = None
 
 
 class BMIRequest(BaseModel):
@@ -1702,55 +1705,52 @@ async def privacy() -> Dict[str, Any]:
     RU: Эндпоинт политики конфиденциальности с явным раскрытием псевдонимных данных.
     EN: Privacy policy endpoint with explicit pseudonymous data disclosure.
     """
-    retention_manager = get_retention_manager()
-    pseudonymous_retention_days = getattr(retention_manager, "pseudonymous_retention_days", 0)
+    from core.compliance import build_privacy_endpoint_payload
+
+    return build_privacy_endpoint_payload()
+
+
+@app.get("/terms", include_in_schema=False)
+async def terms() -> Dict[str, Any]:
+    """Terms of use endpoint for release-safe legal publication.
+
+    RU: Эндпоинт условий использования для канонической legal-публикации.
+    EN: Terms of use endpoint for canonical legal publication.
+    """
 
     return {
-        "privacy_policy": (
-            "This application processes BMI calculations locally. "
-            "Most endpoints process data locally without external transmission. "
-            "However, we collect pseudonymous request identifiers (hashed and truncated IP addresses) "
-            "for security and analytics purposes. These identifiers cannot be used to directly identify "
-            "individual users but may be used to correlate requests from the same client. "
-            "Additionally, certain endpoints may transmit user-provided text to external AI/LLM providers "
-            "for generating personalized insights (see 'llm_processing' section for details)."
+        "terms_of_use": (
+            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
+            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
         ),
-        "data_collection": {
-            "pseudonymous_identifiers": {
-                "type": "Client fingerprints (hashed and truncated IP addresses)",
-                "purpose": "Security monitoring, request correlation, and abuse prevention",
-                "retention_period_days": pseudonymous_retention_days,
-                "classification": "Pseudonymous data (GDPR Article 4(5))",
-                "deletion": "Automatic deletion after retention period expires",
-            },
+        "service_scope": {
+            "category": "wellness / nutrition planning / coaching support",
+            "medical_boundary": (
+                "Content is informational and product-guidance only. Users must not treat the service as "
+                "medical, psychiatric, or emergency advice."
+            ),
+            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
         },
-        "llm_processing": {
-            "endpoints": ["/insight", "/api/v1/insight"],
-            "purpose": "Generate personalized health and nutrition insights using AI/LLM technology",
-            "data_transmitted": "User-provided text queries submitted to these endpoints",
-            "recipients": "External AI/LLM service providers (vendor varies by configuration; may include OpenAI, Anthropic, or other providers)",
-            "retention_by_provider": "Varies by provider; typically 30 days for abuse monitoring, then deleted. Refer to provider's data retention policy.",
-            "legal_basis": "Legitimate interest in providing enhanced AI-powered insights; users consent by using these specific endpoints",
-            "opt_out": "Do not use /insight or /api/v1/insight endpoints if you do not wish your text to be processed by external AI providers",
-            "feature_flag": "LLM processing can be disabled server-side via FEATURE_INSIGHT environment variable",
-            "note": "Users should avoid submitting personally identifiable information (PII) or sensitive health data to insight endpoints",
+        "billing_and_subscriptions": {
+            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
+            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
+            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
+            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
         },
-        "data_retention": (
-            f"Pseudonymous request identifiers are retained for {pseudonymous_retention_days} days "
-            "and automatically deleted thereafter. No personal data is retained beyond the current session. "
-            "Data sent to external LLM providers is subject to their retention policies (typically 30 days)."
+        "acceptable_use": {
+            "forbidden": [
+                "attempting to bypass tier controls or payment verification",
+                "submitting unlawful, abusive, or malicious content",
+                "using the service for medical triage or emergency decisions",
+            ],
+            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
+        },
+        "liability_boundary": (
+            "The service is provided on a best-effort basis for wellness support. "
+            "Users remain responsible for critical health, legal, and financial decisions."
         ),
-        "data_classification": {
-            "pseudonymous_logs": "Logs containing client fingerprints are classified as PSEUDONYMOUS data",
-            "access_control": "Access to logs containing pseudonymous identifiers is restricted and audited",
-            "salt_rotation": "Fingerprint salt is stored as a secret and can be rotated per documented procedures",
-        },
-        "contact": "For privacy concerns, please contact the application administrator.",
-        "gdpr_compliance": (
-            "This application complies with GDPR requirements for pseudonymous data processing. "
-            "Users have the right to request information about data processing and to request deletion. "
-            "For data sent to external LLM providers, please refer to the provider's privacy policy and GDPR compliance documentation."
-        ),
+        "contact": "For legal or billing questions, please contact the application administrator.",
+        "effective_date": "2026-03-08",
     }
 
 
@@ -2196,6 +2196,8 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
+    from core.compliance import get_transparency_registry
+
     require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
 
@@ -2219,6 +2221,7 @@ async def _execute_insight_request(
         router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
         use_rag=use_rag,
     )
+    transparency_notice = get_transparency_registry()["ai_generated_insight"]
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )
@@ -2252,6 +2255,9 @@ async def _execute_insight_request(
         contradiction_count=runtime_result.metadata.contradiction_count,
         reason_codes=runtime_result.metadata.reason_codes,
         optimization_applied=runtime_result.metadata.optimization_applied,
+        automated_analysis=True,
+        transparency_notice_id=str(transparency_notice["surface_id"]),
+        wellness_boundary=str(transparency_notice["boundary"]),
     )
 
 

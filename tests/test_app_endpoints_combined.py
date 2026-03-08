@@ -74,6 +74,8 @@ class TestHealthAndMonitoringEndpoints:
         assert "privacy_policy" in data
         assert "data_retention" in data
         assert "contact" in data
+        assert "policy_version" in data
+        assert "providers" in data
         # Assert structure/keys; avoid brittle exact phrasing
         assert isinstance(data["privacy_policy"], str)
 

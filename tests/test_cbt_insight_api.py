@@ -123,6 +123,9 @@ class TestCBTInsightTierGating:
         assert data["mode"] == "auto-safe"
         assert "uncertainty" in data
         assert "warnings" in data
+        assert data["automated_analysis"] is True
+        assert data["transparency_notice_id"] == "ai_generated_insight"
+        assert "Wellness" in data["wellness_boundary"]
 
     def test_pro_tier_rejected_when_feature_disabled(self) -> None:
         """PRO tier is rejected when feature flag is disabled."""
