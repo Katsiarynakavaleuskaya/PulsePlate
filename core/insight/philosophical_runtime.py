@@ -671,7 +671,7 @@ def _estimate_tokens_saved(*, prompt_text: str, target_depth: int, skipped_gener
 def _normalize_runtime_lang(lang: str | None) -> str:
     """Normalize runtime language to the supported local-answer locales."""
 
-    return normalize_lang(lang)
+    return cast(str, normalize_lang(lang))
 
 
 __all__ = [
