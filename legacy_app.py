@@ -52,7 +52,6 @@ from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_rout
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
-from app.routers.legal import TermsResponse
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.pro_registration import register_pro_routes as _register_pro_routes
@@ -1709,18 +1708,6 @@ async def privacy() -> Dict[str, Any]:
     from core.compliance import build_privacy_endpoint_payload
 
     return build_privacy_endpoint_payload()
-
-
-@app.get("/terms", include_in_schema=False, response_model=TermsResponse)
-async def terms() -> TermsResponse:
-    """Terms of use endpoint for release-safe legal publication.
-
-    RU: Эндпоинт условий использования для канонической legal-публикации.
-    EN: Terms of use endpoint for canonical legal publication.
-    """
-    from app.routers.legal import build_terms_endpoint_payload
-
-    return build_terms_endpoint_payload()
 
 
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])

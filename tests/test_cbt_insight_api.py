@@ -926,6 +926,34 @@ class TestCBTInsightLLMIntegration:
         assert data["detail"] == "llm_generation_unavailable"
         assert quota_calls == []
 
+    def test_missing_transparency_registry_returns_503_without_consuming_quota(self) -> None:
+        """Transparency registry misconfig must fail closed before quota use."""
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.get_transparency_registry",
+            lambda: {},
+        )
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "transparency_registry_unavailable"}
+        assert quota_calls == []
+
     def test_llm_timeout_returns_504(self) -> None:
         """When LLM call times out, endpoint returns 504."""
         import asyncio

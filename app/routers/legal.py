@@ -6,7 +6,10 @@ EN: Typed helpers for legal/publication payloads.
 
 from __future__ import annotations
 
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
+
+router = APIRouter(tags=["legal"])
 
 
 class TermsServiceScope(BaseModel):
@@ -86,3 +89,14 @@ def build_terms_endpoint_payload() -> TermsResponse:
         effective_date="2026-03-08",
     )
     return response
+
+
+@router.get("/terms", include_in_schema=False, response_model=TermsResponse)
+async def terms() -> TermsResponse:
+    """Terms of use endpoint for release-safe legal publication.
+
+    RU: Эндпоинт условий использования для канонической legal-публикации.
+    EN: Terms of use endpoint for canonical legal publication.
+    """
+
+    return build_terms_endpoint_payload()

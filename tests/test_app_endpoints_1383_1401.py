@@ -75,6 +75,7 @@ class TestAppEndpoints1383_1401:
         """/privacy returns complete privacy policy structure."""
         response = client.get("/privacy")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data: dict[str, Any] = response.json()
 
         # Verify top-level keys
@@ -114,6 +115,7 @@ class TestAppEndpoints1383_1401:
         """/privacy includes retention period from log retention manager."""
         response = client.get("/privacy")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data = response.json()
 
         # Check that retention_period_days is a number

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from core.compliance import (
@@ -26,14 +28,16 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     assert isinstance(payload["processing_categories"], list)
     assert isinstance(payload["rights"], list)
     assert isinstance(payload["automated_analysis"], list)
-    assert payload["retention_summary"]["artifact_support"]["artifact_count"] >= 1
+    retention_summary = cast(dict[str, object], payload["retention_summary"])
+    artifact_support = cast(dict[str, int], retention_summary["artifact_support"])
+    assert artifact_support["artifact_count"] >= 1
+    processing_categories = cast(list[dict[str, object]], payload["processing_categories"])
     wellness_inputs = next(
-        item
-        for item in payload["processing_categories"]
-        if item["category_id"] == "wellness_profile_inputs"
+        item for item in processing_categories if item["category_id"] == "wellness_profile_inputs"
     )
-    assert "/api/v1/pro/meal/weekly" in wellness_inputs["endpoints"]
-    assert "/api/v1/premium/plate" in wellness_inputs["endpoints"]
+    endpoints = cast(tuple[str, ...], wellness_inputs["endpoints"])
+    assert "/api/v1/pro/meal/weekly" in endpoints
+    assert "/api/v1/premium/plate" in endpoints
 
 
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
@@ -43,8 +47,11 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     assert "bodyfat_estimation" in registry
     assert "nutrition_targets_and_weekly_plan" in registry
     assert "ai_generated_insight" in registry
-    assert registry["ai_generated_insight"]["analysis_kind"] == "automated AI-assisted analysis"
-    assert "/api/v1/pro/meal/weekly" in registry["nutrition_targets_and_weekly_plan"]["endpoints"]
+    ai_generated_insight = registry["ai_generated_insight"]
+    assert ai_generated_insight["analysis_kind"] == "automated AI-assisted analysis"
+    nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
+    nutrition_endpoints = cast(tuple[str, ...], nutrition_surface["endpoints"])
+    assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
 
 
 def test_sensitive_field_taxonomy_and_minimization_rules() -> None:
@@ -111,14 +118,24 @@ def test_minimization_fallback_and_drop_paths(
 
 def test_blocked_regulated_lane_returns_deep_copy() -> None:
     first = get_blocked_regulated_lane()
-    first["examples"].append("mutated")
+    first_examples = cast(list[str], first["examples"])
+    first_examples.append("mutated")
     second = get_blocked_regulated_lane()
+    second_examples = cast(list[str], second["examples"])
 
-    assert "mutated" not in second["examples"]
+    assert "mutated" not in second_examples
 
 
 def test_canonical_field_name_avoids_loose_substring_matches() -> None:
-    import core.compliance.minimization as minimization
+    aliased = minimize_free_text(
+        "person@example.com " + "x" * 400,
+        field_name="query_preview",
+    )
+    canonical = minimize_free_text(
+        "person@example.com " + "x" * 400,
+        field_name="preview",
+    )
+    unmatched = minimize_free_text("plain text", field_name="request_context")
 
-    assert minimization._canonical_field_name("query_preview") == "preview"
-    assert minimization._canonical_field_name("request_context") == "request_context"
+    assert aliased == canonical
+    assert unmatched == "plain text"

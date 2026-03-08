@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+from app.security.server_salt import require_server_salt as shim_require_server_salt
 from app.security import llm_monthly_quota as quota
 
 
@@ -17,6 +18,11 @@ def test_require_server_salt_raises_when_missing(monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("SERVER_SALT", raising=False)
     with pytest.raises(RuntimeError, match=r"SERVER_SALT is required"):
         quota.require_server_salt()
+
+
+def test_server_salt_shim_delegates_to_shared_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SERVER_SALT", "shared-secret")
+    assert shim_require_server_salt() == "shared-secret"
 
 
 def test_require_vip_llm_monthly_limit_uses_default_when_missing(

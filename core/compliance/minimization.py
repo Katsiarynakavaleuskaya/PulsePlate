@@ -9,11 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import hmac
-import os
 import re
 from typing import Literal, TypedDict
 
 from core.pii_redaction import redact_pii_from_text
+from core.server_salt import require_server_salt
 
 PersistenceRule = Literal["redact_and_truncate", "hash_only", "drop"]
 
@@ -106,8 +106,6 @@ _ALIAS_TO_CANONICAL: dict[str, str] = {
     "content": "source_content",
 }
 
-_SERVER_SALT_ENV = "SERVER_SALT"
-
 
 def get_sensitive_field_taxonomy() -> dict[str, SensitiveFieldPolicy]:
     """Return the canonical sensitive-field policy map."""
@@ -134,7 +132,7 @@ def _sha256_marker(value: str) -> Sha256Marker:
     """Return deterministic hash marker for hash-only persistence."""
 
     keyed_hash = hmac.new(
-        _require_server_salt().encode("utf-8"),
+        require_server_salt().encode("utf-8"),
         value.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
@@ -184,15 +182,3 @@ def sanitize_audit_string(field_name: str, value: str) -> Sha256Marker | str | N
         return None
     # Audit envelopes keep deterministic markers only, never minimized free text.
     return _sha256_marker(value)
-
-
-def _require_server_salt() -> str:
-    """Return SERVER_SALT or raise for security-sensitive hashing."""
-
-    salt = (os.getenv(_SERVER_SALT_ENV) or "").strip()
-    if not salt:
-        raise RuntimeError(
-            "SERVER_SALT is required for security-sensitive hashing. "
-            "Set SERVER_SALT to a non-empty secret value."
-        )
-    return salt
