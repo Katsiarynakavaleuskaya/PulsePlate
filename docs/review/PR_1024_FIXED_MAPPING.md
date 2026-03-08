@@ -21,3 +21,11 @@ Evidence: `legacy_app.py:2193`, `core/insight/analytical/__init__.py:13`, `tools
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900759516 -> a25d7222
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900759518 -> a25d7222
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900759520 -> a25d7222
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924331 -> 4a1182b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924341 -> 4a1182b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924345 -> 4a1182b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924347 -> 411fff56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924348 -> 411fff56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924349 -> 411fff56
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2900924353 -> 4a1182b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#pullrequestreview-3910348358 -> 4a1182b8
