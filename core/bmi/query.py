@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import cast
 
 from core.bmi.engine import _compute_bmi
 from core.i18n import normalize_lang
@@ -52,7 +53,7 @@ def extract_bmi_inputs(query: str) -> tuple[float, float] | None:
 def render_bmi_query_answer(query: str, *, lang: str | None) -> str:
     """Render a localized BMI answer from free-form query text."""
 
-    lang_norm = normalize_lang(lang)
+    lang_norm = cast(str, normalize_lang(lang))
     bmi_inputs = extract_bmi_inputs(query)
     if bmi_inputs is None:
         return _MISSING_INPUT_MESSAGES[lang_norm]
