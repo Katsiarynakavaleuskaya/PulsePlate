@@ -37,23 +37,7 @@ _COMMAND_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "command_injection",
-        re.compile(r"\b(?:npm|pip(?:3)?|brew)\s+install\b", re.IGNORECASE),
-    ),
-    (
-        "command_injection",
-        re.compile(r"\b(?:python(?:3)?|node)\s+-c\b", re.IGNORECASE),
-    ),
-    (
-        "command_injection",
-        re.compile(r"\b(?:os\.system|subprocess\.(?:run|call|popen)|eval|exec)\b", re.IGNORECASE),
-    ),
-    (
-        "command_injection",
         re.compile(r"\brm\s+-rf\b", re.IGNORECASE),
-    ),
-    (
-        "command_injection",
-        re.compile(r"\bchmod\s+\+x\b", re.IGNORECASE),
     ),
 )
 _PROMPT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (

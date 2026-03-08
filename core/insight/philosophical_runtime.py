@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol
+from typing import Protocol
 
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
@@ -29,9 +29,12 @@ from core.insight.linguistic import (
 )
 from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticValidator
 from core.insight.telemetry import record_runtime_metrics
+from core.rag.formatting import RAGSourceDict
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
+_MIN_HUMAN_HEIGHT_M = 0.5
+_MAX_HUMAN_HEIGHT_M = 3.0
 _DEFINITION_TEMPLATES = {
     "bmi": "BMI stands for body mass index. It estimates body size by comparing weight to height.",
     "bmr": "BMR stands for basal metabolic rate. It estimates how much energy your body uses at rest.",
@@ -107,7 +110,7 @@ class RuntimeResult:
 
     insight: str
     provider_name: str
-    source_dicts: list[dict[str, Any]] = field(default_factory=list)
+    source_dicts: list[RAGSourceDict] = field(default_factory=list)
     confidence: float | None = None
     rag_used: bool = False
     hops: int = 0
@@ -337,7 +340,7 @@ class PhilosophicalRuntime:
                 rewrite_count=0,
             )
 
-        rag_source_dicts: list[Any] = []
+        rag_source_dicts: list[RAGSourceDict] = []
         confidence: float | None = None
         rag_used = False
         hops = 0
@@ -635,7 +638,7 @@ def _extract_bmi_inputs(query: str) -> tuple[float, float] | None:
         height_m = float(height_cm_match.group(1)) / 100.0
     elif height_m_match is not None:
         height_m = float(height_m_match.group(1))
-    if height_m is None or height_m <= 0:
+    if height_m is None or not (_MIN_HUMAN_HEIGHT_M < height_m <= _MAX_HUMAN_HEIGHT_M):
         return None
     return weight_kg, height_m
 

@@ -22,6 +22,7 @@ from core.insight.philosophical_runtime import (
     PhilosophicalRuntime,
     RouteType,
 )
+from core.insight import philosophical_runtime as runtime_mod
 
 
 @dataclass
@@ -86,6 +87,9 @@ class TestPhilosophicalQueryRouter:
         assert decision.route_type == RouteType.DIRECT_DEFINITION
         assert decision.needs_generation is True
         assert "cached_definition" not in decision.reason_codes
+
+    def test_bmi_input_parser_rejects_track_distance_as_height(self) -> None:
+        assert runtime_mod._extract_bmi_inputs("Calculate BMI for 70kg after a 100m sprint") is None
 
 
 class TestAristotelianHelpers:

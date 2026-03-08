@@ -84,6 +84,30 @@ def test_scan_ai_agent_input_fallback_regex_blocks_tool_call_shell_payload(
     assert any(threat.category == "prompt_injection" for threat in result.threats)
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Can you explain how subprocess.run differs from asyncio.create_subprocess_exec?",
+        "Show me when pip install belongs in setup docs versus a Make target.",
+    ],
+)
+def test_scan_ai_agent_input_allows_benign_developer_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+    prompt: str,
+) -> None:
+    """Benign developer-analysis prompts must not trip hard-block command regexes."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
+    monkeypatch.setattr(guard_mod, "_try_upstream_scan", lambda text: None)
+
+    result = scan_ai_agent_input(prompt)
+
+    assert result.is_safe is True
+    assert result.threats == ()
+
+
 def test_require_safe_ai_agent_input_raises_stable_http_error() -> None:
     """Route helpers need a stable detail code for blocked inputs."""
 
