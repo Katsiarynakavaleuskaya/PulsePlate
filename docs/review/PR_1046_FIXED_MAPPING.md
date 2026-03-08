@@ -17,6 +17,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912010619 -> de3c9a6a
   Disposition: FIXED
   Evidence: app/routers/legal.py:94; app/main.py:80; tests/test_app_endpoints_1383_1401.py:74; tests/test_compliance_control_plane.py:22
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912061363 -> 649a2fb6
+  Disposition: FIXED
+  Evidence: core/server_salt.py:11; legacy_app.py:2140; tests/test_llm_monthly_quota_config_validation.py:23; tests/test_insight_error_hygiene.py:185
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902358121 -> 1d983225
   Disposition: FIXED
   Evidence: app/security/agent_control_plane.py:280; core/compliance/minimization.py:176
@@ -77,6 +80,12 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902402282 -> de3c9a6a
   Disposition: FIXED
   Evidence: tests/test_compliance_control_plane.py:31; tests/test_compliance_control_plane.py:50; tests/test_compliance_control_plane.py:119
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902461471 -> 649a2fb6
+  Disposition: FIXED
+  Evidence: core/server_salt.py:11; tests/test_llm_monthly_quota_config_validation.py:31; tests/conftest.py:145
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902461473 -> 649a2fb6
+  Disposition: FIXED
+  Evidence: legacy_app.py:2140; legacy_app.py:2303; legacy_app.py:2324; tests/test_insight_error_hygiene.py:185
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
