@@ -51,6 +51,11 @@ def test_default_allowed_binaries_exclude_python_interpreters() -> None:
     assert "python3" not in sandbox.DEFAULT_ALLOWED_BINARIES
 
 
+def test_default_allowed_binaries_keep_full_gates_opt_in() -> None:
+    assert "coverage" not in sandbox.DEFAULT_ALLOWED_BINARIES
+    assert "diff-cover" not in sandbox.DEFAULT_ALLOWED_BINARIES
+
+
 def test_parse_allowed_binaries_skips_duplicates() -> None:
     parsed = sandbox.parse_allowed_binaries("python3,\npython3,pytest")
     assert parsed == ("python3", "pytest")
@@ -274,7 +279,7 @@ def test_run_local_sandbox_times_out(
     assert result.timed_out is True
 
 
-def test_run_local_sandbox_truncates_output(
+def test_run_local_sandbox_stream_limits_stdout_during_execution(
     sandbox_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -282,13 +287,50 @@ def test_run_local_sandbox_truncates_output(
     result = sandbox.run_local_sandbox(
         sandbox.SandboxRequest(
             binary="python3",
-            args=("-c", "print('0123456789abcdef')"),
+            args=(
+                "-c",
+                (
+                    "import sys, time;"
+                    "sys.stdout.write('01234567');"
+                    "sys.stdout.flush();"
+                    "time.sleep(0.05);"
+                    "sys.stdout.write('89abcdef');"
+                    "sys.stdout.flush()"
+                ),
+            ),
             cwd=sandbox_root,
         )
     )
     assert result.returncode == 0
     assert result.truncated is True
     assert len(result.stdout.encode("utf-8")) <= 8
+
+
+def test_run_local_sandbox_stream_limits_stderr_during_execution(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_MAX_OUTPUT_ENV, "8")
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python3",
+            args=(
+                "-c",
+                (
+                    "import sys, time;"
+                    "sys.stderr.write('abcdefgh');"
+                    "sys.stderr.flush();"
+                    "time.sleep(0.05);"
+                    "sys.stderr.write('ijklmnop');"
+                    "sys.stderr.flush()"
+                ),
+            ),
+            cwd=sandbox_root,
+        )
+    )
+    assert result.returncode == 0
+    assert result.truncated is True
+    assert len(result.stderr.encode("utf-8")) <= 8
 
 
 def test_run_local_sandbox_cli_emits_deterministic_json(sandbox_root: Path) -> None:
