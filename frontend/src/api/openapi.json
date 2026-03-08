@@ -6918,51 +6918,6 @@
         "title": "UnpackedLineDTO",
         "type": "object"
       },
-      "UserCreate": {
-        "description": "RU: Схема создания пользователя. EN: Payload for creating a user.",
-        "properties": {
-          "email": {
-            "format": "email",
-            "title": "Email",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "email",
-          "name"
-        ],
-        "title": "UserCreate",
-        "type": "object"
-      },
-      "UserRead": {
-        "description": "RU: Схема чтения пользователя. EN: Response schema for user endpoints.",
-        "properties": {
-          "email": {
-            "format": "email",
-            "title": "Email",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "email",
-          "name",
-          "id"
-        ],
-        "title": "UserRead",
-        "type": "object"
-      },
       "ValidationError": {
         "properties": {
           "ctx": {

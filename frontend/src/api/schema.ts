@@ -4874,34 +4874,6 @@ export interface components {
             /** @description Requested quantity */
             requested: components["schemas"]["QuantityDTO-Output"];
         };
-        /**
-         * UserCreate
-         * @description RU: Схема создания пользователя. EN: Payload for creating a user.
-         */
-        UserCreate: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Name */
-            name: string;
-        };
-        /**
-         * UserRead
-         * @description RU: Схема чтения пользователя. EN: Response schema for user endpoints.
-         */
-        UserRead: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Id */
-            id: number;
-            /** Name */
-            name: string;
-        };
         /** ValidationError */
         ValidationError: {
             /** Context */
