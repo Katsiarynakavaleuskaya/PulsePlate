@@ -2967,15 +2967,15 @@ If it is not recorded here — it does not exist.
     - Consistent error handling via APIError
     - No dual-path networking
 
-- [x] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
+- [ ] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING
-  - Status: Reclassified
+  - Status: In progress
   - Priority: P2
   - Area: backend / OpenAPI / frontend contract
   - Finding Type: contract-clarification
   - Location: `app/routers/plan_export.py`, `frontend/src/lib/sharedLinks.ts`
-  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. The backend already defines `SignedLinkResponse`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type.
+  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. The backend already defines `SignedLinkResponse`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type. Ledger policy keeps this item open until the implementing PR is merged or explicitly closed as won't-do.
   - Links:
     - `app/routers/plan_export.py`
     - `frontend/src/lib/sharedLinks.ts`

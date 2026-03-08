@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.routers import plan_export
@@ -38,13 +39,10 @@ def test_require_valid_token_invalid_signature(monkeypatch: pytest.MonkeyPatch) 
         plan_export._require_valid_token(request)
 
 
-def test_require_valid_token_uses_runtime_secret_accessor(
+def test_export_csv_route_uses_runtime_secret_accessor(
+    export_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request = SimpleNamespace(
-        query_params={"exp": "123", "sig": "abc"},
-        url=SimpleNamespace(path=plan_export.WEEK_EXPORT_CSV_PATH),
-    )
     captured: dict[str, object] = {}
 
     def _fake_verify(secret: str, path: str, exp_ts: int, sig: str) -> bool:
@@ -58,7 +56,13 @@ def test_require_valid_token_uses_runtime_secret_accessor(
     monkeypatch.setattr(plan_export, "get_export_token_secret", lambda: "runtime-token")
     monkeypatch.setattr(plan_export, "verify", _fake_verify)
 
-    plan_export._require_valid_token(request)
+    response = export_client.get(
+        f"{plan_export.WEEK_EXPORT_CSV_PATH}?exp=123&sig=abc",
+        headers={"X-API-Key": "test_key"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
 
     assert captured == {
         "signing_value": "runtime-token",

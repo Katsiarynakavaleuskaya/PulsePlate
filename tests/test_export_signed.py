@@ -67,6 +67,7 @@ def test_sign_route_returns_stable_json_shape(export_client: TestClient) -> None
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     payload = response.json()
     assert set(payload) == {"url", "exp", "ttl"}
     assert isinstance(payload["url"], str)
