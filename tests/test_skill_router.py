@@ -110,6 +110,19 @@ def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
     assert "create-pr" in skills
 
 
+def test_skill_router_matches_keywords_adjacent_to_question_mark() -> None:
+    """Keyword phrases should still match when user text ends with punctuation."""
+
+    skills = select_recommended_skills(
+        goal="Open PR?",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="orchestration",
+    )
+
+    assert "create-pr" in skills
+
+
 def test_skill_router_selects_release_notes_for_release_tasks() -> None:
     """Explicit release-note work should select the dedicated release skill."""
 

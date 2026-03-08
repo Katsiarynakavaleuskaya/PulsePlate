@@ -7,6 +7,7 @@ EN: Selects project-fit skills for task packets without manual invocation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from scripts.orchestration.context_pack import repo_relative_paths
@@ -302,11 +303,12 @@ def _has_prefix(path: str, prefix: str) -> bool:
 def _match_keywords(keywords: tuple[str, ...], normalized_text: str) -> list[str]:
     """Return keywords whose normalized phrases match on token boundaries."""
 
-    padded_text = f" {normalized_text} "
     matched: list[str] = []
     for keyword in keywords:
         normalized_keyword = _normalize_lexeme(keyword)
-        if normalized_keyword and f" {normalized_keyword} " in padded_text:
+        if normalized_keyword and re.search(
+            rf"(?<!\w){re.escape(normalized_keyword)}(?!\w)", normalized_text
+        ):
             matched.append(keyword)
     return matched
 
