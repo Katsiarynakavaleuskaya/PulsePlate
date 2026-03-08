@@ -24,6 +24,12 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:91`, `docs/specs/MOBILE_ENDPOINTS.md:2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#pullrequestreview-3911554484 -> aeece320
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#discussion_r2901946219 -> aeece320
 
+Disposition: FIXED
+Commit: cfdc7867
+Evidence: `docs/specs/MOBILE_ENDPOINTS.md:206`, `docs/specs/MOBILE_ENDPOINTS.md:229`, `docs/review/PR_1038_FIXED_MAPPING.md:27`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#discussion_r2901988757 -> cfdc7867
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#pullrequestreview-3911599336 -> cfdc7867
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
