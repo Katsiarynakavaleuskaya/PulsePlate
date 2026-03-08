@@ -2446,6 +2446,18 @@ export interface components {
              */
             insight: string;
             /**
+             * Mode
+             * @description Resolved agent execution mode
+             * @default auto-safe
+             */
+            mode: string;
+            /**
+             * Quota State
+             * @description Monthly quota state before provider call
+             * @default not_consumed
+             */
+            quota_state: string;
+            /**
              * Rag Used
              * @description Whether RAG context was used
              * @default false
@@ -2456,6 +2468,17 @@ export interface components {
              * @description CBT corpus sources used for context
              */
             sources?: components["schemas"]["CBTSourceItem"][];
+            /**
+             * Uncertainty
+             * @description Uncertainty score derived from confidence
+             * @default 1
+             */
+            uncertainty: number;
+            /**
+             * Warnings
+             * @description Operational or retrieval warnings
+             */
+            warnings?: string[];
         };
         /**
          * CBTSourceItem
@@ -5141,6 +5164,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CBTInsightResponse"];
                 };
+            };
+            /** @description Unsafe agent input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description API key required for PRO tier access */
             401: {
