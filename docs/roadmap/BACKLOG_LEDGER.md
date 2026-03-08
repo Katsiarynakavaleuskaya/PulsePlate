@@ -118,6 +118,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-token-expansion-activation"></a>
+- [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance)
+  - Target PR: PR-TBD-TOKEN-EXPANSION-ACTIVATION
+  - Status: 📋 Deferred after token-pipeline foundation
+  - Area: frontend / ios / design-system
+  - Finding Type: governance follow-up
+  - Reason: The repo now has a governed `/tokens -> generated runtime mirrors` pipeline for foundation and current semantic tokens. Deferred work remains for broader semantic/product layers (`tier`, `paywall`, `plate`, `bmi`, `coach`), controlled Tokens Studio activation beyond documentation-only support, and an explicit decision on whether `docs/design/figma-manifest.json` should stay informational or be unified with token-pipeline schema validation.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/figma-manifest.json`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+  - DoD:
+    - Semantic and product-token layers are explicitly named and promoted into web/iOS runtime mirrors where needed
+    - Tokens Studio activation scope, export format, review gate, and ownership are documented before any runtime automation or commit contract is added
+    - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
+    - Active design-system docs continue to reference one governance path only
+
 - [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security + maintainability)
@@ -2250,7 +2274,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Canonical palette values active in web tokens
     - ✅ Plate chart raw hex replaced with token variables
     - ✅ Runtime raw-hex guard test merged with explicit allowlist
-
 
 - [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya

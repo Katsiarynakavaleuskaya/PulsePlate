@@ -9,14 +9,59 @@ concurrency:
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - 'tokens/**'
+      - 'docs/design/TOKENS_SOT.md'
+      - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
+      - 'docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md'
+      - 'docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md'
+      - 'docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md'
+      - 'docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md'
+      - 'docs/roadmap/BACKLOG_LEDGER.md'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.swift'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.generated.swift'
+      - 'ios/PulsePlate/Extensions/Color+Assets.swift'
+      - 'ios/PulsePlate/Assets.xcassets/Navy.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/HeartRed.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
+      - 'docs/design/figma-manifest.json'
+      - 'Makefile'
+      - 'scripts/design_guard.py'
+      - 'tests/test_design_token_parity.py'
+      - 'tests/test_design_invariant_guard.py'
+      - 'tests/test_frontend_raw_hex_guard.py'
       - '.github/workflows/frontend-ci.yml'
   push:
     branches: [main, feat/**, fix/**]
     paths:
       - 'frontend/**'
+      - 'tokens/**'
+      - 'docs/design/TOKENS_SOT.md'
+      - 'docs/design/TOKEN_PIPELINE_GOVERNANCE.md'
+      - 'docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md'
+      - 'docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md'
+      - 'docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md'
+      - 'docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md'
+      - 'docs/roadmap/BACKLOG_LEDGER.md'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.swift'
+      - 'ios/PulsePlate/DesignSystem/DesignTokens.generated.swift'
+      - 'ios/PulsePlate/Extensions/Color+Assets.swift'
+      - 'ios/PulsePlate/Assets.xcassets/Navy.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/HeartRed.colorset/**'
+      - 'ios/PulsePlate/Assets.xcassets/Gold.colorset/**'
+      - 'docs/design/figma-manifest.json'
+      - 'Makefile'
+      - 'scripts/design_guard.py'
+      - 'tests/test_design_token_parity.py'
+      - 'tests/test_design_invariant_guard.py'
+      - 'tests/test_frontend_raw_hex_guard.py'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
@@ -64,7 +109,15 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd ..
+          if [ -f requirements-dev.txt ]; then
+            python -m pip install -r requirements-dev.txt -c constraints.txt
+          fi
           python -m pip install -r requirements.txt -c constraints.txt
+
+      - name: Run design token pipeline checks
+        run: |
+          cd ..
+          make tokens-check
 
       - name: Generate OpenAPI JSON from backend (canonical)
         env:

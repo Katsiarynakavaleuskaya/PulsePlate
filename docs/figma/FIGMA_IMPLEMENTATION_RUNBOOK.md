@@ -20,20 +20,21 @@ Read in this order for every new Figma task:
 2. `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
 3. `docs/figma/FIGMA_GIT_PACKS_INDEX.md`
 4. `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md`
-5. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-6. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-7. `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
-8. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-9. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-10. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-11. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
-12. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
-13. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
-14. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
-15. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
-16. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
-17. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
-18. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
+5. `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
+6. `docs/design/TOKENS_SOT.md`
+7. `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+8. `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+9. `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+10. `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+11. `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+12. `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+13. `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+14. `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+15. `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
+16. `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+17. `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+18. `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
+19. `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`
 
 ## 3) Git Packs to Read by Intent
 
@@ -57,13 +58,19 @@ Use for runbooks, inbox contract, delivery checklist, and orchestration session 
 
 ### 3.4 Web token source of truth
 
+- `tokens/`
 - `frontend/src/styles/`
 - `frontend/tailwind.config.ts`
 
-Use for color/spacing/type/radius/shadow decisions on web parity frames.
+Use `/tokens` as the repo token authoring source.
+Use `frontend/src/styles/tokens.css` as the web runtime token SoT.
+Use `frontend/src/styles/tokens.ts` as a typed mirror/helper only.
+Use Tailwind config as a consumer of token intent, not as the token SoT.
 
 ### 3.5 iOS token source of truth
 
+- `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+- `ios/PulsePlate/DesignSystem/DesignTokens.swift`
 - `ios/PulsePlate/Assets.xcassets/`
 - `ios/PulsePlate/Extensions/Color+Assets.swift`
 
@@ -77,25 +84,15 @@ Use for iOS color/material/state consistency.
 
 Use when conflicts appear or when acceptance criteria are unclear.
 
-### 3.7 Canonical repo-native handoff assets
-
-- `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
-- `frontend/.storybook/`
-- `frontend/src/stories/`
-
-Use when reviewing and shipping web design surfaces without requiring node-level
-Code Connect activation.
-
-### 3.8 Optional Code Connect and mapping bridge assets
+### 3.7 Code Connect and mapping bridge assets
 
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 
-Use only when translating Figma nodes to existing site components and tracking
-optional Code Connect map status.
+Use when translating Figma nodes to existing site components and tracking map status.
 
-### 3.9 Clawbot/OpenClaw operating model and sandbox agent spec
+### 3.8 Clawbot/OpenClaw operating model and sandbox agent spec
 
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
@@ -110,12 +107,11 @@ Use when running terminal automation, evidence capture, and human-gated design-a
 | CTA behavior and states | `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` |
 | Style and quality constraints | `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` | `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` |
 | Prompt constraints and guardrails | `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` | `docs/figma/PULSEPLATE_FIGMA_AI_GOVERNANCE_INDEX.md` |
-| Token values | `frontend/src/styles/tokens.css`, `frontend/src/styles/tokens.ts`, `ios/PulsePlate/Assets.xcassets/` | `ios/PulsePlate/Extensions/Color+Assets.swift` |
+| Token values | `docs/design/TOKENS_SOT.md`, `/tokens`, `frontend/src/styles/tokens.css`, `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`, `ios/PulsePlate/DesignSystem/DesignTokens.swift` | `frontend/src/styles/tokens.ts`, `ios/PulsePlate/Assets.xcassets/`, `ios/PulsePlate/Extensions/Color+Assets.swift` |
 | Handoff payload requirements | `docs/figma/FIGMA_AI_HANDOFF_CHECKLIST.md` | `docs/figma/FIGMA_AI_INBOX_TEMPLATE.md` |
-| Canonical web review path | `docs/design/PENPOT_STORYBOOK_BRIDGE.md` | `frontend/.storybook/`, `frontend/src/stories/` |
 | Make-vs-Git drift status | `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
-| Need Design URL and node IDs for optional activation | `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
-| Optional site connection via Code Connect | `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
+| Need Design URL and node IDs for activation | `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
+| Site connection via Code Connect | `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md` | `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md` |
 
 ## 5) Precedence Rules (Conflict Resolution)
 
@@ -124,7 +120,13 @@ If information conflicts:
 1. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
 2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
 3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
-4. Token values: code token sources are primary (`frontend/src/styles/*`, iOS assets and bridge).
+4. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
+   web token governance (web token SoT, staged migration, raw-hex allowlists);
+   use `docs/design/TOKENS_SOT.md` and
+   `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` as implementation/governance
+   references for the current repo pipeline, where `tokens.css` remains the web
+   runtime contract, `tokens.ts` remains a typed mirror, and iOS runtime
+   mirrors remain primary for app delivery.
 5. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
    how Figma, Notion, Airweave, and Penpot interact.
 6. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
@@ -138,12 +140,18 @@ Run refresh before every Figma task, before PR review, and weekly.
 ```bash
 git diff --name-only origin/main...HEAD -- \
   docs/figma docs/design docs/sora \
+  tokens \
   frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/DesignSystem/DesignTokens.generated.swift \
+  ios/PulsePlate/DesignSystem/DesignTokens.swift \
   ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
 
 git log --since="14 days ago" -- \
   docs/figma docs/design docs/sora \
+  tokens \
   frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/DesignSystem/DesignTokens.generated.swift \
+  ios/PulsePlate/DesignSystem/DesignTokens.swift \
   ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
 
 rg -n "web.home|web.plate|web.progress|ios.home|ios.plate|ios.progress" \
@@ -195,25 +203,19 @@ creating alternative wording for the same rule set.
 
 RU (critical): не включать в prompt служебные URL, токены или внутренние данные.
 
-## 9) Output Contract for Design Handoff
+## 9) Output Contract for Figma
 
-This is the canonical handoff schema for design deliverables:
+This is the canonical handoff schema for all Figma deliverables:
 
 - `Button/CTA ID`
 - `Platform`
 - `Screen`
 - `State set` (default, interactive, disabled/locked, loading, error)
-- `Design Review Reference`
+- `Figma Node ID` (or `TBD`)
 - `Prompt Stub ID`
 - `Status` (`Implemented` / `Partial` / `Missing` / `Blocked by flag`)
 - `Implement Needed`
 - `context_version` (date + commit hash)
-
-`Design Review Reference` is tool-neutral. It may contain:
-
-- a Storybook story or MDX path
-- a Penpot page/frame reference
-- a Figma node ID when optional Code Connect work is in scope
 
 ## 10) Orchestration Hook
 
@@ -232,6 +234,8 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
 - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+- `docs/design/TOKENS_SOT.md`
+- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
@@ -244,7 +248,7 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `AGENTS.md`
 
-## 12) Optional Code Connect Bridge Flow (Activation)
+## 12) Code Connect Bridge Flow (Activation)
 
 Use this only when Design file URL/node IDs are available.
 
@@ -254,12 +258,12 @@ Use this only when Design file URL/node IDs are available.
 4. If explicit mapping is needed, run `add_code_connect_map(...)`.
 5. Verify via `get_code_connect_map(fileKey, nodeId)`.
 6. Update `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`:
-   set optional Code Connect node references and candidate status (`active`).
+   set `Figma Node ID` cells and candidate status (`active`).
    If mapping affects CTA behavior surfaces, also sync corresponding
-   optional design references in
+   `Figma Node ID` entries in
    `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
-## 13) Blocker Protocol (No Design URL / No Code Connect)
+## 13) Blocker Protocol (No Design URL)
 
 If Design URL/node IDs are missing:
 
@@ -268,6 +272,4 @@ If Design URL/node IDs are missing:
 3. Run `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` to capture dependency.
 4. Track blocker in `docs/roadmap/BACKLOG_LEDGER.md` with Owner/DoD/Target PR.
 5. Continue Make sync audits and CTA mapping preparation until blocker closes.
-6. For shipping handoff readiness, pivot to `docs/design/PENPOT_STORYBOOK_BRIDGE.md`;
-   Code Connect is optional enhancement work, not the canonical minimum path.
 <!-- markdownlint-enable MD013 -->

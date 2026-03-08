@@ -143,8 +143,10 @@ ICON_1024 ?= assets/brand/icon/core/v1.0/icon_core_v1_1024.png
 # Baseline ratios (from docs/design/EMBLEM_CORE_v1.0_LOCK.md)
 ICON_BASELINE_WHITE ?= 0.0000
 ICON_BASELINE_BLACK ?= 0.0000
+TOKEN_PARITY_PATHS := frontend/src/styles/tokens.css frontend/src/styles/tokens.ts ios/PulsePlate/DesignSystem/DesignTokens.generated.swift ios/PulsePlate/DesignSystem/DesignTokens.swift ios/PulsePlate/Extensions/Color+Assets.swift ios/PulsePlate/Assets.xcassets/Navy.colorset/Contents.json ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/Contents.json ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/Contents.json ios/PulsePlate/Assets.xcassets/HeartRed.colorset/Contents.json ios/PulsePlate/Assets.xcassets/Gold.colorset/Contents.json
+TOKEN_PARITY_TESTS := tests/test_design_token_parity.py tests/test_design_invariant_guard.py tests/test_frontend_raw_hex_guard.py
 
-.PHONY: icon-silhouette-lock icon-silhouette-check design-guard
+.PHONY: icon-silhouette-lock icon-silhouette-check design-guard tokens-build tokens-check
 
 ## Validate icon core v1.0 folder structure
 icon-core-validate:
@@ -153,6 +155,40 @@ icon-core-validate:
 ## Enforce design invariant manifest, palette, and lock hashes
 design-guard:
 	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json
+
+## Build design-token runtime mirrors from the repo authoring tree
+tokens-build:
+	@echo "$(YELLOW)🎨 Building design token runtime mirrors...$(NC)"
+	@missing_paths=""; \
+	for path in tokens docs/design/figma-manifest.json frontend/package.json; do \
+		if [ ! -e "$$path" ]; then \
+			missing_paths="$$missing_paths\n$$path"; \
+		fi; \
+	done; \
+	if [ -n "$$missing_paths" ]; then \
+		printf 'Missing design token pipeline input(s):%b\n' "$$missing_paths"; \
+		exit 1; \
+	fi; \
+	cd frontend && npm run tokens:build
+
+## Run design-token generation hooks, drift gate, guard, and deterministic parity tests
+tokens-check:
+	@echo "$(YELLOW)🧪 Checking design token pipeline parity...$(NC)"
+	@before_diff=$$(mktemp); \
+	after_diff=$$(mktemp); \
+	trap 'rm -f "$$before_diff" "$$after_diff"' EXIT; \
+	git diff -- $(TOKEN_PARITY_PATHS) > "$$before_diff"; \
+	$(MAKE) --no-print-directory tokens-build && \
+	(cd frontend && npm run tokens:check) && \
+	git diff -- $(TOKEN_PARITY_PATHS) > "$$after_diff" && \
+	diff -u "$$before_diff" "$$after_diff" && \
+	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json && \
+	if [ -x .venv/bin/python ]; then \
+		. .venv/bin/activate && python -m pytest -q $(TOKEN_PARITY_TESTS); \
+	else \
+		python3 -m pytest -q $(TOKEN_PARITY_TESTS); \
+	fi
+	@echo "$(GREEN)✅ Design token pipeline checks passed$(NC)"
 
 ## Print silhouette hashes + density ratios (initial lock/evidence)
 icon-silhouette-lock:
@@ -424,4 +460,4 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard design-validate design-execute design-verify design-list
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
