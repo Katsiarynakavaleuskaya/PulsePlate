@@ -51,7 +51,9 @@ def test_retrieve_context_empty_index(monkeypatch: pytest.MonkeyPatch) -> None:
     assert simple_rag.retrieve_context("query") == ""
 
 
-def test_build_index_sanitizes_prompt_injection_markdown(tmp_path: Path) -> None:
+def test_build_index_sanitizes_prompt_injection_markdown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     doc = tmp_path / "guide.md"
     doc.write_text(
         "# CBT guide\n\n"
@@ -60,7 +62,7 @@ def test_build_index_sanitizes_prompt_injection_markdown(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    simple_rag.ROOT = tmp_path
+    monkeypatch.setattr(simple_rag, "ROOT", tmp_path)
     simple_rag.invalidate_index()
 
     indexed_items = simple_rag._build_index()

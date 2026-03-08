@@ -132,6 +132,16 @@ def test_sanitize_rag_markdown_flushes_safe_unclosed_code_block() -> None:
     assert "Write one supportive thought." in result
 
 
+def test_sanitize_rag_markdown_preserves_raw_safe_unicode_text() -> None:
+    """Safe multilingual text must survive without normalized replacement."""
+    markdown = "Полезная инструкция без инъекции.\nСъешь банан и запиши мысль.\n"
+
+    result = sanitize_rag_markdown(markdown)
+
+    assert "Съешь банан" in result
+    assert "Сьешь банан" not in result
+
+
 def test_sanity_filter_missing_required_keys() -> None:
     """Test that missing required keys raises ValidationError."""
     invalid_data = {

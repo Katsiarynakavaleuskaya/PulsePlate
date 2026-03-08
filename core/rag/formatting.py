@@ -40,7 +40,10 @@ def build_rag_source_dicts(chunks: list[RAGChunk]) -> list[RAGSourceDict]:
     """
     items: list[RAGSourceDict] = []
     for ch in chunks:
-        preview = redact_rag_context_for_insight(sanitize_rag_markdown(ch.content))
+        sanitized_content = sanitize_rag_markdown(ch.content).strip()
+        if not sanitized_content:
+            continue
+        preview = redact_rag_context_for_insight(sanitized_content)
         items.append(
             RAGSourceDict(
                 chunk_id=ch.chunk_id,

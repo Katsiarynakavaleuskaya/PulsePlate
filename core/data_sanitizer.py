@@ -146,27 +146,27 @@ def sanitize_rag_markdown(text: str) -> str:
         code_block_lines = []
 
     for raw_line in text.splitlines():
-        line = _normalize_rag_detection_text(raw_line)
-        stripped = line.strip()
+        normalized_line = _normalize_rag_detection_text(raw_line)
+        stripped = normalized_line.strip()
         is_fence = stripped.startswith("```") or stripped.startswith("~~~")
 
         if is_fence:
             if in_code_block:
-                code_block_lines.append(line)
+                code_block_lines.append(raw_line)
                 _flush_code_block()
                 in_code_block = False
             else:
                 in_code_block = True
-                code_block_lines = [line]
+                code_block_lines = [raw_line]
             continue
 
         if in_code_block:
-            code_block_lines.append(line)
+            code_block_lines.append(raw_line)
             continue
 
-        if _contains_rag_injection_pattern(line):
+        if _contains_rag_injection_pattern(normalized_line):
             continue
-        output_lines.append(line)
+        output_lines.append(raw_line)
 
     if in_code_block:
         _flush_code_block()

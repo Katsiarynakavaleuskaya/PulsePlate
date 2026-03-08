@@ -261,6 +261,7 @@ async def cbt_insight(
     quota_state: CBTQuotaState = "not_consumed"
     warnings: list[str] = []
     redaction_applied = False
+    sanitization_applied = False
 
     try:
         await run_in_threadpool(
@@ -303,7 +304,7 @@ async def cbt_insight(
             for chunk in rag_ctx.chunks:
                 sanitized_chunk = sanitize_rag_markdown(chunk.content)
                 if sanitized_chunk != chunk.content:
-                    warnings.append("source_content_sanitized")
+                    sanitization_applied = True
                 sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
                 if sanitized_content != sanitized_chunk:
                     redaction_applied = True
@@ -328,6 +329,9 @@ async def cbt_insight(
         logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
         warnings.append("rag_retrieval_failed")
         # Continue without RAG context
+
+    if sanitization_applied:
+        warnings.append("source_content_sanitized")
 
     if redaction_applied:
         warnings.append("source_content_redacted")
