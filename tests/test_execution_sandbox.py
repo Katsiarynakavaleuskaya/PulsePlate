@@ -240,6 +240,20 @@ def test_terminate_sandbox_process_uses_kill_on_non_posix(
     assert process.killed is True
 
 
+def test_terminate_sandbox_process_ignores_missing_posix_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyProcess:
+        pid = 123
+
+    def _raise_process_lookup(_pid: int, _signal: int) -> None:
+        raise ProcessLookupError
+
+    monkeypatch.setattr(sandbox.os, "name", "posix", raising=False)
+    monkeypatch.setattr(sandbox.os, "killpg", _raise_process_lookup)
+    sandbox._terminate_sandbox_process(_DummyProcess())  # type: ignore[arg-type]
+
+
 def test_join_drain_thread_closes_stream_when_reader_stays_alive() -> None:
     class _DummyThread:
         def __init__(self) -> None:

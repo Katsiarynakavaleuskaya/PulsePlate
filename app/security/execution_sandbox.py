@@ -370,7 +370,10 @@ def _terminate_sandbox_process(process: subprocess.Popen[bytes]) -> None:
     """Terminate sandbox process without leaving stdio-holding descendants alive."""
 
     if os.name == "posix":
-        os.killpg(process.pid, signal.SIGKILL)
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         return
     process.kill()
 
