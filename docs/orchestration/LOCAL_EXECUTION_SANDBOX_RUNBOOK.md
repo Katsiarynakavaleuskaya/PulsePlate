@@ -48,22 +48,13 @@ AGENT_EXECUTION_SANDBOX_ENABLED=true
 AGENT_EXECUTION_SANDBOX_ROOT=.
 AGENT_EXECUTION_SANDBOX_TIMEOUT_SECONDS=30
 AGENT_EXECUTION_SANDBOX_MAX_OUTPUT_BYTES=32768
-AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=pytest,mypy,ruff,flake8,git
+AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=pytest,mypy,coverage,diff-cover,ruff,flake8,git
 ```
 
 `python` / `python3` are not part of the runtime default allowlist. Add them
 only when a local workflow explicitly needs interpreter execution.
 
-`coverage` and `diff-cover` are no longer part of the default sandbox baseline.
-Enable them only for an explicit local verification workflow.
-
 Optional interpreter add-on:
-
-```env
-AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python3,pytest,mypy,ruff,flake8,git
-```
-
-Optional full-gate add-on:
 
 ```env
 AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python3,pytest,mypy,coverage,diff-cover,ruff,flake8,git
