@@ -326,13 +326,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-users-surface-hardening"></a>
-- [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
+- [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-USERS-SURFACE-HARDENING
+  - Target PR: PR #1038 (`fix/security-users-surface-hardening`)
+  - Status: ✅ Merged (PR #1038, 2026-03-08)
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
-  - Reason: `app/routers/users.py` exposes create/list/get/delete routes without any auth dependency. Even if the surface is low-traffic, the current contract permits enumeration, spam, and destructive access on a user table.
+  - Reason: `app/routers/users.py` previously shipped create/list/get/delete routes without any auth dependency. PR #1038 kept the runtime surface for internal callers, added deny-path regression coverage for unauthenticated access, and hid the users namespace from the canonical public OpenAPI/schema surface.
   - Links:
     - `app/routers/users.py`
     - `app/main.py`
