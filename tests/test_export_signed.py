@@ -57,3 +57,18 @@ def test_sign_route_rejects_non_allowlisted_path(export_client: TestClient) -> N
     assert response.status_code == 400
     assert response.headers["content-type"].startswith("application/json")
     assert response.json()["detail"] == "path is not signable"
+
+
+def test_sign_route_returns_stable_json_shape(export_client: TestClient) -> None:
+    response = export_client.post(
+        "/api/v1/export/sign",
+        json={"path": plan_export.WEEK_EXPORT_CSV_PATH, "ttl_seconds": 60},
+        headers={"X-API-Key": "test_key"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {"url", "exp", "ttl"}
+    assert isinstance(payload["url"], str)
+    assert isinstance(payload["exp"], int)
+    assert isinstance(payload["ttl"], int)

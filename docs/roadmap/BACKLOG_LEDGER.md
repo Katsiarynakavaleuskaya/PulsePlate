@@ -65,11 +65,11 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Harden private export signing secret and signable-path scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1005
-  - Status: Open
+  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING
+  - Status: In progress
   - Area: backend / security / export signing
   - Finding Type: auth/config hardening
-  - Reason: `POST /api/v1/export/sign` currently signs client-supplied paths while `settings.py` still exposes a default export token secret. In production or staging this creates a forged-link risk and keeps a security-sensitive path on weak-default config.
+  - Reason: Repo truth already contains signable-path allowlisting and production/staging placeholder rejection in `settings.py`, but `app/routers/plan_export.py` still imports a static `EXPORT_TOKEN_SECRET` at module load. That keeps signing/verification vulnerable to runtime config drift and leaves the canonical hidden-schema contract under-tested.
   - Links:
     - `app/routers/plan_export.py`
     - `settings.py`
@@ -77,10 +77,11 @@ If it is not recorded here — it does not exist.
     - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
     - `tests/test_export_signed.py`
   - DoD:
+    - Signing and verification use `get_export_token_secret()` at request time instead of a stale imported constant
     - Private export signing fails closed when `EXPORT_TOKEN_SECRET` is default/empty in production-like envs
-    - Allowed sign targets are restricted to canonical export routes actually used by product flows
-    - `.env.example` and runtime compose docs/config mention `EXPORT_TOKEN_SECRET`
-    - Deterministic tests cover deny/default-secret and deny/non-allowlisted-path branches
+    - Allowed sign targets stay restricted to canonical export routes actually used by product flows
+    - Canonical `app.openapi()` keeps export routes hidden while runtime route registration stays intact
+    - Deterministic tests cover deny/default-secret, deny/non-allowlisted-path, and hidden-schema regression branches
     - `pre-commit run --all-files` and `make verify` pass in PR scope
 
 <a id="ledger-p1-users-surface-hardening"></a>
@@ -2966,21 +2967,23 @@ If it is not recorded here — it does not exist.
     - Consistent error handling via APIError
     - No dual-path networking
 
-- [ ] OpenAPI: Add response schema for `/api/v1/export/sign`
+- [x] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
+  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING
+  - Status: Reclassified
   - Priority: P2
-  - Area: backend / OpenAPI
-  - Finding Type: schema-debt
-  - Location: `app/routers/export.py` (sign_export_link endpoint)
-  - Reason: Response type is `{ [key: string]: unknown }` in generated schema. Frontend uses hand-written `SignedLinkResponse` type. Should define Pydantic response model for proper OpenAPI generation.
+  - Area: backend / OpenAPI / frontend contract
+  - Finding Type: contract-clarification
+  - Location: `app/routers/plan_export.py`, `frontend/src/lib/sharedLinks.ts`
+  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. The backend already defines `SignedLinkResponse`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type.
   - Links:
-    - frontend/src/lib/sharedLinks.ts (hand-written type)
-    - frontend/src/api/schema.ts:4783 (generic dict response)
+    - `app/routers/plan_export.py`
+    - `frontend/src/lib/sharedLinks.ts`
+    - `legacy_app.py`
   - DoD:
-    - Backend defines `SignedLinkResponse` Pydantic model
-    - OpenAPI regenerated with proper schema
-    - Frontend uses generated type from `schema.ts`
+    - Backend keeps `SignedLinkResponse` as the runtime response model
+    - Public OpenAPI continues to exclude export endpoints
+    - Web keeps a local typed adapter with explicit rationale for the hidden-schema boundary
 
 - [ ] Web Guards: Extract config constants to shared module
   - Owner: @katsiaryna_kavaleuskaya
