@@ -57,6 +57,11 @@ Disposition: FIXED
 Commit: 915f0703
 Evidence: `docs/review/PR_1018_FIXED_MAPPING.md:32`, `docs/review/PR_1018_FIXED_MAPPING.md:36`, `docs/review/PR_1018_FIXED_MAPPING.md:40`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#pullrequestreview-3910220170 -> 915f0703
+Disposition: FIXED
+Commit: 915f0703
+Evidence: `docs/review/PR_1018_FIXED_MAPPING.md:32`, `docs/review/PR_1018_FIXED_MAPPING.md:36`, `docs/review/PR_1018_FIXED_MAPPING.md:40`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#discussion_r2900634715 -> 916cb676
 Disposition: FIXED
 Commit: 916cb676
@@ -96,6 +101,11 @@ Evidence: `app/routers/cbt_insight.py:202`, `frontend/src/api/openapi.json:7752`
 Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/review_mapping_artifact.py:31`, `scripts/orchestration/review_mapping_artifact.py:34`, `docs/review/PR_1018_FIXED_MAPPING.md:7`
 Reason: The canonical artifact now uses the parser-required plain `- <url>` / `- <url> -> <sha>` format. The remaining aggregate CodeRabbit review does not add a standalone defect once its individual inline comments are dispositioned above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#pullrequestreview-3910232747
+Disposition: NOT-A-BUG
+Evidence: `tools/agentguard/scan_text.mjs:8`, `scripts/orchestration/review_mapping_artifact.py:31`, `scripts/orchestration/review_mapping_artifact.py:34`
+Reason: This aggregate CodeRabbit review wraps one inline comment already fixed in `6ec34dd5` and one duplicate angle-bracket suggestion that conflicts with the parser-required plain URL mapping format, so it does not represent a separate unresolved defect once the inline comment is mapped.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
