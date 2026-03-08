@@ -30,6 +30,12 @@ Reason: These threads are outdated and no longer apply to the current PR scope b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996964
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996965
 
+Disposition: FIXED
+Commit: eefcdecb
+Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:65`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062665 -> eefcdecb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062669 -> eefcdecb
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
