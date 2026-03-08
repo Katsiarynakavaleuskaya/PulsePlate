@@ -86,6 +86,14 @@ Disposition: FIXED
 Commit: 8b306e21
 Evidence: docs/review/PR_1023_FIXED_MAPPING.md:87
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3911001696 -> ce60e76f
+Disposition: NOT-A-BUG
+Evidence: docs/product/FREE_PRO_CONTRACT.md:68, docs/product/FREE_PRO_CONTRACT.md:174, docs/product/FREE_PRO_CONTRACT.md:218; aggregate review only repeats already-mapped threads `discussion_r2901381133`, `discussion_r2901381136`, and `discussion_r2901381138`, plus a non-blocking copy-format nitpick already reflected in the current doc state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3911002777 -> ce60e76f
+Disposition: NOT-A-BUG
+Evidence: docs/product/FREE_PRO_CONTRACT.md:68, docs/product/FREE_PRO_CONTRACT.md:174, docs/review/PR_1023_FIXED_MAPPING.md:79; aggregate review only summarizes already-mapped findings `discussion_r2901381133`, `discussion_r2901381136`, and `discussion_r2901381138`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910712788 -> 8be88ad3
 Disposition: FIXED
 Commit: 8be88ad3
@@ -111,10 +119,19 @@ Disposition: FIXED
 Commit: 0d23c5dc
 Evidence: docs/product/FREE_PRO_CONTRACT.md:174
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901416062 -> ce60e76f
+Disposition: FIXED
+Commit: ce60e76f
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:79
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901416063 -> e61170cc
 Disposition: FIXED
 Commit: e61170cc
 Evidence: docs/review/PR_1023_FIXED_MAPPING.md:97
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3911051204 -> ce60e76f
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:114, docs/review/PR_1023_FIXED_MAPPING.md:119; aggregate review only summarizes already-mapped artifact-pointer follow-ups `discussion_r2901416062` and `discussion_r2901416063`.
 
 ## Merge Readiness
 
