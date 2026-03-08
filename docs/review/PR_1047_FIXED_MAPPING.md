@@ -109,6 +109,14 @@ Evidence: `frontend/scripts/build-tokens.mjs` now builds the full public iOS sem
 Disposition: FIXED
 Commit: 24f2f375
 Evidence: `24f2f375` fixes the aggregate CodeRabbit wave from `2026-03-08T21:48:36Z`: delegated token-governance authority in `docs/design/TOKENS_SOT.md`, authoritative SORA checklist precedence in `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`, evidence-backed source-precedence rules in `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`, a single-shell `tokens-check` flow in `Makefile`, and expanded public semantic parity coverage in `tests/test_design_token_parity.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902481694 -> a71a4659
+Disposition: FIXED
+Commit: a71a4659
+Evidence: `docs/review/PR_1047_FIXED_MAPPING.md` now includes the required `## Merge Readiness` heading and checklist after the fixed-mapping section, satisfying the canonical artifact contract raised in the inline review comment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3912077481 -> a71a4659
+Disposition: FIXED
+Commit: a71a4659
+Evidence: The only actionable item in this aggregate CodeRabbit review was the missing `## Merge Readiness` section in `docs/review/PR_1047_FIXED_MAPPING.md`, fixed by `a71a4659`; the remaining suggestions in that review are non-blocking nitpicks.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
