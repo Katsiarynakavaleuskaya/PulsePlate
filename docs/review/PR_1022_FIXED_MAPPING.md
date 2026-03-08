@@ -22,10 +22,10 @@ Disposition: FIXED
 Commit: 497b87da
 Evidence: `scripts/orchestration/skill_router.py:303`, `tests/test_skill_router.py:113`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3910070427
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3910070427 -> 803127cd
 Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/skill_router.py:28`, `scripts/orchestration/skill_router.py:388`, `tests/test_skill_router.py:139`
-Reason: The remaining CodeRabbit notes are advisory only. `SCRAPING_BLOCK_PATTERNS` uses explicit repo-specific phrases rather than short ambiguous tokens, and the frozen module-level `SkillRule` config is treated as read-only policy data; changing blocked-pattern semantics or wrapping `domain_weights` would add churn without affecting the current routing contract.
+Commit: 803127cd
+Evidence: `scripts/orchestration/skill_router.py:19`, `scripts/orchestration/skill_router.py:381`, `tests/test_skill_router.py:209`; aggregate review only repeats advisory context and does not introduce a distinct defect beyond the mapped inline comments.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2900863932 -> b4c806fc
 Disposition: FIXED
@@ -37,10 +37,10 @@ Disposition: FIXED
 Commit: b4c806fc
 Evidence: `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:153`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3910198436
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3910198436 -> 803127cd
 Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/skill_router.py:149`, `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:117`, `tests/test_skill_router.py:153`
-Reason: This aggregate CodeRabbit review only summarizes the two inline findings already fixed and mapped above (`discussion_r2900863932`, `discussion_r2900863933`), so it does not add a separate unresolved defect.
+Commit: 803127cd
+Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/skill_router.py:149`, `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:117`, `tests/test_skill_router.py:153`; aggregate review only summarizes `discussion_r2900863932` and `discussion_r2900863933`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2901378994 -> 028be2eb
 Disposition: FIXED
@@ -56,3 +56,8 @@ Evidence: `scripts/orchestration/skill_router.py:29`, `scripts/orchestration/ski
 Disposition: FIXED
 Commit: 028be2eb
 Evidence: `scripts/orchestration/skill_router.py:381`, `tests/test_skill_router.py:209`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3911000789 -> 803127cd
+Disposition: NOT-A-BUG
+Commit: 803127cd
+Evidence: `scripts/orchestration/skill_router.py:19`, `scripts/orchestration/skill_router.py:381`, `tests/test_skill_router.py:209`, `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:36`; aggregate review only summarizes `discussion_r2901378994`, `discussion_r2901378995`, and `discussion_r2901378998`.
