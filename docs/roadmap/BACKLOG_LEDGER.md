@@ -795,47 +795,96 @@ If it is not recorded here — it does not exist.
 - [ ] P2: C4-b Sandboxed execution boundary for high-risk agent actions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
-  - Status: Planned
+  - Target PR: PR #1013
+  - Status: 🟡 In progress (local sandbox foundation implemented in PR #1013, pending merge)
   - Area: security / agent control plane
   - Finding Type: security hardening
   - Locations:
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:73` (C4-b row)
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md:77` (`ExecutionSandbox` boundary)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
-  - Reason: MVP defers sandboxed execution to Wave 2. High-risk agent actions currently rely on policy gate only; bounded execution environment not yet implemented.
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+  - Reason: Local bounded sandbox execution is now implemented for developer-machine workflows, but the broader stronger-isolation boundary is not merged yet.
   - Links:
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
   - DoD:
-    - ADR-003 amendment or new ADR approved with sandbox design (isolation boundary, resource limits, timeout policy)
-    - Runtime sandbox enforcement implemented in `app/security/agent_control_plane.py`
-    - Deterministic tests: high-risk action blocked without sandbox, allowed within sandbox
-    - No performance regression: sandboxed action latency under 5 ms p99 overhead
-  - Blockers: None (deferred by Wave 2 scope, not blocked)
+    - ADR-003 updated with local sandbox boundary, resource limits, and follow-up stronger-isolation scope
+    - Runtime sandbox enforcement implemented in `app/security/execution_sandbox.py`
+    - Deterministic tests: allowlisted command allowed in sandbox, blocked mode/disallowed binary rejected
+    - `.env.example` documents sandbox toggles and bounds
+  - Blockers: None (pending PR merge, not blocked)
 
-- [ ] P2: C5-a Auto-safe / review-required action split — runtime enforcement
+<a id="ledger-pr1013-sandbox-hardening-followups"></a>
+- [ ] P1: PR #1013 sandbox hardening follow-ups
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SANDBOX-HARDENING-FOLLOWUPS
+  - Status: Open
+  - Area: security / agent control plane / sandbox runtime
+  - Finding Type: follow-up hardening
+  - Locations:
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+  - Reason: PR #1013 lands the local sandbox foundation, but two higher-cost hardening items remain intentionally deferred: output-budget enforcement must move from post-capture truncation to streaming enforcement, and the explicit binary allowlist should be re-minimized after initial developer-machine adoption evidence is collected.
+  - Links:
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+  - DoD:
+    - Sandbox stdout/stderr budget is enforced during process execution instead of after full `capture_output=True` buffering
+    - Default and runbook binary allowlists are reviewed against real usage and reduced to the smallest stable set
+    - Deterministic tests cover stream-budget enforcement and minimized allowlist behavior
+    - `pre-commit run --all-files` and `make verify` pass in follow-up PR
+  - Blockers: None (deferred by scope, not blocked)
+
+<a id="ledger-pr1013-fitchef-phase2-scope"></a>
+- [ ] P2: FitChef sandbox Phase 2 deferred scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
-  - Status: Planned
+  - Target PR: PR-TBD-FITCHEF-SANDBOX-PHASE2
+  - Status: Open
+  - Area: orchestration / product runtime / sandbox integration
+  - Finding Type: scope control
+  - Locations:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+  - Reason: Exports, realtime fan-out, and broader multi-tool autonomy were intentionally excluded from PR #1013 to keep the first sandbox runtime bounded and reviewable.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+  - DoD:
+    - Phase 2 scope is promoted through a dedicated PR with explicit contracts for exports, realtime progress, and autonomy boundaries
+    - Product/runtime docs link the same Phase 2 plan and do not describe those capabilities as already live
+    - Security review confirms each new capability keeps policy/quota/audit gates ahead of execution
+  - Blockers: None (deferred by scope, not blocked)
+
+- [x] P2: C5-a Auto-safe / review-required action split — runtime enforcement
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1000
+  - Status: ✅ Completed (runtime enforcement merged in PR #1000 on 2026-03-07)
   - Area: security / agent control plane
   - Finding Type: security hardening
   - Locations:
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:74` (C5-a row)
-    - `AGENTS.md:31` (PR merge readiness, approval model)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
-  - Reason: MVP documents auto-safe vs review-required classification as policy only (in AGENTS.md). Runtime enforcement (programmatic routing based on action classification) deferred to Wave 2.
+    - `app/security/agent_control_plane.py`
+    - `app/routers/cbt_insight.py`
+    - `tests/test_agent_control_plane_mvp.py`
+  - Reason: Runtime execution mode validation is now live for the CBT/runtime slice. Autonomous execution blocks in `review-required` and `blocked` modes unless an explicit override is passed.
   - Links:
     - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
     - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - `AGENTS.md`
+    - `app/security/agent_control_plane.py`
+    - `app/routers/cbt_insight.py`
   - DoD:
-    - Action classification taxonomy approved in ADR-003 amendment (auto-safe, review-required, admin-only)
+    - Action classification taxonomy documented (`auto-safe`, `review-required`, `blocked`)
     - Runtime routing implemented: auto-safe actions proceed, review-required actions gate on human approval
-    - Deterministic tests: review-required action without approval returns 403/blocked
-    - Policy review sign-off documented (who approves classification changes)
-  - Blockers: None (deferred by Wave 2 scope, not blocked)
+    - Deterministic tests: review-required action without approval returns blocked
+    - Control-plane/security baseline updated to reflect runtime enforcement
+  - Blockers: None (closed)
 
 - [x] P0: Growth telemetry canon and KPI dashboard baseline
   - Owner: @katsiaryna_kavaleuskaya
