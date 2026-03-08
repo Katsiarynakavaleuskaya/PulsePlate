@@ -28,25 +28,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P0
 
-<a id="ledger-p0-rag-input-sanitizer"></a>
-- [ ] P0: RAG input sanitizer integration for markdown/knowledge ingestion
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (security + data quality)
-  - Target PR: PR-TBD-RAG-INPUT-SANITIZER
-  - Status: 🟡 In progress
-  - Reason (EN): Query-level AI input blocking already exists in `app/security/agent_input_guard.py`, but markdown/knowledge ingestion and retrieval content still need a canonical sanitizer seam. `simple_rag` indexes raw markdown and `vector_rag` can return raw stored chunk content; both paths must sanitize instruction-like prompt-injection content deterministically before indexing/retrieval enrichment.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - core/data_sanitizer.py
-    - core/rag/simple_rag.py
-    - core/rag/vector_rag.py
-    - app/security/agent_input_guard.py
-    - tests/test_rag_simple.py
-  - DoD:
-    - Sanitization is applied deterministically before RAG indexing and retrieval
-    - Injection-pattern regression tests are added and green
-    - No contract break for current insight endpoints
-
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
@@ -1873,6 +1854,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Guard test enumerates canonical PRO/VIP surfaces and fails on missing dependency gate
     - Legacy aliases are validated as non-bypass paths
     - CI gate is deterministic and documented in runbook
+
+
+<a id="ledger-p0-rag-input-sanitizer"></a>
+- [x] P0: RAG input sanitizer integration for markdown/knowledge ingestion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security + data quality)
+  - Target PR: PR-TBD-RAG-INPUT-SANITIZER -> PR #1044
+  - Status: ✅ Merged (PR #1044, 2026-03-08)
+  - Reason (EN): Query-level AI input blocking already existed in `app/security/agent_input_guard.py`, but markdown/knowledge ingestion and retrieval content still lacked a canonical sanitizer seam. PR #1044 closed that gap by sanitizing markdown before indexing, sanitizing retrieved chunk content before prompt assembly, dropping sanitized-empty chunks, and surfacing an explicit CBT warning when source content was sanitized.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - core/data_sanitizer.py
+    - core/rag/simple_rag.py
+    - core/rag/vector_rag.py
+    - core/rag/formatting.py
+    - core/rag/recursive_retrieval.py
+    - app/routers/cbt_insight.py
+    - app/security/agent_input_guard.py
+    - tests/test_data_sanitizer.py
+    - tests/test_rag_orchestration.py
+    - tests/test_cbt_insight_api.py
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1044
+  - DoD:
+    - ✅ Sanitization is applied deterministically before RAG indexing and retrieval
+    - ✅ Injection-pattern regression tests are added and green
+    - ✅ No contract break for current insight endpoints
 
 
 - [x] P0: Growth telemetry canon and KPI dashboard baseline
