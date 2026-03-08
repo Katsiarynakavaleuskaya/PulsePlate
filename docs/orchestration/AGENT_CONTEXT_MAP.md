@@ -41,6 +41,7 @@ This map reduces “missing context” failures by making required inputs explic
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` — when outputs must be parseable across models
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` — when doing web/OSS intake or external research
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` — when capturing incidents for KPP promotion
+- `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` — when installed skills may improve execution or when orchestration-layer docs/scripts are touched
 
 **Secondary (task-dependent):**
 

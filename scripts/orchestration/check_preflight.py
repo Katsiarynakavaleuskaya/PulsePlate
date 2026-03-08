@@ -34,6 +34,7 @@ REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
     "docs/orchestration/AGENT_CONTEXT_MAP.md",
     "docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+    "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
     "docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
     "docs/roadmap/BACKLOG_LEDGER.md",
     "AGENTS.md",

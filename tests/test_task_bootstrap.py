@@ -30,7 +30,12 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["cluster"] == "ops"
     assert packet["primary_agent"]
     assert "AGENTS.md" in packet["required_context"]
+    assert "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md" in packet["required_context"]
     assert "scripts/AGENTS.md" in packet["required_context"]
+    assert packet["skill_routing"]["selection_mode"] == "deterministic-weighted"
+    assert "pulseplate-workflow" in packet["recommended_skills"]
+    assert "docs-sync" in packet["recommended_skills"]
+    assert "agents-md" in packet["recommended_skills"]
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
@@ -48,6 +53,9 @@ def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
     required_context = packet["required_context"]
     assert required_context == sorted(required_context)
     assert required_context.count("frontend/AGENTS.md") == 1
+    assert packet["skill_routing"]["recommended"]
+    assert "pulseplate-workflow" in packet["recommended_skills"]
+    assert "pulseplate-frontend-ui" in packet["recommended_skills"]
 
 
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
@@ -114,6 +122,13 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         "secondary_agents": [],
         "reviewer": "architecture-specialist",
         "required_context": ["AGENTS.md"],
+        "recommended_skills": ["pulseplate-workflow"],
+        "skill_routing": {
+            "policy_version": "2026-03-08",
+            "selection_mode": "deterministic-weighted",
+            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "blocked": [],
+        },
         "routing_rationale": {"source": "canonical_only"},
     }
     monkeypatch.setattr(
@@ -136,6 +151,60 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         assert exit_code == 0
         written = json.loads(repo_output.read_text(encoding="utf-8"))
         assert written["task_packet_id"] == "abc123def456"
+        assert json.loads(captured.out)["output"] == relative_output.as_posix()
+    finally:
+        if repo_output.exists():
+            repo_output.unlink()
+
+
+def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> None:
+    """Direct children of the repo root should still be reported repo-relative."""
+
+    relative_output = Path("task-packet-root.json")
+    repo_output = (REPO_ROOT / relative_output).resolve()
+    if repo_output.exists():
+        repo_output.unlink()
+
+    packet = {
+        "schema_version": "2.0",
+        "task_packet_id": "rootpacket123",
+        "goal": "Test root output write",
+        "task_class": "Orchestration",
+        "domain": "orchestration",
+        "cluster": "ops",
+        "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+        "primary_agent": "agent-coordinator",
+        "secondary_agents": [],
+        "reviewer": "architecture-specialist",
+        "required_context": ["AGENTS.md"],
+        "recommended_skills": ["pulseplate-workflow"],
+        "skill_routing": {
+            "policy_version": "2026-03-08",
+            "selection_mode": "deterministic-weighted",
+            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "blocked": [],
+        },
+        "routing_rationale": {"source": "canonical_only"},
+    }
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        lambda **_: packet,
+    )
+
+    try:
+        exit_code = main(
+            [
+                "--goal",
+                "ignored",
+                "--task-class",
+                "ignored",
+                "--output",
+                str(relative_output),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert repo_output.exists()
         assert json.loads(captured.out)["output"] == relative_output.as_posix()
     finally:
         if repo_output.exists():

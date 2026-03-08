@@ -432,6 +432,26 @@ If it is not recorded here — it does not exist.
   - DoD:
     - RUNBOOK_AGENT.md section with exact commands for thread resolution, or script scripts/orchestration/resolve_review_threads.py (or equivalent) with documented usage
 
+- [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
+  - Area: orchestration / research / product governance
+  - Finding Type: capability expansion
+  - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `docs/dev/CODEX_SKILLS.md`
+  - DoD:
+    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence
+    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring
+    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends
+    - No runtime scraping surface is added to product endpoints
+    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
+    - `make verify` and `pre-commit run --all-files` pass in PR scope
+
 - [x] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (data correctness)
