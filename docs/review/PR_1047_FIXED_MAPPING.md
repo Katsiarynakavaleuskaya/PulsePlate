@@ -105,3 +105,14 @@ Evidence: `Makefile` `tokens-check` now runs the diff gate, `design_guard.py`, a
 Disposition: FIXED
 Commit: 24f2f375
 Evidence: `frontend/scripts/build-tokens.mjs` now builds the full public iOS semantic surface from token sources/platform tokens, and `tests/test_design_token_parity.py` validates every public semantic token exported through `ios/PulsePlate/DesignSystem/DesignTokens.swift` instead of only the four status colors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3912070621 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `24f2f375` fixes the aggregate CodeRabbit wave from `2026-03-08T21:48:36Z`: delegated token-governance authority in `docs/design/TOKENS_SOT.md`, authoritative SORA checklist precedence in `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`, evidence-backed source-precedence rules in `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`, a single-shell `tokens-check` flow in `Makefile`, and expanded public semantic parity coverage in `tests/test_design_token_parity.py`.
+
+## Merge Readiness
+- [ ] All required checks are PASS
+- [x] Fixed in Commit Mapping artifact updated
+- [ ] No unresolved review threads remain
+- [ ] No actionable bot comments remain
+- [ ] Final wait-cycle completed after latest review/bot activity
