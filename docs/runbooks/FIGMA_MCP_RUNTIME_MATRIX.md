@@ -2,60 +2,81 @@
 
 <!-- markdownlint-disable MD013 -->
 
-This runbook clarifies which Figma MCP capabilities are available by runtime.
-It is the canonical "why it works here and not there" reference.
+This runbook clarifies which Figma MCP capabilities are available in the
+current PulsePlate Codex runtime and what the project should assume when
+agents perform `code/web -> Figma` work.
 
 ## Scope
 
 ### IN
 
 - Runtime capability matrix for Figma MCP tools.
-- Exact path to enable `generate_figma_design`.
-- Fast verification checklist.
+- Current Codex runtime baseline for PulsePlate.
+- Fast verification checklist for `generate_figma_design`.
 
 ### OUT
 
 - Product design decisions.
 - App runtime changes.
-- Figma org governance details.
+- Non-Figma tool governance.
+
+## Current Baseline
+
+As of `2026-03-08`, the active Codex runtime for this repo is the primary
+agent runtime and Figma MCP is live in-session:
+
+- `whoami` succeeds
+- `get_design_context` is callable
+- `get_screenshot` is callable for supported Figma Design nodes
+- `generate_diagram` is callable
+- `generate_figma_design` is available in discovery mode in this Codex runtime
+
+Project rule: treat this runtime baseline as authoritative unless a fresh
+session check proves otherwise.
 
 ## Capability Matrix
 
-| Runtime | Remote MCP auth (`whoami`) | Make context (`get_design_context`) | Diagram write (`generate_diagram`) | Design push (`generate_figma_design`) |
-| --- | --- | --- | --- | --- |
-| Cursor/Codex (this workspace MCP bridge) | Yes | Yes | Yes | No (tool not exposed) |
-| Claude Code + remote Figma MCP | Yes | Yes | Yes | Yes (supported path) |
+| Runtime | Remote MCP auth (`whoami`) | Design context (`get_design_context`) | Screenshot (`get_screenshot`) | Diagram write (`generate_diagram`) | Design push (`generate_figma_design`) |
+| --- | --- | --- | --- | --- | --- |
+| Codex / GPT-5.4 Pro (primary PulsePlate runtime) | Yes | Yes | Yes for supported Design nodes | Yes | Discovery-gated |
+| Any other MCP client | Verify per active session | Verify per active session | Verify per active session | Verify per active session | Verify per active session |
 
-## Hard Rule
+## Hard Rules
 
-If the active tool list does not include `generate_figma_design`, direct
-`code -> Figma Design` push is not possible in that runtime.
+1. PulsePlate agents should assume `Codex / GPT-5.4 Pro` is the canonical
+   runtime for Figma automation in this repo.
+2. `generate_figma_design` must be treated as available only after discovery
+   succeeds in the active session.
+3. `Figma Make` remains ideation/reconciliation only. Canonical node-level
+   mapping and Code Connect still require `Figma Design`.
+4. If a future session loses `generate_figma_design`, downgrade gracefully to
+   `context + screenshot + mapping` flow and record the capability gap in the
+   session evidence.
 
-Do not treat this as a bug in project code. It is a client capability gap.
+## Canonical Codex Enablement Path (`generate_figma_design`)
 
-## Canonical Enablement Path (`generate_figma_design`)
-
-1. Use Claude Code runtime.
-2. Configure remote Figma MCP endpoint:
-   - `https://mcp.figma.com/mcp`
-3. Run OAuth flow in Claude Code (`/mcp` -> `figma` -> `Authenticate`).
-4. Start local app server for the target page.
-5. Prompt with explicit target:
-   - `Start a local server for my app and capture the UI in <Figma Design file URL>.`
-6. In capture toolbar, use:
-   - `Entire screen` for full-page state.
-   - `Select element` for focused state captures.
-7. Save generated output and record evidence in session runbook.
+1. Follow [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) and configure
+   `~/.codex/config.toml` to point at `https://mcp.figma.com/mcp`.
+2. Ensure `FIGMA_OAUTH_TOKEN` is present in the environment that launches Codex.
+3. Confirm runtime auth with `whoami`.
+4. Call `generate_figma_design` without `outputMode` first to discover:
+   - `newFile`
+   - `existingFile`
+   - `clipboard`
+5. Use `existingFile` when adding captures to canonical PulsePlate design files.
+6. Use `newFile` only for standalone exploratory captures.
+7. Record capture choice and returned identifiers in the evidence template.
 
 ## Quick Verification
 
 - `whoami` returns identity payload.
 - `get_design_context(fileKey,nodeId)` returns context/resources.
-- `generate_figma_design` appears in tool list.
-- One capture to Figma Design file succeeds.
+- `generate_figma_design` returns capture options in discovery mode.
+- One Design or clipboard capture path is documented for the active session.
 
 ## Security Notes
 
-- Never store OAuth token in repository files.
-- Keep only minimal evidence in docs (redacted identifiers, no raw secrets).
+- Never store OAuth tokens in repository files.
+- Keep only minimal evidence in docs and redact file keys if the doc is meant
+  for broad sharing.
 - Prefer canonical Figma URLs without tracking query params in long-lived docs.

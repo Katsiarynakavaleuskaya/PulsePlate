@@ -62,7 +62,7 @@ This keeps routing explainable without relying on hidden reasoning.
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
 | Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs` |
-| Design / media / launch assets | `figma`, `figma-implement-design` | `sora`, `imagegen`, `speech`, `screenshot` |
+| Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `app-store-release-agent` companion workflows; `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet |
 
 ---
 
@@ -101,6 +101,11 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 ## 5. Data Collection Policy For PulsePlate
 
+### 5a. Design Tool Source Precedence
+
+For design-system, prototype, and visual implementation tasks, use the
+canonical source precedence defined in
+`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 ### Approved now
 
 - YouTube transcript / channel monitoring for founder research and trend tracking
