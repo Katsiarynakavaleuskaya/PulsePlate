@@ -9,7 +9,8 @@
 ## Related Docs
 
 - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` — public-pattern
-  adaptation note for future explainers and learning-cycle work
+  adaptation note for future explainers and learning-cycle work; canonical for
+  explainer payload naming, wellness-safe guardrails, and LLM/telemetry limits
 - `docs/roadmap/BACKLOG_LEDGER.md` — canonical execution backlog for follow-up
 - `docs/product/FREE_PRO_SOFT_PAYWALL.md` — current conversion language baseline
 
@@ -212,7 +213,7 @@ VIP **does NOT**:
 ### After FREE Result
 
 **Message:**
-```
+```text
 ⚠️ BMI — это только первый ориентир.
 
 Он не учитывает:
@@ -228,7 +229,7 @@ VIP **does NOT**:
 ### After PRO Result (Future)
 
 **Message:**
-```
+```text
 Вы понимаете свой риск.
 Хотите превратить это в персональный план?
 ```

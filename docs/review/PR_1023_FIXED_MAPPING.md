@@ -1,4 +1,8 @@
+<!-- markdownlint-disable MD034 -->
 # PR 1023 — Fixed in Commit Mapping
+
+Guard contract: keep mapping entries as raw `https://... -> <sha>` lines so the
+review-thread guards parse them deterministically.
 
 ## Discussion Thread Pass
 
@@ -7,36 +11,30 @@
 
 ## Fixed in Commit Mapping
 
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910025965> -> `5f6ae211`
 Disposition: FIXED
-Commit: `5f6ae211`
-Evidence: `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:124`
-
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900748634> -> `5f6ae211`
-Disposition: FIXED
-Commit: `5f6ae211`
-Evidence: `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:124`
-
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857875> -> `3465aeb3`
-Disposition: FIXED
-Commit: `3465aeb3`
-Evidence: `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:79`
-
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857876> -> `3465aeb3`
-Disposition: FIXED
-Commit: `3465aeb3`
-Evidence: `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:124`
-
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857877> -> `c0583b1c`
-Disposition: FIXED
-Commit: `c0583b1c`
-Evidence: `docs/review/PR_1023_FIXED_MAPPING.md:10`
-
+Commit: 38834c86
+Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:27
+Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:79
+Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:96
+Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:129
+Evidence: docs/product/FREE_PRO_CONTRACT.md:11
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:4022
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910025965 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900748634 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857875 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857876 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857877 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910163434 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910521974 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064046 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064691 -> 38834c86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910522914 -> 38834c86
 
 ## Merge Readiness
 
 - [x] PR is non-draft only when truly ready for merge
 - [ ] All required checks are green on latest commit (no pending/rerun required)
-- [x] No unresolved review threads
+- [ ] No unresolved review threads
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
 - [ ] Wait-window completed after latest bot/review activity (do not merge on first green tick)

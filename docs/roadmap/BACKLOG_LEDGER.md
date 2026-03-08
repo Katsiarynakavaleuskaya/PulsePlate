@@ -4022,6 +4022,7 @@ If it is not recorded here — it does not exist.
     - Backend-owned explainer and learning-cycle direction is documented against existing FREE / PRO / VIP entities
     - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
     - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
+    - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
     - GTM framing stays clarity-first and wellness-safe
 
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP

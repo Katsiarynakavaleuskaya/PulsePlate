@@ -25,7 +25,7 @@ public competition layer. The correct adaptation is:
 - guided practice loops tied to current wellness logic.
 
 This note is grounded only in public pages because `https://www.tensortonic.com/problems`
-redirects to login and is not accessible without user credentials.
+redirects to login and is inaccessible without user credentials.
 
 ## Public Inputs Reviewed
 
@@ -77,7 +77,7 @@ motivation model for a wellness product.
 ## Fit to FREE / PRO / VIP Contract
 
 - **FREE:** explain what BMI captures, what it does not capture, and why the result is
-  an orientation layer rather than an individualized assessment.
+  an orientation layer and informational overview only.
 - **PRO:** explain why interpretation changes when additional signals such as waist
   context or other risk signals are present.
 - **VIP:** explain why the current plan, target, or action is recommended and what
@@ -92,6 +92,11 @@ This reinforces the canonical trust-based funnel:
 ## Future Interface Direction
 
 These interfaces remain backend-owned and rules-first:
+
+The payload shapes below are **planning-level canonical direction**, not final
+runtime schemas. When implementation starts, the concrete names and envelopes
+must align with `app/schemas/` and OpenAPI conventions so web and iOS stay thin
+render-only clients.
 
 ### `explainer_card`
 
@@ -121,11 +126,15 @@ These interfaces remain backend-owned and rules-first:
 - Backend owns explainer assembly and cycle unlock logic.
 - Frontend and iOS render payloads only.
 - No new heavy LLM endpoint is introduced on the core path.
-- Any optional AI-assisted copy must remain behind current quota and economic
-  controls, and must pass
-  `core.insight.philosophy_validator.validate_llm_output(...)` before use in
-  product copy or coaching surfaces.
+- Any optional AI-assisted copy must pass
+  `core.insight.philosophy_validator.validate_llm_output(...)`; `BLOCKER` output
+  means rewrite before any product copy or coaching use, and the feature must
+  remain behind current quota and economic controls.
 - Any telemetry must remain low-cardinality and privacy-safe.
+
+These delivery constraints are the canonical explainer guardrails for follow-up
+backlog items. Future ledger entries should reference this note instead of
+repeating the same bans and LLM/telemetry rules in multiple places.
 
 ## GTM Positioning
 
