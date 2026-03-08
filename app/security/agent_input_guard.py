@@ -9,6 +9,7 @@ Unicode-based bypasses before RAG, quota, and provider.generate().
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
 import re
 from typing import cast
 import unicodedata
@@ -128,7 +129,7 @@ def _load_upstream_agent_guard_class() -> type[object] | None:
     """Load the optional upstream AgentGuard class through a patchable seam."""
 
     try:
-        from agent_guard import AgentGuard as upstream_agent_guard
+        upstream_agent_guard = importlib.import_module("agent_guard").AgentGuard
     except Exception:
         return None
     return cast(type[object], upstream_agent_guard)

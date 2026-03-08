@@ -170,6 +170,23 @@ def test_try_upstream_scan_returns_none_when_agent_guard_missing(
     assert _try_upstream_scan("test payload") is None
 
 
+def test_load_upstream_agent_guard_class_returns_imported_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The import seam should surface a compatible upstream class when available."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    upstream_class = type("UpstreamAgentGuard", (), {})
+    monkeypatch.setattr(
+        guard_mod.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(AgentGuard=upstream_class),
+    )
+
+    assert guard_mod._load_upstream_agent_guard_class() is upstream_class
+
+
 def test_try_upstream_scan_returns_none_when_constructor_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -925,6 +925,39 @@ class TestMcpPulseplateServerCoverage:
                 assert response == {"error": "invalid_code_review_input"}
 
     @pytest.mark.asyncio
+    async def test_code_review_rejects_blank_code(self) -> None:
+        """Blank code input must fail closed before prompt assembly."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI") as mock_openai:
+                mock_openai.return_value = MagicMock()
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                response = await server._code_review({"code": "   ", "language": "python"})
+
+                assert response == {"error": "invalid_code_review_input"}
+
+    def test_find_blocked_tool_argument_allows_blank_string_fields(self) -> None:
+        """Blank optional text fields should be skipped, not rejected."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                result = server._find_blocked_tool_argument(
+                    "generate_code",
+                    {"description": "Create a helper", "language": "   "},
+                )
+
+                assert result is None
+
+    def test_sanitize_code_review_language_defaults_blank_to_python(self) -> None:
+        """Blank language metadata should normalize to the default review language."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                assert server._sanitize_code_review_language("   ") == "python"
+
+    @pytest.mark.asyncio
     async def test_code_review_error(self):
         """Test _code_review with API error"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
