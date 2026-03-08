@@ -194,6 +194,77 @@ def test_coerce_output_decodes_bytes() -> None:
     assert sandbox._coerce_output(b"hello") == "hello"
 
 
+def test_coerce_output_preserves_text() -> None:
+    assert sandbox._coerce_output("hello") == "hello"
+
+
+def test_shared_output_budget_recreates_lock_and_stops_after_budget_exhaustion() -> None:
+    budget = sandbox._SharedOutputBudget(max_bytes=1)
+    budget._lock = None
+    assert budget.consume(b"a") == 1
+    budget._lock = None
+    assert budget.consume(b"b") == 0
+
+
+def test_drain_stream_ignores_oserror_and_closes_stream() -> None:
+    class _BrokenStream:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def read(self, _size: int) -> bytes:
+            raise OSError("stream closed")
+
+        def close(self) -> None:
+            self.closed = True
+
+    stream = _BrokenStream()
+    collector = sandbox._StreamingOutputBuffer(budget=sandbox._SharedOutputBudget(max_bytes=8))
+    sandbox._drain_stream(stream, collector=collector)  # type: ignore[arg-type]
+    assert stream.closed is True
+
+
+def test_terminate_sandbox_process_uses_kill_on_non_posix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyProcess:
+        def __init__(self) -> None:
+            self.pid = 123
+            self.killed = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+    process = _DummyProcess()
+    monkeypatch.setattr(sandbox.os, "name", "nt", raising=False)
+    sandbox._terminate_sandbox_process(process)  # type: ignore[arg-type]
+    assert process.killed is True
+
+
+def test_join_drain_thread_closes_stream_when_reader_stays_alive() -> None:
+    class _DummyThread:
+        def __init__(self) -> None:
+            self.join_calls: list[float] = []
+
+        def join(self, timeout: float | None = None) -> None:
+            self.join_calls.append(float(timeout or 0))
+
+        def is_alive(self) -> bool:
+            return len(self.join_calls) == 1
+
+    class _DummyStream:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    thread = _DummyThread()
+    stream = _DummyStream()
+    sandbox._join_drain_thread(thread, stream=stream, timeout_seconds=2)  # type: ignore[arg-type]
+    assert thread.join_calls == [2.0, sandbox._STREAM_JOIN_GRACE_SECONDS]
+    assert stream.closed is True
+
+
 def test_run_local_sandbox_executes_allowlisted_python(
     sandbox_root: Path,
 ) -> None:
@@ -263,6 +334,26 @@ def test_run_local_sandbox_request_mode_can_tighten_runtime(
         )
 
 
+def test_run_local_sandbox_rejects_missing_pipes(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyProcess:
+        def __init__(self) -> None:
+            self.stdout = None
+            self.stderr = None
+
+    monkeypatch.setattr(sandbox.subprocess, "Popen", lambda *args, **kwargs: _DummyProcess())
+    with pytest.raises(RuntimeError, match="stdout/stderr pipes"):
+        sandbox.run_local_sandbox(
+            sandbox.SandboxRequest(
+                binary="python3",
+                args=("-c", "print('x')"),
+                cwd=sandbox_root,
+            )
+        )
+
+
 def test_run_local_sandbox_times_out(
     sandbox_root: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -272,6 +363,29 @@ def test_run_local_sandbox_times_out(
         sandbox.SandboxRequest(
             binary="python3",
             args=("-c", "import signal; signal.pause()"),
+            cwd=sandbox_root,
+        )
+    )
+    assert result.returncode == 124
+    assert result.timed_out is True
+
+
+def test_run_local_sandbox_timeout_kills_descendants_holding_stdio(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_TIMEOUT_ENV, "1")
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python3",
+            args=(
+                "-c",
+                (
+                    "import subprocess, sys, time;"
+                    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']);"
+                    "time.sleep(30)"
+                ),
+            ),
             cwd=sandbox_root,
         )
     )
@@ -331,6 +445,35 @@ def test_run_local_sandbox_stream_limits_stderr_during_execution(
     assert result.returncode == 0
     assert result.truncated is True
     assert len(result.stderr.encode("utf-8")) <= 8
+
+
+def test_run_local_sandbox_stream_limit_applies_across_stdout_and_stderr(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_MAX_OUTPUT_ENV, "8")
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python3",
+            args=(
+                "-c",
+                (
+                    "import sys;"
+                    "sys.stdout.write('abcd');"
+                    "sys.stdout.flush();"
+                    "sys.stderr.write('efgh');"
+                    "sys.stderr.flush();"
+                    "sys.stdout.write('ijkl');"
+                    "sys.stdout.flush()"
+                ),
+            ),
+            cwd=sandbox_root,
+        )
+    )
+    combined_bytes = len(result.stdout.encode("utf-8")) + len(result.stderr.encode("utf-8"))
+    assert result.returncode == 0
+    assert result.truncated is True
+    assert combined_bytes <= 8
 
 
 def test_run_local_sandbox_cli_emits_deterministic_json(sandbox_root: Path) -> None:

@@ -9,12 +9,14 @@ timeout, and output limits.
 from __future__ import annotations
 
 import os
+import signal
 import shutil
 import subprocess  # nosec B404: subprocess is required for bounded local sandbox execution (remove-by: 2026-07-31, ref: PR-1010)
 import threading
+from typing import IO
+from typing import Final
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
 from typing import Mapping
 
 from app.security.agent_control_plane import EXECUTION_MODE_AUTO_SAFE
@@ -73,6 +75,8 @@ _EXECUTION_MODE_PRIORITY = {
     EXECUTION_MODE_REVIEW_REQUIRED: 1,
     EXECUTION_MODE_BLOCKED: 2,
 }
+_WINDOWS_PROCESS_GROUP_FLAG = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+_STREAM_JOIN_GRACE_SECONDS: Final[float] = 0.1
 
 
 @dataclass(frozen=True)
@@ -296,23 +300,46 @@ def _coerce_output(value: bytes | str | None) -> str:
 
 
 @dataclass
+class _SharedOutputBudget:
+    """Thread-safe total output budget shared across stdout and stderr."""
+
+    max_bytes: int
+    _consumed: int = 0
+    _lock: threading.Lock | None = None
+
+    def __post_init__(self) -> None:
+        self._lock = threading.Lock()
+
+    def consume(self, chunk: bytes) -> int:
+        if self._lock is None:
+            self._lock = threading.Lock()
+        with self._lock:
+            remaining = self.max_bytes - self._consumed
+            if remaining <= 0:
+                return 0
+            accepted = min(len(chunk), remaining)
+            self._consumed += accepted
+            return accepted
+
+
+@dataclass
 class _StreamingOutputBuffer:
     """Bounded streaming output collector."""
 
-    max_bytes: int
+    budget: _SharedOutputBudget
     _buffer: bytearray
     truncated: bool = False
 
-    def __init__(self, *, max_bytes: int) -> None:
-        self.max_bytes = max_bytes
+    def __init__(self, *, budget: _SharedOutputBudget) -> None:
+        self.budget = budget
         self._buffer = bytearray()
         self.truncated = False
 
     def append(self, chunk: bytes) -> None:
-        remaining = self.max_bytes - len(self._buffer)
-        if remaining > 0:
-            self._buffer.extend(chunk[:remaining])
-        if len(chunk) > max(remaining, 0):
+        accepted = self.budget.consume(chunk)
+        if accepted > 0:
+            self._buffer.extend(chunk[:accepted])
+        if accepted < len(chunk):
             self.truncated = True
 
     def to_text(self) -> str:
@@ -320,7 +347,7 @@ class _StreamingOutputBuffer:
 
 
 def _drain_stream(
-    stream: BinaryIO,
+    stream: IO[bytes],
     *,
     collector: _StreamingOutputBuffer,
 ) -> None:
@@ -332,8 +359,35 @@ def _drain_stream(
             if not chunk:
                 break
             collector.append(chunk)
+    except OSError:
+        # The controller may close a pipe during timeout cleanup.
+        return
     finally:
         stream.close()
+
+
+def _terminate_sandbox_process(process: subprocess.Popen[bytes]) -> None:
+    """Terminate sandbox process without leaving stdio-holding descendants alive."""
+
+    if os.name == "posix":
+        os.killpg(process.pid, signal.SIGKILL)
+        return
+    process.kill()
+
+
+def _join_drain_thread(
+    thread: threading.Thread,
+    *,
+    stream: IO[bytes],
+    timeout_seconds: int,
+) -> None:
+    """Bound drain-thread joins so timeout cleanup cannot block indefinitely."""
+
+    thread.join(timeout=timeout_seconds)
+    if not thread.is_alive():
+        return
+    stream.close()
+    thread.join(timeout=_STREAM_JOIN_GRACE_SECONDS)
 
 
 def run_local_sandbox(
@@ -354,8 +408,9 @@ def run_local_sandbox(
     max_output_bytes = require_sandbox_max_output_bytes()
     env = sanitize_sandbox_env(request.env)
     argv = (binary_path, *request.args)
-    stdout_collector = _StreamingOutputBuffer(max_bytes=max_output_bytes)
-    stderr_collector = _StreamingOutputBuffer(max_bytes=max_output_bytes)
+    output_budget = _SharedOutputBudget(max_bytes=max_output_bytes)
+    stdout_collector = _StreamingOutputBuffer(budget=output_budget)
+    stderr_collector = _StreamingOutputBuffer(budget=output_budget)
 
     process = subprocess.Popen(  # nosec B603: absolute allowlisted binary; argv bounded by sandbox API (remove-by: 2026-07-31, ref: PR-1010)
         argv,
@@ -363,6 +418,8 @@ def run_local_sandbox(
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        start_new_session=(os.name == "posix"),
+        creationflags=_WINDOWS_PROCESS_GROUP_FLAG if os.name == "nt" else 0,
     )
     if process.stdout is None or process.stderr is None:
         raise RuntimeError("Sandbox subprocess must expose stdout/stderr pipes.")
@@ -386,12 +443,12 @@ def run_local_sandbox(
         returncode = process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         timed_out = True
-        process.kill()
+        _terminate_sandbox_process(process)
         process.wait()
         returncode = 124
 
-    stdout_thread.join()
-    stderr_thread.join()
+    _join_drain_thread(stdout_thread, stream=process.stdout, timeout_seconds=timeout_seconds)
+    _join_drain_thread(stderr_thread, stream=process.stderr, timeout_seconds=timeout_seconds)
     return SandboxResult(
         argv=argv,
         returncode=returncode,
