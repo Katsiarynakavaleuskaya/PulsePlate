@@ -5,6 +5,25 @@ import os from "node:os";
 import path from "node:path";
 import { SkillScanner } from "@goplus/agentguard";
 
+/**
+ * @typedef {Object} ScanPayload
+ * @property {string | undefined} [text]
+ * @property {string | undefined} [filename]
+ */
+
+/**
+ * @typedef {Object} NormalizedScanResult
+ * @property {string} risk_level
+ * @property {string[]} risk_tags
+ * @property {string} summary
+ */
+
+/**
+ * Return a filesystem-safe filename for the temp payload.
+ *
+ * @param {string | null | undefined} filename
+ * @returns {string}
+ */
 function sanitizeFilename(filename) {
   const fallback = "payload.py";
   if (typeof filename !== "string" || filename.trim() === "") {
@@ -17,6 +36,12 @@ function sanitizeFilename(filename) {
   return sanitized;
 }
 
+/**
+ * Normalize AgentGuard output into the bridge contract.
+ *
+ * @param {unknown} result
+ * @returns {NormalizedScanResult}
+ */
 function normalizeScanResult(result) {
   const nested = result?.goPlus ?? result?.scanSummary ?? result ?? {};
   const riskLevel =
@@ -44,6 +69,11 @@ function normalizeScanResult(result) {
   };
 }
 
+/**
+ * Read the JSON payload from stdin.
+ *
+ * @returns {Promise<ScanPayload>}
+ */
 async function readStdinJson() {
   const chunks = [];
   for await (const chunk of process.stdin) {
@@ -53,6 +83,11 @@ async function readStdinJson() {
   return JSON.parse(raw);
 }
 
+/**
+ * Run the local AgentGuard bridge and emit the normalized result.
+ *
+ * @returns {Promise<void>}
+ */
 async function main() {
   const payload = await readStdinJson();
   const text = typeof payload?.text === "string" ? payload.text : "";
