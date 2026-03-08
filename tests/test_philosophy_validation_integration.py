@@ -44,8 +44,10 @@ def _rag_with_medical(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeCtx:
     """Fake RAG returning one medical chunk and one clean chunk."""
+    del subject_id
     return _FakeCtx(
         query=query,
         refined_queries=[query],
@@ -64,8 +66,10 @@ def _rag_all_clean(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeCtx:
     """Fake RAG returning only clean chunks."""
+    del subject_id
     return _FakeCtx(
         query=query,
         refined_queries=[query],
@@ -381,6 +385,7 @@ class TestPhilosophicalRuntimeIntegration:
         )
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["provider"] == "philosophical_runtime"
         assert data["route_type"] == "SAFE_WELLNESS_DISCLAIMER"
@@ -405,6 +410,7 @@ class TestPhilosophicalRuntimeIntegration:
         resp = client.post("/insight", json={"text": "What is BMI?"}, headers=vip_headers)
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["provider"] == "philosophical_runtime"
         assert data["route_type"] == "DIRECT_DEFINITION"
@@ -440,6 +446,7 @@ class TestPhilosophicalRuntimeIntegration:
         )
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["route_type"] == "RAG_FACTUAL"
         assert data["verification_rate"] is not None

@@ -18,7 +18,11 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 | 3     | Latest CI run for current HEAD          | merge decision                 |
 | 4     | PR body                                 | human-readable mirror only     |
 
-Evidence: Level 2 — this doc + `AGENTS.md:39` (merge checklist), `:102` (Fixed in Commit Mapping), `:435` (mapping validation); Level 2a — `scripts/orchestration/review_mapping_artifact.py:27`, `scripts/ci/check_pr_body_phase2_gates.py:13`, `scripts/ci/check_pr_merge_readiness.py:22`, `scripts/orchestration/check_review_threads_disposition.py:32`; Level 4 — PR body mirror (`AGENTS.md:39`).
+Evidence:
+- Level 2: `AGENTS.md:39`, `AGENTS.md:102`, `AGENTS.md:103`, `AGENTS.md:434`, `AGENTS.md:435`
+- Level 2a: `scripts/orchestration/review_mapping_artifact.py:24`, `scripts/orchestration/review_mapping_artifact.py:84`, `scripts/orchestration/review_mapping_artifact.py:110`
+- Level 3: `scripts/ci/check_pr_merge_readiness.py:349`, `scripts/ci/check_pr_merge_readiness.py:369`, `scripts/ci/check_pr_merge_readiness.py:400`
+- Level 4: `scripts/ci/check_pr_body_phase2_gates.py:162`, `scripts/ci/check_pr_body_phase2_gates.py:182`
 
 ## 3. Governance Phases
 
@@ -29,9 +33,34 @@ Evidence: Level 2 — this doc + `AGENTS.md:39` (merge checklist), `:102` (Fixed
 | Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
 | Phase 4 | Disposition proof | script semantics                        | yes          |
 
+Canonical operator entrypoint:
+
+- `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
+- Underlying gate scripts remain authoritative for their own contract semantics.
+
 ## 4. Phase 2 Contract (Canonical Artifact)
 
-Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body **must mirror** the same sections (`## Discussion Thread Pass`, `## Fixed in Commit Mapping` or `### Fixed in Commit Mapping`) as fallback when event has no pr_number; artifact-first when pr_number is available. Fallback is temporary; removal tracked in `docs/roadmap/BACKLOG_LEDGER.md` (P1 Fixed Mapping SoT item); ADR exit criteria: artifact-only path when pr_number always available in CI.
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
+
+PR body **must mirror** the same review-governance sections for human review and fallback runs:
+
+- `## Discussion Thread Pass`
+- `### Fixed in Commit Mapping`
+- completed checkboxes matching the artifact
+
+Canonical runtime behavior is artifact-first when `pr_number` is available.
+PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context.
+
+Temporary seam tracking:
+
+- ADR: `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md:186`
+
+Exit criteria for removing PR-body fallback:
+
+1. CI/event paths always provide `pr_number` for Phase 2 and merge-readiness flows.
+2. Local tooling supports deterministic artifact lookup without PR-body parsing.
+3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
 
 Required sections (artifact and PR-body mirror):
 
@@ -42,9 +71,20 @@ Required sections (artifact and PR-body mirror):
 Valid mapping forms:
 
 - `- <url> -> <sha>`
+- `- <url>`
 - `- No actionable review comments`
 
-Evidence: `scripts/orchestration/review_mapping_artifact.py:44` (read), `:84` (extract), `:110` (validate); `scripts/ci/check_pr_body_phase2_gates.py:162` (artifact-first), `:169` (read_mapping_artifact when pr_number from event).
+Evidence:
+- `scripts/orchestration/review_mapping_artifact.py:44`
+- `scripts/orchestration/review_mapping_artifact.py:84`
+- `scripts/orchestration/review_mapping_artifact.py:110`
+- `scripts/ci/check_pr_body_phase2_gates.py:162`
+- `scripts/ci/check_pr_body_phase2_gates.py:169`
+- `scripts/ci/check_pr_body_phase2_gates.py:182`
+- `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md:1`
+- `docs/roadmap/BACKLOG_LEDGER.md:186`
+
+Artifact-only governance findings are fixed in the canonical artifact itself, but the proof block must still cite the validator/runtime enforcement that makes the artifact contract merge-blocking.
 
 ## 5. Merge Readiness Contract
 
@@ -52,7 +92,13 @@ Evidence: `scripts/orchestration/review_mapping_artifact.py:44` (read), `:84` (e
 - Actionable bot comments must be mapped
 - Cancelled/stale runs do not define mergeability
 
-Evidence: `scripts/ci/check_pr_merge_readiness.py:1` (gate purpose), `:123` (unresolved threads), `:207` (actionable items), `:337` (unresolved check), `:350` (actionable mapping check), `:355` (mapped_urls).
+Evidence:
+- `scripts/ci/check_pr_merge_readiness.py:1`
+- `scripts/ci/check_pr_merge_readiness.py:135`
+- `scripts/ci/check_pr_merge_readiness.py:219`
+- `scripts/ci/check_pr_merge_readiness.py:349`
+- `scripts/ci/check_pr_merge_readiness.py:369`
+- `scripts/ci/check_pr_merge_readiness.py:383`
 
 ## 6. FIXED / NOT-A-BUG / DEFERRED Semantics
 
@@ -66,21 +112,33 @@ Evidence: `scripts/ci/check_pr_merge_readiness.py:1` (gate purpose), `:123` (unr
 ### NOT-A-BUG
 
 - Requires written reasoning/evidence
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
 ### DEFERRED
 
 - Requires ledger reference
+- Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:27` (DISPOSITION_RE), `:232` (FIXED mapping check), `AGENTS.md:46` (FIXED), `:63` (NOT-A-BUG), `:80` (DEFERRED).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:38`
+- `scripts/orchestration/check_review_threads_disposition.py:298`
+- `scripts/orchestration/check_review_threads_disposition.py:467`
+- `AGENTS.md:47`
+- `AGENTS.md:64`
+- `AGENTS.md:81`
 
 ## 7. Trigger-only Commit Ban
 
 - Empty commit = invalid FIXED proof
 - Rerun/trigger subject = invalid FIXED proof
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:175` (trigger-only validation), `:188` (invalid proof error), `:518` (mapping ban), `AGENTS.md:103` (trigger-only ban).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:181`
+- `scripts/orchestration/check_review_threads_disposition.py:197`
+- `scripts/orchestration/check_review_threads_disposition.py:528`
+- `AGENTS.md:103`
 
 ## 8. Required-check Truth
 
@@ -97,7 +155,11 @@ Evidence: `scripts/orchestration/check_review_threads_disposition.py:175` (trigg
 | Soft gate | advisory quality signal   | no                          |
 | External  | third-party review signal | only if explicitly required |
 
-Evidence: enforced via workflow `required` status; `scripts/ci/check_pr_merge_readiness.py` (hard gate), `scripts/ci/check_pr_body_phase2_gates.py` (Phase 2 hard gate).
+Evidence:
+- `scripts/ci/check_pr_merge_readiness.py:349`
+- `scripts/ci/check_pr_merge_readiness.py:400`
+- `scripts/ci/check_pr_body_phase2_gates.py:162`
+- `scripts/ci/check_pr_body_phase2_gates.py:182`
 
 ## 10. Review Thread Lifecycle
 
@@ -116,11 +178,32 @@ OPEN
 - No blind `# nosec`
 - Allowlist discipline
 
-Evidence: `scripts/orchestration/check_review_threads_disposition.py:8` (GH_TOKEN canonical), `:50` (shutil.which for gh), `:106` (shutil.which for git), `:411` (GH_TOKEN preflight), `AGENTS.md:110` (Bandit/nosec policy, subprocess).
+Evidence:
+- `scripts/orchestration/check_review_threads_disposition.py:8`
+- `scripts/orchestration/check_review_threads_disposition.py:60`
+- `scripts/orchestration/check_review_threads_disposition.py:117`
+- `scripts/orchestration/check_review_threads_disposition.py:394`
+- `AGENTS.md:120`
 
-## 12. Roadmap / Future Hardening
+## 12. Auth Mode Semantics
 
-- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Done (PR-998)
+- **Local default / advisory:** disposition guard may skip when no usable `gh` auth is available.
+- **Local strict parity:** `--require-auth` upgrades the disposition guard to CI-like behavior and requires `GH_TOKEN`.
+- **CI strict:** `CI=true` requires `GH_TOKEN` and `gh auth status` before any GraphQL.
+- `GITHUB_TOKEN` remains the merge-readiness sub-gate token; `GH_TOKEN` is the canonical disposition/GraphQL token.
+- Advisory `SKIP` is not merge evidence; operators must use enforced mode before claiming strict local parity.
+
+Evidence:
+- `AGENTS.md:120`
+- `RUNBOOK_AGENT.md:246`
+- `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md:45`
+- `scripts/orchestration/check_review_threads_disposition.py:9`
+- `scripts/orchestration/check_review_threads_disposition.py:623`
+- `scripts/ci/check_pr_merge_readiness.py:308`
+
+## 13. Roadmap / Future Hardening
+
+- ~~Move Fixed Mapping SoT from PR body to repo file~~ ✅ Merged via PR #998 on 2026-03-07
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof

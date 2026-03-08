@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,6 +15,8 @@ const variantClasses: Record<ButtonVariant, string> = {
   secondary:
     'border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] hover:bg-[var(--color-surface)] hover:shadow-sm',
   ghost: 'bg-transparent text-[var(--color-text)] hover:bg-[var(--color-surface-muted)]',
+  destructive:
+    'border border-[var(--color-destructive-border)] bg-[var(--color-destructive-bg)] text-[var(--color-destructive-foreground)] hover:bg-[var(--color-destructive-bg-hover)] hover:shadow-[var(--shadow-destructive)]',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

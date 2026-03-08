@@ -77,6 +77,8 @@ def scan_text_with_goplus_agentguard(
         payload = json.loads(completed.stdout)
     except json.JSONDecodeError:
         return None
+    if not isinstance(payload, dict):
+        return None
 
     risk_level = payload.get("risk_level")
     risk_tags = payload.get("risk_tags")

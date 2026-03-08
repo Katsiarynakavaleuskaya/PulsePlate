@@ -13,12 +13,13 @@ import asyncio
 import hashlib
 import logging
 import os
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from app.middleware.api_tiers import require_pro_tier
+from app.middleware.api_tiers import derive_subject_id_from_api_key, require_pro_tier
 from app.routers.api_key import api_key_header
 from app.security.agent_control_plane import (
     AUDIT_SIGNING_KEY_ENV,
@@ -49,6 +50,8 @@ CBT_POLICY_ALLOWLIST = {
     ("rag.retrieve", "corpus://cbt-agent"),
     ("llm.generate", "provider://default"),
 }
+CBTExecutionMode = Literal["auto-safe", "review-required", "blocked"]
+CBTQuotaState = Literal["not_consumed", "consumed"]
 
 
 # ---------------------------------------------------------------------------
@@ -90,20 +93,28 @@ class CBTInsightResponse(BaseModel):
     """Response schema for CBT insight endpoint."""
 
     insight: str = Field(..., description="CBT-informed response from LLM")
-    rag_used: bool = Field(default=False, description="Whether RAG context was used")
+    rag_used: bool = Field(..., description="Whether RAG context was used")
     sources: list[CBTSourceItem] = Field(
-        default_factory=list,
+        ...,
         description="CBT corpus sources used for context",
     )
-    confidence: float = Field(default=0.0, description="RAG retrieval confidence score")
-    uncertainty: float = Field(default=1.0, description="Uncertainty score derived from confidence")
+    confidence: float = Field(..., description="RAG retrieval confidence score")
+    uncertainty: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Uncertainty score derived from confidence",
+    )
     warnings: list[str] = Field(
-        default_factory=list,
+        ...,
         description="Operational or retrieval warnings",
     )
-    mode: str = Field(default="auto-safe", description="Resolved agent execution mode")
-    quota_state: str = Field(
-        default="not_consumed",
+    mode: CBTExecutionMode = Field(
+        ...,
+        description="Resolved agent execution mode",
+    )
+    quota_state: CBTQuotaState = Field(
+        ...,
         description="Monthly quota state before provider call",
     )
 
@@ -223,9 +234,18 @@ async def cbt_insight(
             detail="CBT agent feature is not enabled",
         )
 
-    execution_mode = normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV))
     try:
+        execution_mode = cast(
+            CBTExecutionMode,
+            normalize_execution_mode(os.getenv(CBT_EXECUTION_MODE_ENV)),
+        )
         require_execution_mode(execution_mode)
+    except RuntimeError as exc:
+        logger.error("CBT execution mode misconfigured", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="agent_execution_mode_misconfigured",
+        ) from exc
     except PermissionError:
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
@@ -237,7 +257,7 @@ async def cbt_insight(
     sources: list[CBTSourceItem] = []
     confidence = 0.0
     rag_used = False
-    quota_state = "not_consumed"
+    quota_state: CBTQuotaState = "not_consumed"
     warnings: list[str] = []
     redaction_applied = False
 
@@ -270,6 +290,7 @@ async def cbt_insight(
             max_chunks=5,
             agent_id="cbt-agent",
             user_tier="PRO",
+            subject_id=derive_subject_id_from_api_key(_api_key),
         )
 
         if rag_ctx.chunks:
@@ -310,17 +331,6 @@ async def cbt_insight(
 
     # Generate insight via LLM
     try:
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            _api_key,
-            tier="PRO",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
-            )
-        quota_state = "consumed"
-
         await run_in_threadpool(
             _persist_privileged_action_audit,
             action="llm.generate",
@@ -335,6 +345,23 @@ async def cbt_insight(
                 "source_count": len(sources),
             },
         )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("LLM privileged-action gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_generation_unavailable",
+        ) from exc
+    try:
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            _api_key,
+            tier="PRO",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
+            )
+        quota_state = "consumed"
 
         from llm import get_provider
 

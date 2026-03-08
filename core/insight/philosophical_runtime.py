@@ -240,7 +240,7 @@ class PhilosophicalQueryRouter:
 
     def _known_definition_term(self, query: str) -> str | None:
         for term in _DEFINITION_TEMPLATES:
-            if term in query.lower():
+            if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", query.lower()):
                 return term
         return None
 
@@ -259,6 +259,27 @@ class PhilosophicalRuntime:
         self._falsification = FalsificationChecker()
         self._pragmatic = PragmaticValidator()
 
+    def preview_route(
+        self,
+        *,
+        text: str,
+        lang: str | None,
+        router_enabled: bool,
+        use_rag: bool,
+    ) -> RouteDecision:
+        """Return the deterministic route decision without calling the provider."""
+        if router_enabled:
+            return self._router.route(text, lang=lang)
+        return RouteDecision(
+            route_type=RouteType.DEEP_REASONING,
+            target_depth=_DEFAULT_BASELINE_DEPTH,
+            needs_rag=use_rag,
+            needs_generation=True,
+            risk_level=RiskLevel.MEDIUM,
+            reason_codes=["legacy_path"],
+            simplified_query=text,
+        )
+
     async def generate_insight(
         self,
         *,
@@ -268,6 +289,7 @@ class PhilosophicalRuntime:
         use_rag: bool,
         philo_validation_enabled: bool,
         recursive_rag_enabled: bool,
+        subject_id: int | None = None,
         philosophy_router_enabled: bool,
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
@@ -283,18 +305,12 @@ class PhilosophicalRuntime:
             )
         )
         router_enabled = philosophy_router_enabled or philosophy_linguistic_enabled
-        if router_enabled:
-            decision = self._router.route(text, lang=lang)
-        else:
-            decision = RouteDecision(
-                route_type=RouteType.DEEP_REASONING,
-                target_depth=_DEFAULT_BASELINE_DEPTH,
-                needs_rag=use_rag,
-                needs_generation=True,
-                risk_level=RiskLevel.MEDIUM,
-                reason_codes=["legacy_path"],
-                simplified_query=text,
-            )
+        decision = self.preview_route(
+            text=text,
+            lang=lang,
+            router_enabled=router_enabled,
+            use_rag=use_rag,
+        )
 
         if decision.route_type == RouteType.SAFE_WELLNESS_DISCLAIMER:
             return self._build_direct_result(
@@ -336,6 +352,7 @@ class PhilosophicalRuntime:
                 max_chunks=3,
                 philo_validation_enabled=philo_validation_enabled,
                 recursive_rag_enabled=recursive_rag_enabled,
+                subject_id=subject_id,
             )
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence

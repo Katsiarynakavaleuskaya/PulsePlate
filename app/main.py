@@ -18,6 +18,7 @@ from legacy_app import (
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 import app.routers.realtime_ws as realtime_ws
+from app.routers.billing import register_billing_routes
 from app.routers.feedback import router as feedback_router
 from app.routers.cbt_insight import router as cbt_insight_router
 
@@ -45,6 +46,9 @@ app.include_router(realtime_ws.router)
 
 # Register feedback router (new endpoint, not legacy — belongs here per policy)
 app.include_router(feedback_router)
+
+# Register billing router (canonical additive runtime payment surface).
+register_billing_routes(app)
 
 # Register CBT insight router (PRO tier, feature-flagged via FEATURE_CBT_AGENT)
 app.include_router(cbt_insight_router)

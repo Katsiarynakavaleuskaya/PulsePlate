@@ -16,7 +16,9 @@ description: Business strategy owner for PulsePlate. Shapes market entry, moneti
 ## Required pre-flight (SoT)
 
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
-- Load `AGENTS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and growth-cluster context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load role context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `AGENTS.md`, `.cursor/agents/AGENTS.md`, `docs/ENGINEERING_LESSONS.md`, and `RUNBOOK_AGENT.md`.
+- Load `docs/roadmap/BACKLOG_LEDGER.md`, nearest scoped `AGENTS.md` for touched modules, and active growth/pricing docs required by the task.
 
 ## Mission
 

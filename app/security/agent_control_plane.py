@@ -316,7 +316,8 @@ def sign_audit_envelope(
     else:
         signing_secret = require_audit_secret()
     issued_at = _iso8601_utc(timestamp or datetime.now(timezone.utc))
-    meta_hash = _metadata_hash(metadata)
+    sanitized_metadata = _sanitize_metadata(metadata or {})
+    meta_hash = _metadata_hash(sanitized_metadata)
     payload = (
         f"{decision.action}|{decision.target}|{int(decision.allowed)}|"
         f"{decision.reason}|{meta_hash}|{issued_at}"
@@ -373,14 +374,18 @@ def persist_audit_envelope(
         else os.getenv(AUDIT_LOG_PATH_ENV) or DEFAULT_AUDIT_LOG_PATH
     )
     target_path.parent.mkdir(parents=True, exist_ok=True)
+    sanitized_metadata = _sanitize_metadata(metadata or {})
+    if envelope.metadata_hash != _metadata_hash(sanitized_metadata):
+        raise RuntimeError("Sanitized metadata does not match envelope.metadata_hash.")
+
     payload = {
         "schema_version": "1.0",
         "envelope": asdict(envelope),
-        "metadata": _sanitize_metadata(metadata or {}),
+        "metadata": sanitized_metadata,
     }
+    jsonl_line = f"{json.dumps(payload, ensure_ascii=True, sort_keys=True)}\n"
     with target_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=True, sort_keys=True))
-        handle.write("\n")
+        handle.write(jsonl_line)
     return target_path
 
 

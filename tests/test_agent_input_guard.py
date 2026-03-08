@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import builtins
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -21,34 +20,6 @@ from app.security.goplus_agentguard_bridge import (
     GoPlusAgentGuardScanResult,
     scan_text_with_goplus_agentguard,
 )
-
-
-def _mock_agent_guard_import(
-    monkeypatch: pytest.MonkeyPatch,
-    agent_guard_class: type[object] | None,
-) -> None:
-    """Patch agent_guard import without mutating sys.modules.
-
-    RU: Перехватываем только import `agent_guard`, чтобы не трогать sys.modules.
-    EN: Intercept only `agent_guard` import so tests avoid sys.modules mutation.
-    """
-
-    original_import = builtins.__import__
-
-    def fake_import(
-        name: str,
-        globals_dict: object | None = None,
-        locals_dict: object | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "agent_guard":
-            if agent_guard_class is None:
-                raise ImportError("agent_guard missing")
-            return SimpleNamespace(AgentGuard=agent_guard_class)
-        return original_import(name, globals_dict, locals_dict, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
 
 
 def test_scan_ai_agent_input_allows_benign_wellness_prompt() -> None:
@@ -168,7 +139,9 @@ def test_try_upstream_scan_returns_none_when_agent_guard_missing(
 ) -> None:
     """Missing third-party package must degrade safely."""
 
-    _mock_agent_guard_import(monkeypatch, None)
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(guard_mod, "_load_upstream_agent_guard_class", lambda: None)
 
     assert _try_upstream_scan("test payload") is None
 
@@ -178,11 +151,13 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
 ) -> None:
     """Broken third-party initialization must not break the guard."""
 
+    from app.security import agent_input_guard as guard_mod
+
     class FailingAgentGuard:
         def __init__(self) -> None:
             raise RuntimeError("boom")
 
-    _mock_agent_guard_import(monkeypatch, FailingAgentGuard)
+    monkeypatch.setattr(guard_mod, "_load_upstream_agent_guard_class", lambda: FailingAgentGuard)
 
     assert _try_upstream_scan("test payload") is None
 
@@ -238,7 +213,13 @@ def test_try_upstream_scan_validates_contract_and_maps_result(
 ) -> None:
     """Only compatible scan contracts may influence the final decision."""
 
-    _mock_agent_guard_import(monkeypatch, agent_guard_class)
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(
+        guard_mod,
+        "_load_upstream_agent_guard_class",
+        lambda: agent_guard_class,
+    )
 
     result = _try_upstream_scan("payload")
 
@@ -271,6 +252,7 @@ def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failure
         subprocess.TimeoutExpired(cmd="node", timeout=5),
         SimpleNamespace(returncode=1, stdout='{"risk_level":"critical"}'),
         SimpleNamespace(returncode=0, stdout="not json"),
+        SimpleNamespace(returncode=0, stdout='["not","a","dict"]'),
         SimpleNamespace(returncode=0, stdout='{"risk_level": 1, "risk_tags": [], "summary": "x"}'),
         SimpleNamespace(
             returncode=0, stdout='{"risk_level": "critical", "risk_tags": "bad", "summary": "x"}'

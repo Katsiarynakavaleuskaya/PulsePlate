@@ -47,6 +47,7 @@ def _fake_jaccard(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeContext:
     return _FakeContext(
         query=query,
@@ -179,7 +180,7 @@ class TestVectorRetrievalSQLite:
         fake_session = MagicMock()
         fake_session.execute.return_value.fetchall.return_value = rows
 
-        results = vector_rag._retrieve_vector_sqlite(query_vec, 5, fake_session)
+        results = vector_rag._retrieve_vector_sqlite(query_vec, 5, fake_session, subject_id=7)
 
         # Should have 2 valid results (3rd row has bad JSON)
         assert len(results) == 2
@@ -206,7 +207,7 @@ class TestVectorRetrievalSQLite:
         fake_session = MagicMock()
         fake_session.execute.return_value.fetchall.return_value = rows
 
-        results = vector_rag._retrieve_vector_sqlite(query_vec, 3, fake_session)
+        results = vector_rag._retrieve_vector_sqlite(query_vec, 3, fake_session, subject_id=7)
         assert len(results) == 3
 
     def test_retrieve_vector_sqlite_skips_wrong_dimensions(
@@ -232,8 +233,45 @@ class TestVectorRetrievalSQLite:
         fake_session = MagicMock()
         fake_session.execute.return_value.fetchall.return_value = rows
 
-        results = vector_rag._retrieve_vector_sqlite(query_vec, 5, fake_session)
+        results = vector_rag._retrieve_vector_sqlite(query_vec, 5, fake_session, subject_id=7)
         assert len(results) == 0
+
+    def test_retrieve_vector_sqlite_binds_subject_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """SQLite retrieval binds subject_id to prevent cross-tenant leaks."""
+        from core.rag import vector_rag
+
+        monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
+
+        class _Row:
+            def __init__(self, id: int, embedding: str) -> None:
+                self.id = id
+                self.content = f"doc {id}"
+                self.source = "src"
+                self.embedding = embedding
+
+        captured_params: list[dict[str, int]] = []
+
+        class _Result:
+            def fetchall(self) -> list[_Row]:
+                return [_Row(1, json.dumps([1.0, 0.0, 0.0]))]
+
+        def _execute(stmt: Any, params: dict[str, int] | None = None) -> _Result:
+            assert "user_id = :subject_id" in str(stmt)
+            captured_params.append(params or {})
+            return _Result()
+
+        fake_session = MagicMock()
+        fake_session.execute = _execute
+
+        results = vector_rag._retrieve_vector_sqlite(
+            [1.0, 0.0, 0.0],
+            5,
+            fake_session,
+            subject_id=42,
+        )
+
+        assert len(results) == 1
+        assert captured_params[0]["subject_id"] == 42
 
 
 class TestEmptyContext:
@@ -317,7 +355,7 @@ class TestRetrieveVectorPostgres:
         fake_session = MagicMock()
         fake_session.execute.return_value.fetchall.return_value = [fake_row]
 
-        results = _retrieve_vector_postgres([1.0, 2.0, 3.0], 5, fake_session)
+        results = _retrieve_vector_postgres([1.0, 2.0, 3.0], 5, fake_session, subject_id=17)
 
         assert len(results) == 1
         assert results[0][0] is fake_row
@@ -328,6 +366,8 @@ class TestRetrieveVectorPostgres:
         params = call_args[1] if call_args[1] else call_args[0][1]
         assert params["qvec"] == "[1.0,2.0,3.0]"
         assert params["lim"] == 5
+        assert params["subject_id"] == 17
+        assert "user_id = :subject_id" in str(call_args[0][0])
 
 
 class TestRetrieveVectorFromDb:
@@ -366,7 +406,7 @@ class TestRetrieveVectorFromDb:
 
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
 
-        ctx = vector_rag._retrieve_vector_from_db("test", 3, "agent-1", "PRO")
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, "agent-1", "PRO", 21)
         assert isinstance(ctx, RAGContext)
         assert len(ctx.chunks) == 1
         assert ctx.chunks[0].file == "notes.md"
@@ -385,11 +425,27 @@ class TestRetrieveVectorFromDb:
         fake_provider.encode.return_value = []
         vector_rag._embedding_provider = fake_provider
 
-        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
         assert isinstance(ctx, RAGContext)
         assert ctx.chunks == []
 
         # Cleanup
+        vector_rag._embedding_provider = None
+
+    def test_missing_subject_id_returns_empty_without_encoding(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Vector retrieval must fail closed when subject_id is absent."""
+        from core.rag import vector_rag
+
+        fake_provider = MagicMock()
+        vector_rag._embedding_provider = fake_provider
+
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, None)
+
+        assert ctx.chunks == []
+        fake_provider.encode.assert_not_called()
+
         vector_rag._embedding_provider = None
 
     def test_postgres_dialect_calls_postgres_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -420,10 +476,10 @@ class TestRetrieveVectorFromDb:
         monkeypatch.setattr(
             vector_rag,
             "_retrieve_vector_postgres",
-            lambda q, lim, s, corpus_prefixes=None: [(fake_row, 0.9)],
+            lambda q, lim, s, subject_id, corpus_prefixes=None: [(fake_row, 0.9)],
         )
 
-        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
         assert len(ctx.chunks) == 1
         assert ctx.chunks[0].file == "pg.md"
 
@@ -464,7 +520,7 @@ class TestRetrieveVectorFromDb:
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
         monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
 
-        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None)
+        ctx = vector_rag._retrieve_vector_from_db("test", 3, None, None, 21)
         assert ctx.chunks == []
         assert ctx.confidence == 0.0
 
@@ -531,7 +587,7 @@ class TestQueryEmbeddingValidation:
         ]
 
         # 2-dim query vs 3-dim expected — guard should reject
-        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0], 5, fake_session)
+        results = vector_rag._retrieve_vector_sqlite([1.0, 0.0], 5, fake_session, subject_id=7)
         assert results == []
 
 
@@ -564,7 +620,7 @@ class TestCorpusFilteringVectorRag:
         corpus_prefixes = ["docs/cbt/", "docs/psychology/"]
 
         vector_rag._retrieve_vector_postgres(
-            query_embedding, 5, fake_session, corpus_prefixes=corpus_prefixes
+            query_embedding, 5, fake_session, subject_id=99, corpus_prefixes=corpus_prefixes
         )
 
         # Verify SQL contains LIKE clauses for prefixes
@@ -578,6 +634,7 @@ class TestCorpusFilteringVectorRag:
         params = captured_params[0]
         assert params.get("prefix_0") == "docs/cbt/%"
         assert params.get("prefix_1") == "docs/psychology/%"
+        assert params.get("subject_id") == 99
 
     def test_sqlite_corpus_filtering_builds_where_clause(
         self, monkeypatch: pytest.MonkeyPatch
@@ -606,7 +663,7 @@ class TestCorpusFilteringVectorRag:
 
         monkeypatch.setattr(vector_rag, "EMBEDDING_DIMENSIONS", 3)
         vector_rag._retrieve_vector_sqlite(
-            query_embedding, 5, fake_session, corpus_prefixes=corpus_prefixes
+            query_embedding, 5, fake_session, subject_id=99, corpus_prefixes=corpus_prefixes
         )
 
         # Verify SQL contains LIKE clauses for prefixes
@@ -618,6 +675,7 @@ class TestCorpusFilteringVectorRag:
         # Verify params contain prefix patterns
         params = captured_params[0]
         assert params.get("prefix_0") == "docs/cbt/%"
+        assert params.get("subject_id") == 99
 
     def test_retrieve_from_db_logs_warning_when_corpus_empty(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -645,12 +703,12 @@ class TestCorpusFilteringVectorRag:
         monkeypatch.setattr(
             vector_rag,
             "_retrieve_vector_postgres",
-            lambda q, lim, s, corpus_prefixes=None: [],  # Empty results
+            lambda q, lim, s, subject_id, corpus_prefixes=None: [],  # Empty results
         )
 
         with caplog.at_level(logging.WARNING, logger="core.rag.vector_rag"):
             ctx = vector_rag._retrieve_vector_from_db(
-                "test", 3, agent_id="cbt-agent", user_tier="PRO"
+                "test", 3, agent_id="cbt-agent", user_tier="PRO", subject_id=21
             )
 
         # Should return empty context

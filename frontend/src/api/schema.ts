@@ -533,6 +533,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/payments/apple/verify-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Apple Receipt
+         * @description Create or replay iOS receipt activation using deterministic baseline verification.
+         */
+        post: operations["verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/payments/ru-by/manual-intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Manual Payment Intent
+         * @description Create manual RU/BY payment intent with pending reconciliation lifecycle.
+         */
+        post: operations["create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/payments/ru-by/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Manual Payment Intent
+         * @description Apply reconciliation decision to pending manual payment intent.
+         */
+        post: operations["reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/payments/ru-by/reconcile/{intent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Manual Payment Intent Status
+         * @description Fetch current status of manual payment reconciliation intent.
+         */
+        get: operations["get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke": {
         parameters: {
             query?: never;
@@ -1323,6 +1403,8 @@ export interface components {
              * @description Provider-side transaction or intent ID
              */
             external_txn_id?: string | null;
+            /** @description Canonical required plan code for activation intent */
+            plan: components["schemas"]["SubscriptionPlan"];
             source: components["schemas"]["PaymentSource"];
             /**
              * Verification Ok
@@ -1395,6 +1477,22 @@ export interface components {
             risk_slip: number;
             /** User Id */
             user_id: number;
+        };
+        /**
+         * AppleReceiptVerificationRequest
+         * @description Request contract for iOS receipt verification.
+         */
+        AppleReceiptVerificationRequest: {
+            /** Client Event Id */
+            client_event_id: string;
+            /** External Txn Id */
+            external_txn_id?: string | null;
+            plan: components["schemas"]["SubscriptionPlan"];
+            /**
+             * Receipt
+             * @description Opaque App Store receipt blob
+             */
+            receipt: string;
         };
         /**
          * BMICalculateProRequest
@@ -2437,7 +2535,6 @@ export interface components {
             /**
              * Confidence
              * @description RAG retrieval confidence score
-             * @default 0
              */
             confidence: number;
             /**
@@ -2446,16 +2543,37 @@ export interface components {
              */
             insight: string;
             /**
+             * Mode
+             * @description Resolved agent execution mode
+             * @enum {string}
+             */
+            mode: "auto-safe" | "review-required" | "blocked";
+            /**
+             * Quota State
+             * @description Monthly quota state before provider call
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
              * Rag Used
              * @description Whether RAG context was used
-             * @default false
              */
             rag_used: boolean;
             /**
              * Sources
              * @description CBT corpus sources used for context
              */
-            sources?: components["schemas"]["CBTSourceItem"][];
+            sources: components["schemas"]["CBTSourceItem"][];
+            /**
+             * Uncertainty
+             * @description Uncertainty score derived from confidence
+             */
+            uncertainty: number;
+            /**
+             * Warnings
+             * @description Operational or retrieval warnings
+             */
+            warnings: string[];
         };
         /**
          * CBTSourceItem
@@ -2705,6 +2823,51 @@ export interface components {
             } | null;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /**
+         * ManualPaymentSource
+         * @description Manual payment sources allowed in RU/BY intent flow.
+         * @enum {string}
+         */
+        ManualPaymentSource: "erip_qr" | "swift_manual";
+        /**
+         * ManualRailIntentRequest
+         * @description Request contract for RU/BY manual payment intent creation.
+         */
+        ManualRailIntentRequest: {
+            /**
+             * Amount Minor
+             * @description Minor currency units
+             */
+            amount_minor: number;
+            /** Client Event Id */
+            client_event_id: string;
+            currency: components["schemas"]["RuByCurrency"];
+            /** External Txn Id */
+            external_txn_id?: string | null;
+            plan: components["schemas"]["SubscriptionPlan"];
+            source: components["schemas"]["ManualPaymentSource"];
+            /** Verification Payload */
+            verification_payload?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ManualRailReconcileRequest
+         * @description Request contract for RU/BY reconciliation transition.
+         */
+        ManualRailReconcileRequest: {
+            /** Client Event Id */
+            client_event_id: string;
+            decision: components["schemas"]["ReconcileDecision"];
+            /** External Txn Id */
+            external_txn_id?: string | null;
+            /** Intent Id */
+            intent_id: string;
+            /** Verification Payload */
+            verification_payload?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * MealLogRequest
@@ -3828,11 +3991,23 @@ export interface components {
             title: string;
         };
         /**
+         * ReconcileDecision
+         * @description Manual reconciliation decisions.
+         * @enum {string}
+         */
+        ReconcileDecision: "verified" | "rejected";
+        /**
          * ReconcileStatus
          * @description Reconciliation status for financial audit trail.
          * @enum {string}
          */
         ReconcileStatus: "pending" | "verified" | "rejected" | "not_required";
+        /**
+         * RuByCurrency
+         * @description Currencies allowed in RU/BY manual payment flows.
+         * @enum {string}
+         */
+        RuByCurrency: "BYN" | "RUB";
         /**
          * SafetyCheckRequest
          * @description RU: Запрос проверки безопасности целевых значений.
@@ -4575,6 +4750,8 @@ export interface components {
         SubscriptionActivationResponse: {
             /** Activation Id */
             activation_id: string;
+            /** Audit Id */
+            audit_id: string;
             /**
              * Created At
              * Format: date-time
@@ -4582,9 +4759,14 @@ export interface components {
             created_at: string;
             /** External Txn Id */
             external_txn_id?: string | null;
+            /** Intent Id */
+            intent_id: string;
             payment_source: components["schemas"]["PaymentSource"];
+            plan: components["schemas"]["SubscriptionPlan"];
             reconcile_status: components["schemas"]["ReconcileStatus"];
             status: components["schemas"]["ActivationStatus"];
+            /** @description Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier. */
+            subscription_tier: components["schemas"]["SubscriptionTierValue"];
             /**
              * Updated At
              * Format: date-time
@@ -4593,6 +4775,18 @@ export interface components {
             /** Verified At */
             verified_at?: string | null;
         };
+        /**
+         * SubscriptionPlan
+         * @description Canonical subscription plans for billing activation.
+         * @enum {string}
+         */
+        SubscriptionPlan: "pro_monthly" | "vip_monthly";
+        /**
+         * SubscriptionTierValue
+         * @description Requested paid tier implied by the selected billing plan.
+         * @enum {string}
+         */
+        SubscriptionTierValue: "pro" | "vip";
         /**
          * TargetsIn
          * @description Nutrition targets input model.
@@ -5660,6 +5854,265 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleReceiptVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_manual_payment_intent_api_v1_pro_payments_ru_by_manual_intent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualRailIntentRequest"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_manual_payment_intent_api_v1_pro_payments_ru_by_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualRailReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description Activation access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Activation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description client_event_id conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Request validation failed or reconcile state is invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"] | components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_manual_payment_intent_status_api_v1_pro_payments_ru_by_reconcile__intent_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description Activation access forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Activation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
+                };
+            };
+            /** @description Request validation failed or reconcile state is invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"] | components["schemas"]["HTTPValidationError"];
                 };
             };
         };

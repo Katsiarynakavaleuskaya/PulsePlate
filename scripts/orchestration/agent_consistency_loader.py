@@ -1,4 +1,4 @@
-"""Load agent name sets from docs, routing graph, and actual agent files.
+"""Load agent name and cluster sets from docs, routing graph, and agent files.
 
 Used by consistency guards to enforce:
 - routing ⊆ inventory
@@ -6,6 +6,7 @@ Used by consistency guards to enforce:
 - inventory ⊆ capability
 - inventory ⊆ context map
 - routable agents must exist in docs layers or explicit allowlist
+- routed clusters must be declared and used
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Set, Tuple
+from typing import Set, Tuple, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_INVENTORY.md"
@@ -25,6 +26,7 @@ CONTEXT_MAP_PATH = REPO_ROOT / "docs" / "orchestration" / "AGENT_CONTEXT_MAP.md"
 SYSTEM_AGENT_EXCEPTIONS = frozenset({"generalpurpose", "explore", "shell", "ci-watcher"})
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<cols>.+?)\s*\|\s*$")
+_AGENT_NAME_RE = re.compile(r"^name:\s*(?P<name>[a-z0-9][a-z0-9\-]*)\s*$")
 
 # Map capability matrix first-column display names to canonical slugs (inventory/routing).
 _CAPABILITY_DISPLAY_TO_SLUG: dict[str, str] = {
@@ -61,6 +63,8 @@ class AgentConsistencySets:
     capability: Set[str]
     context: Set[str]
     routing: Set[str]
+    routing_clusters: Set[str]
+    declared_clusters: Set[str]
     non_routable: Set[str]
     system_exceptions: Set[str]
 
@@ -115,11 +119,43 @@ def load_inventory_agents(path: Path = INVENTORY_PATH) -> Set[str]:
 
 
 def load_agent_file_slugs(path: Path = AGENTS_DIR) -> Set[str]:
-    """Extract agent slugs from actual .cursor/agents/*.md files."""
+    """Extract canonical slugs from frontmatter-backed agent docs only."""
 
     if not path.is_dir():
         raise FileNotFoundError(f"Missing agent directory: {path}")
-    return {p.stem for p in path.glob("*.md") if p.name != "AGENTS.md"}
+
+    agents: Set[str] = set()
+    for agent_doc in path.glob("*.md"):
+        if agent_doc.name == "AGENTS.md":
+            continue
+        frontmatter_name = _load_agent_frontmatter_name(agent_doc)
+        if not frontmatter_name:
+            continue
+        file_slug = agent_doc.stem.lower()
+        if file_slug != frontmatter_name:
+            raise ValueError(
+                f"Agent doc filename/frontmatter mismatch: {agent_doc.name} declares "
+                f"{frontmatter_name!r}"
+            )
+        agents.add(frontmatter_name)
+    return agents
+
+
+def _load_agent_frontmatter_name(path: Path) -> str | None:
+    """Return canonical slug from agent frontmatter or None for non-agent docs."""
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return None
+        match = _AGENT_NAME_RE.match(stripped)
+        if match:
+            return match.group("name")
+    return None
 
 
 def load_index_agents(path: Path = INDEX_PATH) -> Set[str]:
@@ -208,6 +244,22 @@ def load_routing_agents() -> Set[str]:
     return out
 
 
+def load_routing_clusters() -> Set[str]:
+    """Extract cluster slugs used by routed domains in the routing graph."""
+
+    from scripts.orchestration.routing_graph_loader import load_routing_graph
+
+    return {route.cluster for route in load_routing_graph().values()}
+
+
+def load_declared_routing_clusters() -> Set[str]:
+    """Extract cluster slugs declared in the routing graph cluster table."""
+
+    from scripts.orchestration.routing_graph_loader import load_declared_clusters as _load
+
+    return cast(Set[str], _load())
+
+
 def load_non_routable_agents(path: Path = NON_ROUTABLE_PATH) -> Set[str]:
     """Extract explicit non-routable agent slugs from markdown list."""
 
@@ -243,6 +295,8 @@ def load_agent_sets() -> AgentConsistencySets:
     capability = load_capability_agents()
     context = load_context_agents()
     routing = load_routing_agents()
+    routing_clusters = load_routing_clusters()
+    declared_clusters = load_declared_routing_clusters()
     non_routable = load_non_routable_agents()
     return AgentConsistencySets(
         files=files,
@@ -251,6 +305,8 @@ def load_agent_sets() -> AgentConsistencySets:
         capability=capability,
         context=context,
         routing=routing,
+        routing_clusters=routing_clusters,
+        declared_clusters=declared_clusters,
         non_routable=non_routable,
         system_exceptions=set(SYSTEM_AGENT_EXCEPTIONS),
     )

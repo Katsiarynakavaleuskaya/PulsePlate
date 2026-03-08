@@ -34,6 +34,7 @@ from reportlab.platypus.tables import Table as RLTable
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
+from app.routers.shoplist_export_routes import SHOPLIST_EXPORT_CSV_PATH, SHOPLIST_EXPORT_PDF_PATH
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 
 # Export Table for backward compatibility with tests
@@ -41,7 +42,13 @@ Table = RLTable
 
 logger = logging.getLogger(__name__)
 
-plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
+PLAN_ROUTE_PREFIX = "/api/v1/plan"
+WEEK_EXPORT_CSV_ROUTE = "/week/export.csv"
+WEEK_EXPORT_PDF_ROUTE = "/week/export.pdf"
+WEEK_EXPORT_CSV_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_CSV_ROUTE}"
+WEEK_EXPORT_PDF_PATH = f"{PLAN_ROUTE_PREFIX}{WEEK_EXPORT_PDF_ROUTE}"
+
+plan_router = APIRouter(prefix=PLAN_ROUTE_PREFIX, tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
 
@@ -60,6 +67,14 @@ SLOGAN = {
     "de": "Immer am Puls von dir",
 }
 DEFAULT_LANG = "en"
+SIGNABLE_EXPORT_PATHS = frozenset(
+    {
+        WEEK_EXPORT_CSV_PATH,
+        WEEK_EXPORT_PDF_PATH,
+        SHOPLIST_EXPORT_CSV_PATH,
+        SHOPLIST_EXPORT_PDF_PATH,
+    }
+)
 
 
 class SignRequest(BaseModel):
@@ -354,7 +369,7 @@ def _require_valid_token(request: Request) -> None:
         raise HTTPException(status_code=403, detail="invalid or expired token")
 
 
-@plan_router.get("/week/export.csv", responses=RATE_LIMIT_429_RESPONSES)
+@plan_router.get(WEEK_EXPORT_CSV_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
@@ -452,7 +467,7 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
     return story
 
 
-@plan_router.get("/week/export.pdf", responses=RATE_LIMIT_429_RESPONSES)
+@plan_router.get(WEEK_EXPORT_PDF_ROUTE, responses=RATE_LIMIT_429_RESPONSES)
 @limit_if_available(RATE_LIMIT_EXPORTS)
 def export_week_pdf(
     request: Request,
@@ -577,11 +592,13 @@ def export_week_pdf(
 
 def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
     path = payload.path
-    if not path.startswith("/api/"):
-        raise HTTPException(status_code=400, detail="path must start with /api/")
+    if path not in SIGNABLE_EXPORT_PATHS:
+        raise HTTPException(status_code=400, detail="path is not signable")
     ttl = int(payload.ttl_seconds or EXPORT_TOKEN_TTL_SECONDS)
     if ttl <= 0:
         raise HTTPException(status_code=400, detail="ttl must be positive")
+    if ttl > EXPORT_TOKEN_TTL_SECONDS:
+        raise HTTPException(status_code=400, detail="ttl exceeds configured max")
     exp_ts = int((datetime.now(timezone.utc) + timedelta(seconds=ttl)).timestamp())
     signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})

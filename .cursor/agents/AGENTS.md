@@ -125,5 +125,5 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 
 ---
 
-**Last updated:** 2026-01-23 (PR-566)
+**Last updated:** 2026-03-07 (PR-1000)
 **Related:** Root `AGENTS.md`, `docs/orchestration/workflow.md`, `docs/agents/model_policy.md`

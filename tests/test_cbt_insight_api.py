@@ -20,6 +20,8 @@ from sqlalchemy import text
 from app.middleware.api_tiers import TEST_KEY_PRO
 from app.security.llm_monthly_quota import llm_key_fingerprint, month_start_date_utc
 
+from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+
 if TYPE_CHECKING:
     from core.rag.contracts import RAGContext
 
@@ -66,6 +68,14 @@ def _seed_usage_row(
         )
 
 
+def _json_body(response: object) -> object:
+    """Assert JSON response contract before decoding."""
+
+    content_type = getattr(response, "headers", {}).get("content-type", "")
+    assert content_type.startswith("application/json")
+    return getattr(response, "json")()
+
+
 class TestCBTInsightTierGating:
     """Tests for PRO tier gating on CBT insight endpoint."""
 
@@ -105,8 +115,7 @@ class TestCBTInsightTierGating:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
-        assert response.headers.get("content-type", "").startswith("application/json")
-        data = response.json()
+        data = _json_body(response)
         assert "rag_used" in data
         assert "sources" in data
         assert "confidence" in data
@@ -123,7 +132,8 @@ class TestCBTInsightTierGating:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 503
-        assert "not enabled" in response.json().get("detail", "").lower()
+        data = _json_body(response)
+        assert "not enabled" in data.get("detail", "").lower()
 
     def _mock_rag_and_llm(self) -> None:
         """Mock RAG retrieval and LLM provider for deterministic tests."""
@@ -190,7 +200,8 @@ class TestCBTInsightFeatureFlag:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 503
-        assert "not enabled" in response.json()["detail"].lower()
+        data = _json_body(response)
+        assert "not enabled" in data["detail"].lower()
 
     def test_feature_enabled_explicit_true(self) -> None:
         """FEATURE_CBT_AGENT=true enables endpoint."""
@@ -249,6 +260,39 @@ class TestCBTInsightFeatureFlag:
             "llm.get_provider",
             lambda: mock_provider,
         )
+
+
+class TestCBTInsightSubjectIdPropagation:
+    """Tests that CBT endpoint keeps user_knowledge retrieval scoped per subject."""
+
+    def test_cbt_insight_passes_subject_id(
+        self,
+        client: TestClient,
+        pro_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CBT insight derives subject_id from authenticated PRO API key."""
+        monkeypatch.setenv("FEATURE_CBT_AGENT", "true")
+        observed: dict[str, int | None] = {"subject_id": None}
+
+        def _retrieve(*args: object, **kwargs: object) -> object:
+            observed["subject_id"] = kwargs.get("subject_id")
+            return _make_rag_context()
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "CBT response"
+
+        monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _retrieve)
+        monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        response = client.post(
+            "/api/v1/pro/cbt/insight",
+            json={"query": "How do I handle negative thoughts?"},
+            headers=pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert observed["subject_id"] == derive_subject_id_from_api_key(TEST_KEY_PRO)
 
 
 class TestCBTInsightValidation:
@@ -439,8 +483,7 @@ class TestCBTInsightRAGIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
-        assert response.headers.get("content-type", "").startswith("application/json")
-        data = response.json()
+        data = _json_body(response)
         assert data["rag_used"] is True
         assert data["confidence"] == pytest.approx(0.88, 0.01)
         assert data["uncertainty"] == pytest.approx(0.12, 0.01)
@@ -471,8 +514,7 @@ class TestCBTInsightRAGIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
-        assert response.headers.get("content-type", "").startswith("application/json")
-        data = response.json()
+        data = _json_body(response)
         assert data["rag_used"] is False
         assert data["sources"] == []
         assert data["confidence"] == 0.0
@@ -500,8 +542,7 @@ class TestCBTInsightRAGIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 200
-        assert response.headers.get("content-type", "").startswith("application/json")
-        data = response.json()
+        data = _json_body(response)
         assert data["rag_used"] is False
         assert data["insight"] == "Fallback CBT response"
         assert "rag_retrieval_failed" in data["warnings"]
@@ -521,7 +562,8 @@ class TestCBTInsightRAGIntegration:
         )
 
         assert response.status_code == 503
-        assert response.json()["detail"] == "rag_retrieval_unavailable"
+        data = _json_body(response)
+        assert data["detail"] == "rag_retrieval_unavailable"
 
     def test_response_redacts_pii_in_sources(self) -> None:
         """Source previews must redact common PII before returning to client."""
@@ -554,8 +596,8 @@ class TestCBTInsightRAGIntegration:
             headers=self.pro_headers,
         )
 
-        data = response.json()
         assert response.status_code == 200
+        data = _json_body(response)
         assert "[EMAIL_REDACTED]" in data["sources"][0]["preview"]
         assert "[PHONE_REDACTED]" in data["sources"][0]["preview"]
         assert "source_content_redacted" in data["warnings"]
@@ -607,7 +649,8 @@ class TestCBTInsightLLMIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 503
-        assert "not available" in response.json()["detail"].lower()
+        data = _json_body(response)
+        assert "not available" in data["detail"].lower()
 
     def test_llm_empty_response_returns_503(self) -> None:
         """When LLM returns empty response, endpoint returns 503."""
@@ -632,7 +675,7 @@ class TestCBTInsightLLMIntegration:
 
         assert response.status_code == 503
         # Empty LLM response triggers 503 with "empty response" or "failed" in message
-        detail = response.json()["detail"].lower()
+        detail = _json_body(response)["detail"].lower()
         assert "empty response" in detail or "failed" in detail
 
     def test_llm_generation_failure_returns_503(self) -> None:
@@ -657,7 +700,8 @@ class TestCBTInsightLLMIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 503
-        assert "failed" in response.json()["detail"].lower()
+        data = _json_body(response)
+        assert "failed" in data["detail"].lower()
 
     def test_execution_mode_blocked_returns_503(self) -> None:
         """Blocked execution mode must fail closed before privileged work."""
@@ -668,7 +712,22 @@ class TestCBTInsightLLMIntegration:
             headers=self.pro_headers,
         )
         assert response.status_code == 503
-        assert response.json()["detail"] == "agent_execution_blocked"
+        data = _json_body(response)
+        assert data["detail"] == "agent_execution_blocked"
+
+    def test_execution_mode_misconfigured_returns_503(self) -> None:
+        """Invalid execution mode config must return controlled 503."""
+        self.monkeypatch.setenv("CBT_AGENT_EXECUTION_MODE", "semi-auto")
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Test query"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        data = _json_body(response)
+        assert data["detail"] == "agent_execution_mode_misconfigured"
 
     def test_pro_monthly_quota_returns_429_before_provider_call(
         self,
@@ -700,8 +759,46 @@ class TestCBTInsightLLMIntegration:
         )
 
         assert response.status_code == 429
-        assert response.json() == {"detail": "quota_exceeded"}
+        assert _json_body(response) == {"detail": "quota_exceeded"}
         mock_provider.generate.assert_not_called()
+
+    def test_llm_audit_failure_returns_503_without_consuming_quota(self) -> None:
+        """LLM audit/policy failures must fail before quota consumption."""
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+
+        def _fail_llm_audit(**kwargs: object) -> None:
+            if kwargs["action"] == "llm.generate":
+                raise RuntimeError("audit down")
+
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight._persist_privileged_action_audit",
+            _fail_llm_audit,
+        )
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        data = _json_body(response)
+        assert data["detail"] == "llm_generation_unavailable"
+        assert quota_calls == []
 
     def test_llm_timeout_returns_504(self) -> None:
         """When LLM call times out, endpoint returns 504."""
@@ -739,5 +836,5 @@ class TestCBTInsightLLMIntegration:
         response = self.client.post(self.url, json=payload, headers=self.pro_headers)
 
         assert response.status_code == 504
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert "timed out" in response.json()["detail"].lower()
+        data = _json_body(response)
+        assert "timed out" in data["detail"].lower()

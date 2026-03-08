@@ -139,6 +139,16 @@ class AgentInputScanResult:
     threats: tuple[AgentInputThreat, ...]
 
 
+def _load_upstream_agent_guard_class() -> type[object] | None:
+    """Load the optional upstream AgentGuard class through a patchable seam."""
+
+    try:
+        from agent_guard import AgentGuard as upstream_agent_guard
+    except Exception:
+        return None
+    return upstream_agent_guard
+
+
 def _normalize_for_detection(text: str) -> str:
     """Normalize text for pattern matching without mutating user payload."""
 
@@ -155,13 +165,12 @@ def _try_upstream_scan(text: str) -> AgentInputScanResult | None:
     `scan(...)->result.is_safe` contract is accepted.
     """
 
-    try:
-        from agent_guard import AgentGuard as UpstreamAgentGuard
-    except Exception:
+    upstream_agent_guard = _load_upstream_agent_guard_class()
+    if upstream_agent_guard is None:
         return None
 
     try:
-        guard = UpstreamAgentGuard()
+        guard = upstream_agent_guard()
     except Exception:
         return None
 

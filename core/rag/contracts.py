@@ -22,14 +22,6 @@ AGENT_CORPUS_MAP: dict[str, list[str]] = {
 """Maps agent_id to list of corpus path prefixes for filtered retrieval."""
 
 
-class CorpusNotIndexedError(Exception):
-    """Raised when expected agent corpus is not indexed or empty."""
-
-    def __init__(self, agent_id: str) -> None:
-        self.agent_id = agent_id
-        super().__init__(f"No indexed corpus found for agent_id={agent_id}")
-
-
 @dataclass
 class RAGChunk:
     """Single retrieved chunk with provenance and score."""

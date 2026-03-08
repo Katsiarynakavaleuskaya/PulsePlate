@@ -9,13 +9,26 @@ Modes:
 
 from __future__ import annotations
 
+import shutil
 import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-06-30, ref: PR-996)
 import sys
 from pathlib import Path
 
-from scripts.orchestration.context_pack import collect_scoped_agents, repo_relative_paths
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-ROOT = Path(__file__).resolve().parents[2]
+from scripts.orchestration.context_pack import (
+    collect_scoped_agents,
+    find_nearest_agents_file,
+    repo_relative_paths,
+)
+
+ROOT = REPO_ROOT
+GIT_BIN = shutil.which("git")
+if GIT_BIN is None:
+    raise RuntimeError("git executable not found on PATH")
+GIT_EXECUTABLE: str = GIT_BIN
 
 REQUIRED_FILES = [
     "docs/orchestration/workflow.md",
@@ -31,6 +44,8 @@ VALID_MODES = {"analyze", "execute", "merge"}
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+    if cmd and cmd[0] == "git":
+        cmd = [GIT_EXECUTABLE, *cmd[1:]]
     r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-06-30, ref: PR-996)
         cmd,
         cwd=cwd or ROOT,
@@ -180,11 +195,16 @@ def check_scoped_agents_exist(task_paths: list[str]) -> bool:
         print("FAIL: preflight requires at least one --path to resolve scoped AGENTS")
         return False
 
-    scoped_agents = collect_scoped_agents(normalized_paths)
-    if not scoped_agents:
-        print("FAIL: no scoped AGENTS.md files resolved for candidate paths")
+    missing_resolution = [
+        path for path in normalized_paths if find_nearest_agents_file(path) is None
+    ]
+    if missing_resolution:
+        print("FAIL: nearest scoped AGENTS.md missing for candidate paths:")
+        for path in missing_resolution:
+            print(f"  - {path}")
         return False
 
+    scoped_agents = collect_scoped_agents(normalized_paths)
     missing = [path for path in scoped_agents if not (ROOT / path).is_file()]
     if missing:
         print("FAIL: resolved scoped AGENTS.md paths missing:")
@@ -222,14 +242,38 @@ def check_gate_evidence(files: list[str]) -> bool:
         print("FAIL: merge mode requires at least one --evidence-file")
         return False
 
-    missing = [path for path in files if not Path(path).is_file()]
+    resolved_paths = [
+        Path(raw_path) if Path(raw_path).is_absolute() else ROOT / raw_path for raw_path in files
+    ]
+
+    missing = [
+        raw_path
+        for raw_path, resolved_path in zip(files, resolved_paths)
+        if not resolved_path.is_file()
+    ]
     if missing:
         print("FAIL: gate evidence files missing:")
         for path in missing:
             print(f"  - {path}")
         return False
 
-    empty = [path for path in files if not Path(path).read_text(encoding="utf-8").strip()]
+    unreadable: list[str] = []
+    empty: list[str] = []
+    for raw_path, resolved_path in zip(files, resolved_paths):
+        try:
+            content = resolved_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            unreadable.append(raw_path)
+            continue
+        if not content.strip():
+            empty.append(raw_path)
+
+    if unreadable:
+        print("FAIL: gate evidence files must be readable UTF-8 text:")
+        for path in unreadable:
+            print(f"  - {path}")
+        return False
+
     if empty:
         print("FAIL: gate evidence files must be non-empty:")
         for path in empty:

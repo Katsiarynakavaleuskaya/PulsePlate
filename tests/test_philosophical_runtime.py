@@ -9,6 +9,7 @@ import pytest
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
     FalsificationChecker,
+    StatementKind,
     VerificationEnforcer,
 )
 from core.insight.aristotelian import (
@@ -77,6 +78,15 @@ class TestPhilosophicalQueryRouter:
         assert decision.target_depth == 1
         assert decision.needs_generation is False
 
+    def test_definition_cache_uses_word_boundaries(self) -> None:
+        router = PhilosophicalQueryRouter()
+
+        decision = router.route("What is proteinuria?")
+
+        assert decision.route_type == RouteType.DIRECT_DEFINITION
+        assert decision.needs_generation is True
+        assert "cached_definition" not in decision.reason_codes
+
 
 class TestAristotelianHelpers:
     """Deterministic Aristotelian helpers should be stable and predictable."""
@@ -114,6 +124,13 @@ class TestAristotelianHelpers:
 
         assert len(contradictions) >= 2
 
+    def test_non_contradiction_checker_normalizes_contractions(self) -> None:
+        checker = NonContradictionChecker()
+
+        contradictions = checker.check("This plan isn't balanced. This plan is balanced.")
+
+        assert any(item.kind == "negation" for item in contradictions)
+
 
 class TestAnalyticalHelpers:
     """Verification and falsification helpers should classify deterministic claims."""
@@ -129,6 +146,13 @@ class TestAnalyticalHelpers:
             classifier.classify("According to WHO, BMI 25-29.9 is overweight.").value == "synthetic"
         )
         assert classifier.classify("This is the perfect diet for everyone.").value == "metaphysical"
+
+    def test_analytical_classifier_does_not_treat_question_word_as_citation(self) -> None:
+        classifier = AnalyticalSyntheticClassifier()
+
+        result = classifier.classify("Who can help me improve my breakfast routine?")
+
+        assert result == StatementKind.UNKNOWN
 
     def test_verification_enforcer_uses_citations_for_synthetic_claims(self) -> None:
         enforcer = VerificationEnforcer()
@@ -242,3 +266,44 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type is None
         assert result.metadata.depth_used == 0
         assert result.metadata.reason_codes == []
+
+
+def test_runtime_telemetry_initializes_metrics_lazily(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.insight import telemetry as telemetry_mod
+
+    build_calls = {"count": 0}
+    original_state = (
+        telemetry_mod._RUNTIME_TOTAL,
+        telemetry_mod._REWRITE_TOTAL,
+        telemetry_mod._DEPTH_HISTOGRAM,
+        telemetry_mod._TOKEN_SAVINGS_HISTOGRAM,
+        telemetry_mod._METRICS_READY,
+    )
+
+    def _fake_build_metrics() -> tuple[object, object, object, object]:
+        build_calls["count"] += 1
+        return object(), object(), object(), object()
+
+    telemetry_mod._RUNTIME_TOTAL = None
+    telemetry_mod._REWRITE_TOTAL = None
+    telemetry_mod._DEPTH_HISTOGRAM = None
+    telemetry_mod._TOKEN_SAVINGS_HISTOGRAM = None
+    telemetry_mod._METRICS_READY = False
+    monkeypatch.setattr(telemetry_mod, "_build_metrics", _fake_build_metrics)
+
+    try:
+        first = telemetry_mod._get_metrics()
+        second = telemetry_mod._get_metrics()
+    finally:
+        (
+            telemetry_mod._RUNTIME_TOTAL,
+            telemetry_mod._REWRITE_TOTAL,
+            telemetry_mod._DEPTH_HISTOGRAM,
+            telemetry_mod._TOKEN_SAVINGS_HISTOGRAM,
+            telemetry_mod._METRICS_READY,
+        ) = original_state
+
+    assert build_calls["count"] == 1
+    assert first == second
