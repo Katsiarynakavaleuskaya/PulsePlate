@@ -77,7 +77,7 @@ motivation model for a wellness product.
 ## Fit to FREE / PRO / VIP Contract
 
 - **FREE:** explain what BMI captures, what it does not capture, and why the result is
-  an orientation layer rather than a diagnosis.
+  an orientation layer rather than an individualized assessment.
 - **PRO:** explain why interpretation changes when additional signals such as waist
   context or other risk signals are present.
 - **VIP:** explain why the current plan, target, or action is recommended and what
@@ -121,8 +121,10 @@ These interfaces remain backend-owned and rules-first:
 - Backend owns explainer assembly and cycle unlock logic.
 - Frontend and iOS render payloads only.
 - No new heavy LLM endpoint is introduced on the core path.
-- Any optional AI-assisted copy must remain behind current safety, quota, and
-  economic controls.
+- Any optional AI-assisted copy must remain behind current quota and economic
+  controls, and must pass
+  `core.insight.philosophy_validator.validate_llm_output(...)` before use in
+  product copy or coaching surfaces.
 - Any telemetry must remain low-cardinality and privacy-safe.
 
 ## GTM Positioning
