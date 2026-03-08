@@ -31,8 +31,8 @@ from core.insight.linguistic import (
 from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticValidator
 from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
+import core.rag.orchestration as rag_orchestration
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
-from core.rag.orchestration import retrieve_and_validate_rag
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
@@ -391,7 +391,7 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            rag_result = await retrieve_and_validate_rag(
+            rag_result = await rag_orchestration.retrieve_and_validate_rag(
                 prompt_input,
                 max_chunks=3,
                 philo_validation_enabled=philo_validation_enabled,

@@ -5336,6 +5336,13 @@ export interface operations {
                     "application/json": components["schemas"]["CBTInsightResponse"];
                 };
             };
+            /** @description Unsafe agent input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description API key required for PRO tier access */
             401: {
                 headers: {
