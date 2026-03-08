@@ -61,3 +61,27 @@ Evidence: `tokens/00_core/radius.json` now uses unit-bearing `0px` for `radius.n
 Disposition: FIXED
 Commit: a5adeaa7
 Evidence: `tokens/30_platform/web.json` now maps `radiusXl` to `var(--radius-xl)` so the generated `--pp-radius-xl` alias references the canonical radius token without self-reference recursion.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3911994492 -> a5adeaa7
+Disposition: FIXED
+Commit: a5adeaa7
+Evidence: Cubic's summary review aggregates the concrete findings already fixed in `a5adeaa7` across `Makefile`, `frontend/scripts/build-tokens.mjs`, `tests/test_design_token_parity.py`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`, `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`, and `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3911997283
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md:126` already directs web token edits to `/tokens`; `.github/workflows/ci.yml:17` already includes `pull_request.types` with `edited` for the governance workflow that reruns PR-body gates; `.github/workflows/ci.yml:340` already runs `tests/test_openapi_determinism.py`.
+Reason: This CodeRabbit review object is an aggregate summary over inline/outside-diff findings, not an additional unresolved issue; fixed findings are mapped above and remaining notes are optional nits or already-satisfied contracts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902462078 -> 04df1621
+Disposition: FIXED
+Commit: 04df1621
+Evidence: `docs/design/TOKENS_SOT.md` now anchors canonical claims with direct repo evidence, including `/tokens`, generated web mirrors, Storybook review lane, iOS mirrors, and `figma-manifest.json`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902462080 -> 04df1621
+Disposition: FIXED
+Commit: 04df1621
+Evidence: `frontend/src/styles/__tests__/tokens.test.ts` now resolves the CSS fixture path through `fileURLToPath(new NodeURL(..., import.meta.url))`, removing the invalid `__dirname` pattern in Vitest ESM tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902462083 -> 04df1621
+Disposition: FIXED
+Commit: 04df1621
+Evidence: `frontend/scripts/build-tokens.mjs` now emits a blank line before `accent-color`, and regenerated `frontend/src/styles/tokens.css` includes the stylelint-clean separation between breakpoint vars and the native control declaration.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3912061781 -> 04df1621
+Disposition: FIXED
+Commit: 04df1621
+Evidence: `04df1621` fixes every actionable item from this aggregate CodeRabbit review: evidence anchors in `docs/design/TOKENS_SOT.md`, ESM-safe fixture loading in `frontend/src/styles/__tests__/tokens.test.ts`, generator-owned blank-line output in `frontend/scripts/build-tokens.mjs`/`frontend/src/styles/tokens.css`, and `pull_request.types` with `edited` in `.github/workflows/frontend-ci.yml`.
