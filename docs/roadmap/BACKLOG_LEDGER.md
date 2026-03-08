@@ -45,31 +45,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Injection-pattern regression tests are added and green
     - No contract break for current insight endpoints
 
-<a id="ledger-p1-users-surface-hardening"></a>
-- [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #1038
-  - Area: backend / auth / data protection
-  - Finding Type: access-control gap
-  - Status: In progress
-  - Reason: `app/routers/users.py` already enforces an app-level API key, and this PR internalizes the users surface in the canonical entrypoint by hiding `/api/v1/users*` from the public OpenAPI contract and removing stale FREE-surface copy. The remaining follow-up is the required docs-only closure PR after merge so the ledger status can move from in-progress to closed.
-  - Links:
-    - `app/routers/users.py`
-    - `legacy_app.py`
-    - `app/main.py`
-    - `tests/test_users_api.py`
-    - `tests/test_users_router.py`
-    - `docs/security/SECURITY_POSTURE.md`
-  - DoD:
-    - Users CRUD keeps explicit app-level API key guard and rejects unauthenticated GET/POST/DELETE requests deterministically
-    - Runtime route registration keeps `/api/v1/users*` available for internal callers while `include_in_schema=False` prevents public schema exposure
-    - Current docs stop describing `/api/v1/users*` as FREE/public surface
-    - `pre-commit run --all-files` and `make verify` pass in PR scope
-    - OpenAPI and tests reflect the chosen access contract
-    - Destructive operations require authenticated/authorized access
-    - If retirement is deferred, production exposure status is documented with owner and date
-
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
@@ -323,27 +298,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - App fails closed or logs explicit startup error when anonymous/dev API key toggles are enabled in production-like envs
     - Tests cover fail-closed behavior for production/staging settings
     - Deploy docs show the safe production values
-
-
-<a id="ledger-p1-users-surface-hardening"></a>
-- [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-USERS-SURFACE-HARDENING
-  - Area: backend / auth / data protection
-  - Finding Type: access-control gap
-  - Reason: `app/routers/users.py` exposes create/list/get/delete routes without any auth dependency. Even if the surface is low-traffic, the current contract permits enumeration, spam, and destructive access on a user table.
-  - Links:
-    - `app/routers/users.py`
-    - `app/main.py`
-    - `tests/test_users_api.py`
-    - `tests/test_users_router.py`
-    - `docs/security/SECURITY_POSTURE.md`
-  - DoD:
-    - Route policy is decided explicitly: protect with admin/API-key dependency, move behind internal-only surface, or remove if unused
-    - OpenAPI and tests reflect the chosen access contract
-    - Destructive operations require authenticated/authorized access
-    - If retirement is deferred, production exposure status is documented with owner and date
 
 
 <a id="ledger-p1-openapi-decoupling-split"></a>
@@ -2536,6 +2490,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P1
+
+<a id="ledger-p1-users-surface-hardening"></a>
+- [x] P1: Public users CRUD surface must be authenticated or explicitly retired
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1038 (`fix/security-users-surface-hardening`)
+  - Status: ✅ Merged (PR #1038, 2026-03-08)
+  - Area: backend / auth / data protection
+  - Finding Type: access-control gap
+  - Reason: Docs-only closure after PR #1038. Repo truth is now explicit: `app/routers/users.py` retained internal app-level protection while PR #1038 hid `/api/v1/users*` from the canonical public OpenAPI/schema surface and added deny-path regression coverage for unauthenticated access.
+  - Links:
+    - `app/routers/users.py`
+    - `app/main.py`
+    - `tests/test_users_api.py`
+    - `tests/test_users_router.py`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/review/PR_1038_FIXED_MAPPING.md`
+  - DoD:
+    - Route policy is decided explicitly: protect with admin/API-key dependency, move behind internal-only surface, or remove if unused
+    - OpenAPI and tests reflect the chosen access contract
+    - Destructive operations require authenticated/authorized access
+    - Docs-only closure keeps ledger state aligned with merged repo truth
 
 - [x] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
