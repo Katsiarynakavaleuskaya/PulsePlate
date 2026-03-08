@@ -12,6 +12,10 @@ export const canonicalBrand = {
   gold: "#d4af37",
 } as const;
 
+/**
+ * @deprecated Use canonicalBrand.* directly in new code.
+ * Kept only for soft migration compatibility.
+ */
 export const legacyBrandAliases = {
   primary: canonicalBrand.blue,
   accent: canonicalBrand.green,
@@ -165,7 +169,7 @@ export const typography = {
 } as const;
 
 export const borderRadius = {
-  none: "0",
+  none: "0px",
   sm: "0.125rem",
   base: "0.25rem",
   md: "0.375rem",

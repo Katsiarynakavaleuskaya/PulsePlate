@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOKENS_CSS = REPO_ROOT / "frontend" / "src" / "styles" / "tokens.css"
@@ -258,16 +261,23 @@ def test_swift_asset_extension_routes_heart_to_brand_red() -> None:
 def test_token_build_script_is_deterministic() -> None:
     tracked_paths = [TOKENS_CSS, TOKENS_TS, SWIFT_GENERATED]
     before = {path: _read_text(path) for path in tracked_paths}
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("Node.js is required for token parity checks")
+    if not (REPO_ROOT / "frontend" / "node_modules" / "style-dictionary").exists():
+        pytest.skip("Token parity determinism test requires frontend/style-dictionary toolchain")
 
+    snapshots: list[dict[Path, str]] = []
     for _ in range(2):
         result = subprocess.run(
-            ["node", "frontend/scripts/build-tokens.mjs"],
+            [node_path, "frontend/scripts/build-tokens.mjs"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=False,
         )
         assert result.returncode == 0, result.stderr or result.stdout
+        snapshots.append({path: _read_text(path) for path in tracked_paths})
 
-    after = {path: _read_text(path) for path in tracked_paths}
-    assert after == before
+    assert snapshots[0] == before
+    assert snapshots[0] == snapshots[1]

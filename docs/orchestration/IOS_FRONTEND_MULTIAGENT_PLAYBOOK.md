@@ -123,7 +123,7 @@ This is how we keep Web+iOS visually consistent without blocking velocity.
   - Any new “style decision” must be either:
     - mapped to an existing token, or
     - proposed as a new token (and recorded in the ledger if deferred)
-  - Web token changes start from `tokens.css`; `tokens.ts` mirrors only the runtime-approved result
+  - Web token changes start from `/tokens`; `tokens.css` and `tokens.ts` are generated runtime mirrors
   - Storybook may be used to review changed web primitives, but it does not define token canon
 - **Accessibility defaults**
   - iOS: VoiceOver labels + Dynamic Type sizing + 44×44pt tap targets

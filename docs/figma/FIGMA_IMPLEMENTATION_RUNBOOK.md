@@ -137,13 +137,17 @@ Run refresh before every Figma task, before PR review, and weekly.
 ```bash
 git diff --name-only origin/main...HEAD -- \
   docs/figma docs/design docs/sora \
+  tokens \
   frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/DesignSystem/DesignTokens.generated.swift \
   ios/PulsePlate/DesignSystem/DesignTokens.swift \
   ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
 
 git log --since="14 days ago" -- \
   docs/figma docs/design docs/sora \
+  tokens \
   frontend/src/styles frontend/tailwind.config.ts \
+  ios/PulsePlate/DesignSystem/DesignTokens.generated.swift \
   ios/PulsePlate/DesignSystem/DesignTokens.swift \
   ios/PulsePlate/Assets.xcassets ios/PulsePlate/Extensions/Color+Assets.swift
 

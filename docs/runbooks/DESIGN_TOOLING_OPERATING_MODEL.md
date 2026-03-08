@@ -20,7 +20,7 @@ without creating a second hidden source of truth.
 6. `Airweave` is research ingestion only.
 7. `Penpot` is a secondary design lane only.
 
-Hard rule: tools `3-6` may inform work, but they do not override runtime
+Hard rule: tools `4-7` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance.
 
 ## 3. Runtime Baseline

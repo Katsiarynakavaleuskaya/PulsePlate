@@ -177,11 +177,13 @@ tokens-check:
 	@before_diff=$$(mktemp); \
 	after_diff=$$(mktemp); \
 	git diff -- $(TOKEN_PARITY_PATHS) > "$$before_diff"; \
-	$(MAKE) --no-print-directory tokens-build; \
-	(cd frontend && npm run tokens:check); \
-	git diff -- $(TOKEN_PARITY_PATHS) > "$$after_diff"; \
+	$(MAKE) --no-print-directory tokens-build && \
+	(cd frontend && npm run tokens:check) && \
+	git diff -- $(TOKEN_PARITY_PATHS) > "$$after_diff" && \
 	diff -u "$$before_diff" "$$after_diff"; \
-	rm -f "$$before_diff" "$$after_diff"
+	status=$$?; \
+	rm -f "$$before_diff" "$$after_diff"; \
+	exit $$status
 	python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json
 	@if [ -x .venv/bin/python ]; then \
 		. .venv/bin/activate && python -m pytest -q $(TOKEN_PARITY_TESTS); \

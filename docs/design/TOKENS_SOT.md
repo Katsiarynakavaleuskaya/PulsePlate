@@ -20,9 +20,9 @@ Policy references:
 - Tokens Studio does not create a separate source-precedence lane and does not
   override repo runtime artifacts on its own.
 
-### 2. Runtime lane
+### 2. Build and runtime lane
 
-- Repo token authoring tree:
+- Runtime mirrors are generated from:
   - `tokens/00_core/`
   - `tokens/10_semantic/`
   - `tokens/30_platform/`

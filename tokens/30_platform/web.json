@@ -6,7 +6,7 @@
         "accent": { "$type": "string", "$value": "var(--pp-green)" },
         "text": { "$type": "string", "$value": "var(--color-text)" },
         "muted": { "$type": "string", "$value": "var(--color-text-muted)" },
-        "radiusXl": { "$type": "string", "$value": "1.25rem" },
+        "radiusXl": { "$type": "string", "$value": "var(--radius-xl)" },
         "space2": { "$type": "string", "$value": "var(--spacing-2)" },
         "space3": { "$type": "string", "$value": "var(--spacing-3)" }
       },

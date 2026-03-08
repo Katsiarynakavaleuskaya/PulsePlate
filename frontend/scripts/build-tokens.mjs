@@ -26,6 +26,25 @@ function swiftHex(value) {
   return String(value).toUpperCase();
 }
 
+function hexToRgbChannels(value) {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(String(value));
+  if (!match) {
+    throw new Error(`Expected 6-digit hex color, got: ${value}`);
+  }
+
+  const hex = match[1];
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+  ];
+}
+
+function rgbaFromHex(value, alpha) {
+  const [red, green, blue] = hexToRgbChannels(value);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 function walk(root, segments) {
   return segments.reduce((current, segment) => current[segment], root);
 }
@@ -145,6 +164,17 @@ function formatCss(tokens) {
   for (const [name, value] of semanticMap) {
     lines.push(`  ${name}: ${lowerHex(value)};`);
   }
+
+  const destructiveHex = lowerHex(token(tokens, "semantic", "color", "error"));
+  lines.push(
+    "  --color-destructive: var(--color-error);",
+    `  --color-destructive-foreground: ${destructiveHex};`,
+    `  --color-destructive-bg: ${rgbaFromHex(destructiveHex, 0.1)};`,
+    `  --color-destructive-bg-hover: ${rgbaFromHex(destructiveHex, 0.14)};`,
+    `  --color-destructive-border: ${rgbaFromHex(destructiveHex, 0.18)};`,
+    `  --color-destructive-shadow-color: ${rgbaFromHex(destructiveHex, 0.12)};`,
+    "  --shadow-destructive: 0 12px 32px var(--color-destructive-shadow-color);"
+  );
 
   lines.push("", "  /* Legacy aliases (compatibility only) */");
   const legacyAliasEntries = [
@@ -469,6 +499,10 @@ function formatTs(tokens) {
 
 export const canonicalBrand = ${formatTsObject(brand)} as const;
 
+/**
+ * @deprecated Use canonicalBrand.* directly in new code.
+ * Kept only for soft migration compatibility.
+ */
 export const legacyBrandAliases = {
   primary: canonicalBrand.blue,
   accent: canonicalBrand.green,
@@ -697,6 +731,10 @@ async function main() {
     path.join(repoRoot, "ios", "PulsePlate", "DesignSystem", "DesignTokens.generated.swift"),
   ];
   const checkMode = process.argv.includes("--check");
+  const readTrackedTargets = async () =>
+    Promise.all(
+      trackedTargets.map((targetPath) => fs.readFile(targetPath, "utf8").catch(() => ""))
+    );
 
   async function buildOnce() {
     const dictionary = createTokenDictionary();
@@ -717,16 +755,25 @@ async function main() {
     );
   }
 
-  await buildOnce();
   if (!checkMode) {
+    await buildOnce();
     return;
   }
 
-  const before = await Promise.all(trackedTargets.map((targetPath) => fs.readFile(targetPath, "utf8")));
+  const before = await readTrackedTargets();
   await buildOnce();
-  const after = await Promise.all(trackedTargets.map((targetPath) => fs.readFile(targetPath, "utf8")));
+  const afterFirstBuild = await readTrackedTargets();
 
-  if (JSON.stringify(before) !== JSON.stringify(after)) {
+  if (JSON.stringify(before) !== JSON.stringify(afterFirstBuild)) {
+    throw new Error(
+      "Generated design token artifacts are stale. Run the token build and commit the updated outputs."
+    );
+  }
+
+  await buildOnce();
+  const afterSecondBuild = await readTrackedTargets();
+
+  if (JSON.stringify(afterFirstBuild) !== JSON.stringify(afterSecondBuild)) {
     throw new Error("Design token build is not deterministic across consecutive runs.");
   }
 }

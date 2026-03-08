@@ -104,7 +104,7 @@ Use this with:
 ### Storage and references
 
 - Static/public mocks under `frontend/public/`
-- No dedicated image asset folder in `frontend/src/` found
+- Canonical brand assets live in `frontend/src/assets/brand/`
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization
@@ -177,9 +177,9 @@ import "./index.css";
 ## Figma MCP Translation Rules (Project-Specific)
 
 1. Start from `get_design_context`, not assumptions.
-2. Map Figma colors/spacing to runtime semantic tokens in
-   `frontend/src/styles/tokens.css` first (`--color-*`), then update
-   `tokens.ts` only if TS consumers need the mirror.
+2. Map Figma colors/spacing into the `/tokens` authoring tree first, regenerate
+   `frontend/src/styles/tokens.css`, and update `tokens.ts` only if TS
+   consumers need the typed mirror.
 3. Reuse existing primitives in `frontend/src/components/ui/` before creating
    new ones.
 4. Keep business logic unchanged in design-only passes.

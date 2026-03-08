@@ -108,6 +108,9 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd ..
+          if [ -f requirements-dev.txt ]; then
+            python -m pip install -r requirements-dev.txt -c constraints.txt
+          fi
           python -m pip install -r requirements.txt -c constraints.txt
 
       - name: Run design token pipeline checks

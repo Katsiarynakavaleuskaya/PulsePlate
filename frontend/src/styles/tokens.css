@@ -86,13 +86,20 @@
   --color-focus: #339fff;
   --color-focus-rgb: 51, 159, 255;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: #ff5d5d;
+  --color-destructive-bg: rgba(255, 93, 93, 0.1);
+  --color-destructive-bg-hover: rgba(255, 93, 93, 0.14);
+  --color-destructive-border: rgba(255, 93, 93, 0.18);
+  --color-destructive-shadow-color: rgba(255, 93, 93, 0.12);
+  --shadow-destructive: 0 12px 32px var(--color-destructive-shadow-color);
 
   /* Legacy aliases (compatibility only) */
   --pp-primary: var(--pp-blue);
   --pp-accent: var(--pp-green);
   --pp-text: var(--color-text);
   --pp-muted: var(--color-text-muted);
-  --pp-radius-xl: 1.25rem;
+  --pp-radius-xl: var(--radius-xl);
   --pp-space-2: var(--spacing-2);
   --pp-space-3: var(--spacing-3);
 
@@ -142,7 +149,7 @@
   --line-height-loose: 2;
 
   /* Radius */
-  --radius-none: 0;
+  --radius-none: 0px;
   --radius-sm: 0.125rem;
   --radius-base: 0.25rem;
   --radius-md: 0.375rem;
