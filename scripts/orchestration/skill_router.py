@@ -7,6 +7,7 @@ EN: Selects project-fit skills for task packets without manual invocation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import re
 from typing import Any
 
@@ -142,7 +143,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         skill="code-review-expert",
         category="global",
         rationale="Explicit review tasks should use the dedicated review skill.",
-        min_score=5,
+        min_score=4,
         domain_weights={"qa": 1, "orchestration": 1},
         keywords=("review", "code review"),
     ),
@@ -150,7 +151,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         skill="ci-fix",
         category="global",
         rationale="CI failures should trigger the dedicated CI remediation workflow.",
-        min_score=5,
+        min_score=4,
         domain_weights={"qa": 2},
         keywords=("ci", "github actions", "workflow run", "checks", "failing check"),
     ),
@@ -271,7 +272,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         skill="security-threat-model",
         category="global",
         rationale="Threat modeling should be explicit, not implicit.",
-        min_score=6,
+        min_score=5,
         domain_weights={"security": 3},
         keywords=("threat model", "abuse path", "trust boundary"),
     ),
@@ -297,7 +298,11 @@ def _normalize_lexeme(value: str) -> str:
 
 
 def _has_prefix(path: str, prefix: str) -> bool:
-    return path == prefix.rstrip("/") or path.startswith(prefix)
+    normalized_path = os.path.normpath(path)
+    normalized_prefix = os.path.normpath(prefix.rstrip("/"))
+    if normalized_path == normalized_prefix:
+        return True
+    return normalized_path.startswith(f"{normalized_prefix}{os.sep}")
 
 
 def _match_keywords(keywords: tuple[str, ...], normalized_text: str) -> list[str]:

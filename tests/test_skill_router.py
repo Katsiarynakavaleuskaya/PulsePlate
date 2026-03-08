@@ -136,6 +136,60 @@ def test_skill_router_selects_release_notes_for_release_tasks() -> None:
     assert "release-notes" in skills
 
 
+def test_skill_router_selects_explicit_review_skill_at_lower_threshold() -> None:
+    """Direct code-review intent should reach the dedicated review skill."""
+
+    skills = select_recommended_skills(
+        goal="Need a code review for this frontend PR",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/App.tsx"],
+        domain="frontend",
+    )
+
+    assert "code-review-expert" in skills
+
+
+def test_skill_router_selects_ci_fix_for_explicit_ci_failure() -> None:
+    """Direct CI-failure intent should reach the dedicated CI fix skill."""
+
+    skills = select_recommended_skills(
+        goal="Fix failing CI checks on this workflow run",
+        task_class="QA",
+        candidate_paths=[".github/workflows/test.yml"],
+        domain="qa",
+    )
+
+    assert "ci-fix" in skills
+
+
+def test_skill_router_selects_threat_model_for_explicit_security_intent() -> None:
+    """Threat-model requests should cross the explicit security threshold."""
+
+    skills = select_recommended_skills(
+        goal="Create a threat model for this auth boundary",
+        task_class="Security",
+        candidate_paths=["app/security/auth.py"],
+        domain="security",
+    )
+
+    assert "security-threat-model" in skills
+
+
+def test_skill_router_prefix_match_is_boundary_aware() -> None:
+    """Filename prefixes must not match unrelated longer filenames."""
+
+    decision = route_skills(
+        goal="Document routing rules",
+        task_class="Docs",
+        candidate_paths=["README.mdx"],
+        domain="docs",
+    )
+
+    docs_sync = next(item for item in decision["recommended"] if item["skill"] == "docs-sync")
+    joined_reasons = " ".join(docs_sync["reasons"])
+    assert "path:README.md" not in joined_reasons
+
+
 def test_skill_router_records_blocked_scraping_patterns() -> None:
     """Low-fit scraping requests should be explicitly blocked in routing metadata."""
 
