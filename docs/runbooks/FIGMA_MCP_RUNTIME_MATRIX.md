@@ -55,7 +55,8 @@ session check proves otherwise.
 
 ## Canonical Codex Enablement Path (`generate_figma_design`)
 
-1. Keep `.cursor/mcp.json` pointed at `https://mcp.figma.com/mcp`.
+1. Follow [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) and configure
+   `~/.codex/config.toml` to point at `https://mcp.figma.com/mcp`.
 2. Ensure `FIGMA_OAUTH_TOKEN` is present in the environment that launches Codex.
 3. Confirm runtime auth with `whoami`.
 4. Call `generate_figma_design` without `outputMode` first to discover:

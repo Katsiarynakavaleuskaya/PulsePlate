@@ -101,7 +101,7 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 ## 5. Data Collection Policy For PulsePlate
 
-## 5a. Design Tool Source Precedence
+### 5a. Design Tool Source Precedence
 
 For design-system, prototype, and visual implementation tasks, use the
 canonical source precedence defined in
