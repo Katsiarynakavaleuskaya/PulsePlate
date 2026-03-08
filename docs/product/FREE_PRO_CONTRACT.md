@@ -39,12 +39,14 @@ This creates a **trust-based funnel** rather than fear-based conversion, especia
 - **BMI value** (number)
 - **BMI category** (underweight / normal / overweight / obese)
 - **Short explanation** (1 sentence, educational)
+- **Basic Waist-to-Height Ratio (WHtR)** if waist is available
 
 ### Explicit Limitations (Must Be Communicated)
 
 FREE **does NOT**:
-- Account for fat distribution
 - Account for sex-specific differences
+- Include WHR or FFMI
+- Include combined risk staging
 - Assess individual health risk
 - Provide medical evaluation
 - Replace professional consultation
@@ -58,11 +60,12 @@ FREE **does NOT**:
 {
   "bmi": 26.4,
   "category": "overweight",
+  "whtr": 0.52,
   "explanation": "BMI in this range may indicate...",
   "limitations": [
-    "no_fat_distribution",
     "no_sex_specific_context",
-    "no_individual_risk_assessment"
+    "no_whr_or_ffmi",
+    "no_combined_risk_staging"
   ],
   "next_step": "pro"
 }
@@ -81,7 +84,6 @@ FREE **does NOT**:
 ### What PRO Includes
 
 - **All FREE features** +
-- **Waist-to-Height Ratio (WHtR)** — universal risk indicator
 - **Waist-to-Hip Ratio (WHR)** — sex-specific thresholds
 - **Fat-Free Mass Index (FFMI)** — muscle mass consideration
 - **Combined risk staging** — multi-factor assessment
@@ -168,7 +170,7 @@ VIP **does NOT**:
 | BMI calculation | ✅ | ✅ | ✅ |
 | BMI category | ✅ | ✅ | ✅ |
 | Basic explanation | ✅ | ✅ | ✅ |
-| WHtR | ❌ | ✅ | ✅ |
+| WHtR | ✅ | ✅ | ✅ |
 | WHR (sex-specific) | ❌ | ✅ | ✅ |
 | FFMI | ❌ | ✅ | ✅ |
 | Risk staging | ❌ | ✅ | ✅ |
