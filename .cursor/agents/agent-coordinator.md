@@ -127,6 +127,9 @@ When a task is created:
    - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
    - Prefer repo-tracked PulsePlate skills before global installed skills
    - Do not auto-select broad scraping workflows for PulsePlate
+   - For design/system tasks, use source precedence from
+     `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`:
+     `Figma -> Notion -> Airweave -> Penpot`
 
 4. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
@@ -217,6 +220,7 @@ Acceptance criteria, regression packs, independent review, and release confidenc
 UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 **Canonical doc:** `.cursor/agents/creative-designer.md`
+**Default design-source order:** `Figma -> Notion -> Airweave -> Penpot`
 
 ---
 

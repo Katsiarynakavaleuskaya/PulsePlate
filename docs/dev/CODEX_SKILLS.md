@@ -59,7 +59,19 @@ Recommended now for PulsePlate:
 - `pulseplate-ai-reports` for founder/wellness/AI reporting
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
-- `openai-docs`, `playwright`, `figma`, `linear`, `notion-research-documentation` when the task explicitly matches
+- `figma` as the first design-system and prototype lane
+- `notion-research-documentation` and `notion-knowledge-capture` for governed
+  structured memory and handoff pages
+- `openai-docs`, `playwright`, `linear` when the task explicitly matches
+
+Design-tooling precedence for this repo:
+
+1. `Figma`
+2. `Notion`
+3. `Airweave`
+4. `Penpot`
+
+See `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 
 Not approved as default:
 
