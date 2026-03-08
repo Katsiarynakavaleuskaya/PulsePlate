@@ -65,7 +65,8 @@ FREE **does NOT**:
   "limitations": [
     "no_sex_specific_context",
     "no_whr_or_ffmi",
-    "no_combined_risk_staging"
+    "no_combined_risk_staging",
+    "no_individual_risk_assessment"
   ],
   "next_step": "pro"
 }
@@ -170,7 +171,7 @@ VIP **does NOT**:
 | BMI calculation | ✅ | ✅ | ✅ |
 | BMI category | ✅ | ✅ | ✅ |
 | Basic explanation | ✅ | ✅ | ✅ |
-| WHtR | ✅ | ✅ | ✅ |
+| WHtR (if waist is available) | ✅ | ✅ | ✅ |
 | WHR (sex-specific) | ❌ | ✅ | ✅ |
 | FFMI | ❌ | ✅ | ✅ |
 | Risk staging | ❌ | ✅ | ✅ |

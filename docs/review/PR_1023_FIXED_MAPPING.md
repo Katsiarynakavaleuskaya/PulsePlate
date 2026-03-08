@@ -41,6 +41,9 @@ Disposition: FIXED
 Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:27
 
+Note: self-referential artifact comments below are evidenced by the concrete raw
+mapping lines they reference, not by spacer rows between mapping blocks.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910521974 -> 8b306e21
 Disposition: FIXED
 Commit: 8b306e21
