@@ -97,7 +97,7 @@ Evidence: docs/product/FREE_PRO_CONTRACT.md:29
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910715758 -> 8b306e21
 Disposition: FIXED
 Commit: 8b306e21
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:69
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:97
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901381133 -> 0d23c5dc
 Disposition: FIXED
