@@ -91,15 +91,20 @@ If it is not recorded here — it does not exist.
   - Target PR: PR-TBD-USERS-SURFACE-HARDENING
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
-  - Reason: `app/routers/users.py` exposes create/list/get/delete routes without any auth dependency. Even if the surface is low-traffic, the current contract permits enumeration, spam, and destructive access on a user table.
+  - Status: In progress
+  - Reason: `app/routers/users.py` already enforces an app-level API key, but the hardening work is incomplete while runtime registration still leaves `include_in_schema=True` and current docs/ledger text continue to describe `/api/v1/users*` as public FREE surface. Canonical repo truth must be synchronized so users CRUD is internalized both in runtime schema behavior and documentation.
   - Links:
     - `app/routers/users.py`
+    - `legacy_app.py`
     - `app/main.py`
     - `tests/test_users_api.py`
     - `tests/test_users_router.py`
     - `docs/security/SECURITY_POSTURE.md`
   - DoD:
-    - Route policy is decided explicitly: protect with admin/API-key dependency, move behind internal-only surface, or remove if unused
+    - Users CRUD keeps explicit app-level API key guard and rejects unauthenticated GET/POST/DELETE requests deterministically
+    - Runtime route registration keeps `/api/v1/users*` available for internal callers while `include_in_schema=False` prevents public schema exposure
+    - Current docs stop describing `/api/v1/users*` as FREE/public surface
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
     - OpenAPI and tests reflect the chosen access contract
     - Destructive operations require authenticated/authorized access
     - If retirement is deferred, production exposure status is documented with owner and date

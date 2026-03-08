@@ -129,3 +129,22 @@ def test_create_user_validation_error(client: TestClient) -> None:
 def test_users_surface_rejects_missing_api_key(client: TestClient) -> None:
     response = client.get("/api/v1/users")
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        ("get", "/api/v1/users", {}),
+        (
+            "post",
+            "/api/v1/users",
+            {"json": {"email": "guard@example.com", "name": "Guarded User"}},
+        ),
+        ("delete", "/api/v1/users/9999", {}),
+    ],
+)
+def test_users_surface_denies_unauthenticated_mutation_and_reads(
+    client: TestClient, method: str, path: str, kwargs: dict[str, object]
+) -> None:
+    response = getattr(client, method)(path, **kwargs)
+    assert response.status_code == 403

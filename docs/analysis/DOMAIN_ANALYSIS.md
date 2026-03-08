@@ -643,7 +643,7 @@ core/
 
 1. **Simple CRUD** — базовые операции с пользователями
 2. **Event-driven** — события питания для аналитики
-3. **Tier-agnostic** — базовые операции доступны всем tier
+3. **Internalized CRUD** — базовые операции требуют app-level API key и скрыты из public OpenAPI
 
 ### 🔗 Зависимости
 
@@ -658,8 +658,8 @@ core/
 
 | Endpoint | Tier | Статус | Файл |
 |----------|------|--------|------|
-| `/api/v1/users` | FREE | ✅ canonical | `app/routers/users.py` |
-| `/api/v1/users/{user_id}` | FREE | ✅ canonical | `app/routers/users.py` |
+| `/api/v1/users` | INTERNAL (API key) | ✅ canonical runtime, hidden from public schema | `app/routers/users.py` |
+| `/api/v1/users/{user_id}` | INTERNAL (API key) | ✅ canonical runtime, hidden from public schema | `app/routers/users.py` |
 
 ### 🧪 Тестирование
 
