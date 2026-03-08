@@ -122,12 +122,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system governance)
-  - Target PR: PR-TBD-TOKEN-EXPANSION-ACTIVATION
+  - Target PR: PR #1047 (`feat(design): add token pipeline foundation`) -> PR-TBD-TOKEN-EXPANSION-ACTIVATION
   - Status: 📋 Deferred after token-pipeline foundation
+  - Foundation PR: PR #1047 (2026-03-08, `f272503c`)
   - Area: frontend / ios / design-system
   - Finding Type: governance follow-up
   - Reason: The repo now has a governed `/tokens -> generated runtime mirrors` pipeline for foundation and current semantic tokens. Deferred work remains for broader semantic/product layers (`tier`, `paywall`, `plate`, `bmi`, `coach`), controlled Tokens Studio activation beyond documentation-only support, and an explicit decision on whether `docs/design/figma-manifest.json` should stay informational or be unified with token-pipeline schema validation.
   - Links:
+    - [PR #1047](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047)
     - `docs/design/TOKENS_SOT.md`
     - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
     - `docs/design/figma-manifest.json`
@@ -3429,6 +3431,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Locale-aware numeric input via `NumberFormatter` (iOS PPInput)
     - ✅ All bot review comments addressed and mapped in PR body
     - ✅ CI checks green; merge readiness gate passed
+
+
+- [x] P1: Design token pipeline foundation (`/tokens` authoring to generated runtime mirrors)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance / drift prevention)
+  - Target PR: PR #1047 (`feat(design): add token pipeline foundation`)
+  - Status: ✅ Merged
+  - Merge SHA: f272503c
+  - Area: frontend / ios / design-system / governance
+  - Finding Type: tooling foundation + parity enforcement
+  - Reason: Earlier token work established web SoT, raw-hex guards, Storybook review, and an iOS token facade, but runtime mirrors still depended on manual sync. PR #1047 adds a governed `/tokens` authoring source, Style Dictionary generation into the existing web/iOS runtime contracts, parity guards, CI wiring, and review-governed documentation without breaking current consumers.
+  - Links:
+    - [PR #1047](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047)
+    - `tokens/`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
+    - `tests/test_design_token_parity.py`
+    - `docs/review/PR_1047_FIXED_MAPPING.md`
+  - DoD:
+    - ✅ `/tokens` is the governed authoring source for stable, already-live token values
+    - ✅ Existing runtime contracts remain intact for `tokens.css`, `tokens.ts`, and `PPDesignTokens`
+    - ✅ Generated iOS mirror exists as `DesignTokens.generated.swift` behind the stable public facade
+    - ✅ Parity and determinism checks cover `/tokens -> web/iOS mirrors`
+    - ✅ CI token pipeline lane and merge-governance documentation are merged and review-mapped
 
 
 - [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
