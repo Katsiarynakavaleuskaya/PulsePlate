@@ -48,7 +48,7 @@ Reason: Stream-aware output budget enforcement remains intentionally deferred ou
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901821247 -> ea7c7f47
 Disposition: FIXED
 Commit: ea7c7f47
-Evidence: docs/review/PR_1013_FIXED_MAPPING.md:65
+Evidence: docs/review/PR_1013_FIXED_MAPPING.md:87
 
 Disposition: FIXED
 Commit: 8dc14d69
@@ -83,6 +83,14 @@ Evidence: tests/test_execution_sandbox.py:158
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875671 -> 3a19d3b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875672 -> 3a19d3b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911493177 -> 3a19d3b6
+
+Disposition: FIXED
+Commit: 5751a659
+Evidence: docs/review/PR_1013_FIXED_MAPPING.md:51
+Evidence: docs/review/PR_1013_FIXED_MAPPING.md:80
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875673 -> 5751a659
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911495989 -> 5751a659
 
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
