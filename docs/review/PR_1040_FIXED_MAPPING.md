@@ -47,6 +47,6 @@ Reason: These `pullrequestreview-*` URLs are review-level wrapper comments that 
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
+- [x] No unresolved review threads
+- [x] No actionable bot comments
 - [ ] Final post-bot wait cycle completed
