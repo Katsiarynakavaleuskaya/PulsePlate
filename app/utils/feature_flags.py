@@ -54,10 +54,34 @@ def is_recursive_rag_enabled() -> bool:
     return _is_truthy(os.getenv("FEATURE_RAG_RECURSIVE"))
 
 
+def is_philosophy_router_enabled() -> bool:
+    """Check if pre-generation philosophical router is enabled."""
+    return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_ROUTER"))
+
+
+def is_philosophy_phase12_enabled() -> bool:
+    """Check if Aristotelian + Analytical runtime checks are enabled."""
+    return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_PHASE12"))
+
+
+def is_philosophy_linguistic_enabled() -> bool:
+    """Check if speech-act and language-game routing is enabled."""
+    return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_LINGUISTIC"))
+
+
+def is_philosophy_pragmatic_enabled() -> bool:
+    """Check if pragmatic early-stop policy is enabled."""
+    return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_PRAGMATIC"))
+
+
 __all__ = [
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
     "is_philosophy_validation_enabled",
+    "is_philosophy_router_enabled",
+    "is_philosophy_phase12_enabled",
+    "is_philosophy_linguistic_enabled",
+    "is_philosophy_pragmatic_enabled",
     "is_recursive_rag_enabled",
     "_is_truthy",
 ]

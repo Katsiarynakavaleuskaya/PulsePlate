@@ -10,7 +10,6 @@ from app.security.agent_input_guard import (
     UNSAFE_AI_INPUT_DETAIL,
     AgentInputScanResult,
     AgentInputThreat,
-    prepare_safe_ai_prompt_input,
     require_safe_ai_agent_input,
     scan_ai_agent_input,
 )
@@ -65,7 +64,6 @@ __all__ = [
     "AgentInputThreat",
     "AgentInputScanResult",
     "scan_ai_agent_input",
-    "prepare_safe_ai_prompt_input",
     "require_safe_ai_agent_input",
     "ALLOWLIST_ENV",
     "AUDIT_SIGNING_KEY_ENV",

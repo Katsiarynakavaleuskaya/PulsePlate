@@ -335,4 +335,10 @@ def retrieve_context_structured(
     # Fallback to Jaccard
     from core.rag.simple_rag import retrieve_context_structured as _jaccard_retrieve
 
-    return _jaccard_retrieve(query, max_chunks=max_chunks, agent_id=agent_id, user_tier=user_tier)
+    fallback_ctx: RAGContext = _jaccard_retrieve(
+        query,
+        max_chunks=max_chunks,
+        agent_id=agent_id,
+        user_tier=user_tier,
+    )
+    return fallback_ctx

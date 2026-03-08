@@ -29,7 +29,7 @@ from app.security.agent_control_plane import (
     require_policy_allow,
     sign_audit_envelope,
 )
-from app.security.agent_input_guard import prepare_safe_ai_prompt_input
+from app.security.agent_input_guard import require_safe_ai_agent_input
 from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
@@ -202,24 +202,7 @@ def _persist_privileged_action_audit(
     "/insight",
     response_model=CBTInsightResponse,
     responses={
-        400: {
-            "description": "Unsafe agent input blocked",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "required": ["detail"],
-                        "properties": {
-                            "detail": {
-                                "type": "string",
-                                "description": "Stable unsafe-input error detail",
-                                "example": "unsafe_ai_input",
-                            }
-                        },
-                    }
-                }
-            },
-        },
+        400: {"description": "Unsafe agent input blocked"},
         200: {"description": "CBT insight generated successfully"},
         401: {"description": "API key required for PRO tier access"},
         403: {"description": "API key does not have PRO tier access"},
@@ -267,7 +250,7 @@ async def cbt_insight(
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
 
-    safe_query = prepare_safe_ai_prompt_input(request.query)
+    safe_query = require_safe_ai_agent_input(request.query)
 
     # Retrieve RAG context with CBT corpus filtering
     rag_context_str = ""
