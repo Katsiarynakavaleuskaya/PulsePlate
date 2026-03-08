@@ -8,6 +8,8 @@
 Disposition: FIXED
 Commit: e4fe0921
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2539`, `docs/roadmap/BACKLOG_LEDGER.md:2541`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1043#discussion_r2902123150 -> e4fe0921
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1043#pullrequestreview-3911752112 -> e4fe0921
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1043#issuecomment-4019550943 -> e4fe0921
 
 ## Merge Readiness
