@@ -33,6 +33,10 @@
 4. Add global installed skills only when the task explicitly matches their scope.
 5. Exclude low-fit or high-risk skills even if installed.
 
+Boundary note:
+- `docs/orchestration/AGENT_ROUTING_GRAPH.md` remains the canonical source of truth for agent/domain routing.
+- `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and `scripts/orchestration/skill_router.py` are the canonical skill-selection layer that runs after domain routing resolves.
+
 `scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for this selection.
 The packet contract is materialized at `scripts/orchestration/task_bootstrap.py:80`,
 with routing outputs populated from `scripts/orchestration/task_bootstrap.py:73`.

@@ -204,3 +204,19 @@ def test_skill_router_records_blocked_scraping_patterns() -> None:
     assert "tiktok" in blocked_labels
     assert "google maps" in blocked_labels
     assert "entire internet" in blocked_labels
+
+
+def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
+    """Blocked scraping patterns must come from request text, not touched files."""
+
+    decision = route_skills(
+        goal="Update the research docs and workflow guidance",
+        task_class="Docs",
+        candidate_paths=[
+            "docs/tiktok.md",
+            "app/google_maps_adapter.py",
+        ],
+        domain="docs",
+    )
+
+    assert decision["blocked"] == []

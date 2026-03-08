@@ -37,7 +37,6 @@ class SkillRule:
     domain_weights: dict[str, int]
     path_prefixes: tuple[str, ...] = ()
     keywords: tuple[str, ...] = ()
-    negative_keywords: tuple[str, ...] = ()
 
 
 SKILL_RULES: tuple[SkillRule, ...] = (
@@ -361,12 +360,6 @@ def _score_rule(
         score += keyword_score
         reasons.append(f"lexeme:{', '.join(matched_keywords[:3])}(+{keyword_score})")
 
-    matched_negative = _match_keywords(rule.negative_keywords, normalized_text)
-    if matched_negative:
-        penalty = len(matched_negative) * 2
-        score -= penalty
-        reasons.append(f"negative:{', '.join(matched_negative[:3])}(-{penalty})")
-
     return {
         "skill": rule.skill,
         "score": score,
@@ -389,11 +382,16 @@ def route_skills(
     normalized_text = _normalize_text(
         goal=goal, task_class=task_class, normalized_paths=normalized_paths
     )
+    normalized_request_text = _normalize_text(
+        goal=goal,
+        task_class=task_class,
+        normalized_paths=[],
+    )
 
     blocked = [
         {"label": pattern, "reason": reason}
         for pattern, reason in SCRAPING_BLOCK_PATTERNS
-        if pattern in normalized_text
+        if pattern in normalized_request_text
     ]
 
     scored = [
