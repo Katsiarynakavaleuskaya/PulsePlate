@@ -91,6 +91,8 @@ Minimum required keys:
 - `request` (string)
 - `constraints` (array of strings)
 - `inputs.must_read_paths` (array of strings; paths)
+- `inputs.recommended_skills` (array of strings; optional but recommended when skill routing is enabled)
+- `inputs.skill_routing` (object; optional compact evidence map for why those skills were selected)
 - `output_requirements.must_return` (array of strings)
 - `budgets` (object; recommended when cost/latency matters)
 
@@ -149,7 +151,15 @@ Task packet:
       "AGENTS.md",
       "docs/orchestration/workflow.md",
       "docs/orchestration/RESEARCH_TRACK_PROTOCOL.md"
-    ]
+    ],
+    "recommended_skills": [
+      "pulseplate-workflow",
+      "docs-sync"
+    ],
+    "skill_routing": {
+      "selection_mode": "deterministic-weighted",
+      "policy_version": "2026-03-08"
+    }
   },
   "output_requirements": {
     "must_return": [

@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+from core.data_sanitizer import sanitize_rag_markdown
 from core.pii_redaction import redact_pii_from_text
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
@@ -81,11 +82,12 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
+            sanitized_text = sanitize_rag_markdown(text)
         except Exception as read_err:
             # Handle any read errors (OSError, UnicodeDecodeError, RuntimeError, etc.)
             logger.debug("Skipping %s during index build: %s", path, read_err)
             continue
-        for ch in _chunk(text):
+        for ch in _chunk(sanitized_text):
             if ch:
                 items.append((str(path), ch))
     return items

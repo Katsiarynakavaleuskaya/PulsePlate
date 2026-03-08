@@ -99,6 +99,7 @@ optional Code Connect map status.
 
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 
 Use when running terminal automation, evidence capture, and human-gated design-agent tasks.
 
@@ -124,7 +125,9 @@ If information conflicts:
 2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
 3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
 4. Token values: code token sources are primary (`frontend/src/styles/*`, iOS assets and bridge).
-5. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
+5. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
+   how Figma, Notion, Airweave, and Penpot interact.
+6. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.
 
 ## 6) Context Refresh Protocol
 
@@ -231,6 +234,7 @@ Before any brainstorm session in `docs/figma/orchestration/`:
 - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
 - `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
 - `docs/figma/SANDBOX_DESIGN_AGENT_SPEC.md`
+- `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 - `docs/sora/prompts/hpp/MASTER_NANO_PROMPT_PACK.md`
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 - `docs/sora/BRAND_THROUGHPUT_METRICS_GTM_MATRIX.md`

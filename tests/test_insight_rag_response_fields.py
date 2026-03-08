@@ -375,6 +375,13 @@ class TestRAGSourceItemModel:
         assert d["rag_used"] is False
         assert d["hops"] == 0
         assert d["latency_ms"] == 0
+        assert d["route_type"] is None
+        assert d["depth_used"] == 0
+        assert d["verification_rate"] is None
+        assert d["falsifiability_rate"] is None
+        assert d["contradiction_count"] == 0
+        assert d["reason_codes"] == []
+        assert d["optimization_applied"] is False
 
     def test_rag_source_item_fields(self) -> None:
         from legacy_app import RAGSourceItem

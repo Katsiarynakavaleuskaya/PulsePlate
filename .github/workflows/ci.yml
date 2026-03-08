@@ -155,8 +155,10 @@ jobs:
             if [[ "$path" == docs/* ]]; then
               CHANGED_DOCS+=("$path")
             fi
-            # Exclude AGENTS.md, BACKLOG_LEDGER, and external/generated files from markdownlint
+            # Exclude AGENTS.md, review mapping artifacts, BACKLOG_LEDGER,
+            # and external/generated files from markdownlint.
             if [[ "$path" != */AGENTS.md && "$path" != "AGENTS.md" \
+                  && "$path" != docs/review/* \
                   && "$path" != "docs/roadmap/BACKLOG_LEDGER.md" \
                   && "$path" != .agents/* && "$path" != .cursor/* && "$path" != .qoder/* ]]; then
               LINT_MD+=("$path")

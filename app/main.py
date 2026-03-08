@@ -24,6 +24,35 @@ from app.routers.cbt_insight import router as cbt_insight_router
 
 app: FastAPI = _legacy_app
 
+
+def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
+    """Hide legacy users CRUD from the public OpenAPI contract.
+
+    RU: Скрываем users CRUD из публичной OpenAPI surface в canonical entrypoint,
+    не добавляя новый runtime behavior в legacy compatibility layer.
+    EN: Hide users CRUD from the public OpenAPI surface in the canonical
+    entrypoint instead of introducing new runtime behavior in legacy_app.py.
+    """
+
+    for route in target_app.routes:
+        if str(getattr(route, "path", "")).startswith("/api/v1/users"):
+            setattr(route, "include_in_schema", False)
+
+    if target_app.openapi_tags:
+        target_app.openapi_tags = [
+            tag for tag in target_app.openapi_tags if tag.get("name") != "users"
+        ]
+
+    if target_app.description:
+        target_app.description = target_app.description.replace(", user management", "")
+        target_app.description = target_app.description.replace(
+            "User management endpoints (FREE tier)", ""
+        )
+
+    target_app.openapi_schema = None
+
+
+_internalize_users_openapi_surface(app)
 _install_openapi_builder(app)
 register_metrics(app)
 register_pro_contract_routes(app)

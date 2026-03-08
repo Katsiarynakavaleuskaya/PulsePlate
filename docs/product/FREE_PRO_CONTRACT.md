@@ -6,6 +6,14 @@
 
 ---
 
+## Related Docs
+
+- `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` — public-pattern
+  adaptation note for future explainers and learning-cycle work; canonical for
+  explainer payload naming, wellness-safe guardrails, and LLM/telemetry limits
+- `docs/roadmap/BACKLOG_LEDGER.md` — canonical execution backlog for follow-up
+- `docs/product/FREE_PRO_SOFT_PAYWALL.md` — current conversion language baseline
+
 ## 🎯 Product Philosophy
 
 **Core principle:**
@@ -31,12 +39,14 @@ This creates a **trust-based funnel** rather than fear-based conversion, especia
 - **BMI value** (number)
 - **BMI category** (underweight / normal / overweight / obese)
 - **Short explanation** (1 sentence, educational)
+- **Basic Waist-to-Height Ratio (WHtR)** if waist is available
 
 ### Explicit Limitations (Must Be Communicated)
 
 FREE **does NOT**:
-- Account for fat distribution
 - Account for sex-specific differences
+- Include WHR or FFMI
+- Include combined risk staging
 - Assess individual health risk
 - Provide medical evaluation
 - Replace professional consultation
@@ -50,10 +60,12 @@ FREE **does NOT**:
 {
   "bmi": 26.4,
   "category": "overweight",
+  "whtr": 0.52,
   "explanation": "BMI in this range may indicate...",
   "limitations": [
-    "no_fat_distribution",
     "no_sex_specific_context",
+    "no_whr_or_ffmi",
+    "no_combined_risk_staging",
     "no_individual_risk_assessment"
   ],
   "next_step": "pro"
@@ -73,7 +85,6 @@ FREE **does NOT**:
 ### What PRO Includes
 
 - **All FREE features** +
-- **Waist-to-Height Ratio (WHtR)** — universal risk indicator
 - **Waist-to-Hip Ratio (WHR)** — sex-specific thresholds
 - **Fat-Free Mass Index (FFMI)** — muscle mass consideration
 - **Combined risk staging** — multi-factor assessment
@@ -160,7 +171,7 @@ VIP **does NOT**:
 | BMI calculation | ✅ | ✅ | ✅ |
 | BMI category | ✅ | ✅ | ✅ |
 | Basic explanation | ✅ | ✅ | ✅ |
-| WHtR | ❌ | ✅ | ✅ |
+| WHtR (if waist is available) | ✅ | ✅ | ✅ |
 | WHR (sex-specific) | ❌ | ✅ | ✅ |
 | FFMI | ❌ | ✅ | ✅ |
 | Risk staging | ❌ | ✅ | ✅ |
@@ -205,7 +216,7 @@ VIP **does NOT**:
 ### After FREE Result
 
 **Message:**
-```
+```text
 ⚠️ BMI — это только первый ориентир.
 
 Он не учитывает:
@@ -221,7 +232,7 @@ VIP **does NOT**:
 ### After PRO Result (Future)
 
 **Message:**
-```
+```text
 Вы понимаете свой риск.
 Хотите превратить это в персональный план?
 ```

@@ -31,7 +31,11 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.tables import Table as RLTable
 
-from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
+from settings import (
+    EXPORT_TOKEN_TTL_SECONDS,
+    PRIVATE_EXPORTS_ENABLED,
+    get_export_token_secret,
+)
 from signed_links import sign, verify
 
 from app.routers.shoplist_export_routes import SHOPLIST_EXPORT_CSV_PATH, SHOPLIST_EXPORT_PDF_PATH
@@ -357,6 +361,7 @@ def _iter_rows(week: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
 def _require_valid_token(request: Request) -> None:
     if not PRIVATE_EXPORTS_ENABLED:
         return
+    secret = get_export_token_secret()
     exp = request.query_params.get("exp")
     sig = request.query_params.get("sig")
     if not exp or not sig:
@@ -365,7 +370,7 @@ def _require_valid_token(request: Request) -> None:
         exp_ts = int(exp)
     except ValueError as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=403, detail="bad token") from exc
-    if not verify(EXPORT_TOKEN_SECRET, request.url.path, exp_ts, sig):
+    if not verify(secret, request.url.path, exp_ts, sig):
         raise HTTPException(status_code=403, detail="invalid or expired token")
 
 
@@ -599,8 +604,9 @@ def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="ttl must be positive")
     if ttl > EXPORT_TOKEN_TTL_SECONDS:
         raise HTTPException(status_code=400, detail="ttl exceeds configured max")
+    secret = get_export_token_secret()
     exp_ts = int((datetime.now(timezone.utc) + timedelta(seconds=ttl)).timestamp())
-    signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
+    signature = sign(secret, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
 

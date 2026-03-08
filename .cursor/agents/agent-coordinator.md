@@ -75,6 +75,7 @@ When coordinating multi-agent work, use these canonical protocols:
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- Skill routing policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 
 ---
 
@@ -120,7 +121,16 @@ When a task is created:
    - Use `docs/orchestration/AGENT_CAPABILITY_MATRIX.md` only as advisory guidance
      inside the already routed domain; it does not define permissions
 
-3. **Assign task(s)**:
+3. **Map to project-fit skills**:
+   - If the task packet already includes `recommended_skills` / `skill_routing`, use those outputs as authoritative
+   - Otherwise start with `pulseplate-workflow`
+   - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+   - Prefer repo-tracked PulsePlate skills before global installed skills
+   - Do not auto-select broad scraping workflows for PulsePlate
+   - For design/system tasks, follow the canonical source precedence in
+     `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+
+4. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
    - Multi-agent: Create workflow with dependencies and handoffs
    - Parallel: Assign independent sub-tasks to multiple agents simultaneously
@@ -209,6 +219,7 @@ Acceptance criteria, regression packs, independent review, and release confidenc
 UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 **Canonical doc:** `.cursor/agents/creative-designer.md`
+**Canonical design-source precedence:** `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
 
 ---
 

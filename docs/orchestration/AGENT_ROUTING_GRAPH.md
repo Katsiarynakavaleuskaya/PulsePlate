@@ -85,6 +85,7 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 8. **Mixed-scope or novel tasks:** Coordinator selects primary domain by dominant scope; ties broken by coordinator; novel tasks escalate to `agent-coordinator` for adjudication.
 9. **Independent reviewer invariant:** reviewer must never equal the selected primary agent after telemetry/advisory overrides.
 10. **Cluster-first routing:** coordinator resolves `cluster` first for metrics and packaging, then selects domain-level primary/secondary/reviewer.
+11. **Skills after routing:** once primary domain is resolved, coordinator selects `recommended_skills` via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and task bootstrap artifacts.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.
 
@@ -109,6 +110,7 @@ SecondaryAgents --> Reviewer
 ## Related Documentation
 
 - Capability Matrix: `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+- Skill Routing Policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 
