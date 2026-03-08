@@ -34,3 +34,12 @@ Evidence: `legacy_app.py:2193`, `core/insight/analytical/__init__.py:13`, `tools
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901015359 -> 1f535f5d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901015363 -> 1f535f5d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901015367 -> 1f535f5d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#pullrequestreview-3910735762 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901200662 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221780 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221781 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221783 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221784 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221788 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#discussion_r2901221789 -> 4755c14d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1024#pullrequestreview-3910761789 -> 4755c14d
