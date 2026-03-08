@@ -85,3 +85,23 @@ Evidence: `frontend/scripts/build-tokens.mjs` now emits a blank line before `acc
 Disposition: FIXED
 Commit: 04df1621
 Evidence: `04df1621` fixes every actionable item from this aggregate CodeRabbit review: evidence anchors in `docs/design/TOKENS_SOT.md`, ESM-safe fixture loading in `frontend/src/styles/__tests__/tokens.test.ts`, generator-owned blank-line output in `frontend/scripts/build-tokens.mjs`/`frontend/src/styles/tokens.css`, and `pull_request.types` with `edited` in `.github/workflows/frontend-ci.yml`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902473949 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `docs/design/TOKENS_SOT.md` now explicitly delegates authoritative web token governance (SoT, staged migration, raw-hex allowlists) to `docs/sora/SORA_STYLE_QA_CHECKLIST.md:8-14` and keeps this file as an implementation-summary/runtime-mirror reference.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902473951 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` precedence rule 4 now names `docs/sora/SORA_STYLE_QA_CHECKLIST.md` as authoritative for web token governance while preserving the current `tokens.css`/`tokens.ts`/iOS runtime-contract split.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902473952 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` now adds direct `file:line` evidence anchors for `/tokens`, `Tokens Studio`, `Notion`, `Airweave`, `Penpot`, plus the token authoring/runtime split and review lane assertions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902473953 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `Makefile` `tokens-check` now runs the diff gate, `design_guard.py`, and parity pytest in a single shell sequence with `&&` short-circuiting and an `EXIT` trap that always cleans the temp diff files.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902473955 -> 24f2f375
+Disposition: FIXED
+Commit: 24f2f375
+Evidence: `frontend/scripts/build-tokens.mjs` now builds the full public iOS semantic surface from token sources/platform tokens, and `tests/test_design_token_parity.py` validates every public semantic token exported through `ios/PulsePlate/DesignSystem/DesignTokens.swift` instead of only the four status colors.
