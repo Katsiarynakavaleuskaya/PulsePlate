@@ -60,31 +60,50 @@ flowchart LR
   - `core/rag/simple_rag.py:109` — chunk content redacted before preview/prompt exposure.
   - `tests/test_cbt_insight_api.py:680` — deterministic blocked/misconfigured mode coverage.
   - `tests/test_cbt_insight_api.py:710` — deterministic PRO quota enforcement coverage.
+- Local sandbox foundation landed for developer-machine orchestration work:
+  - `app/security/execution_sandbox.py:1` — bounded local execution sandbox with
+    allowlisted binaries, cwd confinement, timeout, output, and env controls.
+  - `scripts/orchestration/run_local_sandbox.py:1` — deterministic CLI wrapper for
+    exercising the sandbox locally.
+  - `tests/test_execution_sandbox.py:1` — deterministic validation of allowed,
+    denied, timeout, truncation, and cwd-escape paths.
 - Tracking items and status live in `docs/roadmap/BACKLOG_LEDGER.md` (`Agent Control Plane MVP`,
-  `simple_rag` thread safety, PRO quota parity, and RAG redaction follow-ups).
-- Remaining follow-up after this closure is intentionally narrow:
-  - Introduce a real execution sandbox boundary for higher-risk actions.
+  local execution sandbox foundation, `simple_rag` thread safety, PRO quota parity,
+  and RAG redaction follow-ups).
+- Remaining scope for follow-up PRs is intentionally narrow:
+  - Stronger isolation beyond the developer-machine sandbox (for example, container/VM runner boundary).
+  - Nonce-bearing scoped tokens and wider production rollout hardening.
   - Expand control-plane wiring beyond the current privileged CBT/RAG slice when new agent runtimes land.
 
-### Exit Criteria (Temporary Seam)
+### Exit Criteria (Updated Status)
 
 This ADR introduced a temporary seam for MVP primitives. For the current privileged
 CBT/RAG execution slice, the operational closure criteria are now met:
 
-1. **Policy gate integrated**: All privileged agent actions pass through `require_policy_allow()`.
-2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
-3. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
-4. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
-5. **Test coverage**: deterministic tests verify bypass/timeout/quota/mode failure paths.
+1. **Policy gate integrated**: all privileged agent actions pass through `require_policy_allow()`.
+2. **Audit trail persistent**: signed envelopes are written to durable storage (not just in-memory).
+3. **Secrets boundary enforced**: fail-closed secret requirements remain in place.
+4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
+5. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
+6. **Bounded local sandbox available**: higher-risk developer-machine execution now runs only through
+   the allowlisted sandbox boundary with explicit cwd/env/output limits.
+7. **Test coverage**: deterministic tests verify bypass, timeout, quota, mode, and sandbox failure paths.
 
-The broader `ExecutionSandbox` box in the architecture diagram remains a future expansion
-boundary, but it is no longer a blocker for the current control-plane MVP slice.
+The broader `ExecutionSandbox` box in the architecture diagram remains a future
+stronger-isolation expansion boundary, but it is no longer a blocker for the
+current control-plane MVP slice.
+
+Open follow-up work is now narrower:
+
+- remote/stronger isolation beyond the developer-machine sandbox
+- nonce-bearing scoped tokens
+- broader multi-surface rollout beyond the current CBT/runtime slice
 
 ## Security Boundaries
 
 - `SecretsBroker`: single authority for credential vending
 - `PolicyGate`: required before tool execution
-- `ExecutionSandbox`: bounded execution for higher-risk actions
+- `ExecutionSandbox`: bounded local execution for higher-risk actions
 - `SignedAuditTrail`: tamper-evident execution trace
 
 ## Non-Goals (MVP)
