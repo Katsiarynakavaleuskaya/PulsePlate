@@ -43,6 +43,10 @@ Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
 Evidence: docs/review/PR_1023_FIXED_MAPPING.md:40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181094 -> 8be88ad3
 Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910712788 -> 8be88ad3
+Evidence: docs/product/FREE_PRO_CONTRACT.md:29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910715758 -> 8be88ad3
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
 
 ## Merge Readiness
 
