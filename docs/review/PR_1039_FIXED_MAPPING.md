@@ -7,7 +7,12 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: a573999c
-Evidence: docs/review/PR_1039_FIXED_MAPPING.md:10
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:26
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:27
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:28
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:29
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:30
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:31
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2901979966 -> a573999c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#pullrequestreview-3911592887 -> a573999c
