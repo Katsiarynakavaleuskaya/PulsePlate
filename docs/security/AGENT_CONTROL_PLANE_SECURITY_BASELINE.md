@@ -78,7 +78,7 @@ Define the minimum security controls required to operate PulsePlate agent automa
 | C3-a Signed audit | `agent_control_plane.py:212` | - | - | ● | - | - | - | - |
 | C3-b Audit verification | `agent_control_plane.py:254` | - | - | ● | - | - | - | - |
 | C4-a Outbound allowlist | `agent_control_plane.py:106` | ● | - | - | - | - | - | - |
-| C4-b Sandboxed execution | `app/security/execution_sandbox.py:1` | ○ | ● | - | - | ○ | ○ | ● |
+| C4-b Sandboxed execution | `app/security/execution_sandbox.py:303` | ○ | ● | - | - | ○ | ○ | ● |
 | C5-a Approval model | `app/security/agent_control_plane.py:239`, `app/routers/cbt_insight.py:238` | - | ● | - | - | - | ○ | ○ |
 
 **Legend:** ● = Primary mitigation, ○ = Secondary/partial mitigation, - = Not applicable

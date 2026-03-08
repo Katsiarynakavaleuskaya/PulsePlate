@@ -12,6 +12,7 @@ import pytest
 
 from app.security import agent_control_plane as cp
 from app.security import execution_sandbox as sandbox
+from scripts.orchestration import run_local_sandbox as sandbox_cli
 
 
 @pytest.fixture
@@ -339,3 +340,54 @@ def test_run_local_sandbox_cli_emits_json_on_permission_error(sandbox_root: Path
     assert "Execution mode blocked" in payload["stderr"]
     assert payload["timed_out"] is False
     assert payload["truncated"] is False
+
+
+def test_run_local_sandbox_cli_emits_json_on_argument_error(
+    sandbox_root: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    script_path = repo_root / "scripts" / "orchestration" / "run_local_sandbox.py"
+    env = os.environ.copy()
+    env[sandbox.SANDBOX_ENABLED_ENV] = "true"
+    env[sandbox.SANDBOX_ROOT_ENV] = str(sandbox_root)
+    env[sandbox.SANDBOX_ALLOWED_BINARIES_ENV] = "python3,pytest"
+    env[cp.ALLOWLIST_ENV] = "sandbox.exec:local://sandbox"
+
+    completed = subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=str(repo_root),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert completed.stderr == ""
+    payload = json.loads(completed.stdout)
+    assert payload["returncode"] == 1
+    assert payload["argv"] == []
+    assert "CLI argument error" in payload["stderr"]
+    assert payload["timed_out"] is False
+    assert payload["truncated"] is False
+
+
+def test_run_local_sandbox_cli_emits_json_on_unexpected_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _raise_unexpected(
+        _request: sandbox.SandboxRequest,
+    ) -> sandbox.SandboxResult:
+        raise ValueError("unexpected sandbox failure")
+
+    monkeypatch.setattr(sandbox_cli, "run_local_sandbox", _raise_unexpected)
+
+    exit_code = sandbox_cli.main(["--binary", "python3", "--", "-c", "print('x')"])
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["returncode"] == 1
+    assert payload["argv"] == ["python3", "-c", "print('x')"]
+    assert payload["stdout"] == ""
+    assert payload["stderr"] == "unexpected sandbox failure"

@@ -14,10 +14,43 @@ from app.security.execution_sandbox import SandboxRequest
 from app.security.execution_sandbox import run_local_sandbox
 
 
+class _JsonArgumentParser(argparse.ArgumentParser):
+    """Argument parser that fails without emitting usage text to stderr."""
+
+    def error(self, message: str) -> None:
+        raise ValueError(f"CLI argument error: {message}")
+
+
+def _emit_payload(payload: dict[str, object]) -> None:
+    """Print deterministic JSON payload for sandbox CLI consumers."""
+
+    print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
+
+
+def _error_payload(
+    *,
+    argv: Sequence[str],
+    cwd: str,
+    error: str,
+    returncode: int = 1,
+) -> dict[str, object]:
+    """Build deterministic error payload matching the success shape."""
+
+    return {
+        "argv": list(argv),
+        "returncode": returncode,
+        "stdout": "",
+        "stderr": error,
+        "timed_out": False,
+        "truncated": False,
+        "cwd": cwd,
+    }
+
+
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for sandbox execution."""
 
-    parser = argparse.ArgumentParser(
+    parser = _JsonArgumentParser(
         prog="run_local_sandbox",
         description="Run an allowlisted command inside the local execution sandbox.",
     )
@@ -53,54 +86,46 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested command and print deterministic JSON."""
 
-    args = _parse_args(argv)
-    command_args = tuple(args.command_args)
-    if command_args[:1] == ("--",):
-        command_args = command_args[1:]
-
-    request = SandboxRequest(
-        binary=args.binary,
-        args=command_args,
-        cwd=args.cwd,
-        mode=args.mode,
-        action=args.action,
-        target=args.target,
-    )
-
     try:
+        args = _parse_args(argv)
+        command_args = tuple(args.command_args)
+        if command_args[:1] == ("--",):
+            command_args = command_args[1:]
+
+        request = SandboxRequest(
+            binary=args.binary,
+            args=command_args,
+            cwd=args.cwd,
+            mode=args.mode,
+            action=args.action,
+            target=args.target,
+        )
         result = run_local_sandbox(request)
-    except (PermissionError, RuntimeError) as exc:
-        print(
-            json.dumps(
-                {
-                    "argv": [request.binary, *request.args],
-                    "returncode": 1,
-                    "stdout": "",
-                    "stderr": str(exc),
-                    "timed_out": False,
-                    "truncated": False,
-                    "cwd": str(request.cwd or "."),
-                },
-                ensure_ascii=True,
-                sort_keys=True,
+    except Exception as exc:
+        request_argv = tuple(argv or ())
+        request_cwd = "."
+        if "request" in locals():
+            request_argv = (request.binary, *request.args)
+            request_cwd = str(request.cwd or ".")
+        _emit_payload(
+            _error_payload(
+                argv=request_argv,
+                cwd=request_cwd,
+                error=str(exc),
             )
         )
         return 1
 
-    print(
-        json.dumps(
-            {
-                "argv": list(result.argv),
-                "returncode": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "timed_out": result.timed_out,
-                "truncated": result.truncated,
-                "cwd": result.cwd,
-            },
-            ensure_ascii=True,
-            sort_keys=True,
-        )
+    _emit_payload(
+        {
+            "argv": list(result.argv),
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "timed_out": result.timed_out,
+            "truncated": result.truncated,
+            "cwd": result.cwd,
+        }
     )
     return result.returncode
 
