@@ -14,8 +14,8 @@ Use these sources in order:
 
 ## Rules
 
-1. Canonical runtime namespaces are `/api/v1/pro/*` and `/api/v1/vip/*`, with `/api/v1/insight` as an API-key-gated canonical exception.
-2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier.
+1. Repo-wide canonical namespaces are `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), and `/api/v1/vip/*` (VIP); `/api/v1/insight` is a VIP-only canonical exception outside the tier namespace families.
+2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier and must delegate to canonical paths.
 3. Planned routes must stay marked as planned or additive until runtime rollout and OpenAPI exposure are real.
 4. README may summarize capability areas, but this file is the operator-facing route map.
 5. Web and iOS remain thin adapters and must not invent alternative route semantics.
@@ -39,7 +39,7 @@ These routes are the current canonical operator surface.
 | Weekly menu repair | `/api/v1/vip/menu/weekly/repair` | POST | VIP | Canonical VIP repair route |
 | Shoplist export | `/api/v1/vip/shoplist/export` | POST | VIP | Canonical VIP export surface |
 | Recipe synthesis | `/api/v1/vip/recipes/synthesize` | POST | VIP | Canonical VIP recipe synthesis route |
-| Insight | `/api/v1/insight` | POST | API-key gated | AI insight route; bounded-context extraction remains planned |
+| Insight | `/api/v1/insight` | POST | VIP-only (`require_vip_tier()`) | AI insight route; API-key access is enforced through VIP middleware, and bounded-context extraction remains planned |
 
 ## Deprecated Alias / Proxy-Only Surface
 
@@ -49,7 +49,7 @@ These routes remain for compatibility and migration. They must not be described 
 |---|---:|---|---|---|
 | `/api/v1/premium/plan/week-flexible` | POST | PRO | `/api/v1/pro/meal/weekly` | Deprecated PRO bridge |
 | `/api/v1/premium/targets` | POST | PRO | `/api/v1/pro/nutrition/targets` | Legacy shim |
-| `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/daily` | Legacy shim; method/shape differs from canonical route |
+| `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/plate` | Legacy shim; preserves plate request/response semantics |
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
 | `/api/v1/premium/exports/*` | POST | VIP | `/api/v1/vip/shoplist/export` | Wrong-namespace compatibility exports |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |

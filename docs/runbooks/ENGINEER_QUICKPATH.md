@@ -2,6 +2,7 @@
 
 Short canonical path for day-to-day engineering work.
 Policy lives in [`AGENTS.md`](../../AGENTS.md); this file is execution-focused only.
+Keep links in this runbook repository-relative so they work in every clone and rendered view.
 
 ## Start here
 
