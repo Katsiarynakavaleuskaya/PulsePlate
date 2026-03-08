@@ -7,7 +7,8 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910025965 -> 5f6ae211
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900748634 -> 5f6ae211
 
 ## Merge Readiness
 
