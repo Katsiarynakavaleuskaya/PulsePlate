@@ -3603,6 +3603,54 @@ If it is not recorded here — it does not exist.
     - Injection-pattern regression tests are added and green
     - No contract break for current insight endpoints
 
+<a id="ledger-top20-pr-recovery-queue"></a>
+### Active top-20 PR recovery queue (2026-03-08)
+
+Canonical basis: repo truth wins over external snapshots. `PR-TBD-PRO-VIP-DEPENDS-GUARD` is removed from the active queue because it is already closed by `PR #994`. Replacement slot `#20` is `PR-TBD-IOS-STOREKIT-PRODUCTS`.
+
+1. `PR-TBD-SESSION-COOKIE-HARDENING-W1`
+2. `PR-TBD-INSIGHT-FALLBACK-CHAIN`
+3. `PR-TBD-RAG-INPUT-SANITIZER`
+4. `PR-TBD-IOS-KEYCHAIN-CONFORMANCE`
+5. `PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1`
+6. `PR-TBD-BILLING-APPLE-VERIFY`
+7. `PR-TBD-IOS-SUBSCRIPTION-MANAGER`
+8. `PR-TBD-DIET-FLAGS-CONTRACT-SYNC`
+9. `PR-TBD-LEGAL-POLICY-PUBLISH`
+10. `PR-TBD-EXPORT-SIGNING-HARDENING`
+11. `PR-TBD-USERS-SURFACE-HARDENING`
+12. `PR-TBD-API-KEY-TOGGLE-GUARD`
+13. `PR-TBD-WORKER-PROXY-HARDENING`
+14. `PR-TBD (fix/orch-ban-trigger-commit-mapping)`
+15. `PR-TBD (required-check truth)`
+16. `PR-TBD (CI hard/soft/external)`
+17. `PR-TBD-STAGING-SEAM-REMOVAL`
+18. `PR-TBD-NOSEC-ALLOWLIST-PHASE2`
+19. `PR-TBD-AI-BOUNDED-CONTEXT`
+20. `PR-TBD-IOS-STOREKIT-PRODUCTS`
+
+Execution artifact:
+- `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+
+<a id="ledger-p0-billing-apple-verify"></a>
+- [ ] P0: Apple receipt verification backend
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (billing automation / release blocker)
+  - Target PR: PR-TBD-BILLING-APPLE-VERIFY
+  - Status: 📋 Planned
+  - Reason (EN): The payment baseline contract already reserves Apple receipt verification as the only automated iOS billing path. Runtime verification must land before SubscriptionManager can delegate entitlement truth to backend services.
+  - Links:
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+    - docs/IOS_API_INTEGRATION.md
+    - app/routers/pro_payments.py
+    - app/services/payments_activation.py
+    - tests/test_pro_payments_api.py
+  - DoD:
+    - Backend exposes canonical Apple verification route on the additive billing surface
+    - Verification result is normalized into the shared activation contract without client-side entitlement logic
+    - Failure paths are deterministic and use canonical billing error envelopes
+    - `tests/test_ios_receipt_verification_api.py` exists and is green
+
 <a id="ledger-p1-mobile-secret-conformance"></a>
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
@@ -3617,6 +3665,81 @@ If it is not recorded here — it does not exist.
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
+
+<a id="ledger-p1-ios-subscription-manager"></a>
+- [ ] P1: iOS SubscriptionManager thin-client integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (iOS monetization correctness)
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 📋 Planned
+  - Reason (EN): The current `StoreKitManager` handles purchases directly, but the roadmap requires a dedicated iOS orchestration layer that delegates entitlement truth to backend billing contracts and keeps business logic off the client.
+  - Links:
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+    - docs/IOS_API_INTEGRATION.md
+    - ios/PulsePlate/Models/StoreKitManager.swift
+    - ios/PulsePlate/Screens/PaywallScreen.swift
+    - ios/PulsePlate/Services/ProKeyProvider.swift
+  - DoD:
+    - A dedicated iOS subscription orchestration layer exists without duplicating backend billing decisions
+    - Purchase, restore, and verification states are delegated to backend billing contracts where required
+    - Thin-client guardrails remain green (no client-side tier or receipt business logic)
+    - Unit tests cover happy-path, pending, and failure states
+
+<a id="ledger-p1-ios-storekit-products"></a>
+- [ ] P1: StoreKit product contract and operational setup for iOS monetization
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release operations dependency)
+  - Target PR: PR-TBD-IOS-STOREKIT-PRODUCTS
+  - Status: 📋 Planned
+  - Reason (EN): The active monetization queue needs a canonical StoreKit product-id contract and release-operations checklist so iOS purchase flows do not depend on ad hoc identifiers or manual tribal knowledge.
+  - Links:
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+    - ios/PulsePlate/Models/StoreKitManager.swift
+    - ios/PulsePlate/Screens/PaywallScreen.swift
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+  - DoD:
+    - Canonical StoreKit product identifiers are documented and referenced from iOS runtime code
+    - Release/setup steps for StoreKit products are versioned in-repo
+    - Product-list loading aligns with the documented contract and fails safely when products are unavailable
+    - Follow-on App Store release work has an explicit source of truth
+
+<a id="ledger-p1-diet-flags-contract-sync"></a>
+- [ ] P1: Diet flags contract sync across backend, frontend, and thin clients
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (product correctness / contract parity)
+  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
+  - Status: 📋 Planned
+  - Reason (EN): The web Nutrition Setup surface exposes a broader diet-flags set than one backend contract currently accepts, which creates drift in generated types, API normalization, and client expectations.
+  - Links:
+    - frontend/src/pages/NutritionSetup/schema.ts
+    - frontend/src/pages/NutritionSetup/hooks.ts
+    - frontend/src/api/schema.ts
+    - app/schemas/premium_contracts.py
+    - app/schemas/nutrition_recommendations.py
+  - DoD:
+    - One canonical diet-flags enum/normalization table is defined and documented
+    - Frontend form schema, backend schemas, and generated API types use the same contract
+    - Thin clients do not implement divergent diet-flags business logic
+    - Contract and normalization tests are green before OpenAPI sync is claimed complete
+
+<a id="ledger-p0-legal-policy-publish"></a>
+- [ ] P0: Privacy Policy + Terms publication and client-link alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (release / compliance blocker)
+  - Target PR: PR-TBD-LEGAL-POLICY-PUBLISH
+  - Status: 🟡 In progress (runtime legal surface normalization)
+  - Reason (EN): `/privacy` already exists, but release readiness still lacks a canonical Terms publication path and a repo-tracked contract that web/iOS can link to consistently before App Store and billing rollout.
+  - Links:
+    - legacy_app.py
+    - ios/PulsePlate/Views/ProfileView.swift
+    - frontend/src/locales/en.json
+    - frontend/src/locales/ru.json
+    - frontend/src/locales/es.json
+  - DoD:
+    - Canonical privacy and terms publication paths exist and are stable
+    - iOS/web legal links point to the published canonical paths
+    - Legal copy keeps wellness-safe, non-medical boundaries
+    - Tests cover legal endpoint shape and basic release-safety assertions
 
 <a id="ledger-p2-android-keystore-conformance"></a>
 - [ ] P2: Android Keystore secret storage conformance (deferred track)

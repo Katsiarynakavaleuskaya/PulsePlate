@@ -1753,6 +1753,50 @@ async def privacy() -> Dict[str, Any]:
     }
 
 
+@app.get("/terms", include_in_schema=False)
+async def terms() -> Dict[str, Any]:
+    """Terms of use endpoint for release-safe legal publication.
+
+    RU: Эндпоинт условий использования для канонической legal-публикации.
+    EN: Terms of use endpoint for canonical legal publication.
+    """
+
+    return {
+        "terms_of_use": (
+            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
+            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
+        ),
+        "service_scope": {
+            "category": "wellness / nutrition planning / coaching support",
+            "medical_boundary": (
+                "Content is informational and product-guidance only. Users must not treat the service as "
+                "medical, psychiatric, or emergency advice."
+            ),
+            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
+        },
+        "billing_and_subscriptions": {
+            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
+            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
+            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
+            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
+        },
+        "acceptable_use": {
+            "forbidden": [
+                "attempting to bypass tier controls or payment verification",
+                "submitting unlawful, abusive, or malicious content",
+                "using the service for medical triage or emergency decisions",
+            ],
+            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
+        },
+        "liability_boundary": (
+            "The service is provided on a best-effort basis for wellness support. "
+            "Users remain responsible for critical health, legal, and financial decisions."
+        ),
+        "contact": "For legal or billing questions, please contact the application administrator.",
+        "effective_date": "2026-03-08",
+    }
+
+
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
 async def cleanup_expired_logs(
     data_class: Optional[str] = None,
