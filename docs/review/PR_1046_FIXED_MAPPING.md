@@ -20,6 +20,12 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912061363 -> 649a2fb6
   Disposition: FIXED
   Evidence: core/server_salt.py:11; legacy_app.py:2140; tests/test_llm_monthly_quota_config_validation.py:23; tests/test_insight_error_hygiene.py:185
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912090744 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: core/compliance/minimization.py:155; legacy_app.py:2140; tests/conftest.py:601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912090799 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: legacy_app.py:2144; legacy_app.py:2210; tests/test_insight_error_hygiene.py:271
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902358121 -> 1d983225
   Disposition: FIXED
   Evidence: app/security/agent_control_plane.py:280; core/compliance/minimization.py:176
@@ -86,6 +92,24 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902461473 -> 649a2fb6
   Disposition: FIXED
   Evidence: legacy_app.py:2140; legacy_app.py:2303; legacy_app.py:2324; tests/test_insight_error_hygiene.py:185
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497483 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: core/compliance/minimization.py:155; tests/test_compliance_control_plane.py:101
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497486 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: legacy_app.py:2140; legacy_app.py:2210; tests/test_insight_error_hygiene.py:245
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497489 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: tests/conftest.py:601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497537 -> a459ecd0
+  Disposition: FIXED
+  Evidence: .github/workflows/docker-openapi-smoke.yml:67
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497543 -> a459ecd0
+  Disposition: FIXED
+  Evidence: .github/workflows/build.yml:55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902497544 -> 1ebe4f65
+  Disposition: FIXED
+  Evidence: legacy_app.py:2144; tests/test_insight_error_hygiene.py:271
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
