@@ -68,6 +68,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
+            db.off_client = None
             results = await db.search_food("test query")
 
             # Проверяем, что данные были обработаны
@@ -91,6 +92,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
+            db.off_client = None
 
             # Тестируем метод close
             if hasattr(db, "close"):
@@ -129,6 +131,7 @@ class TestUnifiedDBCoverage:
 
             # Create database with custom cache directory
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Verify cache doesn't exist initially
@@ -176,6 +179,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Call search_food with save_cache=False
@@ -215,6 +219,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Call search_food WITHOUT save_cache arg (should default to True)
@@ -268,6 +273,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Sequence 1: save_cache=True, then save_cache=False
@@ -330,6 +336,7 @@ class TestUnifiedDBCoverage:
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+            db.off_client = None
             cache_file = tmp_path / "unified_food_cache.json"
 
             # Create initial cache with save_cache=True
