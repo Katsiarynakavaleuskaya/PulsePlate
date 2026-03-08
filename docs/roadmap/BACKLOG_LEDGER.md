@@ -2975,7 +2975,7 @@ If it is not recorded here — it does not exist.
   - Area: backend / OpenAPI / frontend contract
   - Finding Type: contract-clarification
   - Location: `app/routers/plan_export.py`, `frontend/src/lib/sharedLinks.ts`
-  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. The backend already defines `SignedLinkResponse`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type. Ledger policy keeps this item open until the implementing PR is merged or explicitly closed as won't-do.
+  - Reason: `/api/v1/export/sign` is intentionally hidden from canonical public OpenAPI, so forcing generated public-schema typing would widen the public contract incorrectly. PR `#1035` moved export signing away from static `EXPORT_TOKEN_SECRET` import-time access to the runtime accessor in `settings.py`; the remaining requirement is to keep the runtime JSON shape stable and document why web uses a local internal type. Ledger policy keeps this item open until the implementing PR is merged or explicitly closed as won't-do.
   - Links:
     - `app/routers/plan_export.py`
     - `frontend/src/lib/sharedLinks.ts`

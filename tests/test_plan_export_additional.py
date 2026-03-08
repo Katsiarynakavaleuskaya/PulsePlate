@@ -186,6 +186,7 @@ def test_export_routes_are_registered_but_hidden_from_public_openapi() -> None:
             "/api/v1/export/sign",
             plan_export.WEEK_EXPORT_CSV_PATH,
             plan_export.WEEK_EXPORT_PDF_PATH,
+            plan_export.SHOPLIST_EXPORT_PDF_PATH,
         }
     }
     public_paths = app.openapi()["paths"]
@@ -194,7 +195,9 @@ def test_export_routes_are_registered_but_hidden_from_public_openapi() -> None:
         "/api/v1/export/sign",
         plan_export.WEEK_EXPORT_CSV_PATH,
         plan_export.WEEK_EXPORT_PDF_PATH,
+        plan_export.SHOPLIST_EXPORT_PDF_PATH,
     }
     assert "/api/v1/export/sign" not in public_paths
     assert plan_export.WEEK_EXPORT_CSV_PATH not in public_paths
     assert plan_export.WEEK_EXPORT_PDF_PATH not in public_paths
+    assert plan_export.SHOPLIST_EXPORT_PDF_PATH not in public_paths
