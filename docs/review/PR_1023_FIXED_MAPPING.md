@@ -12,7 +12,7 @@ review-thread guards parse them deterministically.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 38834c86
+Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910025965 -> 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:27
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900748634 -> 38834c86
@@ -33,6 +33,16 @@ Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:96
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:129
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910522914 -> 38834c86
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:4022
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901177553 -> 8be88ad3
+Evidence: docs/product/FREE_PRO_CONTRACT.md:29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901177554 -> 8be88ad3
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181091 -> 8be88ad3
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181093 -> 8be88ad3
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181094 -> 8be88ad3
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
 
 ## Merge Readiness
 
