@@ -38,7 +38,7 @@ session check proves otherwise.
 
 | Runtime | Remote MCP auth (`whoami`) | Design context (`get_design_context`) | Screenshot (`get_screenshot`) | Diagram write (`generate_diagram`) | Design push (`generate_figma_design`) |
 | --- | --- | --- | --- | --- | --- |
-| Codex / GPT-5.4 Pro (primary PulsePlate runtime) | Yes | Yes | Yes for supported Design nodes | Yes | Yes |
+| Codex / GPT-5.4 Pro (primary PulsePlate runtime) | Yes | Yes | Yes for supported Design nodes | Yes | Discovery-gated |
 | Any other MCP client | Verify per active session | Verify per active session | Verify per active session | Verify per active session | Verify per active session |
 
 ## Hard Rules

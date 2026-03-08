@@ -103,23 +103,9 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 ## 5a. Design Tool Source Precedence
 
-For design-system, prototype, and visual implementation tasks, the coordinator
-must prefer tool lanes in this order:
-
-1. `Figma`
-2. `Notion`
-3. `Airweave`
-4. `Penpot`
-
-Interpretation:
-
-- `Figma` is the canonical design-to-code lane.
-- `Notion` is structured memory only.
-- `Airweave` is research ingestion only.
-- `Penpot` is a secondary design lane only.
-
-Canonical reference:
-`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+For design-system, prototype, and visual implementation tasks, use the
+canonical source precedence defined in
+`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 ### Approved now
 
 - YouTube transcript / channel monitoring for founder research and trend tracking

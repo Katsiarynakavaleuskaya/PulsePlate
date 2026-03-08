@@ -14,9 +14,9 @@ without creating a second hidden source of truth.
 
 1. `git/docs/tests/code` remain the project Source of Truth.
 2. `Figma Design + Code Connect` are the canonical design-to-code lane.
-3. `Notion` is structured memory only.
-4. `Airweave` is research ingestion only.
-5. `Penpot` is a secondary design lane only.
+3. `Notion` serves as structured memory only.
+4. `Airweave` handles research ingestion only.
+5. `Penpot` provides a secondary design lane only.
 
 Hard rule: tools `3-5` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance.

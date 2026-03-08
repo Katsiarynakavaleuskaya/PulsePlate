@@ -4642,6 +4642,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
+<a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-tooling scalability after governance baseline)

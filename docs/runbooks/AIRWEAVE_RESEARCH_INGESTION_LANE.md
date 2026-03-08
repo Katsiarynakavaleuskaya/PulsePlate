@@ -15,9 +15,9 @@ Use Airweave as a governed research-ingestion lane for:
 
 ## Phase 1 Boundaries
 
-- Airweave is not a runtime dependency.
-- Airweave is not Source of Truth.
-- Airweave outputs are advisory until promoted into git.
+- Not a runtime dependency.
+- Not Source of Truth.
+- Outputs remain advisory until promoted into git.
 
 ## Access Model
 

@@ -64,14 +64,8 @@ Recommended now for PulsePlate:
   structured memory and handoff pages
 - `openai-docs`, `playwright`, `linear` when the task explicitly matches
 
-Design-tooling precedence for this repo:
-
-1. `Figma`
-2. `Notion`
-3. `Airweave`
-4. `Penpot`
-
-See `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
+For canonical design-tooling precedence, see
+`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 
 Not approved as default:
 
