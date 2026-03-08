@@ -61,18 +61,6 @@ POST /api/v1/recipes/preview
 - Mobile-ready: Yes ✅
 ```
 
-#### `/api/v1/users` (users.py)
-
-```
-POST   /api/v1/users           (Create user)
-GET    /api/v1/users           (List users)
-GET    /api/v1/users/{user_id} (Get user)
-DELETE /api/v1/users/{user_id} (Delete user)
-- User management
-- NO API key required
-- Mobile-ready: Yes ✅
-```
-
 ### 2. PRO Tier Endpoints
 
 #### `/api/v1/premium` (premium_week.py)

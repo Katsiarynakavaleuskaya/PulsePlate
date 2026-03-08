@@ -126,15 +126,11 @@ def test_create_user_validation_error(client: TestClient) -> None:
     assert "email" in error_fields
 
 
-def test_users_surface_rejects_missing_api_key(client: TestClient) -> None:
-    response = client.get("/api/v1/users")
-    assert response.status_code == 403
-
-
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
     [
         ("get", "/api/v1/users", {}),
+        ("get", "/api/v1/users/9999", {}),
         (
             "post",
             "/api/v1/users",

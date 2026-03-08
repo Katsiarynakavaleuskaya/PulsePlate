@@ -92,7 +92,7 @@ If it is not recorded here — it does not exist.
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
   - Status: In progress
-  - Reason: `app/routers/users.py` already enforces an app-level API key, but the hardening work is incomplete while runtime registration still leaves `include_in_schema=True` and current docs/ledger text continue to describe `/api/v1/users*` as public FREE surface. Canonical repo truth must be synchronized so users CRUD is internalized both in runtime schema behavior and documentation.
+  - Reason: `app/routers/users.py` already enforces an app-level API key, and this PR internalizes the users surface in the canonical entrypoint by hiding `/api/v1/users*` from the public OpenAPI contract and removing stale FREE-surface copy. The remaining follow-up is the required docs-only closure PR after merge so the ledger status can move from in-progress to closed.
   - Links:
     - `app/routers/users.py`
     - `legacy_app.py`

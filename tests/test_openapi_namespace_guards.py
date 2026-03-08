@@ -76,6 +76,17 @@ def test_users_routes_are_hidden_from_schema_at_registration_level() -> None:
     ), "users routes must stay hidden from public schema"
 
 
+def test_openapi_tags_and_description_do_not_advertise_users_surface() -> None:
+    """Canonical public OpenAPI copy must not advertise internalized users CRUD."""
+    schema = app.openapi()
+
+    tag_names = {str(tag.get("name", "")) for tag in schema.get("tags", [])}
+    description = str(schema.get("info", {}).get("description", ""))
+
+    assert "users" not in tag_names
+    assert "user management" not in description.lower()
+
+
 def test_ws_routes_not_in_openapi_schema() -> None:
     """WebSocket endpoints must not appear in the OpenAPI schema."""
     paths = set(_openapi_paths())

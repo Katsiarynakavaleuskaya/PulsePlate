@@ -672,7 +672,7 @@ core/
 ### ⚠️ Проблемы
 
 1. **Простота** — базовая функциональность, может быть расширена
-2. **Аутентификация** — нет полноценной системы аутентификации (только API keys)
+2. **Аутентификация** — app-level API key остаётся thin internal guard; полноценная user auth пока вне этого PR
 
 ### ✅ Рекомендации
 
@@ -972,7 +972,7 @@ app/routers/
 | Meal Planning | PRO/VIP | 3 | ✅ | ≥97% | ✅ Stable |
 | Shopping List | PRO/VIP | 6 | ✅ | ≥97% | ✅ Stable |
 | VIP Features | VIP | 5+ | ✅ | ≥97% | ✅ Stable |
-| User Management | FREE | 2 | ✅ | ≥97% | ✅ Stable |
+| User Management | INTERNAL (API key) | 2 | ✅ | ≥97% | ✅ Stable |
 | Analytics/Bayesian | PRO | 2 | ✅ | ≥97% | 🔄 In Progress |
 | Catalog | VIP | 3 | ✅ | ≥97% | 🔄 In Progress |
 | Recipe | FREE/VIP | 3 | ✅ | ≥97% | ✅ Stable |

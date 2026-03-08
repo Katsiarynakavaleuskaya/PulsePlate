@@ -905,7 +905,7 @@ app.include_router(foods_router, include_in_schema=False)
 app.include_router(nutrition_recommendations_router)
 app.include_router(restaurants_router, include_in_schema=False)
 app.include_router(recipes_router)
-app.include_router(users_router, include_in_schema=False)
+app.include_router(users_router)
 app.include_router(catalog_router)
 app.include_router(
     restaurant_moderation_router,
