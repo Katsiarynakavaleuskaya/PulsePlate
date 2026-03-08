@@ -525,10 +525,11 @@ class PhilosophicalRuntime:
             RouteType.RAG_FACTUAL,
             RouteType.DEEP_REASONING,
         }:
-            return self._prompt_builder.build_prompt(
+            prompt_text: str = self._prompt_builder.build_prompt(
                 base_prompt,
                 domain=decision.language_game.value,
             )
+            return prompt_text
         return base_prompt
 
     def _build_rewrite_prompt(
@@ -604,7 +605,8 @@ class PhilosophicalRuntime:
             if term is not None:
                 return _DEFINITION_TEMPLATES[lang_norm][term]
         if decision.route_type == RouteType.DIRECT_CALCULATION:
-            return render_bmi_query_answer(decision.simplified_query, lang=lang)
+            bmi_answer: str = render_bmi_query_answer(decision.simplified_query, lang=lang)
+            return bmi_answer
         return None
 
     def _build_direct_result(
