@@ -488,7 +488,7 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         # Validate using Pydantic schema
         validated = PlateDataSchema.model_validate(data)
         # Return validated dict; SQL safety enforced by parameterized queries in data-access layer
-        result = validated.model_dump(exclude_none=True)
+        result: dict[str, Any] = validated.model_dump(exclude_none=True)
         return result
     except PydanticValidationError as e:
         # Convert Pydantic validation errors to our custom ValidationError
