@@ -11,16 +11,16 @@ Reason: Bootstrap already emits both `recommended_skills` and `skill_routing`; t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996960
 
 Disposition: FIXED
-Commit: 0a8d0c61
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4348`, `docs/roadmap/BACKLOG_LEDGER.md:4349`, `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:41`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996962 -> 0a8d0c61
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996966 -> 0a8d0c61
+Commit: 66eda294
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4645`, `docs/roadmap/BACKLOG_LEDGER.md:4646`, `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:41`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996962 -> 66eda294
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996966 -> 66eda294
 
 Disposition: FIXED
-Commit: 5cff4a95
+Commit: f88204b0
 Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:104`, `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:58`, `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:59`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902019403 -> 5cff4a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902019404 -> 5cff4a95
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902019403 -> f88204b0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902019404 -> f88204b0
 
 Disposition: NOT-A-BUG
 Evidence: Current PR diff excludes `docs/runbooks/ENGINEER_QUICKPATH.md` after the branch rebase onto `origin/main`.
@@ -31,10 +31,10 @@ Reason: These threads are outdated and no longer apply to the current PR scope b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2901996965
 
 Disposition: FIXED
-Commit: eefcdecb
+Commit: 39514856
 Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:65`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062665 -> eefcdecb
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062669 -> eefcdecb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062665 -> 39514856
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062669 -> 39514856
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
