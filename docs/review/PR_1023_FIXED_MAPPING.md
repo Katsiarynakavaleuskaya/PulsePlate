@@ -114,6 +114,11 @@ Disposition: FIXED
 Commit: 0d23c5dc
 Evidence: docs/product/FREE_PRO_CONTRACT.md:174
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901416063 -> e61170cc
+Disposition: FIXED
+Commit: e61170cc
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:97
+
 ## Merge Readiness
 
 - [x] PR is non-draft only when truly ready for merge
