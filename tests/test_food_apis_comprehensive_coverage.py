@@ -14,6 +14,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def disable_default_off_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable live OFF client by default; tests may override with explicit mocks."""
+    monkeypatch.setattr("core.food_apis.unified_db.OFFClient", None)
+
+
 # Test scheduler module comprehensively
 @pytest.mark.slow
 class TestDatabaseUpdateSchedulerComprehensive:
@@ -343,6 +349,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
+                db.off_client = None
 
                 # Test with prefer_source='openfoodfacts'
                 # Currently this will fall back to USDA since OFF is not implemented
@@ -372,6 +379,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
+                db.off_client = None
 
                 results = await db.search_food("chicken")
 
@@ -451,6 +459,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
+                db.off_client = None
 
                 # Create an invalid cache file
                 cache_file = db.cache_dir / "common_foods.json"
@@ -474,6 +483,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
+                db.off_client = None
 
                 # Make the cache directory read-only to cause save exception
                 _ = db.cache_dir / "common_foods.json"
@@ -498,6 +508,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
+                db.off_client = None
 
                 # Should handle the exception and continue with other searches
                 foods_db = await db.get_common_foods_database()

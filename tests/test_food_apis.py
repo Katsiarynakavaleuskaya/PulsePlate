@@ -14,6 +14,12 @@ from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 from core.food_apis.usda_client import USDAClient, USDAFoodItem
 
 
+@pytest.fixture(autouse=True)
+def disable_default_off_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable live OFF client by default; tests may override with explicit mocks."""
+    monkeypatch.setattr("core.food_apis.unified_db.OFFClient", None)
+
+
 class TestUSDAClient:
     """Test USDA FoodData Central API client."""
 
@@ -569,6 +575,7 @@ class TestUnifiedFoodDatabase:
     async def test_unified_database_initialization(self):
         """Test unified database initialization."""
         db = UnifiedFoodDatabase("test_cache")
+        db.off_client = None
 
         # Should initialize without errors
         assert db.cache_dir.name == "test_cache"
@@ -578,10 +585,8 @@ class TestUnifiedFoodDatabase:
         await db.close()
 
     @pytest.mark.asyncio
-    @patch("core.food_apis.usda_client.get_common_foods_database")
-    async def test_unified_database_get_foods(self, mock_get_foods):
+    async def test_unified_database_get_foods(self):
         """Test getting foods from unified database."""
-        # Mock USDA response
         mock_usda_food = USDAFoodItem(
             fdc_id=123,
             description="Test Chicken",
@@ -596,10 +601,13 @@ class TestUnifiedFoodDatabase:
             publication_date="2024-01-01",
         )
 
-        mock_get_foods.return_value = {"chicken_breast": mock_usda_food}
-
         db = UnifiedFoodDatabase("test_cache")
-        foods = await db.get_common_foods_database()
+        db.off_client = None
+        db.usda_client = AsyncMock()
+        db.usda_client.search_foods.return_value = [mock_usda_food]
+
+        with patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()):
+            foods = await db.get_common_foods_database()
 
         assert "chicken_breast" in foods
         assert isinstance(foods["chicken_breast"], UnifiedFoodItem)
