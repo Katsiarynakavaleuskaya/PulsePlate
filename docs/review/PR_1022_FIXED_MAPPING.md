@@ -26,3 +26,13 @@ Evidence: `scripts/orchestration/skill_router.py:303`, `tests/test_skill_router.
 Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/skill_router.py:28`, `scripts/orchestration/skill_router.py:388`, `tests/test_skill_router.py:139`
 Reason: The remaining CodeRabbit notes are advisory only. `SCRAPING_BLOCK_PATTERNS` uses explicit repo-specific phrases rather than short ambiguous tokens, and the frozen module-level `SkillRule` config is treated as read-only policy data; changing blocked-pattern semantics or wrapping `domain_weights` would add churn without affecting the current routing contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2900863932 -> b4c806fc
+Disposition: FIXED
+Commit: b4c806fc
+Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/skill_router.py:149`, `scripts/orchestration/skill_router.py:271`, `tests/test_skill_router.py:117`, `tests/test_skill_router.py:129`, `tests/test_skill_router.py:141`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2900863933 -> b4c806fc
+Disposition: FIXED
+Commit: b4c806fc
+Evidence: `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:153`
