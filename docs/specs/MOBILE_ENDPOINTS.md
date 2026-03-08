@@ -203,15 +203,17 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 
 **Current structure:**
 
-```
+```text
 /api/v1/bmi/*        (FREE)
 /api/v1/foods/*      (FREE)
 /api/v1/recipes/*    (FREE)
-/api/v1/users/*      (Internal runtime surface only; not a supported mobile client contract)
 /api/v1/premium/*    (PRO) ⚠️ Missing API key
 /api/v1/vip/*        (VIP) ✅ Has API key
 /api/v1/business/*   (Internal) ⚠️ No protection
 ```
+
+`/api/v1/users/*` is intentionally excluded from the mobile client contract.
+It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
 
 ---
 
@@ -226,12 +228,10 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 /api/v1/recipes/search  - Browse recipe database
 ```
 
-### Internal Surface (App-Level API Key)
+### Internal-only note
 
-```
-/api/v1/users/*         - Internal runtime surface only; not a supported mobile client contract
-First-party mobile apps must not ship the app-level API key or call this surface directly.
-```
+`/api/v1/users/*` is intentionally excluded from the mobile client contract.
+It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
 
 ### Tier 2: PRO (API Key Required - Level 1)
 
