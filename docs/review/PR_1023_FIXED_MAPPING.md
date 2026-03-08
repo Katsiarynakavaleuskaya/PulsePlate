@@ -11,42 +11,90 @@ review-thread guards parse them deterministically.
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910025965 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:27
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900748634 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:79
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857875 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:96
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857876 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:129
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857877 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:4022
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910163434 -> 38834c86
+Disposition: FIXED
+Commit: 38834c86
 Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:27
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910521974 -> 38834c86
-Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:79
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064046 -> 38834c86
-Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:96
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064691 -> 38834c86
-Evidence: docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:129
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910522914 -> 38834c86
-Evidence: docs/roadmap/BACKLOG_LEDGER.md:4022
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910521974 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:44
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064046 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:49
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901064691 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:54
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910522914 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:59
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901177553 -> 8be88ad3
+Disposition: FIXED
+Commit: 8be88ad3
 Evidence: docs/product/FREE_PRO_CONTRACT.md:29
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901177554 -> 8be88ad3
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181091 -> 8be88ad3
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181093 -> 8be88ad3
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:40
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181094 -> 8be88ad3
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901177554 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:69
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181091 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:74
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181093 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:93
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2901181094 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:87
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910712788 -> 8be88ad3
+Disposition: FIXED
+Commit: 8be88ad3
 Evidence: docs/product/FREE_PRO_CONTRACT.md:29
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910715758 -> 8be88ad3
-Evidence: docs/review/PR_1023_FIXED_MAPPING.md:13
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#pullrequestreview-3910715758 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: docs/review/PR_1023_FIXED_MAPPING.md:69
 
 ## Merge Readiness
 
