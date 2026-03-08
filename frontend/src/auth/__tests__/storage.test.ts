@@ -24,10 +24,12 @@ const sessionStorageMock: StorageMock = {
 
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
+  configurable: true,
 });
 
 Object.defineProperty(window, 'sessionStorage', {
   value: sessionStorageMock,
+  configurable: true,
 });
 
 describe('auth storage migration contract', () => {
@@ -74,5 +76,50 @@ describe('auth storage migration contract', () => {
     });
 
     expect(() => clearStoredApiKey()).not.toThrow();
+  });
+
+  it('falls back when localStorage property access throws', () => {
+    const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    sessionStorageMock.getItem.mockReturnValue('legacy-session-key');
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('local getter blocked');
+      },
+    });
+
+    try {
+      expect(getStoredApiKey()).toBe('legacy-session-key');
+      expect(sessionStorageMock.getItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
+      expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
+    } finally {
+      Object.defineProperty(window, 'localStorage', originalLocalStorage!);
+    }
+  });
+
+  it('fails closed when storage property access throws', () => {
+    const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    const originalSessionStorage = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('local getter blocked');
+      },
+    });
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new Error('session getter blocked');
+      },
+    });
+
+    try {
+      expect(() => clearStoredApiKey()).not.toThrow();
+    } finally {
+      Object.defineProperty(window, 'localStorage', originalLocalStorage!);
+      Object.defineProperty(window, 'sessionStorage', originalSessionStorage!);
+    }
   });
 });

@@ -6,7 +6,17 @@
 
 const API_KEY_STORAGE_KEY = 'pulseplate_api_key';
 
-function readLegacyApiKey(storage: Storage): string | null {
+function getBrowserStorage(storageKey: 'localStorage' | 'sessionStorage'): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window[storageKey];
+  } catch {
+    return null;
+  }
+}
+
+function readLegacyApiKey(storage: Storage | null): string | null {
+  if (!storage) return null;
   try {
     return storage.getItem(API_KEY_STORAGE_KEY);
   } catch {
@@ -20,7 +30,9 @@ function readLegacyApiKey(storage: Storage): string | null {
  */
 export function getStoredApiKey(): string | null {
   if (typeof window === 'undefined') return null;
-  const legacyKey = readLegacyApiKey(localStorage) || readLegacyApiKey(sessionStorage);
+  const legacyKey =
+    readLegacyApiKey(getBrowserStorage('localStorage')) ||
+    readLegacyApiKey(getBrowserStorage('sessionStorage'));
   if (legacyKey) {
     clearStoredApiKey();
   }
@@ -40,13 +52,15 @@ export function setStoredApiKey(_key: string, _remember: boolean = false): void 
 
 export function clearStoredApiKey(): void {
   if (typeof window === 'undefined') return;
+  const localStorageRef = getBrowserStorage('localStorage');
+  const sessionStorageRef = getBrowserStorage('sessionStorage');
   try {
-    localStorage.removeItem(API_KEY_STORAGE_KEY);
+    localStorageRef?.removeItem(API_KEY_STORAGE_KEY);
   } catch {
     // Ignore unavailable storage during fail-closed cleanup.
   }
   try {
-    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+    sessionStorageRef?.removeItem(API_KEY_STORAGE_KEY);
   } catch {
     // Ignore unavailable storage during fail-closed cleanup.
   }
