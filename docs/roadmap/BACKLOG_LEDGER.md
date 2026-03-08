@@ -120,7 +120,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Internal DSAR direct-user helper contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DSAR-DIRECT-USER-HELPERS
+  - Target PR: PR #1049
   - Area: backend / privacy
   - Finding Type: compliance runtime hardening
   - Reason: The compliance control plane now documents support-led DSAR handling, but the runtime still needs deterministic helper functions that export direct-user SQL artifacts and execute bounded deletion without exposing a public endpoint. This slice keeps DSAR execution consistent for `users`, `rag_feedback`, and `user_knowledge` while keeping account-row deletion on the dedicated existing path.
