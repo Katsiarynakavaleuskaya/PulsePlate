@@ -117,6 +117,18 @@ Evidence: `docs/review/PR_1047_FIXED_MAPPING.md` now includes the required `## M
 Disposition: FIXED
 Commit: a71a4659
 Evidence: The only actionable item in this aggregate CodeRabbit review was the missing `## Merge Readiness` section in `docs/review/PR_1047_FIXED_MAPPING.md`, fixed by `a71a4659`; the remaining suggestions in that review are non-blocking nitpicks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902496104 -> 79673954
+Disposition: FIXED
+Commit: 79673954
+Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md` now moves `docs/sora/SORA_STYLE_QA_CHECKLIST.md` ahead of `docs/design/TOKENS_SOT.md` and `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` in the required reading order so the authoritative web-token governance doc is read first.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#discussion_r2902496106 -> 79673954
+Disposition: FIXED
+Commit: 79673954
+Evidence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` now includes `docs/sora/SORA_STYLE_QA_CHECKLIST.md` in the token source-contract section and explicitly marks it as authoritative for token SoT, staged migration, and raw-hex allowlist rules.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047#pullrequestreview-3912089482 -> 79673954
+Disposition: FIXED
+Commit: 79673954
+Evidence: `79673954` fixes the two actionable doc-precedence findings from this aggregate CodeRabbit review by reordering the Figma runbook reading list and adding the SORA checklist to the token source-contract section; the duplicate merge-readiness note was already satisfied by `a71a4659`, and the remaining suggestions are non-blocking nitpicks.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
