@@ -40,6 +40,7 @@ def test_require_valid_token_invalid_signature(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_export_csv_route_uses_runtime_secret_accessor(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -58,11 +59,10 @@ def test_export_csv_route_uses_runtime_secret_accessor(
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
-    with TestClient(app) as isolated_client:
-        response = isolated_client.get(
-            f"{plan_export.WEEK_EXPORT_CSV_PATH}?exp=123&sig=abc",
-            headers={"X-API-Key": "test_key"},
-        )
+    response = client.get(
+        f"{plan_export.WEEK_EXPORT_CSV_PATH}?exp=123&sig=abc",
+        headers={"X-API-Key": "test_key"},
+    )
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")

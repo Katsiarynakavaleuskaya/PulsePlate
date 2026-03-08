@@ -2969,7 +2969,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING
+  - Target PR: PR `#1035` (`feat/export-signing-hardening`)
   - Status: In progress
   - Priority: P2
   - Area: backend / OpenAPI / frontend contract
