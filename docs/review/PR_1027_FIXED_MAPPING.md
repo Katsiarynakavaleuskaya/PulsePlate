@@ -1,4 +1,5 @@
 # PR 1027 — Fixed in Commit Mapping
+<!-- markdownlint-disable MD034 -->
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed

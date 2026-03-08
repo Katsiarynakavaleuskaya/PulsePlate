@@ -48,6 +48,8 @@ These routes remain for compatibility and migration. They must not be described 
 | Compatibility route | Method | Current tier semantics | Canonical target | Status |
 |---|---:|---|---|---|
 | `/api/v1/premium/plan/week-flexible` | POST | PRO | `/api/v1/pro/meal/weekly` | Deprecated PRO bridge |
+| `/api/v1/premium/bmr` | POST | Legacy premium compatibility | No canonical `/api/v1/pro/*` replacement documented yet | Legacy-compatible endpoint retained until a canonical migration target is committed |
+| `/api/v1/premium/tdee` | POST | Legacy premium compatibility | No canonical `/api/v1/pro/*` replacement documented yet | Legacy-compatible endpoint retained until a canonical migration target is committed |
 | `/api/v1/premium/targets` | POST | PRO | `/api/v1/pro/nutrition/targets` | Legacy shim |
 | `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/plate` | Legacy shim; preserves plate request/response semantics |
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
