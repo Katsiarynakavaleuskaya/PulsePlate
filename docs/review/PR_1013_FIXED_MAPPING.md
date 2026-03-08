@@ -45,6 +45,11 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-pr1013-sandbox-hardening-followups
 Reason: Stream-aware output budget enforcement remains intentionally deferred out of the PR #1013 local sandbox foundation scope.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901821247 -> ea7c7f47
+Disposition: FIXED
+Commit: ea7c7f47
+Evidence: docs/review/PR_1013_FIXED_MAPPING.md:53
+
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
 - [ ] All required checks are green on latest commit (no pending/rerun required)
