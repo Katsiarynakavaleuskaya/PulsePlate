@@ -21,6 +21,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from app.utils.feature_flags import is_rag_vector_enabled
+from core.data_sanitizer import sanitize_rag_markdown
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
@@ -239,11 +240,14 @@ def _retrieve_vector_from_db(
     for i, (row, similarity) in enumerate(results, 1):
         if similarity < MIN_VECTOR_SCORE:
             continue
+        sanitized_content = sanitize_rag_markdown(str(row.content))[:MAX_CHUNK_SIZE_CHARS].strip()
+        if not sanitized_content:
+            continue
         chunks.append(
             RAGChunk(
                 chunk_id=f"uk:{row.id}:{i}",
                 file=row.source or "user_knowledge",
-                content=str(row.content)[:MAX_CHUNK_SIZE_CHARS],
+                content=sanitized_content,
                 score=round(similarity, 4),
                 hop=1,
             )
