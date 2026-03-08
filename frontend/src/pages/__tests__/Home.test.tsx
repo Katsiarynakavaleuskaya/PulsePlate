@@ -144,7 +144,7 @@ describe('Home', () => {
 
   it('shows upgrade CTA for authenticated non-premium users', () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -166,7 +166,7 @@ describe('Home', () => {
 
   it('lets premium users submit AI query and renders reliability metadata', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -218,7 +218,7 @@ describe('Home', () => {
 
   it('renders friendly AI error state without breaking existing CTAs', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -249,7 +249,7 @@ describe('Home', () => {
 
   it('renders duplicate warnings without collapsing repeated entries', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -284,7 +284,7 @@ describe('Home', () => {
 
   it('maps rate limit failures to a user-facing message', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -314,7 +314,7 @@ describe('Home', () => {
 
   it('maps validation failures to a user-facing message', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -344,7 +344,7 @@ describe('Home', () => {
 
   it('maps forbidden failures to a reconnect message', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -374,7 +374,7 @@ describe('Home', () => {
 
   it('maps expired session failures to a reconnect message', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),
@@ -435,9 +435,9 @@ describe('Home', () => {
     expect(screen.getByTestId('enter-key-probe')).toHaveTextContent('/progress');
   });
 
-  it('opens Home auth-gated CTAs when session key exists', async () => {
+  it('opens Home auth-gated CTAs when secure session exists', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      apiKey: 'present', // pragma: allowlist secret -- test auth sentinel / тестовый маркер авторизации
+      apiKey: null,
       isAuthenticated: true,
       isLoading: false,
       setApiKey: vi.fn(),

@@ -40,7 +40,7 @@ vi.mock('react-router-dom', () => ({
   BrowserRouter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Routes: ({ children }: any) => <>{children}</>,
   Route: ({ element }: any) => element,
-  NavLink: ({ to, children, className, ...props }: any) => (
+  NavLink: ({ to, children, className, end: _end, ...props }: any) => (
     <a href={to} className={className} {...props}>
       {children}
     </a>
@@ -56,8 +56,8 @@ vi.mock('react-router-dom', () => ({
 
 import TabBar from '../TabBar';
 
-const renderTabBar = (apiKey: string | null = null) => {
-  mockUseAuth.mockReturnValue({ apiKey });
+const renderTabBar = (isAuthenticated: boolean = false) => {
+  mockUseAuth.mockReturnValue({ isAuthenticated });
 
   return render(<TabBar />);
 };
@@ -73,9 +73,9 @@ describe('TabBar', () => {
 
 
 
-  describe('without API key', () => {
+  describe('without secure session', () => {
     it('shows lock icons for protected routes', () => {
-      renderTabBar(null);
+      renderTabBar(false);
 
       // Check that protected tabs have lock icons
       const plateTab = screen.getByRole('tab', { name: /plate/i });
@@ -97,7 +97,7 @@ describe('TabBar', () => {
     });
 
     it('shows disabled styling for protected routes', () => {
-      renderTabBar(null);
+      renderTabBar(false);
 
       const plateTab = screen.getByRole('tab', { name: /plate/i });
       const progressTab = screen.getByRole('tab', { name: /progress/i });
@@ -110,7 +110,7 @@ describe('TabBar', () => {
     });
 
     it('shows click feedback for disabled tabs', async () => {
-      renderTabBar(null);
+      renderTabBar(false);
 
       const plateTab = screen.getByRole('tab', { name: /plate/i });
 
@@ -132,18 +132,18 @@ describe('TabBar', () => {
     });
 
     it('shows accessible labels for disabled tabs', () => {
-      renderTabBar(null);
+      renderTabBar(false);
 
       const plateTab = screen.getByRole('tab', { name: /plate/i });
 
-      expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
+      expect(plateTab).toHaveAttribute('title', 'auth.requiresSecureSession');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
     });
   });
 
-  describe('with API key', () => {
+  describe('with secure session', () => {
     it('shows all tabs as accessible', () => {
-      renderTabBar('test-api-key');
+      renderTabBar(true);
 
       // All tabs should be NavLink elements (not disabled spans)
       const homeTab = screen.getByRole('tab', { name: /home/i });
@@ -160,7 +160,7 @@ describe('TabBar', () => {
     });
 
     it('shows active tab indicator bar for the active route', () => {
-      renderTabBar('test-api-key');
+      renderTabBar(true);
 
       // The indicator bar should be present for the "Home" tab (default active route)
       const homeTab = screen.getByRole('tab', { name: /home/i });
@@ -169,7 +169,7 @@ describe('TabBar', () => {
     });
 
     it('shows hover effects for available tabs', () => {
-      renderTabBar('test-api-key');
+      renderTabBar(true);
 
       const homeTab = screen.getByRole('tab', { name: /home/i });
 
@@ -180,7 +180,7 @@ describe('TabBar', () => {
 
   describe('accessibility', () => {
     it('has proper ARIA attributes for disabled tabs', () => {
-      renderTabBar(null);
+      renderTabBar(false);
 
       const plateTab = screen.getByRole('tab', { name: /plate/i });
       const progressTab = screen.getByRole('tab', { name: /progress/i });
@@ -189,19 +189,19 @@ describe('TabBar', () => {
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
       expect(progressTab).toHaveAttribute('tabindex', '-1');
-      expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
-      expect(progressTab).toHaveAttribute('title', 'auth.requiresApiKey');
+      expect(plateTab).toHaveAttribute('title', 'auth.requiresSecureSession');
+      expect(progressTab).toHaveAttribute('title', 'auth.requiresSecureSession');
     });
   });
 
   describe('VIP functionality', () => {
     beforeEach(() => {
-      mockUseAuth.mockReturnValue({ apiKey: 'test-key' });
+      mockUseAuth.mockReturnValue({ isAuthenticated: true });
     });
 
     it('shows VIP tabs when VIP module is enabled', () => {
       mockUseVipModule.mockReturnValue(true);
-      renderTabBar('test-key');
+      renderTabBar(true);
 
       expect(screen.getByRole('tab', { name: /vip feature/i })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /another vip/i })).toBeInTheDocument();
@@ -209,15 +209,15 @@ describe('TabBar', () => {
 
     it('hides VIP tabs when VIP module is disabled', () => {
       mockUseVipModule.mockReturnValue(false);
-      renderTabBar('test-key');
+      renderTabBar(true);
 
       expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
 
-    it('hides VIP tabs when VIP module is disabled even with API key', () => {
+    it('hides VIP tabs when VIP module is disabled even with a secure session', () => {
       mockUseVipModule.mockReturnValue(false);
-      renderTabBar('test-key');
+      renderTabBar(true);
 
       // VIP tabs should not be visible at all when VIP is disabled
       expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
@@ -226,7 +226,7 @@ describe('TabBar', () => {
 
     it('handles 6 tabs with correct grid layout', () => {
       mockUseVipModule.mockReturnValue(true);
-      renderTabBar('test-key');
+      renderTabBar(true);
 
       // Should have 6 tabs total: Home, Profile, Plate, Progress, VIP Feature, Another VIP
       const tabBar = screen.getByRole('tablist');

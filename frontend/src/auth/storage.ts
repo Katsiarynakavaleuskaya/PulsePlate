@@ -6,14 +6,25 @@
 
 const API_KEY_STORAGE_KEY = 'pulseplate_api_key';
 
+function readLegacyApiKey(storage: Storage): string | null {
+  try {
+    return storage.getItem(API_KEY_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Retrieves the stored API key from browser storage.
- * Checks localStorage first and returns if present, otherwise returns sessionStorage.
- * Note: setStoredApiKey clears the other storage when setting to avoid ambiguity.
+ * Retrieves a legacy API key from browser storage for one-time migration only.
+ * The value is consumed and cleared immediately to avoid keeping auth secrets in the browser.
  */
 export function getStoredApiKey(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
+  const legacyKey = readLegacyApiKey(localStorage) || readLegacyApiKey(sessionStorage);
+  if (legacyKey) {
+    clearStoredApiKey();
+  }
+  return legacyKey;
 }
 
 /**
@@ -29,6 +40,14 @@ export function setStoredApiKey(_key: string, _remember: boolean = false): void 
 
 export function clearStoredApiKey(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(API_KEY_STORAGE_KEY);
-  sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+  try {
+    localStorage.removeItem(API_KEY_STORAGE_KEY);
+  } catch {
+    // Ignore unavailable storage during fail-closed cleanup.
+  }
+  try {
+    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+  } catch {
+    // Ignore unavailable storage during fail-closed cleanup.
+  }
 }
