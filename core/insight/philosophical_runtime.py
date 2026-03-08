@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, cast
 
-from core.bmi import extract_bmi_inputs, render_bmi_query_answer
+from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
     FalsificationChecker,
