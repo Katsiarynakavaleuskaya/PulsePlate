@@ -525,12 +525,9 @@ class PhilosophicalRuntime:
             RouteType.RAG_FACTUAL,
             RouteType.DEEP_REASONING,
         }:
-            return cast(
-                str,
-                self._prompt_builder.build_prompt(
-                    base_prompt,
-                    domain=decision.language_game.value,
-                ),
+            return self._prompt_builder.build_prompt(
+                base_prompt,
+                domain=decision.language_game.value,
             )
         return base_prompt
 
