@@ -36,6 +36,15 @@ Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:65`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062665 -> 39514856
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#discussion_r2902062669 -> 39514856
 
+Disposition: NOT-A-BUG
+Evidence: Individual actionable threads from each bot review batch are mapped explicitly in this artifact.
+Reason: These `pullrequestreview-*` URLs are review-level wrapper comments that aggregate already-mapped actionable threads; they do not require separate code changes beyond the mapped thread dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#pullrequestreview-3911603862
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#pullrequestreview-3911605914
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#pullrequestreview-3911628270
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#pullrequestreview-3911652947
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1040#pullrequestreview-3911673825
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
