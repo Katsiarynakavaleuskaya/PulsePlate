@@ -1,7 +1,7 @@
 # Engineer Quick Path
 
 Short canonical path for day-to-day engineering work.
-Policy lives in [AGENTS.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean_docs_pr/AGENTS.md); this file is execution-focused only.
+Policy lives in [`AGENTS.md`](../../AGENTS.md); this file is execution-focused only.
 
 ## Start here
 
@@ -13,7 +13,7 @@ If preflight fails, stop and fix that first.
 
 ## Daily path
 
-1. Read the root [AGENTS.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean_docs_pr/AGENTS.md), [RUNBOOK_AGENT.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean_docs_pr/RUNBOOK_AGENT.md), and the nearest scoped `AGENTS.md` for the files you will touch.
+1. Read the root [`AGENTS.md`](../../AGENTS.md), [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md), and the nearest scoped `AGENTS.md` for the files you will touch.
 2. Make the smallest scoped change that satisfies the task.
 3. Run the cheapest relevant check first:
    - `pytest -q tests/test_repo_policy_guards.py` for guard-sensitive work
@@ -45,7 +45,7 @@ Do not claim green or merge-ready without local evidence.
 1. `pytest -q tests/test_repo_policy_guards.py`
 2. `make test-fast`
 3. `make lint`
-4. Use [RUNBOOK_AGENT.md](/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean_docs_pr/RUNBOOK_AGENT.md) for deeper CI/debug procedures
+4. Use [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md) for deeper CI/debug procedures
 
 ## Deployment note
 

@@ -14,7 +14,7 @@ Use these sources in order:
 
 ## Rules
 
-1. Canonical runtime namespaces are `/api/v1/pro/*` and `/api/v1/vip/*`.
+1. Canonical runtime namespaces are `/api/v1/pro/*` and `/api/v1/vip/*`, with `/api/v1/insight` as an API-key-gated canonical exception.
 2. `/api/v1/premium/*` is a compatibility surface only. It is not a separate product tier.
 3. Planned routes must stay marked as planned or additive until runtime rollout and OpenAPI exposure are real.
 4. README may summarize capability areas, but this file is the operator-facing route map.
