@@ -129,6 +129,11 @@ def test_sanitize_sandbox_env_rejects_sensitive_keys() -> None:
         sandbox.sanitize_sandbox_env({suspicious_key: "secret"})
 
 
+def test_sanitize_sandbox_env_rejects_loader_injection_keys() -> None:
+    with pytest.raises(PermissionError, match="Loader env key"):
+        sandbox.sanitize_sandbox_env({"LD_PRELOAD": "/tmp/libinject.so"})
+
+
 def test_sanitize_sandbox_env_keeps_safe_extra_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -184,6 +189,38 @@ def test_run_local_sandbox_blocks_blocked_execution_mode(
     with pytest.raises(PermissionError, match="Execution mode blocked"):
         sandbox.run_local_sandbox(
             sandbox.SandboxRequest(binary="python3", args=("-c", "print('x')"), cwd=sandbox_root)
+        )
+
+
+def test_run_local_sandbox_request_mode_cannot_relax_blocked_runtime(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(cp.EXECUTION_MODE_ENV, cp.EXECUTION_MODE_BLOCKED)
+    with pytest.raises(PermissionError, match="Execution mode blocked"):
+        sandbox.run_local_sandbox(
+            sandbox.SandboxRequest(
+                binary="python3",
+                args=("-c", "print('x')"),
+                cwd=sandbox_root,
+                mode=cp.EXECUTION_MODE_AUTO_SAFE,
+            )
+        )
+
+
+def test_run_local_sandbox_request_mode_can_tighten_runtime(
+    sandbox_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(cp.EXECUTION_MODE_ENV, raising=False)
+    with pytest.raises(PermissionError, match="review-required"):
+        sandbox.run_local_sandbox(
+            sandbox.SandboxRequest(
+                binary="python3",
+                args=("-c", "print('x')"),
+                cwd=sandbox_root,
+                mode=cp.EXECUTION_MODE_REVIEW_REQUIRED,
+            )
         )
 
 
@@ -252,5 +289,42 @@ def test_run_local_sandbox_cli_emits_deterministic_json(sandbox_root: Path) -> N
     assert payload["returncode"] == 0
     assert payload["stdout"] == "cli-ok\n"
     assert payload["stderr"] == ""
+    assert payload["timed_out"] is False
+    assert payload["truncated"] is False
+
+
+def test_run_local_sandbox_cli_emits_json_on_permission_error(sandbox_root: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    script_path = repo_root / "scripts" / "orchestration" / "run_local_sandbox.py"
+    env = os.environ.copy()
+    env[sandbox.SANDBOX_ENABLED_ENV] = "true"
+    env[sandbox.SANDBOX_ROOT_ENV] = str(sandbox_root)
+    env[cp.ALLOWLIST_ENV] = "sandbox.exec:local://sandbox"
+    env[cp.EXECUTION_MODE_ENV] = cp.EXECUTION_MODE_BLOCKED
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--binary",
+            "python3",
+            "--cwd",
+            str(sandbox_root),
+            "--",
+            "-c",
+            "print('cli-ok')",
+        ],
+        cwd=str(repo_root),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    payload = json.loads(completed.stdout)
+    assert payload["returncode"] == 1
+    assert payload["stdout"] == ""
+    assert "Execution mode blocked" in payload["stderr"]
     assert payload["timed_out"] is False
     assert payload["truncated"] is False

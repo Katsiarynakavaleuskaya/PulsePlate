@@ -30,7 +30,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         default=None,
-        help="Optional execution mode override (auto-safe, review-required, blocked).",
+        help="Optional stricter execution mode request; runtime config remains the upper bound.",
     )
     parser.add_argument(
         "--action",
@@ -58,16 +58,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     if command_args[:1] == ("--",):
         command_args = command_args[1:]
 
-    result = run_local_sandbox(
-        SandboxRequest(
-            binary=args.binary,
-            args=command_args,
-            cwd=args.cwd,
-            mode=args.mode,
-            action=args.action,
-            target=args.target,
-        )
+    request = SandboxRequest(
+        binary=args.binary,
+        args=command_args,
+        cwd=args.cwd,
+        mode=args.mode,
+        action=args.action,
+        target=args.target,
     )
+
+    try:
+        result = run_local_sandbox(request)
+    except (PermissionError, RuntimeError) as exc:
+        print(
+            json.dumps(
+                {
+                    "argv": [request.binary, *request.args],
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": str(exc),
+                    "timed_out": False,
+                    "truncated": False,
+                    "cwd": str(request.cwd or "."),
+                },
+                ensure_ascii=True,
+                sort_keys=True,
+            )
+        )
+        return 1
+
     print(
         json.dumps(
             {

@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from app.security.agent_control_plane import EXECUTION_MODE_AUTO_SAFE
+from app.security.agent_control_plane import EXECUTION_MODE_BLOCKED
+from app.security.agent_control_plane import EXECUTION_MODE_REVIEW_REQUIRED
+from app.security.agent_control_plane import normalize_execution_mode
 from app.security.agent_control_plane import require_execution_mode
 from app.security.agent_control_plane import require_policy_allow
 
@@ -48,6 +52,18 @@ _DEFAULT_ENV_KEYS = (
     "TZ",
 )
 _SENSITIVE_ENV_TOKENS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "SALT")
+_BLOCKED_ENV_KEYS = (
+    "DYLD_FRAMEWORK_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+)
+_EXECUTION_MODE_PRIORITY = {
+    EXECUTION_MODE_AUTO_SAFE: 0,
+    EXECUTION_MODE_REVIEW_REQUIRED: 1,
+    EXECUTION_MODE_BLOCKED: 2,
+}
 
 
 @dataclass(frozen=True)
@@ -225,10 +241,29 @@ def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str
 
     for key, value in extra_env.items():
         upper = key.upper()
+        if upper in _BLOCKED_ENV_KEYS:
+            raise PermissionError(f"Loader env key is not allowed in sandbox: {key}")
         if any(token in upper for token in _SENSITIVE_ENV_TOKENS):
             raise PermissionError(f"Sensitive env key is not allowed in sandbox: {key}")
         sanitized[key] = value
     return sanitized
+
+
+def resolve_effective_execution_mode(requested_mode: str | None = None) -> str:
+    """Return the strictest execution mode between config and request.
+
+    RU: Request mode может только ужесточать runtime policy, но не ослаблять её.
+    EN: Request mode may tighten runtime policy, but must never relax it.
+    """
+
+    configured_mode = normalize_execution_mode()
+    if requested_mode is None:
+        return configured_mode
+
+    requested_normalized = normalize_execution_mode(requested_mode)
+    if _EXECUTION_MODE_PRIORITY[requested_normalized] > _EXECUTION_MODE_PRIORITY[configured_mode]:
+        return requested_normalized
+    return configured_mode
 
 
 def _coerce_output(value: bytes | str | None) -> str:
@@ -260,7 +295,7 @@ def run_local_sandbox(
     """Execute an allowlisted command inside the local sandbox."""
 
     require_sandbox_enabled()
-    require_execution_mode(request.mode)
+    require_execution_mode(resolve_effective_execution_mode(request.mode))
     require_policy_allow(request.action, request.target, allowlist=allowlist)
 
     sandbox_root = resolve_sandbox_root()
