@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import cast
 import unicodedata
 
 from fastapi import HTTPException, status
@@ -146,7 +147,7 @@ def _load_upstream_agent_guard_class() -> type[object] | None:
         from agent_guard import AgentGuard as upstream_agent_guard
     except Exception:
         return None
-    return upstream_agent_guard
+    return cast(type[object], upstream_agent_guard)
 
 
 def _normalize_for_detection(text: str) -> str:
