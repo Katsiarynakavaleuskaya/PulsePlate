@@ -30,6 +30,11 @@ Evidence: `docs/specs/MOBILE_ENDPOINTS.md:206`, `docs/specs/MOBILE_ENDPOINTS.md:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#discussion_r2901988757 -> cfdc7867
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#pullrequestreview-3911599336 -> cfdc7867
 
+Disposition: FIXED
+Commit: 18927408
+Evidence: `docs/specs/MOBILE_ENDPOINTS.md:215`, `docs/specs/MOBILE_ENDPOINTS.md:231`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1038#pullrequestreview-3911639034 -> 18927408
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
