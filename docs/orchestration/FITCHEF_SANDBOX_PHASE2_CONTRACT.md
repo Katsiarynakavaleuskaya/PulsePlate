@@ -9,7 +9,8 @@ Canonical backlog anchor:
 
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-pr1013-fitchef-phase2-scope`
 
-Phase 1 remains the only live sandbox/runtime surface:
+Until a dedicated implementation PR lands, FitChef sandbox scope remains
+limited to the approved Phase 1 surface:
 
 - coaching insight
 - meal-plan generation
