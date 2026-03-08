@@ -13,6 +13,12 @@ Evidence: `frontend/src/auth/storage.ts:9`, `frontend/src/auth/storage.ts:31`, `
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902419512 -> c06810c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421449 -> c06810c9
 
+Disposition: FIXED
+Commit: afd3df7a
+Evidence: `docs/review/PR_1030_FIXED_MAPPING.md:15`, `docs/review/PR_1030_FIXED_MAPPING.md:18`, `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421447 -> afd3df7a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912023708 -> afd3df7a
+
 ## Merge Readiness
 - [x] Local hard gates passed (`make verify`)
 - [ ] Full GitHub current-head required checks passed
