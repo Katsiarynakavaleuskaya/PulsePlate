@@ -15,6 +15,7 @@ ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
 LEGACY_DENY_PREFIXES: tuple[str, ...] = (
     "/api/v1/foods",
     "/api/v1/restaurants",
+    "/api/v1/users",
 )
 
 
@@ -59,6 +60,31 @@ def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
     # Legacy food/restaurant routes (hidden from schema, kept at runtime)
     assert "/api/v1/foods" in runtime_paths
     assert "/api/v1/restaurants/search" in runtime_paths
+    # Users CRUD remains registered for internal callers but is hidden from public schema
+    assert "/api/v1/users" in runtime_paths
+    assert "/api/v1/users/{user_id}" in runtime_paths
+
+
+def test_users_routes_are_hidden_from_schema_at_registration_level() -> None:
+    users_routes = [
+        route for route in app.routes if str(getattr(route, "path", "")).startswith("/api/v1/users")
+    ]
+
+    assert users_routes, "users routes should remain registered at runtime"
+    assert all(
+        getattr(route, "include_in_schema", True) is False for route in users_routes
+    ), "users routes must stay hidden from public schema"
+
+
+def test_openapi_tags_and_description_do_not_advertise_users_surface() -> None:
+    """Canonical public OpenAPI copy must not advertise internalized users CRUD."""
+    schema = app.openapi()
+
+    tag_names = {str(tag.get("name", "")).lower() for tag in schema.get("tags", [])}
+    description = str(schema.get("info", {}).get("description", "")).lower()
+
+    assert "users" not in tag_names
+    assert "user management" not in description
 
 
 def test_ws_routes_not_in_openapi_schema() -> None:

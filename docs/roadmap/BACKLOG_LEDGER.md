@@ -45,6 +45,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Injection-pattern regression tests are added and green
     - No contract break for current insight endpoints
 
+<a id="ledger-p1-users-surface-hardening"></a>
+- [ ] P1: Public users CRUD surface must be authenticated or explicitly retired
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1038
+  - Area: backend / auth / data protection
+  - Finding Type: access-control gap
+  - Status: In progress
+  - Reason: `app/routers/users.py` already enforces an app-level API key, and this PR internalizes the users surface in the canonical entrypoint by hiding `/api/v1/users*` from the public OpenAPI contract and removing stale FREE-surface copy. The remaining follow-up is the required docs-only closure PR after merge so the ledger status can move from in-progress to closed.
+  - Links:
+    - `app/routers/users.py`
+    - `legacy_app.py`
+    - `app/main.py`
+    - `tests/test_users_api.py`
+    - `tests/test_users_router.py`
+    - `docs/security/SECURITY_POSTURE.md`
+  - DoD:
+    - Users CRUD keeps explicit app-level API key guard and rejects unauthenticated GET/POST/DELETE requests deterministically
+    - Runtime route registration keeps `/api/v1/users*` available for internal callers while `include_in_schema=False` prevents public schema exposure
+    - Current docs stop describing `/api/v1/users*` as FREE/public surface
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+    - OpenAPI and tests reflect the chosen access contract
+    - Destructive operations require authenticated/authorized access
+    - If retirement is deferred, production exposure status is documented with owner and date
 
 <a id="ledger-p0-payments-ruby-ios"></a>
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
