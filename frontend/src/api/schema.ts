@@ -2533,6 +2533,12 @@ export interface components {
          */
         CBTInsightResponse: {
             /**
+             * Automated Analysis
+             * @description Whether the response was generated through automated wellness analysis
+             * @default true
+             */
+            automated_analysis: boolean;
+            /**
              * Confidence
              * @description RAG retrieval confidence score
              */
@@ -2565,6 +2571,12 @@ export interface components {
              */
             sources: components["schemas"]["CBTSourceItem"][];
             /**
+             * Transparency Notice Id
+             * @description Canonical transparency registry id for this AI surface
+             * @default ai_generated_insight
+             */
+            transparency_notice_id: string;
+            /**
              * Uncertainty
              * @description Uncertainty score derived from confidence
              */
@@ -2574,6 +2586,12 @@ export interface components {
              * @description Operational or retrieval warnings
              */
             warnings: string[];
+            /**
+             * Wellness Boundary
+             * @description High-level wellness boundary for this AI surface
+             * @default Wellness coaching only; not therapy, diagnosis, or clinical decision support.
+             */
+            wellness_boundary: string;
         };
         /**
          * CBTSourceItem

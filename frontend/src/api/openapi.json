@@ -1845,6 +1845,12 @@
       "CBTInsightResponse": {
         "description": "Response schema for CBT insight endpoint.",
         "properties": {
+          "automated_analysis": {
+            "default": true,
+            "description": "Whether the response was generated through automated wellness analysis",
+            "title": "Automated Analysis",
+            "type": "boolean"
+          },
           "confidence": {
             "description": "RAG retrieval confidence score",
             "title": "Confidence",
@@ -1887,6 +1893,12 @@
             "title": "Sources",
             "type": "array"
           },
+          "transparency_notice_id": {
+            "default": "ai_generated_insight",
+            "description": "Canonical transparency registry id for this AI surface",
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
           "uncertainty": {
             "description": "Uncertainty score derived from confidence",
             "maximum": 1.0,
@@ -1901,6 +1913,12 @@
             },
             "title": "Warnings",
             "type": "array"
+          },
+          "wellness_boundary": {
+            "default": "Wellness coaching only; not therapy, diagnosis, or clinical decision support.",
+            "description": "High-level wellness boundary for this AI surface",
+            "title": "Wellness Boundary",
+            "type": "string"
           }
         },
         "required": [

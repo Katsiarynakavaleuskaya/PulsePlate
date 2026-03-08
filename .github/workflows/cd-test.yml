@@ -60,7 +60,7 @@ jobs:
         run: |
           echo "🏥 Testing health endpoint locally..."
           docker run --rm -d --name pulseplate-test -p 8000:8000 \
-            -e SERVER_SALT=ci-test-salt \
+            -e SERVER_SALT=StrongServerSaltForCI1234567890! \
             ghcr.io/${{ steps.image-name.outputs.image_name }}:${{ github.event.workflow_run.head_sha }}
           sleep 10
           curl -f http://localhost:8000/health || echo "⚠️ Health check failed (expected without frontend)"

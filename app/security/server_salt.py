@@ -1,27 +1,11 @@
-"""Shared SERVER_SALT access helper (domain-neutral).
+"""Compatibility shim for the shared SERVER_SALT helper.
 
-RU: Нейтральный helper для SERVER_SALT, без привязки к конкретному домену.
-EN: Domain-neutral SERVER_SALT helper shared across security-sensitive modules.
+RU: Совместимый shim для общего helper'а SERVER_SALT.
+EN: Compatibility shim for the shared SERVER_SALT helper.
 """
 
 from __future__ import annotations
 
-import os
+from core.server_salt import require_server_salt
 
-_SERVER_SALT_ENV = "SERVER_SALT"
-
-
-def require_server_salt() -> str:
-    """Return SERVER_SALT or raise (fail-fast contract).
-
-    RU: Возвращает SERVER_SALT или падает (fail-fast).
-    EN: Returns SERVER_SALT or raises (fail-fast).
-    """
-
-    salt = (os.getenv(_SERVER_SALT_ENV) or "").strip()
-    if not salt:
-        raise RuntimeError(
-            "SERVER_SALT is required for security-sensitive hashing. "
-            "Set SERVER_SALT to a non-empty secret value."
-        )
-    return salt
+__all__ = ["require_server_salt"]

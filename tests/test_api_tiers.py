@@ -311,7 +311,7 @@ class TestRequireProTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test missing header falls back to valid PRO cookie."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
         request = _request_with_cookie(issued.token)
 
@@ -327,7 +327,7 @@ class TestRequireProTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test invalid X-API-Key blocks access even when cookie is valid."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
         request = _request_with_cookie(issued.token)
 
@@ -339,7 +339,7 @@ class TestRequireProTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test empty X-API-Key header does not fall back to cookie auth."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
         request = _request_with_cookie(issued.token)
 
@@ -412,7 +412,7 @@ class TestRequireVIPTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test missing header falls back to valid VIP cookie."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
         request = _request_with_cookie(issued.token)
 
@@ -423,7 +423,7 @@ class TestRequireVIPTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test VIP guard rejects PRO-tier cookie."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO")
         request = _request_with_cookie(issued.token)
 
@@ -435,7 +435,7 @@ class TestRequireVIPTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test cookie auth rechecks current tier instead of trusting embedded claims."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_PRO, tier="VIP")
         request = _request_with_cookie(issued.token)
         monkeypatch.setattr(
@@ -454,7 +454,7 @@ class TestRequireVIPTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test cookie auth is denied when current tier no longer authorizes access."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
         request = _request_with_cookie(issued.token)
         monkeypatch.setattr(
@@ -471,7 +471,7 @@ class TestRequireVIPTier:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test empty X-API-Key header does not bypass VIP guard via cookie fallback."""
-        monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+        monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
         issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP")
         request = _request_with_cookie(issued.token)
 

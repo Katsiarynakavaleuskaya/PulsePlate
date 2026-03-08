@@ -52,7 +52,7 @@ jobs:
 
           # Start container with tightened security
           docker run -d --name pulseplate-test -p 8000:8000 \
-            -e SERVER_SALT=ci-test-salt \
+            -e SERVER_SALT=StrongServerSaltForCI1234567890! \
             --cap-drop=ALL \
             --security-opt no-new-privileges \
             pulseplate:test

@@ -10,12 +10,39 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+from app.security.server_salt import require_server_salt as shim_require_server_salt
 from app.security import llm_monthly_quota as quota
 
 
 def test_require_server_salt_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SERVER_SALT", raising=False)
     with pytest.raises(RuntimeError, match=r"SERVER_SALT is required"):
+        quota.require_server_salt()
+
+
+def test_server_salt_shim_delegates_to_shared_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+    strong_salt = "SharedServerSaltForTests123456789!"
+    monkeypatch.setenv("SERVER_SALT", strong_salt)
+    assert shim_require_server_salt is quota.require_server_salt
+    assert shim_require_server_salt() == strong_salt
+    assert quota.require_server_salt() == strong_salt
+
+
+def test_require_server_salt_rejects_weak_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SERVER_SALT", "secret")
+    with pytest.raises(RuntimeError, match=r"default or guessable"):
+        quota.require_server_salt()
+
+    monkeypatch.setenv("SERVER_SALT", "short")
+    with pytest.raises(RuntimeError, match=r"at least 32 characters"):
+        quota.require_server_salt()
+
+    monkeypatch.setenv("SERVER_SALT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    with pytest.raises(RuntimeError, match=r"two character classes"):
+        quota.require_server_salt()
+
+    monkeypatch.setenv("SERVER_SALT", "passwordpasswordpasswordpassword")
+    with pytest.raises(RuntimeError, match=r"two character classes"):
         quota.require_server_salt()
 
 
@@ -65,7 +92,7 @@ def test_require_llm_monthly_limit_rejects_unknown_tier() -> None:
 
 
 def test_llm_key_fingerprint_is_tier_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     assert quota.llm_key_fingerprint("same-key", tier="PRO") != quota.llm_key_fingerprint(
         "same-key",
         tier="VIP",

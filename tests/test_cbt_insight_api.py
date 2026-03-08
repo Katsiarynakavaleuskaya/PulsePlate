@@ -123,6 +123,9 @@ class TestCBTInsightTierGating:
         assert data["mode"] == "auto-safe"
         assert "uncertainty" in data
         assert "warnings" in data
+        assert data["automated_analysis"] is True
+        assert data["transparency_notice_id"] == "ai_generated_insight"
+        assert "Wellness" in data["wellness_boundary"]
 
     def test_pro_tier_rejected_when_feature_disabled(self) -> None:
         """PRO tier is rejected when feature flag is disabled."""
@@ -921,6 +924,42 @@ class TestCBTInsightLLMIntegration:
         assert response.status_code == 503
         data = _json_body(response)
         assert data["detail"] == "llm_generation_unavailable"
+        assert quota_calls == []
+
+    def test_missing_transparency_registry_returns_503_without_consuming_quota(self) -> None:
+        """Transparency registry misconfig must fail closed before quota use."""
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.get_transparency_registry",
+            lambda: {},
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("llm.get_provider called in registry-failure test"),
+        )
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "transparency_registry_unavailable"}
         assert quota_calls == []
 
     def test_llm_timeout_returns_504(self) -> None:

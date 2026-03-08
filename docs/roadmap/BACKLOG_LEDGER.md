@@ -57,6 +57,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
+<a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
+- [ ] P0: EU-first compliance control plane follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-EU-COMPLIANCE-CONTROL-PLANE-FOLLOWTHROUGH
+  - Area: backend / privacy / legal docs / AI governance
+  - Finding Type: compliance program hardening
+  - Reason: Foundation runtime/docs work now establishes a canonical compliance control plane (`docs/compliance/*`, `core/compliance/*`, additive `/privacy` sync), but rollout still needs one program-level epic so future privacy, transparency, DSAR, and regulated-lane work does not drift into isolated follow-ups. This epic supersedes fragmented treatment of the same theme.
+  - Links:
+    - `docs/compliance/README.md`
+    - `docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md`
+    - `core/compliance/privacy.py`
+    - `legacy_app.py`
+  - DoD:
+    - `/privacy`, `docs/legal/Privacy.md`, and `core/compliance/*` remain synchronized for every new health-ish or AI surface
+    - New AI or health-adjacent surfaces add transparency + minimization entries before release
+    - Support-led DSAR workflow for direct-user artifacts is documented and used until a public auth-bound DSAR API is explicitly designed
+    - The US regulated lane remains blocked from the wellness runtime until separate legal/compliance approval
+    - Future public DSAR/export/delete endpoints are blocked until auth/ownership contract is explicit
+
 
 <a id="ledger-p0-insight-fallback-chain"></a>
 - [ ] P0: Insight fallback chain + echo-mode readiness visibility

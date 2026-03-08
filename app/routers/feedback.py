@@ -14,7 +14,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from sqlalchemy.orm import Session
 
 from fastapi import Security
@@ -24,8 +24,8 @@ from app.middleware.api_tiers import (
     derive_subject_id_from_api_key,
     api_key_header,
 )
+from core.compliance import minimize_free_text, sanitize_chunk_preview
 from core.db import get_session
-from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +53,23 @@ class RAGFeedbackRequest(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
     hops: Optional[int] = Field(None, ge=0)
 
-    @field_validator("llm_response", "user_correction", mode="before")
+    @field_validator("query")
     @classmethod
-    def redact_pii(cls, v: Optional[str]) -> Optional[str]:
-        """Redact PII from text fields before storage."""
-        return redact_pii_from_text(v) if v else None
+    def minimize_query(cls, value: str) -> str:
+        """Minimize raw user query after contract validation."""
+        minimized = minimize_free_text(value, field_name="query")
+        return minimized or ""
+
+    @field_validator("llm_response", "user_correction")
+    @classmethod
+    def redact_pii(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
+        """Minimize free-form text fields before storage."""
+        if value is None:
+            return None
+        field_name: str = str(info.field_name or "llm_response")
+        minimized: Optional[str]
+        minimized = minimize_free_text(value, field_name=field_name)
+        return minimized
 
 
 class RAGFeedbackResponse(BaseModel):
@@ -103,7 +115,7 @@ def submit_rag_feedback(
     Submit feedback on a RAG (Retrieval-Augmented Generation) response.
 
     **Security**: PII in llm_response and user_correction is automatically
-    redacted before storage.
+    redacted and minimized before storage.
 
     **Fields**:
     - **query**: User's original query (required)
@@ -121,7 +133,7 @@ def submit_rag_feedback(
             {
                 "chunk_id": c.chunk_id,
                 "file": c.file,
-                "preview": c.preview,
+                "preview": sanitize_chunk_preview(c.preview),
                 "score": c.score,
             }
             for c in feedback.retrieved_chunks
@@ -134,9 +146,9 @@ def submit_rag_feedback(
         agent_id=feedback.agent_id,
         query=feedback.query,
         retrieved_chunks=chunks_data,
-        llm_response=feedback.llm_response,  # Already redacted by validator
+        llm_response=feedback.llm_response,  # Already minimized by validator
         user_rating=feedback.user_rating,
-        user_correction=feedback.user_correction,  # Already redacted by validator
+        user_correction=feedback.user_correction,  # Already minimized by validator
         confidence=feedback.confidence,
         hops=feedback.hops,
     )
