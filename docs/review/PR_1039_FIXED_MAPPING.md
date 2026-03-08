@@ -5,7 +5,22 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: a573999c
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:10
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2901979966 -> a573999c
+
+Disposition: FIXED
+Commit: a573999c
+Evidence: docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:17
+Evidence: docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:23
+Evidence: docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:25
+Evidence: docs/IOS_API_INTEGRATION.md:115
+Evidence: docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:25
+Evidence: docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:26
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2901982370 -> a573999c
 
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
