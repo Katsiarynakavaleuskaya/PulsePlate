@@ -3724,8 +3724,8 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING-W1
-  - Status: 🟡 In progress (8 March 2026: frontend W1 session gating + legacy browser-storage migration cleanup on `feat/p0-session-cookie-hardening-w1-clean`)
+  - Target PR: PR #1030 (`feat/p0-session-cookie-hardening-w1-clean`)
+  - Status: 🟡 In progress (8 March 2026: PR #1030 implements frontend W1 session gating + legacy browser-storage migration cleanup)
   - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
