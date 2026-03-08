@@ -36,3 +36,8 @@ Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/sk
 Disposition: FIXED
 Commit: b4c806fc
 Evidence: `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:153`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#pullrequestreview-3910198436
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/skill_router.py:149`, `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:117`, `tests/test_skill_router.py:153`
+Reason: This aggregate CodeRabbit review only summarizes the two inline findings already fixed and mapped above (`discussion_r2900863932`, `discussion_r2900863933`), so it does not add a separate unresolved defect.
