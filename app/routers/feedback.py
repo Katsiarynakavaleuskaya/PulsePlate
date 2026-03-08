@@ -66,8 +66,10 @@ class RAGFeedbackRequest(BaseModel):
         """Minimize free-form text fields before storage."""
         if value is None:
             return None
-        field_name = info.field_name or "llm_response"
-        return minimize_free_text(value, field_name=field_name)
+        field_name: str = str(info.field_name or "llm_response")
+        minimized: Optional[str]
+        minimized = minimize_free_text(value, field_name=field_name)
+        return minimized
 
 
 class RAGFeedbackResponse(BaseModel):
