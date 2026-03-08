@@ -28,6 +28,18 @@ Evidence: docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md:26
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2901982370 -> a573999c
 
+Disposition: FIXED
+Commit: 489552ff
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:10
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:11
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:12
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:13
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:14
+Evidence: docs/review/PR_1039_FIXED_MAPPING.md:15
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#discussion_r2902004613 -> 489552ff
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1039#pullrequestreview-3911611892 -> 489552ff
+
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
 - [ ] All required checks are green on latest commit (no pending/rerun required)
