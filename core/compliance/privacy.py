@@ -110,7 +110,14 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
     ProcessingCategory(
         category_id="wellness_profile_inputs",
         title="Wellness profile inputs and formula-driven outputs",
-        endpoints=("/bmi", "/api/v1/bmi", "/api/v1/bodyfat", "/api/v1/pro/nutrition/daily"),
+        endpoints=(
+            "/bmi",
+            "/api/v1/bmi",
+            "/api/v1/bodyfat",
+            "/api/v1/pro/nutrition/daily",
+            "/api/v1/pro/meal/weekly",
+            "/api/v1/premium/plate",
+        ),
         purpose="Provide deterministic wellness calculations and explanatory guidance",
         sensitivity="health-adjacent",
         third_party_exposure="Processed in application runtime; no automatic third-party sharing",

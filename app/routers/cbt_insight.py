@@ -346,7 +346,9 @@ async def cbt_insight(
         warnings.append("source_content_redacted")
 
     # Build prompt with RAG context
-    transparency_notice = get_transparency_registry()["ai_generated_insight"]
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise RuntimeError("Transparency registry missing ai_generated_insight surface.")
     prompt = _build_cbt_prompt(safe_query, rag_context_str)
 
     # Generate insight via LLM

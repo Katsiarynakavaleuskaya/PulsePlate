@@ -119,7 +119,7 @@ def build_dsar_rights_summary() -> list[dict[str, object]]:
         },
         {
             "right": "deletion",
-            "status": "available_for_direct-user artifacts",
+            "status": "available_for_direct_user_artifacts",
             "notes": "Direct-user SQL artifacts can be deleted; pseudonymous and audit artifacts follow retention or support-led handling.",
         },
         {

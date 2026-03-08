@@ -1,11 +1,11 @@
 # PR 1046 - Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Pending review feedback
 
 ## Merge Readiness
 - [x] Scope tied to PR objective

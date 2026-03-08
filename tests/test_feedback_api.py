@@ -10,6 +10,9 @@ Verifies:
 
 from __future__ import annotations
 
+import hmac
+import hashlib
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -147,8 +150,7 @@ class TestRAGFeedbackPIIRedaction:
         from core.db import SessionLocal
 
         assert SessionLocal is not None
-        session = SessionLocal()
-        try:
+        with SessionLocal() as session:
             record = session.query(RAGFeedback).order_by(RAGFeedback.id.desc()).first()
             assert record is not None
             assert "[EMAIL_REDACTED]" in record.query
@@ -159,8 +161,6 @@ class TestRAGFeedbackPIIRedaction:
             assert "[EMAIL_REDACTED]" in preview
             assert "person@example.com" not in preview
             assert len(preview) <= 240
-        finally:
-            session.close()
 
 
 class TestRAGFeedbackValidation:
@@ -242,6 +242,32 @@ class TestRAGFeedbackValidation:
         response = self.client.post(self.url, json=payload, headers=self.headers)
 
         assert response.status_code == 422
+
+    def test_oversized_query_rejected_before_minimization(self) -> None:
+        """Over-limit query still fails the public request contract."""
+        payload = {"query": "q" * 10001}
+
+        response = self.client.post(self.url, json=payload, headers=self.headers)
+
+        assert response.status_code == 422
+
+
+def test_hash_only_minimization_uses_server_salt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hash-only policy must use keyed hashing to avoid raw SHA-256 markers."""
+    from core.compliance import minimize_free_text, sanitize_audit_string
+
+    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+    value = "private provider prompt"
+    expected = hmac.new(
+        b"test-server-salt",
+        value.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    assert minimize_free_text(value, field_name="prompt") == expected
+    audit_marker = sanitize_audit_string("prompt", value)
+    assert isinstance(audit_marker, dict)
+    assert audit_marker["sha256"] == expected
 
 
 class TestRAGFeedbackAuthentication:

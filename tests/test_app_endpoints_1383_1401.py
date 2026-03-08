@@ -130,6 +130,7 @@ class TestAppEndpoints1383_1401:
         """/terms returns canonical legal publication structure."""
         response = client.get("/terms")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data: dict[str, Any] = response.json()
 
         assert "terms_of_use" in data
@@ -152,6 +153,7 @@ class TestAppEndpoints1383_1401:
         """/terms must preserve non-medical product framing."""
         response = client.get("/terms")
         assert response.status_code == 200
+        assert response.headers["content-type"].lower().startswith("application/json")
         data = response.json()
 
         assert "wellness" in data["terms_of_use"].lower()

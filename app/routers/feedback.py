@@ -14,7 +14,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from sqlalchemy.orm import Session
 
 from fastapi import Security
@@ -53,17 +53,21 @@ class RAGFeedbackRequest(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
     hops: Optional[int] = Field(None, ge=0)
 
-    @field_validator("query", mode="before")
+    @field_validator("query")
     @classmethod
-    def minimize_query(cls, v: Optional[str]) -> Optional[str]:
-        """Minimize raw user query before persistence."""
-        return minimize_free_text(v, field_name="query") if v else None
+    def minimize_query(cls, value: str) -> str:
+        """Minimize raw user query after contract validation."""
+        minimized = minimize_free_text(value, field_name="query")
+        return minimized or ""
 
-    @field_validator("llm_response", "user_correction", mode="before")
+    @field_validator("llm_response", "user_correction")
     @classmethod
-    def redact_pii(cls, v: Optional[str]) -> Optional[str]:
+    def redact_pii(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
         """Minimize free-form text fields before storage."""
-        return minimize_free_text(v, field_name="llm_response") if v else None
+        if value is None:
+            return None
+        field_name = info.field_name or "llm_response"
+        return minimize_free_text(value, field_name=field_name)
 
 
 class RAGFeedbackResponse(BaseModel):

@@ -50,7 +50,7 @@ The following cases are **not allowed** inside the current wellness runtime:
 
 - clinical diagnosis or treatment recommendations
 - crisis or self-harm intervention workflows
-- substance-use-disorder records and 42 CFR Part 2 data
+- substance-use-disorder records or 42 CFR Part 2 data
 - provider/EHR ingestion and redisclosure workflows
 
 These require a separate regulated lane with:

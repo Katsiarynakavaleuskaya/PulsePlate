@@ -52,6 +52,7 @@ from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_rout
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
+from app.routers.legal import TermsResponse
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.pro_registration import register_pro_routes as _register_pro_routes
@@ -1710,48 +1711,16 @@ async def privacy() -> Dict[str, Any]:
     return build_privacy_endpoint_payload()
 
 
-@app.get("/terms", include_in_schema=False)
-async def terms() -> Dict[str, Any]:
+@app.get("/terms", include_in_schema=False, response_model=TermsResponse)
+async def terms() -> TermsResponse:
     """Terms of use endpoint for release-safe legal publication.
 
     RU: Эндпоинт условий использования для канонической legal-публикации.
     EN: Terms of use endpoint for canonical legal publication.
     """
+    from app.routers.legal import build_terms_endpoint_payload
 
-    return {
-        "terms_of_use": (
-            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
-            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
-        ),
-        "service_scope": {
-            "category": "wellness / nutrition planning / coaching support",
-            "medical_boundary": (
-                "Content is informational and product-guidance only. Users must not treat the service as "
-                "medical, psychiatric, or emergency advice."
-            ),
-            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
-        },
-        "billing_and_subscriptions": {
-            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
-            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
-            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
-            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
-        },
-        "acceptable_use": {
-            "forbidden": [
-                "attempting to bypass tier controls or payment verification",
-                "submitting unlawful, abusive, or malicious content",
-                "using the service for medical triage or emergency decisions",
-            ],
-            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
-        },
-        "liability_boundary": (
-            "The service is provided on a best-effort basis for wellness support. "
-            "Users remain responsible for critical health, legal, and financial decisions."
-        ),
-        "contact": "For legal or billing questions, please contact the application administrator.",
-        "effective_date": "2026-03-08",
-    }
+    return build_terms_endpoint_payload()
 
 
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
@@ -2221,7 +2190,9 @@ async def _execute_insight_request(
         router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
         use_rag=use_rag,
     )
-    transparency_notice = get_transparency_registry()["ai_generated_insight"]
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise RuntimeError("Transparency registry missing ai_generated_insight surface.")
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )

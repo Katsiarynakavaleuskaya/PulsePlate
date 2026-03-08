@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 
 
@@ -76,7 +77,7 @@ _TRANSPARENCY_REGISTRY: tuple[TransparencyNotice, ...] = (
     ),
 )
 
-_BLOCKED_REGULATED_LANE = {
+_BLOCKED_REGULATED_LANE: dict[str, object] = {
     "status": "blocked_without_separate_compliance_track",
     "examples": [
         "clinical diagnosis or treatment recommendations",
@@ -100,4 +101,4 @@ def get_transparency_registry() -> dict[str, dict[str, object]]:
 def get_blocked_regulated_lane() -> dict[str, object]:
     """Return the blocked regulated-lane contract."""
 
-    return dict(_BLOCKED_REGULATED_LANE)
+    return deepcopy(_BLOCKED_REGULATED_LANE)

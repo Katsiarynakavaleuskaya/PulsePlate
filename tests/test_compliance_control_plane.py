@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
-
 import pytest
 
 from core.compliance import (
@@ -13,8 +11,10 @@ from core.compliance import (
     get_sensitive_field_taxonomy,
     get_transparency_registry,
     minimize_free_text,
+    sanitize_audit_string,
     summarize_dsar_support,
 )
+from core.compliance.transparency import get_blocked_regulated_lane
 
 
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
@@ -27,6 +27,13 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     assert isinstance(payload["rights"], list)
     assert isinstance(payload["automated_analysis"], list)
     assert payload["retention_summary"]["artifact_support"]["artifact_count"] >= 1
+    wellness_inputs = next(
+        item
+        for item in payload["processing_categories"]
+        if item["category_id"] == "wellness_profile_inputs"
+    )
+    assert "/api/v1/pro/meal/weekly" in wellness_inputs["endpoints"]
+    assert "/api/v1/premium/plate" in wellness_inputs["endpoints"]
 
 
 def test_transparency_registry_covers_core_healthish_surfaces() -> None:
@@ -82,10 +89,13 @@ def test_provider_inventory_includes_local_and_conditional_ai_families() -> None
 def test_minimization_fallback_and_drop_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    minimization = importlib.import_module("core.compliance.minimization")
+    import core.compliance.minimization as minimization
 
     assert minimize_free_text("plain text", field_name="unmapped_field") == "plain text"
-    assert minimization.sanitize_audit_string("unmapped_field", "plain text") == "plain text"
+    audit_marker = sanitize_audit_string("unmapped_field", "plain text")
+    assert isinstance(audit_marker, dict)
+    assert audit_marker["length"] == len("plain text")
+    assert audit_marker["sha256"]
 
     drop_policy = minimization.SensitiveFieldPolicy(
         field_name="drop_field",
@@ -96,4 +106,19 @@ def test_minimization_fallback_and_drop_paths(
     monkeypatch.setitem(minimization._SENSITIVE_FIELD_TAXONOMY, "drop_field", drop_policy)
 
     assert minimize_free_text("secret", field_name="drop_field") is None
-    assert minimization.sanitize_audit_string("drop_field", "secret") is None
+    assert sanitize_audit_string("drop_field", "secret") is None
+
+
+def test_blocked_regulated_lane_returns_deep_copy() -> None:
+    first = get_blocked_regulated_lane()
+    first["examples"].append("mutated")
+    second = get_blocked_regulated_lane()
+
+    assert "mutated" not in second["examples"]
+
+
+def test_canonical_field_name_avoids_loose_substring_matches() -> None:
+    import core.compliance.minimization as minimization
+
+    assert minimization._canonical_field_name("query_preview") == "preview"
+    assert minimization._canonical_field_name("request_context") == "request_context"

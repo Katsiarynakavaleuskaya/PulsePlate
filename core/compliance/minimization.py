@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import hmac
+import os
+import re
 from typing import Literal, TypedDict
 
 from core.pii_redaction import redact_pii_from_text
@@ -103,6 +106,8 @@ _ALIAS_TO_CANONICAL: dict[str, str] = {
     "content": "source_content",
 }
 
+_SERVER_SALT_ENV = "SERVER_SALT"
+
 
 def get_sensitive_field_taxonomy() -> dict[str, SensitiveFieldPolicy]:
     """Return the canonical sensitive-field policy map."""
@@ -114,8 +119,13 @@ def _canonical_field_name(field_name: str) -> str:
     """Normalize variants to a canonical sensitive-field family."""
 
     lowered = field_name.strip().lower()
+    lowered_tokens = {
+        token for token in re.split(r"[^a-z0-9]+", lowered.replace("_", " ")) if token
+    }
     for alias, canonical in _ALIAS_TO_CANONICAL.items():
-        if lowered == alias or lowered.endswith(f"_{alias}") or alias in lowered:
+        if lowered == alias or lowered.endswith(f"_{alias}"):
+            return canonical
+        if "_" not in alias and alias in lowered_tokens:
             return canonical
     return lowered
 
@@ -123,8 +133,13 @@ def _canonical_field_name(field_name: str) -> str:
 def _sha256_marker(value: str) -> Sha256Marker:
     """Return deterministic hash marker for hash-only persistence."""
 
+    keyed_hash = hmac.new(
+        _require_server_salt().encode("utf-8"),
+        value.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     return {
-        "sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "sha256": keyed_hash,
         "length": len(value),
     }
 
@@ -164,8 +179,20 @@ def sanitize_audit_string(field_name: str, value: str) -> Sha256Marker | str | N
     canonical = _canonical_field_name(field_name)
     policy = _SENSITIVE_FIELD_TAXONOMY.get(canonical)
     if policy is None:
-        return value
+        return _sha256_marker(value)
     if policy.persistence_rule == "drop":
         return None
     # Audit envelopes keep deterministic markers only, never minimized free text.
     return _sha256_marker(value)
+
+
+def _require_server_salt() -> str:
+    """Return SERVER_SALT or raise for security-sensitive hashing."""
+
+    salt = (os.getenv(_SERVER_SALT_ENV) or "").strip()
+    if not salt:
+        raise RuntimeError(
+            "SERVER_SALT is required for security-sensitive hashing. "
+            "Set SERVER_SALT to a non-empty secret value."
+        )
+    return salt

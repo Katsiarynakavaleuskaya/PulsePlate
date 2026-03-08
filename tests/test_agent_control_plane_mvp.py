@@ -245,6 +245,14 @@ def test_redact_sensitive_string_handles_none_and_passthrough(
     assert cp._redact_sensitive_string("source_preview", "secret") == "hashed-marker"
 
 
+def test_redact_sensitive_string_hashes_unknown_sensitive_keys() -> None:
+    redacted = cp._redact_sensitive_string("free_text", "secret")
+
+    assert isinstance(redacted, dict)
+    assert redacted["length"] == len("secret")
+    assert redacted["sha256"]
+
+
 def test_require_scoped_token_ttl_seconds_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(cp.SCOPED_TTL_ENV, raising=False)
     assert cp.require_scoped_token_ttl_seconds() == cp.DEFAULT_SCOPED_TOKEN_TTL_SECONDS
