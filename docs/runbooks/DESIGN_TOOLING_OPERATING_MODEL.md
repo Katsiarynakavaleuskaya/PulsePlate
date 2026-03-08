@@ -12,16 +12,16 @@ without creating a second hidden source of truth.
 
 ## 2. Canonical Source Precedence
 
-1. `git/docs/tests/code` remain the project Source of Truth.
-2. `Figma Design + Code Connect` are the canonical design-to-code lane.
-3. `/tokens` is the canonical repo authoring source for design tokens.
-4. `Tokens Studio` is subordinate tooling inside the Figma lane only.
-5. `Notion` is structured memory only.
-6. `Airweave` is research ingestion only.
-7. `Penpot` is a secondary design lane only.
+1. `git/docs/tests/code` remain the project Source of Truth (`AGENTS.md:192`, `AGENTS.md:298`, `docs/memory/kpp_knowledge_promotion_pipeline.md:5`).
+2. `Figma Design + Code Connect` are the canonical design-to-code lane (`docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:1`, `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md:5`).
+3. `/tokens` is the canonical repo authoring source for design tokens (`frontend/style-dictionary.config.mjs:9`, `frontend/style-dictionary.config.mjs:11`, `tokens/00_core/color.json:1`).
+4. `Tokens Studio` is subordinate tooling inside the Figma lane only (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:26`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:39`, `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md:19`).
+5. `Notion` is structured memory only (`docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:5`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:30`).
+6. `Airweave` is research ingestion only (`docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:5`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:9`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`).
+7. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
 
 Hard rule: tools `4-7` may inform work, but they do not override runtime
-contracts, token SoT, security policy, or merge governance.
+contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:59`).
 
 ## 3. Runtime Baseline
 
@@ -34,16 +34,16 @@ contracts, token SoT, security policy, or merge governance.
 
 ## 4. Token authoring/runtime split
 
-- Token authoring source: `/tokens`
-- Token design-intent lane: `Figma Design`, optionally `Tokens Studio`
-- Web runtime token SoT: `frontend/src/styles/tokens.css`
-- Web typed mirror/helper: `frontend/src/styles/tokens.ts`
+- Token authoring source: `/tokens` (`frontend/style-dictionary.config.mjs:9`, `frontend/style-dictionary.config.mjs:11`, `tokens/10_semantic/color.json:1`)
+- Token design-intent lane: `Figma Design`, optionally `Tokens Studio` (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:37`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:39`, `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md:19`)
+- Web runtime token SoT: `frontend/src/styles/tokens.css` (`frontend/scripts/build-tokens.mjs:744`, `frontend/src/styles/tokens.css:1`, `docs/sora/SORA_STYLE_QA_CHECKLIST.md:10`)
+- Web typed mirror/helper: `frontend/src/styles/tokens.ts` (`frontend/scripts/build-tokens.mjs:748`, `frontend/src/styles/tokens.ts:1`)
 - iOS runtime mirror stack:
-  - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
-  - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
-  - `ios/PulsePlate/Assets.xcassets/`
-  - `ios/PulsePlate/Extensions/Color+Assets.swift`
-- Review lane: Storybook in `frontend/package.json` plus `frontend/src/**/*.stories.tsx`
+  - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift` (`frontend/scripts/build-tokens.mjs:752`, `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift:3`)
+  - `ios/PulsePlate/DesignSystem/DesignTokens.swift` (`ios/PulsePlate/DesignSystem/DesignTokens.swift:3`, `ios/PulsePlate/DesignSystem/DesignTokens.swift:5`)
+  - `ios/PulsePlate/Assets.xcassets/` (`ios/PulsePlate/Assets.xcassets/Navy.colorset/Contents.json:1`)
+  - `ios/PulsePlate/Extensions/Color+Assets.swift` (`ios/PulsePlate/Extensions/Color+Assets.swift:4`, `ios/PulsePlate/Extensions/Color+Assets.swift:14`)
+- Review lane: Storybook in `frontend/package.json` plus `frontend/src/**/*.stories.tsx` (`frontend/package.json:14`, `frontend/package.json:15`, `frontend/src/components/design-system/DesignSystemOverview.stories.tsx:1`)
 
 Source contract for this split lives in:
 

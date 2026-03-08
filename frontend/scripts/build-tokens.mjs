@@ -558,12 +558,43 @@ function swiftColorExpression(value) {
   return value;
 }
 
+function swiftSemanticColorExpression(value, brandHexes) {
+  if (typeof value !== "string") {
+    return String(value);
+  }
+
+  if (value.startsWith("Color.")) {
+    return value;
+  }
+
+  const normalized = value.toUpperCase();
+  for (const [brandName, brandHex] of Object.entries(brandHexes)) {
+    if (normalized === brandHex.toUpperCase()) {
+      return `Brand.${brandName}`;
+    }
+  }
+
+  if (normalized === "#FFFFFF") {
+    return "Color.white";
+  }
+
+  return swiftColorExpression(value);
+}
+
 function durationMsToSecondsLiteral(value) {
   const milliseconds = Number.parseFloat(String(value).replace("ms", ""));
   return (milliseconds / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function formatSwift(tokens) {
+  const brandHexes = {
+    navy: token(tokens, "color", "brand", "navy"),
+    blue: token(tokens, "color", "brand", "blue"),
+    green: token(tokens, "color", "brand", "green"),
+    red: token(tokens, "color", "brand", "red"),
+    gold: token(tokens, "color", "brand", "gold"),
+  };
+
   const assetNames = {
     navy: token(tokens, "platform", "ios", "asset", "navy"),
     blue: token(tokens, "platform", "ios", "asset", "blue"),
@@ -573,6 +604,12 @@ function formatSwift(tokens) {
   };
 
   const iosSemantic = {
+    success: token(tokens, "semantic", "color", "success"),
+    warning: token(tokens, "semantic", "color", "warning"),
+    error: token(tokens, "semantic", "color", "error"),
+    info: token(tokens, "semantic", "color", "info"),
+    primary: token(tokens, "semantic", "color", "primary"),
+    primaryForeground: token(tokens, "semantic", "color", "primaryForeground"),
     textPrimary: token(tokens, "platform", "ios", "semantic", "textPrimary"),
     textSecondary: token(tokens, "platform", "ios", "semantic", "textSecondary"),
     textTertiary: token(tokens, "platform", "ios", "semantic", "textTertiary"),
@@ -629,10 +666,10 @@ enum GeneratedDesignTokens {
     }
 
     enum ColorToken {
-        static let success = Brand.green
-        static let warning = ${swiftColorExpression(token(tokens, "semantic", "color", "warning"))}
-        static let error = Brand.red
-        static let info = Brand.blue
+        static let success = ${swiftSemanticColorExpression(iosSemantic.success, brandHexes)}
+        static let warning = ${swiftSemanticColorExpression(iosSemantic.warning, brandHexes)}
+        static let error = ${swiftSemanticColorExpression(iosSemantic.error, brandHexes)}
+        static let info = ${swiftSemanticColorExpression(iosSemantic.info, brandHexes)}
 
         static let textPrimary = ${swiftColorExpression(iosSemantic.textPrimary)}
         static let textSecondary = ${swiftColorExpression(iosSemantic.textSecondary)}
@@ -643,8 +680,8 @@ enum GeneratedDesignTokens {
         static let surfaceHighlight = ${swiftColorExpression(iosSemantic.surfaceHighlight)}
         static let strokeSubtle = ${swiftColorExpression(iosSemantic.strokeSubtle)}
 
-        static let primary = Brand.blue
-        static let primaryForeground = Color.white
+        static let primary = ${swiftSemanticColorExpression(iosSemantic.primary, brandHexes)}
+        static let primaryForeground = ${swiftSemanticColorExpression(iosSemantic.primaryForeground, brandHexes)}
     }
 
     enum Spacing {

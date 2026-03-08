@@ -120,10 +120,13 @@ If information conflicts:
 1. CTA behavior: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` is primary.
 2. Visual quality: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md` + `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md` are primary.
 3. Prompt safety: `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md` is primary.
-4. Token values: follow `docs/design/TOKENS_SOT.md` and
-   `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`; `tokens.css` is the web runtime
-   SoT, `tokens.ts` is a typed mirror, and iOS runtime mirrors remain primary
-   for app delivery.
+4. Token values: `docs/sora/SORA_STYLE_QA_CHECKLIST.md` is authoritative for
+   web token governance (web token SoT, staged migration, raw-hex allowlists);
+   use `docs/design/TOKENS_SOT.md` and
+   `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` as implementation/governance
+   references for the current repo pipeline, where `tokens.css` remains the web
+   runtime contract, `tokens.ts` remains a typed mirror, and iOS runtime
+   mirrors remain primary for app delivery.
 5. Tool precedence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` controls
    how Figma, Notion, Airweave, and Penpot interact.
 6. Remaining conflict: follow `AGENTS.md` and record decision in `docs/figma/orchestration/sessions/...`.

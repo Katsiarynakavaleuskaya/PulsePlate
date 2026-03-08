@@ -33,11 +33,26 @@ CSS_BRAND_KEYS = {
     "red": "pp-red",
     "gold": "pp-gold",
 }
-SEMANTIC_KEYS = {
+WEB_SEMANTIC_KEYS = {
     "success": "color-success",
     "warning": "color-warning",
     "error": "color-error",
     "info": "color-info",
+}
+SWIFT_PUBLIC_SEMANTIC_KEYS = {
+    "success",
+    "warning",
+    "error",
+    "info",
+    "textPrimary",
+    "textSecondary",
+    "textTertiary",
+    "surface",
+    "surfaceElevated",
+    "surfaceHighlight",
+    "strokeSubtle",
+    "primary",
+    "primaryForeground",
 }
 
 
@@ -158,15 +173,10 @@ def _extract_swift_semantic_palette() -> dict[str, str]:
             continue
 
         key = match.group("key")
-        if key not in SEMANTIC_KEYS:
+        if key not in SWIFT_PUBLIC_SEMANTIC_KEYS:
             continue
 
-        raw_value = match.group("value")
-        brand_match = re.fullmatch(r"Brand\.(\w+)", raw_value)
-        if brand_match is not None:
-            semantic_values[key] = _source_brand_palette()[brand_match.group(1)]
-            continue
-        semantic_values[key] = _normalize_hex(raw_value)
+        semantic_values[key] = match.group("value").strip()
 
     return semantic_values
 
@@ -200,7 +210,47 @@ def _source_brand_palette() -> dict[str, str]:
 
 def _source_semantic_palette() -> dict[str, str]:
     payload = _load_json(TOKENS_SEMANTIC_COLOR)["semantic"]["color"]
-    return {key: _normalize_hex(payload[key]["$value"]) for key in SEMANTIC_KEYS}
+    return {key: _normalize_hex(payload[key]["$value"]) for key in WEB_SEMANTIC_KEYS}
+
+
+def _swift_color_expression_from_source(value: str) -> str:
+    if value.startswith("Color."):
+        return value
+
+    normalized = value.upper()
+    for brand_name, brand_hex in _source_brand_palette().items():
+        if normalized == brand_hex:
+            return f"Brand.{brand_name}"
+
+    if normalized == "#FFFFFF":
+        return "Color.white"
+
+    return f'Color(hex: "{normalized}")'
+
+
+def _source_swift_semantic_palette() -> dict[str, str]:
+    semantic_payload = _load_json(TOKENS_SEMANTIC_COLOR)["semantic"]["color"]
+    ios_payload = _load_json(TOKENS_IOS_PLATFORM)["platform"]["ios"]["semantic"]
+
+    swift_values = {
+        key: _swift_color_expression_from_source(semantic_payload[key]["$value"])
+        for key in ("success", "warning", "error", "info", "primary", "primaryForeground")
+    }
+    swift_values.update(
+        {
+            key: ios_payload[key]["$value"]
+            for key in (
+                "textPrimary",
+                "textSecondary",
+                "textTertiary",
+                "surface",
+                "surfaceElevated",
+                "surfaceHighlight",
+                "strokeSubtle",
+            )
+        }
+    )
+    return swift_values
 
 
 def _source_ios_assets() -> dict[str, str]:
@@ -229,7 +279,7 @@ def test_tokens_source_brand_palette_matches_typescript_mirror() -> None:
 
 def test_tokens_source_semantic_palette_matches_css_and_ts() -> None:
     source_palette = _source_semantic_palette()
-    assert _extract_css_palette(SEMANTIC_KEYS) == source_palette
+    assert _extract_css_palette(WEB_SEMANTIC_KEYS) == source_palette
     assert _extract_ts_semantic_palette() == source_palette
 
 
@@ -242,15 +292,16 @@ def test_generated_swift_brand_assets_match_ios_platform_contract() -> None:
 
 
 def test_generated_swift_semantic_palette_matches_source_tokens() -> None:
-    assert _extract_swift_semantic_palette() == _source_semantic_palette()
+    assert _extract_swift_semantic_palette() == _source_swift_semantic_palette()
 
 
 def test_facade_routes_public_tokens_through_generated_layer() -> None:
     facade = _read_text(SWIFT_FACADE)
     assert "GeneratedDesignTokens.Brand.navy" in facade
-    assert "GeneratedDesignTokens.ColorToken.warning" in facade
     assert "GeneratedDesignTokens.Spacing.buttonPaddingMedium" in facade
     assert "GeneratedDesignTokens.Motion.fast" in facade
+    for token_name in sorted(SWIFT_PUBLIC_SEMANTIC_KEYS):
+        assert f"GeneratedDesignTokens.ColorToken.{token_name}" in facade
 
 
 def test_swift_asset_extension_routes_heart_to_brand_red() -> None:

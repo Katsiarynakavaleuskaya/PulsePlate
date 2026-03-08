@@ -1,7 +1,10 @@
 # Tokens Source Of Truth
 
-This document defines the canonical split between token authoring and runtime
-for PulsePlate.
+This document is the implementation summary for the current token pipeline in
+PulsePlate. Authoritative web token governance for token SoT, staged migration,
+and raw-hex allowlist rules lives in `docs/sora/SORA_STYLE_QA_CHECKLIST.md:8`
+through `docs/sora/SORA_STYLE_QA_CHECKLIST.md:14`; this file summarizes how the
+current repo/runtime mirrors implement that policy.
 
 Policy references:
 
@@ -48,8 +51,10 @@ the repo runtime artifacts win until a reviewed promotion changes them (`fronten
 
 ### Foundation and base semantic tokens
 
-- `TOKEN_SOT`: `frontend/src/styles/tokens.css` (`frontend/src/styles/tokens.css:73`, `frontend/src/styles/tokens.css:95`)
-- `GOLD`: approved as premium/accent semantic token
+- Web runtime contract currently resolves through `frontend/src/styles/tokens.css`
+  as implemented output (`frontend/src/styles/tokens.css:73`, `frontend/src/styles/tokens.css:95`); the authoritative web-governance statement remains `docs/sora/SORA_STYLE_QA_CHECKLIST.md:8`.
+- `GOLD` remains part of the approved runtime palette as generated brand output
+  (`frontend/src/styles/tokens.css:14`, `frontend/src/styles/tokens.ts:6`).
 
 Canonical brand tokens:
 
@@ -93,25 +98,28 @@ The governed token pipeline is:
 This means PulsePlate does have a token pipeline today, but it is a governed
 promotion pipeline rather than an autonomous bi-directional sync system.
 
-## Migration policy
+## Governance delegation
 
-- PR-1 (bridge): introduce canonical `--pp-*` brand tokens and keep legacy
-  aliases.
-- PR-2 (palette switch): update canonical token values to Guidelines palette.
-- PR-3 (guard): ban raw hex in frontend runtime paths with explicit allowlist.
+For authoritative web token governance, defer to
+`docs/sora/SORA_STYLE_QA_CHECKLIST.md:8` through
+`docs/sora/SORA_STYLE_QA_CHECKLIST.md:14`.
 
-Legacy aliases are kept only for soft migration and should not be used in new
-code:
+Legacy aliases remain in runtime output as compatibility shims for the staged
+web migration referenced there:
 
 - `--pp-primary` -> `--pp-blue`
 - `--pp-accent` -> `--pp-green`
 
-## Hard rules
+## Implementation reminders
 
-- Do not treat `tokens.ts`, Storybook stories, or Tailwind config as the web
-  token SoT (`frontend/src/styles/tokens.ts:1`, `frontend/src/styles/tokens.ts:24`, `frontend/src/components/design-system/PalettePanel.stories.tsx:1`, `frontend/src/components/design-system/PalettePanel.stories.tsx:18`, `frontend/tailwind.config.ts:11`, `frontend/tailwind.config.ts:24`).
-- Do not treat Figma or Tokens Studio exports as active runtime contract until
-  the change is promoted into `/tokens` and generated into runtime artifacts (`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:16`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:24`, `frontend/scripts/build-tokens.mjs:740`, `frontend/scripts/build-tokens.mjs:754`).
-- Do not introduce a second hidden token schema without updating
-  `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` and the backlog when work is
-  deferred (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:15`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/roadmap/BACKLOG_LEDGER.md:121`, `docs/roadmap/BACKLOG_LEDGER.md:122`).
+These notes describe the current implementation shape and do not replace the
+authoritative web-governance rules in `docs/sora/SORA_STYLE_QA_CHECKLIST.md:8`
+through `docs/sora/SORA_STYLE_QA_CHECKLIST.md:14`.
+
+- `tokens.ts`, Storybook stories, and Tailwind config remain mirrors/consumers,
+  not the runtime web token contract (`frontend/src/styles/tokens.ts:1`, `frontend/src/styles/tokens.ts:24`, `frontend/src/components/design-system/PalettePanel.stories.tsx:1`, `frontend/src/components/design-system/PalettePanel.stories.tsx:18`, `frontend/tailwind.config.ts:11`, `frontend/tailwind.config.ts:24`).
+- Figma and Tokens Studio outputs become runtime only after promotion into
+  `/tokens` and regeneration of runtime artifacts (`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:16`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:24`, `frontend/scripts/build-tokens.mjs:740`, `frontend/scripts/build-tokens.mjs:754`).
+- Any new token schema or deferred expansion still routes through
+  `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` plus the backlog contract
+  (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:15`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/roadmap/BACKLOG_LEDGER.md:121`, `docs/roadmap/BACKLOG_LEDGER.md:122`).
