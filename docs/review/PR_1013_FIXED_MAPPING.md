@@ -85,12 +85,12 @@ Evidence: tests/test_execution_sandbox.py:158
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911493177 -> 3a19d3b6
 
 Disposition: FIXED
-Commit: 5751a659
+Commit: 26545e97
 Evidence: docs/review/PR_1013_FIXED_MAPPING.md:51
 Evidence: docs/review/PR_1013_FIXED_MAPPING.md:80
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875673 -> 5751a659
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911495989 -> 5751a659
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#discussion_r2901875673 -> 26545e97
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1013#pullrequestreview-3911495989 -> 26545e97
 
 ## Merge Readiness
 - [ ] PR is non-draft only when truly ready for merge
