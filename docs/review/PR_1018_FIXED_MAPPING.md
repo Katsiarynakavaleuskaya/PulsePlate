@@ -42,10 +42,15 @@ Disposition: FIXED
 Commit: 7eb0fdbb
 Evidence: `app/security/agent_input_guard.py:136`, `tests/test_agent_input_guard.py:47`, `tests/test_agent_input_guard.py:160`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#discussion_r2900634729 -> 24565a7a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#discussion_r2900634729 -> 885a2aee
 Disposition: FIXED
-Commit: 24565a7a
-Evidence: `AGENTS.md:246`, `AGENTS.md:248`, `AGENTS.md:249`
+Commit: 885a2aee
+Evidence: `tests/test_mcp_pulseplate_server_coverage.py:823`, `tests/test_mcp_pulseplate_server_coverage.py:836`, `tests/test_mcp_pulseplate_server_coverage.py:961`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#discussion_r2900872888 -> 6ec34dd5
+Disposition: FIXED
+Commit: 6ec34dd5
+Evidence: `tools/agentguard/scan_text.mjs:8`, `tools/agentguard/scan_text.mjs:20`, `tools/agentguard/scan_text.mjs:47`, `tools/agentguard/scan_text.mjs:56`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1018#discussion_r2900634715 -> 916cb676
 Disposition: FIXED
