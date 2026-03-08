@@ -679,6 +679,8 @@ class TestCBTInsightRAGIntegration:
         data = _json_body(response)
         assert "source_content_sanitized" in data["warnings"]
         assert data["sources"] == []
+        assert data["rag_used"] is False
+        assert data["confidence"] == 0.0
         prompt = mock_provider.generate.call_args.args[0]
         assert "RELEVANT CBT KNOWLEDGE:" not in prompt
 

@@ -296,9 +296,6 @@ async def cbt_insight(
         )
 
         if rag_ctx.chunks:
-            rag_used = True
-            confidence = rag_ctx.confidence
-
             # Build context string from chunks
             context_parts = []
             for chunk in rag_ctx.chunks:
@@ -323,7 +320,10 @@ async def cbt_insight(
                         score=chunk.score,
                     )
                 )
-            rag_context_str = "\n\n".join(context_parts)
+            if context_parts:
+                rag_used = True
+                confidence = rag_ctx.confidence
+                rag_context_str = "\n\n".join(context_parts)
 
     except Exception:
         logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
