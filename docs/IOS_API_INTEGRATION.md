@@ -112,7 +112,7 @@ Contract source:
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
-2. Receipt/business decision logic stays server-side (canonical `/api/v1/pro/payments/*` contracts) and is tracked as runtime rollout, not client logic (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md:3297`).
+2. Receipt/business decision logic stays server-side (canonical `/api/v1/pro/payments/*` contracts) and is tracked as runtime rollout, not client logic (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
 3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
 4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
 

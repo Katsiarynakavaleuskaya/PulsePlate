@@ -61,18 +61,6 @@ POST /api/v1/recipes/preview
 - Mobile-ready: Yes ✅
 ```
 
-#### `/api/v1/users` (users.py)
-
-```
-POST   /api/v1/users           (Create user)
-GET    /api/v1/users           (List users)
-GET    /api/v1/users/{user_id} (Get user)
-DELETE /api/v1/users/{user_id} (Delete user)
-- User management
-- NO API key required
-- Mobile-ready: Yes ✅
-```
-
 ### 2. PRO Tier Endpoints
 
 #### `/api/v1/premium` (premium_week.py)
@@ -215,15 +203,17 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 
 **Current structure:**
 
-```
+```text
 /api/v1/bmi/*        (FREE)
 /api/v1/foods/*      (FREE)
 /api/v1/recipes/*    (FREE)
-/api/v1/users/*      (FREE)
 /api/v1/premium/*    (PRO) ⚠️ Missing API key
 /api/v1/vip/*        (VIP) ✅ Has API key
 /api/v1/business/*   (Internal) ⚠️ No protection
 ```
+
+> **Security Note**: `/api/v1/users/*` is intentionally excluded from the mobile client contract.
+> It remains a runtime-only internal surface and must not be called directly by first-party mobile apps.
 
 ---
 
@@ -233,7 +223,6 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 
 ```
 /api/v1/auth/*          - Login, register, logout
-/api/v1/users/*         - User profile CRUD
 /api/v1/bmi/calculate   - Basic BMI calculation
 /api/v1/foods/search    - Browse food database
 /api/v1/recipes/search  - Browse recipe database

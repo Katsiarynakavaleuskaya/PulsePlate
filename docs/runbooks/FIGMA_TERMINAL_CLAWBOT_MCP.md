@@ -8,7 +8,7 @@ with optional Clawbot orchestration for repetitive flows.
 ## Direct Answer: Is Figma MCP Already Connected On The Site?
 
 No. Figma MCP is not "enabled on the website" as a global site switch.
-It is connected per client runtime (Cursor, Claude Code, or other MCP client)
+It is connected per client runtime (Codex, Cursor, or other MCP client)
 via MCP config + OAuth/auth session.
 
 - If `whoami` works in your MCP client, runtime connection is active.
@@ -22,7 +22,8 @@ via MCP config + OAuth/auth session.
   - `whoami`
   - `get_design_context`
   - `generate_diagram`
-  - `get_screenshot` (not supported for Figma Make files)
+  - `get_screenshot` (for supported Design nodes)
+  - `generate_figma_design` discovery flow
 
 ## Scope
 
@@ -37,7 +38,7 @@ via MCP config + OAuth/auth session.
 
 - Auto-deploying frontend to production from Figma.
 - Storing secrets in repository files.
-- Forcing `generate_figma_design` in runtimes where tool is unavailable.
+- Treating non-canonical tools as Source of Truth.
 
 ## Required Agents (Coordinator-First)
 
@@ -54,7 +55,8 @@ via MCP config + OAuth/auth session.
 
 - `whoami` must succeed before any design-context call.
 - `get_design_context(fileKey,nodeId)` is required for Make flow.
-- `get_screenshot` is unsupported for Make in this runtime; do not block on it.
+- `generate_figma_design` must be checked in discovery mode before live capture.
+- `get_screenshot` is design-node dependent; do not block Make-only flows on it.
 
 ### Contract B: Input Format
 
@@ -102,6 +104,8 @@ Use Clawbot only as an orchestration layer, not as a source of truth.
 2. Calls:
    - `whoami`
    - `get_design_context`
+   - `get_screenshot` when node type supports it
+   - `generate_figma_design` discovery call when capture is needed
    - `generate_diagram` (optional for flow visualization)
 3. Output:
    - target files list
@@ -135,6 +139,6 @@ Use Clawbot only as an orchestration layer, not as a source of truth.
 ## Next Actions For This Workspace
 
 1. Continue using the current Figma MCP runtime for Make context extraction.
-2. For direct `code -> Figma Design` push, use a client runtime that exposes
-   `generate_figma_design`.
-3. Keep this runbook as single operational reference for the terminal bridge.
+2. Use `generate_figma_design` discovery first, then choose `existingFile`,
+   `newFile`, or `clipboard` explicitly.
+3. Keep this runbook aligned with `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.

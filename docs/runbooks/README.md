@@ -36,13 +36,22 @@ operational tasks.
 ## Figma / MCP / Design Ops
 
 - [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and
-  code-to-canvas flow for Codex/Claude
+  code-to-canvas flow for Codex / GPT-5.4 Pro
 - [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md) — runtime
   capability matrix (`generate_figma_design` availability by client)
 - [`FIGMA_MCP_LIVE_ACTIVATION.md`](FIGMA_MCP_LIVE_ACTIVATION.md) —
   first-session live activation protocol
-- [Figma Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
-  reproducible code-to-canvas evidence capture checklist
+- [`DESIGN_TOOLING_OPERATING_MODEL.md`](DESIGN_TOOLING_OPERATING_MODEL.md) —
+  source precedence, task packet, lifecycle, and evidence model across design
+  tools
+- [`NOTION_STRUCTURED_MEMORY_GOVERNANCE.md`](NOTION_STRUCTURED_MEMORY_GOVERNANCE.md) —
+  governed Notion usage for briefs, research, and handoffs
+- [`AIRWEAVE_RESEARCH_INGESTION_LANE.md`](AIRWEAVE_RESEARCH_INGESTION_LANE.md) —
+  Airweave research-ingestion boundaries and access model
+- [`PENPOT_SECONDARY_DESIGN_LANE.md`](PENPOT_SECONDARY_DESIGN_LANE.md) —
+  Penpot backup/open design lane governance
+- [Design Tooling Session Evidence Template](FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md) —
+  reproducible evidence capture checklist across Figma/Notion/Airweave/Penpot
 - [`FIGMA_MCP_DESIGN_SYSTEM_RULES.md`](FIGMA_MCP_DESIGN_SYSTEM_RULES.md) —
   implementation rules for design-system translation into
   `frontend/`

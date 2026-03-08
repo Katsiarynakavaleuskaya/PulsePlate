@@ -1,8 +1,9 @@
-# Figma MCP for Codex / Claude Code
+# Figma MCP for Codex / GPT-5.4 Pro
 
 <!-- markdownlint-disable MD013 -->
 
-This runbook standardizes Figma MCP setup for code-to-canvas workflow:
+This runbook standardizes Figma MCP setup for the PulsePlate
+`Codex + GPT-5.4 Pro` workflow:
 
 1. build UI prototype in code,
 2. push variant to Figma canvas,
@@ -12,7 +13,7 @@ This runbook standardizes Figma MCP setup for code-to-canvas workflow:
 
 ### IN
 
-- Codex/Claude Code MCP setup for Figma.
+- Codex MCP setup for Figma.
 - Verification checklist and troubleshooting.
 - Minimal safe workflow for sending local prototypes to Figma.
 
@@ -25,26 +26,10 @@ This runbook standardizes Figma MCP setup for code-to-canvas workflow:
 ## Prerequisites
 
 - Valid Figma OAuth token.
-- Access to MCP-enabled Codex/Claude environment.
+- Access to MCP-enabled Codex runtime.
 - Local project running (if exporting from localhost route).
 
-## Option A: Claude plugin install flow
-
-If your Claude Code runtime supports plugin install command:
-
-```bash
-/plugin install figma@claude-plugin-directory
-```
-
-Note: `figma@claude-plugin-directory` is a placeholder. Use the exact plugin
-identifier/command required by your Claude/Codex environment.
-
-After install:
-
-- Restart Claude Code session.
-- Verify Figma tools are visible.
-
-## Option B: Codex MCP config flow (explicit)
+## Codex MCP config flow (explicit)
 
 Add this to `~/.codex/config.toml`:
 
@@ -71,7 +56,7 @@ export FIGMA_OAUTH_TOKEN="<your_token>"
 test -n "$FIGMA_OAUTH_TOKEN" && echo "FIGMA_OAUTH_TOKEN is set"
 ```
 
-Restart Codex/Cursor after config changes.
+Restart Codex after config changes.
 
 ## Verification Checklist
 
@@ -81,15 +66,25 @@ Restart Codex/Cursor after config changes.
 - Region header matches your Figma org region.
 - Runtime capability expectations are confirmed against
   [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md).
+- `generate_figma_design` is checked in discovery mode before claiming
+  `code -> Figma` push support.
 
 ## Canonical code-to-Figma flow
 
 1. Implement working UI variant locally.
 2. Provide exact page/frame/node link to MCP request.
 3. Pull design context and screenshot for that node.
-4. Push generated variant to Figma canvas.
-5. Create named variants in Figma (A/B/C) with fixed node IDs.
-6. Capture mapping in docs (`design URL`, `node ID`, `variant ID`).
+4. If capture is needed, call `generate_figma_design` in discovery mode.
+5. Choose `existingFile`, `newFile`, or `clipboard`.
+6. Push generated variant to Figma canvas when the chosen mode allows it.
+7. Create named variants in Figma (A/B/C) with fixed node IDs.
+8. Capture mapping in docs (`design URL`, `node ID`, `variant ID`).
+
+## PulsePlate Runtime Baseline
+
+As of `2026-03-08`, this repo treats `Codex + GPT-5.4 Pro` as the primary
+agent runtime for Figma MCP. Do not document a separate Claude-only lane for
+design push unless a future session proves a Codex regression.
 
 ## Security Notes
 
@@ -103,6 +98,9 @@ Restart Codex/Cursor after config changes.
 - **OAuth fails:** ensure `rmcp_client = true` and token has no extra quotes.
 - **Server missing in MCP list:** restart IDE/session after config update.
 - **Region mismatch:** update `X-Figma-Region` to your account region.
+- **`generate_figma_design` unavailable:** fall back to
+  `get_design_context + get_screenshot + Code Connect` and record the runtime
+  limitation in the session evidence.
 
 ## Evidence Commands
 
