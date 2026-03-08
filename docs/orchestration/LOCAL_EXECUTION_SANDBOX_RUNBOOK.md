@@ -9,6 +9,7 @@ introduced.
 Related integration spec:
 
 - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+- `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
 
 ## Current Scope
 
@@ -128,3 +129,8 @@ After the local sandbox is stable, the next upgrade path is:
 3. add a stronger isolated runner boundary later
 
 This keeps costs minimal while preserving a clean path to production hardening.
+
+Phase 2 capabilities such as exports, realtime progress, and broader autonomy
+remain planned only. See:
+
+- `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`

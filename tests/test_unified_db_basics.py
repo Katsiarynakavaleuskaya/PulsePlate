@@ -314,6 +314,7 @@ class TestUnifiedFoodDatabaseSearch:
         """Test food search with USDA preferred."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = None
 
         results = await db.search_food("chicken breast", prefer_source="usda")
 
@@ -370,6 +371,7 @@ class TestUnifiedFoodDatabaseSearch:
     async def test_search_food_cached_result(self, temp_cache_dir):
         """Test search returns cached result."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        db.off_client = None
 
         # Add cached item
         cached_item = UnifiedFoodItem(
@@ -435,6 +437,7 @@ class TestUnifiedFoodDatabaseGetById:
 
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = None
 
         result = await db.get_food_by_id("usda", "12345")
 
