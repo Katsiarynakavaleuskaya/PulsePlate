@@ -57,6 +57,7 @@ Do not start with exports, realtime fan-out, or broad multi-tool autonomy.
 These follow-ups stay deferred until dedicated backlog items are merged:
 
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-pr1013-fitchef-phase2-scope`
+- `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
 
 ## Runtime Contract
 
@@ -158,6 +159,11 @@ Forbidden in v1:
 4. Bind shopping-list follow-up as a third task type.
 5. Only after that, expose streaming/realtime progress and richer tool chains.
 
+Those additions are still planned only and must follow the dedicated Phase 2
+contract:
+
+- `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+
 ## Success Criteria
 
 Phase 1 is complete when:
@@ -177,3 +183,4 @@ Phase 1 is complete when:
 - strong container/VM isolation in this phase
 - exports, realtime fan-out, or broader tool autonomy before the Phase 2
   backlog item is scheduled
+- any document describing Phase 2 capabilities as already live

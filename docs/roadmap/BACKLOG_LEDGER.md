@@ -854,6 +854,7 @@ If it is not recorded here — it does not exist.
   - Reason: Exports, realtime fan-out, and broader multi-tool autonomy were intentionally excluded from PR #1013 to keep the first sandbox runtime bounded and reviewable.
   - Links:
     - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
     - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
     - `docs/review/PR_1013_FIXED_MAPPING.md`
   - DoD:
