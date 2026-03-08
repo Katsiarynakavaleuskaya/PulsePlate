@@ -287,21 +287,25 @@ The merged food database follows a standardized schema:
   - Input: `{"text": "I feel tired"}`
   - Output: `{"provider": "stub", "insight": "insight::deriat"}`
 
-### Premium APIs
+### Tiered Nutrition APIs
 
-#### BMR/TDEE Calculations
+For the current canonical tier map and compatibility surface, see `docs/contracts/API_CANONICAL_MAP.md`.
 
-- `POST /api/v1/premium/bmr` - Advanced BMR calculation using multiple formulas (requires X-API-Key header)
+#### Legacy-Compatible BMR/TDEE Endpoints
+
+- `POST /api/v1/premium/bmr` - Advanced BMR calculation using multiple formulas (requires X-API-Key header; legacy-compatible premium namespace)
   - Input: `{"weight_kg": 70, "height_cm": 175, "age": 30, "sex": "male", "bodyfat": 15}`
   - Output: BMR values using Harris-Benedict, Mifflin-St Jeor, and Katch-McArdle formulas
 
-- `POST /api/v1/premium/tdee` - TDEE calculation with activity factors (requires X-API-Key header)
+- `POST /api/v1/premium/tdee` - TDEE calculation with activity factors (requires X-API-Key header; legacy-compatible premium namespace)
   - Input: BMR data + `{"activity": "moderate"}`
   - Output: TDEE values for different activity levels
 
-#### Enhanced My Plate - Visual Nutrition Planning
+#### Plate / Targets / Weekly Planning
 
-- `POST /api/v1/premium/plate` - Generate personalized visual plate with hand/cup portions (requires X-API-Key header)
+- `POST /api/v1/premium/plate` remains available as a legacy compatibility surface.
+- Canonical PRO and VIP planning routes are documented in `docs/contracts/API_CANONICAL_MAP.md`.
+- Use the canonical map when choosing between `/api/v1/pro/*`, `/api/v1/vip/*`, and deprecated `/api/v1/premium/*` paths.
 
 **Request Example:**
 
@@ -479,12 +483,14 @@ Access the API at `http://localhost:8000`
 
 - `POST /api/v1/bmi` - Calculate BMI
 - `POST /api/v1/bodyfat` - Calculate body fat percentage
-- `POST /api/v1/premium/bmr` - Calculate BMR and TDEE (requires `API_KEY`)
-- `POST /api/v1/premium/plan/week` - Generate weekly meal plan (open by default)
+- `POST /api/v1/insight` - Generate AI insight text output (requires `API_KEY`)
+- Tiered nutrition, planning, payments, and compatibility routes are summarized in `docs/contracts/API_CANONICAL_MAP.md`
 
-### Auth behavior for weekly plan
+### Weekly planning note
 
-- Dev (default): open access to simplify local testing and CI.
+- Canonical weekly planning surfaces live in the `/api/v1/pro/*` and `/api/v1/vip/*` namespaces.
+- The legacy compatibility route `/api/v1/premium/plan/week` is retained for migration, but it should not be treated as the canonical namespace.
+- Dev (default): open access to simplify local testing and CI for the compatibility weekly-plan route.
 - Prod (optional): set `FEATURE_ENFORCE_AUTH_WEEK=1` and `API_KEY=...` to enforce header `X-API-Key` for `/api/v1/premium/plan/week`.
   - With the flag enabled, invalid or missing key returns `403`.
   - Other premium endpoints remain protected by `API_KEY` as usual.

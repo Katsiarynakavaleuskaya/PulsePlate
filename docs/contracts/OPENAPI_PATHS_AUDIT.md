@@ -1,8 +1,11 @@
-# OpenAPI Paths Audit — Factual Endpoints (2026-01-11)
+# OpenAPI Paths Audit — Historical Endpoint Snapshot (2026-01-11)
 
 **Source:** `frontend/src/api/openapi.json`
 **Generated:** `make openapi`
-**Purpose:** Factual inventory of all `/premium/*`, `/pro/*`, `/vip/*` endpoints currently exposed in OpenAPI schema
+**Purpose:** Historical audit snapshot of `/premium/*`, `/pro/*`, `/vip/*` endpoint exposure on 2026-01-11
+
+> Current operator-facing route mapping now lives in `docs/contracts/API_CANONICAL_MAP.md`.
+> Treat this file as audit evidence and migration analysis, not as the current canonical route map.
 
 ---
 

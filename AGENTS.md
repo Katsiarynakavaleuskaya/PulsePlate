@@ -935,6 +935,30 @@ Source of truth:
 
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
 - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
+- `docs/contracts/API_CANONICAL_MAP.md` — operator-facing route map (current namespace and compatibility surface)
+- `docs/runbooks/ENGINEER_QUICKPATH.md` — short execution path for day-to-day engineering work
+
+## Canonical Maps And Quick Paths
+
+Use this section as a navigation index only.
+Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
+
+### API and OpenAPI workflow
+
+- Canonical API route map: `docs/contracts/API_CANONICAL_MAP.md`
+- `make openapi` remains the canonical combined OpenAPI command.
+- Backend/frontend OpenAPI split targets are tracked as follow-up workflow hardening in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`.
+
+### Operator quick path
+
+- Daily operator runbook: `docs/runbooks/ENGINEER_QUICKPATH.md`
+- CI/debug triage: `RUNBOOK_AGENT.md`
+- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`.
+
+### AI bounded context
+
+- AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
+- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`.
 
 ## OpenAPI generation (determinism requirement)
 
@@ -944,6 +968,7 @@ Source of truth:
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
 - **OpenAPI generation policy**: OpenAPI must be generated via `make openapi` (never direct `python scripts/generate_openapi.py`). CI and local must use the same entrypoint.
+- Workflow follow-up: backend/frontend split OpenAPI targets remain tracked work until they are implemented in the canonical Make workflow (`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`).
 - `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)
