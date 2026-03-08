@@ -698,6 +698,30 @@ class TestMcpPulseplateServerCoverage:
                 mock_generate.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_call_tool_generate_code_blocks_unsafe_language(self) -> None:
+        """Unsafe generation language must fail before helper execution."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                params = {
+                    "name": "generate_code",
+                    "arguments": {
+                        "description": "create a function",
+                        "language": "cmd.exe /c powershell -enc AAAA",
+                    },
+                }
+
+                with patch.object(server, "_generate_code") as mock_generate:
+                    response = await server._call_tool(params)
+
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32602
+                assert response.message == "Invalid params"
+                assert response.data == {"error": "unsafe_ai_input", "field": "language"}
+                mock_generate.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_call_tool_rejects_non_string_guarded_field(self) -> None:
         """Guarded text fields must reject non-string JSON values."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -714,6 +738,27 @@ class TestMcpPulseplateServerCoverage:
                 assert response.message == "Invalid params"
                 assert response.data == {"error": "invalid_field_type", "field": "query"}
                 mock_chatgpt.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_call_tool_rejects_non_string_generate_code_language(self) -> None:
+        """Guarded generation language must reject non-string JSON values."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                params = {
+                    "name": "generate_code",
+                    "arguments": {"description": "safe", "language": ["python"]},
+                }
+
+                with patch.object(server, "_generate_code") as mock_generate:
+                    response = await server._call_tool(params)
+
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32602
+                assert response.message == "Invalid params"
+                assert response.data == {"error": "invalid_field_type", "field": "language"}
+                mock_generate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_call_tool_ignores_whitespace_only_guarded_field(self) -> None:

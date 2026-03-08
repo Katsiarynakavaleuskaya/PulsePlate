@@ -33,7 +33,7 @@ _COMMAND_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "command_injection",
         re.compile(
-            r"\b(?:bash|sh|zsh|pwsh|powershell|cmd(?:\.exe)?)\s+-[ce]\b",
+            r"\b(?:(?:bash|sh|zsh|pwsh|powershell)\s+-[ce]|cmd(?:\.exe)?\s+/[ck])\b",
             re.IGNORECASE,
         ),
     ),

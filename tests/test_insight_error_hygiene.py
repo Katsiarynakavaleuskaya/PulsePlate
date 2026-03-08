@@ -136,12 +136,19 @@ def test_insight_legacy_blocks_unsafe_input_before_quota(
     """Unsafe prompt payload must fail before quota/provider on /insight."""
 
     import legacy_app
+    import llm
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
         legacy_app,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for blocked input"),
+        raising=True,
+    )
+    monkeypatch.setattr(
+        llm,
+        "get_provider",
+        lambda: pytest.fail("provider should not run for blocked input"),
         raising=True,
     )
 
@@ -161,12 +168,19 @@ def test_insight_v1_blocks_unsafe_input_before_quota(
     """Unsafe prompt payload must fail before quota/provider on /api/v1/insight."""
 
     import legacy_app
+    import llm
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
         legacy_app,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for blocked input"),
+        raising=True,
+    )
+    monkeypatch.setattr(
+        llm,
+        "get_provider",
+        lambda: pytest.fail("provider should not run for blocked input"),
         raising=True,
     )
 

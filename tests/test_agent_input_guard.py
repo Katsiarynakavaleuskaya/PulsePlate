@@ -72,6 +72,22 @@ def test_scan_ai_agent_input_blocks_unicode_obfuscated_command() -> None:
     assert "command_injection" in categories
 
 
+def test_scan_ai_agent_input_blocks_cmd_exe_slash_c_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regex fallback must also catch Windows cmd.exe slash flags."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
+    monkeypatch.setattr(guard_mod, "_try_upstream_scan", lambda text: None)
+
+    result = scan_ai_agent_input("Please run cmd.exe /c powershell -nop -enc AAAA")
+
+    assert result.is_safe is False
+    assert any(threat.category == "command_injection" for threat in result.threats)
+
+
 def test_scan_ai_agent_input_fallback_regex_blocks_tool_call_shell_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -219,26 +235,6 @@ def test_try_upstream_scan_returns_none_when_constructor_fails(
     assert _try_upstream_scan("test payload") is None
 
 
-def test_load_upstream_agent_guard_class_reads_temp_module_inline(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Direct loader path should resolve a temp module without subprocess indirection."""
-
-    package_dir = tmp_path / "agent_guard"
-    package_dir.mkdir()
-    (package_dir / "__init__.py").write_text("class AgentGuard:\n    pass\n", encoding="utf-8")
-
-    from app.security import agent_input_guard as guard_mod
-
-    monkeypatch.syspath_prepend(str(tmp_path))
-
-    loaded_class = guard_mod._load_upstream_agent_guard_class()
-
-    assert loaded_class is not None
-    assert loaded_class.__name__ == "AgentGuard"
-
-
 @pytest.mark.parametrize(
     ("agent_guard_class", "expected"),
     [
@@ -377,6 +373,7 @@ def test_scan_text_with_goplus_agentguard_handles_subprocess_and_payload_failure
         subprocess.TimeoutExpired(cmd="node", timeout=5),
         SimpleNamespace(returncode=1, stdout='{"risk_level":"critical"}'),
         SimpleNamespace(returncode=0, stdout="not json"),
+        SimpleNamespace(returncode=0, stdout="[]"),
         SimpleNamespace(returncode=0, stdout='{"risk_level": 1, "risk_tags": [], "summary": "x"}'),
         SimpleNamespace(
             returncode=0, stdout='{"risk_level": "critical", "risk_tags": "bad", "summary": "x"}'

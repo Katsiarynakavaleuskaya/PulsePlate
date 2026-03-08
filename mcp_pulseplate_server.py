@@ -344,7 +344,7 @@ class PulsePlateMCPServer:
 
         text_fields_by_tool = {
             "chatgpt_query": ("query", "context"),
-            "generate_code": ("description",),
+            "generate_code": ("description", "language"),
         }
         text_fields = text_fields_by_tool.get(tool_name, ())
         for field_name in text_fields:

@@ -250,6 +250,7 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - MCP tool-level blocking MUST preserve JSON-RPC contract: reject unsafe or malformed guarded fields with `-32602 Invalid params` from `_call_tool`.
 - Direct helper paths that bypass `_call_tool` MUST still fail closed before the provider call and return the stable local error shape already covered by tests.
 - Broad fallback regexes are intentionally scoped to AI-agent control surfaces; do not reuse them for general educational/free-form developer text without a separate contract review.
+- See: `app/security/agent_input_guard.py` (`prepare_safe_ai_prompt_input`, `scan_ai_agent_input`), `mcp_pulseplate_server.py` (`_call_tool`, `_find_blocked_tool_argument`), `legacy_app.py` (`/insight`, `/api/v1/insight`), `tests/test_agent_input_guard.py`, `tests/test_mcp_pulseplate_server_coverage.py`, `tests/test_insight_error_hygiene.py`.
 
 **Rationale:**
 

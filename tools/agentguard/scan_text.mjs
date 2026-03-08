@@ -10,7 +10,11 @@ function sanitizeFilename(filename) {
   if (typeof filename !== "string" || filename.trim() === "") {
     return fallback;
   }
-  return filename.replace(/[^a-zA-Z0-9._-]/g, "_") || fallback;
+  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+  if (sanitized === "" || sanitized === "." || sanitized === "..") {
+    return fallback;
+  }
+  return sanitized;
 }
 
 function normalizeScanResult(result) {
