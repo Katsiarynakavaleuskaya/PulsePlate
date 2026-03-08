@@ -4,7 +4,13 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3911967929 -> 1d983225
+  Disposition: FIXED
+  Evidence: core/compliance/minimization.py:133; core/compliance/transparency.py:101; app/routers/feedback.py:63; docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md:53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3911971493 -> 1d983225
+  Disposition: FIXED
+  Evidence: core/compliance/privacy.py:110; app/routers/legal.py:1; tests/test_app_endpoints_1383_1401.py:133; docs/roadmap/BACKLOG_LEDGER.md:79
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902358121 -> 1d983225
   Disposition: FIXED
   Evidence: app/security/agent_control_plane.py:280; core/compliance/minimization.py:176
