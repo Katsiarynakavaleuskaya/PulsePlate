@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
