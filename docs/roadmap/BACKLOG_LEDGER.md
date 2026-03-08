@@ -2982,6 +2982,7 @@ If it is not recorded here — it does not exist.
     - `legacy_app.py`
   - DoD:
     - Backend keeps `SignedLinkResponse` as the runtime response model
+    - `POST /api/v1/export/sign` keeps the stable JSON shape `{url, exp, ttl}` with regression coverage
     - Public OpenAPI continues to exclude export endpoints
     - Web keeps a local typed adapter with explicit rationale for the hidden-schema boundary
 
