@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Sequence
+from typing import NoReturn, Sequence
 
 from app.security.execution_sandbox import SandboxRequest
 from app.security.execution_sandbox import run_local_sandbox
@@ -17,7 +17,7 @@ from app.security.execution_sandbox import run_local_sandbox
 class _JsonArgumentParser(argparse.ArgumentParser):
     """Argument parser that fails without emitting usage text to stderr."""
 
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> NoReturn:
         raise ValueError(f"CLI argument error: {message}")
 
 

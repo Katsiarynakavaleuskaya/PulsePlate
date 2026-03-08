@@ -269,11 +269,11 @@ def resolve_effective_execution_mode(requested_mode: str | None = None) -> str:
     EN: Request mode may tighten runtime policy, but must never relax it.
     """
 
-    configured_mode = normalize_execution_mode()
+    configured_mode: str = normalize_execution_mode()
     if requested_mode is None:
         return configured_mode
 
-    requested_normalized = normalize_execution_mode(requested_mode)
+    requested_normalized: str = normalize_execution_mode(requested_mode)
     if _EXECUTION_MODE_PRIORITY[requested_normalized] > _EXECUTION_MODE_PRIORITY[configured_mode]:
         return requested_normalized
     return configured_mode
