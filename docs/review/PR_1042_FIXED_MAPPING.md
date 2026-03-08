@@ -9,6 +9,7 @@
 Disposition: FIXED
 Commit: e05dec12
 Evidence: docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md:51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1042#discussion_r2902074687 -> 9af05b12
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
