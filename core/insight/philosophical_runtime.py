@@ -31,7 +31,8 @@ from core.insight.linguistic import (
 from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticValidator
 from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
-from core.rag.formatting import RAGSourceDict
+from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
+from core.rag.orchestration import retrieve_and_validate_rag
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
@@ -382,6 +383,7 @@ class PhilosophicalRuntime:
             )
 
         rag_source_dicts: list[RAGSourceDict] = []
+        final_provider_name = provider.name
         confidence: float | None = None
         rag_used = False
         hops = 0
@@ -389,8 +391,6 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            from core.rag.orchestration import retrieve_and_validate_rag
-
             rag_result = await retrieve_and_validate_rag(
                 prompt_input,
                 max_chunks=3,
@@ -404,8 +404,6 @@ class PhilosophicalRuntime:
             hops = rag_result.hops
             latency_ms = rag_result.latency_ms
             if rag_result.chunks:
-                from core.rag.formatting import build_rag_source_dicts
-
                 rag_source_dicts = build_rag_source_dicts(rag_result.chunks)
 
         prompt_text = self._build_prompt(
@@ -454,6 +452,10 @@ class PhilosophicalRuntime:
                     or falsification_report.falsifiability_rate < 0.5
                 ):
                     answer = self._build_conservative_fallback(decision, lang=lang)
+                    final_provider_name = "philosophical_runtime"
+                    verification_report = None
+                    falsification_report = None
+                    contradiction_count = 0
                     fallback_reason = "phase12_validation"
 
         tokens_saved_estimate = _estimate_tokens_saved(
@@ -470,7 +472,7 @@ class PhilosophicalRuntime:
         )
         return RuntimeResult(
             insight=answer,
-            provider_name=provider.name,
+            provider_name=final_provider_name,
             source_dicts=rag_source_dicts,
             confidence=confidence,
             rag_used=rag_used,
@@ -564,6 +566,12 @@ class PhilosophicalRuntime:
         pragmatic_enabled: bool,
     ) -> bool:
         """Decide if one rewrite attempt is justified."""
+        if contradiction_count > 0:
+            return True
+        if verification_report.verification_rate < 0.5:
+            return True
+        if falsification_report.falsifiability_rate < 0.5:
+            return True
         if pragmatic_enabled:
             pragmatic = self._pragmatic.assess(
                 answer,
@@ -572,8 +580,6 @@ class PhilosophicalRuntime:
             )
             if pragmatic.practically_useful and contradiction_count == 0:
                 return False
-        if contradiction_count > 0:
-            return True
         if decision.route_type in {RouteType.RAG_FACTUAL, RouteType.DEEP_REASONING}:
             return bool(
                 verification_report.verification_rate < 0.7

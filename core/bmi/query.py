@@ -26,12 +26,19 @@ _BMI_RESULT_MESSAGES = {
 def extract_bmi_inputs(query: str) -> tuple[float, float] | None:
     """Extract weight and height from a free-form BMI query."""
 
-    weight_match = re.search(r"(\d+\.?\d*)\s*kg\b", query, re.IGNORECASE)
-    height_cm_match = re.search(r"(\d+\.?\d*)\s*cm\b", query, re.IGNORECASE)
-    height_m_match = re.search(r"(\d+\.?\d*)\s*m\b", query, re.IGNORECASE)
+    normalized_query = query.replace(",", ".")
+    weight_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg|кг)\b", normalized_query, re.IGNORECASE)
+    height_cm_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*(?:cm|см)\b",
+        normalized_query,
+        re.IGNORECASE,
+    )
+    height_m_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|м)\b", normalized_query, re.IGNORECASE)
     if weight_match is None:
         return None
     weight_kg = float(weight_match.group(1))
+    if weight_kg <= 0:
+        return None
     height_m: float | None = None
     if height_cm_match is not None:
         height_m = float(height_cm_match.group(1)) / 100.0

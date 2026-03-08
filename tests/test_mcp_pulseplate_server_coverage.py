@@ -761,17 +761,51 @@ class TestMcpPulseplateServerCoverage:
         self, tool_name: str, patched_attr: str
     ) -> None:
         """Tool helpers that return {'error': ...} must map to RpcError (-32000)."""
+        valid_arguments_by_tool = {
+            "chatgpt_query": {"query": "test query"},
+            "code_review": {"code": "print('hello')"},
+            "generate_code": {"description": "create a helper"},
+        }
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
                 server = mcp_pulseplate_server.PulsePlateMCPServer()
 
                 with patch.object(server, patched_attr, return_value={"error": "boom"}):
-                    response = await server._call_tool({"name": tool_name, "arguments": {}})
+                    response = await server._call_tool(
+                        {"name": tool_name, "arguments": valid_arguments_by_tool[tool_name]}
+                    )
 
                 assert isinstance(response, mcp_pulseplate_server.RpcError)
                 assert response.code == -32000
                 assert response.message == "Tool error"
                 assert response.data == {"error": "boom"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments", "field_name"),
+        [
+            ("chatgpt_query", {}, "query"),
+            ("chatgpt_query", {"query": "   "}, "query"),
+            ("code_review", {}, "code"),
+            ("generate_code", {}, "description"),
+        ],
+    )
+    async def test_call_tool_rejects_blank_required_arguments(
+        self,
+        tool_name: str,
+        arguments: dict[str, object],
+        field_name: str,
+    ) -> None:
+        """Shared validator must reject missing required text fields before helpers run."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                response = await server._call_tool({"name": tool_name, "arguments": arguments})
+
+                assert isinstance(response, mcp_pulseplate_server.RpcError)
+                assert response.code == -32602
+                assert response.data == {"error": "arguments", "field": field_name}
 
     @pytest.mark.asyncio
     async def test_chatgpt_query_success(self):

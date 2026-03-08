@@ -344,10 +344,36 @@ class PulsePlateMCPServer:
     ) -> RpcError | None:
         """Fail closed on unsafe text inputs before tool helpers run."""
 
-        text_fields_by_tool = {
-            "chatgpt_query": ("query", "context"),
-            "generate_code": ("description", "language"),
+        required_text_fields_by_tool = {
+            "chatgpt_query": ("query",),
+            "code_review": ("code",),
+            "generate_code": ("description",),
         }
+        blocked_required_text_fields_by_tool = {
+            "chatgpt_query": {"query"},
+            "generate_code": {"description"},
+        }
+        text_fields_by_tool = {
+            "chatgpt_query": ("context",),
+            "code_review": ("language",),
+            "generate_code": ("language",),
+        }
+        for field_name in required_text_fields_by_tool.get(tool_name, ()):
+            value = arguments.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                return RpcError(
+                    code=-32602,
+                    message="Invalid params",
+                    data={"error": "arguments", "field": field_name},
+                )
+            if field_name in blocked_required_text_fields_by_tool.get(tool_name, set()):
+                scan_result = scan_ai_agent_input(value)
+                if not scan_result.is_safe:
+                    return RpcError(
+                        code=-32602,
+                        message="Invalid params",
+                        data={"error": "unsafe_ai_input", "field": field_name},
+                    )
         text_fields = text_fields_by_tool.get(tool_name, ())
         for field_name in text_fields:
             value = arguments.get(field_name, "")

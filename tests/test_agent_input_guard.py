@@ -22,8 +22,15 @@ from app.security.goplus_agentguard_bridge import (
 )
 
 
-def test_scan_ai_agent_input_allows_benign_wellness_prompt() -> None:
+def test_scan_ai_agent_input_allows_benign_wellness_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Normal wellness text must remain usable."""
+
+    from app.security import agent_input_guard as guard_mod
+
+    monkeypatch.setattr(guard_mod, "scan_text_with_goplus_agentguard", lambda text: None)
+    monkeypatch.setattr(guard_mod, "_try_upstream_scan", lambda text: None)
 
     result = scan_ai_agent_input("How can I build a steady breakfast habit?")
 

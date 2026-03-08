@@ -97,6 +97,10 @@ class TestPhilosophicalQueryRouter:
     def test_bmi_input_parser_rejects_track_distance_as_height(self) -> None:
         assert extract_bmi_inputs("Calculate BMI for 70kg after a 100m sprint") is None
 
+    def test_bmi_input_parser_rejects_zero_weight_and_accepts_localized_units(self) -> None:
+        assert extract_bmi_inputs("Calculate BMI for 0kg and 175cm") is None
+        assert extract_bmi_inputs("Рассчитай BMI для 70 кг и 175 см") == (70.0, 1.75)
+
     def test_request_speech_act_uses_shallow_guidance_route(self) -> None:
         router = PhilosophicalQueryRouter()
         router._resolver = SimpleNamespace(resolve=lambda query: query)
@@ -318,8 +322,10 @@ class TestPhilosophicalRuntime:
         assert provider.calls == 2
         assert "safest concise answer" in result.insight
         assert result.metadata.route_type == RouteType.RAG_FACTUAL.value
-        assert result.metadata.verification_rate is not None
-        assert result.metadata.falsifiability_rate is not None
+        assert result.provider_name == "philosophical_runtime"
+        assert result.metadata.verification_rate is None
+        assert result.metadata.falsifiability_rate is None
+        assert result.metadata.contradiction_count == 0
 
     async def test_metadata_hidden_when_new_flags_are_off(self) -> None:
         runtime = PhilosophicalRuntime()
@@ -491,6 +497,28 @@ class TestPhilosophicalRuntime:
 
     async def test_extract_bmi_inputs_requires_weight(self) -> None:
         assert extract_bmi_inputs("Height is 175cm") is None
+
+    async def test_shallow_guidance_hard_validation_still_rewrites(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="This may help. Results vary by individual.")
+
+        result = await runtime.generate_insight(
+            text="Give me a short breakfast plan.",
+            lang="en",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=True,
+        )
+
+        assert provider.calls == 2
+        assert result.provider_name == "philosophical_runtime"
+        assert result.metadata.verification_rate is None
+        assert result.metadata.falsifiability_rate is None
 
 
 def test_runtime_telemetry_initializes_metrics_lazily(
