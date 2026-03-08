@@ -11,6 +11,12 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3911971493 -> 1d983225
   Disposition: FIXED
   Evidence: core/compliance/privacy.py:110; app/routers/legal.py:1; tests/test_app_endpoints_1383_1401.py:133; docs/roadmap/BACKLOG_LEDGER.md:79
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912009316 -> de3c9a6a
+  Disposition: FIXED
+  Evidence: app/routers/cbt_insight.py:349; core/server_salt.py:14; tests/test_cbt_insight_api.py:929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#pullrequestreview-3912010619 -> de3c9a6a
+  Disposition: FIXED
+  Evidence: app/routers/legal.py:94; app/main.py:80; tests/test_app_endpoints_1383_1401.py:74; tests/test_compliance_control_plane.py:22
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902358121 -> 1d983225
   Disposition: FIXED
   Evidence: app/security/agent_control_plane.py:280; core/compliance/minimization.py:176
@@ -50,9 +56,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902361406 -> 1d983225
   Disposition: FIXED
   Evidence: docs/roadmap/BACKLOG_LEDGER.md:79
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902361410 -> 1d983225
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902361410 -> de3c9a6a
   Disposition: FIXED
-  Evidence: app/routers/legal.py:1; legacy_app.py:1714
+  Evidence: app/routers/legal.py:94; app/main.py:80
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902361412 -> 1d983225
   Disposition: FIXED
   Evidence: tests/test_app_endpoints_1383_1401.py:133
@@ -62,6 +68,15 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902361604 -> 1d983225
   Disposition: FIXED
   Evidence: app/security/agent_control_plane.py:280; core/compliance/minimization.py:176
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902400352 -> de3c9a6a
+  Disposition: FIXED
+  Evidence: app/routers/cbt_insight.py:349; tests/test_cbt_insight_api.py:929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902400354 -> de3c9a6a
+  Disposition: FIXED
+  Evidence: core/server_salt.py:14; core/compliance/minimization.py:134; app/security/server_salt.py:1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1046#discussion_r2902402282 -> de3c9a6a
+  Disposition: FIXED
+  Evidence: tests/test_compliance_control_plane.py:31; tests/test_compliance_control_plane.py:50; tests/test_compliance_control_plane.py:119
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
