@@ -41,3 +41,18 @@ Evidence: `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.
 Disposition: NOT-A-BUG
 Evidence: `scripts/orchestration/skill_router.py:141`, `scripts/orchestration/skill_router.py:149`, `scripts/orchestration/skill_router.py:299`, `tests/test_skill_router.py:117`, `tests/test_skill_router.py:153`
 Reason: This aggregate CodeRabbit review only summarizes the two inline findings already fixed and mapped above (`discussion_r2900863932`, `discussion_r2900863933`), so it does not add a separate unresolved defect.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2901378994 -> 028be2eb
+Disposition: FIXED
+Commit: 028be2eb
+Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:36`, `scripts/orchestration/skill_router.py:19`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2901378995 -> 028be2eb
+Disposition: FIXED
+Commit: 028be2eb
+Evidence: `scripts/orchestration/skill_router.py:29`, `scripts/orchestration/skill_router.py:363`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1022#discussion_r2901378998 -> 028be2eb
+Disposition: FIXED
+Commit: 028be2eb
+Evidence: `scripts/orchestration/skill_router.py:381`, `tests/test_skill_router.py:209`
