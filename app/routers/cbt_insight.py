@@ -202,7 +202,24 @@ def _persist_privileged_action_audit(
     "/insight",
     response_model=CBTInsightResponse,
     responses={
-        400: {"description": "Unsafe agent input blocked"},
+        400: {
+            "description": "Unsafe agent input blocked",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["detail"],
+                        "properties": {
+                            "detail": {
+                                "type": "string",
+                                "description": "Stable unsafe-input error detail",
+                                "example": "unsafe_ai_input",
+                            }
+                        },
+                    }
+                }
+            },
+        },
         200: {"description": "CBT insight generated successfully"},
         401: {"description": "API key required for PRO tier access"},
         403: {"description": "API key does not have PRO tier access"},

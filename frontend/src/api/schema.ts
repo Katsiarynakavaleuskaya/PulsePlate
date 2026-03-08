@@ -5341,7 +5341,15 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable unsafe-input error detail
+                         * @example unsafe_ai_input
+                         */
+                        detail: string;
+                    };
+                };
             };
             /** @description API key required for PRO tier access */
             401: {
