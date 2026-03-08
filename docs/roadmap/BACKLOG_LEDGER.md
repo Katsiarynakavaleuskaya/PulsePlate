@@ -116,6 +116,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical privacy and terms publication paths exist in-repo
     - Web and iOS clients link to the published policy paths consistently
     - Published text stays aligned with runtime wellness/compliance posture
+<a id="ledger-p1-dsar-direct-user-helper-contract"></a>
+- [ ] P1: Internal DSAR direct-user helper contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DSAR-DIRECT-USER-HELPERS
+  - Area: backend / privacy
+  - Finding Type: compliance runtime hardening
+  - Reason: The compliance control plane now documents support-led DSAR handling, but the runtime still needs deterministic helper functions that export direct-user SQL artifacts and execute bounded deletion without exposing a public endpoint. This slice keeps DSAR execution consistent for `users`, `rag_feedback`, and `user_knowledge` while keeping account-row deletion on the dedicated existing path.
+  - Links:
+    - `core/compliance/dsar.py`
+    - `core/compliance/dsar_service.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Internal helper functions export direct-user SQL artifacts in a deterministic, serializable format
+    - Internal helper functions delete `rag_feedback` and `user_knowledge` idempotently and report per-artifact counts
+    - Internal helper functions expose an explicit deletion plan for the `users` row instead of silently widening into full account deletion
+    - No public DSAR endpoint is introduced before an explicit auth/ownership contract exists
+    - Deterministic tests cover export + delete paths for `users`, `rag_feedback`, and `user_knowledge`
 
 
 <a id="ledger-p0-insight-fallback-chain"></a>

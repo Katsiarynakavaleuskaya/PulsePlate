@@ -9,6 +9,11 @@ from core.compliance.dsar import (
     get_dsar_artifact_map,
     summarize_dsar_support,
 )
+from core.compliance.dsar_service import (
+    build_direct_user_deletion_plan,
+    delete_direct_user_artifacts,
+    export_direct_user_artifacts,
+)
 from core.compliance.minimization import (
     SensitiveFieldPolicy,
     get_sensitive_field_taxonomy,
@@ -32,8 +37,11 @@ __all__ = [
     "PRIVACY_POLICY_LAST_UPDATED",
     "PRIVACY_POLICY_VERSION",
     "SensitiveFieldPolicy",
+    "build_direct_user_deletion_plan",
     "build_dsar_rights_summary",
     "build_privacy_endpoint_payload",
+    "delete_direct_user_artifacts",
+    "export_direct_user_artifacts",
     "get_blocked_regulated_lane",
     "get_dsar_artifact_map",
     "get_processing_categories",

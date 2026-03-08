@@ -26,6 +26,7 @@ PulsePlate wellness runtime.
 - `core/compliance/transparency.py`
 - `core/compliance/minimization.py`
 - `core/compliance/dsar.py`
+- `core/compliance/dsar_service.py`
 - `legacy_app.py`
 
 ## Legal Publication Endpoints
