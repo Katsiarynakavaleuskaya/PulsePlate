@@ -152,7 +152,7 @@ def minimize_free_text(value: str | None, *, field_name: str) -> str | None:
     canonical = _canonical_field_name(field_name)
     policy = _SENSITIVE_FIELD_TAXONOMY.get(canonical)
     if policy is None:
-        return value
+        return _sha256_marker(value)["sha256"]
 
     if policy.persistence_rule == "drop":
         return None

@@ -598,10 +598,7 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
-    monkeypatch.setenv(
-        "SERVER_SALT",
-        os.environ.get("SERVER_SALT", "StrongServerSaltForTests123456789!"),
-    )
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     yield
     # Cleanup is automatic with monkeypatch
 

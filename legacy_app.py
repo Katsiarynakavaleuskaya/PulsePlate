@@ -2137,17 +2137,35 @@ def _load_insight_provider() -> Any:
     return provider
 
 
-def _require_ai_generated_insight_notice() -> dict[str, object]:
-    """Return the required transparency notice or fail closed."""
+def _require_ai_generated_insight_notice() -> tuple[str, str]:
+    """Return the required transparency notice id and boundary or fail closed."""
     from core.compliance import get_transparency_registry
 
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
+    try:
+        transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        ) from exc
+    if not isinstance(transparency_notice, dict):
         raise HTTPException(
             status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="transparency_registry_unavailable",
         )
-    return transparency_notice
+    surface_id = transparency_notice.get("surface_id")
+    boundary = transparency_notice.get("boundary")
+    if (
+        not isinstance(surface_id, str)
+        or not surface_id
+        or not isinstance(boundary, str)
+        or not boundary
+    ):
+        raise HTTPException(
+            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        )
+    return surface_id, boundary
 
 
 class _DirectInsightProviderStub:
@@ -2189,7 +2207,7 @@ async def _execute_insight_request(
         router_enabled=philosophy_router_enabled or philosophy_linguistic_enabled,
         use_rag=use_rag,
     )
-    transparency_notice = _require_ai_generated_insight_notice()
+    transparency_notice_id, wellness_boundary = _require_ai_generated_insight_notice()
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )
@@ -2224,8 +2242,8 @@ async def _execute_insight_request(
         reason_codes=runtime_result.metadata.reason_codes,
         optimization_applied=runtime_result.metadata.optimization_applied,
         automated_analysis=True,
-        transparency_notice_id=str(transparency_notice["surface_id"]),
-        wellness_boundary=str(transparency_notice["boundary"]),
+        transparency_notice_id=transparency_notice_id,
+        wellness_boundary=wellness_boundary,
     )
 
 

@@ -240,3 +240,56 @@ def test_insight_v1_blocks_transparency_failure_before_quota(
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
+
+
+def test_insight_v1_blocks_malformed_transparency_notice_before_quota(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+) -> None:
+    """Malformed transparency metadata must fail closed before quota."""
+
+    import legacy_app
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    monkeypatch.setattr(
+        "core.compliance.get_transparency_registry",
+        lambda: {"ai_generated_insight": {"surface_id": None, "boundary": ""}},
+    )
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: pytest.fail("quota should not run for malformed transparency"),
+        raising=True,
+    )
+
+    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+
+    assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    assert resp.json() == {"detail": "transparency_registry_unavailable"}
+
+
+def test_insight_v1_blocks_transparency_lookup_exception_before_quota(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+) -> None:
+    """Transparency lookup exceptions must fail closed before quota."""
+
+    import legacy_app
+
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+
+    def _raise_registry_error() -> dict[str, object]:
+        raise RuntimeError("registry down")
+
+    monkeypatch.setattr("core.compliance.get_transparency_registry", _raise_registry_error)
+    monkeypatch.setattr(
+        legacy_app,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: pytest.fail("quota should not run for registry exceptions"),
+        raising=True,
+    )
+
+    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+
+    assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    assert resp.json() == {"detail": "transparency_registry_unavailable"}

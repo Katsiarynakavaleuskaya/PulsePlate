@@ -145,13 +145,15 @@ class TestRAGFeedbackPIIRedaction:
         response = self.client.post(self.url, json=payload, headers=self.headers)
 
         assert response.status_code == 201
+        assert response.headers["content-type"].startswith("application/json")
+        created_id = response.json()["id"]
 
         from app.models import RAGFeedback
         from core.db import SessionLocal
 
         assert SessionLocal is not None
         with SessionLocal() as session:
-            record = session.query(RAGFeedback).order_by(RAGFeedback.id.desc()).first()
+            record = session.get(RAGFeedback, created_id)
             assert record is not None
             assert "[EMAIL_REDACTED]" in record.query
             assert "person@example.com" not in record.query

@@ -98,8 +98,9 @@ def test_minimization_fallback_and_drop_paths(
 ) -> None:
     import core.compliance.minimization as minimization
 
-    assert minimize_free_text("plain text", field_name="unmapped_field") == "plain text"
+    unknown_minimized = minimize_free_text("plain text", field_name="unmapped_field")
     audit_marker = sanitize_audit_string("unmapped_field", "plain text")
+    assert unknown_minimized == audit_marker["sha256"]
     assert isinstance(audit_marker, dict)
     assert audit_marker["length"] == len("plain text")
     assert audit_marker["sha256"]
@@ -138,4 +139,5 @@ def test_canonical_field_name_avoids_loose_substring_matches() -> None:
     unmatched = minimize_free_text("plain text", field_name="request_context")
 
     assert aliased == canonical
-    assert unmatched == "plain text"
+    assert unmatched is not None
+    assert len(unmatched) == 64
