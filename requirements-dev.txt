@@ -6,7 +6,7 @@
 #
 bandit==1.9.4
     # via -r requirements-dev.in
-black==26.1.0
+black==26.3.0
     # via -r requirements-dev.in
 boolean-py==5.0
     # via license-expression
@@ -184,7 +184,7 @@ pytest-split==0.11.0
     # via -r requirements-dev.in
 pytest-xdist==3.8.0
     # via -r requirements-dev.in
-pytokens==0.3.0
+pytokens==0.4.1
     # via black
 pyyaml==6.0.3
     # via
@@ -203,7 +203,7 @@ rich==14.3.3
     #   -c requirements.txt
     #   bandit
     #   pip-audit
-ruff==0.15.4
+ruff==0.15.5
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
