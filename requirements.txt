@@ -257,7 +257,7 @@ tqdm==4.67.1
     #   openai
     #   sentence-transformers
     #   transformers
-transformers==5.2.0
+transformers==5.3.0
     # via
     #   -r requirements.in
     #   sentence-transformers
@@ -266,9 +266,7 @@ triton==3.6.0 ; platform_system == "Linux" and platform_machine == "x86_64"
 typer==0.24.1
     # via
     #   huggingface-hub
-    #   typer-slim
-typer-slim==0.24.0
-    # via transformers
+    #   transformers
 typing-extensions==4.15.0
     # via
     #   alembic
