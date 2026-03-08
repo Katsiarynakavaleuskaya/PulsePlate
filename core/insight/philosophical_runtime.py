@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol
+from typing import Protocol, cast
 
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
@@ -482,9 +482,12 @@ class PhilosophicalRuntime:
             RouteType.RAG_FACTUAL,
             RouteType.DEEP_REASONING,
         }:
-            return self._prompt_builder.build_prompt(
-                base_prompt,
-                domain=decision.language_game.value,
+            return cast(
+                str,
+                self._prompt_builder.build_prompt(
+                    base_prompt,
+                    domain=decision.language_game.value,
+                ),
             )
         return base_prompt
 
@@ -531,7 +534,7 @@ class PhilosophicalRuntime:
         if contradiction_count > 0:
             return True
         if decision.route_type in {RouteType.RAG_FACTUAL, RouteType.DEEP_REASONING}:
-            return (
+            return bool(
                 verification_report.verification_rate < 0.7
                 or falsification_report.falsifiability_rate < 0.7
             )
