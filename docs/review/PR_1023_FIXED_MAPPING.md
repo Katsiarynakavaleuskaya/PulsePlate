@@ -27,6 +27,11 @@ Disposition: FIXED
 Commit: `3465aeb3`
 Evidence: `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md:124`
 
+- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1023#discussion_r2900857877> -> `c0583b1c`
+Disposition: FIXED
+Commit: `c0583b1c`
+Evidence: `docs/review/PR_1023_FIXED_MAPPING.md:10`
+
 
 ## Merge Readiness
 
