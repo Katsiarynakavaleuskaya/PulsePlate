@@ -64,7 +64,7 @@ jobs:
             -p 8000:8000
             -e "${api_key_name}=test_key"
             -e "${export_token_secret_name}=ci-smoke-export-secret"
-            -e "${server_salt_name}=StrongServerSaltForCI123456789!"
+            -e "${server_salt_name}=StrongServerSaltForCI1234567890!"
             -e APP_ENV=production
             -e ENVIRONMENT=production
             -e "${allow_dev_api_key_name}=false"
