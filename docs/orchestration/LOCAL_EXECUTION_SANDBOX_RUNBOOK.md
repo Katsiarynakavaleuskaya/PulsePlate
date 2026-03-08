@@ -47,8 +47,11 @@ AGENT_EXECUTION_SANDBOX_ENABLED=true
 AGENT_EXECUTION_SANDBOX_ROOT=.
 AGENT_EXECUTION_SANDBOX_TIMEOUT_SECONDS=30
 AGENT_EXECUTION_SANDBOX_MAX_OUTPUT_BYTES=32768
-AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python3,pytest,mypy,coverage,diff-cover,ruff,flake8,git
+AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python,python3,pytest,mypy,coverage,diff-cover,ruff,flake8,git
 ```
+
+`python` / `python3` are not part of the runtime default allowlist. Add them
+only when a local workflow explicitly needs interpreter execution.
 
 Optional runtime gate:
 

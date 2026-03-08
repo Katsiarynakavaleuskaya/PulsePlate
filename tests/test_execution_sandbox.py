@@ -20,6 +20,7 @@ def sandbox_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setenv(sandbox.SANDBOX_ENABLED_ENV, "true")
     monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(tmp_path))
+    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, "python3,pytest")
     monkeypatch.setenv(cp.ALLOWLIST_ENV, "sandbox.exec:local://sandbox")
     return tmp_path
 
@@ -42,6 +43,11 @@ def test_timeout_and_output_limits_use_defaults(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv(sandbox.SANDBOX_MAX_OUTPUT_ENV, raising=False)
     assert sandbox.require_sandbox_timeout_seconds() == sandbox.DEFAULT_SANDBOX_TIMEOUT_SECONDS
     assert sandbox.require_sandbox_max_output_bytes() == sandbox.DEFAULT_SANDBOX_MAX_OUTPUT_BYTES
+
+
+def test_default_allowed_binaries_exclude_python_interpreters() -> None:
+    assert "python" not in sandbox.DEFAULT_ALLOWED_BINARIES
+    assert "python3" not in sandbox.DEFAULT_ALLOWED_BINARIES
 
 
 def test_parse_allowed_binaries_skips_duplicates() -> None:
@@ -138,9 +144,14 @@ def test_sanitize_sandbox_env_keeps_safe_extra_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("HOME", "/tmp/home")
-    sanitized = sandbox.sanitize_sandbox_env({"SAFE_FLAG": "1"})
+    sanitized = sandbox.sanitize_sandbox_env({"PULSEPLATE_SAFE_FLAG": "1"})
     assert sanitized["HOME"] == "/tmp/home"
-    assert sanitized["SAFE_FLAG"] == "1"
+    assert sanitized["PULSEPLATE_SAFE_FLAG"] == "1"
+
+
+def test_sanitize_sandbox_env_rejects_unallowlisted_extra_env_key() -> None:
+    with pytest.raises(PermissionError, match="not allowlisted"):
+        sandbox.sanitize_sandbox_env({"SAFE_FLAG": "1"})
 
 
 def test_resolve_allowed_binary_rejects_missing_binary(

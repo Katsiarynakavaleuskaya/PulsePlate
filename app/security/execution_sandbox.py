@@ -37,8 +37,6 @@ DEFAULT_ALLOWED_BINARIES = (
     "git",
     "mypy",
     "pytest",
-    "python",
-    "python3",
     "ruff",
 )
 _DEFAULT_ENV_KEYS = (
@@ -58,6 +56,17 @@ _BLOCKED_ENV_KEYS = (
     "DYLD_LIBRARY_PATH",
     "LD_LIBRARY_PATH",
     "LD_PRELOAD",
+)
+_ALLOWED_EXTRA_ENV_KEYS = (
+    "CI",
+    "FORCE_COLOR",
+    "NO_COLOR",
+)
+_ALLOWED_EXTRA_ENV_PREFIXES = (
+    "AGENT_",
+    "PP_",
+    "PULSEPLATE_",
+    "PYTEST_",
 )
 _EXECUTION_MODE_PRIORITY = {
     EXECUTION_MODE_AUTO_SAFE: 0,
@@ -245,6 +254,10 @@ def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str
             raise PermissionError(f"Loader env key is not allowed in sandbox: {key}")
         if any(token in upper for token in _SENSITIVE_ENV_TOKENS):
             raise PermissionError(f"Sensitive env key is not allowed in sandbox: {key}")
+        if upper not in _ALLOWED_EXTRA_ENV_KEYS and not any(
+            upper.startswith(prefix) for prefix in _ALLOWED_EXTRA_ENV_PREFIXES
+        ):
+            raise PermissionError(f"Extra env key is not allowlisted for sandbox: {key}")
         sanitized[key] = value
     return sanitized
 

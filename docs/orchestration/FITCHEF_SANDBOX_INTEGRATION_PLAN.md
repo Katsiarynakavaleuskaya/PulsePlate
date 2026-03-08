@@ -54,6 +54,9 @@ Initial tool/domain bindings:
 - shopping list: `app/routers/shopping_list_pro.py`
 
 Do not start with exports, realtime fan-out, or broad multi-tool autonomy.
+These follow-ups stay deferred until dedicated backlog items are merged:
+
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-pr1013-fitchef-phase2-scope`
 
 ## Runtime Contract
 
@@ -172,3 +175,5 @@ Phase 1 is complete when:
 - separate agent implementations per platform
 - large local multi-model orchestration on a 16 GB laptop
 - strong container/VM isolation in this phase
+- exports, realtime fan-out, or broader tool autonomy before the Phase 2
+  backlog item is scheduled
