@@ -5,4 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `docs/runbooks/ENGINEER_QUICKPATH.md:4`, `docs/contracts/API_CANONICAL_MAP.md:17`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900889388 -> 2bcb6cba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900890338 -> 2bcb6cba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900893848 -> 2bcb6cba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1027#discussion_r2900893856 -> 2bcb6cba
