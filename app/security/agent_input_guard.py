@@ -190,6 +190,8 @@ def _try_upstream_scan(text: str) -> AgentInputScanResult | None:
 
 def scan_ai_agent_input(text: str) -> AgentInputScanResult:
     """Scan AI-bound text and fail closed on risky patterns."""
+    normalized_text = _normalize_for_detection(text)
+    threats: list[AgentInputThreat] = []
 
     goplus_result = scan_text_with_goplus_agentguard(text)
     if goplus_result is not None and goplus_result.should_block:
@@ -203,7 +205,7 @@ def scan_ai_agent_input(text: str) -> AgentInputScanResult:
             "SUSPICIOUS_PASTE_URL": "command_injection",
             "TROJAN_DISTRIBUTION": "command_injection",
         }
-        goplus_threats = tuple(
+        threats.extend(
             AgentInputThreat(
                 category=categories.get(tag, "prompt_injection"),
                 severity="critical",
@@ -212,15 +214,10 @@ def scan_ai_agent_input(text: str) -> AgentInputScanResult:
             for tag in goplus_result.risk_tags
             if tag in categories
         )
-        if goplus_threats:
-            return AgentInputScanResult(is_safe=False, threats=goplus_threats)
 
     upstream = _try_upstream_scan(text)
-    if upstream is not None:
-        return upstream
-
-    normalized_text = _normalize_for_detection(text)
-    threats: list[AgentInputThreat] = []
+    if upstream is not None and not upstream.is_safe:
+        threats.extend(upstream.threats)
 
     if _ZERO_WIDTH_OR_BIDI_RE.search(text):
         threats.append(

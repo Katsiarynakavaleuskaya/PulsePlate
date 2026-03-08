@@ -28,6 +28,7 @@ from core.insight.philosophical_runtime import (
 )
 from core.insight import philosophical_runtime as runtime_mod
 from core.insight.analytical import FalsificationReport, VerificationReport
+from core.bmi import extract_bmi_inputs
 
 
 @dataclass
@@ -94,7 +95,7 @@ class TestPhilosophicalQueryRouter:
         assert "cached_definition" not in decision.reason_codes
 
     def test_bmi_input_parser_rejects_track_distance_as_height(self) -> None:
-        assert runtime_mod._extract_bmi_inputs("Calculate BMI for 70kg after a 100m sprint") is None
+        assert extract_bmi_inputs("Calculate BMI for 70kg after a 100m sprint") is None
 
     def test_request_speech_act_uses_shallow_guidance_route(self) -> None:
         router = PhilosophicalQueryRouter()
@@ -236,6 +237,26 @@ class TestPhilosophicalRuntime:
         assert result.metadata.route_type == RouteType.DIRECT_DEFINITION.value
         assert result.metadata.depth_used == 1
 
+    async def test_direct_definition_localizes_known_terms(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="provider should not be called")
+
+        result = await runtime.generate_insight(
+            text="What is BMI?",
+            lang="ru",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert provider.calls == 0
+        assert "индекс массы тела" in result.insight
+
     async def test_medical_disclaimer_skips_provider_generation(self) -> None:
         runtime = PhilosophicalRuntime()
         provider = _StaticProvider(response="provider should not be called")
@@ -256,6 +277,26 @@ class TestPhilosophicalRuntime:
         assert provider.calls == 0
         assert "can't give medical diagnosis" in result.insight
         assert result.metadata.route_type == RouteType.SAFE_WELLNESS_DISCLAIMER.value
+
+    async def test_medical_disclaimer_localizes_response(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="provider should not be called")
+
+        result = await runtime.generate_insight(
+            text="I have symptoms and need diagnosis advice.",
+            lang="ru",
+            provider=provider,
+            use_rag=False,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=False,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+        )
+
+        assert provider.calls == 0
+        assert "не могу ставить диагноз" in result.insight
 
     async def test_phase12_rewrites_once_then_falls_back(self) -> None:
         runtime = PhilosophicalRuntime()
@@ -415,7 +456,8 @@ class TestPhilosophicalRuntime:
                 needs_generation=False,
                 risk_level=RiskLevel.HIGH,
                 language_game=LanguageGameType.MEDICAL,
-            )
+            ),
+            lang="en",
         )
 
     async def test_resolve_local_direct_answer_handles_missing_and_valid_bmi_inputs(self) -> None:
@@ -429,7 +471,8 @@ class TestPhilosophicalRuntime:
                 needs_generation=False,
                 risk_level=RiskLevel.LOW,
                 simplified_query="Calculate BMI please",
-            )
+            ),
+            lang="en",
         )
         valid_inputs = runtime._resolve_local_direct_answer(
             RouteDecision(
@@ -439,14 +482,15 @@ class TestPhilosophicalRuntime:
                 needs_generation=False,
                 risk_level=RiskLevel.LOW,
                 simplified_query="Calculate BMI for 70kg and 175cm",
-            )
+            ),
+            lang="ru",
         )
 
         assert "send both weight and height" in missing_inputs
-        assert "estimated BMI is" in valid_inputs
+        assert "Ваш примерный BMI" in valid_inputs
 
     async def test_extract_bmi_inputs_requires_weight(self) -> None:
-        assert runtime_mod._extract_bmi_inputs("Height is 175cm") is None
+        assert extract_bmi_inputs("Height is 175cm") is None
 
 
 def test_runtime_telemetry_initializes_metrics_lazily(

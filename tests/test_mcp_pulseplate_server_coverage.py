@@ -949,13 +949,21 @@ class TestMcpPulseplateServerCoverage:
 
                 assert result is None
 
-    def test_sanitize_code_review_language_defaults_blank_to_python(self) -> None:
-        """Blank language metadata should normalize to the default review language."""
+    def test_sanitize_code_review_language_defaults_blank_to_text(self) -> None:
+        """Blank language metadata should normalize to a neutral review language."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
                 server = mcp_pulseplate_server.PulsePlateMCPServer()
 
-                assert server._sanitize_code_review_language("   ") == "python"
+                assert server._sanitize_code_review_language("   ") == "text"
+
+    def test_sanitize_code_review_language_defaults_none_to_text(self) -> None:
+        """Missing language metadata should normalize to a neutral review language."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("openai.OpenAI"):
+                server = mcp_pulseplate_server.PulsePlateMCPServer()
+
+                assert server._sanitize_code_review_language(None) == "text"
 
     @pytest.mark.asyncio
     async def test_code_review_error(self):

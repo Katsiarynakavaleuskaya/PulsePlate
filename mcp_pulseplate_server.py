@@ -395,12 +395,12 @@ class PulsePlateMCPServer:
         """Return a prompt-safe code language label or fail closed on invalid types."""
 
         if value is None:
-            return "python"
+            return "text"
         if not isinstance(value, str):
             return None
         candidate = value.strip().lower()
         if not candidate:
-            return "python"
+            return "text"
         if not _SAFE_CODE_LANGUAGE_RE.fullmatch(candidate):
             return "text"
         return candidate
