@@ -123,7 +123,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system governance)
   - Target PR: PR #1047 (`feat(design): add token pipeline foundation`) -> PR-TBD-TOKEN-EXPANSION-ACTIVATION
-  - Status: 📋 Deferred after token-pipeline foundation (PR #1047, 2026-03-08, `f272503c`)
+  - Status: 📋 Deferred after token-pipeline foundation
+  - Foundation PR: PR #1047 (2026-03-08, `f272503c`)
   - Area: frontend / ios / design-system
   - Finding Type: governance follow-up
   - Reason: The repo now has a governed `/tokens -> generated runtime mirrors` pipeline for foundation and current semantic tokens. Deferred work remains for broader semantic/product layers (`tier`, `paywall`, `plate`, `bmi`, `coach`), controlled Tokens Studio activation beyond documentation-only support, and an explicit decision on whether `docs/design/figma-manifest.json` should stay informational or be unified with token-pipeline schema validation.
@@ -3432,11 +3433,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ CI checks green; merge readiness gate passed
 
 
-- [x] P1: Design token pipeline foundation (`/tokens` authoring -> generated runtime mirrors`)
+- [x] P1: Design token pipeline foundation (`/tokens` authoring to generated runtime mirrors)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system governance / drift prevention)
   - Target PR: PR #1047 (`feat(design): add token pipeline foundation`)
-  - Status: ✅ Merged (PR #1047, 2026-03-08)
+  - Status: ✅ Merged
   - Merge SHA: f272503c
   - Area: frontend / ios / design-system / governance
   - Finding Type: tooling foundation + parity enforcement
