@@ -47,11 +47,17 @@ AGENT_EXECUTION_SANDBOX_ENABLED=true
 AGENT_EXECUTION_SANDBOX_ROOT=.
 AGENT_EXECUTION_SANDBOX_TIMEOUT_SECONDS=30
 AGENT_EXECUTION_SANDBOX_MAX_OUTPUT_BYTES=32768
-AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python,python3,pytest,mypy,coverage,diff-cover,ruff,flake8,git
+AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=pytest,mypy,coverage,diff-cover,ruff,flake8,git
 ```
 
 `python` / `python3` are not part of the runtime default allowlist. Add them
 only when a local workflow explicitly needs interpreter execution.
+
+Optional interpreter add-on:
+
+```env
+AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES=python3,pytest,mypy,coverage,diff-cover,ruff,flake8,git
+```
 
 Optional runtime gate:
 
@@ -98,8 +104,8 @@ print(result.stdout)
 Run from repo root with the project venv:
 
 ```bash
-python3 scripts/orchestration/check_preflight.py
 . .venv/bin/activate
+python3 scripts/orchestration/check_preflight.py
 pytest -q tests/test_execution_sandbox.py tests/test_agent_control_plane_mvp.py
 pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
 ```

@@ -45,7 +45,6 @@ _DEFAULT_ENV_KEYS = (
     "LC_ALL",
     "LC_CTYPE",
     "PATH",
-    "PYTHONPATH",
     "TMPDIR",
     "TZ",
 )
@@ -187,10 +186,16 @@ def load_allowed_binaries() -> tuple[str, ...]:
 
 
 def resolve_sandbox_root() -> Path:
-    """Resolve sandbox root path from env or current working directory."""
+    """Resolve sandbox root path from env.
+
+    RU: При включённом sandbox root должен быть задан явно.
+    EN: Sandbox root must be configured explicitly once the feature is enabled.
+    """
 
     configured = (os.getenv(SANDBOX_ROOT_ENV) or "").strip()
-    root = Path(configured or os.getcwd()).expanduser().resolve()
+    if configured == "":
+        raise RuntimeError(f"{SANDBOX_ROOT_ENV} must be set for local sandbox execution.")
+    root = Path(configured).expanduser().resolve()
     if not root.exists():
         raise RuntimeError(f"{SANDBOX_ROOT_ENV} points to a missing path: {root}")
     if not root.is_dir():

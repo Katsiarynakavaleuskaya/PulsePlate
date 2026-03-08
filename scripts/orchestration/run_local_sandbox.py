@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from typing import NoReturn, Sequence
 
 from app.security.execution_sandbox import SandboxRequest
@@ -86,6 +87,9 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested command and print deterministic JSON."""
 
+    request: SandboxRequest | None = None
+    request_argv = tuple(argv if argv is not None else sys.argv[1:])
+    request_cwd = "."
     try:
         args = _parse_args(argv)
         command_args = tuple(args.command_args)
@@ -102,9 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         result = run_local_sandbox(request)
     except Exception as exc:
-        request_argv = tuple(argv or ())
-        request_cwd = "."
-        if "request" in locals():
+        if request is not None:
             request_argv = (request.binary, *request.args)
             request_cwd = str(request.cwd or ".")
         _emit_payload(

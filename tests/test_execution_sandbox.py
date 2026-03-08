@@ -61,14 +61,20 @@ def test_parse_allowed_binaries_rejects_paths() -> None:
         sandbox.parse_allowed_binaries("/usr/bin/python3")
 
 
-def test_parse_positive_int_rejects_non_integer() -> None:
+def test_require_sandbox_timeout_seconds_rejects_non_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_TIMEOUT_ENV, "abc")
     with pytest.raises(RuntimeError, match="integer >= 1"):
-        sandbox._parse_positive_int("abc", env_name="TEST_ENV", default=1)
+        sandbox.require_sandbox_timeout_seconds()
 
 
-def test_parse_positive_int_rejects_zero() -> None:
+def test_require_sandbox_max_output_bytes_rejects_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(sandbox.SANDBOX_MAX_OUTPUT_ENV, "0")
     with pytest.raises(RuntimeError, match="integer >= 1"):
-        sandbox._parse_positive_int("0", env_name="TEST_ENV", default=1)
+        sandbox.require_sandbox_max_output_bytes()
 
 
 def test_load_allowed_binaries_rejects_empty_config(
@@ -86,6 +92,14 @@ def test_resolve_sandbox_root_rejects_missing_path(
     missing_root = tmp_path / "missing-root"
     monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(missing_root))
     with pytest.raises(RuntimeError, match="missing path"):
+        sandbox.resolve_sandbox_root()
+
+
+def test_resolve_sandbox_root_requires_explicit_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(sandbox.SANDBOX_ROOT_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=sandbox.SANDBOX_ROOT_ENV):
         sandbox.resolve_sandbox_root()
 
 
@@ -153,6 +167,14 @@ def test_sanitize_sandbox_env_keeps_safe_extra_env(
 def test_sanitize_sandbox_env_rejects_unallowlisted_extra_env_key() -> None:
     with pytest.raises(PermissionError, match="not allowlisted"):
         sandbox.sanitize_sandbox_env({"SAFE_FLAG": "1"})
+
+
+def test_sanitize_sandbox_env_does_not_inherit_pythonpath(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PYTHONPATH", "/tmp/injected")
+    sanitized = sandbox.sanitize_sandbox_env()
+    assert "PYTHONPATH" not in sanitized
 
 
 def test_resolve_allowed_binary_rejects_missing_binary(

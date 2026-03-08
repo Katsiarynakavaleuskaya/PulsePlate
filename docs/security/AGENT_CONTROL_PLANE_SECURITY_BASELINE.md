@@ -125,7 +125,7 @@ the anchors below.
 | C3-b | Audit envelope verification | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:254` | See "Canonical Security Verification" |
 | C3-c | Incident timeline within 15 min | @katsiaryna_kavaleuskaya | Doc | `RUNBOOK_AGENT.md:139` | Manual: follow containment checklist |
 | C4-a | Outbound allowlist enforcement | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:106` | See "Canonical Security Verification" |
-| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Impl (local bounded sandbox) | `app/security/execution_sandbox.py:255`, `tests/test_execution_sandbox.py:1` | Deterministic local sandbox tests |
+| C4-b | Sandboxed execution (high-risk) | @katsiaryna_kavaleuskaya | Impl (local bounded sandbox) | `app/security/execution_sandbox.py:303`, `tests/test_execution_sandbox.py:1` | Deterministic local sandbox tests |
 | C5-a | Auto-safe / review-required split | @katsiaryna_kavaleuskaya | Impl | `app/security/agent_control_plane.py:239`, `app/routers/cbt_insight.py:238`, `tests/test_agent_control_plane_mvp.py:130` | Runtime enforcement tests |
 
 ### Canonical Security Verification
