@@ -196,6 +196,64 @@ If it is not recorded here — it does not exist.
     - Each legacy `# nosec` either removed (fix) or converted to full format (Bxxx:, remove-by: date, ref:)
     - Guard no longer uses allowlist (or allowlist file removed)
 
+<a id="ledger-p1-openapi-decoupling-split"></a>
+- [ ] P1: Split backend OpenAPI generation from frontend type generation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-OPENAPI-DECOUPLING-SPLIT
+  - Area: build / contracts / developer workflow
+  - Finding Type: workflow hardening
+  - Reason: `make openapi` is the current canonical combined path, but backend-only schema generation and frontend type generation are still coupled in the active Make workflow. A dedicated split would reduce backend-only friction while preserving `make openapi-check` as the sync verifier.
+  - Links:
+    - `Makefile`
+    - `AGENTS.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - Dedicated backend schema target exists without frontend install dependency
+    - Dedicated frontend type-generation target exists
+    - `make openapi-check` remains the canonical sync verifier
+    - `AGENTS.md`, runbooks, API map, and CI docs reflect the split workflow without ambiguity
+
+<a id="ledger-p1-compose-v2-migration"></a>
+- [ ] P1: Migrate command surface to `docker compose` v2 only
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-COMPOSE-V2-MIGRATION
+  - Area: infra / docs / operator workflow
+  - Finding Type: command-surface consistency
+  - Reason: Repo command surfaces are mixed: some docs use `docker compose`, while `Makefile` and several runbooks still use `docker-compose`. This creates onboarding ambiguity and toolchain drift.
+  - Links:
+    - `Makefile`
+    - `docs/deploy/README.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `AGENTS.md`
+  - DoD:
+    - Makefile targets use `docker compose`
+    - Active runbooks/docs no longer recommend `docker-compose` as the target state
+    - Transitional fallback language is removed from `AGENTS.md` and quick-path docs
+    - Grep-based verification for `docker-compose` is documented or automated
+
+<a id="ledger-p1-ai-bounded-context-extraction"></a>
+- [ ] P1: Extract AI runtime into a dedicated bounded context
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AI-BOUNDED-CONTEXT
+  - Area: backend / AI runtime / architecture
+  - Finding Type: bounded-context hardening
+  - Reason: AI logic, provider seams, and safety-related behavior are currently documented across runtime areas, but there is no canonical `core/ai/*` bounded context yet. This increases the risk of router/business-logic drift and makes AI safety ownership harder to enforce.
+  - Links:
+    - `docs/architecture/providers_implementation.md`
+    - `AGENTS.md`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - Canonical AI runtime package structure exists and is documented
+    - Routers and client layers remain thin adapters around AI behavior
+    - Safety/eval/provider ownership is mapped to the bounded context
+    - AGENTS and architecture docs no longer need transitional wording about future extraction
+
 - [ ] P2: Integrate review-thread disposition guard into pre-flight
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2

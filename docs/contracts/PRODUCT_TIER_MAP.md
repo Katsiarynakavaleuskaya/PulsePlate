@@ -76,7 +76,7 @@
 | Функция             | Endpoint                      | Статус      | Требует tier | Код-доказательство                    |
 | -------------------- | ----------------------------- | ----------- | ------------ | ------------------------------------- |
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
-| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | 📋 planned   | PRO          | `app/routers/pro.py` (planned)        |
+| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `frontend/src/api/openapi.json:8158`  |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
 | Shoplist day        | `/api/v1/pro/shoplist/*`      | ✅ canonical | PRO          | `app/routers/shoplist_day.py:22`      |
@@ -303,5 +303,5 @@ For action items, PR sequencing, and remediation steps, see:
 
 * `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
 * `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
-* `docs/contracts/API_CANONICAL_MAP.md` — текущий mapping (требует обновления)
+* `docs/contracts/API_CANONICAL_MAP.md` — текущий операторский mapping
 * `app/middleware/api_tiers.py` — source of truth для уровней подписки
