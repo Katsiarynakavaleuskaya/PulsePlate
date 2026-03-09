@@ -209,9 +209,11 @@ curl -X POST http://localhost:8000/api/v1/vip/weekly-plan \
 
 ```bash
 # Check current configuration
+echo "ENVIRONMENT: $ENVIRONMENT"
 echo "APP_ENV: $APP_ENV"
 echo "DEBUG: $DEBUG"
 echo "ALLOW_ANONYMOUS_API_KEYS: $ALLOW_ANONYMOUS_API_KEYS"
+echo "ALLOW_DEV_API_KEY: $ALLOW_DEV_API_KEY"
 echo "API_KEY: ${API_KEY:+SET}"
 
 # Test authentication endpoint
