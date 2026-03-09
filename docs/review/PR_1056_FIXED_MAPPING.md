@@ -25,6 +25,14 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4424` keeps the canonical cadence anch
 Disposition: FIXED
 Commit: 30e12458
 Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:8` now adds an explicit verification note next to the `387 merged PRs` claim, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md:1` is now present as a cited source artifact, and the ledger mappings above remove the previously missing PR-TBD references.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#discussion_r2905952850 -> bfe211e3
+Disposition: FIXED
+Commit: bfe211e3
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3777` now records `PR-TBD-IOS-STOREKIT-PRODUCTS` as a canonical ledger item, and `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:13` adds a replayable fixed-slice reference immediately next to the curated-slice note.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#pullrequestreview-3915997938 -> bfe211e3
+Disposition: FIXED
+Commit: bfe211e3
+Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:13` now lists the reviewed PR IDs for the fixed slice, and `docs/roadmap/BACKLOG_LEDGER.md:3777` adds the missing `PR-TBD-IOS-STOREKIT-PRODUCTS` follow-up entry referenced by the review.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
