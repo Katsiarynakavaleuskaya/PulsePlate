@@ -358,3 +358,32 @@ def test_build_legacy_weekly_menu_response_rejects_non_finite_numeric_values() -
     assert response.shopping_list == {"rice": 250.0}
     assert response.total_cost == 0.0
     assert response.adherence_score == 0.0
+
+
+def test_build_legacy_weekly_menu_response_recovers_from_non_finite_day_values() -> None:
+    """Non-finite day numerics must still recover valid meal sum and estimated cost."""
+
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [
+                        {"title": "Breakfast", "kcal": math.nan},
+                        {"title": "Lunch", "kcal": 420},
+                    ],
+                    "total_kcal": math.nan,
+                    "daily_cost": math.inf,
+                    "estimated_cost": 14.5,
+                }
+            ],
+            "weekly_coverage": {},
+            "shopping_list": {},
+            "total_cost": 14.5,
+            "adherence_score": 0.25,
+        }
+    )
+
+    assert response.daily_menus[0]["total_kcal"] == 420.0
+    assert response.daily_menus[0]["daily_cost"] == 14.5

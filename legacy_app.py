@@ -3226,6 +3226,19 @@ def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
     return default
 
 
+def _is_valid_weekly_menu_number(value: Any) -> bool:
+    """Check whether a weekly-menu numeric value is JSON-safe.
+
+    RU: Проверить, что numeric значение weekly menu корректно и конечно.
+    EN: Check that a weekly-menu numeric value is valid and finite.
+    """
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
 def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
     """Translate canonical VIP weekly payload into legacy weekly-menu response.
 
@@ -3246,18 +3259,16 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
                 continue
             meals = list(raw_meals)
             raw_total_kcal = raw_menu.get("total_kcal")
-            if isinstance(raw_total_kcal, bool) or not isinstance(raw_total_kcal, (int, float)):
+            if not _is_valid_weekly_menu_number(raw_total_kcal):
                 total_kcal = sum(
                     meal.get("kcal", 0)
                     for meal in meals
-                    if isinstance(meal, dict)
-                    and isinstance(meal.get("kcal"), (int, float))
-                    and not isinstance(meal.get("kcal"), bool)
+                    if isinstance(meal, dict) and _is_valid_weekly_menu_number(meal.get("kcal"))
                 )
             else:
                 total_kcal = raw_total_kcal
             raw_daily_cost = raw_menu.get("daily_cost")
-            if isinstance(raw_daily_cost, bool) or not isinstance(raw_daily_cost, (int, float)):
+            if not _is_valid_weekly_menu_number(raw_daily_cost):
                 raw_daily_cost = raw_menu.get("estimated_cost")
             daily_menus_payload.append(
                 {
