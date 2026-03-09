@@ -68,6 +68,41 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-legacy-runtime-env-canonicalization`
 Evidence: The review summary includes three findings fixed in `d7482420` (`app/middleware/api_tiers.py`, `app/routers/vip.py`, `docs/deploy/VIP_API_KEYS.md`, and the targeted tests) plus one valid `legacy_app.py` env-surface follow-up, which is explicitly tracked in the new backlog item to avoid widening this near-ready security PR.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496197
+Disposition: FIXED
+Commit: 0f1b4f47
+Evidence: `docs/deploy/VIP_API_KEYS.md:20` no longer claims `DEBUG=false` alone makes an explicit developer runtime production-like; `docs/deploy/VIP_API_KEYS.md:27` and `docs/deploy/VIP_API_KEYS.md:45` now document `ALLOW_ANONYMOUS_API_KEYS` defaulting to `false`, and the matrix/troubleshooting sections were aligned with the runtime helpers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496197 -> 0f1b4f47
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496203
+Disposition: FIXED
+Commit: 0f1b4f47
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:343` now marks `ledger-p1-legacy-runtime-env-canonicalization` as the residual follow-up from PR `#1054` and links both the parent ledger item and the PR URL, making the carryover explicit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496203 -> 0f1b4f47
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496207
+Disposition: FIXED
+Commit: 0f1b4f47
+Evidence: `tests/edges/test_vip_auth_edges.py:7` now uses an autouse `monkeypatch` fixture to reset auth env, and the edge tests use `monkeypatch.setenv()` / `delenv()` instead of process-global `os.environ` writes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496207 -> 0f1b4f47
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496213
+Disposition: FIXED
+Commit: 0f1b4f47
+Evidence: `tests/test_vip_anonymous_api_key_safety.py:134`, `tests/test_vip_anonymous_api_key_safety.py:157`, `tests/test_vip_anonymous_api_key_safety.py:180`, and `tests/test_vip_anonymous_api_key_safety.py:294` explicitly enable `ALLOW_DEV_API_KEY=true` for dev/local/test anonymous flows and now assert `200` instead of `!= 401`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496213 -> 0f1b4f47
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2906496216
+Disposition: NOT-A-BUG
+Evidence: `app/routers/vip.py:759` shows the deprecated `/api/v1/vip/weekly-plan` alias calls the module-level `make_weekly_menu` symbol directly, not `_safe_call_with_adapter()`. `tests/test_vip_production_simple.py:78` therefore correctly monkeypatches `app.routers.vip.make_weekly_menu` to exercise the alias error path and assert the `"Weekly plan generation failed"` response.
+Reason: The review comment describes the `/menu/weekly/plan` adapter path, but this test targets the deprecated `/weekly-plan` alias, which uses a different callable path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3916595868
+Disposition: FIXED
+Commit: 0f1b4f47
+Evidence: The latest CodeRabbit review summary is now dispositioned as four concrete fixes in `0f1b4f47` (`app/middleware/api_tiers.py`, `docs/deploy/VIP_API_KEYS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `tests/edges/test_vip_auth_edges.py`, and `tests/test_vip_anonymous_api_key_safety.py`) plus one `NOT-A-BUG` clarification for the deprecated `/weekly-plan` alias path in `tests/test_vip_production_simple.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3916595868 -> 0f1b4f47
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
