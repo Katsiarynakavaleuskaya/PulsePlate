@@ -4058,6 +4058,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
 
+- [ ] P1: Compliance runtime slice 2 for consent orchestration and DSAR self-service boundary
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (privacy/compliance)
+  - Target PR: PR-TBD (`feat/compliance-runtime-slice-2-consent-dsar`)
+  - Status: Planned
+  - Area: backend / compliance / legal-runtime
+  - Finding Type: deferred follow-up
+  - Reason: Compliance Runtime Slice 1 ships transparency, privacy payload assembly, and minimization only. Explicit consent orchestration, public self-service DSAR endpoints, and any regulated/provider lane separation remain intentionally deferred.
+  - Links:
+    - `core/compliance/privacy.py`
+    - `core/compliance/dsar.py`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Backend consent context is defined for AI wellness surfaces without changing deterministic wellness calculations
+    - Public DSAR/export/delete surface is either implemented with auth ownership checks or explicitly rejected with documented support-only posture
+    - Regulated/provider lane remains blocked by default and documented as a separate activation track
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
 
 - [x] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
   - Owner: @katsiaryna_kavaleuskaya
