@@ -106,6 +106,11 @@ Disposition: FIXED
 Evidence: tests/test_pro_router.py:185
 Reason: JSON content-type is asserted before parsing the 500-path PRO router response body.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181781 -> 38a5e257
+Disposition: FIXED
+Evidence: docs/review/PR_1053_FIXED_MAPPING.md:107; docs/review/PR_1053_FIXED_MAPPING.md:108; docs/review/PR_1053_FIXED_MAPPING.md:109
+Reason: merge-readiness checklist remains unchecked until the final merge pass instead of being marked done prematurely.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3916255202
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181768; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181781; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181787; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181793; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181795
