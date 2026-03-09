@@ -28,6 +28,12 @@ Commit: 656e0239
 Evidence: `app/bootstrap/startup_guards.py:14` centralizes startup hard guards; `legacy_app.py:516` delegates to the bootstrap seam; `tests/test_app_lifespan_additional.py:90` and `tests/test_app_lifespan_additional.py:112` verify fail-closed startup behavior through the shared bootstrap seam.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905783689 -> 656e0239
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3915807041
+Disposition: FIXED
+Commit: 656e0239
+Evidence: `app/middleware/api_tiers.py:207` restricts developer fallbacks to `is_explicit_developer_env()`; `legacy_app.py:792` limits lenient API-key mode to explicit dev/test-like environments; `tests/test_vip_anonymous_api_key_safety.py:380` and `tests/test_vip_coverage_additional.py:130` cover preview/unknown-env fail-closed behavior; `tests/test_vip_anonymous_api_key_safety.py:17` and `tests/test_vip_coverage_additional.py:18` now use autouse `monkeypatch` fixtures instead of direct `os.environ` mutation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3915807041 -> 656e0239
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
