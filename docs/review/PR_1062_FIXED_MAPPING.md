@@ -6,12 +6,20 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: see mapping entries below
-
+Commit: 6ef1396b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907913689 -> 6ef1396b
+Disposition: FIXED
+Commit: 6ef1396b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#pullrequestreview-3918193710 -> 6ef1396b
+Disposition: FIXED
+Commit: d80da987
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907918443 -> d80da987
+Disposition: FIXED
+Commit: d80da987
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907922523 -> d80da987
+Disposition: FIXED
+Commit: d80da987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#pullrequestreview-3918203806 -> d80da987
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
