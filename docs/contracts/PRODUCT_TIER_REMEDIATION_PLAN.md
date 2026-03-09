@@ -39,6 +39,8 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 **Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061) on 2026-03-09
 
+**Canonical shipped behavior:** The legacy `/api/v1/premium/plan/week` route remains callable for backward compatibility, but it is now a thin compatibility alias over `/api/v1/vip/menu/weekly/plan`. VIP business logic stays in the canonical VIP route, the legacy shim preserves runtime compatibility for callers that have not migrated yet, and the broken-name compatibility path is hidden from the public OpenAPI surface.
+
 ### PR-D: PRO Canon Exposure
 
 * [ ] Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
@@ -78,7 +80,7 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 **Issue:** Requires VIP tier but lives under `/premium/*` namespace (deprecated PRO namespace).
 
-**Fix:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061) (delegation to `/api/v1/vip/menu/weekly/plan`, runtime-compatible alias retained, public schema hidden).
+**Fix:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061). See the canonical shipped-behavior note in the completed PR-C section above.
 
 **Source:** `docs/contracts/PRODUCT_TIER_MAP.md` section "Deprecated aliases with wrong namespace"
 

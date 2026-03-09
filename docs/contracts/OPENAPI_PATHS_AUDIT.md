@@ -132,19 +132,21 @@
 
 **Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061)
 
-**Goal:** `/api/v1/premium/plan/week` becomes clean alias to VIP canonical.
+**Goal:** `/api/v1/premium/plan/week` becomes a clean compatibility alias to the VIP canonical route.
 
-**Changes:**
-- Delegate `/premium/plan/week` → `/vip/menu/weekly/plan`
-- Remove VIP business logic from premium endpoint (delegation only)
-- Parity test: responses equivalent
-- Hide `/premium/plan/week` from public OpenAPI while keeping runtime compatibility
+**Canonical behavior reference:** `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` is the single narrative source for delegation, runtime compatibility, and schema-hiding behavior for completed PR-C work.
+
+**Shipped outcomes:**
+- `/premium/plan/week` delegates to `/vip/menu/weekly/plan`
+- VIP business logic no longer lives in the legacy premium shim
+- `/premium/plan/week` stays runtime-compatible for callers that still use it
+- `/premium/plan/week` is hidden from the public OpenAPI surface
 
 **DoD:**
 - ✅ Parity test passes
 - ✅ No VIP logic in premium endpoint
 - ✅ `/api/v1/premium/plan/week` absent from generated public schema
-- ✅ `pytest` + `diff-cover` ≥97% on merged PR
+- ✅ Regression checks cover parity and public-schema absence for the legacy alias
 
 ---
 
