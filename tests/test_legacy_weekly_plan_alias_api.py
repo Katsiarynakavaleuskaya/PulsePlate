@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -119,6 +120,44 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
     assert legacy_data["week_summary"]["avg_daily_cost"] == round(
         returned_day_cost_total / len(canonical_menu["daily_menus"]), 2
     )
+
+
+def test_legacy_weekly_alias_delegates_to_canonical_vip_execution(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy alias must delegate through the canonical VIP execution seam."""
+
+    import app as app_module
+    import app.routers.vip as vip_router
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_run_weekly_plan_task(
+        task: Any,
+        *,
+        menu_builder: Any = None,
+    ) -> Any:
+        captured["payload"] = task.input.request_data
+        captured["menu_builder"] = menu_builder
+        return SimpleNamespace(menu=_fake_weekly_menu_builder(object()))
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(app_module, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
+    monkeypatch.setattr(
+        vip_router.fitchef_runtime,
+        "run_weekly_plan_task",
+        _fake_run_weekly_plan_task,
+    )
+
+    response = client.post("/api/v1/premium/plan/week", json=_valid_payload(), headers=vip_headers)
+
+    assert response.status_code == 200, response.text
+    assert captured["menu_builder"] is _fake_weekly_menu_builder
+    assert captured["payload"]["sex"] == "female"
+    assert response.json()["daily_menus"] == _fake_weekly_menu_builder(object())["daily_menus"]
 
 
 def test_legacy_weekly_alias_rejects_targets_only_payload_with_guidance(
@@ -387,3 +426,37 @@ def test_build_legacy_weekly_menu_response_recovers_from_non_finite_day_values()
 
     assert response.daily_menus[0]["total_kcal"] == 420.0
     assert response.daily_menus[0]["daily_cost"] == 14.5
+
+
+def test_build_legacy_weekly_menu_response_rejects_overflow_numeric_values() -> None:
+    """Huge integer numerics must be dropped instead of raising overflow errors."""
+
+    huge_number = 10**1000
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [
+                        {"title": "Lunch", "kcal": huge_number},
+                        {"title": "Dinner", "kcal": 420},
+                    ],
+                    "total_kcal": huge_number,
+                    "daily_cost": huge_number,
+                    "estimated_cost": 14.5,
+                }
+            ],
+            "weekly_coverage": {"protein": huge_number, "fiber": 0.84},
+            "shopping_list": {"oats": huge_number, "rice": 250.0},
+            "total_cost": huge_number,
+            "adherence_score": huge_number,
+        }
+    )
+
+    assert response.daily_menus[0]["total_kcal"] == 420.0
+    assert response.daily_menus[0]["daily_cost"] == 14.5
+    assert response.weekly_coverage == {"fiber": 0.84}
+    assert response.shopping_list == {"rice": 250.0}
+    assert response.total_cost == 0.0
+    assert response.adherence_score == 0.0

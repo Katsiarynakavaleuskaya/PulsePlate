@@ -3221,7 +3221,10 @@ def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
     if isinstance(value, bool):
         return default
     if isinstance(value, (int, float)):
-        coerced = float(value)
+        try:
+            coerced = float(value)
+        except OverflowError:
+            return default
         return coerced if math.isfinite(coerced) else default
     return default
 
@@ -3232,11 +3235,28 @@ def _is_valid_weekly_menu_number(value: Any) -> bool:
     RU: Проверить, что numeric значение weekly menu корректно и конечно.
     EN: Check that a weekly-menu numeric value is valid and finite.
     """
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(float(value))
-    )
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        return False
+
+
+def _normalize_weekly_menu_number_map(raw_values: Any) -> Dict[str, float]:
+    """Keep only finite numeric values in weekly-menu maps.
+
+    RU: Оставить только конечные numeric значения в weekly-menu словарях.
+    EN: Keep only finite numeric values in weekly-menu dictionaries.
+    """
+    if not isinstance(raw_values, dict):
+        return {}
+
+    return {
+        key: _coerce_weekly_menu_float(value, 0.0)
+        for key, value in raw_values.items()
+        if isinstance(key, str) and _is_valid_weekly_menu_number(value)
+    }
 
 
 def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
@@ -3279,33 +3299,8 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
                 }
             )
 
-    raw_weekly_coverage = menu_payload.get("weekly_coverage")
-    weekly_coverage = (
-        {
-            key: float(value)
-            for key, value in raw_weekly_coverage.items()
-            if isinstance(key, str)
-            and isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(float(value))
-        }
-        if isinstance(raw_weekly_coverage, dict)
-        else {}
-    )
-
-    raw_shopping_list = menu_payload.get("shopping_list")
-    shopping_list = (
-        {
-            key: float(value)
-            for key, value in raw_shopping_list.items()
-            if isinstance(key, str)
-            and isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(float(value))
-        }
-        if isinstance(raw_shopping_list, dict)
-        else {}
-    )
+    weekly_coverage = _normalize_weekly_menu_number_map(menu_payload.get("weekly_coverage"))
+    shopping_list = _normalize_weekly_menu_number_map(menu_payload.get("shopping_list"))
 
     total_cost = _coerce_weekly_menu_float(menu_payload.get("total_cost"), 0.0)
     adherence_score = _coerce_weekly_menu_float(menu_payload.get("adherence_score"), 0.0)

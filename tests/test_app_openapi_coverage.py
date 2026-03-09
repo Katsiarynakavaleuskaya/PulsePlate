@@ -66,6 +66,7 @@ class TestAppOpenAPICoverage:
         assert "/api/v1/bmi" in paths
         assert "/api/v1/pro/nutrition/daily" in paths
         assert "/api/v1/vip/weekly-plan" in paths
+        assert "/api/v1/premium/plan/week" not in paths
         # /docs и /openapi.json не являются путями в схеме
         # assert "/docs" in paths
         # assert "/openapi.json" in paths
