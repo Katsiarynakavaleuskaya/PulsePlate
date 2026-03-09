@@ -86,10 +86,35 @@ Disposition: FIXED
 Evidence: frontend/src/features/weekly-plan/model/adapter.ts:157; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:130
 Reason: preserve original `daily_menus` indices while skipping malformed entries so valid days retain the correct `day`/`dayName`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181768 -> 7995b062
+Disposition: FIXED
+Evidence: app/schemas/weekly_plan.py:64; tests/test_weekly_plan_schema_normalization.py:40
+Reason: weekly-plan normalization now fails closed for malformed meal/day/root payloads instead of silently manufacturing DTO defaults.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181787 -> 7995b062
+Disposition: FIXED
+Evidence: frontend/src/features/weekly-plan/model/adapter.ts:156; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:62
+Reason: root payloads are now shape-guarded before dereferencing `daily_menus`, returning a safe incomplete VM for null/primitive input.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181793 -> 7995b062
+Disposition: FIXED
+Evidence: tests/test_premium_week_router_isolated.py:82
+Reason: JSON content-type is asserted before parsing the 500-path premium router response body.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181795 -> 7995b062
+Disposition: FIXED
+Evidence: tests/test_pro_router.py:185
+Reason: JSON content-type is asserted before parsing the 500-path PRO router response body.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3916255202
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181768; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181781; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181787; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181793; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906181795
+Reason: this CodeRabbit review entry is a summary shell for the actionable child threads dispositioned separately below.
+
 ## Merge Readiness
-- [x] Scope tied to PR objective
-- [x] Docs/runtime changes applied
-- [x] Verification completed
+- [ ] Scope tied to PR objective
+- [ ] Docs/runtime changes applied
+- [ ] Verification completed
 - [ ] Required GitHub checks PASS with no pending required jobs
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
