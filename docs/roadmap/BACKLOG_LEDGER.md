@@ -396,6 +396,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
   - DoD:
     - Canonical AI runtime package structure exists and is documented
     - Routers and client layers remain thin adapters around AI behavior
@@ -437,6 +438,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `AGENTS.md`
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md`
   - DoD:
     - Dedicated backend schema target exists without frontend install dependency
     - Dedicated frontend type-generation target exists
@@ -609,6 +611,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/deploy/README.md`
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `AGENTS.md`
+    - `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md`
   - DoD:
     - Makefile targets use `docker compose`
     - Active runbooks/docs no longer recommend `docker-compose` as the target state
