@@ -58,17 +58,29 @@ function normalizeMeal(raw: RawMeal): Meal {
 
 function normalizeDayMenu(raw: RawDayMenu, index: number): DayMenu {
   const day = index + 1;
+  const payload =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : ({
+          meals: [],
+          kcal: 0,
+          macros: {},
+          micros: {},
+          coverage: {},
+          tips: [],
+          total_cost: 0,
+        } as RawDayMenu);
 
   return {
     day,
     dayName: DAY_NAMES[index] ?? `Day ${day}`,
-    meals: Array.isArray(raw.meals) ? raw.meals.map(normalizeMeal) : [],
-    kcal: safeNumber(raw.kcal),
-    macros: normalizeNumericMap(raw.macros),
-    micros: normalizeNumericMap(raw.micros),
-    coverage: normalizeNumericMap(raw.coverage),
-    tips: normalizeTips(raw.tips),
-    total_cost: safeNumber(raw.total_cost),
+    meals: Array.isArray(payload.meals) ? payload.meals.map(normalizeMeal) : [],
+    kcal: safeNumber(payload.kcal),
+    macros: normalizeNumericMap(payload.macros),
+    micros: normalizeNumericMap(payload.micros),
+    coverage: normalizeNumericMap(payload.coverage),
+    tips: normalizeTips(payload.tips),
+    total_cost: safeNumber(payload.total_cost),
   };
 }
 

@@ -45,3 +45,41 @@ def test_premium_week_pipeline_type_mismatch_raises_typeerror(
     finally:
         client.close()
         app.dependency_overrides.clear()
+
+
+def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import premium_week as premium_mod
+    from app.middleware.api_tiers import require_pro_tier
+
+    app = FastAPI()
+    app.include_router(premium_mod.router)
+    app.dependency_overrides[require_pro_tier] = lambda: None
+
+    monkeypatch.setattr(premium_mod, "_get_food_db", lambda: object())
+    monkeypatch.setattr(premium_mod, "_get_recipe_db", lambda: object())
+    monkeypatch.setattr(premium_mod, "_is_complete_targets", lambda _d: True)
+
+    def _fake_pipeline(**kwargs: Any) -> dict[str, Any]:
+        postprocess_fn = kwargs["postprocess_fn"]
+        try:
+            postprocess_fn({"weekly_coverage": {}, "shopping_list": {}})
+        except ValueError:
+            return {
+                "status": "error",
+                "code": "weekly_postprocess_failed",
+                "message": "Failed to build weekly plan response",
+            }
+        raise AssertionError("postprocess_fn should fail for malformed weekly payloads")
+
+    monkeypatch.setattr(premium_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
+
+    client = TestClient(app)
+    try:
+        response = client.post("/api/v1/premium/plan/week-flexible", json={})
+        assert response.status_code == 500, response.text
+        assert response.json()["code"] == "weekly_postprocess_failed"
+    finally:
+        client.close()
+        app.dependency_overrides.clear()

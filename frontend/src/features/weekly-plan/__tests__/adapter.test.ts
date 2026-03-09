@@ -115,4 +115,17 @@ describe('normalizeWeekPlan', () => {
     expect(meal.macros.protein_g).toBe(16);
     expect(meal.micros.iron_mg).toBe(3.2);
   });
+
+  it('should tolerate malformed day menu entries without crashing', () => {
+    const result = normalizeWeekPlan(
+      createRawWeekPlan({
+        daily_menus: [null as unknown as RawWeekPlanResponse['daily_menus'][number]],
+      })
+    );
+
+    expect(result.days).toHaveLength(1);
+    expect(result.days[0].meals).toHaveLength(0);
+    expect(result.days[0].kcal).toBe(0);
+    expect(result.days[0].total_cost).toBe(0);
+  });
 });

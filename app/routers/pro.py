@@ -25,6 +25,7 @@ from app.middleware.api_tiers import require_pro_tier
 from app.schemas.nutrition_targets import TargetsIn
 from app.schemas.weekly_plan import (
     WeeklyMealPlanResponse,
+    require_weekly_plan_payload_shape,
     normalize_weekly_plan_payload,
 )
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
@@ -318,7 +319,8 @@ async def generate_week_plan(req: ProWeekPlanRequest) -> Union[ProWeekPlanRespon
 
     # Wrap ProWeekPlanResponse constructor to match postprocess_fn signature
     def _postprocess_week(week: Dict[str, Any]) -> ProWeekPlanResponse:
-        normalized_week = normalize_weekly_plan_payload(week)
+        validated_week = require_weekly_plan_payload_shape(week)
+        normalized_week = normalize_weekly_plan_payload(validated_week)
         return ProWeekPlanResponse(**normalized_week)
 
     result = run_weekly_pipeline_guarded(

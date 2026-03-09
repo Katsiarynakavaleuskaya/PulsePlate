@@ -106,6 +106,18 @@ def normalize_weekly_plan_payload(raw_value: Any) -> dict[str, Any]:
     }
 
 
+def require_weekly_plan_payload_shape(raw_value: Any) -> Mapping[str, Any]:
+    """Fail closed when build_week returns a payload outside the public contract."""
+    if not isinstance(raw_value, Mapping):
+        raise ValueError("weekly plan payload must be a mapping")
+
+    raw_daily_menus = raw_value.get("daily_menus")
+    if not isinstance(raw_daily_menus, list):
+        raise ValueError("weekly plan payload missing required daily_menus list")
+
+    return raw_value
+
+
 class WeeklyMealPlanItem(BaseModel):
     """Typed representation of one generated meal entry."""
 
