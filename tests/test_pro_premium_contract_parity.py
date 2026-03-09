@@ -251,6 +251,7 @@ def test_openapi_prunes_premium_week_components_after_path_filtering(client: Tes
     """Assert hidden premium-week contracts do not leak orphaned schema components."""
     response = client.get("/openapi.json")
     assert response.status_code == 200, response.text
+    assert response.headers.get("content-type", "").startswith("application/json")
 
     spec = response.json()
     components = spec.get("components") or {}
