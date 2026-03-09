@@ -9,6 +9,7 @@ Keep links in this runbook repository-relative so they work in every clone and r
 1. `git status --short`
 2. `git log -1 --oneline`
 3. `python3 scripts/orchestration/check_preflight.py`
+4. For local API startup, use `uvicorn app.main:app --reload` as the canonical ASGI entrypoint.
 
 If preflight fails, stop and fix that first.
 
