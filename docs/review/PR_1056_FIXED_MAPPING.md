@@ -41,6 +41,14 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:207`, `docs/roadmap/BACKLOG_LEDGER.md:
 Disposition: FIXED
 Commit: 6b04cc6a
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:207`, `docs/roadmap/BACKLOG_LEDGER.md:225`, and `docs/roadmap/BACKLOG_LEDGER.md:243` relocate the planned items into the open P1 backlog, and `docs/roadmap/BACKLOG_LEDGER.md:3798` leaves the completed ledger slice consistent with the closure rule.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#discussion_r2906254142 -> 082bbe47
+Disposition: FIXED
+Commit: 082bbe47
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4446` now points the recurring monthly-analysis item at forward-looking placeholder `PR-TBD-MONTHLY-PR-ANALYSIS-REFRESH`, so the ledger entry remains open after PR #1056 merges.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#pullrequestreview-3916333700 -> 082bbe47
+Disposition: FIXED
+Commit: 082bbe47
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4446` replaces the merged-PR target with a future refresh placeholder, keeping the recurring backlog item compliant with open-item targeting rules.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
