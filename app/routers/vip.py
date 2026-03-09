@@ -535,6 +535,38 @@ async def weekly_menu_plan(
         We intentionally accept raw dict here so auth (403) wins over Pydantic 422.
         Then we validate via WeeklyPlanRequest inside the handler.
     """
+    try:
+        _, echo_payload, menu_payload = await _execute_weekly_menu_plan_payload(payload)
+        return {
+            "status": "success",
+            "echo": echo_payload,
+            "menu": menu_payload,
+            "message": "Weekly menu plan generated (echo mode)",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception("Exception in weekly_menu_plan")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Weekly menu generation failed"
+        return {
+            "status": "error",
+            "echo": payload,
+            "menu": {"mode": "echo"},
+            "message": msg,
+        }
+
+
+async def _execute_weekly_menu_plan_payload(
+    payload: Dict[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> tuple[WeeklyPlanRequest, Dict[str, Any], Dict[str, Any]]:
+    """Run canonical weekly-plan execution without HTTP-route wrapping.
+
+    RU: Выполнить canonical weekly-plan path без HTTP-обёртки.
+    EN: Execute the canonical weekly-plan path without the HTTP route envelope.
+    """
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
     # JSONDecodeError is caught earlier in request.json() → 422
     # ValueError here means schema validation failed → 422
@@ -555,32 +587,17 @@ async def weekly_menu_plan(
             continue
         original_data[key] = value
 
-    try:
-        task = FitChefWeeklyPlanTaskEnvelope(
-            mode="auto-safe",
-            input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
-        )
-        result = await fitchef_runtime.run_weekly_plan_task(
-            task,
-            menu_builder=make_weekly_menu,
-        )
-        echo_payload = original_data if make_weekly_menu is None else request_obj.model_dump()
-        return {
-            "status": "success",
-            "echo": echo_payload,
-            "menu": result.menu,
-            "message": "Weekly menu plan generated (echo mode)",
-        }
-    except Exception:
-        logging.exception("Exception in weekly_menu_plan")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Weekly menu generation failed"
-        return {
-            "status": "error",
-            "echo": request_obj.model_dump(),
-            "menu": {"mode": "echo"},
-            "message": msg,
-        }
+    resolved_menu_builder = make_weekly_menu if menu_builder is None else menu_builder
+    task = FitChefWeeklyPlanTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
+    )
+    result = await fitchef_runtime.run_weekly_plan_task(
+        task,
+        menu_builder=resolved_menu_builder,
+    )
+    echo_payload = original_data if resolved_menu_builder is None else request_obj.model_dump()
+    return request_obj, echo_payload, result.menu
 
 
 def _require_api_key_dev_legacy(request: Request) -> str:
