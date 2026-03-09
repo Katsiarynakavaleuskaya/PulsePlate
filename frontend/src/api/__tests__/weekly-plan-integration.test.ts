@@ -2,19 +2,58 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getWeeklyPlan } from '../premium/weekly-plan';
 import type { WeeklyMenuResponse, WeekPlanRequest } from '../premium/weekly-plan';
 
-// Mock the API client
 vi.mock('../client', () => ({
   api: vi.fn(),
 }));
 
 import { api } from '../client';
 
+function createMockWeeklyPlanResponse(
+  overrides: Partial<WeeklyMenuResponse> = {}
+): WeeklyMenuResponse {
+  return {
+    daily_menus: [
+      {
+        coverage: { protein: 96, calcium: 88 },
+        kcal: 1850,
+        macros: { protein_g: 110, carbs_g: 180, fat_g: 65 },
+        meals: [
+          {
+            title: 'Chicken bowl',
+            title_translated: 'Chicken bowl',
+            grams: { chicken: 180, rice: 150 },
+            kcal: 620,
+            macros: { protein_g: 42, carbs_g: 58, fat_g: 14 },
+            micros: { iron_mg: 3.4 },
+            price_est: 7.25,
+          },
+        ],
+        micros: { iron_mg: 10.5, vitamin_c_mg: 88 },
+        tips: ['Hydrate well'],
+        total_cost: 18.4,
+      },
+    ],
+    weekly_coverage: {
+      protein: 97,
+      iron: 93,
+      vitamin_c: 105,
+      calcium: 89,
+    },
+    shopping_list: {
+      chicken: 1260,
+      rice: 1050,
+    },
+    total_cost: 74.6,
+    adherence_score: 0.87,
+    ...overrides,
+  };
+}
+
 describe('Weekly Plan API Integration', () => {
   const mockApi = vi.mocked(api);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Set up environment for CI
     vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
   });
 
@@ -24,7 +63,7 @@ describe('Weekly Plan API Integration', () => {
   });
 
   describe('Successful API calls (200)', () => {
-    it('should generate weekly plan successfully with valid request', async () => {
+    it('should generate weekly plan successfully with valid profile request', async () => {
       const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
@@ -32,61 +71,10 @@ describe('Weekly Plan API Integration', () => {
         weight_kg: 60,
         activity: 'moderate',
         goal: 'maintain',
-        life_stage: 'adult',
+        diet_flags: [],
         lang: 'en',
       };
-
-      const mockResponse = {
-        week_summary: {
-          total_calories: 14000,
-          total_protein: 1050,
-          total_carbs: 1750,
-          total_fat: 469,
-        },
-        daily_menus: [
-          {
-            day: 'Monday',
-            meals: [
-              {
-                name: 'Breakfast',
-                calories: 500,
-                protein: 25,
-                carbs: 60,
-                fat: 15,
-              },
-              {
-                name: 'Lunch',
-                calories: 600,
-                protein: 35,
-                carbs: 70,
-                fat: 20,
-              },
-              {
-                name: 'Dinner',
-                calories: 500,
-                protein: 30,
-                carbs: 50,
-                fat: 18,
-              },
-            ],
-          },
-          // ... other days
-        ],
-        weekly_coverage: {
-          protein: 95,
-          carbs: 98,
-          fat: 92,
-          fiber: 85,
-        },
-        shopping_list: {
-          'chicken breast': 500,
-          'brown rice': 1000,
-          'broccoli': 300,
-          'olive oil': 200,
-        },
-        total_cost: 45.50,
-        adherence_score: 87,
-      } as unknown as WeeklyMenuResponse;
+      const mockResponse = createMockWeeklyPlanResponse();
 
       mockApi.mockResolvedValue(mockResponse);
 
@@ -102,49 +90,27 @@ describe('Weekly Plan API Integration', () => {
         undefined,
         true
       );
-
       expect(result).toEqual(mockResponse);
     });
 
-    it('should handle request with all optional fields', async () => {
+    it('should accept canonical request with ready targets payload', async () => {
       const mockRequest: WeekPlanRequest = {
-        sex: 'male',
-        age: 30,
-        height_cm: 180,
-        weight_kg: 80,
-        activity: 'very_active',
-        goal: 'loss',
-        deficit_pct: 20,
-        surplus_pct: null,
-        bodyfat: 15,
+        targets: {
+          kcal: 2100,
+          macros: { protein_g: 140, carbs_g: 220, fat_g: 70 },
+          micro: { iron_mg: 18, calcium_mg: 1000 },
+          water_ml: 2200,
+          activity_week: { moderate_aerobic_min: 150, strength_sessions: 2 },
+        },
         diet_flags: ['HIGH_PROTEIN', 'LOW_CARB'],
-        life_stage: 'adult',
         lang: 'ru',
+        activity: 'active',
+        goal: 'loss',
       };
-
-      const mockResponse = {
-        week_summary: {
-          total_calories: 16800,
-          total_protein: 1400,
-          total_carbs: 1050,
-          total_fat: 560,
-        },
+      const mockResponse = createMockWeeklyPlanResponse({
         daily_menus: [],
-        weekly_coverage: {
-          protein: 98,
-          carbs: 85,
-          fat: 95,
-          fiber: 80,
-        },
-        shopping_list: {
-          'salmon': 600,
-          'quinoa': 800,
-          'spinach': 400,
-          'avocado': 300,
-        },
-        total_cost: 65.75,
-        adherence_score: 92,
-      } as unknown as WeeklyMenuResponse;
+        total_cost: 0,
+      });
 
       mockApi.mockResolvedValue(mockResponse);
 
@@ -152,55 +118,9 @@ describe('Weekly Plan API Integration', () => {
 
       expect(result).toEqual(mockResponse);
     });
-
-    it('should handle different life stages', async () => {
-      const lifeStages = ['child', 'teen', 'adult', 'pregnant', 'lactating', 'elderly'] as const;
-
-      for (const lifeStage of lifeStages) {
-        const mockRequest: WeekPlanRequest = {
-          sex: 'female',
-          age: lifeStage === 'child' ? 8 : lifeStage === 'teen' ? 16 : 25,
-          height_cm: 165,
-          weight_kg: 60,
-          activity: 'moderate',
-          goal: 'maintain',
-          life_stage: lifeStage,
-          lang: 'en',
-        };
-
-        const mockResponse = {
-          week_summary: {
-            total_calories: 14000,
-            total_protein: 1050,
-            total_carbs: 1750,
-            total_fat: 469,
-          },
-          daily_menus: [],
-          weekly_coverage: {
-            protein: 95,
-            carbs: 98,
-            fat: 92,
-            fiber: 85,
-          },
-          shopping_list: {
-            'chicken breast': 500,
-            'brown rice': 1000,
-            'broccoli': 300,
-          },
-          total_cost: 45.50,
-          adherence_score: 87,
-        } as unknown as WeeklyMenuResponse;
-
-        mockApi.mockResolvedValue(mockResponse);
-
-        const result = await getWeeklyPlan(mockRequest);
-
-        expect(result).toEqual(mockResponse);
-      }
-    });
   });
 
-  describe('Error handling (401)', () => {
+  describe('Error handling', () => {
     it('should handle authentication errors', async () => {
       const mockRequest: WeekPlanRequest = {
         sex: 'female',
@@ -209,7 +129,6 @@ describe('Weekly Plan API Integration', () => {
         weight_kg: 60,
         activity: 'moderate',
         goal: 'maintain',
-        life_stage: 'adult',
         lang: 'en',
       };
 
@@ -220,65 +139,22 @@ describe('Weekly Plan API Integration', () => {
       await expect(getWeeklyPlan(mockRequest)).rejects.toThrow('Unauthorized');
     });
 
-    it('should handle missing API key', async () => {
-      const mockRequest: WeekPlanRequest = {
-        sex: 'female',
-        age: 25,
-        height_cm: 165,
-        weight_kg: 60,
-        activity: 'moderate',
-        goal: 'maintain',
-        life_stage: 'adult',
-        lang: 'en',
-      };
-
-      const keyError = new Error('API key required');
-      keyError.name = 'MissingApiKey';
-      mockApi.mockRejectedValue(keyError);
-
-      await expect(getWeeklyPlan(mockRequest)).rejects.toThrow('API key required');
-    });
-  });
-
-  describe('Validation errors (422)', () => {
-    it('should handle invalid request data', async () => {
-      const invalidRequest = {
-        sex: 'female',
-        age: -5, // Invalid age
-        height_cm: 165,
-        weight_kg: 60,
-        activity: 'moderate',
-        goal: 'maintain',
-        life_stage: 'adult',
-        lang: 'en',
-      } as WeekPlanRequest;
-
-      const validationError = new Error('Validation error: age must be positive');
-      validationError.name = 'ValidationError';
-      mockApi.mockRejectedValue(validationError);
-
-      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow('Validation error: age must be positive');
-    });
-
     it('should handle missing required fields', async () => {
       const invalidRequest = {
-        sex: 'female',
-        // Missing age, height, weight, etc.
         activity: 'moderate',
         goal: 'maintain',
-        life_stage: 'adult',
         lang: 'en',
-      } as any;
+      } as WeekPlanRequest;
 
       const validationError = new Error('Validation error: missing required fields');
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow('Validation error: missing required fields');
+      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow(
+        'Validation error: missing required fields'
+      );
     });
-  });
 
-  describe('Network errors', () => {
     it('should handle network timeout', async () => {
       const mockRequest: WeekPlanRequest = {
         sex: 'female',
@@ -287,7 +163,6 @@ describe('Weekly Plan API Integration', () => {
         weight_kg: 60,
         activity: 'moderate',
         goal: 'maintain',
-        life_stage: 'adult',
         lang: 'en',
       };
 
@@ -296,25 +171,6 @@ describe('Weekly Plan API Integration', () => {
       mockApi.mockRejectedValue(timeoutError);
 
       await expect(getWeeklyPlan(mockRequest)).rejects.toThrow('Request timeout');
-    });
-
-    it('should handle server errors (500)', async () => {
-      const mockRequest: WeekPlanRequest = {
-        sex: 'female',
-        age: 25,
-        height_cm: 165,
-        weight_kg: 60,
-        activity: 'moderate',
-        goal: 'maintain',
-        life_stage: 'adult',
-        lang: 'en',
-      };
-
-      const serverError = new Error('Internal server error');
-      serverError.name = 'ServerError';
-      mockApi.mockRejectedValue(serverError);
-
-      await expect(getWeeklyPlan(mockRequest)).rejects.toThrow('Internal server error');
     });
   });
 
@@ -327,18 +183,9 @@ describe('Weekly Plan API Integration', () => {
         weight_kg: 60,
         activity: 'moderate',
         goal: 'maintain',
-        life_stage: 'adult',
         lang: 'en',
       };
-
-      const mockResponse = {
-        week_summary: {},
-        daily_menus: [],
-        weekly_coverage: {},
-        shopping_list: {},
-        total_cost: 0,
-        adherence_score: 0,
-      } as unknown as WeeklyMenuResponse;
+      const mockResponse = createMockWeeklyPlanResponse({ daily_menus: [] });
 
       mockApi.mockResolvedValue(mockResponse);
 

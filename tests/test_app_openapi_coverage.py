@@ -97,8 +97,9 @@ class TestAppOpenAPICoverage:
         # Проверяем основные схемы
         assert "HTTPValidationError" in schemas
         assert "ValidationError" in schemas
-        assert "BMIRequest" in schemas
         assert "BMIRequestV1" in schemas
+        assert "WeeklyMealPlanResponse" in schemas
+        assert "WeeklyMealPlanDayMenu" in schemas
         # BMIResponse может называться по-другому
         # assert "BMIResponse" in schemas
 

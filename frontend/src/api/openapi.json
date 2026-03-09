@@ -70,39 +70,6 @@
         "title": "ActivationStatus",
         "type": "string"
       },
-      "AdherenceEventRequest": {
-        "additionalProperties": false,
-        "description": "Request schema for recording an adherence event.\n\nRU: Схема запроса для записи события adherence.\nEN: Request schema for recording an adherence event.\n\nSecurity Note:\n    subject_id is derived from authenticated API key (not from request payload)\n    to prevent horizontal privilege escalation.",
-        "properties": {
-          "analyzer_key": {
-            "default": "v1:adherence",
-            "maxLength": 64,
-            "minLength": 3,
-            "title": "Analyzer Key",
-            "type": "string"
-          },
-          "event_type": {
-            "enum": [
-              "meal_logged",
-              "slip"
-            ],
-            "title": "Event Type",
-            "type": "string"
-          },
-          "weight": {
-            "default": 1.0,
-            "exclusiveMinimum": 0.0,
-            "maximum": 10.0,
-            "title": "Weight",
-            "type": "number"
-          }
-        },
-        "required": [
-          "event_type"
-        ],
-        "title": "AdherenceEventRequest",
-        "type": "object"
-      },
       "AdherenceResponse": {
         "description": "Response schema for adherence endpoints.\n\nRU: Схема ответа для эндпоинтов adherence.\nEN: Response schema for adherence endpoints.",
         "properties": {
@@ -1158,108 +1125,6 @@
         "title": "BMIRangeSpec",
         "type": "object"
       },
-      "BMIRequest": {
-        "properties": {
-          "age": {
-            "default": 30,
-            "maximum": 120.0,
-            "minimum": 0.0,
-            "title": "Age",
-            "type": "integer"
-          },
-          "athlete": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
-            "default": "no",
-            "title": "Athlete"
-          },
-          "gender": {
-            "default": "male",
-            "title": "Gender",
-            "type": "string"
-          },
-          "height_m": {
-            "exclusiveMinimum": 0.0,
-            "title": "Height M",
-            "type": "number"
-          },
-          "include_chart": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": false,
-            "title": "Include Chart"
-          },
-          "lang": {
-            "default": "ru",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
-            "title": "Lang",
-            "type": "string"
-          },
-          "pregnant": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "boolean"
-              }
-            ],
-            "default": "no",
-            "title": "Pregnant"
-          },
-          "premium": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": false,
-            "title": "Premium"
-          },
-          "waist_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Waist Cm"
-          },
-          "weight_kg": {
-            "exclusiveMinimum": 0.0,
-            "title": "Weight Kg",
-            "type": "number"
-          }
-        },
-        "required": [
-          "weight_kg",
-          "height_m"
-        ],
-        "title": "BMIRequest",
-        "type": "object"
-      },
       "BMIRequestV1": {
         "properties": {
           "age": {
@@ -1428,401 +1293,6 @@
           "marker"
         ],
         "title": "BMIScaleV1Spec",
-        "type": "object"
-      },
-      "BMRRequest": {
-        "description": "Request model for BMR calculation",
-        "properties": {
-          "activity": {
-            "pattern": "^(sedentary|light|moderate|active|very_active)$",
-            "title": "Activity",
-            "type": "string"
-          },
-          "age": {
-            "maximum": 120.0,
-            "minimum": 0.0,
-            "title": "Age",
-            "type": "integer"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 60.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "height_cm": {
-            "exclusiveMinimum": 0.0,
-            "title": "Height Cm",
-            "type": "number"
-          },
-          "lang": {
-            "default": "en",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
-            "title": "Lang",
-            "type": "string"
-          },
-          "sex": {
-            "pattern": "^(male|female)$",
-            "title": "Sex",
-            "type": "string"
-          },
-          "weight_kg": {
-            "exclusiveMinimum": 0.0,
-            "title": "Weight Kg",
-            "type": "number"
-          }
-        },
-        "required": [
-          "weight_kg",
-          "height_cm",
-          "age",
-          "sex",
-          "activity"
-        ],
-        "title": "BMRRequest",
-        "type": "object"
-      },
-      "BMRRequestLegacy": {
-        "description": "Lenient legacy request model to allow testing error paths without 422.\n\nRU: Более мягкая модель для обратной совместимости.\nEN: Lenient model for backward compatibility.",
-        "properties": {
-          "activity": {
-            "title": "Activity",
-            "type": "string"
-          },
-          "age": {
-            "title": "Age",
-            "type": "integer"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "height_cm": {
-            "title": "Height Cm",
-            "type": "number"
-          },
-          "lang": {
-            "default": "en",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
-            "title": "Lang",
-            "type": "string"
-          },
-          "sex": {
-            "title": "Sex",
-            "type": "string"
-          },
-          "weight_kg": {
-            "title": "Weight Kg",
-            "type": "number"
-          }
-        },
-        "required": [
-          "weight_kg",
-          "height_cm",
-          "age",
-          "sex",
-          "activity"
-        ],
-        "title": "BMRRequestLegacy",
-        "type": "object"
-      },
-      "BMRResponse": {
-        "description": "Response model for BMR calculation",
-        "properties": {
-          "activity_level": {
-            "description": "Localized description of the activity level used in calculations (e.g., 'sedentary', 'light', 'moderate', 'active', 'very_active').",
-            "title": "Activity Level",
-            "type": "string"
-          },
-          "bmr": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "description": "BMR values calculated by different formulas. Keys are formula names (e.g., 'mifflin', 'harris', 'katch'), values are BMR in kcal/day.",
-            "title": "Bmr",
-            "type": "object"
-          },
-          "formulas_used": {
-            "description": "List of BMR formula names that were used in the calculation (e.g., ['mifflin', 'harris', 'katch']).",
-            "items": {
-              "type": "string"
-            },
-            "title": "Formulas Used",
-            "type": "array"
-          },
-          "notes": {
-            "description": "Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).",
-            "items": {
-              "type": "string"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "recommended_intake": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "description": "Recommended daily calorie intake for different goals. Keys: 'maintenance', 'weight_loss' (20% deficit), 'weight_gain' (20% surplus); values are calories in kcal/day.",
-            "title": "Recommended Intake",
-            "type": "object"
-          },
-          "tdee": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "description": "TDEE (Total Daily Energy Expenditure) values for different formulas and activity levels. Keys are formula names, values are TDEE in kcal/day.",
-            "title": "Tdee",
-            "type": "object"
-          }
-        },
-        "required": [
-          "bmr",
-          "tdee",
-          "activity_level",
-          "recommended_intake",
-          "formulas_used",
-          "notes"
-        ],
-        "title": "BMRResponse",
-        "type": "object"
-      },
-      "BodyFatRequest": {
-        "properties": {
-          "age": {
-            "anyOf": [
-              {
-                "maximum": 120.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Age in years, 1..120",
-            "title": "Age"
-          },
-          "bmi": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "BMI value, 0..100",
-            "title": "Bmi"
-          },
-          "gender": {
-            "title": "Gender",
-            "type": "string"
-          },
-          "height_m": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Height in meters, must be positive",
-            "title": "Height M"
-          },
-          "hip_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Hip circumference in cm, must be > 0",
-            "title": "Hip Cm"
-          },
-          "language": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "en",
-            "title": "Language"
-          },
-          "neck_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Neck circumference in cm, must be > 0",
-            "title": "Neck Cm"
-          },
-          "waist_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Waist circumference in cm, must be > 0",
-            "title": "Waist Cm"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Weight in kg, must be positive",
-            "title": "Weight Kg"
-          }
-        },
-        "required": [
-          "gender"
-        ],
-        "title": "BodyFatRequest",
-        "type": "object"
-      },
-      "BusinessAnalysisRequest": {
-        "description": "Request model for business analysis.",
-        "properties": {
-          "code": {
-            "description": "Code to analyze (max 100KB)",
-            "title": "Code",
-            "type": "string"
-          },
-          "locale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Locale"
-          },
-          "test_name": {
-            "default": "business_analysis",
-            "title": "Test Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "code"
-        ],
-        "title": "BusinessAnalysisRequest",
-        "type": "object"
-      },
-      "BusinessAnalysisResponse": {
-        "description": "Response model for business analysis.",
-        "properties": {
-          "business_category": {
-            "title": "Business Category",
-            "type": "string"
-          },
-          "cost_impact": {
-            "title": "Cost Impact",
-            "type": "string"
-          },
-          "customer_impact": {
-            "title": "Customer Impact",
-            "type": "string"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "error_type": {
-            "title": "Error Type",
-            "type": "string"
-          },
-          "optimization_potential": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Optimization Potential"
-          },
-          "revenue_impact": {
-            "title": "Revenue Impact",
-            "type": "string"
-          },
-          "success": {
-            "title": "Success",
-            "type": "boolean"
-          },
-          "test_name": {
-            "title": "Test Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "test_name",
-          "success",
-          "business_category",
-          "error_type",
-          "error_message",
-          "revenue_impact",
-          "cost_impact",
-          "customer_impact",
-          "optimization_potential"
-        ],
-        "title": "BusinessAnalysisResponse",
         "type": "object"
       },
       "CBTInsightRequest": {
@@ -2042,234 +1512,6 @@
           "region_id"
         ],
         "title": "CatalogInfoDTO",
-        "type": "object"
-      },
-      "CatalogRegion": {
-        "additionalProperties": true,
-        "description": "RU: Регион каталога (legacy/public contract).\nEN: Catalog region (legacy/public contract).\n\nRegion catalog public DTO (used by app/routers/catalog.py).\nKeep backward-compatible with core.catalog.service model_dump().",
-        "properties": {
-          "id": {
-            "examples": [
-              "es"
-            ],
-            "maxLength": 8,
-            "minLength": 2,
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Spain"
-            ],
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "CatalogRegion",
-        "type": "object"
-      },
-      "CatalogSKU": {
-        "additionalProperties": true,
-        "description": "RU: SKU запись (legacy/public contract).\nEN: SKU record (legacy/public contract).\n\nSKU public DTO (used by app/routers/catalog.py).",
-        "properties": {
-          "aisle": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "Vegetables"
-            ],
-            "title": "Aisle"
-          },
-          "barcode": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "1234567890123"
-            ],
-            "title": "Barcode"
-          },
-          "brand": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "Carrefour"
-            ],
-            "title": "Brand"
-          },
-          "id": {
-            "examples": [
-              "CRF-ES-000123"
-            ],
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Carrot 500g"
-            ],
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "pack_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "500 g bag"
-            ],
-            "title": "Pack Label"
-          },
-          "price_currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "EUR"
-            ],
-            "title": "Price Currency"
-          },
-          "price_value": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Decimal serialized as string in JSON (Pydantic v2).",
-            "examples": [
-              "1.29"
-            ],
-            "title": "Price Value"
-          },
-          "region_id": {
-            "examples": [
-              "es"
-            ],
-            "maxLength": 8,
-            "minLength": 2,
-            "title": "Region Id",
-            "type": "string"
-          },
-          "source_id": {
-            "examples": [
-              "carrefour"
-            ],
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Source Id",
-            "type": "string"
-          },
-          "store_id": {
-            "examples": [
-              "carrefour_es"
-            ],
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Store Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "region_id",
-          "store_id",
-          "source_id"
-        ],
-        "title": "CatalogSKU",
-        "type": "object"
-      },
-      "CatalogStore": {
-        "additionalProperties": true,
-        "description": "RU: Магазин/сеть в регионе (legacy/public contract).\nEN: Store in region (legacy/public contract).\n\nStore public DTO (used by app/routers/catalog.py).",
-        "properties": {
-          "id": {
-            "examples": [
-              "carrefour_es"
-            ],
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Carrefour ES"
-            ],
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "region_id": {
-            "examples": [
-              "es"
-            ],
-            "maxLength": 8,
-            "minLength": 2,
-            "title": "Region Id",
-            "type": "string"
-          },
-          "source_id": {
-            "examples": [
-              "carrefour"
-            ],
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Source Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "region_id",
-          "name",
-          "source_id"
-        ],
-        "title": "CatalogStore",
         "type": "object"
       },
       "CurrencyDTO": {
@@ -2553,208 +1795,6 @@
           }
         },
         "title": "HTTPValidationError",
-        "type": "object"
-      },
-      "Ingredient": {
-        "properties": {
-          "food_id": {
-            "title": "Food Id",
-            "type": "string"
-          },
-          "grams": {
-            "title": "Grams",
-            "type": "number"
-          }
-        },
-        "required": [
-          "food_id",
-          "grams"
-        ],
-        "title": "Ingredient",
-        "type": "object"
-      },
-      "LegacyWeekPlanRequest": {
-        "additionalProperties": false,
-        "description": "Extended request for week plan with optional pre-calculated targets.\n\nSupports two modes:\n- Mode A: With targets (pre-calculated nutrition goals)\n- Mode B: Calculate targets from user profile (sex, age, etc.)",
-        "properties": {
-          "activity": {
-            "anyOf": [
-              {
-                "enum": [
-                  "sedentary",
-                  "light",
-                  "moderate",
-                  "active",
-                  "very_active"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity"
-          },
-          "age": {
-            "anyOf": [
-              {
-                "maximum": 120.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "maximum": 60.0,
-                "minimum": 3.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "deficit_pct": {
-            "anyOf": [
-              {
-                "maximum": 25.0,
-                "minimum": 5.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deficit Pct"
-          },
-          "diet_flags": {
-            "anyOf": [
-              {
-                "items": {
-                  "enum": [
-                    "VEG",
-                    "GF",
-                    "DAIRY_FREE",
-                    "LOW_COST",
-                    "HIGH_PROTEIN",
-                    "LOW_CARB",
-                    "MEDITERRANEAN",
-                    "VEGAN",
-                    "KETO",
-                    "PALEO"
-                  ],
-                  "type": "string"
-                },
-                "type": "array",
-                "uniqueItems": true
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diet Flags"
-          },
-          "goal": {
-            "default": "maintain",
-            "enum": [
-              "loss",
-              "maintain",
-              "gain"
-            ],
-            "title": "Goal",
-            "type": "string"
-          },
-          "height_cm": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Cm"
-          },
-          "lang": {
-            "default": "en",
-            "title": "Lang",
-            "type": "string"
-          },
-          "life_stage": {
-            "default": "adult",
-            "enum": [
-              "child",
-              "teen",
-              "adult",
-              "pregnant",
-              "lactating",
-              "elderly"
-            ],
-            "title": "Life Stage",
-            "type": "string"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "enum": [
-                  "female",
-                  "male"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          },
-          "surplus_pct": {
-            "anyOf": [
-              {
-                "maximum": 20.0,
-                "minimum": 5.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Surplus Pct"
-          },
-          "targets": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Targets"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg"
-          }
-        },
-        "title": "LegacyWeekPlanRequest",
         "type": "object"
       },
       "ManualPaymentSource": {
@@ -3215,106 +2255,6 @@
           "overall_score"
         ],
         "title": "NutrientCoverageSummary",
-        "type": "object"
-      },
-      "NutrientGapsRequest": {
-        "description": "RU: Запрос на анализ дефицитов нутриентов.\nEN: Request for nutrient gap analysis.",
-        "properties": {
-          "consumed_nutrients": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Consumed Nutrients",
-            "type": "object"
-          },
-          "user_profile": {
-            "$ref": "#/components/schemas/WHOTargetsRequest"
-          }
-        },
-        "required": [
-          "consumed_nutrients",
-          "user_profile"
-        ],
-        "title": "NutrientGapsRequest",
-        "type": "object"
-      },
-      "NutrientGapsResponse": {
-        "description": "RU: Ответ с анализом дефицитов и рекомендациями.\nEN: Response with gap analysis and recommendations.",
-        "properties": {
-          "adherence_score": {
-            "title": "Adherence Score",
-            "type": "number"
-          },
-          "food_recommendations": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Food Recommendations",
-            "type": "array"
-          },
-          "gaps": {
-            "additionalProperties": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Gaps",
-            "type": "object"
-          }
-        },
-        "required": [
-          "gaps",
-          "food_recommendations",
-          "adherence_score"
-        ],
-        "title": "NutrientGapsResponse",
-        "type": "object"
-      },
-      "NutrientRecommendationsResponse": {
-        "description": "FREE endpoint response: basic nutrient recommendations.\n\nRU: Ответ для бесплатного эндпоинта рекомендаций по питанию.\nEN: Response for the free nutrient recommendations endpoint.",
-        "properties": {
-          "activity": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "Activity targets: moderate_aerobic_min, vigorous_aerobic_min, strength_sessions, steps_daily",
-            "title": "Activity",
-            "type": "object"
-          },
-          "kcal_daily": {
-            "description": "Target daily calories (kcal)",
-            "title": "Kcal Daily",
-            "type": "integer"
-          },
-          "macros": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "Macronutrient targets: protein_g, fat_g, carbs_g, fiber_g",
-            "title": "Macros",
-            "type": "object"
-          },
-          "micros": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "description": "Priority micronutrient targets (WHO/EFSA)",
-            "title": "Micros",
-            "type": "object"
-          },
-          "water_ml_daily": {
-            "description": "Daily water intake target (ml)",
-            "title": "Water Ml Daily",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kcal_daily",
-          "macros",
-          "water_ml_daily",
-          "micros",
-          "activity"
-        ],
-        "title": "NutrientRecommendationsResponse",
         "type": "object"
       },
       "NutritionSegmentData": {
@@ -4466,172 +3406,6 @@
         "title": "PlateResponse",
         "type": "object"
       },
-      "PremiumWeekPlanRequest": {
-        "properties": {
-          "activity": {
-            "anyOf": [
-              {
-                "enum": [
-                  "sedentary",
-                  "light",
-                  "moderate",
-                  "active",
-                  "very_active"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "moderate",
-            "title": "Activity"
-          },
-          "age": {
-            "anyOf": [
-              {
-                "exclusiveMaximum": 90.0,
-                "exclusiveMinimum": 10.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age"
-          },
-          "diet_flags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Diet Flags",
-            "type": "array"
-          },
-          "goal": {
-            "anyOf": [
-              {
-                "enum": [
-                  "loss",
-                  "maintain",
-                  "gain"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "maintain",
-            "title": "Goal"
-          },
-          "height_cm": {
-            "anyOf": [
-              {
-                "exclusiveMaximum": 220.0,
-                "exclusiveMinimum": 100.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Cm"
-          },
-          "lang": {
-            "default": "en",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
-            "title": "Lang",
-            "type": "string"
-          },
-          "sex": {
-            "anyOf": [
-              {
-                "enum": [
-                  "female",
-                  "male"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
-          },
-          "targets": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TargetsIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "exclusiveMaximum": 300.0,
-                "exclusiveMinimum": 30.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg"
-          }
-        },
-        "title": "PremiumWeekPlanRequest",
-        "type": "object"
-      },
-      "PremiumWeekPlanResponse": {
-        "properties": {
-          "adherence_score": {
-            "title": "Adherence Score",
-            "type": "number"
-          },
-          "daily_menus": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Daily Menus",
-            "type": "array"
-          },
-          "shopping_list": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Shopping List",
-            "type": "object"
-          },
-          "total_cost": {
-            "title": "Total Cost",
-            "type": "number"
-          },
-          "weekly_coverage": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Weekly Coverage",
-            "type": "object"
-          }
-        },
-        "required": [
-          "daily_menus",
-          "weekly_coverage",
-          "shopping_list",
-          "total_cost",
-          "adherence_score"
-        ],
-        "title": "PremiumWeekPlanResponse",
-        "type": "object"
-      },
       "ProWeekPlanRequest": {
         "description": "Request model for weekly meal plan generation.\n\nSupports two modes:\n- Mode A: Provide ready targets\n- Mode B: Quick profile (fallback)",
         "properties": {
@@ -4754,50 +3528,6 @@
           }
         },
         "title": "ProWeekPlanRequest",
-        "type": "object"
-      },
-      "ProWeekPlanResponse": {
-        "description": "Response model for weekly meal plan.",
-        "properties": {
-          "adherence_score": {
-            "title": "Adherence Score",
-            "type": "number"
-          },
-          "daily_menus": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Daily Menus",
-            "type": "array"
-          },
-          "shopping_list": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Shopping List",
-            "type": "object"
-          },
-          "total_cost": {
-            "title": "Total Cost",
-            "type": "number"
-          },
-          "weekly_coverage": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Weekly Coverage",
-            "type": "object"
-          }
-        },
-        "required": [
-          "daily_menus",
-          "weekly_coverage",
-          "shopping_list",
-          "total_cost",
-          "adherence_score"
-        ],
-        "title": "ProWeekPlanResponse",
         "type": "object"
       },
       "ProfileInput": {
@@ -5027,186 +3757,6 @@
         "title": "QuantityDTO",
         "type": "object"
       },
-      "RAGChunkInput": {
-        "description": "Input schema for a retrieved chunk in feedback.",
-        "properties": {
-          "chunk_id": {
-            "anyOf": [
-              {
-                "maxLength": 256,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Chunk Id"
-          },
-          "file": {
-            "anyOf": [
-              {
-                "maxLength": 512,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File"
-          },
-          "preview": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preview"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          }
-        },
-        "title": "RAGChunkInput",
-        "type": "object"
-      },
-      "RAGFeedbackRequest": {
-        "description": "Request schema for submitting RAG feedback.",
-        "properties": {
-          "agent_id": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agent Id"
-          },
-          "confidence": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "hops": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hops"
-          },
-          "llm_response": {
-            "anyOf": [
-              {
-                "maxLength": 50000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Llm Response"
-          },
-          "query": {
-            "maxLength": 10000,
-            "minLength": 1,
-            "title": "Query",
-            "type": "string"
-          },
-          "retrieved_chunks": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/RAGChunkInput"
-                },
-                "maxItems": 50,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Retrieved Chunks"
-          },
-          "user_correction": {
-            "anyOf": [
-              {
-                "maxLength": 50000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Correction"
-          },
-          "user_rating": {
-            "anyOf": [
-              {
-                "maximum": 5.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Rating"
-          }
-        },
-        "required": [
-          "query"
-        ],
-        "title": "RAGFeedbackRequest",
-        "type": "object"
-      },
-      "RAGFeedbackResponse": {
-        "description": "Response schema for feedback submission.",
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "message": {
-            "default": "Feedback submitted successfully",
-            "title": "Message",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "title": "RAGFeedbackResponse",
-        "type": "object"
-      },
       "RateLimitErrorResponse": {
         "description": "Error response for 429 rate-limit exceeded.\n\nMatches FastAPI/Starlette HTTPException envelope: {\"detail\": \"...\"}.",
         "properties": {
@@ -5219,184 +3769,6 @@
           "detail"
         ],
         "title": "RateLimitErrorResponse",
-        "type": "object"
-      },
-      "Recipe": {
-        "properties": {
-          "allergens": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allergens",
-            "type": "array"
-          },
-          "cost_per_serv": {
-            "default": 0.0,
-            "title": "Cost Per Serv",
-            "type": "number"
-          },
-          "cost_total": {
-            "default": 0.0,
-            "title": "Cost Total",
-            "type": "number"
-          },
-          "ingredients": {
-            "items": {
-              "$ref": "#/components/schemas/Ingredient"
-            },
-            "minItems": 1,
-            "title": "Ingredients",
-            "type": "array"
-          },
-          "locale": {
-            "default": "en",
-            "title": "Locale",
-            "type": "string"
-          },
-          "nutrients_per_serv": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Nutrients Per Serv",
-            "type": "object"
-          },
-          "recipe_id": {
-            "title": "Recipe Id",
-            "type": "string"
-          },
-          "servings": {
-            "title": "Servings",
-            "type": "integer"
-          },
-          "source": {
-            "default": "internal",
-            "title": "Source",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Steps",
-            "type": "array"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "version_date": {
-            "title": "Version Date",
-            "type": "string"
-          },
-          "yield_total_g": {
-            "title": "Yield Total G",
-            "type": "number"
-          }
-        },
-        "required": [
-          "recipe_id",
-          "title",
-          "servings",
-          "yield_total_g",
-          "ingredients",
-          "version_date"
-        ],
-        "title": "Recipe",
-        "type": "object"
-      },
-      "RecipePreviewRequest": {
-        "properties": {
-          "ingredients": {
-            "items": {
-              "$ref": "#/components/schemas/Ingredient"
-            },
-            "minItems": 1,
-            "title": "Ingredients",
-            "type": "array"
-          },
-          "servings": {
-            "default": 1,
-            "title": "Servings",
-            "type": "integer"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "ingredients"
-        ],
-        "title": "RecipePreviewRequest",
-        "type": "object"
-      },
-      "RecipePreviewResponse": {
-        "properties": {
-          "per_serving": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Per Serving",
-            "type": "object"
-          },
-          "servings": {
-            "title": "Servings",
-            "type": "integer"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "total_g": {
-            "title": "Total G",
-            "type": "number"
-          }
-        },
-        "required": [
-          "title",
-          "servings",
-          "total_g",
-          "per_serving"
-        ],
-        "title": "RecipePreviewResponse",
-        "type": "object"
-      },
-      "RecipeQueryHit": {
-        "properties": {
-          "kcal_per_serv": {
-            "title": "Kcal Per Serv",
-            "type": "number"
-          },
-          "recipe_id": {
-            "title": "Recipe Id",
-            "type": "string"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "recipe_id",
-          "title",
-          "kcal_per_serv"
-        ],
-        "title": "RecipeQueryHit",
         "type": "object"
       },
       "ReconcileDecision": {
@@ -5686,36 +4058,6 @@
         "title": "ShoplistAnalyticsDTO",
         "type": "object"
       },
-      "ShoplistDailyRequest": {
-        "description": "Request payload for POST /api/v1/vip/shoplist/daily.\n\nSame contract as ShoplistGenerateRequest.",
-        "properties": {
-          "items": {
-            "description": "Shopping list items (can be empty)",
-            "items": {
-              "$ref": "#/components/schemas/ShoplistItemDTO"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "packaging_rules": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/PackageRuleDTO"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Optional. If missing/None, items without rules go to 'unpacked'.",
-            "title": "Packaging Rules"
-          }
-        },
-        "title": "ShoplistDailyRequest",
-        "type": "object"
-      },
       "ShoplistDayItemDTO": {
         "description": "One day shopping list item (server → iOS).\n\nkey: stable dedup key (server-side normalized slug or food_id-like).\ntitle: localized title for UI.\n\nRU: Одна строка списка покупок на день (сервер → iOS).",
         "properties": {
@@ -5943,98 +4285,6 @@
         "title": "ShoplistGenerateResponse",
         "type": "object"
       },
-      "ShoplistGroup": {
-        "description": "Group of items by aisle.",
-        "properties": {
-          "aisle": {
-            "title": "Aisle",
-            "type": "string"
-          },
-          "items": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Items",
-            "type": "array"
-          }
-        },
-        "required": [
-          "aisle",
-          "items"
-        ],
-        "title": "ShoplistGroup",
-        "type": "object"
-      },
-      "ShoplistItem": {
-        "description": "Single item in the shoplist.",
-        "properties": {
-          "aisle": {
-            "title": "Aisle",
-            "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "qty": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qty"
-          },
-          "unit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unit"
-          }
-        },
-        "required": [
-          "aisle"
-        ],
-        "title": "ShoplistItem",
-        "type": "object"
-      },
       "ShoplistItemDTO": {
         "description": "Shopping list item specification (food, quantity, form).",
         "properties": {
@@ -6157,46 +4407,6 @@
         "title": "ShoplistPreviewResponse",
         "type": "object"
       },
-      "ShoplistResponse": {
-        "description": "Response model for shoplist endpoint.",
-        "properties": {
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ShoplistGroup"
-            },
-            "title": "Groups",
-            "type": "array"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ShoplistItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "store": {
-            "title": "Store",
-            "type": "string"
-          },
-          "total_estimated": {
-            "title": "Total Estimated",
-            "type": "number"
-          }
-        },
-        "required": [
-          "store",
-          "currency",
-          "total_estimated",
-          "groups",
-          "items"
-        ],
-        "title": "ShoplistResponse",
-        "type": "object"
-      },
       "ShoplistSourceDTO": {
         "description": "Optional provenance of an item.\n\nRU: Источник/происхождение позиции (опционально).",
         "properties": {
@@ -6223,69 +4433,6 @@
           }
         },
         "title": "ShoplistSourceDTO",
-        "type": "object"
-      },
-      "ShoplistWeeklyDayRequest": {
-        "description": "Request payload for one day in weekly shoplist.\n\nSame contract as ShoplistGenerateRequest per day.",
-        "properties": {
-          "items": {
-            "description": "Shopping list items for this day (can be empty)",
-            "items": {
-              "$ref": "#/components/schemas/ShoplistItemDTO"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "packaging_rules": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/PackageRuleDTO"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Optional. If missing/None, items without rules go to 'unpacked'.",
-            "title": "Packaging Rules"
-          }
-        },
-        "title": "ShoplistWeeklyDayRequest",
-        "type": "object"
-      },
-      "ShoplistWeeklyRequest": {
-        "description": "Request payload for POST /api/v1/vip/shoplist/weekly.",
-        "properties": {
-          "days": {
-            "description": "One element per day. Contract: length = as requested by client (no fixed 7-day requirement).",
-            "items": {
-              "$ref": "#/components/schemas/ShoplistWeeklyDayRequest"
-            },
-            "title": "Days",
-            "type": "array"
-          }
-        },
-        "required": [
-          "days"
-        ],
-        "title": "ShoplistWeeklyRequest",
-        "type": "object"
-      },
-      "ShoplistWeeklyResponse": {
-        "description": "Response for POST /api/v1/vip/shoplist/weekly.",
-        "properties": {
-          "days": {
-            "description": "One response per day (length = as requested by client)",
-            "items": {
-              "$ref": "#/components/schemas/ShoplistGenerateResponse"
-            },
-            "title": "Days",
-            "type": "array"
-          }
-        },
-        "title": "ShoplistWeeklyResponse",
         "type": "object"
       },
       "ShoppingListCategory": {
@@ -6498,54 +4645,6 @@
           }
         },
         "title": "ShoppingListRequest",
-        "type": "object"
-      },
-      "SignRequest": {
-        "properties": {
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "ttl_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ttl Seconds"
-          }
-        },
-        "required": [
-          "path"
-        ],
-        "title": "SignRequest",
-        "type": "object"
-      },
-      "SignedLinkResponse": {
-        "description": "Response model for signed export links.",
-        "properties": {
-          "exp": {
-            "title": "Exp",
-            "type": "integer"
-          },
-          "ttl": {
-            "title": "Ttl",
-            "type": "integer"
-          },
-          "url": {
-            "title": "Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "exp",
-          "ttl"
-        ],
-        "title": "SignedLinkResponse",
         "type": "object"
       },
       "SoftPaywallAvailability": {
@@ -6856,41 +4955,6 @@
           "water_ml_daily"
         ],
         "title": "TargetsSummary",
-        "type": "object"
-      },
-      "TestResponse": {
-        "description": "Standard test response model.",
-        "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Request Id"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "timestamp": {
-            "title": "Timestamp",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "message",
-          "timestamp"
-        ],
-        "title": "TestResponse",
         "type": "object"
       },
       "UnpackedLineDTO": {
@@ -7337,8 +5401,126 @@
         "title": "WaistRiskResultSchema",
         "type": "object"
       },
-      "WeeklyMenuResponse": {
-        "description": "RU: Ответ с недельным меню.\nEN: Response with weekly menu.",
+      "WeeklyMealPlanDayMenu": {
+        "description": "Typed representation of one generated day menu.",
+        "properties": {
+          "coverage": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "kcal": {
+            "title": "Kcal",
+            "type": "number"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Macros",
+            "type": "object"
+          },
+          "meals": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyMealPlanItem"
+            },
+            "title": "Meals",
+            "type": "array"
+          },
+          "micros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Micros",
+            "type": "object"
+          },
+          "tips": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tips",
+            "type": "array"
+          },
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "number"
+          }
+        },
+        "required": [
+          "meals",
+          "kcal",
+          "macros",
+          "micros",
+          "coverage",
+          "tips",
+          "total_cost"
+        ],
+        "title": "WeeklyMealPlanDayMenu",
+        "type": "object"
+      },
+      "WeeklyMealPlanItem": {
+        "description": "Typed representation of one generated meal entry.",
+        "properties": {
+          "grams": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Grams",
+            "type": "object"
+          },
+          "kcal": {
+            "title": "Kcal",
+            "type": "number"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Macros",
+            "type": "object"
+          },
+          "micros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Micros",
+            "type": "object"
+          },
+          "price_est": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Est"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "title_translated": {
+            "title": "Title Translated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "title_translated",
+          "grams",
+          "kcal",
+          "macros",
+          "micros"
+        ],
+        "title": "WeeklyMealPlanItem",
+        "type": "object"
+      },
+      "WeeklyMealPlanResponse": {
+        "description": "Typed canonical response for PRO/premium weekly-plan endpoints.",
         "properties": {
           "adherence_score": {
             "title": "Adherence Score",
@@ -7346,8 +5528,7 @@
           },
           "daily_menus": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/WeeklyMealPlanDayMenu"
             },
             "title": "Daily Menus",
             "type": "array"
@@ -7363,11 +5544,6 @@
             "title": "Total Cost",
             "type": "number"
           },
-          "week_summary": {
-            "additionalProperties": true,
-            "title": "Week Summary",
-            "type": "object"
-          },
           "weekly_coverage": {
             "additionalProperties": {
               "type": "number"
@@ -7377,14 +5553,13 @@
           }
         },
         "required": [
-          "week_summary",
           "daily_menus",
           "weekly_coverage",
           "shopping_list",
           "total_cost",
           "adherence_score"
         ],
-        "title": "WeeklyMenuResponse",
+        "title": "WeeklyMealPlanResponse",
         "type": "object"
       },
       "WeeklyPlanResponse": {
@@ -7830,7 +6005,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProWeekPlanResponse"
+                  "$ref": "#/components/schemas/WeeklyMealPlanResponse"
                 }
               }
             },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { components } from "../../api/schema";
 import { getWeeklyPlan } from "../../api/premium/weekly-plan";
+import type { WeekPlanRequest, WeeklyMenuResponse } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
@@ -54,9 +54,8 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
-type WeeklyMenuResponse = components["schemas"]["WeeklyMenuResponse"];
-type UnknownRecord = Record<string, unknown>;
+type WeeklyDayMenu = WeeklyMenuResponse["daily_menus"][number];
+type WeeklyMeal = WeeklyDayMenu["meals"][number];
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
   sex: "female",
@@ -69,77 +68,30 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
-function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
-  return typeof day.date === "string"
-    ? day.date
-    : typeof day.day_label === "string"
-    ? day.day_label
-    : t("plan.day_fallback", { number: idx + 1 }); // e.g., "Day {number}"
+function getDayTitle(index: number, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return t("plan.day_fallback", { number: index + 1 });
 }
 
-function getDayEnergy(day: UnknownRecord): number | undefined {
-  return typeof day.energy_kcal === "number"
-    ? day.energy_kcal
-    : typeof day.kcal === "number"
-    ? day.kcal
-    : undefined;
+function getMealName(meal: WeeklyMeal): string {
+  return meal.title_translated || meal.title;
 }
 
-function getMealName(meal: UnknownRecord, mi: number, t: (key: string, options?: any) => string): string {
-  return typeof meal.name === "string"
-    ? meal.name
-    : typeof meal.meal === "string"
-    ? meal.meal
-    : t("plan.meal_fallback", { number: mi + 1 }); // e.g., "Meal {number}"
+function formatMetricLabel(key: string): string {
+  return key.replace(/_/g, " ");
 }
 
-function getMealEnergy(meal: UnknownRecord): number | undefined {
-  return typeof meal.energy_kcal === "number"
-    ? meal.energy_kcal
-    : typeof meal.kcal === "number"
-    ? meal.kcal
-    : undefined;
-}
+function getMealDetails(meal: WeeklyMeal): string[] {
+  const grams = Object.entries(meal.grams).slice(0, 2).map(
+    ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)} g`
+  );
 
-function getMealItems(meal: UnknownRecord): UnknownRecord[] {
-  const rawItems = Array.isArray(meal.items)
-    ? (meal.items as UnknownRecord[])
-    : [];
+  if (grams.length > 0) {
+    return grams;
+  }
 
-  const fallbackItem =
-    typeof meal.food_item === "string"
-      ? [
-          {
-            name: meal.food_item,
-            energy_kcal:
-              typeof meal.kcal === "number"
-                ? meal.kcal
-                : typeof meal.energy_kcal === "number"
-                ? meal.energy_kcal
-                : undefined,
-          },
-        ]
-      : [];
-
-  return rawItems.length > 0 ? rawItems : fallbackItem;
-}
-
-function getItemName(item: UnknownRecord, ii: number, t: (key: string, options?: any) => string): string {
-  return typeof item.name === "string"
-    ? item.name
-    : typeof item.title === "string"
-    ? item.title
-    : typeof item.food_item === "string"
-    ? item.food_item
-    : t("plan.item_fallback", { number: ii + 1 }); // e.g., "Item {number}"
-}
-
-function getItemEnergy(item: UnknownRecord): number | undefined {
-  return typeof item.energy_kcal === "number"
-    ? item.energy_kcal
-    : typeof item.kcal === "number"
-    ? item.kcal
-    : undefined;
+  return Object.entries(meal.macros).slice(0, 2).map(
+    ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)}`
+  );
 }
 
 export default function WeeklyPlanViewer() {
@@ -184,9 +136,7 @@ export default function WeeklyPlanViewer() {
     );
   }
 
-  const dailyMenus = Array.isArray(data?.daily_menus)
-    ? (data!.daily_menus as UnknownRecord[])
-    : [];
+  const dailyMenus = data?.daily_menus ?? [];
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -330,13 +280,9 @@ export default function WeeklyPlanViewer() {
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
-              const day = menu as UnknownRecord;
-              const dayTitle = getDayTitle(day, idx, t);
-              const dayEnergy = getDayEnergy(day);
-
-              const meals = Array.isArray(day.meals)
-                ? (day.meals as UnknownRecord[])
-                : [];
+              const dayTitle = getDayTitle(idx, t);
+              const dayEnergy = menu.kcal;
+              const meals = menu.meals;
 
               return (
                 <li
@@ -351,10 +297,8 @@ export default function WeeklyPlanViewer() {
                   </div>
                   <ul className="space-y-2">
                     {meals.map((meal, mi) => {
-                      const mealObj = meal as UnknownRecord;
-                      const mealName = getMealName(mealObj, mi, t);
-                      const mealEnergy = getMealEnergy(mealObj);
-                      const items = getMealItems(mealObj);
+                      const mealName = getMealName(meal);
+                      const items = getMealDetails(meal);
 
                       return (
                         <li
@@ -363,36 +307,26 @@ export default function WeeklyPlanViewer() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-medium">{mealName}</div>
-                            {typeof mealEnergy === "number" && (
-                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} {t('plan.kcal')}</div>
-                            )}
+                            <div className="text-sm opacity-70">{Math.round(meal.kcal)} {t('plan.kcal')}</div>
                           </div>
                           <ul className="mt-2 grid gap-1">
                             {items.length > 0 ? (
-                              items.map((item, ii) => {
-                                const itemObj = item as UnknownRecord;
-                                const itemName = getItemName(itemObj, ii, t);
-                                const itemEnergy = getItemEnergy(itemObj);
-                            return (
-                              <li key={`${itemName}-${ii}`} className="text-sm">
-                                • {itemName}
-                                {typeof itemEnergy === "number" && (
-                                  <span className="opacity-70"> — {Math.round(itemEnergy)} {t('plan.kcal')}</span>
-                                )}
-                              </li>
-                            );
-                          })
-                        ) : (
-                          <li className="text-sm opacity-60">{t('plan.noItems')}</li>
-                        )}
-                      </ul>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          );
-        })}
+                              items.map((item, ii) => (
+                                <li key={`${mealName}-${ii}`} className="text-sm">
+                                  • {item}
+                                </li>
+                              ))
+                            ) : (
+                              <li className="text-sm opacity-60">{t('plan.noItems')}</li>
+                            )}
+                          </ul>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
         )}
       </GlassCard>

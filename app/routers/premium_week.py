@@ -19,6 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.nutrition_targets import TargetsIn
+from app.schemas.weekly_plan import (
+    WeeklyMealPlanResponse,
+    normalize_weekly_plan_payload,
+)
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -85,14 +89,7 @@ class PremiumWeekPlanRequest(BaseModel):
     model_config = ConfigDict(title="PremiumWeekPlanRequest")
 
 
-class PremiumWeekPlanResponse(BaseModel):
-    model_config = ConfigDict(title="PremiumWeekPlanResponse")
-
-    daily_menus: List[Dict[str, Any]]
-    weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, float]
-    total_cost: float
-    adherence_score: float
+PremiumWeekPlanResponse = WeeklyMealPlanResponse
 
 
 def _missing_profile_detail(field: str) -> str:
@@ -275,7 +272,8 @@ async def generate_week_plan(
 
     # Wrap PremiumWeekPlanResponse constructor to match postprocess_fn signature
     def _postprocess_week(week: dict[str, Any]) -> PremiumWeekPlanResponse:
-        return PremiumWeekPlanResponse(**week)
+        normalized_week = normalize_weekly_plan_payload(week)
+        return PremiumWeekPlanResponse(**normalized_week)
 
     result = run_weekly_pipeline_guarded(
         generation_fn=build_week,

@@ -2,6 +2,23 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTargets, getWeeklyPlan } from '../api/premium';
 import type { TargetsRequest, TargetsApiResponse, WeeklyMenuResponse } from '../api/premium';
+import type { WeekPlanRequest } from '../api/premium/weekly-plan';
+
+function toWeekPlanRequest(request: TargetsRequest): WeekPlanRequest {
+  return {
+    sex: request.sex,
+    age: request.age,
+    height_cm: request.height_cm,
+    weight_kg: request.weight_kg,
+    activity: request.activity,
+    goal: request.goal,
+    diet_flags: request.diet_flags ?? [],
+    lang:
+      request.lang === 'ru' || request.lang === 'es' || request.lang === 'en'
+        ? request.lang
+        : 'en',
+  };
+}
 
 interface UseWhoTargetsWithWeeklyPlanOptions {
   onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMenuResponse) => void;
@@ -86,7 +103,7 @@ export function useWhoTargetsWithWeeklyPlan(
       }
 
       // Then generate weekly plan
-      const weeklyPlan = await getWeeklyPlan(request);
+      const weeklyPlan = await getWeeklyPlan(toWeekPlanRequest(request));
       setWeeklyPlanData(weeklyPlan);
 
       // Call success callback with both data

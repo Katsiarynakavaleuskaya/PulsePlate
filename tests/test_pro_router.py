@@ -63,10 +63,29 @@ class TestProRouterIsolated:
 
         def _fake_build_week(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             return {
-                "daily_menus": [{"day": 1, "meals": []}],
+                "daily_menus": [
+                    {
+                        "meals": [
+                            {
+                                "title": "salmon_bowl",
+                                "title_translated": "Salmon bowl",
+                                "grams": {"salmon": 150.0},
+                                "kcal": 420.0,
+                                "macros": {"protein_g": 35.0, "fat_g": 18.0, "carbs_g": 12.0},
+                                "micros": {"omega3_mg": 900.0},
+                                "price_est": "5.25",
+                            }
+                        ],
+                        "kcal": 420.0,
+                        "macros": {"protein_g": 35.0, "fat_g": 18.0, "carbs_g": 12.0},
+                        "micros": {"omega3_mg": 900.0},
+                        "coverage": {"omega3_mg": 85.0},
+                        "tips": ["Add greens"],
+                    }
+                ],
                 "weekly_coverage": {"protein_g": 1.0},
                 "shopping_list": {"rice_g": 500.0},
-                "total_cost": 0.0,
+                "total_cost": 5.25,
                 "adherence_score": 1.0,
             }
 
@@ -117,6 +136,8 @@ class TestProRouterIsolated:
         assert "shopping_list" in data
         assert "total_cost" in data
         assert "adherence_score" in data
+        assert data["daily_menus"][0]["meals"][0]["price_est"] == 5.25
+        assert data["daily_menus"][0]["total_cost"] == 5.25
 
     def test_weekly_meal_plan_pipeline_type_mismatch_raises_typeerror(
         self, monkeypatch: pytest.MonkeyPatch
