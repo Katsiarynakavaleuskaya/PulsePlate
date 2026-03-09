@@ -7,6 +7,8 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from tests.helpers.fitchef_runtime_helpers import make_mock_run_shopping_followup_task
+
 
 class TestShoppingListProRouterIsolated:
     """Isolated tests for the PRO shopping list router.
@@ -91,14 +93,15 @@ class TestShoppingListProRouterIsolated:
             },
         }
 
-        def _fake_generate(*, plan_data: Any, preferences: Any, source: str) -> Dict[str, Any]:
-            assert source == "inline_plan"
-            assert plan_data == {"days": []}
-            # preferences is a ShoppingListPreferences instance; avoid over-asserting
-            assert preferences.unit_system == "metric"
-            return expected
-
-        monkeypatch.setattr(self.mod, "generate_shopping_list_from_plan", _fake_generate)
+        captured: Dict[str, Any] = {}
+        monkeypatch.setattr(
+            self.mod.fitchef_runtime,
+            "run_shopping_followup_task",
+            make_mock_run_shopping_followup_task(
+                shopping_list=expected,
+                capture=captured,
+            ),
+        )
 
         payload: Dict[str, Any] = {
             "plan_data": {"days": []},
@@ -116,6 +119,10 @@ class TestShoppingListProRouterIsolated:
         assert body["total_items"] == 1
         assert body["meta"]["source"] == "inline_plan"
         assert body["meta"]["unit_system"] == "metric"
+        assert captured["task_type"] == "shopping_followup"
+        assert captured["plan_data"] == {"days": []}
+        assert captured["preferences"].unit_system == "metric"
+        assert captured["shopping_list_builder"] is self.mod.generate_shopping_list_from_plan
 
     def test_generate_shopping_list_422_group_by_recipe_not_supported(
         self, monkeypatch: pytest.MonkeyPatch
@@ -265,3 +272,36 @@ async def test_generate_shopping_list_plan_data_none_guard() -> None:
 
     assert exc_info.value.status_code == 500
     assert "plan_data is None" in exc_info.value.detail
+
+
+def test_generate_shopping_list_runtime_exception_no_leak(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
+) -> None:
+    """Unexpected runtime errors stay sanitized. / Ошибки runtime остаются без утечки деталей."""
+
+    import app.routers.shopping_list_pro as shopping_mod
+
+    async def _explode(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("traceback /private/tmp/internal.py secret-token")
+
+    monkeypatch.setattr(shopping_mod.fitchef_runtime, "run_shopping_followup_task", _explode)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            "/api/v1/pro/meal/shopping-list",
+            json={"plan_data": {"daily_menus": []}},
+            headers=pro_headers,
+        )
+
+    assert response.status_code == 500
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        detail = str(response.json().get("detail", ""))
+    else:
+        detail = response.text
+    lowered = detail.lower()
+    assert "traceback" not in lowered
+    assert "internal.py" not in lowered
+    assert "secret-token" not in lowered

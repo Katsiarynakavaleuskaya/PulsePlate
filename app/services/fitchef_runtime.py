@@ -17,10 +17,13 @@ from app.schemas.fitchef import (
     FitChefCoachInsightResult,
     FitChefCoachInsightTaskEnvelope,
     FitChefQuotaState,
+    FitChefShoppingFollowupResult,
+    FitChefShoppingFollowupTaskEnvelope,
     FitChefSourceItem,
     FitChefWeeklyPlanResult,
     FitChefWeeklyPlanTaskEnvelope,
 )
+from app.schemas.shopping_list import ShoppingListDTO
 from app.security.agent_control_plane import (
     AUDIT_SIGNING_KEY_ENV,
     persist_audit_envelope,
@@ -41,6 +44,7 @@ CBT_POLICY_ALLOWLIST = {
     ("llm.generate", "provider://default"),
 }
 WeeklyPlanBuilder = Callable[..., Any]
+ShoppingFollowupBuilder = Callable[..., ShoppingListDTO]
 
 
 def _build_cbt_prompt(query: str, rag_context: str) -> str:
@@ -396,4 +400,40 @@ async def run_weekly_plan_task(
         menu_builder,
     )
     result = FitChefWeeklyPlanResult(menu=menu_payload)
+    return result
+
+
+def _run_shopping_followup_builder(
+    task: FitChefShoppingFollowupTaskEnvelope,
+    shopping_list_builder: ShoppingFollowupBuilder,
+) -> ShoppingListDTO:
+    """Run shopping-followup builder. / Выполнить builder shopping-followup."""
+
+    if task.input.plan_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error: plan_data is None",
+        )
+
+    shopping_list = shopping_list_builder(
+        plan_data=task.input.plan_data,
+        preferences=task.input.preferences,
+        source="inline_plan",
+    )
+    return shopping_list
+
+
+async def run_shopping_followup_task(
+    task: FitChefShoppingFollowupTaskEnvelope,
+    *,
+    shopping_list_builder: ShoppingFollowupBuilder,
+) -> FitChefShoppingFollowupResult:
+    """Run shopping-followup orchestration. / Выполнить оркестрацию shopping-followup."""
+
+    shopping_list = await run_in_threadpool(
+        _run_shopping_followup_builder,
+        task,
+        shopping_list_builder,
+    )
+    result = FitChefShoppingFollowupResult(shopping_list=shopping_list)
     return result
