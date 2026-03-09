@@ -69,7 +69,7 @@ describe('normalizeWeekPlan', () => {
     expect(result.meta.total_days).toBe(0);
   });
 
-  it('should clamp coverage values into supported range', () => {
+  it('should preserve backend coverage values without frontend clamping', () => {
     const result = normalizeWeekPlan(
       createRawWeekPlan({
         weekly_coverage: {
@@ -82,9 +82,9 @@ describe('normalizeWeekPlan', () => {
       })
     );
 
-    expect(result.weekly_coverage.protein).toBe(300);
-    expect(result.weekly_coverage.iron).toBe(0);
-    expect(result.weekly_coverage.magnesium).toBe(300);
+    expect(result.weekly_coverage.protein).toBe(450);
+    expect(result.weekly_coverage.iron).toBe(-10);
+    expect(result.weekly_coverage.magnesium).toBe(330);
   });
 
   it('should ignore invalid numeric map values', () => {
@@ -101,10 +101,10 @@ describe('normalizeWeekPlan', () => {
     expect(result.shopping_list.bad).toBeUndefined();
   });
 
-  it('should clamp adherence score to 0..1', () => {
+  it('should preserve backend adherence score without frontend clamping', () => {
     const result = normalizeWeekPlan(createRawWeekPlan({ adherence_score: 2.5 }));
 
-    expect(result.metrics.adherence_score).toBe(1);
+    expect(result.metrics.adherence_score).toBe(2.5);
   });
 
   it('should keep meal maps typed and intact', () => {
@@ -123,9 +123,39 @@ describe('normalizeWeekPlan', () => {
       })
     );
 
-    expect(result.days).toHaveLength(1);
-    expect(result.days[0].meals).toHaveLength(0);
-    expect(result.days[0].kcal).toBe(0);
-    expect(result.days[0].total_cost).toBe(0);
+    expect(result.days).toHaveLength(0);
+    expect(result.meta.has_incomplete_data).toBe(true);
+  });
+
+  it('should mark incomplete data when fallbacks or drops happen', () => {
+    const result = normalizeWeekPlan(
+      createRawWeekPlan({
+        daily_menus: [
+          {
+            coverage: { protein: 102 },
+            kcal: 1860,
+            macros: { protein_g: 112 },
+            meals: [
+              {
+                title: 'Broken meal',
+                title_translated: 42 as unknown as string,
+                grams: { oats: 80, bad: Number.NaN },
+                kcal: Number.NaN,
+                macros: { protein_g: 16 },
+                micros: { iron_mg: 3.2 },
+                price_est: 'oops' as unknown as number,
+              },
+              null as unknown as RawWeekPlanResponse['daily_menus'][number]['meals'][number],
+            ],
+            micros: { iron_mg: 11.2 },
+            tips: ['Rotate vegetables', 42 as unknown as string],
+            total_cost: 18.5,
+          },
+        ],
+      })
+    );
+
+    expect(result.days[0].meals).toHaveLength(1);
+    expect(result.meta.has_incomplete_data).toBe(true);
   });
 });

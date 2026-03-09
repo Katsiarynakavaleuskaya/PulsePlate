@@ -35,13 +35,7 @@ export interface DayMenu {
 /** View model for weekly plan screen. */
 export interface WeekPlanVM {
   days: DayMenu[];
-  weekly_coverage: {
-    protein: number;
-    iron: number;
-    vitamin_c: number;
-    calcium: number;
-    [key: string]: number;
-  };
+  weekly_coverage: Record<string, number>;
   shopping_list: Record<string, number>;
   metrics: {
     total_cost: number;
