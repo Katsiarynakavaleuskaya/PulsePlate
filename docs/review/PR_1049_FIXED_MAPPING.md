@@ -42,6 +42,10 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#discussion_r2902589273 -> 3ea26eeb
   Disposition: FIXED
   Evidence: docs/roadmap/BACKLOG_LEDGER.md:163
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#pullrequestreview-3917801490
+  Disposition: NOT-A-BUG
+  Evidence: tests/test_compliance_control_plane.py:172; tests/test_compliance_control_plane.py:252
+  Reason: The test already starts with deterministic stale-record cleanup and removes the dedicated account row before exit; a mid-test assertion failure would not leak cross-test state beyond this isolated email-specific fixture path.
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
