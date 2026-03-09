@@ -82,14 +82,27 @@ class TestVIPProductionMode:
         """Test weekly menu generation error handling (line 155)."""
         monkeypatch.setenv("API_KEY", "secret-key")
 
+        from fastapi.routing import APIRoute
+
         import app
-        import app.routers.vip as vip_router
 
         def raise_exc(*args, **kwargs):
             # sourcery skip: raise-specific-error
             raise Exception("Menu generation failed")
 
-        monkeypatch.setattr(vip_router, "make_weekly_menu", raise_exc)
+        deprecated_route = next(
+            (
+                route
+                for route in app.app.routes
+                if isinstance(route, APIRoute)
+                and route.path == "/api/v1/vip/weekly-plan"
+                and "POST" in (route.methods or set())
+            ),
+            None,
+        )
+        assert deprecated_route is not None, "POST /api/v1/vip/weekly-plan route not found"
+        # Patch the registered route globals for deterministic behavior under reload/shim imports.
+        monkeypatch.setitem(deprecated_route.endpoint.__globals__, "make_weekly_menu", raise_exc)
 
         client = TestClient(cast(ASGIApp, app.app))
 
