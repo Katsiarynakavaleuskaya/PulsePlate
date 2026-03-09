@@ -99,6 +99,8 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
 
     assert legacy_response.status_code == 200, legacy_response.text
     assert canonical_response.status_code == 200, canonical_response.text
+    assert legacy_response.headers.get("Content-Type", "").startswith("application/json")
+    assert canonical_response.headers.get("Content-Type", "").startswith("application/json")
 
     legacy_data = legacy_response.json()
     canonical_menu = canonical_response.json()["menu"]
@@ -110,6 +112,9 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
     assert legacy_data["adherence_score"] == canonical_menu["adherence_score"]
     assert legacy_data["week_summary"]["week_start"] == canonical_menu["week_start"]
     assert legacy_data["week_summary"]["total_days"] == len(canonical_menu["daily_menus"])
+    assert legacy_data["week_summary"]["avg_daily_cost"] == round(
+        canonical_menu["total_cost"] / len(canonical_menu["daily_menus"]), 2
+    )
 
 
 def test_legacy_weekly_alias_rejects_targets_only_payload_with_guidance(
@@ -136,6 +141,7 @@ def test_legacy_weekly_alias_rejects_targets_only_payload_with_guidance(
     )
 
     assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
     detail = response.json()["detail"]
     assert "Targets-based weekly plans are not supported on this endpoint." in detail
     assert "/api/v1/premium/plan/week-flexible" in detail
@@ -154,6 +160,7 @@ def test_legacy_weekly_alias_returns_503_when_vip_module_disabled(
     response = client.post("/api/v1/premium/plan/week", json=_valid_payload(), headers=vip_headers)
 
     assert response.status_code == 503, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
     assert response.json()["detail"] == "VIP module is disabled"
 
 
@@ -165,6 +172,18 @@ def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
             "week_start": "2026-03-09",
             "daily_menus": [
                 "bad-day-entry",
+                {
+                    "date": "",
+                    "meals": [],
+                    "total_kcal": 0,
+                    "daily_cost": 0,
+                },
+                {
+                    "date": "2026-03-09",
+                    "meals": "bad-meals",
+                    "total_kcal": 0,
+                    "daily_cost": 0,
+                },
                 {
                     "date": "2026-03-10",
                     "meals": [],
@@ -197,7 +216,7 @@ def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None
         }
     )
 
-    assert response.weekly_coverage == {"protein": 1.0, "fiber": 0.84}
-    assert response.shopping_list == {"oats": 1.0, "rice": 250.0}
+    assert response.weekly_coverage == {"fiber": 0.84}
+    assert response.shopping_list == {"rice": 250.0}
     assert response.total_cost == 0.0
     assert response.adherence_score == 0.0

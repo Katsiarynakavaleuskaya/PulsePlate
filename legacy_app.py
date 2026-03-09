@@ -3236,8 +3236,13 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
         for raw_menu in raw_daily_menus:
             if not isinstance(raw_menu, dict):
                 continue
+            raw_date = raw_menu.get("date")
             raw_meals = raw_menu.get("meals")
-            meals = list(raw_meals) if isinstance(raw_meals, list) else []
+            if not isinstance(raw_date, str) or not raw_date.strip():
+                continue
+            if not isinstance(raw_meals, list):
+                continue
+            meals = list(raw_meals)
             total_kcal = raw_menu.get("total_kcal")
             if not isinstance(total_kcal, (int, float)):
                 total_kcal = sum(
@@ -3247,7 +3252,7 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
                 )
             daily_menus_payload.append(
                 {
-                    "date": str(raw_menu.get("date", "")),
+                    "date": raw_date,
                     "meals": meals,
                     "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
                     "daily_cost": _coerce_weekly_menu_float(raw_menu.get("daily_cost"), 0.0),
@@ -3259,7 +3264,9 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
         {
             key: float(value)
             for key, value in raw_weekly_coverage.items()
-            if isinstance(key, str) and isinstance(value, (int, float))
+            if isinstance(key, str)
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
         }
         if isinstance(raw_weekly_coverage, dict)
         else {}
@@ -3270,7 +3277,9 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
         {
             key: float(value)
             for key, value in raw_shopping_list.items()
-            if isinstance(key, str) and isinstance(value, (int, float))
+            if isinstance(key, str)
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
         }
         if isinstance(raw_shopping_list, dict)
         else {}
@@ -3284,7 +3293,11 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
         week_summary={
             "week_start": str(week_start),
             "total_days": len(daily_menus_payload),
-            "avg_daily_cost": round(total_cost / 7, 2) if total_cost else 0.0,
+            "avg_daily_cost": (
+                round(total_cost / len(daily_menus_payload), 2)
+                if total_cost and daily_menus_payload
+                else 0.0
+            ),
         },
         daily_menus=daily_menus_payload,
         weekly_coverage=weekly_coverage,
@@ -4578,7 +4591,9 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     include_in_schema=False,
     deprecated=True,
 )
-async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
+async def api_weekly_menu(
+    req: LegacyWeekPlanRequest,
+) -> WeeklyMenuResponse:
     """
     RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.
