@@ -89,3 +89,18 @@ Evidence: legacy_app.py:3302; tests/test_legacy_weekly_plan_alias_api.py:254
 Disposition: FIXED
 Commit: 76824910
 Evidence: docs/review/PR_1061_FIXED_MAPPING.md:16; legacy_app.py:3223; legacy_app.py:3302; tests/test_legacy_weekly_plan_alias_api.py:334
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907863018
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:34; scripts/ci/check_pr_body_phase2_gates.py:111; scripts/orchestration/review_mapping_artifact.py:101
+Reason: The canonical Phase 2 artifact contract requires these two checkbox lines to remain checked in `docs/review/PR_<N>_FIXED_MAPPING.md`; unchecking them would fail the artifact validator instead of reflecting current governance state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907863024 -> 3f42a408
+Disposition: FIXED
+Commit: 3f42a408
+Evidence: legacy_app.py:3229; legacy_app.py:3262; legacy_app.py:3272; tests/test_legacy_weekly_plan_alias_api.py:363
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3918134801
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:34; scripts/ci/check_pr_body_phase2_gates.py:111; legacy_app.py:3229; tests/test_legacy_weekly_plan_alias_api.py:363
+Reason: This summary aggregates the two inline findings captured immediately above: the checklist comment is not a bug under the current artifact contract, and the non-finite day-value recovery issue was fixed in `3f42a408`.
