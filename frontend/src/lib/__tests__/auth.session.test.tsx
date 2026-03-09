@@ -92,6 +92,26 @@ describe('AuthProvider session migration', () => {
     expect(result.current.isAuthenticated).toBe(true);
   });
 
+  it('clearApiKey clears server session state and returns to unauthenticated flow', async () => {
+    checkProSessionMock.mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAuthenticated).toBe(true);
+
+    await act(async () => {
+      await result.current.clearApiKey();
+    });
+
+    expect(clearProSessionMock).toHaveBeenCalledTimes(1);
+    expect(clearStoredApiKeyMock).toHaveBeenCalled();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.apiKey).toBeNull();
+  });
+
   it('fails closed when bootstrap session check stalls', async () => {
     vi.useFakeTimers();
     checkProSessionMock.mockImplementation(() => new Promise<boolean>(() => {}));
