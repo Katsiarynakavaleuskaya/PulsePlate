@@ -406,7 +406,7 @@ def _extract_api_key(request: Request) -> Optional[str]:
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
     """Create UserProfile from dictionary data with validation."""
-    profile = fitchef_runtime._build_weekly_user_profile(profile_data)
+    profile = fitchef_runtime.build_weekly_user_profile(profile_data)
     return cast("UserProfile", profile)
 
 

@@ -116,8 +116,13 @@ def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
     except (TypeError, ValueError):
         weight_val = 70.0
 
+    sex_raw = profile_data.get("sex")
+    sex_value: Literal["male", "female"] = "male"
+    if sex_raw in {"male", "female"}:
+        sex_value = cast(Literal["male", "female"], sex_raw)
+
     profile = UserProfile(
-        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
+        sex=sex_value,
         age=age_val,
         height_cm=height_val,
         weight_kg=weight_val,
@@ -141,13 +146,20 @@ def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
     return profile
 
 
+def build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
+    """Public profile helper for weekly runtime. / Публичный helper профиля для weekly runtime."""
+
+    profile = _build_weekly_user_profile(profile_data)
+    return profile
+
+
 def _run_weekly_menu_builder(
     profile_data: dict[str, Any],
     menu_builder: WeeklyPlanBuilder,
 ) -> dict[str, Any]:
     """Run weekly menu builder and serialize result. / Выполнить weekly builder и сериализовать результат."""
 
-    profile = _build_weekly_user_profile(profile_data)
+    profile = build_weekly_user_profile(profile_data)
     menu = menu_builder(profile)
     if menu is None:
         return {"mode": "echo"}

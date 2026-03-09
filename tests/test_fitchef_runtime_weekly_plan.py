@@ -108,7 +108,45 @@ def test_run_weekly_plan_task_uses_safe_numeric_fallbacks() -> None:
     assert getattr(profile, "age") == 30
     assert getattr(profile, "height_cm") == 175.0
     assert getattr(profile, "weight_kg") == 70.0
+    assert getattr(profile, "sex") == "male"
     assert result.menu == {"days": []}
+
+
+def test_run_weekly_plan_task_preserves_set_inputs() -> None:
+    """Set inputs stay intact. / Set-входы сохраняются без лишней нормализации."""
+
+    captured: dict[str, object] = {}
+
+    def fake_menu_builder(profile):
+        captured["profile"] = profile
+        return {"days": []}
+
+    task = FitChefWeeklyPlanTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefWeeklyPlanInput(
+            request_data={
+                "sex": "female",
+                "age": 30,
+                "height_cm": 170.0,
+                "weight_kg": 60.0,
+                "activity": "light",
+                "goal": "maintain",
+                "diet_flags": {"VEG"},
+                "medical_conditions": {"iron_deficiency"},
+            }
+        ),
+    )
+
+    asyncio.run(
+        fitchef_runtime.run_weekly_plan_task(
+            task,
+            menu_builder=fake_menu_builder,
+        )
+    )
+
+    profile = captured["profile"]
+    assert getattr(profile, "diet_flags") == {"VEG"}
+    assert getattr(profile, "medical_conditions") == {"iron_deficiency"}
 
 
 def test_run_weekly_plan_task_falls_back_when_builder_returns_none_or_non_dict() -> None:
@@ -134,3 +172,27 @@ def test_run_weekly_plan_task_falls_back_when_builder_returns_none_or_non_dict()
 
     assert none_result.menu == {"mode": "echo"}
     assert list_result.menu == {"mode": "echo"}
+
+
+def test_run_weekly_plan_task_propagates_builder_exceptions() -> None:
+    """Builder exceptions propagate. / Исключения builder проходят наружу как есть."""
+
+    task = FitChefWeeklyPlanTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefWeeklyPlanInput(request_data={"calories": 1800}),
+    )
+
+    def failing_menu_builder(profile):
+        raise RuntimeError("weekly builder exploded")
+
+    try:
+        asyncio.run(
+            fitchef_runtime.run_weekly_plan_task(
+                task,
+                menu_builder=failing_menu_builder,
+            )
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "weekly builder exploded"
+    else:
+        raise AssertionError("Expected RuntimeError from menu_builder to propagate")

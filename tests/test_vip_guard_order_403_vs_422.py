@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
+from tests.helpers.fitchef_runtime_helpers import make_mock_run_weekly_plan_task
 
 
 def test_vip_guard_403_before_422_no_key(client: TestClient) -> None:
@@ -94,14 +95,11 @@ def test_vip_guard_200_with_valid_tier_and_payload(
         "goal": "maintain",
     }
 
-    async def mock_run_weekly_plan_task(task, *, menu_builder):
-        assert task.task_type == "weekly_plan"
-        assert menu_builder is not None
-        return type("WeeklyPlanResult", (), {"menu": {"days": []}})()
+    captured: dict[str, object] = {}
 
     monkeypatch.setattr(
         "app.services.fitchef_runtime.run_weekly_plan_task",
-        mock_run_weekly_plan_task,
+        make_mock_run_weekly_plan_task(capture=captured),
     )
 
     # With valid VIP key
@@ -111,3 +109,5 @@ def test_vip_guard_200_with_valid_tier_and_payload(
         headers={"X-API-Key": TEST_KEY_VIP},
     )
     assert response.status_code == 200, "With valid VIP key and payload, should return 200"
+    assert captured["task_type"] == "weekly_plan"
+    assert captured["menu_builder"] is not None
