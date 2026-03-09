@@ -130,19 +130,21 @@
 
 ### PR-C (VIP alignment): Fix broken naming `/premium/plan/week`
 
+**Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061)
+
 **Goal:** `/api/v1/premium/plan/week` becomes clean alias to VIP canonical.
 
 **Changes:**
 - Delegate `/premium/plan/week` → `/vip/menu/weekly/plan`
 - Remove VIP business logic from premium endpoint (delegation only)
 - Parity test: responses equivalent
+- Hide `/premium/plan/week` from public OpenAPI while keeping runtime compatibility
 
 **DoD:**
-- Parity test passes
-- No VIP logic in premium endpoint
-- `pytest` + `diff-cover` ≥97%
-
-**Note:** PR-C description will be created in PR-C branch.
+- ✅ Parity test passes
+- ✅ No VIP logic in premium endpoint
+- ✅ `/api/v1/premium/plan/week` absent from generated public schema
+- ✅ `pytest` + `diff-cover` ≥97% on merged PR
 
 ---
 

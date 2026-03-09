@@ -1,7 +1,7 @@
 # Product Tier Remediation Plan
 
-**Status:** Action plan (derived from `PRODUCT_TIER_MAP.md` audit)
-**Last updated:** 2026-01-11
+**Status:** Action plan with PR-C completed (derived from `PRODUCT_TIER_MAP.md` audit)
+**Last updated:** 2026-03-09
 **Purpose:** Sequence remediation PRs to fix tier/namespace confusion
 
 ---
@@ -32,9 +32,12 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 ### PR-C: VIP Alignment
 
-* [ ] Fix `/api/v1/premium/plan/week` → delegate to `/api/v1/vip/menu/weekly/plan`
-* [ ] Remove VIP business logic from premium endpoint (delegation only)
-* [ ] Parity test: responses equivalent
+* [x] Fix `/api/v1/premium/plan/week` → delegate to `/api/v1/vip/menu/weekly/plan`
+* [x] Remove VIP business logic from premium endpoint (delegation only)
+* [x] Parity test: responses equivalent
+* [x] Hide `/api/v1/premium/plan/week` from public OpenAPI (`include_in_schema=False`)
+
+**Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061) on 2026-03-09
 
 ### PR-D: PRO Canon Exposure
 
@@ -75,7 +78,7 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 **Issue:** Requires VIP tier but lives under `/premium/*` namespace (deprecated PRO namespace).
 
-**Fix:** PR-C (delegation to `/api/v1/vip/menu/weekly/plan`).
+**Fix:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061) (delegation to `/api/v1/vip/menu/weekly/plan`, runtime-compatible alias retained, public schema hidden).
 
 **Source:** `docs/contracts/PRODUCT_TIER_MAP.md` section "Deprecated aliases with wrong namespace"
 

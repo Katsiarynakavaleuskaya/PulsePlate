@@ -3763,6 +3763,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ CI token pipeline lane and merge-governance documentation are merged and review-mapped
 
 
+- [x] P1: Weekly-plan VIP alias hygiene and schema visibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (API contract hygiene / OpenAPI surface discipline)
+  - Target PR: PR #1061 (`refactor(weekly-plan): thin legacy VIP weekly alias`)
+  - Status: ✅ Merged
+  - Merge SHA: 174a7bdb
+  - Area: backend / OpenAPI / legacy compatibility
+  - Finding Type: legacy alias delegation + schema visibility cleanup
+  - Reason: `/api/v1/premium/plan/week` was a VIP weekly-plan compatibility route living under the deprecated `/premium/*` namespace with its own legacy shaping path. PR #1061 reduced it to a thin compatibility alias over `/api/v1/vip/menu/weekly/plan`, kept runtime backward compatibility, hid the broken-name route from public OpenAPI, and added parity/normalization regressions for weekly-plan numeric fields.
+  - Links:
+    - [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061)
+    - `legacy_app.py`
+    - `tests/test_legacy_weekly_plan_alias_api.py`
+    - `tests/test_app_openapi_coverage.py`
+    - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md`
+    - `docs/contracts/OPENAPI_PATHS_AUDIT.md`
+    - `docs/review/PR_1061_FIXED_MAPPING.md`
+  - DoD:
+    - ✅ `/api/v1/premium/plan/week` delegates to `/api/v1/vip/menu/weekly/plan` without retaining VIP business logic in the legacy shim
+    - ✅ Runtime compatibility preserved for existing callers of the legacy VIP alias
+    - ✅ Public OpenAPI no longer exposes `/api/v1/premium/plan/week`
+    - ✅ Parity tests prove legacy alias responses match the canonical VIP weekly-plan route
+    - ✅ Weekly-plan numeric normalization covers malformed, non-finite, and overflow-prone values with deterministic regressions
+
+
 - [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (docs correctness)
