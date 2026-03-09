@@ -104,6 +104,36 @@ class TestFitChefMascotTierAndFlags:
         assert response.status_code == 503
         assert _json_body(response) == {"detail": "FEATURE_FITCHEF_MASCOT is disabled"}
 
+    def test_invalid_execution_mode_returns_503(self) -> None:
+        """Invalid execution mode must fail closed before runtime delegation."""
+
+        self.monkeypatch.setenv("FEATURE_FITCHEF_MASCOT", "true")
+        self.monkeypatch.setenv("FITCHEF_MASCOT_EXECUTION_MODE", "broken-mode")
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need help with snacks"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "agent_execution_mode_misconfigured"}
+
+    def test_review_required_execution_mode_returns_503(self) -> None:
+        """Review-required mode must not allow autonomous mascot execution."""
+
+        self.monkeypatch.setenv("FEATURE_FITCHEF_MASCOT", "true")
+        self.monkeypatch.setenv("FITCHEF_MASCOT_EXECUTION_MODE", "review-required")
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need help with snacks"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "agent_execution_review_required"}
+
     def test_route_delegates_to_fitchef_runtime(self) -> None:
         """Route should delegate once into FitChef runtime with mascot task envelope."""
 
@@ -233,9 +263,11 @@ class TestFitChefMascotRuntimeBehavior:
         """Audit/policy path must run before provider generation."""
 
         call_order: list[str] = []
+        audit_targets: list[tuple[str, str]] = []
 
         def _track_audit(**kwargs: object) -> None:
             call_order.append(str(kwargs["action"]))
+            audit_targets.append((str(kwargs["action"]), str(kwargs["target"])))
 
         mock_provider = MagicMock()
 
@@ -265,6 +297,10 @@ class TestFitChefMascotRuntimeBehavior:
         data = _json_body(response)
         assert data["quota_state"] == "consumed"
         assert call_order[:3] == ["rag.retrieve", "llm.generate", "provider.generate"]
+        assert audit_targets[:2] == [
+            ("rag.retrieve", "corpus://fitchef-agent"),
+            ("llm.generate", "provider://default"),
+        ]
 
     def test_blocked_mascot_output_is_rewritten_to_safe_fallback(self) -> None:
         """Blocked wellness language must return deterministic fallback copy."""
@@ -577,3 +613,68 @@ class TestFitChefMascotRuntimeCoverage:
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_mascot_unavailable"
+
+
+def test_prepare_mascot_draft_preserves_bulleted_action_items() -> None:
+    """Bullet/newline structure should survive action-item extraction."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "- Choose one balanced breakfast.\n"
+        "- Add protein to the first meal.\n"
+        "- Write down one craving trigger tonight.",
+        query="Need help after a tough day",
+    )
+
+    assert draft.action_items == [
+        "Choose one balanced breakfast.",
+        "Add protein to the first meal.",
+        "Write down one craving trigger tonight.",
+    ]
+
+
+def test_prepare_mascot_draft_empty_provider_text_uses_safe_fallback() -> None:
+    """Empty provider output must yield deterministic fallback warnings/actions."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft("   ", query="Need help with dinner")
+
+    assert draft.message.startswith("FitChef is here with wellness-only guidance.")
+    assert draft.warnings == ["empty_provider_response"]
+    assert draft.action_items[0].startswith("Choose one balanced next meal")
+
+
+def test_prepare_mascot_draft_uses_general_default_actions_when_no_keywords_match() -> None:
+    """Fallback actions should use the general meal path when snack keywords are absent."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "Warm encouragement with no explicit next steps.", query="Need dinner help"
+    )
+
+    assert draft.action_items == [
+        "Choose one balanced next meal you can realistically make today.",
+        "Add one protein or fiber anchor to that meal.",
+        "Notice one thought that makes nutrition feel harder and answer it kindly.",
+    ]
+
+
+def test_prepare_mascot_draft_sentence_fallback_filters_short_and_non_actionable_sentences() -> (
+    None
+):
+    """Sentence fallback should ignore weak fragments and keep actionable guidance only."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "Ok. Choose one simple breakfast. Add fruit to it. Nice.",
+        query="Need breakfast help",
+    )
+
+    assert draft.action_items == [
+        "Choose one simple breakfast.",
+        "Add fruit to it.",
+    ]

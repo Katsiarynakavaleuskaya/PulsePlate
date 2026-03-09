@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 LLM_TIMEOUT_SECONDS: float = 60.0
 CBT_POLICY_ALLOWLIST = {
     ("rag.retrieve", "corpus://cbt-agent"),
+    ("rag.retrieve", "corpus://fitchef-agent"),
     ("llm.generate", "provider://default"),
 }
 WeeklyPlanBuilder = Callable[..., Any]
@@ -224,7 +225,7 @@ async def run_coach_insight_task(
         await run_in_threadpool(
             _persist_privileged_action_audit,
             action="rag.retrieve",
-            target="corpus://cbt-agent",
+            target="corpus://fitchef-agent",
             mode=task.mode,
             endpoint=endpoint,
             metadata={
@@ -426,7 +427,7 @@ async def run_mascot_insight_task(
         await run_in_threadpool(
             _persist_privileged_action_audit,
             action="rag.retrieve",
-            target="corpus://cbt-agent",
+            target="corpus://fitchef-agent",
             mode=task.mode,
             endpoint=endpoint,
             metadata={

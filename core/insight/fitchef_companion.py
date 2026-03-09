@@ -71,8 +71,11 @@ Return a concise mascot-style coaching response with practical next steps."""
 def prepare_mascot_draft(raw_text: str, *, query: str) -> FitChefMascotDraft:
     """Normalize mascot output and rewrite blocker language deterministically."""
 
-    normalized = " ".join(raw_text.split()).strip()
-    trimmed = normalized[:_MAX_MESSAGE_LENGTH].strip()
+    normalized_lines = "\n".join(
+        " ".join(line.split()) for line in raw_text.splitlines() if line.strip()
+    ).strip()
+    normalized_message = " ".join(raw_text.split()).strip()
+    trimmed = normalized_message[:_MAX_MESSAGE_LENGTH].strip()
     report = validate_llm_output(trimmed, domain="fitchef_mascot")
     warnings: list[str] = []
 
@@ -84,7 +87,7 @@ def prepare_mascot_draft(raw_text: str, *, query: str) -> FitChefMascotDraft:
         warnings.append("wellness_language_rewritten")
         return _fallback_draft(query=query, warnings=warnings)
 
-    action_items = _extract_action_items(trimmed)
+    action_items = _extract_action_items(normalized_lines or raw_text)
     if not action_items:
         action_items = _default_action_items(query)
     return FitChefMascotDraft(message=trimmed, action_items=action_items, warnings=warnings)
