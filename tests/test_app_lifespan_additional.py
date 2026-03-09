@@ -96,8 +96,8 @@ async def test_lifespan_rejects_anonymous_api_toggle_in_env_production(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "require_server_salt", lambda: "salt" * 8)
-    monkeypatch.setitem(lifespan_globals, "require_vip_llm_monthly_limit", lambda: 30)
+    bootstrap_guards = pytest.importorskip("app.bootstrap.startup_guards")
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
@@ -118,8 +118,8 @@ async def test_lifespan_rejects_dev_api_toggle_in_env_staging(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "require_server_salt", lambda: "salt" * 8)
-    monkeypatch.setitem(lifespan_globals, "require_vip_llm_monthly_limit", lambda: 30)
+    bootstrap_guards = pytest.importorskip("app.bootstrap.startup_guards")
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "staging")
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")

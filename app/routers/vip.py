@@ -33,7 +33,12 @@ from app.utils.feature_flags import is_vip_module_enabled
 from app.routers.vip_shoplist import router as vip_shoplist_router
 from app.contracts.vip_contract import vip_error, vip_success
 from app.middleware.api_tiers import require_vip_tier
-from settings import get_runtime_env_name, is_production_like_env, is_truthy_env_var
+from settings import (
+    get_runtime_env_name,
+    is_explicit_developer_env,
+    is_production_like_env,
+    is_truthy_env_var,
+)
 
 if TYPE_CHECKING:
     from core.targets import UserProfile
@@ -175,9 +180,8 @@ def _is_dev_mode(app_env: str) -> bool:
     Returns:
         bool: True if in development mode
     """
-    # ALLOW_DEV_API_KEY only has effect outside production/staging
-    allow_dev = is_truthy_env_var("ALLOW_DEV_API_KEY", "false")
-    return (app_env in ("test", "testing", "dev", "development", "local")) or allow_dev
+    allow_dev = is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
+    return is_explicit_developer_env() and allow_dev
 
 
 def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:
@@ -272,7 +276,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             )
             return "anonymous"
         # Dev/test fallback for unit scenarios (not used by strict route wrappers)
-        if not is_production and not _explicit_false:
+        if is_dev_mode and not _explicit_false:
             _log_api_key_event(
                 "VIP endpoint accessed without API key in development mode.", is_production, app_env
             )
@@ -664,7 +668,12 @@ def _require_api_key_dev_legacy(request: Request) -> str:
                         detail="Forbidden: VIP access required",
                     ) from e
                 raise
-        return str(api_key)
+        if _is_dev_mode(app_env):
+            return str(api_key)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: VIP access required",
+        )
 
     # No API key provided
     if is_strict_env or debug_false:
@@ -681,7 +690,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
         "no",
         "off",
     }
-    if not is_production and not _explicit_false:
+    if _is_dev_mode(app_env) and not _explicit_false:
         _log_api_key_event(
             "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,

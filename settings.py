@@ -13,17 +13,20 @@ _EXPORT_SIGNING_PLACEHOLDERS = frozenset(
 )
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 _PRODUCTION_LIKE_ENVS = frozenset({"production", "prod", "staging"})
-_NON_PRODUCTION_ENVS = frozenset({"", "local", "dev", "development", "test", "testing", "ci"})
+_DEVELOPER_LIKE_ENVS = frozenset({"local", "dev", "development", "test", "testing", "ci"})
+_NON_PRODUCTION_ENVS = frozenset({""}) | _DEVELOPER_LIKE_ENVS
 
 
 def get_runtime_env_name() -> str:
     """Return canonical runtime environment label.
 
-    RU: Канонизирует имя окружения из APP_ENV/ENVIRONMENT.
-    EN: Canonicalizes runtime environment from APP_ENV/ENVIRONMENT.
+    RU: Канонизирует имя окружения, отдавая приоритет ENVIRONMENT над APP_ENV.
+    EN: Canonicalizes runtime environment, preferring ENVIRONMENT over APP_ENV.
     """
 
-    return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "local").strip().lower()
+    if environment := (os.getenv("ENVIRONMENT") or "").strip().lower():
+        return environment
+    return (os.getenv("APP_ENV") or "local").strip().lower()
 
 
 def is_truthy_env_var(name: str, default: str = "") -> bool:
@@ -43,12 +46,22 @@ def is_production_like_env() -> bool:
     EN: Canonically detects production-like mode from APP_ENV/ENVIRONMENT and DEBUG.
     """
 
-    runtime_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").strip().lower()
+    runtime_env = get_runtime_env_name()
     if runtime_env in _PRODUCTION_LIKE_ENVS:
         return True
     if runtime_env in (_NON_PRODUCTION_ENVS - {""}):
         return False
     return not is_truthy_env_var("DEBUG", "true")
+
+
+def is_explicit_developer_env() -> bool:
+    """Return whether runtime env is explicitly local/dev/test-like.
+
+    RU: Разрешает dev-only fallback только для явных local/dev/test окружений.
+    EN: Limits dev-only fallback to explicit local/dev/test environments.
+    """
+
+    return get_runtime_env_name() in _DEVELOPER_LIKE_ENVS
 
 
 def validate_api_key_toggle_guard() -> None:

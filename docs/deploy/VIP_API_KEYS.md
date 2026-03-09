@@ -131,10 +131,17 @@ If you were previously relying on anonymous access in production:
    export API_KEY=your-production-api-key
    ```
 
-2. **Or explicitly allow anonymous access** (not recommended for production):
+2. **Keep fail-closed toggles disabled**:
 
    ```bash
-   export ALLOW_ANONYMOUS_API_KEYS=true
+   export ALLOW_ANONYMOUS_API_KEYS=false
+   export ALLOW_DEV_API_KEY=false
+   ```
+
+3. **Restart and verify startup remains clean**:
+
+   ```bash
+   python -c "from settings import validate_api_key_toggle_guard; validate_api_key_toggle_guard()"
    ```
 
 ### Testing
@@ -162,7 +169,7 @@ curl -X POST http://localhost:8000/api/v1/vip/weekly-plan \
 
 ## Security Considerations
 
-1. **Never use `ALLOW_ANONYMOUS_API_KEYS=true` in production** unless absolutely necessary
+1. **Never enable `ALLOW_ANONYMOUS_API_KEYS=true` or `ALLOW_DEV_API_KEY=true` in production/staging**
 2. **Use strong API keys** in production environments
 3. **Monitor authentication logs** for suspicious activity
 4. **Rotate API keys regularly** in production
@@ -177,8 +184,9 @@ curl -X POST http://localhost:8000/api/v1/vip/weekly-plan \
    - Verify `APP_ENV` and `DEBUG` settings
 
 2. **Anonymous access allowed in production**
-   - Check if `ALLOW_ANONYMOUS_API_KEYS=true` is explicitly set
-   - Verify `APP_ENV` and `DEBUG` settings
+   - Treat this as a misconfiguration, not a supported workaround
+   - Remove `ALLOW_ANONYMOUS_API_KEYS=true` and `ALLOW_DEV_API_KEY=true`
+   - Configure a real `API_KEY` and keep production/staging fail-closed
 
 3. **Inconsistent behavior**
    - Ensure environment variables are set correctly
