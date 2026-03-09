@@ -50,7 +50,7 @@ FitChef v1 should orchestrate only three capabilities:
 Initial tool/domain bindings:
 
 - coaching insight: `app/routers/cbt_insight.py`
-- weekly planning: `app/routers/pro.py`, `app/services/weekly_plan/pipeline.py`
+- weekly planning: `app/routers/vip.py`, `app/schemas/vip.py`, `core/menu_engine.py`
 - shopping list: `app/routers/shopping_list_pro.py`
 
 Do not start with exports, realtime fan-out, or broad multi-tool autonomy.

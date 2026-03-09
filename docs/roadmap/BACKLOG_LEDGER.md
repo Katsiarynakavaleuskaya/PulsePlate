@@ -764,6 +764,82 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `pre-commit run --all-files` and `make verify` pass in follow-up PR
   - Blockers: None (deferred by scope, not blocked)
 
+<a id="ledger-p1-fitchef-phase1-wrapper"></a>
+- [ ] P1: FitChef Phase 1 wrapper
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-PHASE1-WRAPPER
+  - Status: Open
+  - Area: orchestration / backend runtime / coaching insight
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/fitchef.py`
+    - `app/routers/cbt_insight.py`
+  - Reason: The approved FitChef rollout order keeps `cbt_insight` as the first surface, but Phase 1 still needs one internal orchestration source of truth before weekly-plan and shopping-list bindings can reuse it.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - Internal `fitchef-agent` wrapper exists under backend runtime with typed internal task envelope only
+    - Existing `cbt_insight` public route delegates through the wrapper for `task_type=coach_insight`
+    - Current request/response contracts remain unchanged for clients
+    - Policy, quota, audit, RAG, and timeout ordering remain unchanged and regression-tested
+  - Blockers: None
+
+<a id="ledger-p1-fitchef-weekly-plan-binding"></a>
+- [ ] P1: FitChef weekly-plan task binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-WEEKLY-PLAN-BINDING
+  - Status: Open
+  - Area: orchestration / backend runtime / weekly planning
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/vip.py`
+    - `app/routers/vip.py`
+    - `core/menu_engine.py`
+  - Reason: After the internal FitChef wrapper lands, weekly-plan generation is the second approved Phase 1 task type and should reuse the same orchestration runtime instead of keeping planner orchestration embedded in the route layer.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=weekly_plan`
+    - Existing weekly-plan VIP route delegates through the wrapper and stays thin
+    - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
+    - VIP gate and planner behavior remain deterministic and regression-tested
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
+
+
+<a id="ledger-p1-fitchef-shopping-list-follow-up-binding"></a>
+- [ ] P1: FitChef shopping-list follow-up binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-SHOPPING-LIST-FOLLOW-UP-BINDING
+  - Status: Open
+  - Area: orchestration / backend runtime / shopping list
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/routers/shopping_list_pro.py`
+    - `app/schemas/shopping_list.py`
+    - `app/core/shopping_list/generator.py`
+  - Reason: The third approved Phase 1 task type is shopping-list follow-up, and the canonical integration target is `shopping_list_pro.py`, not the echo-style shoplist path under `vip.py`.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=shopping_followup`
+    - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
+    - XOR validation, unsupported-preferences handling, and tier-gate behavior remain unchanged and regression-tested
+    - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
+
 
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
   - Owner: @katsiaryna_kavaleuskaya
