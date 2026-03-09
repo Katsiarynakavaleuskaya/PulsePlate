@@ -141,7 +141,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def _is_production() -> bool:
     """Single source of truth for tests & runtime (do NOT cache settings here)."""
-    return is_production_like_env()
+    return bool(is_production_like_env())
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -168,7 +168,7 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     flag = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
     if is_production:
         return False
-    return flag
+    return bool(flag)
 
 
 def _is_dev_mode(app_env: str) -> bool:
@@ -181,7 +181,7 @@ def _is_dev_mode(app_env: str) -> bool:
         bool: True if in development mode
     """
     allow_dev = is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
-    return is_explicit_developer_env() and allow_dev
+    return bool(is_explicit_developer_env() and allow_dev)
 
 
 def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:
