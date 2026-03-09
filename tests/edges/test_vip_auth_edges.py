@@ -22,7 +22,7 @@ def test_require_api_key_allow_anonymous_nonprod():
     os.environ["APP_ENV"] = "development"
     os.environ["DEBUG"] = "true"
     os.environ["ALLOW_ANONYMOUS_API_KEYS"] = "true"
-    _clear(["API_KEY"])  # ensure no env API_KEY
+    _clear(["API_KEY", "ENVIRONMENT", "ALLOW_DEV_API_KEY"])  # ensure no env drift
 
     assert _require_api_key(None) == "anonymous"
 
@@ -33,7 +33,7 @@ def test_require_api_key_dev_fallback_returns_test_key():
     # Non-production, no explicit allow/deny → fallback to dev test key
     os.environ["APP_ENV"] = "local"
     os.environ["DEBUG"] = "true"
-    _clear(["ALLOW_ANONYMOUS_API_KEYS", "API_KEY"])  # default behavior
+    _clear(["ALLOW_ANONYMOUS_API_KEYS", "API_KEY", "ENVIRONMENT", "ALLOW_DEV_API_KEY"])
 
     assert _require_api_key(None) == "test_key"
 
@@ -75,7 +75,7 @@ def test_require_api_key_dev_legacy_nonprod_and_prod_allow():
     # Dev/local: returns TEST_KEY (not anonymous) when no explicit flag
     os.environ["APP_ENV"] = "dev"
     os.environ["DEBUG"] = "true"
-    _clear(["ALLOW_ANONYMOUS_API_KEYS", "API_KEY"])  # default
+    _clear(["ALLOW_ANONYMOUS_API_KEYS", "API_KEY", "ENVIRONMENT", "ALLOW_DEV_API_KEY"])
     mock_request = MagicMock(spec=Request)
     mock_request.headers.get.return_value = None
     assert _require_api_key_dev_legacy(mock_request) == TEST_KEY
@@ -84,6 +84,7 @@ def test_require_api_key_dev_legacy_nonprod_and_prod_allow():
     os.environ["APP_ENV"] = "production"
     os.environ["DEBUG"] = "false"
     os.environ["ALLOW_ANONYMOUS_API_KEYS"] = "true"
+    _clear(["ENVIRONMENT", "ALLOW_DEV_API_KEY"])
     mock_request = MagicMock(spec=Request)
     mock_request.headers.get.return_value = None
 

@@ -652,31 +652,19 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
 
-    # Treat staging like production for VIP
-    is_strict_env = _is_production() or os.getenv("APP_ENV", "").lower() == "staging"
-    debug_false = os.getenv("DEBUG", "").lower() == "false"
-
     if api_key:
-        # In production validate strictly; in dev/test accept any provided key
-        if is_production:
-            try:
-                return _require_api_key(api_key)
-            except HTTPException as e:
-                if e.status_code == status.HTTP_401_UNAUTHORIZED:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Forbidden: VIP access required",
-                    ) from e
-                raise
-        if _is_dev_mode(app_env):
-            return str(api_key)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: VIP access required",
-        )
+        try:
+            return _require_api_key(api_key)
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            raise
 
     # No API key provided
-    if is_strict_env or debug_false:
+    if is_production:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: VIP access required",
@@ -697,7 +685,10 @@ def _require_api_key_dev_legacy(request: Request) -> str:
             app_env,
         )
         return TEST_KEY
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden: VIP access required",
+    )
 
 
 @router.post(

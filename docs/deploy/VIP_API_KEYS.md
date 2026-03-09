@@ -8,15 +8,20 @@ The VIP router now implements production-safe API key authentication with config
 
 ### Environment Detection
 
-- **`APP_ENV`**: Primary environment identifier
+- **`ENVIRONMENT`**: Primary runtime environment identifier
   - Values: `production`, `staging`, `development`, `local`, `test`
   - Default: `local`
   - Used to determine if the application is running in production mode
 
+- **`APP_ENV`**: Legacy fallback environment identifier
+  - Values: `production`, `staging`, `development`, `local`, `test`
+  - Used only when `ENVIRONMENT` is unset
+  - **Rule:** `ENVIRONMENT` overrides `APP_ENV`
+
 - **`DEBUG`**: Debug mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
   - Default: `true`
-  - When `false`, the application is treated as production-like regardless of `APP_ENV`
+  - When `false`, the application is treated as production-like regardless of `ENVIRONMENT` / `APP_ENV`
 
 ### Anonymous Access Control
 
@@ -29,7 +34,7 @@ The VIP router now implements production-safe API key authentication with config
 - **`ALLOW_DEV_API_KEY`**: Legacy development mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
   - Default: `true`
-  - Used for backward compatibility with existing development workflows
+  - Used only for explicit local/dev/test workflows
   - **Hard rule:** must stay `false` in `production` / `staging`; startup now fails closed otherwise
 
 ### API Key Configuration
@@ -57,7 +62,7 @@ The VIP router now implements production-safe API key authentication with config
 
 ### Default Behavior
 
-- **Production environments** (`APP_ENV=production` or `DEBUG=false`) **reject anonymous access by default**
+- **Production environments** (`ENVIRONMENT=production`, legacy `APP_ENV=production`, or `DEBUG=false`) **reject anonymous access by default**
 - **Development environments** allow anonymous access by default but can be restricted
 
 ### Security Features
@@ -86,16 +91,17 @@ Log messages include:
 ### Production Configuration (Recommended)
 
 ```bash
-export APP_ENV=production
+export ENVIRONMENT=production
 export DEBUG=false
 export API_KEY=your-secret-api-key
 # ALLOW_ANONYMOUS_API_KEYS defaults to false
+export ALLOW_DEV_API_KEY=false
 ```
 
 ### Development Configuration
 
 ```bash
-export APP_ENV=development
+export ENVIRONMENT=development
 export DEBUG=true
 # ALLOW_ANONYMOUS_API_KEYS defaults to true
 ```
@@ -103,7 +109,7 @@ export DEBUG=true
 ### Staging Configuration (Strict)
 
 ```bash
-export APP_ENV=staging
+export ENVIRONMENT=staging
 export DEBUG=false
 export API_KEY=your-staging-api-key
 export ALLOW_ANONYMOUS_API_KEYS=false
@@ -113,10 +119,11 @@ export ALLOW_DEV_API_KEY=false
 ### Development Configuration (Restricted)
 
 ```bash
-export APP_ENV=development
+export ENVIRONMENT=development
 export DEBUG=true
 export ALLOW_ANONYMOUS_API_KEYS=false
 export API_KEY=your-dev-api-key
+export ALLOW_DEV_API_KEY=true
 ```
 
 ## Migration Guide

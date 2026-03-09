@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 import app
+from app.bootstrap import startup_guards as bootstrap_guards
 
 
 @pytest.mark.asyncio
@@ -96,7 +97,6 @@ async def test_lifespan_rejects_anonymous_api_toggle_in_env_production(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
-    bootstrap_guards = pytest.importorskip("app.bootstrap.startup_guards")
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("APP_ENV", raising=False)
@@ -118,7 +118,6 @@ async def test_lifespan_rejects_dev_api_toggle_in_env_staging(
     """
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
-    bootstrap_guards = pytest.importorskip("app.bootstrap.startup_guards")
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "staging")
     monkeypatch.delenv("APP_ENV", raising=False)

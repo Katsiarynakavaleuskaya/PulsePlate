@@ -20,11 +20,11 @@ def vip_anonymous_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "API_KEY",
         "APP_ENV",
         "ENVIRONMENT",
-        "ALLOW_DEV_API_KEY",
         "ALLOW_ANONYMOUS_API_KEYS",
         "DEBUG",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
 
 
 class TestVIPAnonymousAPIKeySafety:

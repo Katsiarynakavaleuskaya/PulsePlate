@@ -7,6 +7,15 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+VALID_WEEKLY_PLAN_REQUEST = {
+    "sex": "male",
+    "age": 30,
+    "height_cm": 175,
+    "weight_kg": 70,
+    "activity": "moderate",
+    "goal": "maintain",
+}
+
 
 @pytest.fixture(autouse=True)
 def vip_production_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,38 +73,35 @@ class TestVIPProductionMode:
         # Test request with correct API key
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
         # Should not be 401 (auth should pass)
         assert response.status_code != 401
 
-    @patch("app.routers.vip.make_weekly_menu")
-    def test_weekly_menu_generation_error_handling(
-        self, mock_make_weekly_menu, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_weekly_menu_generation_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test weekly menu generation error handling (line 155)."""
         monkeypatch.setenv("API_KEY", "secret-key")
 
-        # Mock make_weekly_menu to raise exception synchronously
+        import app
+        import app.routers.vip as vip_router
+
         def raise_exc(*args, **kwargs):
             # sourcery skip: raise-specific-error
             raise Exception("Menu generation failed")
 
-        mock_make_weekly_menu.side_effect = raise_exc
-
-        import app
+        monkeypatch.setattr(vip_router, "make_weekly_menu", raise_exc)
 
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
 
-        # Current guard order may reject before payload validation in production mode.
-        assert response.status_code in (403, 422)
+        assert response.status_code == 200
+        assert "Weekly plan generation failed" in response.json()["message"]
 
     def test_vip_recipes_endpoint_auth_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP recipes endpoint requires authentication."""
@@ -143,7 +149,7 @@ class TestVIPProductionMode:
         # Test 1: Invalid API key (lines 88-95)
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "wrong-key"},
         )
         assert response.status_code == 403
@@ -151,7 +157,7 @@ class TestVIPProductionMode:
         # Test 2: Valid API key allows access
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
         # Should not be 401 (auth should pass)

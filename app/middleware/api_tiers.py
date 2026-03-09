@@ -204,7 +204,8 @@ def _resolve_authorized_api_key_tier(
     """Resolve authorized tier in a single pass, else None."""
 
     is_production, app_env = _is_production_environment()
-    allow_developer_fallbacks = is_explicit_developer_env()
+    in_developer_env = is_explicit_developer_env()
+    allow_developer_api_keys = in_developer_env and is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
 
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
@@ -217,7 +218,7 @@ def _resolve_authorized_api_key_tier(
 
     resolved_env_tier = _resolve_tier_from_env(
         api_key,
-        allow_test_keys=allow_developer_fallbacks,
+        allow_test_keys=allow_developer_api_keys,
     )
     if resolved_env_tier is not None:
         if _tier_allows_access(resolved_env_tier, required_tier):
@@ -225,7 +226,7 @@ def _resolve_authorized_api_key_tier(
         return None
 
     # In non-production mode with anonymous access enabled, allow any key.
-    if allow_developer_fallbacks and not is_production:
+    if in_developer_env and not is_production:
         allow_anonymous = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
         if allow_anonymous:
             logger.warning(
