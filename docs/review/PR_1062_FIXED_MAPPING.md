@@ -5,12 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907913689 -> PENDING
-  - Disposition: FIXED
-  - Evidence: docs/review/PR_1062_FIXED_MAPPING.md:17
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#pullrequestreview-3918193710 -> PENDING
-  - Disposition: FIXED
-  - Evidence: docs/review/PR_1062_FIXED_MAPPING.md:17
+Disposition: FIXED
+Commit: see mapping entries below
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907913689 -> 6ef1396b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#pullrequestreview-3918193710 -> 6ef1396b
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
