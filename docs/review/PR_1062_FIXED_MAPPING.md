@@ -10,6 +10,8 @@ Commit: see mapping entries below
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907913689 -> 6ef1396b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#pullrequestreview-3918193710 -> 6ef1396b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907918443 -> d80da987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1062#discussion_r2907922523 -> d80da987
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
