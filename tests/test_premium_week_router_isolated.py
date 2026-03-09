@@ -79,6 +79,7 @@ def test_premium_week_pipeline_invalid_payload_surfaces_postprocess_error(
     try:
         response = client.post("/api/v1/premium/plan/week-flexible", json={})
         assert response.status_code == 500, response.text
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json()["code"] == "weekly_postprocess_failed"
     finally:
         client.close()

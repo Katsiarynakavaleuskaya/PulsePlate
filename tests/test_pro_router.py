@@ -182,6 +182,7 @@ class TestProRouterIsolated:
 
         response = self.client.post("/api/v1/pro/meal/weekly", json={})
         assert response.status_code == 500, response.text
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json()["code"] == "weekly_postprocess_failed"
 
     def test_weekly_meal_plan_missing_profile_field_400(

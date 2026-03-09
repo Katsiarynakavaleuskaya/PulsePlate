@@ -69,6 +69,18 @@ describe('normalizeWeekPlan', () => {
     expect(result.meta.total_days).toBe(0);
   });
 
+  it('should return safe defaults for malformed root payloads', () => {
+    const result = normalizeWeekPlan(null as unknown as RawWeekPlanResponse);
+
+    expect(result.days).toEqual([]);
+    expect(result.weekly_coverage).toEqual({});
+    expect(result.shopping_list).toEqual({});
+    expect(result.metrics.total_cost).toBe(0);
+    expect(result.metrics.adherence_score).toBe(0);
+    expect(result.meta.total_days).toBe(0);
+    expect(result.meta.has_incomplete_data).toBe(true);
+  });
+
   it('should preserve backend coverage values without frontend clamping', () => {
     const result = normalizeWeekPlan(
       createRawWeekPlan({

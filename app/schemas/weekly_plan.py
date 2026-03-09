@@ -21,63 +21,105 @@ def _coerce_float(value: Any) -> float | None:
     return numeric_value
 
 
-def _normalize_numeric_map(raw_value: Any) -> dict[str, float]:
-    """Keep only string->float pairs for OpenAPI-stable numeric maps."""
+def _require_mapping(raw_value: Any, field_name: str) -> Mapping[str, Any]:
+    """Require a mapping payload for typed weekly-plan normalization."""
     if not isinstance(raw_value, Mapping):
+        raise ValueError(f"{field_name} must be a mapping")
+    return raw_value
+
+
+def _require_non_empty_string(value: Any, field_name: str) -> str:
+    """Require a non-empty string for canonical typed fields."""
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a non-empty string")
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return normalized
+
+
+def _require_float(value: Any, field_name: str) -> float:
+    """Require a finite numeric value for canonical typed fields."""
+    numeric_value = _coerce_float(value)
+    if numeric_value is None:
+        raise ValueError(f"{field_name} must be a finite number")
+    return numeric_value
+
+
+def _normalize_numeric_map(raw_value: Any, field_name: str) -> dict[str, float]:
+    """Keep only string->float pairs for OpenAPI-stable numeric maps."""
+    if raw_value is None:
         return {}
+    mapping = _require_mapping(raw_value, field_name)
 
     normalized: dict[str, float] = {}
-    for key, value in raw_value.items():
+    for key, value in mapping.items():
         if not isinstance(key, str):
-            continue
-        numeric_value = _coerce_float(value)
-        if numeric_value is None:
-            continue
+            raise ValueError(f"{field_name} keys must be strings")
+        numeric_value = _require_float(value, f"{field_name}.{key}")
         normalized[key] = numeric_value
     return normalized
 
 
 def _normalize_meal_item(raw_value: Any) -> dict[str, Any]:
     """Normalize one meal entry into the canonical typed payload."""
-    payload = raw_value if isinstance(raw_value, Mapping) else {}
-    title = str(payload.get("title") or "")
-    title_translated = str(payload.get("title_translated") or title)
+    payload = _require_mapping(raw_value, "daily_menus[].meals[]")
+    title = _require_non_empty_string(payload.get("title"), "daily_menus[].meals[].title")
+    raw_title_translated = payload.get("title_translated")
+    if raw_title_translated is None:
+        title_translated = title
+    else:
+        title_translated = _require_non_empty_string(
+            raw_title_translated,
+            "daily_menus[].meals[].title_translated",
+        )
 
     return {
         "title": title,
         "title_translated": title_translated,
-        "grams": _normalize_numeric_map(payload.get("grams")),
-        "kcal": _coerce_float(payload.get("kcal")) or 0.0,
-        "macros": _normalize_numeric_map(payload.get("macros")),
-        "micros": _normalize_numeric_map(payload.get("micros")),
-        "price_est": _coerce_float(payload.get("price_est")),
+        "grams": _normalize_numeric_map(payload.get("grams"), "daily_menus[].meals[].grams"),
+        "kcal": _require_float(payload.get("kcal"), "daily_menus[].meals[].kcal"),
+        "macros": _normalize_numeric_map(payload.get("macros"), "daily_menus[].meals[].macros"),
+        "micros": _normalize_numeric_map(payload.get("micros"), "daily_menus[].meals[].micros"),
+        "price_est": (
+            None
+            if payload.get("price_est") is None
+            else _require_float(payload.get("price_est"), "daily_menus[].meals[].price_est")
+        ),
     }
 
 
 def _normalize_day_menu(raw_value: Any) -> dict[str, Any]:
     """Normalize one day menu into the canonical typed payload."""
-    payload = raw_value if isinstance(raw_value, Mapping) else {}
+    payload = _require_mapping(raw_value, "daily_menus[]")
     raw_meals = payload.get("meals")
-    meals = (
-        [_normalize_meal_item(meal) for meal in raw_meals] if isinstance(raw_meals, list) else []
-    )
+    if not isinstance(raw_meals, list):
+        raise ValueError("daily_menus[].meals must be a list")
+    meals = [_normalize_meal_item(meal) for meal in raw_meals]
 
     raw_tips = payload.get("tips")
-    tips = [str(tip) for tip in raw_tips] if isinstance(raw_tips, list) else []
+    if raw_tips is None:
+        tips: list[str] = []
+    elif isinstance(raw_tips, list):
+        tips = [_require_non_empty_string(tip, "daily_menus[].tips[]") for tip in raw_tips]
+    else:
+        raise ValueError("daily_menus[].tips must be a list of strings")
 
     total_cost = _coerce_float(payload.get("total_cost"))
-    if total_cost is None:
+    if payload.get("total_cost") is None:
         total_cost = round(
             sum(meal["price_est"] or 0.0 for meal in meals),
             2,
         )
+    elif total_cost is None:
+        raise ValueError("daily_menus[].total_cost must be a finite number")
 
     return {
         "meals": meals,
-        "kcal": _coerce_float(payload.get("kcal")) or 0.0,
-        "macros": _normalize_numeric_map(payload.get("macros")),
-        "micros": _normalize_numeric_map(payload.get("micros")),
-        "coverage": _normalize_numeric_map(payload.get("coverage")),
+        "kcal": _require_float(payload.get("kcal"), "daily_menus[].kcal"),
+        "macros": _normalize_numeric_map(payload.get("macros"), "daily_menus[].macros"),
+        "micros": _normalize_numeric_map(payload.get("micros"), "daily_menus[].micros"),
+        "coverage": _normalize_numeric_map(payload.get("coverage"), "daily_menus[].coverage"),
         "tips": tips,
         "total_cost": total_cost,
     }
@@ -85,24 +127,27 @@ def _normalize_day_menu(raw_value: Any) -> dict[str, Any]:
 
 def normalize_weekly_plan_payload(raw_value: Any) -> dict[str, Any]:
     """Normalize build_week output before validating with typed DTOs."""
-    payload = raw_value if isinstance(raw_value, Mapping) else {}
+    payload = _require_mapping(raw_value, "weekly_plan")
     raw_daily_menus = payload.get("daily_menus")
-    daily_menus = (
-        [_normalize_day_menu(day) for day in raw_daily_menus]
-        if isinstance(raw_daily_menus, list)
-        else []
-    )
+    if not isinstance(raw_daily_menus, list):
+        raise ValueError("weekly plan payload missing required daily_menus list")
+    daily_menus = [_normalize_day_menu(day) for day in raw_daily_menus]
 
     total_cost = _coerce_float(payload.get("total_cost"))
-    if total_cost is None:
+    if payload.get("total_cost") is None:
         total_cost = round(sum(day["total_cost"] for day in daily_menus), 2)
+    elif total_cost is None:
+        raise ValueError("weekly_plan.total_cost must be a finite number")
 
     return {
         "daily_menus": daily_menus,
-        "weekly_coverage": _normalize_numeric_map(payload.get("weekly_coverage")),
-        "shopping_list": _normalize_numeric_map(payload.get("shopping_list")),
+        "weekly_coverage": _normalize_numeric_map(
+            payload.get("weekly_coverage"),
+            "weekly_coverage",
+        ),
+        "shopping_list": _normalize_numeric_map(payload.get("shopping_list"), "shopping_list"),
         "total_cost": total_cost,
-        "adherence_score": _coerce_float(payload.get("adherence_score")) or 0.0,
+        "adherence_score": _require_float(payload.get("adherence_score"), "adherence_score"),
     }
 
 

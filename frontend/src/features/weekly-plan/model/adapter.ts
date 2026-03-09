@@ -153,6 +153,23 @@ function normalizeWeeklyCoverage(
 
 export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
   const state: NormalizationState = { incomplete: false };
+  if (!isObjectRecord(raw)) {
+    markIncomplete(state);
+    return {
+      days: [],
+      weekly_coverage: {},
+      shopping_list: {},
+      metrics: {
+        total_cost: 0,
+        adherence_score: 0,
+      },
+      meta: {
+        total_days: 0,
+        has_incomplete_data: state.incomplete,
+      },
+    };
+  }
+
   const days = Array.isArray(raw.daily_menus)
     ? raw.daily_menus.flatMap((menu, index) => {
         if (!isObjectRecord(menu)) {
