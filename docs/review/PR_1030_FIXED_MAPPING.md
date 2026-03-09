@@ -32,6 +32,12 @@ Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storag
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912061840 -> a027c2fa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912064752 -> a027c2fa
 
+Disposition: FIXED
+Commit: fa6fe1c2
+Evidence: `frontend/src/auth/storage.ts:8`, `frontend/src/auth/storage.ts:34`, `frontend/src/auth/storage.ts:42`, `frontend/src/auth/__tests__/storage.test.ts:107`, `frontend/src/auth/__tests__/storage.test.ts:114`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2905162666 -> fa6fe1c2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3915106530 -> fa6fe1c2
+
 ## Merge Readiness
 - [x] Local hard gates passed (`make verify`)
 - [ ] Full GitHub current-head required checks passed
