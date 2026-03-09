@@ -499,6 +499,9 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         In development mode, test keys return their respective tiers.
     """
     is_production, _ = _is_production_environment()
+    allow_developer_api_keys = is_explicit_developer_env() and is_truthy_env_var(
+        "ALLOW_DEV_API_KEY", "true"
+    )
 
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
@@ -507,7 +510,10 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
             return SubscriptionTier.FREE
 
-    env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    env_tier = _resolve_tier_from_env(
+        api_key,
+        allow_test_keys=allow_developer_api_keys and not is_production,
+    )
     return env_tier if env_tier is not None else SubscriptionTier.FREE
 
 

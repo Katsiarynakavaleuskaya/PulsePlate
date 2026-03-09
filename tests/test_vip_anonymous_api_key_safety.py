@@ -144,6 +144,7 @@ class TestVIPAnonymousAPIKeySafety:
         """Test that development mode allows anonymous access by default."""
         monkeypatch.setenv("APP_ENV", "development")
         monkeypatch.setenv("DEBUG", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
 
         import app
 
@@ -161,13 +162,13 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        # Should not be 401 (anonymous access allowed in development)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_local_mode_allows_anonymous_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that local mode allows anonymous access by default."""
         monkeypatch.setenv("APP_ENV", "local")
         monkeypatch.setenv("DEBUG", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
 
         import app
 
@@ -185,13 +186,13 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        # Should not be 401 (anonymous access allowed in local development)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_test_mode_allows_anonymous_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that test mode allows anonymous access by default."""
         monkeypatch.setenv("APP_ENV", "test")
         monkeypatch.setenv("DEBUG", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
 
         import app
 
@@ -209,8 +210,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        # Should not be 401 (anonymous access allowed in test mode)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_explicit_anonymous_disabled_in_development(
         self, monkeypatch: pytest.MonkeyPatch
@@ -283,6 +283,7 @@ class TestVIPAnonymousAPIKeySafety:
         """Test that development mode logs info when anonymous access is used."""
         monkeypatch.setenv("APP_ENV", "development")
         monkeypatch.setenv("DEBUG", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
 
         import app
 
@@ -300,8 +301,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        # Should not be 401 (anonymous access allowed in development)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_production_with_valid_api_key_works(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that production mode works correctly with valid API key."""
@@ -326,8 +326,7 @@ class TestVIPAnonymousAPIKeySafety:
             },
             headers={"X-API-Key": "secret-key"},
         )
-        # Should not be 401 (valid API key)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_production_with_invalid_api_key_rejects(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that production mode rejects invalid API key."""
@@ -374,8 +373,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        # Should not be 401 (default is local development mode)
-        assert response.status_code != 401
+        assert response.status_code in (401, 403)
 
     def test_unknown_environment_rejects_anonymous_access(
         self, monkeypatch: pytest.MonkeyPatch

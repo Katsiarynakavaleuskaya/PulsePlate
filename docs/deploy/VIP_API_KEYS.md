@@ -21,13 +21,13 @@ The VIP router now implements production-safe API key authentication with config
 - **`DEBUG`**: Debug mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
   - Default: `true`
-  - When `false`, the application is treated as production-like regardless of `ENVIRONMENT` / `APP_ENV`
+  - Helps opt unknown environments into production-like mode when the runtime env is not explicitly `development`, `local`, or `test`
 
 ### Anonymous Access Control
 
 - **`ALLOW_ANONYMOUS_API_KEYS`**: Controls whether anonymous API key access is permitted
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
-  - Default: `false` in production/staging, `true` in development
+  - Default: `false`
   - When `false`, requests without API keys are rejected with 401 Unauthorized
   - **Hard rule:** must stay `false` in `production` / `staging`; startup now fails closed otherwise
 
@@ -51,19 +51,20 @@ The VIP router now implements production-safe API key authentication with config
 | `production` | `false` | `true` | **Startup error** - unsafe anonymous toggle rejected |
 | `staging` | `false` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
 | `staging` | `false` | `true` | **Startup error** - unsafe anonymous toggle rejected |
-| `development` | `true` | `true` (default) | **Allow anonymous access** - Log info |
-| `development` | `true` | `false` | **Reject anonymous access** - 401 Unauthorized |
-| `local` | `true` | `true` (default) | **Allow anonymous access** - Log info |
-| `local` | `true` | `false` | **Reject anonymous access** - 401 Unauthorized |
-| `test` | `true` | `true` (default) | **Allow anonymous access** - Log info |
-| `test` | `true` | `false` | **Reject anonymous access** - 401 Unauthorized |
+| `development` | `true` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
+| `development` | `true` | `true` | **Allow anonymous access** - Log info |
+| `local` | `true` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
+| `local` | `true` | `true` | **Allow anonymous access** - Log info |
+| `test` | `true` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
+| `test` | `true` | `true` | **Allow anonymous access** - Log info |
 
 ## Production Safety
 
 ### Default Behavior
 
-- **Production environments** (`ENVIRONMENT=production`, legacy `APP_ENV=production`, or `DEBUG=false`) **reject anonymous access by default**
-- **Development environments** allow anonymous access by default but can be restricted
+- **Production-like environments** reject anonymous access by default when `ENVIRONMENT` / `APP_ENV` are not explicitly `development`, `local`, or `test`
+- **`DEBUG=false` alone is not enough** to override an explicit developer-like runtime label
+- **Development environments** reject anonymous access by default and only allow it when `ALLOW_ANONYMOUS_API_KEYS=true`
 
 ### Security Features
 
@@ -103,7 +104,8 @@ export ALLOW_DEV_API_KEY=false
 ```bash
 export ENVIRONMENT=development
 export DEBUG=true
-# ALLOW_ANONYMOUS_API_KEYS defaults to true
+export ALLOW_ANONYMOUS_API_KEYS=true
+export ALLOW_DEV_API_KEY=true
 ```
 
 ### Staging Configuration (Strict)
@@ -151,6 +153,9 @@ If you were previously relying on anonymous access in production:
    python -c "from settings import validate_api_key_toggle_guard; validate_api_key_toggle_guard()"
    ```
 
+4. **Do not use `ALLOW_ANONYMOUS_API_KEYS=true` or `ALLOW_DEV_API_KEY=true` as a production workaround.**
+   Configure a real `API_KEY` instead.
+
 ### Testing
 
 To test the new authentication behavior:
@@ -187,8 +192,9 @@ curl -X POST http://localhost:8000/api/v1/vip/weekly-plan \
 ### Common Issues
 
 1. **401 Unauthorized in development**
-   - Check if `ALLOW_ANONYMOUS_API_KEYS=false` is set
-   - Verify `APP_ENV` and `DEBUG` settings
+   - Check if `ALLOW_ANONYMOUS_API_KEYS=true` is set for the anonymous flow you expect
+   - Verify `ALLOW_DEV_API_KEY=true` for deterministic dev/test keys
+   - Verify `APP_ENV` / `ENVIRONMENT` and `DEBUG` settings
 
 2. **Anonymous access allowed in production**
    - Treat this as a misconfiguration, not a supported workaround

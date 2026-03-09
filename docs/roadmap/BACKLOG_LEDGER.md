@@ -337,10 +337,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-LEGACY-RUNTIME-ENV-CANONICALIZATION
+  - Follow-up from PR `#1054` (parent: `ledger-p1-api-key-toggle-guard`)
   - Area: backend / security / legacy compatibility
   - Finding Type: configuration drift
   - Reason: `legacy_app.py` still contains module-level `APP_ENV`-only gates for local `.env` loading, dev-only docs, test-router registration, and `/debug_env`. This drifts from the canonical `ENVIRONMENT`-first runtime helpers introduced by the API key toggle guard and can re-enable development-only surfaces when only `ENVIRONMENT` is set in production-like deployments.
   - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054`
+    - `#ledger-p1-api-key-toggle-guard`
     - `legacy_app.py`
     - `settings.py`
     - `docs/deploy/VIP_API_KEYS.md`

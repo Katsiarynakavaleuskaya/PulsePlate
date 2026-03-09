@@ -76,8 +76,7 @@ class TestVIPProductionMode:
             json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
-        # Should not be 401 (auth should pass)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_weekly_menu_generation_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test weekly menu generation error handling (line 155)."""
@@ -160,8 +159,7 @@ class TestVIPProductionMode:
             json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
-        # Should not be 401 (auth should pass)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
     def test_vip_app_get_api_key_http_exception_403(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test app.get_api_key raising HTTPException with 403 (line 88-92)."""
