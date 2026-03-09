@@ -87,7 +87,8 @@ def prepare_mascot_draft(raw_text: str, *, query: str) -> FitChefMascotDraft:
         warnings.append("wellness_language_rewritten")
         return _fallback_draft(query=query, warnings=warnings)
 
-    action_items = _extract_action_items(normalized_lines or raw_text)
+    bounded_action_source = (normalized_lines or raw_text)[:_MAX_MESSAGE_LENGTH]
+    action_items = _extract_action_items(bounded_action_source)
     if not action_items:
         action_items = _default_action_items(query)
     return FitChefMascotDraft(message=trimmed, action_items=action_items, warnings=warnings)

@@ -641,6 +641,18 @@ def test_prepare_mascot_draft_preserves_bulleted_action_items() -> None:
     ]
 
 
+def test_prepare_mascot_draft_bounds_action_items_to_safe_window() -> None:
+    """Action extraction must stay within the validated message window."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    long_prefix = "Choose one steady breakfast. " * 45
+    hidden_tail = "\n- Hidden tail action that should never leak."
+    draft = prepare_mascot_draft(long_prefix + hidden_tail, query="Need breakfast help")
+
+    assert all("Hidden tail action" not in item for item in draft.action_items)
+
+
 def test_prepare_mascot_draft_empty_provider_text_uses_safe_fallback() -> None:
     """Empty provider output must yield deterministic fallback warnings/actions."""
 

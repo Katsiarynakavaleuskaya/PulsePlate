@@ -225,7 +225,7 @@ async def run_coach_insight_task(
         await run_in_threadpool(
             _persist_privileged_action_audit,
             action="rag.retrieve",
-            target="corpus://fitchef-agent",
+            target="corpus://cbt-agent",
             mode=task.mode,
             endpoint=endpoint,
             metadata={
