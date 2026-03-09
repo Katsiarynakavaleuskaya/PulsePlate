@@ -150,7 +150,7 @@ If you were previously relying on anonymous access in production:
 3. **Restart and verify startup remains clean**:
 
    ```bash
-   python -c "from settings import validate_api_key_toggle_guard; validate_api_key_toggle_guard()"
+   python -c "from app.bootstrap.startup_guards import run_startup_guards; run_startup_guards()"
    ```
 
 4. **Do not use `ALLOW_ANONYMOUS_API_KEYS=true` or `ALLOW_DEV_API_KEY=true` as a production workaround.**
@@ -162,7 +162,7 @@ To test the new authentication behavior:
 
 ```bash
 # Test production mode rejection
-export APP_ENV=production
+export ENVIRONMENT=production
 export DEBUG=false
 # No API_KEY set
 curl -X POST http://localhost:8000/api/v1/vip/weekly-plan \
