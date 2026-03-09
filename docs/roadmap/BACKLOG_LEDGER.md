@@ -4134,6 +4134,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
 
+<a id="ledger-p1-compliance-runtime-slice-2"></a>
+- [ ] P1: Compliance runtime slice 2 for AI wellness consent orchestration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (privacy/compliance)
+  - Target PR: PR-TBD (`feat/compliance-runtime-slice-2-consent-dsar`)
+  - Status: Planned
+  - Area: backend / compliance / legal-runtime
+  - Finding Type: deferred follow-up
+  - Reason: Compliance Runtime Slice 1 ships transparency, privacy payload assembly, and minimization only. This follow-up is intentionally narrowed to AI wellness consent context/orchestration so it does not duplicate the broader P0 EU-first compliance control plane epic.
+  - Carryover From:
+    - PR `#1046` (`feat: EU-first compliance control plane`)
+    - `docs/review/PR_1046_FIXED_MAPPING.md`
+  - Carryover Note: Public DSAR/export/delete boundaries and regulated/provider-lane separation remain tracked by the P0 epic at `#ledger-p0-eu-compliance-control-plane-follow-through`; this P1 item owns only the next tactical consent slice for wellness AI surfaces.
+  - Links:
+    - `#ledger-p0-eu-compliance-control-plane-follow-through`
+    - `core/compliance/privacy.py`
+    - `core/compliance/dsar.py`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Backend consent context is defined for AI wellness surfaces without changing deterministic wellness calculations
+    - AI wellness routes expose explicit consent-context requirements in runtime/docs without introducing a regulated/clinical lane
+    - DSAR/export/delete public-surface decisions remain linked to the P0 epic and are not duplicated in this slice
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
 
 - [x] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
   - Owner: @katsiaryna_kavaleuskaya
