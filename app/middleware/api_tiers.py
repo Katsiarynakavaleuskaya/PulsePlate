@@ -37,6 +37,7 @@ from app.routers.api_key import api_key_header
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
+from settings import get_runtime_env_name, is_production_like_env, is_truthy_env_var
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +94,8 @@ TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test k
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()
-ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
-# Note: SUBSCRIPTION_DB_ENABLED is checked dynamically in code to support testing
+# Note: SUBSCRIPTION_DB_ENABLED and ALLOW_ANONYMOUS_API_KEYS are checked dynamically in code
+# to support testing and avoid import-time config freeze.
 
 
 def _is_subscription_db_enabled() -> bool:
@@ -191,11 +187,8 @@ def _is_production_environment() -> tuple[bool, str]:
     Returns:
         tuple[bool, str]: (is_production, app_env)
     """
-    app_env = os.getenv("APP_ENV", "local").lower()
-    debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
-    # Production if env is production/staging AND debug is off
-    is_production = (app_env in ("production", "prod", "staging")) and (not debug_mode)
-    return is_production, app_env
+    app_env = get_runtime_env_name()
+    return is_production_like_env(), app_env
 
 
 def _resolve_authorized_api_key_tier(
@@ -224,12 +217,7 @@ def _resolve_authorized_api_key_tier(
 
     # In non-production mode with anonymous access enabled, allow any key.
     if not is_production:
-        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
-        )
+        allow_anonymous = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
         if allow_anonymous:
             logger.warning(
                 "Anonymous API key accepted in %s mode for tier %s",

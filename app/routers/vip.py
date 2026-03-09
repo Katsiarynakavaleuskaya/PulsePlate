@@ -33,6 +33,7 @@ from app.utils.feature_flags import is_vip_module_enabled
 from app.routers.vip_shoplist import router as vip_shoplist_router
 from app.contracts.vip_contract import vip_error, vip_success
 from app.middleware.api_tiers import require_vip_tier
+from settings import get_runtime_env_name, is_production_like_env, is_truthy_env_var
 
 if TYPE_CHECKING:
     from core.targets import UserProfile
@@ -46,7 +47,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 """
 
 # Test key constant for development mode only
-TEST_KEY = "test_key"  # nosec B105  # Development mode only
+TEST_KEY = "test_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = is_vip_module_enabled()
@@ -135,7 +136,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def _is_production() -> bool:
     """Single source of truth for tests & runtime (do NOT cache settings here)."""
-    return os.getenv("APP_ENV", "").lower() == "production"
+    return is_production_like_env()
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -144,10 +145,8 @@ def _is_production_environment() -> tuple[bool, str]:
     Returns:
         tuple[bool, str]: (is_production, app_env)
     """
-    app_env = os.getenv("APP_ENV", "local").lower()
-    # Production detection: only APP_ENV, not DEBUG (for test compatibility)
-    is_production = app_env == "production"
-    return is_production, app_env
+    app_env = get_runtime_env_name()
+    return is_production_like_env(), app_env
 
 
 def _should_allow_anonymous_access(is_production: bool) -> bool:
@@ -161,10 +160,9 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     """
     # Default is strict.
     # In production-like environments, allow only if explicitly enabled.
-    flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in ("true", "1", "yes", "on")
+    flag = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
     if is_production:
-        # Default deny in production unless explicitly allowed
-        return flag
+        return False
     return flag
 
 
@@ -178,8 +176,8 @@ def _is_dev_mode(app_env: str) -> bool:
         bool: True if in development mode
     """
     # ALLOW_DEV_API_KEY only has effect outside production/staging
-    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "false").lower() == "true"
-    return app_env in ("test", "testing", "dev", "development", "local") or allow_dev
+    allow_dev = is_truthy_env_var("ALLOW_DEV_API_KEY", "false")
+    return (app_env in ("test", "testing", "dev", "development", "local")) or allow_dev
 
 
 def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:

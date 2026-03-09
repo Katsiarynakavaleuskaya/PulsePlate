@@ -19,6 +19,15 @@ from app.middleware import api_tiers
 def vip_auth_env(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv(
+        "PRO_API_KEYS",
+        "test_pro_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+    )
+    monkeypatch.setenv(
+        "VIP_API_KEYS",
+        "test_vip_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+    )
 
 
 class TestVIPCoverageAdditional:

@@ -22,13 +22,15 @@ The VIP router now implements production-safe API key authentication with config
 
 - **`ALLOW_ANONYMOUS_API_KEYS`**: Controls whether anonymous API key access is permitted
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
-  - Default: `false` in production, `true` in development
+  - Default: `false` in production/staging, `true` in development
   - When `false`, requests without API keys are rejected with 401 Unauthorized
+  - **Hard rule:** must stay `false` in `production` / `staging`; startup now fails closed otherwise
 
 - **`ALLOW_DEV_API_KEY`**: Legacy development mode flag
   - Values: `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`
   - Default: `true`
   - Used for backward compatibility with existing development workflows
+  - **Hard rule:** must stay `false` in `production` / `staging`; startup now fails closed otherwise
 
 ### API Key Configuration
 
@@ -41,9 +43,9 @@ The VIP router now implements production-safe API key authentication with config
 | Environment | DEBUG | ALLOW_ANONYMOUS_API_KEYS | Behavior |
 |-------------|-------|---------------------------|----------|
 | `production` | `false` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
-| `production` | `false` | `true` | **Allow anonymous access** - Log warning |
+| `production` | `false` | `true` | **Startup error** - unsafe anonymous toggle rejected |
 | `staging` | `false` | `false` (default) | **Reject anonymous access** - 401 Unauthorized |
-| `staging` | `false` | `true` | **Allow anonymous access** - Log warning |
+| `staging` | `false` | `true` | **Startup error** - unsafe anonymous toggle rejected |
 | `development` | `true` | `true` (default) | **Allow anonymous access** - Log info |
 | `development` | `true` | `false` | **Reject anonymous access** - 401 Unauthorized |
 | `local` | `true` | `true` (default) | **Allow anonymous access** - Log info |
@@ -60,7 +62,7 @@ The VIP router now implements production-safe API key authentication with config
 
 ### Security Features
 
-1. **Fail-fast authentication**: Production environments immediately reject requests without valid API keys
+1. **Fail-fast configuration**: Production/staging startup raises an explicit error if `ALLOW_ANONYMOUS_API_KEYS=true` or `ALLOW_DEV_API_KEY=true`
 2. **Clear error messages**: Different error messages for production vs development contexts
 3. **Comprehensive logging**: All authentication events are logged with appropriate severity levels
 4. **Environment-aware defaults**: Safe defaults that prevent accidental exposure in production
@@ -105,6 +107,7 @@ export APP_ENV=staging
 export DEBUG=false
 export API_KEY=your-staging-api-key
 export ALLOW_ANONYMOUS_API_KEYS=false
+export ALLOW_DEV_API_KEY=false
 ```
 
 ### Development Configuration (Restricted)

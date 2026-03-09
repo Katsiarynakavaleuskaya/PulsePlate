@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 from starlette import status as fastapi_status
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
+from settings import get_runtime_env_name, is_production_like_env, validate_api_key_toggle_guard
 
 from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
@@ -509,14 +510,15 @@ def reset_targets_cache() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     # Detect environment first (before any DB operations)
-    env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-    is_production = env_name not in {"", "local", "dev", "development", "staging", "test", "ci"}
+    env_name = get_runtime_env_name()
+    is_production = is_production_like_env()
     truthy = {"1", "true", "yes", "on"}
 
     # PR-647 (P0 security): Monthly quota fingerprinting requires a secret salt.
     # Fail-fast on startup to avoid running with predictable/empty fingerprints.
     require_server_salt()
     require_vip_llm_monthly_limit()
+    validate_api_key_toggle_guard()
 
     try:
         init_db()
@@ -789,10 +791,9 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
         - If API_KEY_REQUIRED=true → reject requests (enforce configuration)
         - else (default in tests/dev): accept non-trivial tokens when in dev/test mode
     """
-    app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
     api_key_value = api_key or ""
     dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
-    if app_env in {"", "local", "dev", "development", "test"}:
+    if not is_production_like_env():
         dev_mode = True
         # Warn once when lenient mode is enabled - provides no real security
         global _lenient_mode_warning_logged

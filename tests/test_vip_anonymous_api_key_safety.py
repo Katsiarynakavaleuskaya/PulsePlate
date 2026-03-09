@@ -6,6 +6,7 @@ Tests the new production-safe behavior that prevents anonymous access by default
 import os
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -78,8 +79,8 @@ class TestVIPAnonymousAPIKeySafety:
         detail_lower = response.json()["detail"].lower()
         assert "vip" in detail_lower or "invalid" in detail_lower
 
-    def test_production_mode_with_explicit_anonymous_allowed(self):
-        """Test that production mode allows anonymous access when explicitly configured."""
+    def test_production_mode_with_explicit_anonymous_allowed_fails_fast(self):
+        """Test that production mode fails fast when anonymous access is enabled."""
         # Set production environment but allow anonymous access
         os.environ["APP_ENV"] = "production"
         os.environ["DEBUG"] = "false"
@@ -88,22 +89,9 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Test request without API key to VIP endpoint
-        response = client.post(
-            "/api/v1/vip/weekly-plan",
-            json={
-                "sex": "female",
-                "age": 30,
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-        )
-        # Should not be 401 (anonymous access allowed)
-        assert response.status_code != 401
+        with pytest.raises(RuntimeError, match="ALLOW_ANONYMOUS_API_KEYS"):
+            with TestClient(cast(ASGIApp, app.app)):
+                pass
 
     def test_staging_mode_rejects_anonymous_access(self):
         """Test that staging mode rejects anonymous access by default."""
@@ -291,8 +279,8 @@ class TestVIPAnonymousAPIKeySafety:
         detail_lower = response.json()["detail"].lower()
         assert "api key" in detail_lower or "vip access" in detail_lower
 
-    def test_anonymous_allowed_logs_warning(self):
-        """Test that anonymous access when allowed logs a warning."""
+    def test_anonymous_allowed_logs_warning_fails_fast(self):
+        """Test that production no longer tolerates anonymous access warnings."""
         # Set production environment but allow anonymous access
         os.environ["APP_ENV"] = "production"
         os.environ["DEBUG"] = "false"
@@ -301,22 +289,9 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Test request without API key to VIP endpoint
-        response = client.post(
-            "/api/v1/vip/weekly-plan",
-            json={
-                "sex": "female",
-                "age": 30,
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-        )
-        # Should not be 401 (anonymous access allowed)
-        assert response.status_code != 401
+        with pytest.raises(RuntimeError, match="ALLOW_ANONYMOUS_API_KEYS"):
+            with TestClient(cast(ASGIApp, app.app)):
+                pass
 
     def test_development_mode_logs_info(self):
         """Test that development mode logs info when anonymous access is used."""

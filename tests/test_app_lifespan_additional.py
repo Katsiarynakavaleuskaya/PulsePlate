@@ -84,3 +84,47 @@ async def test_lifespan_init_db_raises_calls_fallback(monkeypatch: pytest.Monkey
         with pytest.raises(OSError, match="DB unreachable"):
             async with app.lifespan(app.app):
                 pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_rejects_anonymous_api_toggle_in_env_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: Startup должен падать на anonymous toggle в prod-like ENVIRONMENT.
+
+    EN: Startup must fail closed when anonymous API-key toggle is enabled in prod-like ENVIRONMENT.
+    """
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "require_server_salt", lambda: "salt" * 8)
+    monkeypatch.setitem(lifespan_globals, "require_vip_llm_monthly_limit", lambda: 30)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+    monkeypatch.setenv("DEBUG", "false")
+
+    with pytest.raises(RuntimeError, match="ALLOW_ANONYMOUS_API_KEYS"):
+        async with app.lifespan(app.app):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_rejects_dev_api_toggle_in_env_staging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: Startup должен падать на dev API toggle в staging.
+
+    EN: Startup must fail closed when ALLOW_DEV_API_KEY is enabled in staging.
+    """
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "require_server_salt", lambda: "salt" * 8)
+    monkeypatch.setitem(lifespan_globals, "require_vip_llm_monthly_limit", lambda: 30)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+    monkeypatch.setenv("DEBUG", "false")
+
+    with pytest.raises(RuntimeError, match="ALLOW_DEV_API_KEY"):
+        async with app.lifespan(app.app):
+            pass
