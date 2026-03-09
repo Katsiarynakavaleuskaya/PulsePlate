@@ -7,6 +7,10 @@
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window; this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
 
+**Repro queries used for this snapshot:**
+- Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
+- Curated late-wave slice review: merged PRs in the `#963-#1048` band cross-checked against `gh pr view <N>`, `git log`, `BACKLOG_LEDGER`, and the Top-20 / phase-fit artifacts above
+
 ---
 
 ## Summary
@@ -29,7 +33,7 @@
 | `#989` | CodeQL weak hashing fix | Closed a static-analysis finding in fingerprint/payment-adjacent flows | moved away from weak hashing primitives in the affected path |
 | `#992` | Fingerprint hashing hardening | Follow-through after `#989` | strengthened secret/fingerprint handling |
 | `#977` | DOMPurify CVE initial fix + evidence | Frontend XSS/dependency hygiene plus proof | initial override plus security evidence doc for the same alert path |
-| `#987` | DOMPurify alert follow-through | Follow-up on the same alert family | later dependabot/alert resolution cleanup for the DOMPurify path |
+| `#987` | DOMPurify alert follow-through | Follow-up on the same alert family | later Dependabot/alert resolution cleanup for the DOMPurify path |
 | `#1005` | Export signing hardening | Reduced risk of forged signed export links | secret requirement, path allowlist, TTL contract |
 | `#1035` | Export signing follow-through | Tightened the same export-signing path | additional hardening around secret access and contract clarity |
 | `#1014` | Users CRUD API-key guard | Closed unauthenticated CRUD exposure | API-key protection for `/api/v1/users/*` |
