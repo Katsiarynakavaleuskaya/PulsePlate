@@ -12,6 +12,21 @@ Evidence: app/services/fitchef_runtime.py:149
 Evidence: app/routers/vip.py:409
 Evidence: tests/helpers/fitchef_runtime_helpers.py:9
 Evidence: tests/test_fitchef_runtime_weekly_plan.py:115
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1057#discussion_r2906302959 -> 003d5d8b
+Disposition: FIXED
+Commit: 003d5d8b
+Evidence: app/services/fitchef_runtime.py:149
+Evidence: app/routers/vip.py:409
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1057#discussion_r2906302968 -> 003d5d8b
+Disposition: FIXED
+Commit: 003d5d8b
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:115
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:147
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1057#discussion_r2906302970 -> 003d5d8b
+Disposition: FIXED
+Commit: 003d5d8b
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:177
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:195
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1057#pullrequestreview-3916392098 -> 003d5d8b
 Disposition: FIXED
 Commit: 003d5d8b
