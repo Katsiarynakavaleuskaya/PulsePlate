@@ -1811,27 +1811,103 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
     - `make verify` and `pre-commit run --all-files` pass in PR scope
 
-
+<a id="ledger-p2-fitchef-sandbox-phase-2-deferred-scope"></a>
 - [ ] P2: FitChef sandbox Phase 2 deferred scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-SANDBOX-PHASE2
+  - Target PR: PR-TBD-FITCHEF-MASCOT-PHASE2
   - Status: Open
   - Area: orchestration / product runtime / sandbox integration
   - Finding Type: scope control
   - Locations:
-    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
-    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
-  - Reason: Exports, realtime fan-out, and broader multi-tool autonomy were intentionally excluded from PR #1013 to keep the first sandbox runtime bounded and reviewable.
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+  - Reason: The original sandbox Phase 2 seam from PR #1013 now resolves into the mascot-coaching rollout contract. The current P2 execution family is limited to text-only FitChef coaching surfaces under the canonical `/api/v1/insight/fitchef*` namespace, while exports, realtime fan-out, image/CV ingestion, and broader autonomy remain explicitly deferred beyond this wave.
   - Links:
-    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
-    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
     - `docs/review/PR_1013_FIXED_MAPPING.md`
   - DoD:
-    - Phase 2 scope is promoted through a dedicated PR with explicit contracts for exports, realtime progress, and autonomy boundaries
-    - Product/runtime docs link the same Phase 2 plan and do not describe those capabilities as already live
-    - Security review confirms each new capability keeps policy/quota/audit gates ahead of execution
+    - Phase 2 mascot scope is frozen in a current-repo contract doc with canonical routes under `/api/v1/insight/fitchef*`
+    - Product/runtime docs link the same mascot plan and do not describe exports, realtime progress, or autonomy as already live
+    - Security review confirms each mascot endpoint keeps policy/quota/audit gates ahead of execution
   - Blockers: None (deferred by scope, not blocked)
+
+<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
+- [ ] P2: FitChef mascot insight endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FITCHEF-MASCOT-INSIGHT
+  - Status: Open
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
+    - Request/response schemas are typed and documented in OpenAPI
+    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
+    - `/api/v1/insight` remains unchanged
+  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
+
+<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
+- [ ] P2: FitChef weekly reflection endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FITCHEF-WEEKLY-REFLECTION
+  - Status: Open
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
+    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
+    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
+    - No persistence, exports, or client-owned orchestration is added
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
+- [ ] P2: FitChef slip-support endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FITCHEF-SLIP-SUPPORT
+  - Status: Open
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
+    - Response uses `scenario=\"slip_support\"` and excludes therapy/diagnosis language
+    - Non-judgmental recovery guidance is covered by deterministic tests
+    - No reminders, background jobs, realtime fan-out, or export hooks are added
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
 
 
 - [ ] P2: Violations-addressed list in security/guard remediation PRs
