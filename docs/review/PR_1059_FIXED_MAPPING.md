@@ -60,6 +60,36 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907477894; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907477897; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907477901
 Reason: this CodeRabbit review entry is a summary shell for the child comments dispositioned separately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#pullrequestreview-3917804161
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571244; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571251; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571253
+Reason: this later Cubic review entry is a summary shell for the child comments dispositioned separately below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571244
+Disposition: NOT-A-BUG
+Evidence: docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md:1
+Reason: the referenced ADR file exists in the repo and in this PR; the link is not broken.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571251
+Disposition: NOT-A-BUG
+Evidence: docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md:1
+Reason: the referenced ADR file exists in the repo and in this PR; the link is not broken.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571253
+Disposition: NOT-A-BUG
+Evidence: docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:1
+Reason: the referenced ADR file exists in the repo and in this PR; the link is not broken.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571650 -> 77ea211b
+Disposition: FIXED
+Evidence: docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:13; docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md:15; AGENTS.md:970
+Reason: the AI seam ADR now includes explicit `file:line` evidence for current distributed ownership, and the PR contains the required `docs(agents): ...` commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#pullrequestreview-3917804762
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1059#discussion_r2907571650
+Reason: this later CodeRabbit review entry is a summary shell for the child comment dispositioned separately above.
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
