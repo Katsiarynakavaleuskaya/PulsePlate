@@ -799,9 +799,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: execution anchor
   - Locations:
     - `app/services/fitchef_runtime.py`
-    - `app/routers/pro.py`
-    - `app/services/weekly_plan/pipeline.py`
     - `app/schemas/vip.py`
+    - `app/routers/vip.py`
+    - `core/menu_engine.py`
   - Reason: After the internal FitChef wrapper lands, weekly-plan generation is the second approved Phase 1 task type and should reuse the same orchestration runtime instead of keeping planner orchestration embedded in the route layer.
   - Links:
     - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
@@ -809,9 +809,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_1042_FIXED_MAPPING.md`
   - DoD:
     - FitChef runtime supports `task_type=weekly_plan`
-    - Existing canonical PRO weekly-plan route delegates through the wrapper and stays thin
+    - Existing weekly-plan VIP route delegates through the wrapper and stays thin
     - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
-    - PRO gate and weekly-plan pipeline behavior remain deterministic and regression-tested
+    - VIP gate and planner behavior remain deterministic and regression-tested
   - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
 
