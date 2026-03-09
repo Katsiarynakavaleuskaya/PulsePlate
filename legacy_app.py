@@ -727,6 +727,59 @@ def _is_openapi_public_path(path: str) -> bool:
     return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)
 
 
+def _collect_schema_refs(node: Any, refs: set[str]) -> None:
+    """Collect schema component names referenced from an OpenAPI subtree."""
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            refs.add(ref.rsplit("/", 1)[-1])
+        for value in node.values():
+            _collect_schema_refs(value, refs)
+        return
+
+    if isinstance(node, list):
+        for item in node:
+            _collect_schema_refs(item, refs)
+
+
+def _prune_unreferenced_schema_components(schema: dict[str, Any]) -> None:
+    """Drop schema components not reachable from the filtered public OpenAPI surface."""
+    components = schema.get("components")
+    if not isinstance(components, dict):
+        return
+
+    schemas = components.get("schemas")
+    if not isinstance(schemas, dict):
+        return
+
+    referenced_names: set[str] = set()
+    schema_without_defs = dict(schema)
+    if isinstance(schema_without_defs.get("components"), dict):
+        component_copy = dict(cast(dict[str, Any], schema_without_defs["components"]))
+        component_copy.pop("schemas", None)
+        schema_without_defs["components"] = component_copy
+
+    _collect_schema_refs(schema_without_defs, referenced_names)
+
+    retained_schemas: dict[str, Any] = {}
+    queue = list(referenced_names)
+    while queue:
+        schema_name = queue.pop()
+        if schema_name in retained_schemas:
+            continue
+        schema_node = schemas.get(schema_name)
+        if not isinstance(schema_node, dict):
+            continue
+        retained_schemas[schema_name] = schema_node
+        nested_refs: set[str] = set()
+        _collect_schema_refs(schema_node, nested_refs)
+        for nested_ref in nested_refs:
+            if nested_ref not in retained_schemas:
+                queue.append(nested_ref)
+
+    components["schemas"] = dict(sorted(retained_schemas.items()))
+
+
 def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
     """Generate OpenAPI and filter legacy/non-canonical namespaces out of schema."""
     from fastapi.openapi.utils import get_openapi
@@ -747,6 +800,7 @@ def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
         path: value for path, value in all_paths.items() if _is_openapi_public_path(path)
     }
     schema["paths"] = dict(sorted(filtered_paths.items()))
+    _prune_unreferenced_schema_components(schema)
     target_app.openapi_schema = schema
     return schema
 
@@ -1710,6 +1764,50 @@ async def privacy() -> Dict[str, Any]:
     return build_privacy_endpoint_payload()
 
 
+@app.get("/terms", include_in_schema=False)
+async def terms() -> Dict[str, Any]:
+    """Terms of use endpoint for release-safe legal publication.
+
+    RU: Эндпоинт условий использования для канонической legal-публикации.
+    EN: Terms of use endpoint for canonical legal publication.
+    """
+
+    return {
+        "terms_of_use": (
+            "PulsePlate provides wellness-oriented planning, nutrition, and coaching-style features. "
+            "It does not provide medical diagnosis, treatment, emergency response, or licensed clinical services."
+        ),
+        "service_scope": {
+            "category": "wellness / nutrition planning / coaching support",
+            "medical_boundary": (
+                "Content is informational and product-guidance only. Users must not treat the service as "
+                "medical, psychiatric, or emergency advice."
+            ),
+            "age_requirement": "The service is intended for adults unless a specific flow states otherwise.",
+        },
+        "billing_and_subscriptions": {
+            "ios_app_store": "Apple-managed digital subscription flow with server-side verification.",
+            "manual_rails": "Operational fallback rails may include ERIP QR or SWIFT manual reconciliation.",
+            "cancellation": "Users manage subscription cancellation in the original purchase channel.",
+            "entitlement_truth": "Subscription entitlement is determined by backend verification and audit state.",
+        },
+        "acceptable_use": {
+            "forbidden": [
+                "attempting to bypass tier controls or payment verification",
+                "submitting unlawful, abusive, or malicious content",
+                "using the service for medical triage or emergency decisions",
+            ],
+            "security_note": "Abuse-prevention and platform-protection controls may block unsafe or fraudulent use.",
+        },
+        "liability_boundary": (
+            "The service is provided on a best-effort basis for wellness support. "
+            "Users remain responsible for critical health, legal, and financial decisions."
+        ),
+        "contact": "For legal or billing questions, please contact the application administrator.",
+        "effective_date": "2026-03-08",
+    }
+
+
 @app.post("/admin/logs/cleanup", dependencies=[Depends(_get_api_key_dynamic)])
 async def cleanup_expired_logs(
     data_class: Optional[str] = None,
@@ -2183,7 +2281,6 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-
     require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
 
