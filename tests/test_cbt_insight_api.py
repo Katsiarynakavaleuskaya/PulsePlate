@@ -961,6 +961,42 @@ class TestCBTInsightLLMIntegration:
         assert _json_body(response) == {"detail": "transparency_registry_unavailable"}
         assert quota_calls == []
 
+    def test_incomplete_transparency_registry_returns_503_without_consuming_quota(self) -> None:
+        """Incomplete transparency metadata must fail closed before quota use."""
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {"ai_generated_insight": {"surface_id": "ai_generated_insight"}},
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("llm.get_provider called in registry-failure test"),
+        )
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "transparency_registry_incomplete"}
+        assert quota_calls == []
+
     def test_llm_timeout_returns_504(self) -> None:
         """When LLM call times out, endpoint returns 504."""
         import asyncio
@@ -980,12 +1016,9 @@ class TestCBTInsightLLMIntegration:
         )
 
         mock_provider = MagicMock()
-        # Simulate slow LLM that takes longer than timeout
-        import time
 
         def slow_generate(*args: object, **kwargs: object) -> str:
-            time.sleep(0.1)  # 100ms - longer than 1ms timeout
-            return "Response"
+            raise asyncio.TimeoutError
 
         mock_provider.generate.side_effect = slow_generate
         self.monkeypatch.setattr(

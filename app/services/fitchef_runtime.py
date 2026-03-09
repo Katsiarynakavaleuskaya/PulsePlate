@@ -195,6 +195,14 @@ async def run_coach_insight_task(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="transparency_registry_unavailable",
         )
+    notice_surface_id = transparency_notice.get("surface_id")
+    notice_boundary = transparency_notice.get("boundary")
+    if notice_surface_id is None or notice_boundary is None:
+        logger.error("Transparency registry entry is incomplete for ai_generated_insight")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_incomplete",
+        )
     prompt = _build_cbt_prompt(safe_query, rag_context_str)
 
     try:
@@ -276,7 +284,7 @@ async def run_coach_insight_task(
         mode=task.mode,
         quota_state=quota_state,
         automated_analysis=True,
-        transparency_notice_id=str(transparency_notice["surface_id"]),
-        wellness_boundary=str(transparency_notice["boundary"]),
+        transparency_notice_id=str(notice_surface_id),
+        wellness_boundary=str(notice_boundary),
     )
     return result
