@@ -51,6 +51,11 @@ Commit: 003d5d8b
 Evidence: tests/test_vip_guard_order_403_vs_422.py:98
 Evidence: tests/test_vip_guard_order_403_vs_422.py:112
 Evidence: tests/helpers/fitchef_runtime_helpers.py:16
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1057#pullrequestreview-3916576683 -> e8211fc9
+Disposition: FIXED
+Commit: e8211fc9
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:190
+Evidence: tests/test_fitchef_runtime_weekly_plan.py:198
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
