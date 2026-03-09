@@ -3243,22 +3243,26 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
             if not isinstance(raw_meals, list):
                 continue
             meals = list(raw_meals)
-            total_kcal = raw_menu.get("total_kcal")
-            if not isinstance(total_kcal, (int, float)):
+            raw_total_kcal = raw_menu.get("total_kcal")
+            if isinstance(raw_total_kcal, bool) or not isinstance(raw_total_kcal, (int, float)):
                 total_kcal = sum(
                     meal.get("kcal", 0)
                     for meal in meals
-                    if isinstance(meal, dict) and isinstance(meal.get("kcal"), (int, float))
+                    if isinstance(meal, dict)
+                    and isinstance(meal.get("kcal"), (int, float))
+                    and not isinstance(meal.get("kcal"), bool)
                 )
+            else:
+                total_kcal = raw_total_kcal
+            raw_daily_cost = raw_menu.get("daily_cost")
+            if isinstance(raw_daily_cost, bool) or not isinstance(raw_daily_cost, (int, float)):
+                raw_daily_cost = raw_menu.get("estimated_cost")
             daily_menus_payload.append(
                 {
                     "date": raw_date,
                     "meals": meals,
                     "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
-                    "daily_cost": _coerce_weekly_menu_float(
-                        raw_menu.get("daily_cost", raw_menu.get("estimated_cost")),
-                        0.0,
-                    ),
+                    "daily_cost": _coerce_weekly_menu_float(raw_daily_cost, 0.0),
                 }
             )
 
@@ -4629,9 +4633,15 @@ async def api_weekly_menu(
         import sys as _sys
 
         pkg_mod = _sys.modules.get("app")
-        pkg_override = getattr(pkg_mod, "make_weekly_menu", None) if pkg_mod else None
-        _make_weekly_menu = pkg_override or globals().get("make_weekly_menu")
-        if _make_weekly_menu is None:
+        pkg_has_override = pkg_mod is not None and "make_weekly_menu" in getattr(
+            pkg_mod, "__dict__", {}
+        )
+        _make_weekly_menu = (
+            getattr(pkg_mod, "make_weekly_menu")
+            if pkg_has_override
+            else globals().get("make_weekly_menu")
+        )
+        if not callable(_make_weekly_menu):
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"
             )

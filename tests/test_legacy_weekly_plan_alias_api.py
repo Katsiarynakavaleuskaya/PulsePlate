@@ -164,6 +164,27 @@ def test_legacy_weekly_alias_returns_503_when_vip_module_disabled(
     assert response.json()["detail"] == "VIP module is disabled"
 
 
+def test_legacy_weekly_alias_honors_explicit_none_package_override(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit package-level disablement must beat the legacy module fallback."""
+
+    import app as app_module
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(legacy_app, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
+    monkeypatch.setattr(app_module, "make_weekly_menu", None, raising=False)
+
+    response = client.post("/api/v1/premium/plan/week", json=_valid_payload(), headers=vip_headers)
+
+    assert response.status_code == 503, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json()["detail"] == "Weekly menu generation feature not available"
+
+
 def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
     """Legacy adapter must skip malformed daily menu entries without crashing."""
 
@@ -244,3 +265,32 @@ def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None
     assert response.shopping_list == {"rice": 250.0}
     assert response.total_cost == 0.0
     assert response.adherence_score == 0.0
+
+
+def test_build_legacy_weekly_menu_response_recovers_from_bool_day_values() -> None:
+    """Bool day numerics must fall back instead of zeroing valid day data."""
+
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [
+                        {"title": "Breakfast", "kcal": True},
+                        {"title": "Lunch", "kcal": 420},
+                    ],
+                    "total_kcal": True,
+                    "daily_cost": True,
+                    "estimated_cost": 14.5,
+                }
+            ],
+            "weekly_coverage": {},
+            "shopping_list": {},
+            "total_cost": 14.5,
+            "adherence_score": 0.25,
+        }
+    )
+
+    assert response.daily_menus[0]["total_kcal"] == 420.0
+    assert response.daily_menus[0]["daily_cost"] == 14.5
