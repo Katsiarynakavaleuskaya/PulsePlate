@@ -26,6 +26,13 @@ from app.middleware.api_tiers import (
     require_vip_tier,
 )
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
+from settings import get_runtime_env_name, is_production_like_env
+
+
+@pytest.fixture(autouse=True)
+def clear_environment_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid cross-test bleed from ENVIRONMENT precedence checks."""
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
 
 
 class TestSubscriptionTier:
@@ -163,6 +170,18 @@ class TestValidateAPIKeyTier:
         )
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.PRO) is True
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.VIP) is False
+
+    def test_environment_overrides_app_env_for_runtime_detection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ENVIRONMENT must win over APP_ENV to keep production-like guards fail-closed."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("APP_ENV", "local")
+        monkeypatch.setenv("DEBUG", "true")
+
+        assert get_runtime_env_name() == "production"
+        assert is_production_like_env() is True
+        assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
 
 
 class _FakeResult:

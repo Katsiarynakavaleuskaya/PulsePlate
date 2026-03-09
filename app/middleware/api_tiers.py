@@ -37,6 +37,12 @@ from app.routers.api_key import api_key_header
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
+from settings import (
+    get_runtime_env_name,
+    is_explicit_developer_env,
+    is_production_like_env,
+    is_truthy_env_var,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +99,8 @@ TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test k
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()
-ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
-# Note: SUBSCRIPTION_DB_ENABLED is checked dynamically in code to support testing
+# Note: SUBSCRIPTION_DB_ENABLED and ALLOW_ANONYMOUS_API_KEYS are checked dynamically in code
+# to support testing and avoid import-time config freeze.
 
 
 def _is_subscription_db_enabled() -> bool:
@@ -191,11 +192,8 @@ def _is_production_environment() -> tuple[bool, str]:
     Returns:
         tuple[bool, str]: (is_production, app_env)
     """
-    app_env = os.getenv("APP_ENV", "local").lower()
-    debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
-    # Production if env is production/staging AND debug is off
-    is_production = (app_env in ("production", "prod", "staging")) and (not debug_mode)
-    return is_production, app_env
+    app_env = get_runtime_env_name()
+    return is_production_like_env(), app_env
 
 
 def _resolve_authorized_api_key_tier(
@@ -206,6 +204,8 @@ def _resolve_authorized_api_key_tier(
     """Resolve authorized tier in a single pass, else None."""
 
     is_production, app_env = _is_production_environment()
+    in_developer_env = is_explicit_developer_env()
+    allow_developer_api_keys = in_developer_env and is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
 
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
@@ -216,20 +216,18 @@ def _resolve_authorized_api_key_tier(
         if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
             return None
 
-    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    resolved_env_tier = _resolve_tier_from_env(
+        api_key,
+        allow_test_keys=allow_developer_api_keys,
+    )
     if resolved_env_tier is not None:
         if _tier_allows_access(resolved_env_tier, required_tier):
             return resolved_env_tier
         return None
 
     # In non-production mode with anonymous access enabled, allow any key.
-    if not is_production:
-        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
-        )
+    if in_developer_env and not is_production:
+        allow_anonymous = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
         if allow_anonymous:
             logger.warning(
                 "Anonymous API key accepted in %s mode for tier %s",
@@ -501,6 +499,9 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         In development mode, test keys return their respective tiers.
     """
     is_production, _ = _is_production_environment()
+    allow_developer_api_keys = is_explicit_developer_env() and is_truthy_env_var(
+        "ALLOW_DEV_API_KEY", "true"
+    )
 
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
@@ -509,7 +510,10 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
             return SubscriptionTier.FREE
 
-    env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    env_tier = _resolve_tier_from_env(
+        api_key,
+        allow_test_keys=allow_developer_api_keys and not is_production,
+    )
     return env_tier if env_tier is not None else SubscriptionTier.FREE
 
 

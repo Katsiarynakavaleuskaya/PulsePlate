@@ -1,41 +1,40 @@
-"""
-Tests for VIP router in production mode to cover API key validation,
-error handling, and real business logic paths.
-Targets lines that are skipped in echo mode (~49 lines, ~1% coverage).
-"""
+"""Tests for VIP router in production mode."""
 
-import os
 from typing import cast
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+VALID_WEEKLY_PLAN_REQUEST = {
+    "sex": "male",
+    "age": 30,
+    "height_cm": 175,
+    "weight_kg": 70,
+    "activity": "moderate",
+    "goal": "maintain",
+}
+
+
+@pytest.fixture(autouse=True)
+def vip_production_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep production-mode VIP tests isolated from ENVIRONMENT drift."""
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("API_KEY", raising=False)
 
 
 class TestVIPProductionMode:
     """Test VIP router production mode functionality."""
 
-    def setup_method(self):
-        """Setup for each test method."""
-        # Enable VIP module for app initialization
-        os.environ["VIP_MODULE_ENABLED"] = "true"
-        # Set production environment to test real API key validation paths
-        os.environ["APP_ENV"] = "production"
-        os.environ["DEBUG"] = "false"
-        os.environ["ALLOW_DEV_API_KEY"] = "false"
-
-    def teardown_method(self):
-        """Cleanup after each test method."""
-        # Clear environment variables
-        env_vars_to_clear = ["API_KEY", "APP_ENV", "ALLOW_DEV_API_KEY"]
-        for var in env_vars_to_clear:
-            if var in os.environ:
-                del os.environ[var]
-
-    def test_vip_api_key_validation_missing_key(self):
+    def test_vip_api_key_validation_missing_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test API key validation when API_KEY is set but key is missing (line 95)."""
-        # Set API_KEY environment variable to enable validation
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -47,10 +46,9 @@ class TestVIPProductionMode:
         detail_lower = response.json()["detail"].lower()
         assert "vip access" in detail_lower or "invalid api key" in detail_lower
 
-    def test_vip_api_key_validation_wrong_key(self):
+    def test_vip_api_key_validation_wrong_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test API key validation with incorrect key (line 95)."""
-        # Set API_KEY environment variable
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -61,12 +59,12 @@ class TestVIPProductionMode:
             "/api/v1/vip/weekly-plan", json={"test": "data"}, headers={"X-API-Key": "wrong-key"}
         )
         assert response.status_code == 403
-        assert "Invalid API" in response.json()["detail"]
+        detail_lower = response.json()["detail"].lower()
+        assert "invalid api" in detail_lower or "vip access" in detail_lower
 
-    def test_vip_api_key_validation_correct_key(self):
+    def test_vip_api_key_validation_correct_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test API key validation with correct key passes authentication."""
-        # Set API_KEY environment variable
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -75,42 +73,51 @@ class TestVIPProductionMode:
         # Test request with correct API key
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
-        # Should not be 401 (auth should pass)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
-    @patch("app.routers.vip.make_weekly_menu")
-    def test_weekly_menu_generation_error_handling(self, mock_make_weekly_menu):
+    def test_weekly_menu_generation_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test weekly menu generation error handling (line 155)."""
-        # Set API_KEY to enable production mode
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
-        # Mock make_weekly_menu to raise exception synchronously
+        from fastapi.routing import APIRoute
+
+        import app
+
         def raise_exc(*args, **kwargs):
             # sourcery skip: raise-specific-error
             raise Exception("Menu generation failed")
 
-        mock_make_weekly_menu.side_effect = raise_exc
-
-        import app
+        deprecated_route = next(
+            (
+                route
+                for route in app.app.routes
+                if isinstance(route, APIRoute)
+                and route.path == "/api/v1/vip/weekly-plan"
+                and "POST" in (route.methods or set())
+            ),
+            None,
+        )
+        assert deprecated_route is not None, "POST /api/v1/vip/weekly-plan route not found"
+        # Patch the registered route globals for deterministic behavior under reload/shim imports.
+        monkeypatch.setitem(deprecated_route.endpoint.__globals__, "make_weekly_menu", raise_exc)
 
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
 
-        # Should handle error gracefully - but gets validation error first
-        assert response.status_code == 422  # Validation error for invalid request
+        assert response.status_code == 200
+        assert "Weekly plan generation failed" in response.json()["message"]
 
-    def test_vip_recipes_endpoint_auth_check(self):
+    def test_vip_recipes_endpoint_auth_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP recipes endpoint requires authentication."""
-        # Set API_KEY to enable production mode
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -122,10 +129,9 @@ class TestVIPProductionMode:
         detail = response.json()["detail"].lower()
         assert any(sub in detail for sub in ("vip", "access"))
 
-    def test_vip_regions_endpoint_auth_check(self):
+    def test_vip_regions_endpoint_auth_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP regions endpoint requires authentication."""
-        # Set API_KEY to enable production mode
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -137,7 +143,7 @@ class TestVIPProductionMode:
         detail = response.json()["detail"].lower()
         assert any(sub in detail for sub in ("vip", "access"))
 
-    def test_vip_production_mode_coverage_lines(self):
+    def test_vip_production_mode_coverage_lines(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test specific production mode lines for coverage.
 
         This test targets the specific uncovered lines in VIP router:
@@ -146,8 +152,7 @@ class TestVIPProductionMode:
         - Line 320: Recipe search error handling
         - Line 663: Regional search error handling
         """
-        # Set API_KEY to enable production mode
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         import app
 
@@ -156,7 +161,7 @@ class TestVIPProductionMode:
         # Test 1: Invalid API key (lines 88-95)
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "wrong-key"},
         )
         assert response.status_code == 403
@@ -164,16 +169,14 @@ class TestVIPProductionMode:
         # Test 2: Valid API key allows access
         response = client.post(
             "/api/v1/vip/weekly-plan",
-            json={"calories": 2000, "preferences": []},
+            json=VALID_WEEKLY_PLAN_REQUEST,
             headers={"X-API-Key": "secret-key"},
         )
-        # Should not be 401 (auth should pass)
-        assert response.status_code != 401
+        assert response.status_code == 200
 
-    def test_vip_app_get_api_key_http_exception_403(self):
+    def test_vip_app_get_api_key_http_exception_403(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test app.get_api_key raising HTTPException with 403 (line 88-92)."""
-        # Set API_KEY to enable production mode
-        os.environ["API_KEY"] = "secret-key"
+        monkeypatch.setenv("API_KEY", "secret-key")
 
         from fastapi import HTTPException
 

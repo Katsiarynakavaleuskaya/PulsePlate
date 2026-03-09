@@ -11,16 +11,76 @@ _EXPORT_SIGNING_PLACEHOLDERS = frozenset(
         "replace_me_with_export_secret",
     }
 )
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+_PRODUCTION_LIKE_ENVS = frozenset({"production", "prod", "staging"})
+_DEVELOPER_LIKE_ENVS = frozenset({"local", "dev", "development", "test", "testing", "ci"})
+_NON_PRODUCTION_ENVS = frozenset({""}) | _DEVELOPER_LIKE_ENVS
 
 
 def get_runtime_env_name() -> str:
     """Return canonical runtime environment label.
 
-    RU: Канонизирует имя окружения из APP_ENV/ENVIRONMENT.
-    EN: Canonicalizes runtime environment from APP_ENV/ENVIRONMENT.
+    RU: Канонизирует имя окружения, отдавая приоритет ENVIRONMENT над APP_ENV.
+    EN: Canonicalizes runtime environment, preferring ENVIRONMENT over APP_ENV.
     """
 
-    return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "local").strip().lower()
+    if environment := (os.getenv("ENVIRONMENT") or "").strip().lower():
+        return environment
+    return (os.getenv("APP_ENV") or "local").strip().lower()
+
+
+def is_truthy_env_var(name: str, default: str = "") -> bool:
+    """Return whether an environment variable is set to a truthy value.
+
+    RU: Проверяет truthy-значение env-переменной единым способом.
+    EN: Evaluates truthy env vars via one canonical helper.
+    """
+
+    return (os.getenv(name, default) or "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def is_production_like_env() -> bool:
+    """Return whether runtime config should be treated as production-like.
+
+    RU: Канонически определяет production-like режим через APP_ENV/ENVIRONMENT и DEBUG.
+    EN: Canonically detects production-like mode from APP_ENV/ENVIRONMENT and DEBUG.
+    """
+
+    runtime_env = get_runtime_env_name()
+    if runtime_env in _PRODUCTION_LIKE_ENVS:
+        return True
+    if runtime_env in (_NON_PRODUCTION_ENVS - {""}):
+        return False
+    return not is_truthy_env_var("DEBUG", "true")
+
+
+def is_explicit_developer_env() -> bool:
+    """Return whether runtime env is explicitly local/dev/test-like.
+
+    RU: Разрешает dev-only fallback только для явных local/dev/test окружений.
+    EN: Limits dev-only fallback to explicit local/dev/test environments.
+    """
+
+    return get_runtime_env_name() in _DEVELOPER_LIKE_ENVS
+
+
+def validate_api_key_toggle_guard() -> None:
+    """Reject unsafe API-key escape hatches in production-like environments.
+
+    RU: Запрещает dev/anonymous API-key escape hatches в production-like окружениях.
+    EN: Fails closed when dev/anonymous API-key toggles are enabled in production-like envs.
+    """
+
+    if not is_production_like_env():
+        return
+    invalid_flags = [
+        name
+        for name in ("ALLOW_ANONYMOUS_API_KEYS", "ALLOW_DEV_API_KEY")
+        if is_truthy_env_var(name, "false")
+    ]
+    if invalid_flags:
+        joined = ", ".join(invalid_flags)
+        raise RuntimeError(f"{joined} must be false in production/staging environments.")
 
 
 def is_private_exports_enabled() -> bool:

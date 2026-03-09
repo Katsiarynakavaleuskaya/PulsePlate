@@ -43,7 +43,9 @@ from sqlalchemy.orm import Session
 from starlette import status as fastapi_status
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
+from settings import get_runtime_env_name, is_explicit_developer_env, is_production_like_env
 
+from app.bootstrap.startup_guards import run_startup_guards
 from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
@@ -121,8 +123,6 @@ from app.utils.feature_flags import _is_truthy
 from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip_tier
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
-    require_server_salt,
-    require_vip_llm_monthly_limit,
 )
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
@@ -509,14 +509,13 @@ def reset_targets_cache() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     # Detect environment first (before any DB operations)
-    env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-    is_production = env_name not in {"", "local", "dev", "development", "staging", "test", "ci"}
+    env_name = get_runtime_env_name()
+    is_production = is_production_like_env()
     truthy = {"1", "true", "yes", "on"}
 
-    # PR-647 (P0 security): Monthly quota fingerprinting requires a secret salt.
-    # Fail-fast on startup to avoid running with predictable/empty fingerprints.
-    require_server_salt()
-    require_vip_llm_monthly_limit()
+    # RU: Делегируем startup hard guards в bootstrap seam, чтобы legacy layer оставался thin.
+    # EN: Delegate startup hard guards to bootstrap seam to keep legacy layer thin.
+    run_startup_guards()
 
     try:
         init_db()
@@ -843,11 +842,9 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
         - If API_KEY_REQUIRED=true → reject requests (enforce configuration)
         - else (default in tests/dev): accept non-trivial tokens when in dev/test mode
     """
-    app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
     api_key_value = api_key or ""
-    dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
-    if app_env in {"", "local", "dev", "development", "test"}:
-        dev_mode = True
+    dev_mode = is_explicit_developer_env() and _is_truthy(os.getenv("ALLOW_DEV_API_KEY", "true"))
+    if dev_mode:
         # Warn once when lenient mode is enabled - provides no real security
         global _lenient_mode_warning_logged
         if not _lenient_mode_warning_logged:
