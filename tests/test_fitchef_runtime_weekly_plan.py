@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.services import fitchef_runtime
 
@@ -185,14 +187,12 @@ def test_run_weekly_plan_task_propagates_builder_exceptions() -> None:
     def failing_menu_builder(profile):
         raise RuntimeError("weekly builder exploded")
 
-    try:
+    with pytest.raises(RuntimeError, match="weekly builder exploded") as exc_info:
         asyncio.run(
             fitchef_runtime.run_weekly_plan_task(
                 task,
                 menu_builder=failing_menu_builder,
             )
         )
-    except RuntimeError as exc:
-        assert str(exc) == "weekly builder exploded"
-    else:
-        raise AssertionError("Expected RuntimeError from menu_builder to propagate")
+
+    assert str(exc_info.value) == "weekly builder exploded"
