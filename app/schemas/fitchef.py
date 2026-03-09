@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +37,19 @@ class FitChefCoachInsightTaskEnvelope(FitChefTaskEnvelope):
     input: FitChefCoachInsightInput
 
 
+class FitChefWeeklyPlanInput(BaseModel):
+    """Internal weekly-plan input. / Входные данные weekly-plan задачи."""
+
+    request_data: dict[str, Any] = Field(default_factory=dict)
+
+
+class FitChefWeeklyPlanTaskEnvelope(FitChefTaskEnvelope):
+    """Weekly-plan task envelope. / Envelope для задачи weekly-plan."""
+
+    task_type: Literal["weekly_plan"] = "weekly_plan"
+    input: FitChefWeeklyPlanInput
+
+
 class FitChefSourceItem(BaseModel):
     """Internal source item. / Внутренний элемент источника."""
 
@@ -60,3 +73,9 @@ class FitChefCoachInsightResult(BaseModel):
     automated_analysis: bool
     transparency_notice_id: str
     wellness_boundary: str
+
+
+class FitChefWeeklyPlanResult(BaseModel):
+    """Internal weekly-plan result. / Внутренний результат weekly-plan."""
+
+    menu: dict[str, Any]

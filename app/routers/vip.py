@@ -6,7 +6,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Literal,
     Mapping,
     Optional,
     Type,
@@ -24,7 +23,9 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
+from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
+from app.services import fitchef_runtime
 from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
 from core.recipe_synth import RecipeSynthesizer
@@ -46,7 +47,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 """
 
 # Test key constant for development mode only
-TEST_KEY = "test_key"  # nosec B105  # Development mode only
+TEST_KEY = "test_key"  # nosec B105: development-only test fixture constant (remove-by: 2026-06-30, ref: PR-1056)
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = is_vip_module_enabled()
@@ -405,61 +406,8 @@ def _extract_api_key(request: Request) -> Optional[str]:
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
     """Create UserProfile from dictionary data with validation."""
-    from core.targets import UserProfile
-
-    # Use default values for missing fields instead of validation
-    # Convert diet_flags to set if it's a list
-    diet_flags = profile_data.get("diet_flags", [])
-    if isinstance(diet_flags, list):
-        diet_flags = set(diet_flags)
-
-    # Convert medical_conditions to set if it's a list
-    medical_conditions = profile_data.get("medical_conditions", [])
-    if isinstance(medical_conditions, list):
-        medical_conditions = set(medical_conditions)
-
-    # Use explicit conversions with safe fallbacks so typing is precise
-    age_raw = profile_data.get("age")
-    try:
-        age_val: int = 30 if age_raw is None else int(age_raw)
-    except (TypeError, ValueError):
-        age_val = 30
-
-    height_raw = profile_data.get("height_cm")
-    try:
-        height_val: float = 175.0 if height_raw is None else float(height_raw)
-    except (TypeError, ValueError):
-        height_val = 175.0
-
-    weight_raw = profile_data.get("weight_kg")
-    try:
-        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
-    except (TypeError, ValueError):
-        weight_val = 70.0
-
-    # Use explicit None checks so that missing/None values fall back to defaults
-    return UserProfile(
-        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
-        age=age_val,
-        height_cm=height_val,
-        weight_kg=weight_val,
-        activity=cast(
-            Literal["sedentary", "light", "moderate", "active", "very_active"],
-            profile_data.get("activity") or "moderate",
-        ),
-        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
-        deficit_pct=profile_data.get("deficit_pct"),
-        surplus_pct=profile_data.get("surplus_pct"),
-        bodyfat=profile_data.get("bodyfat"),
-        region=profile_data.get("region") or "BY",
-        timezone=profile_data.get("timezone") or "UTC",
-        diet_flags=diet_flags,
-        life_stage=cast(
-            Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
-            profile_data.get("life_stage") or "adult",
-        ),
-        medical_conditions=medical_conditions,
-    )
+    profile = fitchef_runtime.build_weekly_user_profile(profile_data)
+    return cast("UserProfile", profile)
 
 
 def _adapter_make_weekly_menu(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
@@ -568,7 +516,7 @@ def vip_health() -> Dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(require_vip_tier)])
-def weekly_menu_plan(
+async def weekly_menu_plan(
     payload: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:
     """
@@ -605,28 +553,20 @@ def weekly_menu_plan(
             continue
         original_data[key] = value
 
-    if make_weekly_menu is None:
-        return {
-            "status": "success",
-            "echo": original_data,
-            "menu": {"mode": "echo"},
-            "message": "Weekly menu plan generated (echo mode)",
-        }
-
     try:
-        # Convert WeeklyPlanRequest to dict for the core function
-        request_dict = request_obj.model_dump()
-        plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
-
-        # Check if _safe_call_with_adapter returned an error
-        if isinstance(plan_candidate, dict) and plan_candidate.get("status") == "error":
-            return plan_candidate
-
-        plan = plan_candidate
+        task = FitChefWeeklyPlanTaskEnvelope(
+            mode="auto-safe",
+            input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
+        )
+        result = await fitchef_runtime.run_weekly_plan_task(
+            task,
+            menu_builder=make_weekly_menu,
+        )
+        echo_payload = original_data if make_weekly_menu is None else request_obj.model_dump()
         return {
             "status": "success",
-            "echo": request_obj.model_dump(),
-            "menu": plan if plan is not None else {"mode": "echo"},
+            "echo": echo_payload,
+            "menu": result.menu,
             "message": "Weekly menu plan generated (echo mode)",
         }
     except Exception:
