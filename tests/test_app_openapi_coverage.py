@@ -100,6 +100,7 @@ class TestAppOpenAPICoverage:
         assert "BMIRequestV1" in schemas
         assert "WeeklyMealPlanResponse" in schemas
         assert "WeeklyMealPlanDayMenu" in schemas
+        assert "WeeklyMealPlanItem" in schemas
         # BMIResponse может называться по-другому
         # assert "BMIResponse" in schemas
 

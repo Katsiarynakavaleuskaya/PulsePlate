@@ -2,9 +2,9 @@
  * Weekly plan view-model types derived from the canonical OpenAPI contract.
  */
 
-import type { WeeklyMenuResponse } from '../../../api/premium/weekly-plan';
+import type { WeeklyMealPlanResponse } from '../../../api/premium/weekly-plan';
 
-export type RawWeekPlanResponse = WeeklyMenuResponse;
+export type RawWeekPlanResponse = WeeklyMealPlanResponse;
 export type RawDayMenu = RawWeekPlanResponse['daily_menus'][number];
 export type RawMeal = RawDayMenu['meals'][number];
 

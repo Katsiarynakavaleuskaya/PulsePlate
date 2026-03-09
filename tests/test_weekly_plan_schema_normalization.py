@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.schemas.weekly_plan import normalize_weekly_plan_payload
+from app.schemas.weekly_plan import WeeklyMealPlanResponse, normalize_weekly_plan_payload
 
 
 def test_normalize_weekly_plan_payload_skips_invalid_numeric_entries() -> None:
@@ -35,6 +35,7 @@ def test_normalize_weekly_plan_payload_skips_invalid_numeric_entries() -> None:
     assert meal["price_est"] is None
     assert payload["daily_menus"][0]["total_cost"] == 0.0
     assert payload["total_cost"] == 0.0
+    WeeklyMealPlanResponse.model_validate(payload)
 
 
 def test_normalize_weekly_plan_payload_rejects_non_finite_numbers() -> None:
@@ -55,3 +56,4 @@ def test_normalize_weekly_plan_payload_rejects_non_finite_numbers() -> None:
     assert day["kcal"] == 0.0
     assert day["coverage"] == {"protein": 25.0}
     assert payload["adherence_score"] == 0.0
+    WeeklyMealPlanResponse.model_validate(payload)

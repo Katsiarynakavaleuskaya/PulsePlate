@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getWeeklyPlan } from "../../api/premium/weekly-plan";
-import type { WeekPlanRequest, WeeklyMenuResponse } from "../../api/premium/weekly-plan";
+import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
@@ -54,10 +54,10 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-type WeeklyDayMenu = WeeklyMenuResponse["daily_menus"][number];
+type WeeklyDayMenu = WeeklyMealPlanResponse["daily_menus"][number];
 type WeeklyMeal = WeeklyDayMenu["meals"][number];
 
-const DEFAULT_REQUEST: WeekPlanRequest = {
+const DEFAULT_REQUEST: ProWeekPlanRequest = {
   sex: "female",
   age: 30,
   height_cm: 168,
@@ -98,7 +98,7 @@ export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [data, setData] = useState<WeeklyMenuResponse | null>(null);
+  const [data, setData] = useState<WeeklyMealPlanResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
 
@@ -107,9 +107,9 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
-        const locale = getClientLocale() as WeekPlanRequest["lang"];
-        const supportedLangs: WeekPlanRequest["lang"][] = ["en", "ru", "es"];
-        const payload: WeekPlanRequest = {
+        const locale = getClientLocale() as ProWeekPlanRequest["lang"];
+        const supportedLangs: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+        const payload: ProWeekPlanRequest = {
           ...DEFAULT_REQUEST,
           lang: supportedLangs.includes(locale) ? locale : "en",
         };

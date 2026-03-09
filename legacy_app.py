@@ -2281,7 +2281,6 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
-
     require_safe_ai_agent_input(req.text)
     prompt_input = _ensure_insight_text_length(req.text)
 

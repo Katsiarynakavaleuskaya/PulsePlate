@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTargets, getWeeklyPlan } from '../api/premium';
-import type { TargetsRequest, TargetsApiResponse, WeeklyMenuResponse } from '../api/premium';
-import type { WeekPlanRequest } from '../api/premium/weekly-plan';
+import type { TargetsRequest, TargetsApiResponse } from '../api/premium';
+import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from '../api/premium/weekly-plan';
 
-function toWeekPlanRequest(request: TargetsRequest): WeekPlanRequest {
+function toWeekPlanRequest(request: TargetsRequest): ProWeekPlanRequest {
   return {
     sex: request.sex,
     age: request.age,
@@ -21,7 +21,7 @@ function toWeekPlanRequest(request: TargetsRequest): WeekPlanRequest {
 }
 
 interface UseWhoTargetsWithWeeklyPlanOptions {
-  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMenuResponse) => void;
+  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMealPlanResponse) => void;
   onError?: (error: Error) => void;
 }
 
@@ -32,7 +32,7 @@ interface UseWhoTargetsWithWeeklyPlanReturn {
   targetsError: string | null;
 
   // Weekly plan state
-  weeklyPlanData: WeeklyMenuResponse | null;
+  weeklyPlanData: WeeklyMealPlanResponse | null;
   weeklyPlanLoading: boolean;
   weeklyPlanError: string | null;
 
@@ -55,7 +55,7 @@ export function useWhoTargetsWithWeeklyPlan(
   const [targetsError, setTargetsError] = useState<string | null>(null);
 
   // Weekly plan state
-  const [weeklyPlanData, setWeeklyPlanData] = useState<WeeklyMenuResponse | null>(null);
+  const [weeklyPlanData, setWeeklyPlanData] = useState<WeeklyMealPlanResponse | null>(null);
   const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
   const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getWeeklyPlan } from '../premium/weekly-plan';
-import type { WeeklyMenuResponse, WeekPlanRequest } from '../premium/weekly-plan';
+import type { WeeklyMealPlanResponse, ProWeekPlanRequest } from '../premium/weekly-plan';
 
 vi.mock('../client', () => ({
   api: vi.fn(),
@@ -9,8 +9,8 @@ vi.mock('../client', () => ({
 import { api } from '../client';
 
 function createMockWeeklyPlanResponse(
-  overrides: Partial<WeeklyMenuResponse> = {}
-): WeeklyMenuResponse {
+  overrides: Partial<WeeklyMealPlanResponse> = {}
+): WeeklyMealPlanResponse {
   return {
     daily_menus: [
       {
@@ -64,7 +64,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Successful API calls (200)', () => {
     it('should generate weekly plan successfully with valid profile request', async () => {
-      const mockRequest: WeekPlanRequest = {
+      const mockRequest: ProWeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -94,7 +94,7 @@ describe('Weekly Plan API Integration', () => {
     });
 
     it('should accept canonical request with ready targets payload', async () => {
-      const mockRequest: WeekPlanRequest = {
+      const mockRequest: ProWeekPlanRequest = {
         targets: {
           kcal: 2100,
           macros: { protein_g: 140, carbs_g: 220, fat_g: 70 },
@@ -122,7 +122,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Error handling', () => {
     it('should handle authentication errors', async () => {
-      const mockRequest: WeekPlanRequest = {
+      const mockRequest: ProWeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -144,7 +144,7 @@ describe('Weekly Plan API Integration', () => {
         activity: 'moderate',
         goal: 'maintain',
         lang: 'en',
-      } as WeekPlanRequest;
+      } as ProWeekPlanRequest;
 
       const validationError = new Error('Validation error: missing required fields');
       validationError.name = 'ValidationError';
@@ -156,7 +156,7 @@ describe('Weekly Plan API Integration', () => {
     });
 
     it('should handle network timeout', async () => {
-      const mockRequest: WeekPlanRequest = {
+      const mockRequest: ProWeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -176,7 +176,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Request options', () => {
     it('should pass through request options correctly', async () => {
-      const mockRequest: WeekPlanRequest = {
+      const mockRequest: ProWeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,

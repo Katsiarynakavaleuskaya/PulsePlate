@@ -3,7 +3,7 @@ export type { BmrRequest, BmrApiResponse } from './bmr';
 export type { CbtInsightRequest, CbtInsightResponse } from './cbt-insight';
 export type { PlateRequest, PlateResponse } from './plate';
 export type { TargetsRequest, TargetsApiResponse } from './targets';
-export type { WeeklyMenuResponse } from './weekly-plan';
+export type { ProWeekPlanRequest, WeeklyMealPlanResponse } from './weekly-plan';
 
 export { getBmr } from './bmr';
 export { getCbtInsight } from './cbt-insight';

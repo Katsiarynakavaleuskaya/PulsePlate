@@ -7,13 +7,13 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getWeeklyPlan } from '../../../api/premium/weekly-plan';
-import type { WeekPlanRequest } from '../../../api/premium/weekly-plan';
+import type { ProWeekPlanRequest } from '../../../api/premium/weekly-plan';
 import { normalizeWeekPlan } from '../model/adapter';
 import type { WeekPlanVM } from '../model/types';
 
 export interface UseWeeklyPlanOptions {
   /** User targets for meal plan generation */
-  targets: WeekPlanRequest | null;
+  targets: ProWeekPlanRequest | null;
   /** Enable/disable query */
   enabled?: boolean;
   /** Callback on successful fetch */
