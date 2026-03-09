@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
+
 FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
 FitChefTaskType = Literal["coach_insight", "weekly_plan", "shopping_followup"]
@@ -79,3 +81,24 @@ class FitChefWeeklyPlanResult(BaseModel):
     """Internal weekly-plan result. / Внутренний результат weekly-plan."""
 
     menu: dict[str, Any]
+
+
+class FitChefShoppingFollowupInput(BaseModel):
+    """Internal shopping-followup input. / Входные данные shopping-followup задачи."""
+
+    weekly_plan_id: str | None = None
+    plan_data: dict[str, Any] | None = None
+    preferences: ShoppingListPreferences = Field(default_factory=ShoppingListPreferences)
+
+
+class FitChefShoppingFollowupTaskEnvelope(FitChefTaskEnvelope):
+    """Shopping-followup task envelope. / Envelope для shopping-followup."""
+
+    task_type: Literal["shopping_followup"] = "shopping_followup"
+    input: FitChefShoppingFollowupInput
+
+
+class FitChefShoppingFollowupResult(BaseModel):
+    """Internal shopping-followup result. / Внутренний результат shopping-followup."""
+
+    shopping_list: ShoppingListDTO
