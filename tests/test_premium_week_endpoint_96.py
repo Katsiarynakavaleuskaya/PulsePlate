@@ -12,6 +12,43 @@ from fastapi.testclient import TestClient
 from app import app
 
 
+def _make_canonical_week_payload() -> dict[str, object]:
+    """Return a weekly-plan payload that matches the public endpoint contract.
+
+    RU: Тестовые заглушки должны использовать каноническую форму weekly-plan,
+    иначе fail-closed нормализация корректно возвращает 500.
+    EN: Test doubles must match the canonical weekly-plan shape so fail-closed
+    normalization only rejects truly malformed payloads.
+    """
+    return {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        "title": "Protein bowl",
+                        "title_translated": "Protein bowl",
+                        "grams": {"serving_g": 420.0},
+                        "kcal": 550.0,
+                        "macros": {"protein_g": 42.0},
+                        "micros": {"iron_mg": 4.2},
+                        "price_est": 8.5,
+                    }
+                ],
+                "kcal": 550.0,
+                "macros": {"protein_g": 42.0},
+                "micros": {"iron_mg": 4.2},
+                "coverage": {"protein": 0.8},
+                "tips": ["Stay hydrated"],
+                "total_cost": 8.5,
+            }
+        ],
+        "weekly_coverage": {"protein": 0.8},
+        "shopping_list": {"apple": 5.0},
+        "total_cost": 25.50,
+        "adherence_score": 0.85,
+    }
+
+
 class TestPremiumWeekEndpoint96:
     """Tests for premium week endpoint coverage."""
 
@@ -30,13 +67,7 @@ class TestPremiumWeekEndpoint96:
             mock_recipedb.return_value = Mock()
 
             # Mock build_week response
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "sex": "male",
@@ -78,13 +109,7 @@ class TestPremiumWeekEndpoint96:
             mock_recipedb.return_value = Mock()
 
             # Mock build_week response but let database instantiation happen
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "targets": {
@@ -142,13 +167,7 @@ class TestPremiumWeekEndpoint96:
             }
 
             # Mock build_week response
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "sex": "male",
@@ -228,13 +247,7 @@ class TestPremiumWeekEndpoint96:
             mock_estimate.return_value = None
 
             # Mock build_week to return a predictable result
-            mock_build_week.return_value = {
-                "daily_menus": [{"breakfast": "test"}],
-                "weekly_coverage": {"protein": 0.8},
-                "shopping_list": {"apple": 5.0},
-                "total_cost": 25.50,
-                "adherence_score": 0.85,
-            }
+            mock_build_week.return_value = _make_canonical_week_payload()
 
             payload = {
                 "sex": "male",
@@ -285,13 +298,7 @@ class TestPremiumWeekEndpoint96:
                 }
 
                 # Mock build_week response
-                mock_build_week.return_value = {
-                    "daily_menus": [{"breakfast": "test"}],
-                    "weekly_coverage": {"protein": 0.8},
-                    "shopping_list": {"apple": 5.0},
-                    "total_cost": 25.50,
-                    "adherence_score": 0.85,
-                }
+                mock_build_week.return_value = _make_canonical_week_payload()
 
                 payload = {
                     "sex": "male",
@@ -348,13 +355,7 @@ class TestPremiumWeekEndpoint96:
                 }
 
                 # Mock build_week response
-                mock_build_week.return_value = {
-                    "daily_menus": [{"breakfast": "test"}],
-                    "weekly_coverage": {"protein": 0.8},
-                    "shopping_list": {"apple": 5.0},
-                    "total_cost": 25.50,
-                    "adherence_score": 0.85,
-                }
+                mock_build_week.return_value = _make_canonical_week_payload()
 
                 payload = {
                     "sex": "male",
