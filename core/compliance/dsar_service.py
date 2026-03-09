@@ -6,10 +6,13 @@ EN: Internal DSAR helpers for support-led export/delete of direct user-bound art
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_timestamp(value: datetime | None) -> str | None:
@@ -100,14 +103,12 @@ def build_direct_user_deletion_plan(*, session: Session, user_id: int) -> dict[s
     from core.models import User
 
     user_exists = session.get(User, user_id) is not None
-    feedback_records = (
-        session.execute(select(RAGFeedback).where(RAGFeedback.user_id == user_id)).scalars().all()
-    )
-    knowledge_records = (
-        session.execute(select(UserKnowledge).where(UserKnowledge.user_id == user_id))
-        .scalars()
-        .all()
-    )
+    feedback_count = session.execute(
+        select(func.count()).select_from(RAGFeedback).where(RAGFeedback.user_id == user_id)
+    ).scalar_one()
+    knowledge_count = session.execute(
+        select(func.count()).select_from(UserKnowledge).where(UserKnowledge.user_id == user_id)
+    ).scalar_one()
 
     return {
         "user_id": user_id,
@@ -118,11 +119,11 @@ def build_direct_user_deletion_plan(*, session: Session, user_id: int) -> dict[s
                 "notes": "Account-row deletion stays on the dedicated user deletion path, not this helper.",
             },
             "rag_feedback": {
-                "present_count": len(feedback_records),
+                "present_count": feedback_count,
                 "helper_action": "delete_now",
             },
             "user_knowledge": {
-                "present_count": len(knowledge_records),
+                "present_count": knowledge_count,
                 "helper_action": "delete_now",
             },
         },
@@ -136,18 +137,21 @@ def delete_direct_user_artifacts(*, session: Session, user_id: int) -> dict[str,
     from core.models import User
 
     user_exists = session.get(User, user_id) is not None
-    feedback_deleted = len(
-        session.execute(select(RAGFeedback.id).where(RAGFeedback.user_id == user_id)).all()
-    )
-    knowledge_deleted = len(
-        session.execute(select(UserKnowledge.id).where(UserKnowledge.user_id == user_id)).all()
-    )
     try:
-        session.execute(delete(RAGFeedback).where(RAGFeedback.user_id == user_id))
-        session.execute(delete(UserKnowledge).where(UserKnowledge.user_id == user_id))
+        feedback_result = session.execute(
+            delete(RAGFeedback).where(RAGFeedback.user_id == user_id).returning(RAGFeedback.id)
+        )
+        knowledge_result = session.execute(
+            delete(UserKnowledge)
+            .where(UserKnowledge.user_id == user_id)
+            .returning(UserKnowledge.id)
+        )
+        feedback_deleted = len(feedback_result.scalars().all())
+        knowledge_deleted = len(knowledge_result.scalars().all())
         session.commit()
     except Exception:
         session.rollback()
+        logger.exception("DSAR direct-user artifact delete failed")
         raise
 
     pending_manual_artifacts: list[str] = []
