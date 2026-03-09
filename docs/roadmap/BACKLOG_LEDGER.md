@@ -332,6 +332,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deploy docs show the safe production values
 
 
+<a id="ledger-p1-legacy-runtime-env-canonicalization"></a>
+- [ ] P1: Canonicalize legacy runtime env gating
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LEGACY-RUNTIME-ENV-CANONICALIZATION
+  - Area: backend / security / legacy compatibility
+  - Finding Type: configuration drift
+  - Reason: `legacy_app.py` still contains module-level `APP_ENV`-only gates for local `.env` loading, dev-only docs, test-router registration, and `/debug_env`. This drifts from the canonical `ENVIRONMENT`-first runtime helpers introduced by the API key toggle guard and can re-enable development-only surfaces when only `ENVIRONMENT` is set in production-like deployments.
+  - Links:
+    - `legacy_app.py`
+    - `settings.py`
+    - `docs/deploy/VIP_API_KEYS.md`
+    - `docs/review/PR_1054_FIXED_MAPPING.md`
+  - DoD:
+    - Module-level env gating in `legacy_app.py` uses canonical runtime helpers instead of raw `APP_ENV`
+    - Local `.env` loading, test-router registration, and `/debug_env` gating follow the same environment semantics as startup guards
+    - Tests cover `ENVIRONMENT` overriding `APP_ENV` for the remaining legacy surfaces
+
+
 <a id="ledger-p1-openapi-decoupling-split"></a>
 - [ ] P1: Split backend OpenAPI generation from frontend type generation
   - Owner: @katsiaryna_kavaleuskaya
