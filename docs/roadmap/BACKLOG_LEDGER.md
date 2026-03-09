@@ -787,7 +787,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing `cbt_insight` public route delegates through the wrapper for `task_type=coach_insight`
     - Current request/response contracts remain unchanged for clients
     - Policy, quota, audit, RAG, and timeout ordering remain unchanged and regression-tested
-    - `pre-commit run --all-files` and `make verify` pass in the implementation PR
   - Blockers: None
 
 
@@ -813,14 +812,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing weekly-plan VIP route delegates through the wrapper and stays thin
     - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
     - VIP gate and planner behavior remain deterministic and regression-tested
-    - `pre-commit run --all-files` and `make verify` pass in the implementation PR
   - Blockers: Depends on `P1: FitChef Phase 1 wrapper`
 
 
-- [ ] P1: FitChef shopping-followup binding
+- [ ] P1: FitChef shopping-list follow-up binding
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FITCHEF-SHOPPING-FOLLOWUP-BINDING
+  - Target PR: PR-TBD-FITCHEF-SHOPPING-LIST-FOLLOW-UP-BINDING
   - Status: Open
   - Area: orchestration / backend runtime / shopping list
   - Finding Type: execution anchor
@@ -838,8 +836,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - FitChef runtime supports `task_type=shopping_followup`
     - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
     - XOR validation, unsupported-preferences handling, and tier-gate behavior remain unchanged and regression-tested
-    - Echo-style or non-canonical shoplist paths are left untouched or explicitly documented as non-canonical
-    - `pre-commit run --all-files` and `make verify` pass in the implementation PR
+    - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
   - Blockers: Depends on `P1: FitChef Phase 1 wrapper`
 
 
