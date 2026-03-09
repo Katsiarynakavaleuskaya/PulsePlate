@@ -3211,6 +3211,89 @@ class WeeklyMenuResponse(BaseModel):
     adherence_score: float
 
 
+def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
+    """Normalize weekly-menu numeric values for legacy compatibility.
+
+    RU: Нормализовать numeric поля недельного меню для legacy-совместимости.
+    EN: Normalize weekly-menu numeric values for legacy compatibility.
+    """
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
+    """Translate canonical VIP weekly payload into legacy weekly-menu response.
+
+    RU: Перевести canonical VIP weekly payload в legacy weekly-menu response.
+    EN: Translate the canonical VIP weekly payload into the legacy weekly-menu response.
+    """
+    raw_daily_menus = menu_payload.get("daily_menus")
+    daily_menus_payload: List[Dict[str, Any]] = []
+    if isinstance(raw_daily_menus, list):
+        for raw_menu in raw_daily_menus:
+            if not isinstance(raw_menu, dict):
+                continue
+            raw_meals = raw_menu.get("meals")
+            meals = list(raw_meals) if isinstance(raw_meals, list) else []
+            total_kcal = raw_menu.get("total_kcal")
+            if not isinstance(total_kcal, (int, float)):
+                total_kcal = sum(
+                    meal.get("kcal", 0)
+                    for meal in meals
+                    if isinstance(meal, dict) and isinstance(meal.get("kcal"), (int, float))
+                )
+            daily_menus_payload.append(
+                {
+                    "date": str(raw_menu.get("date", "")),
+                    "meals": meals,
+                    "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
+                    "daily_cost": _coerce_weekly_menu_float(raw_menu.get("daily_cost"), 0.0),
+                }
+            )
+
+    raw_weekly_coverage = menu_payload.get("weekly_coverage")
+    weekly_coverage = (
+        {
+            key: float(value)
+            for key, value in raw_weekly_coverage.items()
+            if isinstance(key, str) and isinstance(value, (int, float))
+        }
+        if isinstance(raw_weekly_coverage, dict)
+        else {}
+    )
+
+    raw_shopping_list = menu_payload.get("shopping_list")
+    shopping_list = (
+        {
+            key: float(value)
+            for key, value in raw_shopping_list.items()
+            if isinstance(key, str) and isinstance(value, (int, float))
+        }
+        if isinstance(raw_shopping_list, dict)
+        else {}
+    )
+
+    total_cost = _coerce_weekly_menu_float(menu_payload.get("total_cost"), 0.0)
+    adherence_score = _coerce_weekly_menu_float(menu_payload.get("adherence_score"), 0.0)
+    week_start = menu_payload.get("week_start", "")
+
+    return WeeklyMenuResponse(
+        week_summary={
+            "week_start": str(week_start),
+            "total_days": len(daily_menus_payload),
+            "avg_daily_cost": round(total_cost / 7, 2) if total_cost else 0.0,
+        },
+        daily_menus=daily_menus_payload,
+        weekly_coverage=weekly_coverage,
+        shopping_list=shopping_list,
+        total_cost=total_cost,
+        adherence_score=adherence_score,
+    )
+
+
 class WeeklyPlanFlexibleRequest(BaseModel):
     # Either 'targets' or a lightweight user profile
     targets: Optional[Dict[str, Any]] = None
@@ -4492,6 +4575,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     "/api/v1/premium/plan/week",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WeeklyMenuResponse,
+    include_in_schema=False,
     deprecated=True,
 )
 async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
@@ -4534,8 +4618,7 @@ async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
                 status_code=503, detail="Weekly menu generation feature not available"
             )
 
-        # Convert to UserProfile - validate required fields first
-        from core.targets import UserProfile
+        from app.routers.vip import _execute_weekly_menu_plan_payload
 
         if (
             req.sex is None
@@ -4549,69 +4632,11 @@ async def api_weekly_menu(req: LegacyWeekPlanRequest) -> WeeklyMenuResponse:
                 detail="Required fields missing: sex, age, height_cm, weight_kg, and activity are all required.",
             )
 
-        profile = UserProfile(
-            sex=req.sex,
-            age=req.age,
-            height_cm=req.height_cm,
-            weight_kg=req.weight_kg,
-            activity=req.activity,
-            goal=req.goal,
-            deficit_pct=req.deficit_pct,
-            surplus_pct=req.surplus_pct,
-            bodyfat=req.bodyfat,
-            diet_flags=set(req.diet_flags or []),
-            life_stage=req.life_stage,
+        _, _, menu_payload = await _execute_weekly_menu_plan_payload(
+            req.model_dump(exclude_none=True),
+            menu_builder=_make_weekly_menu,
         )
-
-        # Generate weekly menu via core.menu_engine
-        week_menu = _make_weekly_menu(profile)
-
-        weekly_coverage = getattr(week_menu, "weekly_coverage", {}) or {}
-        if not isinstance(weekly_coverage, dict):
-            weekly_coverage = {}
-
-        shopping_list = getattr(week_menu, "shopping_list", {}) or {}
-        if not isinstance(shopping_list, dict):
-            shopping_list = {}
-
-        total_cost_raw = getattr(week_menu, "total_cost", 0.0)
-        total_cost = float(total_cost_raw) if isinstance(total_cost_raw, (int, float)) else 0.0
-
-        adherence_raw = getattr(week_menu, "adherence_score", 0.0)
-        adherence_score = float(adherence_raw) if isinstance(adherence_raw, (int, float)) else 0.0
-
-        daily_menus = getattr(week_menu, "daily_menus", []) or []
-        daily_menus_payload = []
-        for menu in daily_menus:
-            meals = getattr(menu, "meals", []) or []
-            if not isinstance(meals, (list, tuple)):
-                meals = []
-            date_value = getattr(menu, "date", "")
-            if not isinstance(date_value, str):
-                date_value = str(date_value)
-            daily_cost_raw = getattr(menu, "estimated_cost", 0.0)
-            daily_cost = float(daily_cost_raw) if isinstance(daily_cost_raw, (int, float)) else 0.0
-            daily_menus_payload.append(
-                {
-                    "date": date_value,
-                    "meals": meals,
-                    "total_kcal": sum(meal.get("kcal", 0) for meal in meals) if meals else 0,
-                    "daily_cost": daily_cost,
-                }
-            )
-
-        return WeeklyMenuResponse(
-            week_summary={
-                "week_start": getattr(week_menu, "week_start", ""),
-                "total_days": len(daily_menus_payload),
-                "avg_daily_cost": round(total_cost / 7, 2) if total_cost else 0.0,
-            },
-            daily_menus=daily_menus_payload,
-            weekly_coverage=weekly_coverage,
-            shopping_list=shopping_list,
-            total_cost=total_cost,
-            adherence_score=adherence_score,
-        )
+        return _build_legacy_weekly_menu_response(menu_payload)
 
     except HTTPException:
         # Pass through expected HTTP errors
