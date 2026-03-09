@@ -4351,7 +4351,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Monthly PR analysis cadence and evidence hygiene
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-MONTHLY-PR-ANALYSIS-CADENCE
+  - Target PR: PR #1056
   - Status: 🟡 In progress (March 2026 baseline artifact added)
   - Area: docs / governance / reporting
   - Finding Type: reporting hygiene
