@@ -202,6 +202,30 @@ def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
     assert response.daily_menus[0]["date"] == "2026-03-10"
 
 
+def test_build_legacy_weekly_menu_response_accepts_estimated_cost_fallback() -> None:
+    """Canonical day menus may expose estimated_cost instead of daily_cost."""
+
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [],
+                    "total_kcal": 0,
+                    "estimated_cost": 12.75,
+                }
+            ],
+            "weekly_coverage": {},
+            "shopping_list": {},
+            "total_cost": 12.75,
+            "adherence_score": 0.1,
+        }
+    )
+
+    assert response.daily_menus[0]["daily_cost"] == 12.75
+
+
 def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None:
     """Boolean-like numeric fields must fall back to defaults in the legacy adapter."""
 

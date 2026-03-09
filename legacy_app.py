@@ -3255,7 +3255,10 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
                     "date": raw_date,
                     "meals": meals,
                     "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
-                    "daily_cost": _coerce_weekly_menu_float(raw_menu.get("daily_cost"), 0.0),
+                    "daily_cost": _coerce_weekly_menu_float(
+                        raw_menu.get("daily_cost", raw_menu.get("estimated_cost")),
+                        0.0,
+                    ),
                 }
             )
 
