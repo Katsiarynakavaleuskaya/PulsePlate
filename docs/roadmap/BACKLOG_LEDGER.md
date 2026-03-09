@@ -57,6 +57,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
+<a id="ledger-p0-billing-apple-verify"></a>
+- [ ] P0: Apple receipt verification backend follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-APPLE-VERIFY
+  - Status: 📋 Planned
+  - Area: backend / payments / iOS monetization
+  - Finding Type: payment integrity
+  - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `app/routers/pro_payments.py`
+    - `app/services/payments_activation.py`
+  - DoD:
+    - Server-side Apple receipt verification normalizes into the canonical billing activation flow
+    - Receipt verification failure modes are deterministic and test-covered
+    - Activation/status contracts stay additive for existing clients
+
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
   - Owner: @katsiaryna_kavaleuskaya
@@ -79,6 +98,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Support-led DSAR workflow for direct-user artifacts is documented and used until a public auth-bound DSAR API is explicitly designed
     - The US regulated lane remains blocked from the wellness runtime until separate legal/compliance approval
     - Future public DSAR/export/delete endpoints are blocked until auth/ownership contract is explicit
+
+<a id="ledger-p0-legal-policy-publish"></a>
+- [ ] P0: Legal policy publish and client-link alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-LEGAL-POLICY-PUBLISH
+  - Status: 📋 Planned
+  - Area: docs / legal / release readiness
+  - Finding Type: policy publication gap
+  - Reason (EN): Privacy and Terms posture has been materially clarified in runtime and compliance docs, but canonical published policy paths and client references still need one explicit release-blocker item.
+  - Links:
+    - `docs/legal/Privacy.md`
+    - `legacy_app.py`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Canonical privacy and terms publication paths exist in-repo
+    - Web and iOS clients link to the published policy paths consistently
+    - Published text stays aligned with runtime wellness/compliance posture
 
 
 <a id="ledger-p0-insight-fallback-chain"></a>
@@ -166,6 +203,61 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tokens Studio activation scope, export format, review gate, and ownership are documented before any runtime automation or commit contract is added
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
+
+<a id="ledger-p1-ios-subscription-manager"></a>
+- [ ] P1: iOS SubscriptionManager backend-driven integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 📋 Planned
+  - Area: ios / payments / thin-client policy
+  - Finding Type: monetization runtime follow-through
+  - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `ios/PulsePlate`
+  - DoD:
+    - iOS subscription orchestration remains thin and backend-driven
+    - Product/state transitions are deterministic and test-covered
+    - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-ios-storekit-products"></a>
+- [ ] P1: iOS StoreKit products contract and setup baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-STOREKIT-PRODUCTS
+  - Status: 📋 Planned
+  - Area: ios / release / billing operations
+  - Finding Type: store configuration readiness
+  - Reason (EN): The monthly review and phase-fit checklist both treat StoreKit products setup as a distinct next-wave gate. It needs an explicit ledger item so release-ops work does not stay hidden inside broader iOS billing follow-through.
+  - Links:
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+  - DoD:
+    - Canonical StoreKit product identifiers and setup checklist are versioned in-repo
+    - Billing/runtime follow-through references the same product contract without client-side drift
+    - Release checklist is explicit enough for future iOS submission work
+
+<a id="ledger-p1-diet-flags-contract-sync"></a>
+- [ ] P1: Diet flags contract sync across schemas and clients
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
+  - Status: 📋 Planned
+  - Area: frontend / backend / iOS contracts
+  - Finding Type: contract consistency
+  - Reason (EN): Diet-flag semantics are product-facing and cross-client. A dedicated sync item keeps the enum/normalization surface canonical instead of letting drift hide inside frontend or generated-type follow-ups.
+  - Links:
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `frontend`
+    - `ios/PulsePlate`
+  - DoD:
+    - One canonical diet-flags normalization table is used across backend schemas and clients
+    - Generated or mirrored client types remain aligned with backend truth
+    - Deterministic regression tests cover the shared contract
 
 - [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
   - Owner: @katsiaryna_kavaleuskaya
@@ -785,6 +877,82 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover stream-budget enforcement and minimized allowlist behavior
     - `pre-commit run --all-files` and `make verify` pass in follow-up PR
   - Blockers: None (deferred by scope, not blocked)
+
+<a id="ledger-p1-fitchef-phase1-wrapper"></a>
+- [ ] P1: FitChef Phase 1 wrapper
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-PHASE1-WRAPPER
+  - Status: Open
+  - Area: orchestration / backend runtime / coaching insight
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/fitchef.py`
+    - `app/routers/cbt_insight.py`
+  - Reason: The approved FitChef rollout order keeps `cbt_insight` as the first surface, but Phase 1 still needs one internal orchestration source of truth before weekly-plan and shopping-list bindings can reuse it.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - Internal `fitchef-agent` wrapper exists under backend runtime with typed internal task envelope only
+    - Existing `cbt_insight` public route delegates through the wrapper for `task_type=coach_insight`
+    - Current request/response contracts remain unchanged for clients
+    - Policy, quota, audit, RAG, and timeout ordering remain unchanged and regression-tested
+  - Blockers: None
+
+<a id="ledger-p1-fitchef-weekly-plan-binding"></a>
+- [ ] P1: FitChef weekly-plan task binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-WEEKLY-PLAN-BINDING
+  - Status: Open
+  - Area: orchestration / backend runtime / weekly planning
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/vip.py`
+    - `app/routers/vip.py`
+    - `core/menu_engine.py`
+  - Reason: After the internal FitChef wrapper lands, weekly-plan generation is the second approved Phase 1 task type and should reuse the same orchestration runtime instead of keeping planner orchestration embedded in the route layer.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=weekly_plan`
+    - Existing weekly-plan VIP route delegates through the wrapper and stays thin
+    - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
+    - VIP gate and planner behavior remain deterministic and regression-tested
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
+
+
+<a id="ledger-p1-fitchef-shopping-list-follow-up-binding"></a>
+- [ ] P1: FitChef shopping-list follow-up binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-SHOPPING-LIST-FOLLOW-UP-BINDING
+  - Status: Open
+  - Area: orchestration / backend runtime / shopping list
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/routers/shopping_list_pro.py`
+    - `app/schemas/shopping_list.py`
+    - `app/core/shopping_list/generator.py`
+  - Reason: The third approved Phase 1 task type is shopping-list follow-up, and the canonical integration target is `shopping_list_pro.py`, not the echo-style shoplist path under `vip.py`.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=shopping_followup`
+    - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
+    - XOR validation, unsupported-preferences handling, and tier-gate behavior remain unchanged and regression-tested
+    - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
 
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
@@ -2150,7 +2318,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P0: Harden private export signing secret and signable-path scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1035 (`fix(export): harden signing secret access`)
+  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING -> PR #1035 (`fix(export): harden signing secret access`)
   - Status: ✅ Merged (PR #1035, 2026-03-08)
   - Area: backend / security / export signing
   - Finding Type: auth/config hardening
@@ -2574,7 +2742,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1038 (`fix/security-users-surface-hardening`)
+  - Target PR: PR-TBD-USERS-SURFACE-HARDENING -> PR #1038 (`fix/security-users-surface-hardening`)
   - Status: ✅ Merged (PR #1038, 2026-03-08)
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
@@ -3653,7 +3821,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR #1011 (`feat/p1-ios-keychain-conformance`)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`)
   - Status: ✅ Merged (PR #1011, 2026-03-07)
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
@@ -4080,6 +4248,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [x] PR body optional summary/mirror only
     - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
 
+<a id="ledger-p1-compliance-runtime-slice-2"></a>
+- [ ] P1: Compliance runtime slice 2 for AI wellness consent orchestration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (privacy/compliance)
+  - Target PR: PR-TBD (`feat/compliance-runtime-slice-2-consent-dsar`)
+  - Status: Planned
+  - Area: backend / compliance / legal-runtime
+  - Finding Type: deferred follow-up
+  - Reason: Compliance Runtime Slice 1 ships transparency, privacy payload assembly, and minimization only. This follow-up is intentionally narrowed to AI wellness consent context/orchestration so it does not duplicate the broader P0 EU-first compliance control plane epic.
+  - Carryover From:
+    - PR `#1046` (`feat: EU-first compliance control plane`)
+    - `docs/review/PR_1046_FIXED_MAPPING.md`
+  - Carryover Note: Public DSAR/export/delete boundaries and regulated/provider-lane separation remain tracked by the P0 epic at `#ledger-p0-eu-compliance-control-plane-follow-through`; this P1 item owns only the next tactical consent slice for wellness AI surfaces.
+  - Links:
+    - `#ledger-p0-eu-compliance-control-plane-follow-through`
+    - `core/compliance/privacy.py`
+    - `core/compliance/dsar.py`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Backend consent context is defined for AI wellness surfaces without changing deterministic wellness calculations
+    - AI wellness routes expose explicit consent-context requirements in runtime/docs without introducing a regulated/clinical lane
+    - DSAR/export/delete public-surface decisions remain linked to the P0 epic and are not duplicated in this slice
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
 
 - [x] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
   - Owner: @katsiaryna_kavaleuskaya
@@ -4267,6 +4460,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-monthly-pr-analysis-cadence"></a>
+- [ ] P2: Monthly PR analysis cadence and evidence hygiene
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-MONTHLY-PR-ANALYSIS-REFRESH
+  - Status: 🟡 In progress (February-March 2026 baseline artifact added)
+  - Area: docs / governance / reporting
+  - Finding Type: reporting hygiene
+  - Reason (EN): Monthly retrospective summaries are useful for program steering, but they must remain evidence-first and must not become a second source of truth for backlog closure, merge readiness, or release status. A tracked cadence item keeps the artifact honest and versioned.
+  - Links:
+    - `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Monthly analysis artifact exists under `docs/review/` with explicit period and source list
+    - Summary distinguishes closed items from materially advanced but still open work
+    - Report explicitly points back to canonical SoTs (`BACKLOG_LEDGER`, Top-20 queue, phase-fit checklist)
+    - Future monthly refreshes supersede prior snapshots via new versioned artifacts instead of silent rewrites
+    - Docs-only PR stays narrow and does not introduce runtime or contract drift
 
 - [x] P2: Philosophy Validator (runtime LLM output validation)
   - Owner: @katsiaryna_kavaleuskaya

@@ -9,49 +9,30 @@ Feature-gated via FEATURE_CBT_AGENT environment variable.
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import logging
 import os
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
-from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from app.middleware.api_tiers import derive_subject_id_from_api_key, require_pro_tier
+from app.middleware.api_tiers import require_pro_tier
 from app.routers.api_key import api_key_header
-from app.security.agent_control_plane import (
-    AUDIT_SIGNING_KEY_ENV,
-    normalize_execution_mode,
-    persist_audit_envelope,
-    require_execution_mode,
-    require_policy_allow,
-    sign_audit_envelope,
-)
+from app.schemas.fitchef import FitChefCoachInsightInput, FitChefCoachInsightTaskEnvelope
+from app.security.agent_control_plane import normalize_execution_mode, require_execution_mode
 from app.security.agent_input_guard import require_safe_ai_agent_input
-from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
     RATE_LIMIT_INSIGHT,
     limit_if_available,
 )
-from app.security.server_salt import require_server_salt
-from core.data_sanitizer import sanitize_rag_markdown
-from core.compliance import get_transparency_registry, sanitize_chunk_preview
-from core.pii_redaction import redact_pii_from_text
+from app.services import fitchef_runtime
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pro/cbt", tags=["CBT", "pro"])
 
-# LLM provider call timeout (seconds) - prevents unbounded requests
-LLM_TIMEOUT_SECONDS: float = 60.0
 CBT_EXECUTION_MODE_ENV = "CBT_AGENT_EXECUTION_MODE"
-CBT_POLICY_ALLOWLIST = {
-    ("rag.retrieve", "corpus://cbt-agent"),
-    ("llm.generate", "provider://default"),
-}
 CBTExecutionMode = Literal["auto-safe", "review-required", "blocked"]
 CBTQuotaState = Literal["not_consumed", "consumed"]
 
@@ -133,85 +114,6 @@ class CBTInsightResponse(BaseModel):
     )
 
 
-# ---------------------------------------------------------------------------
-# CBT prompt builder
-# ---------------------------------------------------------------------------
-
-
-def _build_cbt_prompt(query: str, rag_context: str) -> str:
-    """Build CBT-informed prompt for LLM with RAG context.
-
-    The system prompt establishes the CBT coaching role and boundaries.
-    """
-    system_prompt = """You are a supportive wellness coach using evidence-based CBT (Cognitive Behavioral Therapy) principles. Your role is to:
-
-1. Help users identify and challenge unhelpful thought patterns
-2. Suggest practical CBT techniques (thought records, cognitive restructuring)
-3. Encourage self-compassion and gradual progress
-4. Focus on nutrition and wellness goals
-
-IMPORTANT BOUNDARIES:
-- You are NOT a therapist and cannot provide therapy or diagnose conditions
-- Avoid medical advice; suggest consulting professionals for health concerns
-- If someone expresses crisis/self-harm thoughts, encourage them to seek professional help
-- Use non-judgmental, supportive language
-
-Respond with practical, actionable suggestions based on CBT principles."""
-
-    if rag_context:
-        return f"""{system_prompt}
-
-RELEVANT CBT KNOWLEDGE:
-{rag_context}
-
-USER QUESTION:
-{query}
-
-Provide a helpful, CBT-informed response:"""
-    return f"""{system_prompt}
-
-USER QUESTION:
-{query}
-
-Provide a helpful, CBT-informed response:"""
-
-
-def _sha256_hex(value: str) -> str:
-    """Return deterministic sha256 hex digest for audit-safe metadata."""
-
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _persist_privileged_action_audit(
-    *,
-    action: str,
-    target: str,
-    mode: str,
-    endpoint: str,
-    metadata: dict[str, object],
-) -> None:
-    """Run policy gate and persist a signed audit envelope before privileged work."""
-
-    decision = require_policy_allow(action, target, allowlist=CBT_POLICY_ALLOWLIST)
-    audit_metadata = {
-        "endpoint": endpoint,
-        "mode": mode,
-        **metadata,
-    }
-    signing_secret = (os.getenv(AUDIT_SIGNING_KEY_ENV) or "").strip() or require_server_salt()
-    envelope = sign_audit_envelope(
-        decision,
-        metadata=audit_metadata,
-        secret=signing_secret,
-    )
-    persist_audit_envelope(envelope, metadata=audit_metadata)
-
-
-# ---------------------------------------------------------------------------
-# Endpoint
-# ---------------------------------------------------------------------------
-
-
 @router.post(
     "/insight",
     response_model=CBTInsightResponse,
@@ -265,175 +167,35 @@ async def cbt_insight(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
 
     safe_query = require_safe_ai_agent_input(request.query)
-
-    # Retrieve RAG context with CBT corpus filtering
-    rag_context_str = ""
-    sources: list[CBTSourceItem] = []
-    confidence = 0.0
-    rag_used = False
-    quota_state: CBTQuotaState = "not_consumed"
-    warnings: list[str] = []
-    redaction_applied = False
-    sanitization_applied = False
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="rag.retrieve",
-            target="corpus://cbt-agent",
-            mode=execution_mode,
-            endpoint=str(raw_request.url.path),
-            metadata={
-                "method": raw_request.method,
-                "query_hash": _sha256_hex(safe_query),
-                "query_length": len(safe_query),
-            },
-        )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("RAG privileged-action gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="rag_retrieval_unavailable",
-        ) from exc
-
-    try:
-        from core.rag.vector_rag import retrieve_context_structured
-
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            safe_query,
-            max_chunks=5,
-            agent_id="cbt-agent",
-            user_tier="PRO",
-            subject_id=derive_subject_id_from_api_key(_api_key),
-        )
-
-        if rag_ctx.chunks:
-            # Build context string from chunks
-            context_parts = []
-            for chunk in rag_ctx.chunks:
-                sanitized_chunk = sanitize_rag_markdown(chunk.content)
-                if sanitized_chunk != chunk.content:
-                    sanitization_applied = True
-                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
-                if sanitized_content != sanitized_chunk:
-                    redaction_applied = True
-                if not sanitized_content.strip():
-                    continue
-                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
-                sources.append(
-                    CBTSourceItem(
-                        chunk_id=chunk.chunk_id,
-                        file=chunk.file,
-                        preview=sanitize_chunk_preview(sanitized_content) or "",
-                        score=chunk.score,
-                    )
-                )
-            if context_parts:
-                rag_used = True
-                confidence = rag_ctx.confidence
-                rag_context_str = "\n\n".join(context_parts)
-
-    except Exception:
-        logger.warning("RAG retrieval failed for CBT insight", exc_info=True)
-        warnings.append("rag_retrieval_failed")
-        # Continue without RAG context
-
-    if sanitization_applied:
-        warnings.append("source_content_sanitized")
-
-    if redaction_applied:
-        warnings.append("source_content_redacted")
-
-    # Build prompt with RAG context
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    prompt = _build_cbt_prompt(safe_query, rag_context_str)
-
-    # Generate insight via LLM
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="llm.generate",
-            target="provider://default",
-            mode=execution_mode,
-            endpoint=str(raw_request.url.path),
-            metadata={
-                "method": raw_request.method,
-                "prompt_hash": _sha256_hex(prompt),
-                "prompt_length": len(prompt),
-                "rag_used": rag_used,
-                "source_count": len(sources),
-            },
-        )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("LLM privileged-action gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="llm_generation_unavailable",
-        ) from exc
-    try:
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            _api_key,
-            tier="PRO",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="quota_exceeded"
-            )
-        quota_state = "consumed"
-
-        from llm import get_provider
-
-        provider = get_provider()
-        insight_text = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-
-        if not insight_text:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider returned empty response",
-            )
-
-    except ImportError:
-        logger.error("LLM provider not available")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider not available",
-        )
-    except asyncio.TimeoutError:
-        logger.error("LLM provider call timed out after %s seconds", LLM_TIMEOUT_SECONDS)
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM provider call timed out",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("LLM generation failed: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to generate CBT insight",
-        )
-
-    bounded_confidence = min(max(confidence, 0.0), 1.0)
-    return CBTInsightResponse(
-        insight=insight_text,
-        rag_used=rag_used,
-        sources=sources,
-        confidence=bounded_confidence,
-        uncertainty=round(max(0.0, 1.0 - bounded_confidence), 4),
-        warnings=warnings,
+    task = FitChefCoachInsightTaskEnvelope(
         mode=execution_mode,
-        quota_state=quota_state,
-        automated_analysis=True,
-        transparency_notice_id=str(transparency_notice["surface_id"]),
-        wellness_boundary=str(transparency_notice["boundary"]),
+        input=FitChefCoachInsightInput(
+            safe_query=safe_query,
+            api_key=_api_key,
+            endpoint=str(raw_request.url.path),
+            method=raw_request.method,
+        ),
     )
+    result = await fitchef_runtime.run_coach_insight_task(task)
+    response = CBTInsightResponse(
+        insight=result.insight,
+        rag_used=result.rag_used,
+        sources=[
+            CBTSourceItem(
+                chunk_id=item.chunk_id,
+                file=item.file,
+                preview=item.preview,
+                score=item.score,
+            )
+            for item in result.sources
+        ],
+        confidence=result.confidence,
+        uncertainty=result.uncertainty,
+        warnings=result.warnings,
+        mode=result.mode,
+        quota_state=result.quota_state,
+        automated_analysis=result.automated_analysis,
+        transparency_notice_id=result.transparency_notice_id,
+        wellness_boundary=result.wellness_boundary,
+    )
+    return response

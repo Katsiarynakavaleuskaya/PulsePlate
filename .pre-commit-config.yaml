@@ -157,7 +157,7 @@ repos:
       # frontend tests — run on pre-commit if frontend files changed
       - id: frontend-tests
         name: frontend tests (vitest)
-        entry: bash -c "cd frontend && npm run test:ci || (echo '⚠️  Frontend tests failed or test:ci not configured'; exit 0)"
+        entry: bash -c "cd frontend && npm run test:precommit || (echo '⚠️  Frontend tests failed or test:precommit not configured'; exit 0)"
         language: system
         pass_filenames: false
         stages: [pre-commit]

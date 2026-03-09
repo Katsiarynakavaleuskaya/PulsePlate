@@ -17,10 +17,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.middleware.api_tiers import TEST_KEY_PRO
-from app.security.llm_monthly_quota import llm_key_fingerprint, month_start_date_utc
-
 from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+from app.schemas.fitchef import FitChefCoachInsightResult, FitChefSourceItem
+from app.security.llm_monthly_quota import llm_key_fingerprint, month_start_date_utc
 
 if TYPE_CHECKING:
     from core.rag.contracts import RAGContext
@@ -361,7 +360,7 @@ class TestCBTInsightValidation:
             lambda *args, **kwargs: pytest.fail("RAG must not run for blocked input"),
         )
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
             lambda *args, **kwargs: pytest.fail("quota must not run for blocked input"),
         )
         self.monkeypatch.setattr(
@@ -554,7 +553,7 @@ class TestCBTInsightRAGIntegration:
         """Permission/runtime failures in privileged RAG gate must fail closed."""
 
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight._persist_privileged_action_audit",
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
             lambda **kwargs: (_ for _ in ()).throw(PermissionError("denied")),
         )
 
@@ -902,7 +901,7 @@ class TestCBTInsightLLMIntegration:
                 raise RuntimeError("audit down")
 
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight._persist_privileged_action_audit",
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
             _fail_llm_audit,
         )
 
@@ -911,7 +910,7 @@ class TestCBTInsightLLMIntegration:
             return True
 
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
             _track_quota,
         )
 
@@ -935,7 +934,7 @@ class TestCBTInsightLLMIntegration:
             lambda *args, **kwargs: _make_rag_context(),
         )
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight.get_transparency_registry",
+            "app.services.fitchef_runtime.get_transparency_registry",
             lambda: {},
         )
         self.monkeypatch.setattr(
@@ -948,7 +947,7 @@ class TestCBTInsightLLMIntegration:
             return True
 
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight.attempt_consume_llm_monthly_quota",
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
             _track_quota,
         )
 
@@ -960,6 +959,42 @@ class TestCBTInsightLLMIntegration:
 
         assert response.status_code == 503
         assert _json_body(response) == {"detail": "transparency_registry_unavailable"}
+        assert quota_calls == []
+
+    def test_incomplete_transparency_registry_returns_503_without_consuming_quota(self) -> None:
+        """Incomplete transparency metadata must fail closed before quota use."""
+        quota_calls: list[str] = []
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {"ai_generated_insight": {"surface_id": "ai_generated_insight"}},
+        )
+        self.monkeypatch.setattr(
+            "llm.get_provider",
+            lambda: pytest.fail("llm.get_provider called in registry-failure test"),
+        )
+
+        def _track_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls.append("called")
+            return True
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            _track_quota,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"query": "Need advice"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "transparency_registry_incomplete"}
         assert quota_calls == []
 
     def test_llm_timeout_returns_504(self) -> None:
@@ -976,17 +1011,14 @@ class TestCBTInsightLLMIntegration:
 
         # Set a very short timeout for testing
         self.monkeypatch.setattr(
-            "app.routers.cbt_insight.LLM_TIMEOUT_SECONDS",
+            "app.services.fitchef_runtime.LLM_TIMEOUT_SECONDS",
             0.001,  # 1ms timeout
         )
 
         mock_provider = MagicMock()
-        # Simulate slow LLM that takes longer than timeout
-        import time
 
         def slow_generate(*args: object, **kwargs: object) -> str:
-            time.sleep(0.1)  # 100ms - longer than 1ms timeout
-            return "Response"
+            raise asyncio.TimeoutError
 
         mock_provider.generate.side_effect = slow_generate
         self.monkeypatch.setattr(
@@ -1000,3 +1032,61 @@ class TestCBTInsightLLMIntegration:
         assert response.status_code == 504
         data = _json_body(response)
         assert "timed out" in data["detail"].lower()
+
+
+class TestCBTInsightRouteDelegation:
+    """Tests for thin route delegation into FitChef runtime."""
+
+    def test_route_delegates_to_fitchef_runtime(
+        self,
+        client: TestClient,
+        pro_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The route should build the internal envelope and delegate once."""
+
+        monkeypatch.setenv("FEATURE_CBT_AGENT", "true")
+        captured: dict[str, object] = {}
+
+        async def _fake_run(task: object) -> FitChefCoachInsightResult:
+            captured["task"] = task
+            return FitChefCoachInsightResult(
+                insight="Delegated response",
+                rag_used=False,
+                sources=[
+                    FitChefSourceItem(
+                        chunk_id="chunk-1",
+                        file="docs/cbt/test.md",
+                        preview="Preview",
+                        score=0.9,
+                    )
+                ],
+                confidence=0.25,
+                uncertainty=0.75,
+                warnings=["delegated"],
+                mode="auto-safe",
+                quota_state="consumed",
+                automated_analysis=True,
+                transparency_notice_id="ai_generated_insight",
+                wellness_boundary="Wellness coaching only.",
+            )
+
+        monkeypatch.setattr(
+            "app.routers.cbt_insight.fitchef_runtime.run_coach_insight_task",
+            _fake_run,
+        )
+
+        response = client.post(
+            "/api/v1/pro/cbt/insight",
+            json={"query": "Need support"},
+            headers=pro_headers,
+        )
+
+        assert response.status_code == 200
+        data = _json_body(response)
+        assert data["insight"] == "Delegated response"
+        task = captured["task"]
+        assert getattr(task, "agent_id") == "fitchef-agent"
+        assert getattr(task, "task_type") == "coach_insight"
+        assert getattr(task, "tool_budget") == 1
+        assert getattr(task, "input").safe_query == "Need support"

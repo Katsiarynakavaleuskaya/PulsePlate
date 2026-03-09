@@ -245,3 +245,24 @@ def test_premium_endpoints_hidden_from_openapi(client: TestClient, endpoint_path
     assert r.headers.get("content-type", "").startswith("application/json")
     spec = r.json()
     assert endpoint_path not in spec["paths"], f"{endpoint_path} must be hidden from OpenAPI"
+
+
+def test_openapi_prunes_premium_week_components_after_path_filtering(client: TestClient) -> None:
+    """Assert hidden premium-week contracts do not leak orphaned schema components."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200, response.text
+    assert response.headers.get("content-type", "").startswith("application/json")
+
+    spec = response.json()
+    components = spec.get("components") or {}
+    schemas = components.get("schemas") or {}
+
+    assert "/api/v1/pro/meal/weekly" in spec.get("paths", {})
+    assert "/api/v1/premium/plan/week-flexible" not in spec.get("paths", {})
+    assert "PremiumWeekPlanRequest" not in schemas
+    assert "PremiumWeekPlanResponse" not in schemas
+
+    weekly_response = schemas.get("WeeklyMealPlanResponse") or {}
+    daily_menus = (weekly_response.get("properties") or {}).get("daily_menus") or {}
+    daily_menu_items = daily_menus.get("items") or {}
+    assert daily_menu_items.get("$ref") == "#/components/schemas/WeeklyMealPlanDayMenu"

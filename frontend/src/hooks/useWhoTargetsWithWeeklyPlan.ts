@@ -1,10 +1,27 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTargets, getWeeklyPlan } from '../api/premium';
-import type { TargetsRequest, TargetsApiResponse, WeeklyMenuResponse } from '../api/premium';
+import type { TargetsRequest, TargetsApiResponse } from '../api/premium';
+import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from '../api/premium/weekly-plan';
+
+function toWeekPlanRequest(request: TargetsRequest): ProWeekPlanRequest {
+  return {
+    sex: request.sex,
+    age: request.age,
+    height_cm: request.height_cm,
+    weight_kg: request.weight_kg,
+    activity: request.activity,
+    goal: request.goal,
+    diet_flags: request.diet_flags ?? [],
+    lang:
+      request.lang === 'ru' || request.lang === 'es' || request.lang === 'en'
+        ? request.lang
+        : 'en',
+  };
+}
 
 interface UseWhoTargetsWithWeeklyPlanOptions {
-  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMenuResponse) => void;
+  onSuccess?: (targets: TargetsApiResponse, weeklyPlan: WeeklyMealPlanResponse) => void;
   onError?: (error: Error) => void;
 }
 
@@ -15,7 +32,7 @@ interface UseWhoTargetsWithWeeklyPlanReturn {
   targetsError: string | null;
 
   // Weekly plan state
-  weeklyPlanData: WeeklyMenuResponse | null;
+  weeklyPlanData: WeeklyMealPlanResponse | null;
   weeklyPlanLoading: boolean;
   weeklyPlanError: string | null;
 
@@ -38,7 +55,7 @@ export function useWhoTargetsWithWeeklyPlan(
   const [targetsError, setTargetsError] = useState<string | null>(null);
 
   // Weekly plan state
-  const [weeklyPlanData, setWeeklyPlanData] = useState<WeeklyMenuResponse | null>(null);
+  const [weeklyPlanData, setWeeklyPlanData] = useState<WeeklyMealPlanResponse | null>(null);
   const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
   const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
 
@@ -86,7 +103,7 @@ export function useWhoTargetsWithWeeklyPlan(
       }
 
       // Then generate weekly plan
-      const weeklyPlan = await getWeeklyPlan(request);
+      const weeklyPlan = await getWeeklyPlan(toWeekPlanRequest(request));
       setWeeklyPlanData(weeklyPlan);
 
       // Call success callback with both data
