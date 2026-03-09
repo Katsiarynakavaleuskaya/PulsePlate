@@ -33,6 +33,14 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:3777` now records `PR-TBD-IOS-STOREKIT
 Disposition: FIXED
 Commit: bfe211e3
 Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:13` now lists the reviewed PR IDs for the fixed slice, and `docs/roadmap/BACKLOG_LEDGER.md:3777` adds the missing `PR-TBD-IOS-STOREKIT-PRODUCTS` follow-up entry referenced by the review.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#discussion_r2906140006 -> 6b04cc6a
+Disposition: FIXED
+Commit: 6b04cc6a
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:207`, `docs/roadmap/BACKLOG_LEDGER.md:225`, and `docs/roadmap/BACKLOG_LEDGER.md:243` now keep the three planned P1 entries under `## Open Items -> ### P1`, while `docs/roadmap/BACKLOG_LEDGER.md:3798` shows the nearby completed section now contains only merged `[x]` items.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#pullrequestreview-3916205117 -> 6b04cc6a
+Disposition: FIXED
+Commit: 6b04cc6a
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:207`, `docs/roadmap/BACKLOG_LEDGER.md:225`, and `docs/roadmap/BACKLOG_LEDGER.md:243` relocate the planned items into the open P1 backlog, and `docs/roadmap/BACKLOG_LEDGER.md:3798` leaves the completed ledger slice consistent with the closure rule.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
