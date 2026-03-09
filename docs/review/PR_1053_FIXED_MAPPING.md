@@ -5,6 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3915388839
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905404349; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905404366
+Reason: this cubic review entry is a summary shell; the actionable child comments are dispositioned separately below with exact thread URLs.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905404349 -> def635b9
 Disposition: FIXED
 Evidence: tests/test_pro_premium_contract_parity.py:254; tests/test_app_endpoints_1383_1401.py:121
@@ -55,6 +60,16 @@ Evidence: frontend/src/features/weekly-plan/model/adapter.ts:122; frontend/src/f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885748 -> f373f4f8
 Disposition: FIXED
 Evidence: frontend/src/features/weekly-plan/model/adapter.ts:147; frontend/src/features/weekly-plan/model/adapter.ts:174; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:72
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3915417151
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905429697; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905429714; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905429719; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905429724; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905429729
+Reason: this CodeRabbit review entry is a summary shell for the actionable child threads already dispositioned above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3915916533
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885722; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885731; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885748
+Reason: this later CodeRabbit review entry is a summary shell for the follow-up actionable child threads already dispositioned above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3915767054
 Disposition: NOT-A-BUG
