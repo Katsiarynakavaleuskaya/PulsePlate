@@ -10,6 +10,24 @@ Disposition: NOT-A-BUG
 Evidence: GitHub required check `diff-coverage` passed on current head; local `make verify` reported `Coverage: 100%` for changed lines in `settings.py`, `legacy_app.py`, and `app/middleware/api_tiers.py`.
 Reason: Codecov patch comment is informational-only and disagrees with the canonical merge gate for this repo (`make diff-cov` / `diff-coverage` check), which already passed on the current head.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905754667
+Disposition: FIXED
+Commit: 656e0239
+Evidence: `settings.py:20` now prefers `ENVIRONMENT` over `APP_ENV`; `settings.py:42` keeps production-like detection fail-closed on the canonical runtime label; `tests/test_api_tiers.py:174` proves `ENVIRONMENT=production` overrides `APP_ENV=local`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905754667 -> 656e0239
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905783682
+Disposition: FIXED
+Commit: 656e0239
+Evidence: `docs/deploy/VIP_API_KEYS.md:124` rewrites the migration path to require a real `API_KEY`; `docs/deploy/VIP_API_KEYS.md:186` rewrites troubleshooting to treat anonymous/dev toggles in production as a misconfiguration instead of a workaround.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905783682 -> 656e0239
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905783689
+Disposition: FIXED
+Commit: 656e0239
+Evidence: `app/bootstrap/startup_guards.py:14` centralizes startup hard guards; `legacy_app.py:516` delegates to the bootstrap seam; `tests/test_app_lifespan_additional.py:90` and `tests/test_app_lifespan_additional.py:112` verify fail-closed startup behavior through the shared bootstrap seam.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2905783689 -> 656e0239
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
