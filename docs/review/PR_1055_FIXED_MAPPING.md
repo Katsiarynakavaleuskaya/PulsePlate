@@ -5,7 +5,6 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-No resolved review threads yet. Add each actionable thread here with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition evidence before resolving it on GitHub.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
