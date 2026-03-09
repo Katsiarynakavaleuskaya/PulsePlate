@@ -1815,7 +1815,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: FitChef sandbox Phase 2 deferred scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-MASCOT-PHASE2
+  - Target PR: PR #1064 (`docs(ledger): freeze fitchef mascot phase 2 contract`)
   - Status: Open
   - Area: orchestration / product runtime / sandbox integration
   - Finding Type: scope control
@@ -1859,6 +1859,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Request/response schemas are typed and documented in OpenAPI
     - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
     - `/api/v1/insight` remains unchanged
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
   - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
 
 <a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
@@ -1883,6 +1886,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
     - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
     - No persistence, exports, or client-owned orchestration is added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
   - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
 
 <a id="ledger-p2-fitchef-slip-support-endpoint"></a>
@@ -1907,6 +1913,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Response uses `scenario=\"slip_support\"` and excludes therapy/diagnosis language
     - Non-judgmental recovery guidance is covered by deterministic tests
     - No reminders, background jobs, realtime fan-out, or export hooks are added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
   - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
 
 

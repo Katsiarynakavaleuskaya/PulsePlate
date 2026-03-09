@@ -46,7 +46,8 @@ surface stable.
 
 ## Public contract freeze
 
-Approved new public endpoints for this wave:
+Approved contract paths for this wave — not yet implemented; runtime delivery is
+deferred to follow-up PRs:
 
 - `POST /api/v1/insight/fitchef`
 - `POST /api/v1/insight/fitchef/weekly-reflection`
@@ -59,6 +60,66 @@ Shared constraints:
 - Same monthly quota enforcement order as canonical insight
 - Policy/audit checks must execute before provider calls
 - Wellness-language and philosophy validation must remain fail-closed
+
+## HTTP contract freeze
+
+All FitChef mascot endpoints inherit the canonical insight HTTP behavior and use
+`Content-Type: application/json`.
+
+### 1. `POST /api/v1/insight/fitchef`
+
+- Request body:
+  - `query: str`
+- `200` response envelope:
+  - `message: str`
+  - `scenario: "mascot_insight"`
+  - `sources: list[object]`
+  - `confidence: float`
+  - `warnings: list[str]`
+  - `action_items: list[str]`
+  - `quota_state: str`
+  - `transparency_notice_id: str`
+  - `wellness_boundary: str`
+
+### 2. `POST /api/v1/insight/fitchef/weekly-reflection`
+
+- Request body:
+  - `summary: str`
+  - `goal: str | null`
+- `200` response envelope:
+  - same shared envelope as mascot insight
+  - `scenario: "weekly_reflection"`
+
+### 3. `POST /api/v1/insight/fitchef/slip-support`
+
+- Request body:
+  - `event_text: str`
+  - `goal: str | null`
+- `200` response envelope:
+  - same shared envelope as mascot insight
+  - `scenario: "slip_support"`
+
+### Shared error contract
+
+- Error responses remain JSON and inherit the canonical insight failure shape:
+  - stable machine-readable error code
+  - safe human-readable message
+  - structured `detail` field
+- Required baseline failures for each route:
+  - `403` tier guard failure
+  - `429` rate-limit failure
+  - `503` feature-disabled or provider-unavailable failure
+- Policy gate, audit signing, quota checks, and validation must execute before
+  provider generation on every mascot route.
+
+### Test freeze for follow-up runtime PRs
+
+Each endpoint PR must include:
+
+- contract tests for `200` plus representative failure cases
+- one happy-path integration test
+- deterministic guarantees for any provider/path selection or response shaping
+- assertions for `Content-Type` and standardized error fields
 
 ## Explicit non-goals
 
