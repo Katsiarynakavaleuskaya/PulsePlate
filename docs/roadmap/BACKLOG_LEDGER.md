@@ -159,12 +159,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p0-session-cookie-hardening"></a>
-- [x] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
+- [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR-TBD-SESSION-COOKIE-HARDENING-W1 -> PR #1030
-  - Status: ✅ Merged (foundation in PR #1003; W1 completion in PR #1030, 2026-03-09)
-  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, and PR #1030 completed the W1 hardening pass by making legacy browser-stored API keys one-time migration artifacts, failing closed when cleanup fails, and aligning web gating with the secure session contract instead of browser-secret presence.
+  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR-TBD-SESSION-COOKIE-HARDENING-W2
+  - Status: 🟡 In progress (foundation in PR #1003; W1 hardening in PR #1030; cleanup-guarantee carryover remains)
+  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, and PR #1030 hardened the W1 migration path by treating legacy browser-stored API keys as one-time artifacts and failing closed at the app boundary when cleanup fails. The item remains open because the current browser-storage cleanup path is not yet guaranteed to remove legacy secrets under transient `removeItem()` failure semantics, so the ledger must track a follow-up hardening pass instead of declaring the transport migration fully complete. (RU: PR #1003 и PR #1030 закрыли foundation/W1 часть hardening, но пункт остаётся открытым, потому что очистка legacy browser storage пока не гарантирована при ошибках `removeItem()`. Нужен отдельный carryover hardening pass, а не преждевременное закрытие P0.)
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - app/security/auth.py
@@ -176,9 +176,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
   - DoD:
-    - ✅ No sensitive session/auth token persists in browser local storage
-    - ✅ Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
-    - ✅ Regression tests cover authenticated flows and logout/invalidation
+    - No sensitive session/auth token persists in browser local storage, including cleanup-failure paths
+    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
+    - Regression tests cover authenticated flows, logout/invalidation, and cleanup-failure semantics
 
 
 ### P1
