@@ -10,6 +10,24 @@ AI provider integration, safety controls, and insight/runtime behavior are
 documented across several runtime areas. The target architecture is a clearer
 bounded context, but the canonical package boundary is not implemented yet.
 
+## Evidence
+
+- Canonical API entrypoint remains split between bootstrap wiring in
+  `app/main.py:11`-`app/main.py:26` and additive AI route registration in
+  `app/main.py:83`-`app/main.py:87`.
+- Import-safe compat and router-registration seams still live in
+  `legacy_app.py:170`-`legacy_app.py:175` and
+  `app/routers/pro_registration.py:26`-`app/routers/pro_registration.py:45`.
+- Provider loading, transparency gating, and runtime orchestration for insights
+  still flow through the legacy compatibility layer in
+  `legacy_app.py:2225`-`legacy_app.py:2344`.
+- Hard quota enforcement remains in `app/security/llm_monthly_quota.py:52`-`app/security/llm_monthly_quota.py:77`
+  and `app/security/llm_monthly_quota.py:117`-`app/security/llm_monthly_quota.py:152`.
+- Rate-limit guardrails remain in `app/security/rate_limit.py:48`-`app/security/rate_limit.py:76`
+  and `app/security/rate_limit.py:173`-`app/security/rate_limit.py:205`.
+- Public insight endpoints still enforce input guard + quota + rate limit in
+  `legacy_app.py:2393`-`legacy_app.py:2441`.
+
 ## Decision
 
 Keep the current runtime structure, but document AI bounded-context extraction

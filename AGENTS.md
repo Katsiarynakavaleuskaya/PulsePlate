@@ -967,7 +967,7 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 ### AI bounded context
 
 - AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
-- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
+- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (the ADR now carries `file:line` evidence for current boundary claims; retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
 
 ## OpenAPI generation (determinism requirement)
 
