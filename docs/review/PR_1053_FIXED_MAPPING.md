@@ -76,6 +76,16 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905746565
 Reason: this review entry is a summary shell for the single child actionable comment above; the actionable thread is dispositioned separately and is the canonical proof target.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3916090710
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906038434
+Reason: cubic identified this issue in the review summary shell; the exact actionable child thread is dispositioned separately below and is the canonical proof target.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2906038434 -> 56ca4c1b
+Disposition: FIXED
+Evidence: frontend/src/features/weekly-plan/model/adapter.ts:157; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:130
+Reason: preserve original `daily_menus` indices while skipping malformed entries so valid days retain the correct `day`/`dayName`.
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
