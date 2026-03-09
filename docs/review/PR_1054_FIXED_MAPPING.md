@@ -103,6 +103,12 @@ Commit: 0f1b4f47
 Evidence: The latest CodeRabbit review summary is now dispositioned as four concrete fixes in `0f1b4f47` (`app/middleware/api_tiers.py`, `docs/deploy/VIP_API_KEYS.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `tests/edges/test_vip_auth_edges.py`, and `tests/test_vip_anonymous_api_key_safety.py`) plus one `NOT-A-BUG` clarification for the deprecated `/weekly-plan` alias path in `tests/test_vip_production_simple.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3916595868 -> 0f1b4f47
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3917624345
+Disposition: FIXED
+Commit: ef54e8ad
+Evidence: `docs/deploy/VIP_API_KEYS.md:212` and `docs/deploy/VIP_API_KEYS.md:216` now print both `ENVIRONMENT` and `ALLOW_DEV_API_KEY`; the remaining duplicate adapter-path comment is already classified as `NOT-A-BUG` under `discussion_r2906496216` because the deprecated `/api/v1/vip/weekly-plan` alias calls `app.routers.vip.make_weekly_menu` directly.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3917624345 -> ef54e8ad
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
