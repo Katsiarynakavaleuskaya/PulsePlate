@@ -10,6 +10,7 @@
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
 - Curated late-wave slice review: merged PRs in the `#963-#1048` band cross-checked against `gh pr view <N>`, `git log`, `BACKLOG_LEDGER`, and the Top-20 / phase-fit artifacts above
+- Reviewed PR IDs (fixed slice): `#963` through `#1048` inclusive; adjacent pre-wave context references used explicitly in section 1.5 are `#942`, `#950`, `#951`, and `#952`
 
 ---
 
