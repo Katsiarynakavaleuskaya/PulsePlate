@@ -142,7 +142,9 @@ describe('EnterKey', () => {
     const clearButton = screen.getByText('onboarding.enterKey.clear');
     fireEvent.click(clearButton);
 
-    // Should not show success message when no key was present
-    expect(toast.success).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(clearProSessionMock).toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+    });
   });
 });
