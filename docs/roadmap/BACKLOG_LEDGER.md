@@ -1910,7 +1910,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/insight/creative_scientific_innovations.md`
   - DoD:
     - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
-    - Response uses `scenario=\"slip_support\"` and excludes therapy/diagnosis language
+    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
     - Non-judgmental recovery guidance is covered by deterministic tests
     - No reminders, background jobs, realtime fan-out, or export hooks are added
     - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
