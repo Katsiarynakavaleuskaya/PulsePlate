@@ -59,3 +59,13 @@ Evidence: tests/test_legacy_weekly_plan_alias_api.py:102
 Disposition: NOT-A-BUG
 Evidence: legacy_app.py:4590; legacy_app.py:4594; legacy_app.py:4653; app/routers/vip.py:518; app/routers/vip.py:588
 Reason: This review summary aggregates four inline findings fixed above plus two deliberate compatibility decisions: the hidden legacy alias remains runtime-callable under existing `_get_api_key_dynamic` semantics, and the canonical VIP helper keeps the pre-refactor `echo` behavior. The public VIP surface remains gated at `/api/v1/vip/menu/weekly/plan`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907715232 -> dc959872
+Disposition: FIXED
+Commit: dc959872
+Evidence: legacy_app.py:3246; legacy_app.py:3257; tests/test_legacy_weekly_plan_alias_api.py:270
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3917967588 -> dc959872
+Disposition: FIXED
+Commit: dc959872
+Evidence: legacy_app.py:3246; legacy_app.py:4635; tests/test_legacy_weekly_plan_alias_api.py:167
