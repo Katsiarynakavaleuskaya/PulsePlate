@@ -4347,6 +4347,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-monthly-pr-analysis-cadence"></a>
+- [ ] P2: Monthly PR analysis cadence and evidence hygiene
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-MONTHLY-PR-ANALYSIS-CADENCE
+  - Status: 🟡 In progress (March 2026 baseline artifact added)
+  - Area: docs / governance / reporting
+  - Finding Type: reporting hygiene
+  - Reason (EN): Monthly retrospective summaries are useful for program steering, but they must remain evidence-first and must not become a second source of truth for backlog closure, merge readiness, or release status. A tracked cadence item keeps the artifact honest and versioned.
+  - Links:
+    - `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Monthly analysis artifact exists under `docs/review/` with explicit period and source list
+    - Summary distinguishes closed items from materially advanced but still open work
+    - Report explicitly points back to canonical SoTs (`BACKLOG_LEDGER`, Top-20 queue, phase-fit checklist)
+    - Future monthly refreshes supersede prior snapshots via new versioned artifacts instead of silent rewrites
+    - Docs-only PR stays narrow and does not introduce runtime or contract drift
+
 - [x] P2: Philosophy Validator (runtime LLM output validation)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (quality / safety)
