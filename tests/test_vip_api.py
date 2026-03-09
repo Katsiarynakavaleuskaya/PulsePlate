@@ -70,8 +70,13 @@ def test_deprecated_weekly_plan_handles_dict_plan(
     assert data["data"]["daily_menus"] == []
 
 
-def test_vip_weekly_plan_echo(client: TestClient, vip_headers: dict[str, str]) -> None:
+def test_vip_weekly_plan_echo(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
     """Test VIP weekly plan endpoint returns echo structure"""
+    monkeypatch.setattr("app.routers.vip.make_weekly_menu", None)
     payload = {
         "sex": "male",
         "age": 30,

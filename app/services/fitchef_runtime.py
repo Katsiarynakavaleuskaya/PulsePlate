@@ -6,9 +6,11 @@ import asyncio
 import hashlib
 import logging
 import os
+from typing import Any, Callable, Literal, cast
 
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.encoders import jsonable_encoder
 
 from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.schemas.fitchef import (
@@ -16,6 +18,8 @@ from app.schemas.fitchef import (
     FitChefCoachInsightTaskEnvelope,
     FitChefQuotaState,
     FitChefSourceItem,
+    FitChefWeeklyPlanResult,
+    FitChefWeeklyPlanTaskEnvelope,
 )
 from app.security.agent_control_plane import (
     AUDIT_SIGNING_KEY_ENV,
@@ -36,6 +40,7 @@ CBT_POLICY_ALLOWLIST = {
     ("rag.retrieve", "corpus://cbt-agent"),
     ("llm.generate", "provider://default"),
 }
+WeeklyPlanBuilder = Callable[..., Any]
 
 
 def _build_cbt_prompt(query: str, rag_context: str) -> str:
@@ -78,6 +83,78 @@ def _sha256_hex(value: str) -> str:
     """Return audit-safe sha256 digest. / Вернуть audit-safe sha256 digest."""
 
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
+    """Create UserProfile with legacy-safe defaults. / Собрать UserProfile с совместимыми fallback."""
+
+    from core.targets import UserProfile
+
+    diet_flags = profile_data.get("diet_flags", [])
+    if isinstance(diet_flags, list):
+        diet_flags = set(diet_flags)
+
+    medical_conditions = profile_data.get("medical_conditions", [])
+    if isinstance(medical_conditions, list):
+        medical_conditions = set(medical_conditions)
+
+    age_raw = profile_data.get("age")
+    try:
+        age_val: int = 30 if age_raw is None else int(age_raw)
+    except (TypeError, ValueError):
+        age_val = 30
+
+    height_raw = profile_data.get("height_cm")
+    try:
+        height_val: float = 175.0 if height_raw is None else float(height_raw)
+    except (TypeError, ValueError):
+        height_val = 175.0
+
+    weight_raw = profile_data.get("weight_kg")
+    try:
+        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
+    except (TypeError, ValueError):
+        weight_val = 70.0
+
+    profile = UserProfile(
+        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
+        age=age_val,
+        height_cm=height_val,
+        weight_kg=weight_val,
+        activity=cast(
+            Literal["sedentary", "light", "moderate", "active", "very_active"],
+            profile_data.get("activity") or "moderate",
+        ),
+        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
+        deficit_pct=profile_data.get("deficit_pct"),
+        surplus_pct=profile_data.get("surplus_pct"),
+        bodyfat=profile_data.get("bodyfat"),
+        region=profile_data.get("region") or "BY",
+        timezone=profile_data.get("timezone") or "UTC",
+        diet_flags=diet_flags,
+        life_stage=cast(
+            Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
+            profile_data.get("life_stage") or "adult",
+        ),
+        medical_conditions=medical_conditions,
+    )
+    return profile
+
+
+def _run_weekly_menu_builder(
+    profile_data: dict[str, Any],
+    menu_builder: WeeklyPlanBuilder,
+) -> dict[str, Any]:
+    """Run weekly menu builder and serialize result. / Выполнить weekly builder и сериализовать результат."""
+
+    profile = _build_weekly_user_profile(profile_data)
+    menu = menu_builder(profile)
+    if menu is None:
+        return {"mode": "echo"}
+    encoded_menu = jsonable_encoder(menu)
+    if isinstance(encoded_menu, dict):
+        return encoded_menu
+    return {"mode": "echo"}
 
 
 def _persist_privileged_action_audit(
@@ -287,4 +364,24 @@ async def run_coach_insight_task(
         transparency_notice_id=str(notice_surface_id),
         wellness_boundary=str(notice_boundary),
     )
+    return result
+
+
+async def run_weekly_plan_task(
+    task: FitChefWeeklyPlanTaskEnvelope,
+    *,
+    menu_builder: WeeklyPlanBuilder | None,
+) -> FitChefWeeklyPlanResult:
+    """Run weekly-plan orchestration. / Выполнить оркестрацию weekly-plan."""
+
+    if menu_builder is None:
+        result = FitChefWeeklyPlanResult(menu={"mode": "echo"})
+        return result
+
+    menu_payload = await run_in_threadpool(
+        _run_weekly_menu_builder,
+        task.input.request_data,
+        menu_builder,
+    )
+    result = FitChefWeeklyPlanResult(menu=menu_payload)
     return result

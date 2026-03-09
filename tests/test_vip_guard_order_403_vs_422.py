@@ -94,10 +94,14 @@ def test_vip_guard_200_with_valid_tier_and_payload(
         "goal": "maintain",
     }
 
-    # Mock internal call
+    async def mock_run_weekly_plan_task(task, *, menu_builder):
+        assert task.task_type == "weekly_plan"
+        assert menu_builder is not None
+        return type("WeeklyPlanResult", (), {"menu": {"days": []}})()
+
     monkeypatch.setattr(
-        "app.routers.vip._safe_call_with_adapter",
-        lambda func_name, **kwargs: {"status": "success", "menu": {"days": []}},
+        "app.services.fitchef_runtime.run_weekly_plan_task",
+        mock_run_weekly_plan_task,
     )
 
     # With valid VIP key
