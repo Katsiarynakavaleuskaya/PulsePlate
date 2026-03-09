@@ -5,7 +5,7 @@
 **Method:** agent-orchestrated repo review + merged PR scan + backlog/top-20 cross-check
 **Primary sources:** `gh pr list`, `git log`, `docs/roadmap/BACKLOG_LEDGER.md`, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`, `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
 
-**Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window; this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
+**Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`

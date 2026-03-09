@@ -57,6 +57,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
+<a id="ledger-p0-billing-apple-verify"></a>
+- [ ] P0: Apple receipt verification backend follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-APPLE-VERIFY
+  - Status: 📋 Planned
+  - Area: backend / payments / iOS monetization
+  - Finding Type: payment integrity
+  - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `app/routers/pro_payments.py`
+    - `app/services/payments_activation.py`
+  - DoD:
+    - Server-side Apple receipt verification normalizes into the canonical billing activation flow
+    - Receipt verification failure modes are deterministic and test-covered
+    - Activation/status contracts stay additive for existing clients
+
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
   - Owner: @katsiaryna_kavaleuskaya
@@ -79,6 +98,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Support-led DSAR workflow for direct-user artifacts is documented and used until a public auth-bound DSAR API is explicitly designed
     - The US regulated lane remains blocked from the wellness runtime until separate legal/compliance approval
     - Future public DSAR/export/delete endpoints are blocked until auth/ownership contract is explicit
+
+<a id="ledger-p0-legal-policy-publish"></a>
+- [ ] P0: Legal policy publish and client-link alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-LEGAL-POLICY-PUBLISH
+  - Status: 📋 Planned
+  - Area: docs / legal / release readiness
+  - Finding Type: policy publication gap
+  - Reason (EN): Privacy and Terms posture has been materially clarified in runtime and compliance docs, but canonical published policy paths and client references still need one explicit release-blocker item.
+  - Links:
+    - `docs/legal/Privacy.md`
+    - `legacy_app.py`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Canonical privacy and terms publication paths exist in-repo
+    - Web and iOS clients link to the published policy paths consistently
+    - Published text stays aligned with runtime wellness/compliance posture
 
 
 <a id="ledger-p0-insight-fallback-chain"></a>
@@ -2204,7 +2241,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P0: Harden private export signing secret and signable-path scope
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #1035 (`fix(export): harden signing secret access`)
+  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING -> PR #1035 (`fix(export): harden signing secret access`)
   - Status: ✅ Merged (PR #1035, 2026-03-08)
   - Area: backend / security / export signing
   - Finding Type: auth/config hardening
@@ -2628,7 +2665,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1038 (`fix/security-users-surface-hardening`)
+  - Target PR: PR-TBD-USERS-SURFACE-HARDENING -> PR #1038 (`fix/security-users-surface-hardening`)
   - Status: ✅ Merged (PR #1038, 2026-03-08)
   - Area: backend / auth / data protection
   - Finding Type: access-control gap
@@ -3707,7 +3744,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR #1011 (`feat/p1-ios-keychain-conformance`)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`)
   - Status: ✅ Merged (PR #1011, 2026-03-07)
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
   - Links:
@@ -3718,6 +3755,43 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
+
+<a id="ledger-p1-ios-subscription-manager"></a>
+- [ ] P1: iOS SubscriptionManager backend-driven integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 📋 Planned
+  - Area: ios / payments / thin-client policy
+  - Finding Type: monetization runtime follow-through
+  - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `ios/PulsePlate`
+  - DoD:
+    - iOS subscription orchestration remains thin and backend-driven
+    - Product/state transitions are deterministic and test-covered
+    - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-diet-flags-contract-sync"></a>
+- [ ] P1: Diet flags contract sync across schemas and clients
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
+  - Status: 📋 Planned
+  - Area: frontend / backend / iOS contracts
+  - Finding Type: contract consistency
+  - Reason (EN): Diet-flag semantics are product-facing and cross-client. A dedicated sync item keeps the enum/normalization surface canonical instead of letting drift hide inside frontend or generated-type follow-ups.
+  - Links:
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `frontend`
+    - `ios/PulsePlate`
+  - DoD:
+    - One canonical diet-flags normalization table is used across backend schemas and clients
+    - Generated or mirrored client types remain aligned with backend truth
+    - Deterministic regression tests cover the shared contract
 
 
 - [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
