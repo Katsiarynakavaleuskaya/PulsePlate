@@ -2398,6 +2398,14 @@ export interface components {
             status: string;
         };
         /**
+         * FitChefCoachingErrorResponse
+         * @description Standard JSON detail envelope for FitChef coaching errors.
+         */
+        FitChefCoachingErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
+        /**
          * FitChefCoachingRequest
          * @description Mascot insight request payload.
          */
@@ -4525,14 +4533,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
             /** @description VIP tier required */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -4557,14 +4569,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
             /** @description LLM provider call timed out */
             504: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
             };
         };
     };

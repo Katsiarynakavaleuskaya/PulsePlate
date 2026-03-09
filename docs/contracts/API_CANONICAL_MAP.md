@@ -40,7 +40,7 @@ These routes are the current canonical operator surface.
 | Shoplist export | `/api/v1/vip/shoplist/export` | POST | VIP | Canonical VIP export surface |
 | Recipe synthesis | `/api/v1/vip/recipes/synthesize` | POST | VIP | Canonical VIP recipe synthesis route |
 | Insight | `/api/v1/insight` | POST | VIP-only (`require_vip_tier()`) | AI insight route; API-key access is enforced through VIP middleware, and bounded-context extraction remains planned |
-| FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace |
+| FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 
 ## Deprecated Alias / Proxy-Only Surface
 

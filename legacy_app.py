@@ -712,11 +712,11 @@ app = FastAPI(
 
 _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/bmi/",
-    "/api/v1/insight",
+    "/api/v1/insight/",
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
-_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi"})
+_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/api/v1/insight"})
 # Note: /ws is no longer in allowed exact - WebSocket is now at /api/v1/pro/ws
 # which is covered by _OPENAPI_ALLOWED_PREFIXES
 

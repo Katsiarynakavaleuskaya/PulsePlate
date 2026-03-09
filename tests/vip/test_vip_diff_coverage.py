@@ -41,6 +41,22 @@ class TestVIPRegistrationIdempotent:
         # Verify VIP routes are registered (covers lines 53-57: hasattr check and include_router)
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/api/v1/vip" in path for path in paths), "VIP routes should be registered"
+        assert "/api/v1/insight/fitchef" in paths
+
+    def test_register_vip_routes_keeps_fitchef_registration_idempotent(self, monkeypatch):
+        """Repeated registration must not duplicate the FitChef mascot route."""
+
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+
+        from app.routers.vip_registration import register_vip_routes
+
+        app = FastAPI()
+
+        register_vip_routes(app)
+        register_vip_routes(app)
+
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        assert paths.count("/api/v1/insight/fitchef") == 1
 
     def test_register_vip_routes_noop_when_disabled(self, monkeypatch):
         """Test that register_vip_routes is a no-op when VIP module disabled."""

@@ -1719,6 +1719,21 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FitChefCoachingErrorResponse": {
+        "description": "Standard JSON detail envelope for FitChef coaching errors.",
+        "properties": {
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "FitChefCoachingErrorResponse",
+        "type": "object"
+      },
       "FitChefCoachingRequest": {
         "description": "Mascot insight request payload.",
         "properties": {
@@ -5884,9 +5899,23 @@
             "description": "FitChef mascot coaching insight generated"
           },
           "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
             "description": "Unsafe AI input blocked"
           },
           "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
             "description": "VIP tier required"
           },
           "422": {
@@ -5910,9 +5939,23 @@
             "description": "Rate limit exceeded"
           },
           "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
             "description": "Feature disabled or provider unavailable"
           },
           "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
             "description": "LLM provider call timed out"
           }
         },

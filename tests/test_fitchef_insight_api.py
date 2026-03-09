@@ -330,9 +330,16 @@ class TestFitChefMascotRuntimeBehavior:
     def test_openapi_documents_mascot_error_contract(self) -> None:
         """OpenAPI must expose the mascot route and its key error responses."""
 
-        schema = self.client.get("/openapi.json").json()
+        response = self.client.get("/openapi.json")
+        assert response.headers.get("content-type", "").startswith("application/json")
+        schema = response.json()
         responses = schema["paths"]["/api/v1/insight/fitchef"]["post"]["responses"]
         assert {"200", "400", "403", "429", "503", "504"} <= set(responses)
+        for status in ("400", "403", "503", "504"):
+            assert (
+                responses[status]["content"]["application/json"]["schema"]["$ref"]
+                == "#/components/schemas/FitChefCoachingErrorResponse"
+            )
 
 
 class TestFitChefMascotRuntimeCoverage:

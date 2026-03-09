@@ -39,7 +39,16 @@ def register_vip_routes(app: FastAPI) -> None:
         This function has no side effects if VIP_MODULE_ENABLED is False.
         It can be called multiple times safely (idempotent).
     """
+    from app.routers.fitchef_insight import router as fitchef_insight_router
     from app.utils.feature_flags import is_vip_module_enabled
+
+    existing_paths = {getattr(route, "path", None) for route in app.routes}
+
+    if (
+        hasattr(fitchef_insight_router, "routes")
+        and "/api/v1/insight/fitchef" not in existing_paths
+    ):
+        app.include_router(fitchef_insight_router)
 
     if not is_vip_module_enabled():
         return

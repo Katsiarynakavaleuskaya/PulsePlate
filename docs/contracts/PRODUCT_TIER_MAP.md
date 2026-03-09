@@ -39,8 +39,6 @@
 | -------------- | ----------------------- | ----------- | ------------------------------------------- |
 | BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi_pro.py` (но FREE, не PRO)  |
 | BMI legacy     | `/bmi`, `/api/v1/bmi`   | ⚠️ shim     | `legacy_app.py:2097, 2316`                  |
-| Insight (VIP) | `/api/v1/insight`       | ⚠️ flag     | `legacy_app.py:2443` (FEATURE_INSIGHT, VIP guard) |
-| FitChef mascot insight (VIP) | `/api/v1/insight/fitchef` | ⚠️ flag | `app/routers/fitchef_insight.py` (FEATURE_FITCHEF_MASCOT) |
 | Foods          | `/api/v1/foods/*`       | ✅ canonical | `app/routers/foods.py`                      |
 | Recipes        | `/api/v1/recipes/*`     | ✅ canonical | `app/routers/recipes.py`                     |
 | Users          | `/api/v1/users/*`       | ✅ canonical | `app/routers/users.py`                      |
@@ -135,6 +133,8 @@
 | -------------------- | ---------------------------------- | ----------- | ------------ | ----------------------------------------- |
 | Weekly plan          | `/api/v1/vip/menu/weekly/plan`     | ✅ canonical | VIP          | `app/routers/vip.py` (main endpoint)      |
 | Weekly plan (legacy) | `/api/v1/vip/weekly-plan`         | ⚠️ deprecated | VIP        | `app/routers/vip.py:733` (deprecated)     |
+| Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `legacy_app.py:2443` (`FEATURE_INSIGHT`, VIP guard) |
+| FitChef mascot insight | `/api/v1/insight/fitchef`       | ⚠️ flag     | VIP          | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:364`          |
 | Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:299`          |
 | Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:402`          |

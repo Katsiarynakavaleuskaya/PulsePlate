@@ -21,7 +21,6 @@ import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
-from app.routers.fitchef_insight import router as fitchef_insight_router
 from app.routers.legal import router as legal_router
 
 app: FastAPI = _legacy_app
@@ -86,8 +85,5 @@ register_billing_routes(app)
 
 # Register CBT insight router (PRO tier, feature-flagged via FEATURE_CBT_AGENT)
 app.include_router(cbt_insight_router)
-
-# Register FitChef mascot router (VIP tier, feature-flagged via FEATURE_FITCHEF_MASCOT)
-app.include_router(fitchef_insight_router)
 
 __all__ = ["app"]

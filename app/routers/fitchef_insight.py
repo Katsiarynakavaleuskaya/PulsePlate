@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.fitchef import FitChefMascotInsightInput, FitChefMascotInsightTaskEnvelope
 from app.schemas.fitchef_coaching import (
+    FitChefCoachingErrorResponse,
     FitChefCoachingRequest,
     FitChefCoachingSourceItem,
     FitChefMascotInsightResponse,
@@ -48,11 +49,14 @@ def _is_fitchef_mascot_enabled() -> bool:
     response_model=FitChefMascotInsightResponse,
     responses={
         200: {"description": "FitChef mascot coaching insight generated"},
-        400: {"description": "Unsafe AI input blocked"},
-        403: {"description": "VIP tier required"},
+        400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
+        403: {"description": "VIP tier required", "model": FitChefCoachingErrorResponse},
         429: {"description": "Rate limit exceeded or monthly quota exhausted"},
-        503: {"description": "Feature disabled or provider unavailable"},
-        504: {"description": "LLM provider call timed out"},
+        503: {
+            "description": "Feature disabled or provider unavailable",
+            "model": FitChefCoachingErrorResponse,
+        },
+        504: {"description": "LLM provider call timed out", "model": FitChefCoachingErrorResponse},
         **RATE_LIMIT_429_RESPONSES,
     },
 )

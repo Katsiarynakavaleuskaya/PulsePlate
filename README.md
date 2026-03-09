@@ -487,7 +487,7 @@ Access the API at `http://localhost:8000`
 - `POST /api/v1/bmi` - Calculate BMI
 - `POST /api/v1/bodyfat` - Calculate body fat percentage
 - `POST /api/v1/insight` - Generate AI insight text output (requires `API_KEY`)
-- `POST /api/v1/insight/fitchef` - Generate VIP-only FitChef mascot coaching output (requires `API_KEY` and feature flag)
+- `POST /api/v1/insight/fitchef` - Generate VIP-only FitChef mascot coaching output (requires VIP-tier `API_KEY` access and `FEATURE_FITCHEF_MASCOT`)
 - Tiered nutrition, planning, payments, and compatibility routes are summarized in `docs/contracts/API_CANONICAL_MAP.md`
 
 ### Weekly planning note

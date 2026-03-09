@@ -25,6 +25,12 @@ class FitChefCoachingSourceItem(BaseModel):
     score: float
 
 
+class FitChefCoachingErrorResponse(BaseModel):
+    """Standard JSON detail envelope for FitChef coaching errors."""
+
+    detail: str = Field(..., min_length=1)
+
+
 class FitChefMascotInsightResponse(BaseModel):
     """Public mascot insight response envelope."""
 
