@@ -42,6 +42,9 @@ def register_vip_routes(app: FastAPI) -> None:
     from app.routers.fitchef_insight import router as fitchef_insight_router
     from app.utils.feature_flags import is_vip_module_enabled
 
+    if not is_vip_module_enabled():
+        return
+
     existing_paths = {getattr(route, "path", None) for route in app.routes}
 
     if (
@@ -49,9 +52,6 @@ def register_vip_routes(app: FastAPI) -> None:
         and "/api/v1/insight/fitchef" not in existing_paths
     ):
         app.include_router(fitchef_insight_router)
-
-    if not is_vip_module_enabled():
-        return
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header

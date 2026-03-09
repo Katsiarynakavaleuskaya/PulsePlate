@@ -650,6 +650,7 @@ def test_prepare_mascot_draft_bounds_action_items_to_safe_window() -> None:
     hidden_tail = "\n- Hidden tail action that should never leak."
     draft = prepare_mascot_draft(long_prefix + hidden_tail, query="Need breakfast help")
 
+    assert draft.action_items
     assert all("Hidden tail action" not in item for item in draft.action_items)
 
 

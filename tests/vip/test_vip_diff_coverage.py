@@ -72,6 +72,7 @@ class TestVIPRegistrationIdempotent:
         assert not any(
             "/api/v1/vip" in path for path in paths
         ), "VIP routes should not be registered"
+        assert "/api/v1/insight/fitchef" not in paths
 
 
 class TestVIPShoplistPDFExport:
