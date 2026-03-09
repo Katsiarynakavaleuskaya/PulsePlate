@@ -204,6 +204,61 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-ios-subscription-manager"></a>
+- [ ] P1: iOS SubscriptionManager backend-driven integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 📋 Planned
+  - Area: ios / payments / thin-client policy
+  - Finding Type: monetization runtime follow-through
+  - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `ios/PulsePlate`
+  - DoD:
+    - iOS subscription orchestration remains thin and backend-driven
+    - Product/state transitions are deterministic and test-covered
+    - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-ios-storekit-products"></a>
+- [ ] P1: iOS StoreKit products contract and setup baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-STOREKIT-PRODUCTS
+  - Status: 📋 Planned
+  - Area: ios / release / billing operations
+  - Finding Type: store configuration readiness
+  - Reason (EN): The monthly review and phase-fit checklist both treat StoreKit products setup as a distinct next-wave gate. It needs an explicit ledger item so release-ops work does not stay hidden inside broader iOS billing follow-through.
+  - Links:
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+  - DoD:
+    - Canonical StoreKit product identifiers and setup checklist are versioned in-repo
+    - Billing/runtime follow-through references the same product contract without client-side drift
+    - Release checklist is explicit enough for future iOS submission work
+
+<a id="ledger-p1-diet-flags-contract-sync"></a>
+- [ ] P1: Diet flags contract sync across schemas and clients
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
+  - Status: 📋 Planned
+  - Area: frontend / backend / iOS contracts
+  - Finding Type: contract consistency
+  - Reason (EN): Diet-flag semantics are product-facing and cross-client. A dedicated sync item keeps the enum/normalization surface canonical instead of letting drift hide inside frontend or generated-type follow-ups.
+  - Links:
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `frontend`
+    - `ios/PulsePlate`
+  - DoD:
+    - One canonical diet-flags normalization table is used across backend schemas and clients
+    - Generated or mirrored client types remain aligned with backend truth
+    - Deterministic regression tests cover the shared contract
+
 - [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security + maintainability)
@@ -3755,61 +3810,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - iOS secret paths are verified to use Keychain storage only
     - Guard tests prevent regression to insecure storage
-
-<a id="ledger-p1-ios-subscription-manager"></a>
-- [ ] P1: iOS SubscriptionManager backend-driven integration
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
-  - Status: 📋 Planned
-  - Area: ios / payments / thin-client policy
-  - Finding Type: monetization runtime follow-through
-  - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
-  - Links:
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `ios/PulsePlate`
-  - DoD:
-    - iOS subscription orchestration remains thin and backend-driven
-    - Product/state transitions are deterministic and test-covered
-    - No client-side billing logic duplicates backend activation policy
-
-<a id="ledger-p1-ios-storekit-products"></a>
-- [ ] P1: iOS StoreKit products contract and setup baseline
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-IOS-STOREKIT-PRODUCTS
-  - Status: 📋 Planned
-  - Area: ios / release / billing operations
-  - Finding Type: store configuration readiness
-  - Reason (EN): The monthly review and phase-fit checklist both treat StoreKit products setup as a distinct next-wave gate. It needs an explicit ledger item so release-ops work does not stay hidden inside broader iOS billing follow-through.
-  - Links:
-    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
-    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-  - DoD:
-    - Canonical StoreKit product identifiers and setup checklist are versioned in-repo
-    - Billing/runtime follow-through references the same product contract without client-side drift
-    - Release checklist is explicit enough for future iOS submission work
-
-<a id="ledger-p1-diet-flags-contract-sync"></a>
-- [ ] P1: Diet flags contract sync across schemas and clients
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
-  - Status: 📋 Planned
-  - Area: frontend / backend / iOS contracts
-  - Finding Type: contract consistency
-  - Reason (EN): Diet-flag semantics are product-facing and cross-client. A dedicated sync item keeps the enum/normalization surface canonical instead of letting drift hide inside frontend or generated-type follow-ups.
-  - Links:
-    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `docs/contracts/API_CANONICAL_MAP.md`
-    - `frontend`
-    - `ios/PulsePlate`
-  - DoD:
-    - One canonical diet-flags normalization table is used across backend schemas and clients
-    - Generated or mirrored client types remain aligned with backend truth
-    - Deterministic regression tests cover the shared contract
 
 
 - [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
