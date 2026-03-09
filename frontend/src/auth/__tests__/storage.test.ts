@@ -37,6 +37,8 @@ describe('auth storage migration contract', () => {
     vi.clearAllMocks();
     localStorageMock.getItem.mockReturnValue(null);
     sessionStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.removeItem.mockImplementation(() => undefined);
+    sessionStorageMock.removeItem.mockImplementation(() => undefined);
   });
 
   it('consumes and clears a legacy key from localStorage', () => {
@@ -76,6 +78,18 @@ describe('auth storage migration contract', () => {
     });
 
     expect(() => clearStoredApiKey()).not.toThrow();
+  });
+
+  it('does not return a legacy key when cleanup fails after a successful read', () => {
+    localStorageMock.getItem.mockReturnValue('legacy-local-key');
+    localStorageMock.removeItem.mockImplementation(() => {
+      throw new Error('local unavailable');
+    });
+
+    expect(getStoredApiKey()).toBeNull();
+    expect(localStorageMock.getItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
+    expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
   });
 
   it('falls back when localStorage property access throws', () => {

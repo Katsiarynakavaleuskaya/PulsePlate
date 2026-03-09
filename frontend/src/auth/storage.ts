@@ -34,7 +34,7 @@ export function getStoredApiKey(): string | null {
     readLegacyApiKey(getBrowserStorage('localStorage')) ||
     readLegacyApiKey(getBrowserStorage('sessionStorage'));
   if (legacyKey) {
-    clearStoredApiKey();
+    return clearLegacyApiKey() ? legacyKey : null;
   }
   return legacyKey;
 }
@@ -50,18 +50,26 @@ export function setStoredApiKey(_key: string, _remember: boolean = false): void 
   clearStoredApiKey();
 }
 
-export function clearStoredApiKey(): void {
-  if (typeof window === 'undefined') return;
+function clearLegacyApiKey(): boolean {
+  if (typeof window === 'undefined') return true;
   const localStorageRef = getBrowserStorage('localStorage');
   const sessionStorageRef = getBrowserStorage('sessionStorage');
+  let clearSucceeded = true;
   try {
     localStorageRef?.removeItem(API_KEY_STORAGE_KEY);
   } catch {
     // Ignore unavailable storage during fail-closed cleanup.
+    clearSucceeded = false;
   }
   try {
     sessionStorageRef?.removeItem(API_KEY_STORAGE_KEY);
   } catch {
     // Ignore unavailable storage during fail-closed cleanup.
+    clearSucceeded = false;
   }
+  return clearSucceeded;
+}
+
+export function clearStoredApiKey(): void {
+  void clearLegacyApiKey();
 }
