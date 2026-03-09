@@ -39,7 +39,8 @@
 | -------------- | ----------------------- | ----------- | ------------------------------------------- |
 | BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi_pro.py` (но FREE, не PRO)  |
 | BMI legacy     | `/bmi`, `/api/v1/bmi`   | ⚠️ shim     | `legacy_app.py:2097, 2316`                  |
-| Insight (free) | `/api/v1/insight`       | ⚠️ flag     | `legacy_app.py:2443` (FEATURE_INSIGHT)      |
+| Insight (VIP) | `/api/v1/insight`       | ⚠️ flag     | `legacy_app.py:2443` (FEATURE_INSIGHT, VIP guard) |
+| FitChef mascot insight (VIP) | `/api/v1/insight/fitchef` | ⚠️ flag | `app/routers/fitchef_insight.py` (FEATURE_FITCHEF_MASCOT) |
 | Foods          | `/api/v1/foods/*`       | ✅ canonical | `app/routers/foods.py`                      |
 | Recipes        | `/api/v1/recipes/*`     | ✅ canonical | `app/routers/recipes.py`                     |
 | Users          | `/api/v1/users/*`       | ✅ canonical | `app/routers/users.py`                      |

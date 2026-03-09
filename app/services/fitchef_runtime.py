@@ -16,6 +16,8 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.schemas.fitchef import (
     FitChefCoachInsightResult,
     FitChefCoachInsightTaskEnvelope,
+    FitChefMascotInsightResult,
+    FitChefMascotInsightTaskEnvelope,
     FitChefQuotaState,
     FitChefShoppingFollowupResult,
     FitChefShoppingFollowupTaskEnvelope,
@@ -34,6 +36,7 @@ from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.server_salt import require_server_salt
 from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
+from core.insight.fitchef_companion import build_mascot_prompt, prepare_mascot_draft
 from core.pii_redaction import redact_pii_from_text
 
 logger = logging.getLogger(__name__)
@@ -400,6 +403,173 @@ async def run_weekly_plan_task(
         menu_builder,
     )
     result = FitChefWeeklyPlanResult(menu=menu_payload)
+    return result
+
+
+async def run_mascot_insight_task(
+    task: FitChefMascotInsightTaskEnvelope,
+) -> FitChefMascotInsightResult:
+    """Run FitChef mascot insight orchestration. / Выполнить mascot-insight оркестрацию."""
+
+    safe_query = task.input.safe_query
+    api_key = task.input.api_key
+    endpoint = task.input.endpoint
+    method = task.input.method
+
+    rag_context_str = ""
+    sources: list[FitChefSourceItem] = []
+    confidence = 0.0
+    warnings: list[str] = []
+    quota_state: FitChefQuotaState = "not_consumed"
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="rag.retrieve",
+            target="corpus://cbt-agent",
+            mode=task.mode,
+            endpoint=endpoint,
+            metadata={
+                "method": method,
+                "query_hash": _sha256_hex(safe_query),
+                "query_length": len(safe_query),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("FitChef mascot RAG gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="rag_retrieval_unavailable",
+        ) from exc
+
+    try:
+        from core.rag.vector_rag import retrieve_context_structured
+
+        rag_ctx = await run_in_threadpool(
+            retrieve_context_structured,
+            safe_query,
+            max_chunks=5,
+            agent_id="fitchef-agent",
+            user_tier="VIP",
+            subject_id=derive_subject_id_from_api_key(api_key),
+        )
+
+        if rag_ctx.chunks:
+            context_parts: list[str] = []
+            for chunk in rag_ctx.chunks:
+                sanitized_chunk = sanitize_rag_markdown(chunk.content)
+                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
+                if not sanitized_content.strip():
+                    continue
+                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
+                sources.append(
+                    FitChefSourceItem(
+                        chunk_id=chunk.chunk_id,
+                        file=chunk.file,
+                        preview=sanitize_chunk_preview(sanitized_content) or "",
+                        score=chunk.score,
+                    )
+                )
+            if context_parts:
+                rag_context_str = "\n\n".join(context_parts)
+                confidence = rag_ctx.confidence
+    except Exception:
+        logger.warning("FitChef mascot RAG retrieval failed", exc_info=True)
+        warnings.append("rag_retrieval_failed")
+
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        )
+    notice_surface_id = transparency_notice.get("surface_id")
+    notice_boundary = transparency_notice.get("boundary")
+    if notice_surface_id is None or notice_boundary is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_incomplete",
+        )
+
+    prompt = build_mascot_prompt(safe_query, rag_context_str)
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="llm.generate",
+            target="provider://default",
+            mode=task.mode,
+            endpoint=endpoint,
+            metadata={
+                "method": method,
+                "prompt_hash": _sha256_hex(prompt),
+                "prompt_length": len(prompt),
+                "source_count": len(sources),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("FitChef mascot LLM gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_generation_unavailable",
+        ) from exc
+
+    try:
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            api_key,
+            tier="VIP",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="quota_exceeded",
+            )
+        quota_state = "consumed"
+
+        from llm import get_provider
+
+        provider = get_provider()
+        raw_message = await asyncio.wait_for(
+            run_in_threadpool(provider.generate, prompt),
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+        if not raw_message:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM provider returned empty response",
+            )
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider not available",
+        ) from None
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="LLM provider call timed out",
+        ) from None
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("FitChef mascot generation failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fitchef_mascot_unavailable",
+        ) from exc
+
+    prepared = prepare_mascot_draft(raw_message, query=safe_query)
+    result: FitChefMascotInsightResult = FitChefMascotInsightResult(
+        message=prepared.message,
+        sources=sources,
+        confidence=min(max(confidence, 0.0), 1.0),
+        warnings=[*warnings, *prepared.warnings],
+        action_items=prepared.action_items,
+        mode=task.mode,
+        quota_state=quota_state,
+        transparency_notice_id=str(notice_surface_id),
+        wellness_boundary=str(notice_boundary),
+    )
     return result
 
 

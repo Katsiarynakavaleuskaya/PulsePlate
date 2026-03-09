@@ -1719,6 +1719,114 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FitChefCoachingRequest": {
+        "description": "Mascot insight request payload.",
+        "properties": {
+          "query": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "FitChefCoachingRequest",
+        "type": "object"
+      },
+      "FitChefCoachingSourceItem": {
+        "description": "Public RAG source item for mascot coaching.",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "preview": {
+            "title": "Preview",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "file",
+          "preview",
+          "score"
+        ],
+        "title": "FitChefCoachingSourceItem",
+        "type": "object"
+      },
+      "FitChefMascotInsightResponse": {
+        "description": "Public mascot insight response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "mascot_insight",
+            "default": "mascot_insight",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "confidence",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary"
+        ],
+        "title": "FitChefMascotInsightResponse",
+        "type": "object"
+      },
       "FoodAttributionResponse": {
         "description": "RU: Ответ endpoint с атрибуцией источников.\nEN: Attribution endpoint response for food data sources.",
         "properties": {
@@ -5748,6 +5856,77 @@
         ],
         "x-alias-of": "/api/v1/pro/bmi",
         "x-migration-path": "Migrate to POST /api/v1/pro/bmi (same contract)"
+      }
+    },
+    "/api/v1/insight/fitchef": {
+      "post": {
+        "description": "Generate VIP-only mascot coaching insight via the FitChef runtime.",
+        "operationId": "fitchef_mascot_insight_api_v1_insight_fitchef_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefCoachingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefMascotInsightResponse"
+                }
+              }
+            },
+            "description": "FitChef mascot coaching insight generated"
+          },
+          "400": {
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Mascot Insight",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
       }
     },
     "/api/v1/pro/attribution": {

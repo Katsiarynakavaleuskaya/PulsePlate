@@ -712,6 +712,7 @@ app = FastAPI(
 
 _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/bmi/",
+    "/api/v1/insight",
     "/api/v1/pro/",
     "/api/v1/vip/",
 )
