@@ -956,18 +956,18 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 
 - Canonical API route map: `docs/contracts/API_CANONICAL_MAP.md`
 - `make openapi` remains the canonical combined OpenAPI command.
-- Backend/frontend OpenAPI split targets are tracked as follow-up workflow hardening in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`.
+- Backend/frontend OpenAPI split targets remain a temporary workflow seam tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split` and governed by `docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md` (retire the seam only when dedicated backend/frontend targets exist and docs/CI no longer need transitional wording).
 
 ### Operator quick path
 
 - Daily operator runbook: `docs/runbooks/ENGINEER_QUICKPATH.md`
 - CI/debug triage: `RUNBOOK_AGENT.md`
-- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`.
+- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`, governed by `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md` (retire the seam only when Makefile/runbooks stop carrying `docker-compose` as active guidance).
 
 ### AI bounded context
 
 - AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
-- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`.
+- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
 
 ## OpenAPI generation (determinism requirement)
 
