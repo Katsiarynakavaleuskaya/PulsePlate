@@ -95,6 +95,16 @@ Disposition: FIXED
 Commit: d367a628
 Evidence: app/services/fitchef_runtime.py:228
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908267184 -> 6849444e
+Disposition: FIXED
+Commit: 6849444e
+Evidence: app/routers/vip_registration.py:45
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908267194 -> 6849444e
+Disposition: FIXED
+Commit: 6849444e
+Evidence: tests/test_fitchef_insight_api.py:653
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
