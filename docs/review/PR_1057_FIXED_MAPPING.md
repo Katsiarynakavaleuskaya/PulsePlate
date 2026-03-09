@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No review threads resolved yet; mapping will be updated after the first actionable review cycle.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
