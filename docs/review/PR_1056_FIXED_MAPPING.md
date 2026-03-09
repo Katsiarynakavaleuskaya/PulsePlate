@@ -49,6 +49,10 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4446` now points the recurring monthly
 Disposition: FIXED
 Commit: 082bbe47
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4446` replaces the merged-PR target with a future refresh placeholder, keeping the recurring backlog item compliant with open-item targeting rules.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1056#pullrequestreview-3916579292
+Disposition: NOT-A-BUG
+Evidence: The PR description already links the canonical backlog follow-up via `## Deferred / Follow-ups` with `ledger anchor: #ledger-p2-monthly-pr-analysis-cadence`, as shown in the live PR body retrieved with `gh pr view 1056 --json body`.
+Reason: This CodeRabbit review is a duplicate summary comment, and the requested backlog anchor was already present before the review was emitted.
 
 ## Merge Readiness
 - [ ] All required checks are PASS
