@@ -22,10 +22,12 @@ Evidence: docs/roadmap/BACKLOG_LEDGER.md:839
 Disposition: FIXED
 Commit: 93dfdd68
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:818
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1050#discussion_r2905281720 -> 7a40f458
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1050#discussion_r2905281720 -> b20fd759
 Disposition: FIXED
-Commit: 7a40f458
+Commit: b20fd759
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:802
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:803
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:804
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1050#discussion_r2905319481
 Disposition: NOT-A-BUG
 Evidence: AGENTS.md:31
