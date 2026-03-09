@@ -109,6 +109,24 @@ Commit: ef54e8ad
 Evidence: `docs/deploy/VIP_API_KEYS.md:212` and `docs/deploy/VIP_API_KEYS.md:216` now print both `ENVIRONMENT` and `ALLOW_DEV_API_KEY`; the remaining duplicate adapter-path comment is already classified as `NOT-A-BUG` under `discussion_r2906496216` because the deprecated `/api/v1/vip/weekly-plan` alias calls `app.routers.vip.make_weekly_menu` directly.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3917624345 -> ef54e8ad
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2907449922
+Disposition: FIXED
+Commit: 5c0ff3f1
+Evidence: `docs/deploy/VIP_API_KEYS.md:165` now uses `ENVIRONMENT=production` in the runnable production-mode test recipe, which keeps the example deterministic under the documented rule that `ENVIRONMENT` overrides `APP_ENV`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2907449922 -> 5c0ff3f1
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2907449929
+Disposition: FIXED
+Commit: 5c0ff3f1
+Evidence: `docs/deploy/VIP_API_KEYS.md:153` now uses the centralized startup guard entrypoint `run_startup_guards()` from `app.bootstrap.startup_guards`, matching the runtime bootstrap seam introduced by this PR.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#discussion_r2907449929 -> 5c0ff3f1
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3917666615
+Disposition: FIXED
+Commit: 5c0ff3f1
+Evidence: The latest CodeRabbit review summary is fully dispositioned by the two docs fixes above: `docs/deploy/VIP_API_KEYS.md:153` now points operators at `run_startup_guards()`, and `docs/deploy/VIP_API_KEYS.md:165` uses canonical `ENVIRONMENT=production` in the runnable production-mode recipe.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054#pullrequestreview-3917666615 -> 5c0ff3f1
+
 ## Merge Readiness
 - [x] Scope tied to PR objective
 - [x] Docs/runtime changes applied
