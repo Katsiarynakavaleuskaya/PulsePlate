@@ -24,6 +24,14 @@ Commit: 48336b21
 Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/storage.ts:37`, `frontend/src/auth/__tests__/storage.test.ts:83`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466296 -> 48336b21
 
+Disposition: FIXED
+Commit: a027c2fa
+Evidence: `docs/review/PR_1030_FIXED_MAPPING.md:22`, `docs/review/PR_1030_FIXED_MAPPING.md:30`, `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storage.test.ts:83`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902462165 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466294 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912061840 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912064752 -> a027c2fa
+
 ## Merge Readiness
 - [x] Local hard gates passed (`make verify`)
 - [ ] Full GitHub current-head required checks passed
