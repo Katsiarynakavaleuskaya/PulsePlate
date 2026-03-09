@@ -154,15 +154,14 @@ function normalizeWeeklyCoverage(
 export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
   const state: NormalizationState = { incomplete: false };
   const days = Array.isArray(raw.daily_menus)
-    ? raw.daily_menus
-        .filter((menu): menu is RawDayMenu => {
-          const isValid = isObjectRecord(menu);
-          if (!isValid) {
-            markIncomplete(state);
-          }
-          return isValid;
-        })
-        .map((menu, index) => normalizeDayMenu(menu, index, state))
+    ? raw.daily_menus.flatMap((menu, index) => {
+        if (!isObjectRecord(menu)) {
+          markIncomplete(state);
+          return [];
+        }
+
+        return [normalizeDayMenu(menu, index, state)];
+      })
     : (markIncomplete(state), []);
   const shoppingList = normalizeNumericMap(raw.shopping_list, state);
 

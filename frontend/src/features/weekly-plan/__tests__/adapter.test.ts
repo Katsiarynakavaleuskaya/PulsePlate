@@ -127,6 +127,40 @@ describe('normalizeWeekPlan', () => {
     expect(result.meta.has_incomplete_data).toBe(true);
   });
 
+  it('should preserve original day index after skipping malformed daily menu entries', () => {
+    const result = normalizeWeekPlan(
+      createRawWeekPlan({
+        daily_menus: [
+          null as unknown as RawWeekPlanResponse['daily_menus'][number],
+          {
+            coverage: { protein: 88 },
+            kcal: 1740,
+            macros: { protein_g: 105, carbs_g: 160, fat_g: 58 },
+            meals: [
+              {
+                title: 'Lunch bowl',
+                title_translated: 'Lunch bowl',
+                grams: { chicken: 140 },
+                kcal: 520,
+                macros: { protein_g: 42, carbs_g: 28, fat_g: 14 },
+                micros: { iron_mg: 2.1 },
+                price_est: 6.25,
+              },
+            ],
+            micros: { iron_mg: 9.5 },
+            tips: ['Stay hydrated'],
+            total_cost: 21,
+          },
+        ],
+      })
+    );
+
+    expect(result.days).toHaveLength(1);
+    expect(result.days[0].day).toBe(2);
+    expect(result.days[0].dayName).toBe('Tuesday');
+    expect(result.meta.has_incomplete_data).toBe(true);
+  });
+
   it('should mark incomplete data when fallbacks or drops happen', () => {
     const result = normalizeWeekPlan(
       createRawWeekPlan({
