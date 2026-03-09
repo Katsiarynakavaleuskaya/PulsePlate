@@ -104,3 +104,13 @@ Evidence: legacy_app.py:3229; legacy_app.py:3262; legacy_app.py:3272; tests/test
 Disposition: NOT-A-BUG
 Evidence: docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:34; scripts/ci/check_pr_body_phase2_gates.py:111; legacy_app.py:3229; tests/test_legacy_weekly_plan_alias_api.py:363
 Reason: This summary aggregates the two inline findings captured immediately above: the checklist comment is not a bug under the current artifact contract, and the non-finite day-value recovery issue was fixed in `3f42a408`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907948108 -> 79c253a3
+Disposition: FIXED
+Commit: 79c253a3
+Evidence: legacy_app.py:3215; legacy_app.py:3232; legacy_app.py:3246; tests/test_legacy_weekly_plan_alias_api.py:431
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3918232238 -> 79c253a3
+Disposition: FIXED
+Commit: 79c253a3
+Evidence: legacy_app.py:3215; tests/test_legacy_weekly_plan_alias_api.py:125; tests/test_legacy_weekly_plan_alias_api.py:431; tests/test_app_openapi_coverage.py:55
