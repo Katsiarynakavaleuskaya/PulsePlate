@@ -46,6 +46,10 @@
   Disposition: NOT-A-BUG
   Evidence: tests/test_compliance_control_plane.py:172; tests/test_compliance_control_plane.py:252
   Reason: The test already starts with deterministic stale-record cleanup and removes the dedicated account row before exit; a mid-test assertion failure would not leak cross-test state beyond this isolated email-specific fixture path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#pullrequestreview-3917985096
+  Disposition: NOT-A-BUG
+  Evidence: core/compliance/dsar_service.py:28; core/compliance/dsar_service.py:99; core/compliance/dsar_service.py:133; tests/test_compliance_control_plane.py:172; tests/test_compliance_control_plane.py:252
+  Reason: The review suggests follow-up refactors for stricter `TypedDict` contracts and a shared DSAR fixture, but the current helper shapes and tests are deterministic, mypy-clean, and scoped intentionally to this internal helper PR rather than a broader typing/fixture cleanup slice.
 
 ## Merge Readiness
 - [x] Scope tied to PR objective
