@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearStoredApiKey, getStoredApiKey, setStoredApiKey } from '../storage';
 
 const LEGACY_STORAGE_KEY = 'pulseplate_api_key';
 
@@ -32,16 +31,25 @@ Object.defineProperty(window, 'sessionStorage', {
   configurable: true,
 });
 
+type StorageModule = typeof import('../storage');
+
+async function loadStorageModule(): Promise<StorageModule> {
+  vi.resetModules();
+  return import('../storage');
+}
+
 describe('auth storage migration contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
     localStorageMock.getItem.mockReturnValue(null);
     sessionStorageMock.getItem.mockReturnValue(null);
     localStorageMock.removeItem.mockImplementation(() => undefined);
     sessionStorageMock.removeItem.mockImplementation(() => undefined);
   });
 
-  it('consumes and clears a legacy key from localStorage', () => {
+  it('consumes and clears a legacy key from localStorage', async () => {
+    const { getStoredApiKey } = await loadStorageModule();
     localStorageMock.getItem.mockReturnValue('legacy-local-key');
 
     expect(getStoredApiKey()).toBe('legacy-local-key');
@@ -50,7 +58,8 @@ describe('auth storage migration contract', () => {
     expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
   });
 
-  it('consumes and clears a legacy key from sessionStorage', () => {
+  it('consumes and clears a legacy key from sessionStorage', async () => {
+    const { getStoredApiKey } = await loadStorageModule();
     sessionStorageMock.getItem.mockReturnValue('legacy-session-key');
 
     expect(getStoredApiKey()).toBe('legacy-session-key');
@@ -60,7 +69,8 @@ describe('auth storage migration contract', () => {
     expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
   });
 
-  it('does not persist new secrets through setStoredApiKey', () => {
+  it('does not persist new secrets through setStoredApiKey', async () => {
+    const { setStoredApiKey } = await loadStorageModule();
     setStoredApiKey('new-secret-key', true);
 
     expect(localStorageMock.setItem).not.toHaveBeenCalled();
@@ -69,7 +79,8 @@ describe('auth storage migration contract', () => {
     expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
   });
 
-  it('fails closed when storage removal throws', () => {
+  it('fails closed when storage removal throws', async () => {
+    const { clearStoredApiKey } = await loadStorageModule();
     localStorageMock.removeItem.mockImplementation(() => {
       throw new Error('local unavailable');
     });
@@ -80,7 +91,8 @@ describe('auth storage migration contract', () => {
     expect(() => clearStoredApiKey()).not.toThrow();
   });
 
-  it('does not return a legacy key when cleanup fails after a successful read', () => {
+  it('does not return a legacy key when cleanup fails after a successful read', async () => {
+    const { getStoredApiKey } = await loadStorageModule();
     localStorageMock.getItem.mockReturnValue('legacy-local-key');
     localStorageMock.removeItem.mockImplementation(() => {
       throw new Error('local unavailable');
@@ -92,7 +104,20 @@ describe('auth storage migration contract', () => {
     expect(sessionStorageMock.removeItem).toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
   });
 
-  it('falls back when localStorage property access throws', () => {
+  it('consumes the legacy key only once when cleanup fails', async () => {
+    const { getStoredApiKey } = await loadStorageModule();
+    localStorageMock.getItem.mockReturnValue('legacy-local-key');
+    localStorageMock.removeItem.mockImplementation(() => {
+      throw new Error('local unavailable');
+    });
+
+    expect(getStoredApiKey()).toBeNull();
+    expect(getStoredApiKey()).toBeNull();
+    expect(localStorageMock.getItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back when localStorage property access throws', async () => {
+    const { getStoredApiKey } = await loadStorageModule();
     const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
     sessionStorageMock.getItem.mockReturnValue('legacy-session-key');
 
@@ -112,7 +137,8 @@ describe('auth storage migration contract', () => {
     }
   });
 
-  it('fails closed when storage property access throws', () => {
+  it('fails closed when storage property access throws', async () => {
+    const { clearStoredApiKey } = await loadStorageModule();
     const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
     const originalSessionStorage = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
 

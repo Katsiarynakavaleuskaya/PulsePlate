@@ -5,6 +5,7 @@
 // The app now uses server-side session cookies.
 
 const API_KEY_STORAGE_KEY = 'pulseplate_api_key';
+let legacyApiKeyConsumed = false;
 
 function getBrowserStorage(storageKey: 'localStorage' | 'sessionStorage'): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -30,10 +31,15 @@ function readLegacyApiKey(storage: Storage | null): string | null {
  */
 export function getStoredApiKey(): string | null {
   if (typeof window === 'undefined') return null;
+  if (legacyApiKeyConsumed) return null;
+
   const legacyKey =
     readLegacyApiKey(getBrowserStorage('localStorage')) ||
     readLegacyApiKey(getBrowserStorage('sessionStorage'));
   if (legacyKey) {
+    // RU: Даже если очистка недоступна, не переэкспонируем legacy secret повторно.
+    // EN: Prevent repeated legacy secret exposure even when cleanup is unavailable.
+    legacyApiKeyConsumed = true;
     return clearLegacyApiKey() ? legacyKey : null;
   }
   return legacyKey;

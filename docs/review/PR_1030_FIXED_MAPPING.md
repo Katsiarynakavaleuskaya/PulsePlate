@@ -15,7 +15,7 @@ Evidence: `frontend/src/auth/storage.ts:9`, `frontend/src/auth/storage.ts:31`, `
 
 Disposition: FIXED
 Commit: afd3df7a
-Evidence: `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`, `docs/review/PR_1030_FIXED_MAPPING.md:18`
+Evidence: `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421447 -> afd3df7a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912023708 -> afd3df7a
 
@@ -26,7 +26,7 @@ Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/storage.ts:37`, 
 
 Disposition: FIXED
 Commit: a027c2fa
-Evidence: `docs/review/PR_1030_FIXED_MAPPING.md:22`, `docs/review/PR_1030_FIXED_MAPPING.md:30`, `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storage.test.ts:83`
+Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storage.test.ts:83`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902462165 -> a027c2fa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466294 -> a027c2fa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912061840 -> a027c2fa
