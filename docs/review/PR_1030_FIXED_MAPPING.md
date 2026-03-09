@@ -15,14 +15,19 @@ Evidence: `frontend/src/auth/storage.ts:9`, `frontend/src/auth/storage.ts:31`, `
 
 Disposition: FIXED
 Commit: afd3df7a
-Evidence: `docs/review/PR_1030_FIXED_MAPPING.md:15`, `docs/review/PR_1030_FIXED_MAPPING.md:18`, `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`
+Evidence: `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`, `docs/review/PR_1030_FIXED_MAPPING.md:18`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421447 -> afd3df7a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912023708 -> afd3df7a
+
+Disposition: FIXED
+Commit: 48336b21
+Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/storage.ts:37`, `frontend/src/auth/__tests__/storage.test.ts:83`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466296 -> 48336b21
 
 ## Merge Readiness
 - [x] Local hard gates passed (`make verify`)
 - [ ] Full GitHub current-head required checks passed
 - [ ] No unresolved review threads remain
 - [ ] No actionable bot comments remain
-- [ ] PR body mirrors canonical artifact
+- [x] PR body mirrors canonical artifact
 - [ ] Review wait-window completed
