@@ -277,3 +277,13 @@ def test_normalize_weekly_plan_payload_covers_fail_closed_branches(mutator, mess
 def test_require_weekly_plan_payload_shape_rejects_non_mapping() -> None:
     with pytest.raises(ValueError, match=r"weekly plan payload must be a mapping"):
         require_weekly_plan_payload_shape(None)
+
+
+def test_require_weekly_plan_payload_shape_rejects_missing_daily_menus_list() -> None:
+    with pytest.raises(ValueError, match=r"weekly plan payload missing required daily_menus list"):
+        require_weekly_plan_payload_shape({"daily_menus": {}})
+
+
+def test_require_weekly_plan_payload_shape_accepts_canonical_payload() -> None:
+    payload = _valid_week_payload()
+    assert require_weekly_plan_payload_shape(payload) is payload
