@@ -996,6 +996,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-dsar-transaction-neutral-helper"></a>
+- [ ] P2: Make internal DSAR delete helper transaction-neutral
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DSAR-TRANSACTION-NEUTRAL-HELPER
+  - Area: backend / privacy
+  - Finding Type: transaction-boundary hardening
+  - Reason: `delete_direct_user_artifacts()` currently owns `commit()` / `rollback()` while accepting a caller-provided SQLAlchemy `Session`. That is acceptable for the current support-led standalone helper contract, but a future support/admin workflow may batch DSAR artifact deletion with other writes on the same session. The helper should eventually declare or narrow its transaction ownership explicitly instead of implicitly committing caller-owned work.
+  - Links:
+    - `core/compliance/dsar_service.py`
+    - `tests/test_compliance_control_plane.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+  - DoD:
+    - The DSAR helper either becomes transaction-neutral or moves to an explicit session/transaction ownership contract
+    - Tests cover caller-owned session behavior for batched writes and rollback semantics
+    - Support-led DSAR docs stay aligned with the final ownership contract
+
 - [ ] P2 Optional: Evaluate Lenny's Podcast Transcripts for insights, marketing, and Bayesian context
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (optional; after P0/P1 hardening and insight/coach work stable)

@@ -17,6 +17,12 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#discussion_r2902579322 -> 3ea26eeb
   Disposition: FIXED
   Evidence: tests/test_compliance_control_plane.py:307
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#discussion_r2902581742
+  Disposition: DEFERRED
+  Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dsar-transaction-neutral-helper
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#discussion_r2902581747 -> 3ea26eeb
+  Disposition: FIXED
+  Evidence: core/compliance/dsar_service.py:106
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1049#pullrequestreview-3912168779 -> 3ea26eeb
   Disposition: FIXED
   Evidence: tests/test_compliance_control_plane.py:176
