@@ -122,21 +122,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p0-session-cookie-hardening"></a>
-- [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
+- [x] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR-TBD-SESSION-COOKIE-HARDENING-W1
-  - Status: 🟡 In progress (foundation/UI gating merged in PR #1003; cookie transport rollout remains)
-  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
+  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR-TBD-SESSION-COOKIE-HARDENING-W1 -> PR #1030
+  - Status: ✅ Merged (foundation in PR #1003; W1 completion in PR #1030, 2026-03-09)
+  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, and PR #1030 completed the W1 hardening pass by making legacy browser-stored API keys one-time migration artifacts, failing closed when cleanup fails, and aligning web gating with the secure session contract instead of browser-secret presence.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - app/security/auth.py
     - app/routers/pro_registration.py
     - frontend/src
+    - frontend/src/auth/storage.ts
+    - frontend/src/components/TabBar.tsx
+    - frontend/src/auth/__tests__/storage.test.ts
+    - frontend/src/components/__tests__/TabBar.test.tsx
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
   - DoD:
-    - No sensitive session/auth token persists in browser local storage
-    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
-    - Regression tests cover authenticated flows and logout/invalidation
+    - ✅ No sensitive session/auth token persists in browser local storage
+    - ✅ Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
+    - ✅ Regression tests cover authenticated flows and logout/invalidation
 
 
 ### P1
