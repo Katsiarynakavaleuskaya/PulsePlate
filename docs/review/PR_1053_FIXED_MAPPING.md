@@ -44,6 +44,18 @@ Evidence: tests/test_pro_premium_contract_parity.py:254; tests/test_pro_premium_
 Disposition: FIXED
 Evidence: legacy_app.py:745; legacy_app.py:756; legacy_app.py:803
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885722 -> f373f4f8
+Disposition: FIXED
+Evidence: frontend/src/features/weekly-plan/model/adapter.ts:16; frontend/src/features/weekly-plan/model/adapter.ts:179; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:130
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885731 -> f373f4f8
+Disposition: FIXED
+Evidence: frontend/src/features/weekly-plan/model/adapter.ts:122; frontend/src/features/weekly-plan/model/adapter.ts:156; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:119
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905885748 -> f373f4f8
+Disposition: FIXED
+Evidence: frontend/src/features/weekly-plan/model/adapter.ts:147; frontend/src/features/weekly-plan/model/adapter.ts:174; frontend/src/features/weekly-plan/__tests__/adapter.test.ts:72
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#pullrequestreview-3915767054
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1053#discussion_r2905746565
