@@ -857,11 +857,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: None (deferred by scope, not blocked)
 
 <a id="ledger-p1-fitchef-phase1-wrapper"></a>
-- [ ] P1: FitChef Phase 1 wrapper
+- [x] P1: FitChef Phase 1 wrapper
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FITCHEF-PHASE1-WRAPPER
-  - Status: Open
+  - Target PR: PR-1055
+  - Status: ✅ Merged (PR-1055, 2026-03-09)
   - Area: orchestration / backend runtime / coaching insight
   - Finding Type: execution anchor
   - Locations:
@@ -874,6 +874,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
     - `docs/review/PR_1013_FIXED_MAPPING.md`
     - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1055_FIXED_MAPPING.md`
   - DoD:
     - Internal `fitchef-agent` wrapper exists under backend runtime with typed internal task envelope only
     - Existing `cbt_insight` public route delegates through the wrapper for `task_type=coach_insight`
@@ -882,11 +883,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: None
 
 <a id="ledger-p1-fitchef-weekly-plan-binding"></a>
-- [ ] P1: FitChef weekly-plan task binding
+- [x] P1: FitChef weekly-plan task binding
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FITCHEF-WEEKLY-PLAN-BINDING
-  - Status: Open
+  - Target PR: PR-1057
+  - Status: ✅ Merged (PR-1057, 2026-03-09)
   - Area: orchestration / backend runtime / weekly planning
   - Finding Type: execution anchor
   - Locations:
@@ -899,6 +900,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
     - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
     - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1057_FIXED_MAPPING.md`
   - DoD:
     - FitChef runtime supports `task_type=weekly_plan`
     - Existing weekly-plan VIP route delegates through the wrapper and stays thin
@@ -908,11 +910,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-fitchef-shopping-list-follow-up-binding"></a>
-- [ ] P1: FitChef shopping-list follow-up binding
+- [x] P1: FitChef shopping-list follow-up binding
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FITCHEF-SHOPPING-LIST-FOLLOW-UP-BINDING
-  - Status: Open
+  - Target PR: PR-1058
+  - Status: ✅ Merged (PR-1058, 2026-03-09)
   - Area: orchestration / backend runtime / shopping list
   - Finding Type: execution anchor
   - Locations:
@@ -925,6 +927,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
     - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
     - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1058_FIXED_MAPPING.md`
   - DoD:
     - FitChef runtime supports `task_type=shopping_followup`
     - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
