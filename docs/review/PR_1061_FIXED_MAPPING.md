@@ -13,12 +13,12 @@ Reason: This review contains no actionable implementation feedback.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3917787941 -> b59964d0
 Disposition: FIXED
 Commit: b59964d0
-Evidence: tests/test_legacy_weekly_plan_alias_api.py:225
+Evidence: tests/test_legacy_weekly_plan_alias_api.py:227
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907556833 -> b59964d0
 Disposition: FIXED
 Commit: b59964d0
-Evidence: tests/test_legacy_weekly_plan_alias_api.py:225
+Evidence: tests/test_legacy_weekly_plan_alias_api.py:227
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3917799557 -> 3fbc03db
 Disposition: FIXED

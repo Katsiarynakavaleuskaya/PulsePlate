@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import pytest
@@ -112,8 +113,11 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
     assert legacy_data["adherence_score"] == canonical_menu["adherence_score"]
     assert legacy_data["week_summary"]["week_start"] == canonical_menu["week_start"]
     assert legacy_data["week_summary"]["total_days"] == len(canonical_menu["daily_menus"])
+    returned_day_cost_total = sum(
+        float(day.get("daily_cost", 0.0)) for day in canonical_menu["daily_menus"]
+    )
     assert legacy_data["week_summary"]["avg_daily_cost"] == round(
-        canonical_menu["total_cost"] / len(canonical_menu["daily_menus"]), 2
+        returned_day_cost_total / len(canonical_menu["daily_menus"]), 2
     )
 
 
@@ -247,6 +251,37 @@ def test_build_legacy_weekly_menu_response_accepts_estimated_cost_fallback() -> 
     assert response.daily_menus[0]["daily_cost"] == 12.75
 
 
+def test_build_legacy_weekly_menu_response_uses_returned_days_for_avg_cost() -> None:
+    """Week summary average must derive from returned day payloads, not top-level total_cost."""
+
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [],
+                    "total_kcal": 0,
+                    "daily_cost": 10.0,
+                },
+                {
+                    "date": "2026-03-11",
+                    "meals": [],
+                    "total_kcal": 0,
+                    "daily_cost": 20.0,
+                },
+            ],
+            "weekly_coverage": {},
+            "shopping_list": {},
+            "total_cost": 999.0,
+            "adherence_score": 0.1,
+        }
+    )
+
+    assert response.week_summary["total_days"] == 2
+    assert response.week_summary["avg_daily_cost"] == 15.0
+
+
 def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None:
     """Boolean-like numeric fields must fall back to defaults in the legacy adapter."""
 
@@ -294,3 +329,32 @@ def test_build_legacy_weekly_menu_response_recovers_from_bool_day_values() -> No
 
     assert response.daily_menus[0]["total_kcal"] == 420.0
     assert response.daily_menus[0]["daily_cost"] == 14.5
+
+
+def test_build_legacy_weekly_menu_response_rejects_non_finite_numeric_values() -> None:
+    """NaN and Infinity must collapse to safe legacy defaults instead of leaking to JSON."""
+
+    response = legacy_app._build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                {
+                    "date": "2026-03-10",
+                    "meals": [],
+                    "total_kcal": math.nan,
+                    "daily_cost": math.inf,
+                }
+            ],
+            "weekly_coverage": {"protein": math.inf, "fiber": 0.84},
+            "shopping_list": {"oats": math.nan, "rice": 250.0},
+            "total_cost": math.inf,
+            "adherence_score": math.nan,
+        }
+    )
+
+    assert response.daily_menus[0]["total_kcal"] == 0.0
+    assert response.daily_menus[0]["daily_cost"] == 0.0
+    assert response.weekly_coverage == {"fiber": 0.84}
+    assert response.shopping_list == {"rice": 250.0}
+    assert response.total_cost == 0.0
+    assert response.adherence_score == 0.0

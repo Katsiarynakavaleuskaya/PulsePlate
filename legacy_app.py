@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import math
 import os
 import secrets
 import sys
@@ -3220,7 +3221,8 @@ def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
     if isinstance(value, bool):
         return default
     if isinstance(value, (int, float)):
-        return float(value)
+        coerced = float(value)
+        return coerced if math.isfinite(coerced) else default
     return default
 
 
@@ -3274,6 +3276,7 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
             if isinstance(key, str)
             and isinstance(value, (int, float))
             and not isinstance(value, bool)
+            and math.isfinite(float(value))
         }
         if isinstance(raw_weekly_coverage, dict)
         else {}
@@ -3287,6 +3290,7 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
             if isinstance(key, str)
             and isinstance(value, (int, float))
             and not isinstance(value, bool)
+            and math.isfinite(float(value))
         }
         if isinstance(raw_shopping_list, dict)
         else {}
@@ -3295,16 +3299,16 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
     total_cost = _coerce_weekly_menu_float(menu_payload.get("total_cost"), 0.0)
     adherence_score = _coerce_weekly_menu_float(menu_payload.get("adherence_score"), 0.0)
     week_start = menu_payload.get("week_start", "")
+    total_days = len(daily_menus_payload)
+    returned_day_cost_total = sum(
+        _coerce_weekly_menu_float(day.get("daily_cost"), 0.0) for day in daily_menus_payload
+    )
 
     return WeeklyMenuResponse(
         week_summary={
             "week_start": str(week_start),
-            "total_days": len(daily_menus_payload),
-            "avg_daily_cost": (
-                round(total_cost / len(daily_menus_payload), 2)
-                if total_cost and daily_menus_payload
-                else 0.0
-            ),
+            "total_days": total_days,
+            "avg_daily_cost": round(returned_day_cost_total / total_days, 2) if total_days else 0.0,
         },
         daily_menus=daily_menus_payload,
         weekly_coverage=weekly_coverage,
