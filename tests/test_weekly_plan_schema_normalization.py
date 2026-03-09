@@ -76,6 +76,43 @@ def test_normalize_weekly_plan_payload_rejects_invalid_numeric_entries() -> None
         )
 
 
+def test_normalize_weekly_plan_payload_rejects_non_mapping_root_payload() -> None:
+    with pytest.raises(ValueError, match=r"weekly_plan must be a mapping"):
+        normalize_weekly_plan_payload(["not", "a", "mapping"])
+
+
+def test_normalize_weekly_plan_payload_rejects_non_mapping_day_payload() -> None:
+    with pytest.raises(ValueError, match=r"daily_menus\[\] must be a mapping"):
+        normalize_weekly_plan_payload(
+            {
+                "daily_menus": ["bad-day-payload"],
+                "adherence_score": "0.9",
+            }
+        )
+
+
+def test_normalize_weekly_plan_payload_rejects_non_mapping_meal_payload() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"daily_menus\[\]\.meals\[\] must be a mapping",
+    ):
+        normalize_weekly_plan_payload(
+            {
+                "daily_menus": [
+                    {
+                        "meals": ["bad-meal-payload"],
+                        "kcal": "350",
+                        "macros": {},
+                        "micros": {},
+                        "coverage": {},
+                        "total_cost": None,
+                    }
+                ],
+                "adherence_score": "0.9",
+            }
+        )
+
+
 def test_normalize_weekly_plan_payload_rejects_non_finite_numbers() -> None:
     with pytest.raises(ValueError, match=r"daily_menus\[\]\.kcal must be a finite number"):
         normalize_weekly_plan_payload(
@@ -91,6 +128,25 @@ def test_normalize_weekly_plan_payload_rejects_non_finite_numbers() -> None:
                     }
                 ],
                 "adherence_score": "nan",
+            }
+        )
+
+
+def test_normalize_weekly_plan_payload_rejects_invalid_total_cost_scalars() -> None:
+    with pytest.raises(ValueError, match=r"daily_menus\[\]\.total_cost must be a finite number"):
+        normalize_weekly_plan_payload(
+            {
+                "daily_menus": [
+                    {
+                        "meals": [],
+                        "kcal": "350",
+                        "macros": {},
+                        "micros": {},
+                        "coverage": {},
+                        "total_cost": "bad",
+                    }
+                ],
+                "adherence_score": "0.9",
             }
         )
 
