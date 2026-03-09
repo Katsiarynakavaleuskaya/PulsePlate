@@ -764,7 +764,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `pre-commit run --all-files` and `make verify` pass in follow-up PR
   - Blockers: None (deferred by scope, not blocked)
 
-
+<a id="ledger-p1-fitchef-phase1-wrapper"></a>
 - [ ] P1: FitChef Phase 1 wrapper
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -789,7 +789,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Policy, quota, audit, RAG, and timeout ordering remain unchanged and regression-tested
   - Blockers: None
 
-
+<a id="ledger-p1-fitchef-weekly-plan-binding"></a>
 - [ ] P1: FitChef weekly-plan task binding
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -799,9 +799,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: execution anchor
   - Locations:
     - `app/services/fitchef_runtime.py`
-    - `app/routers/vip.py`
+    - `app/routers/pro.py`
+    - `app/services/weekly_plan/pipeline.py`
     - `app/schemas/vip.py`
-    - `core/menu_engine.py`
   - Reason: After the internal FitChef wrapper lands, weekly-plan generation is the second approved Phase 1 task type and should reuse the same orchestration runtime instead of keeping planner orchestration embedded in the route layer.
   - Links:
     - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
@@ -809,12 +809,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_1042_FIXED_MAPPING.md`
   - DoD:
     - FitChef runtime supports `task_type=weekly_plan`
-    - Existing weekly-plan VIP route delegates through the wrapper and stays thin
+    - Existing canonical PRO weekly-plan route delegates through the wrapper and stays thin
     - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
-    - VIP gate and planner behavior remain deterministic and regression-tested
-  - Blockers: Depends on `P1: FitChef Phase 1 wrapper`
+    - PRO gate and weekly-plan pipeline behavior remain deterministic and regression-tested
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
 
+<a id="ledger-p1-fitchef-shopping-list-follow-up-binding"></a>
 - [ ] P1: FitChef shopping-list follow-up binding
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -837,7 +838,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
     - XOR validation, unsupported-preferences handling, and tier-gate behavior remain unchanged and regression-tested
     - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
-  - Blockers: Depends on `P1: FitChef Phase 1 wrapper`
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
 
 - [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
