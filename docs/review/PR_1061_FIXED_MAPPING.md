@@ -13,12 +13,12 @@ Reason: This review contains no actionable implementation feedback.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3917787941 -> b59964d0
 Disposition: FIXED
 Commit: b59964d0
-Evidence: tests/test_legacy_weekly_plan_alias_api.py:227
+Evidence: tests/test_legacy_weekly_plan_alias_api.py:251
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907556833 -> b59964d0
 Disposition: FIXED
 Commit: b59964d0
-Evidence: tests/test_legacy_weekly_plan_alias_api.py:227
+Evidence: tests/test_legacy_weekly_plan_alias_api.py:251
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3917799557 -> 3fbc03db
 Disposition: FIXED
@@ -69,3 +69,23 @@ Evidence: legacy_app.py:3246; legacy_app.py:3257; tests/test_legacy_weekly_plan_
 Disposition: FIXED
 Commit: dc959872
 Evidence: legacy_app.py:3246; legacy_app.py:4635; tests/test_legacy_weekly_plan_alias_api.py:167
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907802282 -> 76824910
+Disposition: FIXED
+Commit: 76824910
+Evidence: docs/review/PR_1061_FIXED_MAPPING.md:16; docs/review/PR_1061_FIXED_MAPPING.md:21
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907802293 -> 76824910
+Disposition: FIXED
+Commit: 76824910
+Evidence: legacy_app.py:3223; legacy_app.py:3271; legacy_app.py:3285; tests/test_legacy_weekly_plan_alias_api.py:334
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#discussion_r2907802299 -> 76824910
+Disposition: FIXED
+Commit: 76824910
+Evidence: legacy_app.py:3302; tests/test_legacy_weekly_plan_alias_api.py:254
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061#pullrequestreview-3918067947 -> 76824910
+Disposition: FIXED
+Commit: 76824910
+Evidence: docs/review/PR_1061_FIXED_MAPPING.md:16; legacy_app.py:3223; legacy_app.py:3302; tests/test_legacy_weekly_plan_alias_api.py:334
