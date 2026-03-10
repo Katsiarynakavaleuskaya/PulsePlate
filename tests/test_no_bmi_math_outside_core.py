@@ -451,8 +451,7 @@ def test_skip_context_does_not_filter_whr_thresholds() -> None:
         ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
     finally:
         # Clean up: remove test file
-        if test_file.exists():
-            test_file.unlink()
+        test_file.unlink(missing_ok=True)
 
 
 def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:
