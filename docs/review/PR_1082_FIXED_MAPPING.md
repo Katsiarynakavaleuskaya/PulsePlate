@@ -12,6 +12,13 @@ Disposition: FIXED
 Commit: `0978af5a`
 Evidence: `worker.js:1`; `tests/test_worker_proxy_contract.py:1`; `docs/deploy/PRODUCTION.md:7`; `docs/security/SECURITY_POSTURE.md:3`; `docs/roadmap/BACKLOG_LEDGER.md:611`; `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:47`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912500243 -> d25a1f81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912500258 -> d25a1f81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912500263 -> d25a1f81
+Disposition: FIXED
+Commit: `d25a1f81`
+Evidence: `worker.js:1`; `tests/test_worker_proxy_contract.py:1`; `docs/deploy/PRODUCTION.md:7`; `docs/roadmap/BACKLOG_LEDGER.md:611`
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
