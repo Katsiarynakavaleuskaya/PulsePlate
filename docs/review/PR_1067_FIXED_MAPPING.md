@@ -65,6 +65,21 @@ Disposition: FIXED
 Evidence: docs/MOBILE_API_MIGRATION_GUIDE.md:292; docs/MOBILE_API_MIGRATION_GUIDE.md:468
 Reason: the production Keychain sample now uses `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, matching the checklist requirement and the intended runtime accessibility policy.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920652668
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158437; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158468; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158474; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910234542
+Reason: this CodeRabbit review entry is the summary shell for child comments that were dispositioned separately as FIXED above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920740164
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910234533; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910234537; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910234542
+Reason: this CodeRabbit review entry is the summary shell for child comments that were dispositioned separately as FIXED above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920771552
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910234537
+Reason: this CodeRabbit review entry is the summary shell for a duplicate child comment that was already dispositioned as FIXED above.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920850927
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910329581; docs/MOBILE_API_MIGRATION_GUIDE.md:292; docs/MOBILE_API_MIGRATION_GUIDE.md:468
