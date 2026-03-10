@@ -14,8 +14,14 @@ Reason: the backlog item now points to active PR `#1072`, so the in-progress led
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911024762 -> b9bbbaaf
 Disposition: FIXED
 Commit: b9bbbaaf
-Evidence: docs/review/PR_1072_FIXED_MAPPING.md:11
-Reason: the canonical artifact now records explicit FIXED commit proof for the post-review mapping correction, satisfying the phase2/disposition contract after the comment timestamp.
+Evidence: docs/review/PR_1072_FIXED_MAPPING.md:14
+Reason: this mapping line is the corrected canonical review-thread entry that replaced the invalid placeholder marker flagged in `discussion_r2911024762`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911151296 -> f1bf76d4
+Disposition: FIXED
+Commit: f1bf76d4
+Evidence: tests/test_test_router.py:9; tests/test_test_router.py:31
+Reason: the reload-sensitive test now resolves runtime env through the `settings` module at call time instead of binding a direct import that can go stale across reloads.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#pullrequestreview-3921607289
 Disposition: NOT-A-BUG
@@ -36,6 +42,11 @@ Reason: the review contains no actionable repository feedback.
 Disposition: NOT-A-BUG
 Evidence: cubic identified no issues in the review body.
 Reason: this automated review is explicitly non-actionable.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#pullrequestreview-3921741743
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911151296; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911151300
+Reason: this cubic review is the summary shell for the two child review comments recorded separately in this artifact.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
