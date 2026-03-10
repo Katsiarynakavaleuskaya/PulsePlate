@@ -1374,6 +1374,13 @@ class TestFitChefSlipSupportTierAndFlags:
             str(tmp_path / "fitchef-slip-support-audit.jsonl"),
         )
         self.monkeypatch.setenv("FITCHEF_MASCOT_EXECUTION_MODE", "auto-safe")
+        # RU: Для строгих route-registration/status-contract проверок нужен изолированный клиент,
+        # чтобы общий conftest-клиент не переносил shared override state между FitChef/VIP сценариями.
+        # EN: These strict route-registration/status-contract checks need an isolated client so the
+        # RU: Нужен отдельный TestClient после monkeypatch.setenv(...), потому что общий client
+        # fixture создаётся раньше и не подхватывает per-test env overrides для audit path/mode.
+        # EN: Build an isolated client after monkeypatch.setenv(...) because the shared client
+        # fixture is created earlier and misses these per-test audit-path / execution-mode overrides.
         with TestClient(main_app) as isolated_client:
             self.client = isolated_client
             yield
