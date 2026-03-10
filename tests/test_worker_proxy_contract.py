@@ -115,6 +115,25 @@ async function main() {{
     return;
   }}
 
+  if (caseName === "originless_with_allowlist") {{
+    const response = await worker.fetch(
+      new Request("https://edge.example.com/api/foods", {{
+        method: "GET",
+      }}),
+      {{
+        TARGET_BASE: "https://api.pulseplate.app",
+        WORKER_ALLOWED_ORIGINS: "https://app.pulseplate.app",
+      }}
+    );
+    console.log(JSON.stringify({{
+      status: response.status,
+      headers: toObject(response.headers),
+      body: await response.text(),
+      captured,
+    }}));
+    return;
+  }}
+
   if (caseName === "invalid_target_base") {{
     const response = await worker.fetch(
       new Request("https://edge.example.com/api/foods", {{
@@ -306,6 +325,8 @@ def test_worker_fails_closed_when_target_base_is_missing_or_invalid() -> None:
     assert invalid["captured"] is None
     assert missing["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"
     assert missing["headers"]["vary"] == "Origin"
+    assert invalid["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"
+    assert invalid["headers"]["vary"] == "Origin"
 
 
 def test_worker_preflight_reflects_only_trusted_origins() -> None:
@@ -331,6 +352,15 @@ def test_worker_fails_closed_without_origin_when_allowlist_is_missing() -> None:
     assert payload["captured"] is None
 
 
+def test_worker_allows_originless_requests_when_allowlist_is_configured() -> None:
+    payload = _run_worker_case("originless_with_allowlist")
+
+    assert payload["status"] == 200
+    assert payload["body"] == "upstream-ok"
+    assert payload["captured"] is not None
+    assert "access-control-allow-origin" not in payload["headers"]
+
+
 def test_worker_forwards_only_bounded_headers_and_preserves_vary() -> None:
     payload = _run_worker_case("forward_headers_and_vary")
     captured = payload["captured"]
@@ -344,11 +374,9 @@ def test_worker_forwards_only_bounded_headers_and_preserves_vary() -> None:
     assert captured["headers"] == {
         "accept": "application/json",
         "authorization": "Bearer abc",
-        "cf-connecting-ip": "203.0.113.10",
         "content-type": "application/json",
         "cookie": "session=1",
         "x-api-key": "pro-secret",
-        "x-forwarded-for": "203.0.113.10, 203.0.113.11",
     }
     assert payload["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"
     assert payload["headers"]["vary"] == "Accept-Encoding, Origin"

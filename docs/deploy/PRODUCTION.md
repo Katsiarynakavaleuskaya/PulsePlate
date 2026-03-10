@@ -20,8 +20,8 @@ The Cloudflare Worker runtime is supported only as a bounded first-party proxy i
   - trusted origins are reflected exactly with `Vary: Origin`
   - browser preflight fails closed when origin/path is not allowed
 - Header policy:
-  - bounded forwarding only (`Accept`, `Content-Type`, `Authorization`, `X-API-Key`, `Cookie`, `CF-Connecting-IP`, `X-Forwarded-For`)
-  - client IP headers are preserved only so backend rate limiting can keep per-user isolation behind the worker
+  - bounded forwarding only (`Accept`, `Content-Type`, `Authorization`, `X-API-Key`, `Cookie`)
+  - spoofable forwarding headers such as `X-Forwarded-For`, `Forwarded`, `X-Real-IP`, and caller-supplied `CF-*` headers are stripped/ignored
   - hop/proxy headers and arbitrary pass-through are forbidden
 - Redirect policy:
   - upstream fetches must remain `redirect: "manual"` to avoid broad proxy behavior

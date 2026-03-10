@@ -6,6 +6,7 @@
 **Primary sources:** `gh pr list`, `git log`, `docs/roadmap/BACKLOG_LEDGER.md`, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`, `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
+**Backfill note:** PR `#1063` merged on `10 March 2026`, one day after the fixed snapshot window. It is referenced below only as a post-window closure backfill for the session-cookie lane, not as a change to the 4 February 2026 through 9 March 2026 review window.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
@@ -119,7 +120,7 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 | Target PR | Domain | Snapshot status |
 |-----------|--------|-----------------|
-| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | closed in code by `#995`, `#1003`, `#1030`, `#1063`; any remaining follow-up is ledger/doc sync only |
+| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | closed in code by `#995`, `#1003`, `#1030`, with `#1063` recorded as a post-window closure backfill; any remaining follow-up is ledger/doc sync only |
 | `PR-TBD-INSIGHT-FALLBACK-CHAIN` | ml | still open |
 | `PR-TBD-RAG-INPUT-SANITIZER` | security | closed by `#1044`, with ledger close-out recorded in `#1045` |
 | `PR-TBD-IOS-KEYCHAIN-CONFORMANCE` | ios | still open; guard coverage landed separately in `#1011` |

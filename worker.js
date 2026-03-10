@@ -3,10 +3,8 @@ const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 const ALLOWED_FORWARD_HEADERS = [
   "accept",
   "authorization",
-  "cf-connecting-ip",
   "content-type",
   "cookie",
-  "x-forwarded-for",
   "x-api-key",
 ];
 const ALLOWED_PREFLIGHT_HEADERS = "Content-Type, Authorization, X-API-Key";

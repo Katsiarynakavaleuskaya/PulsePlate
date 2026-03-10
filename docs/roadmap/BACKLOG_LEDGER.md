@@ -660,7 +660,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 🟡 In progress (supported runtime is being bounded to first-party `/api/*` proxy use only)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
-  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, preserved client-IP headers for backend rate limiting, and no wildcard CORS.
+  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS.
   - Links:
     - `worker.js`
     - `docs/security/SECURITY_POSTURE.md`
@@ -671,7 +671,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
     - Worker proxy tests prove `redirect: "manual"` remains enforced for upstream fetches
     - Wildcard CORS and header pass-through are removed or bounded to trusted origins
-    - Authorization and client-IP forwarding policy is documented and tested
+    - Authorization forwarding policy is documented and tested, and spoofable client-IP headers are stripped or ignored fail-closed
     - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
 
 
@@ -2121,8 +2121,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
   - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR #1063
-  - Status: ✅ Merged evidence (web session migration delivered on `main`)
-  - Reason (EN): Master checklist item #1 identified XSS exposure when auth/session keys were persisted in browser storage. That web runtime gap is now closed on `main`: PR #1003 moved route gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling while keeping cleanup semantics fail-closed in `frontend/src/auth/storage.ts`. This backlog item is therefore closed as delivered evidence rather than carried forward into a fake W2 runtime PR. (RU: Web runtime gap по browser-stored auth secrets уже закрыт в `main`: PR #1003 перевёл gate-логику на session truth, PR #1030 усилил W1 migration path, PR #1063 убрал оставшуюся storage-seeded smoke/logout связку и оставил cleanup fail-closed. Псевдо-carryover `PR-TBD-SESSION-COOKIE-HARDENING-W2` больше не нужен.)
+  - Status: ✅ Merged evidence (web session migration delivered on `main`; audit trail reconciled in a later docs/security follow-up)
+  - Reason (EN): Master checklist item #1 identified XSS exposure when auth/session keys were persisted in browser storage. That web runtime gap is now closed on `main`: PR #1003 moved route gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling while keeping cleanup semantics fail-closed in `frontend/src/auth/storage.ts`. This backlog item is therefore closed as delivered evidence rather than carried forward into a fake W2 runtime PR. The canonical closure was reconciled later in a docs/security follow-up so the ledger matches already-merged runtime evidence. (RU: Web runtime gap по browser-stored auth secrets уже закрыт в `main`: PR #1003 перевёл gate-логику на session truth, PR #1030 усилил W1 migration path, PR #1063 убрал оставшуюся storage-seeded smoke/logout связку и оставил cleanup fail-closed. Псевдо-carryover `PR-TBD-SESSION-COOKIE-HARDENING-W2` больше не нужен; поздний docs/security follow-up лишь синхронизировал ledger с уже смерженным runtime evidence.)
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - app/security/auth.py
