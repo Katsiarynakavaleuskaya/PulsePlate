@@ -57,27 +57,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - API/webhook/error contracts are tested and non-breaking for existing clients
     - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
 
-<a id="ledger-p0-billing-apple-verify"></a>
-- [x] P0: Apple receipt verification backend follow-through
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR `#1074` (`feat(billing): add Apple receipt verification endpoint`)
-  - Status: ✅ Completed (Merged PR #1074 on 2026-03-10)
-  - Merge SHA: `e0104c540bfb63cc2fd944090d293c7b751651e8`
-  - Area: backend / payments / iOS monetization
-  - Finding Type: payment integrity
-  - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
-  - Links:
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `app/routers/billing.py`
-    - `docs/review/PR_1074_FIXED_MAPPING.md`
-    - `app/services/payments_activation.py`
-  - DoD:
-    - Server-side Apple receipt verification normalizes into the canonical billing activation flow
-    - Receipt verification failure modes are deterministic and test-covered
-    - Activation/status contracts stay additive for existing clients
-
 <a id="ledger-p0-billing-activation-service"></a>
 - [ ] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
@@ -2136,6 +2115,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
 ### P0
+
+<a id="ledger-p0-billing-apple-verify"></a>
+- [x] P0: Apple receipt verification backend follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR `#1074` (`feat(billing): add Apple receipt verification endpoint`)
+  - Status: ✅ Completed (Merged PR #1074 on 2026-03-10)
+  - Merge SHA: `e0104c540bfb63cc2fd944090d293c7b751651e8`
+  - Area: backend / payments / iOS monetization
+  - Finding Type: payment integrity
+  - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `app/routers/billing.py`
+    - `docs/review/PR_1074_FIXED_MAPPING.md`
+    - `app/services/payments_activation.py`
+  - DoD:
+    - Server-side Apple receipt verification normalizes into the canonical billing activation flow
+    - Receipt verification failure modes are deterministic and test-covered
+    - Activation/status contracts stay additive for existing clients
 
 - [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
   - Owner: @katsiaryna_kavaleuskaya
