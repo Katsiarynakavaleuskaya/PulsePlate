@@ -83,3 +83,16 @@ def test_subject_bigint_hardening_migration_updates_policy_and_constraints() -> 
     assert "ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE BIGINT" in migration_text
     assert "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE BIGINT" in migration_text
     assert "::bigint" in migration_text
+
+
+def test_subject_bigint_hardening_downgrade_restores_legacy_foreign_keys() -> None:
+    """Rollback must restore the pre-bigint FK contract for both user-bound tables."""
+    repo_root = Path(__file__).resolve().parents[1]
+    migration_path = (
+        repo_root / "alembic/versions/202603110001_harden_rag_subject_principal_bigint.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert "ADD CONSTRAINT fk_rag_feedback_user" in migration_text
+    assert "ADD CONSTRAINT fk_user_knowledge_user" in migration_text
+    assert "REFERENCES users (id) ON DELETE CASCADE" in migration_text

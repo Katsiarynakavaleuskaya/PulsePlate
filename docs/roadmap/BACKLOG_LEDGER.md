@@ -863,8 +863,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: `user_knowledge` DB-level RLS / policy hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / defense-in-depth)
-  - Target PR: PR-TBD-USER-KNOWLEDGE-RLS (`feat/p1-user-knowledge-rls`)
-  - Status: 🟡 In progress
+  - Target PR: PR #1089 (`feat/p1-user-knowledge-rls`)
+  - Status: 🟡 In progress (active PR `#1089`)
   - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but Postgres still needed explicit DB-level RLS/policy enforcement plus a canonical session-context bridge to make the policy enforceable in runtime paths.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (§7, §8)

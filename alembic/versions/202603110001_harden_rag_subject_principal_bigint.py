@@ -65,6 +65,18 @@ def downgrade() -> None:
         "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE INTEGER USING user_id::integer"
     )
     op.execute("ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE INTEGER USING user_id::integer")
+    # RU: Восстанавливаем исходные FK при rollback к int4 users.id контракту.
+    # EN: Restore the original FKs when rolling back to the int4 users.id contract.
+    op.execute("""
+        ALTER TABLE rag_feedback
+        ADD CONSTRAINT fk_rag_feedback_user
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    """)
+    op.execute("""
+        ALTER TABLE user_knowledge
+        ADD CONSTRAINT fk_user_knowledge_user
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    """)
 
     op.execute("""
         CREATE POLICY rag_feedback_user_isolation ON rag_feedback
