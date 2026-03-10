@@ -47,6 +47,12 @@ Evidence: `8467f024` hardens the runner boundary conditions by letting a `wall_c
 
 Disposition: FIXED
 Commit: see mapping entries below
+Evidence: `e99083fd` moves runner preflight reads into the fail-closed path in `scripts/orchestration/experiment_runner.py:402`, so missing patch files or failed shared-tree status probes now return deterministic `infra_flake` results instead of escaping out of `main()`. Regression coverage was added in `tests/test_experiment_runner.py:616` for the missing-patch preflight path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914458229 -> e99083fd
+
+Disposition: FIXED
+Commit: see mapping entries below
 Evidence: `1814f699` updates the experimentation epic and PR3 runner ledger traceability in `docs/roadmap/BACKLOG_LEDGER.md:5243`, replaces stale placeholders with the in-flight PR reference `#1088` in `docs/roadmap/BACKLOG_LEDGER.md:5281`, and swaps stale philosophical-runtime links for the actual runner/bootstrap evidence surfaces in `docs/roadmap/BACKLOG_LEDGER.md:5290` and `docs/roadmap/BACKLOG_LEDGER.md:5356`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245106 -> 1814f699
