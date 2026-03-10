@@ -18,6 +18,11 @@ Commit: de6908df
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#pullrequestreview-3920884181 -> de6908df
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#discussion_r2910360398 -> de6908df
 
+Disposition: FIXED
+Commit: 3f812740
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#pullrequestreview-3921037276 -> 3f812740
+
 ## Merge Readiness
 - [ ] All required checks are PASS
 - [ ] Fixed in Commit Mapping artifact updated
