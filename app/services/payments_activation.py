@@ -172,13 +172,19 @@ def _parse_apple_datetime(raw_value: Any) -> datetime | None:
             return raw_value.replace(tzinfo=timezone.utc)
         return raw_value.astimezone(timezone.utc)
     if isinstance(raw_value, (int, float)):
-        return datetime.fromtimestamp(float(raw_value) / 1000.0, tz=timezone.utc)
+        try:
+            return datetime.fromtimestamp(float(raw_value) / 1000.0, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     if isinstance(raw_value, str):
         normalized = raw_value.strip()
         if not normalized:
             return None
         if normalized.isdigit():
-            return datetime.fromtimestamp(int(normalized) / 1000.0, tz=timezone.utc)
+            try:
+                return datetime.fromtimestamp(int(normalized) / 1000.0, tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
         try:
             return datetime.strptime(
                 normalized,

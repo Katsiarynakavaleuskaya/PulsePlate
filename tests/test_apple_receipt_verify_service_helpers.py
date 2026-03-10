@@ -114,6 +114,11 @@ def test_parse_apple_datetime_rejects_invalid_inputs() -> None:
     assert payments_activation._parse_apple_datetime([]) is None
 
 
+@pytest.mark.parametrize("raw_value", [10**30, str(10**30)])
+def test_parse_apple_datetime_rejects_out_of_range_epoch_values(raw_value: object) -> None:
+    assert payments_activation._parse_apple_datetime(raw_value) is None
+
+
 def test_receipt_entries_falls_back_to_receipt_in_app() -> None:
     entries = payments_activation._receipt_entries(
         {
