@@ -57,6 +57,8 @@ jobs:
         run: |
           trivy image \
             --db-repository ghcr.io/aquasecurity/trivy-db \
+            --scanners vuln \
+            --timeout 15m \
             --format sarif \
             --output trivy-results.sarif \
             --severity CRITICAL,HIGH \
