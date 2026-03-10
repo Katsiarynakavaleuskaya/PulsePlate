@@ -1,13 +1,35 @@
 # PR 1074 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-Pending initial review.
+Disposition: NOT-A-BUG
+Evidence: Sourcery review `#pullrequestreview-3921812301`
+Reason: The Sourcery comment is a weekly diff-character rate-limit notice, not implementation feedback or an actionable defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3921812301
 
-No actionable review threads recorded yet.
+Disposition: FIXED
+Commit: c19e05ad
+Evidence: `docker-compose.yaml:57`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3921836587 -> c19e05ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911237504 -> c19e05ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911237507 -> c19e05ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911237519 -> c19e05ad
+
+Disposition: FIXED
+Commit: 4a0a0041
+Evidence: `app/routers/billing.py:116`, `app/services/payments_activation.py:226`, `app/services/payments_activation.py:296`, `docs/contracts/API_CANONICAL_MAP.md:15`, `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/roadmap/BACKLOG_LEDGER.md:80`, `tests/conftest.py:602`, `tests/test_apple_receipt_verify_service_helpers.py:130`, `tests/test_ios_receipt_verification_api.py:13`, `tests/test_pro_payments_api.py:330`, `tests/test_payment_reconciliation_api.py:53`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3921893497 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285640 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285642 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285650 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285655 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285659 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285682 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285687 -> 4a0a0041
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285690 -> 4a0a0041
 
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
