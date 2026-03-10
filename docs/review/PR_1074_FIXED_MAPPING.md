@@ -31,6 +31,11 @@ Evidence: `app/routers/billing.py:116`, `app/services/payments_activation.py:226
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285687 -> 4a0a0041
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285690 -> 4a0a0041
 
+Disposition: FIXED
+Commit: 661cfe9c
+Evidence: `docs/review/PR_1074_FIXED_MAPPING.md:3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285670 -> 661cfe9c
+
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
 - [ ] No unresolved review threads
