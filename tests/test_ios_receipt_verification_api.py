@@ -5,14 +5,16 @@ from typing import Any
 from fastapi.testclient import TestClient
 import pytest
 
+from app.schemas.payments import AppleReceiptVerificationRequest
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
 def _billing_headers(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    monkeypatch.setenv("API_KEY", "billing-verify-test-key")
-    return {"X-API-Key": "billing-verify-test-key"}
+    accepted_key = "billing-verify-test-key"
+    monkeypatch.setenv("API_KEY", accepted_key)
+    return {"X-API-Key": accepted_key}
 
 
 def _request_payload(receipt_data: str = "receipt-data-validated-12345") -> dict[str, str]:
@@ -392,7 +394,11 @@ def test_apple_verify_receipt_rejects_malformed_body(
     assert response.status_code == 422
 
 
-def test_apple_verify_receipt_rejects_invalid_api_key(client: TestClient) -> None:
+def test_apple_verify_receipt_rejects_invalid_api_key(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("API_KEY", "billing-verify-test-key")
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
         headers={"X-API-Key": "bad"},
@@ -436,3 +442,71 @@ def test_apple_verify_receipt_rejects_cancelled_receipt(
     assert payload["verified"] is False
     assert payload["verification_state"] == "invalid"
     assert payload["activation_payload"] is None
+
+
+def test_require_billing_transport_key_returns_500_when_validator_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(app_module, "get_api_key", None, raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        billing._require_billing_transport_key("billing-verify-test-key")
+
+    assert exc_info.value.status_code == 500
+
+
+def test_require_billing_transport_key_returns_500_on_unexpected_validator_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+    from fastapi import HTTPException
+
+    def _boom(_: str) -> str:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(app_module, "get_api_key", _boom, raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        billing._require_billing_transport_key("billing-verify-test-key")
+
+    assert exc_info.value.status_code == 500
+
+
+def test_require_billing_transport_key_returns_500_on_non_string_validator_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(app_module, "get_api_key", lambda _: object(), raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        billing._require_billing_transport_key("billing-verify-test-key")
+
+    assert exc_info.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_verify_apple_receipt_response_wraps_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import billing
+    from app.services import payments_activation
+    from fastapi.responses import JSONResponse
+
+    async def _raise_transport(_: str) -> AppleReceiptVerificationRequest:
+        raise payments_activation.AppleVerifyTransportError()
+
+    monkeypatch.setattr(payments_activation, "verify_apple_receipt", _raise_transport)
+    response = await billing._verify_apple_receipt_response(
+        AppleReceiptVerificationRequest(receipt_data="receipt-data-validated-12345")
+    )
+
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 502

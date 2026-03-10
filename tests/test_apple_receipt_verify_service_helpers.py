@@ -96,6 +96,7 @@ def test_coerce_apple_status_covers_supported_inputs() -> None:
         (4102444800000, datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc)),
         ("4102444800000", datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc)),
         ("2026-04-01T00:00:00Z", datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc)),
+        ("2026-04-01T00:00:00", datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc)),
     ],
 )
 def test_parse_apple_datetime_accepts_supported_formats(
@@ -339,6 +340,11 @@ def test_normalize_apple_verification_accepts_restored_marker_alias() -> None:
 
     assert response.verified is True
     assert response.verification_state is AppleVerificationState.restored
+
+
+@pytest.mark.parametrize("marker", ["restore_detected", "restored"])
+def test_has_reliable_restore_signal_accepts_entry_markers(marker: str) -> None:
+    assert payments_activation._has_reliable_restore_signal({}, {marker: True}) is True
 
 
 def test_normalize_apple_verification_rejects_cancelled_receipt() -> None:
