@@ -27,3 +27,9 @@ Evidence: `97fac0da` adds shared lexical normalization in `scripts/orchestration
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912067885 -> 97fac0da
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912067889 -> 97fac0da
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912067893 -> 97fac0da
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `887a094c` removes the drift-prone hard-coded line numbers from the `NOT-A-BUG` evidence block and switches that proof to symbol-based references, keeping the canonical artifact stable across later edits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#pullrequestreview-3922810255 -> 887a094c
