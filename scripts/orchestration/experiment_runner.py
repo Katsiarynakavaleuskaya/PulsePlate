@@ -516,7 +516,9 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             result["shared_tree_untouched"] = False
             result["status"] = "rejected"
             result["failure_class"] = "infra_flake"
-            result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
+            result["budget_observations"][
+                "runner_error"
+            ] = "Shared working tree changed during run."
     return result
 
 
