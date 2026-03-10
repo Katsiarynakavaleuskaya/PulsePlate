@@ -42,6 +42,20 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
 
 
 @lru_cache(maxsize=1)
+def _ensure_canonical_bootstrap() -> None:
+    """Run canonical additive bootstrap without changing facade identity.
+
+    RU: Импорт `app.main` нужен только для запуска additive bootstrap поверх
+    `legacy_app.app`; наружу пакет всё равно должен отдавать именно
+    `legacy_app.app`, чтобы сохранялся инвариант identity в тестах и reload path.
+    EN: Import `app.main` only to execute additive bootstrap on top of
+    `legacy_app.app`; the package must still expose `legacy_app.app` itself to
+    preserve identity under tests and reload scenarios.
+    """
+    importlib.import_module("app.main")
+
+
+@lru_cache(maxsize=1)
 def _legacy() -> Any:
     """Import legacy_app lazily and cache it.
 
@@ -70,6 +84,9 @@ def __getattr__(name: str) -> Any:
     PEP 562 forwarder: pure delegation, no side effects.
     Observability bootstrap (register_metrics) is applied ONLY in app/main.py.
     """
+    if name == "app":
+        _ensure_canonical_bootstrap()
+        return getattr(_legacy(), "app")
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)
