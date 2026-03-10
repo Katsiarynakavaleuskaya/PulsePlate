@@ -1,14 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getWeeklyPlan } from "../../api/premium/weekly-plan";
-import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from "../../api/premium/weekly-plan";
+import type { ProWeekPlanRequest } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
 import { getClientLocale } from "../../lib/i18n";
+import { useWeeklyPlan } from "../weekly-plan/hooks/useWeeklyPlan";
+import type { Meal } from "../weekly-plan/model/types";
 
 const DEFAULT_TTL_SECONDS = 900;
+const MONDAY_REFERENCE_UTC = Date.UTC(2024, 0, 1);
+const SUPPORTED_REQUEST_LANGS: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+
+function isSupportedRequestLang(locale: string): locale is ProWeekPlanRequest["lang"] {
+  return SUPPORTED_REQUEST_LANGS.some((supportedLocale) => supportedLocale === locale);
+}
+
+function getInitialRequest(): ProWeekPlanRequest {
+  const clientLocale = getClientLocale();
+  return {
+    ...DEFAULT_REQUEST,
+    lang: isSupportedRequestLang(clientLocale) ? clientLocale : "en",
+  };
+}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -54,9 +69,6 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-type WeeklyDayMenu = WeeklyMealPlanResponse["daily_menus"][number];
-type WeeklyMeal = WeeklyDayMenu["meals"][number];
-
 const DEFAULT_REQUEST: ProWeekPlanRequest = {
   sex: "female",
   age: 30,
@@ -68,11 +80,33 @@ const DEFAULT_REQUEST: ProWeekPlanRequest = {
   lang: "en",
 };
 
-function getDayTitle(index: number, t: (key: string, options?: Record<string, unknown>) => string): string {
-  return t("plan.day_fallback", { number: index + 1 });
+function getLocalizedWeekday(index: number, locale: string): string | null {
+  try {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      timeZone: "UTC",
+    });
+    return formatter.format(new Date(MONDAY_REFERENCE_UTC + index * 24 * 60 * 60 * 1000));
+  } catch {
+    return null;
+  }
 }
 
-function getMealName(meal: WeeklyMeal): string {
+function getDayTitle(
+  index: number,
+  locale: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  normalizedDayName?: string
+): string {
+  const fallbackTitle = normalizedDayName || t("plan.day_fallback", { number: index + 1 });
+  if (locale === "en") {
+    return fallbackTitle;
+  }
+
+  return getLocalizedWeekday(index, locale) || fallbackTitle;
+}
+
+function getMealName(meal: Meal): string {
   return meal.title_translated || meal.title;
 }
 
@@ -80,7 +114,7 @@ function formatMetricLabel(key: string): string {
   return key.replace(/_/g, " ");
 }
 
-function getMealDetails(meal: WeeklyMeal): string[] {
+function getMealDetails(meal: Meal): string[] {
   const grams = Object.entries(meal.grams).slice(0, 2).map(
     ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)} g`
   );
@@ -96,33 +130,13 @@ function getMealDetails(meal: WeeklyMeal): string[] {
 
 export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [data, setData] = useState<WeeklyMealPlanResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
+  const [request] = useState<ProWeekPlanRequest>(getInitialRequest);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const locale = getClientLocale() as ProWeekPlanRequest["lang"];
-        const supportedLangs: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
-        const payload: ProWeekPlanRequest = {
-          ...DEFAULT_REQUEST,
-          lang: supportedLangs.includes(locale) ? locale : "en",
-        };
-
-        const week = await getWeeklyPlan(payload);
-        setData(week);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const { data, loading, error: err } = useWeeklyPlan({
+    targets: request,
+  });
 
   if (loading) {
     return <div className="max-w-3xl mx-auto p-6">{t('plan.loadingWeek')}</div>;
@@ -136,7 +150,8 @@ export default function WeeklyPlanViewer() {
     );
   }
 
-  const dailyMenus = data?.daily_menus ?? [];
+  const dailyMenus = data?.days ?? [];
+  const displayLocale = request.lang;
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -279,14 +294,15 @@ export default function WeeklyPlanViewer() {
           <div className="opacity-80">{t('plan.emptySummary')}</div>
         ) : (
           <ul className="space-y-4">
-            {dailyMenus.map((menu, idx) => {
-              const dayTitle = getDayTitle(idx, t);
+            {dailyMenus.map((menu) => {
+              const dayIndex = Math.max(menu.day - 1, 0);
+              const dayTitle = getDayTitle(dayIndex, displayLocale, t, menu.dayName);
               const dayEnergy = menu.kcal;
               const meals = menu.meals;
 
               return (
                 <li
-                  key={`${dayTitle}-${idx}`}
+                  key={`day-${menu.day}`}
                   className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
                 >
                   <div className="flex items-center justify-between">
