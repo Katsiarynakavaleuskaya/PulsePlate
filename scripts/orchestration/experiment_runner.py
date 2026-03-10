@@ -206,6 +206,7 @@ def _run_git(
     *,
     cwd: Path,
     check: bool = True,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
@@ -215,6 +216,7 @@ def _run_git(
         capture_output=True,
         text=True,
         check=False,
+        input=input_text,
     )
     if check and process.returncode != 0:
         stderr = process.stderr.strip() or process.stdout.strip() or "unknown git failure"
@@ -267,11 +269,11 @@ def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str],
     return temp_dir, checkout_root
 
 
-def _apply_candidate_patch(checkout_root: Path, patch_path: Path) -> None:
+def _apply_candidate_patch(checkout_root: Path, patch_text: str) -> None:
     """Verify patch applicability before applying it inside the isolated checkout."""
 
-    _run_git(["apply", "--check", str(patch_path)], cwd=checkout_root)
-    _run_git(["apply", str(patch_path)], cwd=checkout_root)
+    _run_git(["apply", "--check"], cwd=checkout_root, input_text=patch_text)
+    _run_git(["apply"], cwd=checkout_root, input_text=patch_text)
 
 
 def _has_effective_diff(checkout_root: Path) -> bool:
@@ -328,7 +330,7 @@ def _run_oracles(
 
     for oracle, request in zip(packet["immutable_oracles"], requests, strict=True):
         remaining_seconds = total_wall_clock_seconds - (time.monotonic() - started_at)
-        if remaining_seconds < 1:
+        if remaining_seconds <= 0:
             oracle_results.append(
                 {
                     "command": oracle["command"],
@@ -380,14 +382,13 @@ def _run_oracles(
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
     """Resolve result output path under the experiment result artifact directory."""
 
-    if not raw_output:
-        return (RESULT_ARTIFACT_DIR / f"{experiment_id}.json").resolve()
-
-    candidate = Path(raw_output)
-    if not candidate.is_absolute():
-        candidate = (RESULT_ARTIFACT_DIR / candidate).resolve()
+    if raw_output:
+        candidate = Path(raw_output)
+        if not candidate.is_absolute():
+            candidate = RESULT_ARTIFACT_DIR / candidate
     else:
-        candidate = candidate.resolve()
+        candidate = RESULT_ARTIFACT_DIR / f"{experiment_id}.json"
+    candidate = candidate.resolve()
 
     try:
         candidate.relative_to(RESULT_ARTIFACT_DIR.resolve())
@@ -440,7 +441,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
 
             temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
             try:
-                _apply_candidate_patch(checkout_root, candidate_patch_path)
+                _apply_candidate_patch(checkout_root, patch_text)
                 if not _has_effective_diff(checkout_root):
                     result = _result_payload(
                         experiment_id=packet["experiment_id"],

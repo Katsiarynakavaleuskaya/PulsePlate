@@ -382,6 +382,57 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
     assert result["oracle_results"][0]["timed_out"] is True
 
 
+def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 1-second budget should still allow the first oracle to start."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "one-second.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["budgets"] = {
+        **packet["budgets"],
+        "wall_clock_seconds": 1,
+    }
+    validated_packet = _validate_packet(packet)
+
+    monotonic_values = iter([0.0, 0.01])
+    monkeypatch.setattr(
+        experiment_runner.time,
+        "monotonic",
+        lambda: next(monotonic_values),
+    )
+    monkeypatch.setattr(
+        experiment_runner.sandbox,
+        "run_local_sandbox",
+        lambda *_args, **_kwargs: SandboxResult(
+            argv=("python3", "-c", "import sys; sys.exit(0)"),
+            returncode=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=".",
+        ),
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "accepted"
+    assert result["failure_class"] is None
+    assert result["oracle_results"][0]["returncode"] == 0
+
+
 def test_evaluate_candidate_maps_sandbox_exception_to_infra_flake(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -617,3 +668,65 @@ def test_main_writes_result_inside_artifact_dir(
             Path("artifacts/orchestration/experiments/results") / "nested" / "result.json"
         ).as_posix()
     )
+
+
+def test_resolve_output_path_rejects_default_experiment_id_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default output path must stay inside the result artifact directory."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+
+    with pytest.raises(
+        ValueError,
+        match="--output must stay within artifacts/orchestration/experiments/results",
+    ):
+        experiment_runner._resolve_output_path(None, "../outside")
+
+
+def test_evaluate_candidate_applies_validated_patch_text_not_mutated_patch_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner must apply the already-validated patch text, not reread the patch file."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "validated.patch",
+    )
+    validated_patch_text = patch_path.read_text(encoding="utf-8")
+    patch_path.write_text(
+        "diff --git a/docs/orchestration/workflow.md b/docs/orchestration/workflow.md\n"
+        "--- a/docs/orchestration/workflow.md\n"
+        "+++ b/docs/orchestration/workflow.md\n"
+        "@@ -1 +1 @@\n"
+        "-# Workflow\n"
+        "+# Mutated workflow\n",
+        encoding="utf-8",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command=(
+                'python3 -c "from pathlib import Path; import sys; '
+                "sys.exit(0 if 'return 2' in Path('core/rag/allowed.py').read_text() else 1)\""
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        experiment_runner,
+        "_read_patch_text",
+        lambda _path: validated_patch_text,
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "accepted"
+    assert result["failure_class"] is None
+    assert result["mutated_paths"] == ["core/rag/allowed.py"]
