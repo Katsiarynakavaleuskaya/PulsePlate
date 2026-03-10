@@ -5,6 +5,8 @@
 **Purpose:** Historical audit snapshot of `/premium/*`, `/pro/*`, `/vip/*` endpoint exposure on 2026-01-11
 
 > Current operator-facing route mapping now lives in `docs/contracts/API_CANONICAL_MAP.md`.
+> The canonical generated OpenAPI SoT for CI and thin clients is `frontend/src/api/openapi.json`,
+> produced by `scripts/generate_openapi.py`.
 > Treat this file as audit evidence and migration analysis, not as the current canonical route map.
 
 ---
@@ -50,7 +52,9 @@
 | `/api/v1/pro/nutrition/meal-log` | PRO | ✅ canonical | Meal logging |
 | `/api/v1/pro/shoplist/day` | PRO | ✅ canonical | Daily shoplist |
 
-**Note:** `/api/v1/pro/meal/weekly` and `/api/v1/pro/nutrition/targets` are **not in OpenAPI** (may be in code but not exposed, or require feature flags).
+**Current note:** This snapshot predates the current full-schema generator. In the current canonical
+generated OpenAPI (`frontend/src/api/openapi.json`), `/api/v1/pro/meal/weekly`,
+`/api/v1/pro/nutrition/targets`, and `/api/v1/pro/nutrition/daily` are all present.
 
 ---
 
@@ -152,16 +156,18 @@
 
 ### PR-D (PRO canon exposure): Expose canonical PRO endpoints
 
+**Status:** ✅ Completed as part of the current full-schema OpenAPI generation contract.
+
 **Goal:** PRO clients have canonical paths, not legacy `/premium/*`.
 
-**Changes:**
-- Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
-- Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
-- Ensure `/api/v1/pro/meal/weekly` exists and is in schema (if not, add)
+**Shipped outcomes:**
+- `/api/v1/pro/nutrition/targets` is present in the canonical generated OpenAPI
+- `/api/v1/pro/nutrition/daily` is present in the canonical generated OpenAPI
+- `/api/v1/pro/meal/weekly` is present in the canonical generated OpenAPI
 
 **DoD:**
-- PRO canonical endpoints appear in `openapi.json`
-- Frontend can migrate from `/premium/*` to `/pro/*`
+- ✅ PRO canonical endpoints appear in `frontend/src/api/openapi.json`
+- ✅ Frontend can target `/api/v1/pro/*` contracts from generated schema/types
 
 ---
 
