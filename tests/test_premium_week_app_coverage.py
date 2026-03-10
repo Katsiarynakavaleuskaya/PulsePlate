@@ -6,7 +6,6 @@ RU: Простые тесты для покрытия эндпоинта premium
 EN: Simple tests for premium week endpoint coverage in main.py
 """
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -114,11 +113,29 @@ class TestPremiumWeekAppCoverage:
 
         assert builder is None
 
-    def test_resolver_returns_none_when_package_module_is_missing(
+    def test_resolver_returns_none_when_package_module_lookup_is_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Resolver returns None when the `app` package is absent from sys.modules."""
-        monkeypatch.delitem(sys.modules, "app", raising=False)
+        """Resolver returns None when the package lookup helper yields no module."""
+        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert builder is None
+
+    def test_resolver_returns_none_when_package_export_raises_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver treats package-export ImportError as feature unavailable."""
+
+        class _ImportErrorPackage:
+            def __getattr__(self, name: str):
+                if name == "make_weekly_menu":
+                    raise ImportError("menu engine unavailable")
+                raise AttributeError(name)
+
+        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: _ImportErrorPackage())
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
         builder = legacy_app._resolve_legacy_weekly_menu_builder()

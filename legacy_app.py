@@ -3315,13 +3315,41 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
     )
 
 
+def _get_app_package_module() -> Optional[Any]:
+    """Return the loaded `app` package module if present.
+
+    RU: Выделено в helper, чтобы тесты не мутировали `sys.modules`.
+    EN: Extracted into a helper so tests can avoid mutating `sys.modules`.
+    """
+
+    import sys as _sys
+
+    return _sys.modules.get("app")
+
+
+def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callable[..., Any]]:
+    """Resolve lazy `app.make_weekly_menu` export without surfacing ImportError.
+
+    RU: PEP-562 facade может поднять ImportError при lazy export; для legacy alias
+    это трактуется как «feature unavailable», а не как 500.
+    EN: The PEP-562 facade may raise ImportError during lazy export; for the
+    legacy alias this should mean "feature unavailable", not a 500.
+    """
+
+    try:
+        package_builder = getattr(package_module, "make_weekly_menu", None)
+    except ImportError:
+        return None
+
+    return cast(Callable[..., Any], package_builder) if callable(package_builder) else None
+
+
 def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
     """Resolve the canonical weekly-menu builder for the legacy premium alias.
 
     RU: Разрешить canonical weekly-menu builder для legacy premium alias.
     EN: Resolve the canonical weekly-menu builder for the legacy premium alias.
     """
-    import sys as _sys
 
     def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
         """Return a typed callable or None for explicit override semantics.
@@ -3334,7 +3362,7 @@ def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
 
         return cast(Callable[..., Any], value) if callable(value) else None
 
-    package_module = _sys.modules.get("app")
+    package_module = _get_app_package_module()
     package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
 
     # RU: Приоритет №1 — явный override в `app.__dict__`.
@@ -3360,7 +3388,7 @@ def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
 
     # RU: Приоритет №3 — lazy package export через `app.__getattr__`.
     # EN: Priority #3 — lazy package export via `app.__getattr__`.
-    return _callable_or_none(getattr(package_module, "make_weekly_menu", None))
+    return _resolve_package_weekly_menu_export(package_module)
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
