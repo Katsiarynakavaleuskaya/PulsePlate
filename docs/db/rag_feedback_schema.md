@@ -23,7 +23,7 @@ Stores user ratings, corrections, and metadata about RAG interactions to enable 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `Integer` | PK, autoincrement | Auto-increment ID |
-| `user_id` | `Integer` | FK(users.id), NOT NULL | User who provided feedback |
+| `user_id` | `BigInteger` | subject principal, NOT NULL | Authenticated subject who provided feedback |
 | `agent_id` | `String(64)` | NULL | Optional agent identifier |
 | `query` | `Text` | NOT NULL | User's original query |
 | `retrieved_chunks` | `Text` | NULL | Retrieved chunks: `[{chunk_id, file, preview, score}]` |
@@ -57,7 +57,7 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `Integer` | PK, autoincrement | Auto-increment ID |
-| `user_id` | `Integer` | FK(users.id), NOT NULL | Knowledge owner |
+| `user_id` | `BigInteger` | subject principal, NOT NULL | Authenticated subject that owns the knowledge rows |
 | `content` | `Text` | NOT NULL | Knowledge content |
 | `embedding` | `Text` | NULL | Vector embedding (JSON on SQLite, VECTOR(768) on Postgres) |
 | `source` | `String(256)` | NULL | Content source identifier |
@@ -83,7 +83,7 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 | Aspect | Contract | Implementation | Rationale |
 |--------|----------|----------------|-----------|
 | Primary Keys | UUID | Integer | All existing tables use Integer PKs |
-| User FK | UUID | Integer | `users.id` is Integer |
+| User principal | UUID | BigInteger subject principal | Runtime uses authenticated subject isolation, not a strict FK to `users.id` |
 | RLS | DB policies | PostgreSQL RLS + app-layer filters | SQLite tests stay app-layer only |
 | JSONB | Native | TEXT with JSONEncodedDict | SQLite test compatibility |
 
@@ -113,7 +113,6 @@ Response: `{"id": 123, "message": "Feedback submitted successfully"}`
 
 Tracked in `docs/roadmap/BACKLOG_LEDGER.md`:
 
-- [ ] Database RLS policies (project-wide)
 - [ ] Vector similarity search API for `user_knowledge`
 - [ ] Advanced PII redaction (NER-based via Presidio)
 - [ ] Feedback analytics dashboard

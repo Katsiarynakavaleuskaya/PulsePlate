@@ -874,6 +874,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `alembic/versions/202603100001_enable_rag_user_rls.py`
   - DoD:
     - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
+    - User-bound rows use a bigint subject principal compatible with runtime-derived API-key subject isolation (no stale `users.id` FK contract)
     - Canonical transaction-local session context is set before RAG retrieval, feedback writes, and DSAR helper queries
     - Migration + rollback path documented
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer

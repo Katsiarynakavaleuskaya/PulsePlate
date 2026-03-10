@@ -620,10 +620,10 @@ class TestDeriveSubjectIdFromApiKey:
         second = derive_subject_id_from_api_key("key-two")
         assert first != second
 
-    def test_subject_id_within_positive_postgres_int4(self) -> None:
-        """Test subject ID stays within the signed PostgreSQL int4 range."""
+    def test_subject_id_within_positive_postgres_bigint(self) -> None:
+        """Test subject ID stays within the signed PostgreSQL bigint range."""
         subject_id = derive_subject_id_from_api_key("range-check")
-        assert 1 <= subject_id <= 0x7FFF_FFFF
+        assert 1 <= subject_id <= 0x7FFF_FFFF_FFFF_FFFF
 
 
 class TestEnvironmentConfiguration:

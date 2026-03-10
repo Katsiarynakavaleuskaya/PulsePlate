@@ -68,3 +68,18 @@ def test_rls_migration_contains_enable_force_and_policy_contract() -> None:
     assert "current_setting('app.current_user_id', true)" in migration_text
     assert "rag_feedback_user_isolation" in migration_text
     assert "user_knowledge_user_isolation" in migration_text
+
+
+def test_subject_bigint_hardening_migration_updates_policy_and_constraints() -> None:
+    """The follow-up migration must widen the RLS principal and drop stale FKs."""
+    repo_root = Path(__file__).resolve().parents[1]
+    migration_path = (
+        repo_root / "alembic/versions/202603110001_harden_rag_subject_principal_bigint.py"
+    )
+    migration_text = migration_path.read_text(encoding="utf-8")
+
+    assert "DROP CONSTRAINT IF EXISTS fk_rag_feedback_user" in migration_text
+    assert "DROP CONSTRAINT IF EXISTS fk_user_knowledge_user" in migration_text
+    assert "ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE BIGINT" in migration_text
+    assert "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE BIGINT" in migration_text
+    assert "::bigint" in migration_text

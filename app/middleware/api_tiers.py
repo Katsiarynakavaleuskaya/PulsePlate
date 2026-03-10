@@ -527,7 +527,7 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
         api_key: Validated API key
 
     Returns:
-        int: Deterministic positive integer subject_id (fits in PostgreSQL int4)
+        int: Deterministic positive integer subject_id (fits in PostgreSQL bigint)
 
     Note:
         This is a temporary solution until proper user authentication is implemented.
@@ -542,11 +542,10 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
     digest = hashlib.sha256(
         api_key.encode("utf-8")
     ).digest()  # lgtm[py/weak-sensitive-data-hashing]
-    # Keep subject ids inside signed int4 because current canonical user-bound
-    # tables and RLS policies use Integer columns in Postgres.
-    # RU: Держим ID в диапазоне int4, так как текущий канон таблиц/RLS в Postgres
-    # использует Integer-колонки.
-    return (int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF) or 1
+    # Use a positive signed bigint-compatible range to minimize collision risk.
+    # RU: Используем диапазон signed bigint, чтобы не сжимать principal до int4
+    # и не повышать риск коллизий между tenant/user subject_id.
+    return (int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF) or 1
 
 
 @dataclass(frozen=True)

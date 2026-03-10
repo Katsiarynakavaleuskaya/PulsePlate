@@ -370,13 +370,13 @@ def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
 
 def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> None:
     """DSAR helpers must set DB RLS context before user-bound SQL operations."""
-    trace: list[tuple[str, str]] = []
+    trace: list[tuple[str, str, int | None]] = []
     current_helper = {"name": ""}
 
     monkeypatch.setattr(
         dsar_service,
         "apply_user_rls_context",
-        lambda session, *, user_id: trace.append(("apply", current_helper["name"])),
+        lambda session, *, user_id: trace.append(("apply", current_helper["name"], user_id)),
     )
 
     session = MagicMock()
@@ -384,10 +384,11 @@ def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> N
     scalar_result.scalar_one.return_value = 0
     scalar_result.scalars.return_value.all.return_value = []
     session.get.side_effect = (
-        lambda *args, **kwargs: trace.append(("get", current_helper["name"])) or None
+        lambda *args, **kwargs: trace.append(("get", current_helper["name"], None)) or None
     )
     session.execute.side_effect = (
-        lambda *args, **kwargs: trace.append(("execute", current_helper["name"])) or scalar_result
+        lambda *args, **kwargs: trace.append(("execute", current_helper["name"], None))
+        or scalar_result
     )
 
     for helper in (
@@ -404,5 +405,5 @@ def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> N
         "delete_direct_user_artifacts",
     ):
         helper_trace = [event for event in trace if event[1] == helper_name]
-        assert helper_trace[0] == ("apply", helper_name)
+        assert helper_trace[0] == ("apply", helper_name, 17)
         assert any(event[0] in {"get", "execute"} for event in helper_trace[1:])

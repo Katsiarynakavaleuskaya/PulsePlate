@@ -192,7 +192,7 @@ AGENT_CORPUS_MAP: dict[str, list[str]] = {
 ```sql
 CREATE TABLE rag_feedback (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL,
+    user_id         BIGINT NOT NULL,
     agent_id        VARCHAR(64),
     query           TEXT NOT NULL,
     retrieved_chunks JSONB,
@@ -206,7 +206,7 @@ CREATE TABLE rag_feedback (
 
 CREATE TABLE user_knowledge (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID NOT NULL,
+    user_id     BIGINT NOT NULL,
     content     TEXT NOT NULL,
     embedding   VECTOR(768),
     source      VARCHAR(256),
@@ -225,7 +225,7 @@ Evidence anchors (audit policy: architecture docs must cite `file:line` or mark 
 
 - `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
 - `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py:201` (fail-closed on missing `subject_id`), `core/rag/vector_rag.py:317` (fallback to Jaccard on empty/error vector path), `core/rag/orchestration.py:137` and `core/rag/orchestration.py:147` (subject propagation into recursive/vector retrieval), `legacy_app.py:2202` and `legacy_app.py:2332` (authenticated `/api/v1/insight` derives and forwards `subject_id`), `legacy_app.py:2274` (legacy `/insight` passes `subject_id=None`), `app/routers/cbt_insight.py:176` (PRO CBT endpoint derives and forwards `subject_id`).
-- `user_knowledge` и `rag_feedback` изолированы по `user_id` через PostgreSQL RLS с transaction-local session context `app.current_user_id`. Runtime bridge задаётся перед query/write path через `core/db_rls.py`; app-layer `user_id` filtering остаётся как defense in depth. **Evidence:** `core/db_rls.py:12` (`app.current_user_id` setting contract), `core/db_rls.py:24` (session-local `set_config` helper), `core/rag/vector_rag.py:218` (RLS context before retrieval), `app/routers/feedback.py:157` (RLS context before insert/commit), `core/compliance/dsar_service.py:36`, `core/compliance/dsar_service.py:108`, `core/compliance/dsar_service.py:143` (RLS context before export/delete helpers), `alembic/versions/202603100001_enable_rag_user_rls.py:29`, `alembic/versions/202603100001_enable_rag_user_rls.py:41` (ENABLE/FORCE RLS + policies).
+- `user_knowledge` и `rag_feedback` изолированы по bigint `user_id` subject principal через PostgreSQL RLS с transaction-local session context `app.current_user_id`. Этот principal представляет authenticated subject, derived from API key today, и не обязан совпадать с `users.id`; app-layer `user_id` filtering остаётся как defense in depth. **Evidence:** `core/db_rls.py:12` (`app.current_user_id` setting contract), `core/db_rls.py:24` (session-local `set_config` helper), `core/rag/vector_rag.py:218` (RLS context before retrieval), `app/routers/feedback.py:157` (RLS context before insert/commit), `core/compliance/dsar_service.py:36`, `core/compliance/dsar_service.py:108`, `core/compliance/dsar_service.py:143` (RLS context before export/delete helpers), `alembic/versions/202603100001_enable_rag_user_rls.py:29`, `alembic/versions/202603100001_enable_rag_user_rls.py:41` (initial ENABLE/FORCE RLS), `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1` (bigint subject hardening).
 - `rag_feedback.llm_response` не хранится без редактирования (PII). **Target-state:** при реализации записи в `rag_feedback` применять redaction (тот же `core/insight/safety.py` или отдельный redactor) перед сохранением.
 - Rate limit на RAG-эндпоинты (insight) сохраняется. **Evidence:** детерминированные 429-тесты — `tests/test_rate_limit_llm_and_exports_api.py:95-108` (`/api/v1/insight`), `:117-130` (`/insight`); tier-guard — `tests/test_insight_vip_guard_api.py:50-78`.
 
