@@ -11,6 +11,8 @@ Pending initial review.
 
 No actionable review threads recorded yet.
 
+Actionable bot comments were addressed in follow-up commits and require a fresh review cycle before this pass can be marked complete.
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
