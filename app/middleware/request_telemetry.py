@@ -133,7 +133,7 @@ def _extract_tier(request: Request) -> str:
     if isinstance(tier, str) and tier.strip():
         return tier.strip().lower()
     header_tier = request.headers.get("X-Api-Tier")
-    if header_tier:
+    if isinstance(header_tier, str) and header_tier.strip():
         return header_tier.strip().lower()
     return "unknown"
 
