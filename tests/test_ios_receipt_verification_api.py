@@ -10,6 +10,11 @@ from tests.payment_test_utils import json_response_payload as _json
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
+def _billing_headers(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    monkeypatch.setenv("API_KEY", "billing-verify-test-key")
+    return {"X-API-Key": "billing-verify-test-key"}
+
+
 def _request_payload(receipt_data: str = "receipt-data-validated-12345") -> dict[str, str]:
     return {"receipt_data": receipt_data}
 
@@ -49,11 +54,14 @@ def _install_apple_stub(
     return calls
 
 
-def test_apple_verify_receipt_accepts_transport_only_api_key(
+def test_apple_verify_receipt_requires_valid_transport_api_key(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     calls = _install_apple_stub(
         monkeypatch,
         [
@@ -66,7 +74,7 @@ def test_apple_verify_receipt_accepts_transport_only_api_key(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -90,7 +98,10 @@ def test_apple_verify_receipt_retries_sandbox_when_needed(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     calls = _install_apple_stub(
         monkeypatch,
         [
@@ -104,7 +115,7 @@ def test_apple_verify_receipt_retries_sandbox_when_needed(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload("sandbox-receipt-data-12345"),
     )
 
@@ -122,7 +133,10 @@ def test_apple_verify_receipt_returns_invalid_business_envelope(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [
@@ -132,7 +146,7 @@ def test_apple_verify_receipt_returns_invalid_business_envelope(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -151,7 +165,10 @@ def test_apple_verify_receipt_returns_expired_business_envelope(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [
@@ -166,7 +183,7 @@ def test_apple_verify_receipt_returns_expired_business_envelope(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -184,7 +201,10 @@ def test_apple_verify_receipt_keeps_normal_renewal_active(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [
@@ -202,7 +222,7 @@ def test_apple_verify_receipt_keeps_normal_renewal_active(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -217,7 +237,10 @@ def test_apple_verify_receipt_uses_restored_state_only_for_explicit_signal(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [
@@ -233,7 +256,7 @@ def test_apple_verify_receipt_uses_restored_state_only_for_explicit_signal(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -249,7 +272,10 @@ def test_apple_verify_receipt_timeout_returns_504(
 ) -> None:
     from app.services import payments_activation
 
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [payments_activation.AppleVerifyTimeoutError()],
@@ -257,7 +283,7 @@ def test_apple_verify_receipt_timeout_returns_504(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -276,7 +302,10 @@ def test_apple_verify_receipt_upstream_error_returns_502(
 ) -> None:
     from app.services import payments_activation
 
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     _install_apple_stub(
         monkeypatch,
         [payments_activation.AppleVerifyTransportError()],
@@ -284,7 +313,7 @@ def test_apple_verify_receipt_upstream_error_returns_502(
 
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -301,7 +330,10 @@ def test_apple_verify_receipt_repeated_calls_are_stateless_replays(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     calls = _install_apple_stub(
         monkeypatch,
         [
@@ -314,12 +346,12 @@ def test_apple_verify_receipt_repeated_calls_are_stateless_replays(
 
     first = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
     second = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json=_request_payload(),
     )
 
@@ -347,11 +379,60 @@ def test_apple_verify_receipt_requires_nonblank_api_key(client: TestClient) -> N
     assert blank.status_code == 401
 
 
-def test_apple_verify_receipt_rejects_malformed_body(client: TestClient) -> None:
+def test_apple_verify_receipt_rejects_malformed_body(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     response = client.post(
         "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
+        headers=_billing_headers(monkeypatch),
         json={"receipt_data": "   "},
     )
 
     assert response.status_code == 422
+
+
+def test_apple_verify_receipt_rejects_invalid_api_key(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers={"X-API-Key": "bad"},
+        json=_request_payload(),
+    )
+
+    assert response.status_code == 401
+
+
+def test_apple_verify_receipt_rejects_cancelled_receipt(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    _install_apple_stub(
+        monkeypatch,
+        [
+            {
+                "status": 0,
+                "latest_receipt_info": [
+                    {
+                        **_apple_receipt_entry(),
+                        "cancellation_date": "2026-03-08T00:00:00Z",
+                    }
+                ],
+            }
+        ],
+    )
+
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers=_billing_headers(monkeypatch),
+        json=_request_payload(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = _json(response)
+    assert payload["verified"] is False
+    assert payload["verification_state"] == "invalid"
+    assert payload["activation_payload"] is None

@@ -7,6 +7,7 @@ EN: Canonical billing endpoints for RU/BY + iOS baseline.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Security, status
@@ -33,6 +34,8 @@ billing_router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 router = APIRouter(prefix="/api/v1/pro/payments", tags=["pro", "payments"])
 
 __all__ = ["billing_router", "register_billing_routes", "router"]
+
+logger = logging.getLogger(__name__)
 
 _DETAIL_IDEMPOTENCY_CONFLICT = "existing client_event_id is bound to a different payload"
 _DETAIL_FORBIDDEN = "issuer_access_denied"
@@ -113,7 +116,7 @@ def _payment_error_response(
 def _require_billing_transport_key(
     x_api_key: Optional[str] = Security(api_key_header),
 ) -> str:
-    """Require only transport-level API key presence for billing verify route."""
+    """Require a validated transport API key without tier or cookie semantics."""
     if x_api_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -127,7 +130,40 @@ def _require_billing_transport_key(
             detail="API key required for billing verification",
             headers={"WWW-Authenticate": "ApiKey"},
         )
-    return normalized_api_key
+
+    import app as app_module
+
+    app_get_api_key = getattr(app_module, "get_api_key", None)
+    if not callable(app_get_api_key):
+        logger.error("Billing transport key validation is unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+
+    try:
+        result = app_get_api_key(normalized_api_key)
+    except HTTPException as exc:
+        logger.warning("Billing transport key rejected by app-level validator")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required for billing verification",
+            headers={"WWW-Authenticate": "ApiKey"},
+        ) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Billing transport key validation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        ) from exc
+
+    if not isinstance(result, str):
+        logger.error("Billing transport key validator returned non-string result")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+    return result
 
 
 def _apple_operational_error_response(

@@ -50,7 +50,7 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
     return activation.activation_id
 
 
-def _create_ios_activation_via_service(*, issuer: str) -> str:
+def _create_ios_activation_via_service(*, issuer: str, client_event_suffix: str = "1") -> str:
     from app.schemas.payments import ActivateSubscriptionRequest
     from app.services import payments_activation
 
@@ -60,9 +60,11 @@ def _create_ios_activation_via_service(*, issuer: str) -> str:
             {
                 "source": "ios_app_store",
                 "plan": "pro_monthly",
-                "client_event_id": "evt-ios-service-intent-1",
+                "client_event_id": f"evt-ios-service-intent-{client_event_suffix}",
                 "verification_ok": True,
-                "verification_payload": {"receipt": "receipt-token-validated-99999"},
+                "verification_payload": {
+                    "receipt": f"receipt-token-validated-{client_event_suffix}",
+                },
             }
         ),
     )
@@ -275,7 +277,7 @@ def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
     from app.services import payments_activation
 
     issuer = payments_activation.issuer_from_api_key("test_pro_key")
-    activation_id = _create_ios_activation_via_service(issuer=issuer)
+    activation_id = _create_ios_activation_via_service(issuer=issuer, client_event_suffix="svc")
 
     with pytest.raises(payments_activation.ActivationStateError, match="cannot be reconciled"):
         payments_activation.reconcile_activation(
@@ -297,7 +299,8 @@ def test_manual_reconcile_rejects_ios_activation_via_api(
     from app.services import payments_activation
 
     activation_id = _create_ios_activation_via_service(
-        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"])
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        client_event_suffix="api",
     )
 
     response = client.post(
@@ -320,7 +323,8 @@ def test_manual_status_rejects_ios_activation_via_api(
     from app.services import payments_activation
 
     activation_id = _create_ios_activation_via_service(
-        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"])
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        client_event_suffix="status",
     )
 
     response = client.get(

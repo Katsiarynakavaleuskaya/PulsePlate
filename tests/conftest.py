@@ -143,7 +143,6 @@ os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
 os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
 os.environ.setdefault("VIP_MODULE_ENABLED", "true")
 os.environ.setdefault("SERVER_SALT", "StrongServerSaltForTests123456789!")
-os.environ.setdefault("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
@@ -600,6 +599,10 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     yield
     # Cleanup is automatic with monkeypatch
 

@@ -25,12 +25,17 @@ class _FakeResponse:
 
 
 class _FakeAsyncClient:
-    response: _FakeResponse | None = None
-    raised_exc: Exception | None = None
-    captured_payload: dict[str, object] | None = None
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(
+        self,
+        *,
+        response: _FakeResponse | None = None,
+        raised_exc: Exception | None = None,
+        **kwargs: object,
+    ) -> None:
         self.timeout = kwargs.get("timeout")
+        self.response = response
+        self.raised_exc = raised_exc
+        self.captured_payload: dict[str, object] | None = None
 
     async def __aenter__(self) -> _FakeAsyncClient:
         return self
@@ -45,11 +50,31 @@ class _FakeAsyncClient:
 
     async def post(self, url: str, json: dict[str, object]) -> _FakeResponse:
         del url
-        type(self).captured_payload = json
-        if type(self).raised_exc is not None:
-            raise type(self).raised_exc
-        assert type(self).response is not None
-        return type(self).response
+        self.captured_payload = json
+        if self.raised_exc is not None:
+            raise self.raised_exc
+        assert self.response is not None
+        return self.response
+
+
+def _install_fake_async_client(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    response: _FakeResponse | None = None,
+    raised_exc: Exception | None = None,
+) -> _FakeAsyncClient:
+    fake_client = _FakeAsyncClient(
+        response=response,
+        raised_exc=raised_exc,
+        timeout=payments_activation.APPLE_VERIFY_TIMEOUT_SECONDS,
+    )
+
+    def _factory(*args: object, **kwargs: object) -> _FakeAsyncClient:
+        del args, kwargs
+        return fake_client
+
+    monkeypatch.setattr(payments_activation.httpx, "AsyncClient", _factory)
+    return fake_client
 
 
 def test_coerce_apple_status_covers_supported_inputs() -> None:
@@ -104,8 +129,16 @@ def test_receipt_entries_falls_back_to_receipt_in_app() -> None:
 
 def test_activation_payload_for_product_covers_none_pro_vip_and_unknown() -> None:
     assert payments_activation._activation_payload_for_product(None) is None
-    assert payments_activation._activation_payload_for_product("com.pulseplate.premium.monthly")
-    assert payments_activation._activation_payload_for_product("com.pulseplate.vip.monthly")
+    pro_payload = payments_activation._activation_payload_for_product(
+        "com.pulseplate.premium.monthly"
+    )
+    vip_payload = payments_activation._activation_payload_for_product("com.pulseplate.vip.monthly")
+    assert pro_payload is not None
+    assert pro_payload.tier.value == "pro"
+    assert pro_payload.platform == "ios"
+    assert vip_payload is not None
+    assert vip_payload.tier.value == "vip"
+    assert vip_payload.platform == "ios"
     assert (
         payments_activation._activation_payload_for_product("com.pulseplate.unknown.monthly")
         is None
@@ -120,10 +153,10 @@ async def test_call_apple_verify_endpoint_returns_payload_and_uses_required_secr
         "APPLE_SHARED_SECRET",
         "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
     )
-    _FakeAsyncClient.response = _FakeResponse({"status": 0})
-    _FakeAsyncClient.raised_exc = None
-    _FakeAsyncClient.captured_payload = None
-    monkeypatch.setattr(payments_activation.httpx, "AsyncClient", _FakeAsyncClient)
+    fake_client = _install_fake_async_client(
+        monkeypatch,
+        response=_FakeResponse({"status": 0}),
+    )
 
     payload = await payments_activation._call_apple_verify_endpoint(
         payments_activation.APPLE_VERIFY_PRODUCTION_URL,
@@ -131,7 +164,7 @@ async def test_call_apple_verify_endpoint_returns_payload_and_uses_required_secr
     )
 
     assert payload == {"status": 0}
-    assert _FakeAsyncClient.captured_payload == {
+    assert fake_client.captured_payload == {
         "receipt-data": "receipt-data-validated-12345",
         "password": "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
         "exclude-old-transactions": True,
@@ -142,10 +175,14 @@ async def test_call_apple_verify_endpoint_returns_payload_and_uses_required_secr
 async def test_call_apple_verify_endpoint_raises_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
-    _FakeAsyncClient.response = None
-    _FakeAsyncClient.raised_exc = httpx.ReadTimeout("timeout")
-    monkeypatch.setattr(payments_activation.httpx, "AsyncClient", _FakeAsyncClient)
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    _install_fake_async_client(
+        monkeypatch,
+        raised_exc=httpx.ReadTimeout("timeout"),
+    )
 
     with pytest.raises(payments_activation.AppleVerifyTimeoutError):
         await payments_activation._call_apple_verify_endpoint(
@@ -158,10 +195,14 @@ async def test_call_apple_verify_endpoint_raises_timeout(
 async def test_call_apple_verify_endpoint_raises_transport_for_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
-    _FakeAsyncClient.response = _FakeResponse({"status": 0}, raise_http_error=True)
-    _FakeAsyncClient.raised_exc = None
-    monkeypatch.setattr(payments_activation.httpx, "AsyncClient", _FakeAsyncClient)
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    _install_fake_async_client(
+        monkeypatch,
+        response=_FakeResponse({"status": 0}, raise_http_error=True),
+    )
 
     with pytest.raises(payments_activation.AppleVerifyTransportError):
         await payments_activation._call_apple_verify_endpoint(
@@ -174,10 +215,14 @@ async def test_call_apple_verify_endpoint_raises_transport_for_http_error(
 async def test_call_apple_verify_endpoint_rejects_non_dict_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
-    _FakeAsyncClient.response = _FakeResponse(["not-a-dict"])
-    _FakeAsyncClient.raised_exc = None
-    monkeypatch.setattr(payments_activation.httpx, "AsyncClient", _FakeAsyncClient)
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
+    _install_fake_async_client(
+        monkeypatch,
+        response=_FakeResponse(["not-a-dict"]),
+    )
 
     with pytest.raises(payments_activation.AppleVerifyTransportError):
         await payments_activation._call_apple_verify_endpoint(
@@ -275,3 +320,44 @@ def test_normalize_apple_verification_uses_restored_only_for_explicit_signal() -
 
     assert response.verified is True
     assert response.verification_state is AppleVerificationState.restored
+
+
+def test_normalize_apple_verification_accepts_restored_marker_alias() -> None:
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "restored": True,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": "4102444800000",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is True
+    assert response.verification_state is AppleVerificationState.restored
+
+
+def test_normalize_apple_verification_rejects_cancelled_receipt() -> None:
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": "4102444800000",
+                    "cancellation_date": "2026-03-08T00:00:00Z",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is False
+    assert response.verification_state is AppleVerificationState.invalid
+    assert response.error is not None
+    assert response.error.code == "APPLE_RECEIPT_INVALID"
+    assert response.expires_at == datetime(2026, 3, 8, 0, 0, tzinfo=timezone.utc)

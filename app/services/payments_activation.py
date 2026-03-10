@@ -226,9 +226,20 @@ def _has_reliable_restore_signal(
     """Return True only for explicit restore-specific provider/orchestration signals."""
     if payload.get("restore_detected") is True:
         return True
+    if payload.get("restored") is True:
+        return True
     if entry.get("restore_detected") is True:
         return True
+    if entry.get("restored") is True:
+        return True
     return False
+
+
+def _entry_cancellation_at(entry: dict[str, Any]) -> datetime | None:
+    """Return Apple cancellation timestamp for refunded/revoked transactions."""
+    return _parse_apple_datetime(
+        entry.get("cancellation_date_ms") or entry.get("cancellation_date")
+    )
 
 
 def _activation_payload_for_product(product_id: str | None) -> AppleActivationPayload | None:
@@ -282,6 +293,16 @@ def _normalize_apple_verification(
         expires_at = _parse_apple_datetime(
             latest_entry.get("expires_date_ms") or latest_entry.get("expires_date")
         )
+        cancellation_at = _entry_cancellation_at(latest_entry)
+        if cancellation_at is not None:
+            return _build_invalid_verification_response(
+                environment=environment,
+                product_id=product_id,
+                expires_at=cancellation_at,
+                code="APPLE_RECEIPT_INVALID",
+                message="Receipt verification failed",
+                verification_state=AppleVerificationState.invalid,
+            )
 
     if status == APPLE_EXPIRED_RECEIPT_STATUS:
         return _build_invalid_verification_response(

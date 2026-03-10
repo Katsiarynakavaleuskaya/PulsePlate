@@ -12,6 +12,9 @@ Use these sources in order:
 4. `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md` and billing runtime/OpenAPI for `/api/v1/billing/*`
 5. `docs/roadmap/BACKLOG_LEDGER.md` for planned or deferred target-state work
 
+Billing evidence note:
+- `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md` is the contract lock for the additive billing seam, while runtime exposure is implemented in `app/routers/billing.py` and surfaced in OpenAPI via `legacy_app.py`.
+
 ## Rules
 
 1. Repo-wide canonical namespaces are `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), and `/api/v1/vip/*` (VIP); `/api/v1/insight` and the additive billing surface `/api/v1/billing/*` are canonical exceptions outside the tier namespace families.
