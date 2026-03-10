@@ -651,30 +651,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CTA/design review packet format is defined without Code Connect dependency
     - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
 
-
-<a id="ledger-p1-worker-proxy-hardening"></a>
-- [x] P1: Lock down Cloudflare worker proxy before any public deployment
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
-  - Status: ✅ Merged evidence (worker runtime on `main` is now bounded to first-party `/api/*` proxy use only)
-  - Area: edge / Cloudflare / security
-  - Finding Type: proxy abuse prevention
-  - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
-  - Links:
-    - `worker.js`
-    - `docs/security/SECURITY_POSTURE.md`
-    - `docs/deploy/PRODUCTION.md`
-    - `tests/test_worker_proxy_contract.py`
-  - DoD:
-    - Worker path scope is allowlisted to `/api/*`
-    - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
-    - Worker proxy tests prove `redirect: "manual"` remains enforced for upstream fetches
-    - Wildcard CORS and header pass-through are removed or bounded to trusted origins
-    - Authorization forwarding policy is documented and tested, and spoofable client-IP headers are stripped or ignored fail-closed
-    - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
-
-
 <a id="ledger-p1-frontend-ai-parity"></a>
 - [ ] P1: Frontend parity for new AI-agent and LLM reliability features
   - Owner: @katsiaryna_kavaleuskaya
@@ -2821,6 +2797,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P1
+
+<a id="ledger-p1-worker-proxy-hardening"></a>
+- [x] P1: Lock down Cloudflare worker proxy before any public deployment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
+  - Status: ✅ Merged evidence (worker runtime on `main` is now bounded to first-party `/api/*` proxy use only)
+  - Area: edge / Cloudflare / security
+  - Finding Type: proxy abuse prevention
+  - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
+  - Links:
+    - `worker.js`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/deploy/PRODUCTION.md`
+    - `tests/test_worker_proxy_contract.py`
+  - DoD:
+    - Worker path scope is allowlisted to `/api/*`
+    - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
+    - Worker proxy tests prove `redirect: "manual"` remains enforced for upstream fetches
+    - Wildcard CORS and header pass-through are removed or bounded to trusted origins
+    - Authorization forwarding policy is documented and tested, and spoofable client-IP headers are stripped or ignored fail-closed
+    - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
 
 <a id="ledger-p1-fitchef-phase1-wrapper"></a>
 - [x] P1: FitChef Phase 1 wrapper

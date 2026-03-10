@@ -8,8 +8,8 @@
 - No actionable review comments
 
 ## Merge Readiness
-- [x] Local `pre-commit run --all-files`
-- [x] Local `make verify`
+- [ ] Local `pre-commit run --all-files`
+- [ ] Local `make verify`
 - [ ] Required remote checks PASS
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
