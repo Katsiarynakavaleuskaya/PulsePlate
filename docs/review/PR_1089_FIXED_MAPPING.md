@@ -60,9 +60,39 @@ Disposition: NOT-A-BUG
 Evidence: `app/middleware/api_tiers.py:530`; `app/routers/feedback.py:157`; `core/db_rls.py:37`; `docs/contracts/RAG_CONTRACT.md:228`; `docs/review/PR_1089_FIXED_MAPPING.md:8`; `docs/roadmap/BACKLOG_LEDGER.md:876`; `tests/test_compliance_control_plane.py:371`
 Reason: This CodeRabbit summary review aggregates the inline findings above; current head either fixes them in `f19de674` or already satisfies the contract on the cited lines.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914695916 -> 0a5f621a
+Disposition: FIXED
+Commit: `0a5f621a`
+Evidence: `docs/review/PR_1089_FIXED_MAPPING.md:94`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914699387 -> 0a5f621a
+Disposition: FIXED
+Commit: `0a5f621a`
+Evidence: `tests/test_compliance_control_plane.py:371`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914699392 -> 0a5f621a
+Disposition: FIXED
+Commit: `0a5f621a`
+Evidence: `app/middleware/api_tiers.py:520`; `app/models/rag_feedback.py:1`; `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3925664343
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1089_FIXED_MAPPING.md:94`
+Reason: This CodeRabbit summary review aggregates the fixed merge-readiness checkbox finding mapped immediately above; current head keeps the checklist provisional until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3925668197
+Disposition: NOT-A-BUG
+Evidence: `tests/test_compliance_control_plane.py:371`; `app/middleware/api_tiers.py:520`; `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1`
+Reason: This cubic summary review aggregates the two inline findings immediately above, both identified by cubic and fixed in `0a5f621a`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3925679771
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1089_FIXED_MAPPING.md:94`; `tests/test_compliance_control_plane.py:371`; `app/middleware/api_tiers.py:520`; `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1`
+Reason: This CodeRabbit summary review aggregates the fixed checkbox, RLS principal, and DSAR test findings above; current head addresses each concrete issue in `0a5f621a`.
+
 ## Merge Readiness
-- [x] Local `pre-commit run --all-files`
-- [x] Local `make verify`
+- [ ] Local `pre-commit run --all-files`
+- [ ] Local `make verify`
 - [ ] Required remote checks PASS
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
