@@ -1,11 +1,11 @@
 import { useWhoTargetsWithWeeklyPlan } from '../../hooks/useWhoTargetsWithWeeklyPlan';
 import type { TargetsRequest } from '../../api/premium/types';
-import type { WeeklyMealPlanResponse } from '../../api/premium/weekly-plan';
+import type { WeekPlanVM } from '../../features/weekly-plan/model/types';
 import { WhoTargetsPanel } from '../WhoTargetsPanel';
 
 interface IntegratedWhoTargetsPanelProps {
   request: TargetsRequest | null;
-  onWeeklyPlanGenerated?: (weeklyPlan: WeeklyMealPlanResponse) => void;
+  onWeeklyPlanGenerated?: (weeklyPlan: WeekPlanVM) => void;
   onError?: (error: Error) => void;
   className?: string;
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getWeeklyPlan } from "../../api/premium/weekly-plan";
-import type { ProWeekPlanRequest, WeeklyMealPlanResponse } from "../../api/premium/weekly-plan";
+import type { ProWeekPlanRequest } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
 import { getClientLocale } from "../../lib/i18n";
+import { useWeeklyPlan } from "../weekly-plan/hooks/useWeeklyPlan";
+import type { Meal } from "../weekly-plan/model/types";
 
 const DEFAULT_TTL_SECONDS = 900;
 
@@ -54,9 +55,6 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-type WeeklyDayMenu = WeeklyMealPlanResponse["daily_menus"][number];
-type WeeklyMeal = WeeklyDayMenu["meals"][number];
-
 const DEFAULT_REQUEST: ProWeekPlanRequest = {
   sex: "female",
   age: 30,
@@ -72,7 +70,7 @@ function getDayTitle(index: number, t: (key: string, options?: Record<string, un
   return t("plan.day_fallback", { number: index + 1 });
 }
 
-function getMealName(meal: WeeklyMeal): string {
+function getMealName(meal: Meal): string {
   return meal.title_translated || meal.title;
 }
 
@@ -80,7 +78,7 @@ function formatMetricLabel(key: string): string {
   return key.replace(/_/g, " ");
 }
 
-function getMealDetails(meal: WeeklyMeal): string[] {
+function getMealDetails(meal: Meal): string[] {
   const grams = Object.entries(meal.grams).slice(0, 2).map(
     ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)} g`
   );
@@ -96,33 +94,23 @@ function getMealDetails(meal: WeeklyMeal): string[] {
 
 export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [data, setData] = useState<WeeklyMealPlanResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
+  const [request, setRequest] = useState<ProWeekPlanRequest | null>(null);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const locale = getClientLocale() as ProWeekPlanRequest["lang"];
-        const supportedLangs: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
-        const payload: ProWeekPlanRequest = {
-          ...DEFAULT_REQUEST,
-          lang: supportedLangs.includes(locale) ? locale : "en",
-        };
-
-        const week = await getWeeklyPlan(payload);
-        setData(week);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    const locale = getClientLocale() as ProWeekPlanRequest["lang"];
+    const supportedLangs: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+    setRequest({
+      ...DEFAULT_REQUEST,
+      lang: supportedLangs.includes(locale) ? locale : "en",
+    });
   }, []);
+
+  const { data, loading, error: err } = useWeeklyPlan({
+    targets: request,
+    enabled: request !== null,
+  });
 
   if (loading) {
     return <div className="max-w-3xl mx-auto p-6">{t('plan.loadingWeek')}</div>;
@@ -136,7 +124,7 @@ export default function WeeklyPlanViewer() {
     );
   }
 
-  const dailyMenus = data?.daily_menus ?? [];
+  const dailyMenus = data?.days ?? [];
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -280,7 +268,7 @@ export default function WeeklyPlanViewer() {
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
-              const dayTitle = getDayTitle(idx, t);
+              const dayTitle = menu.dayName || getDayTitle(idx, t);
               const dayEnergy = menu.kcal;
               const meals = menu.meals;
 
