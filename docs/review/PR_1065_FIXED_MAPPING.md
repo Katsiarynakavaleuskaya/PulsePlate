@@ -5,6 +5,51 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918440097 -> 3fbd3ab9
+Disposition: FIXED
+Commit: 3fbd3ab9
+Evidence: app/services/fitchef_runtime.py:430
+Evidence: core/insight/fitchef_companion.py:74
+Evidence: tests/test_openapi_namespace_guards.py:9
+Evidence: app/routers/vip_registration.py:42
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918442185 -> 3fbd3ab9
+Disposition: FIXED
+Commit: 3fbd3ab9
+Evidence: tests/test_openapi_namespace_guards.py:9
+Evidence: docs/contracts/PRODUCT_TIER_MAP.md:137
+Evidence: app/routers/fitchef_insight.py:52
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918504724 -> d367a628
+Disposition: FIXED
+Commit: d367a628
+Evidence: core/insight/fitchef_companion.py:90
+Evidence: app/services/fitchef_runtime.py:228
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918509497 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: app/services/fitchef_runtime.py:228
+Evidence: app/services/fitchef_runtime.py:487
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918594362 -> 6849444e
+Disposition: FIXED
+Commit: 6849444e
+Evidence: app/routers/vip_registration.py:45
+Evidence: tests/test_fitchef_insight_api.py:653
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918608016 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: app/schemas/fitchef_coaching.py:38
+Evidence: tests/test_fitchef_insight_api.py:30
+Evidence: tests/test_fitchef_insight_api.py:347
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3918643594 -> 845c8c5d
+Disposition: FIXED
+Commit: 845c8c5d
+Evidence: tests/vip/test_vip_diff_coverage.py:134
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908127878 -> a48cf834
 Disposition: FIXED
 Commit: a48cf834
