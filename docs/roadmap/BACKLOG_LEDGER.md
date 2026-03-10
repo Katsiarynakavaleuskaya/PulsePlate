@@ -3870,9 +3870,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Weekly-plan OpenAPI and web parity wave
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (OpenAPI reconciliation / frontend thin-client parity)
-  - Target PR: PR #1068 (`fix(openapi): reconcile weekly plan canonical schema`), PR #1069 (`refactor(weekly-plan): hide legacy flexible alias`), PR #1070 (`fix(frontend): normalize weekly plan consumer parity`), PR #1075 (`fix(frontend): gate weekly plan initial load`), PR #1077 (`docs(ledger): record weekly-plan wave hotfix`)
-  - Status: ✅ Merged (including post-merge hotfix)
-  - Merge SHAs: `eff51947` (wave), `b57333be` (post-merge hotfix)
+  - Target PR: PR #1068 (`docs(openapi): reconcile weekly-plan contract truth`), PR #1069 (`refactor(vip): thin premium weekly alias`), PR #1070 (`refactor(frontend): normalize weekly plan consumers`), PR #1075 (`fix(frontend): gate weekly plan initial load`)
+  - Ledger closure PR: PR #1077 (`docs(ledger): record weekly-plan wave hotfix`)
+  - Status: ✅ Merged (runtime wave and post-merge hotfix); closure synchronized in PR #1077
+  - Merge SHAs:
+    - PR #1068: `888dc69a`
+    - PR #1069: `68fe8d57`
+    - PR #1070: `eff51947`
+    - PR #1075: `b57333be`
   - Area: backend / OpenAPI / frontend weekly-plan runtime
   - Finding Type: schema reconciliation + legacy alias cleanup + normalized web consumer parity
   - Reason:
@@ -3884,6 +3889,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [PR #1069](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1069)
     - [PR #1070](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070)
     - [PR #1075](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075)
+    - [PR #1077](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077)
     - `app/schemas/weekly_plan.py`
     - `app/routers/pro.py`
     - `app/routers/premium_week.py`
@@ -3897,6 +3903,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_1069_FIXED_MAPPING.md`
     - `docs/review/PR_1070_FIXED_MAPPING.md`
     - `docs/review/PR_1075_FIXED_MAPPING.md`
+    - `docs/review/PR_1077_FIXED_MAPPING.md`
   - DoD:
     - ✅ `WeeklyMealPlanResponse` remains the single canonical weekly-plan response shape for backend normalization and generated OpenAPI artifacts
     - ✅ Public OpenAPI exposes `POST /api/v1/pro/meal/weekly` and keeps `POST /api/v1/premium/plan/week-flexible` hidden as a deprecated runtime alias
