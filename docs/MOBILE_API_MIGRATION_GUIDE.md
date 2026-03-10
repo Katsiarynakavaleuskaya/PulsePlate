@@ -131,42 +131,31 @@ Header: X-API-Key: <PRO_API_KEY>
 **Mobile Integration (Swift)**:
 
 ```swift
-func generateWeeklyPlan(apiKey: String, profile: UserProfile) async throws -> WeekPlan {
-    var request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/premium/plan/week-flexible")!)
-    request.httpMethod = "POST"
-    request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-    let payload: [String: Any] = [
-        "sex": profile.sex,
-        "age": profile.age,
-        "height_cm": profile.heightCm,
-        "weight_kg": profile.weightKg,
-        "activity": profile.activity,
-        "goal": profile.goal,
-        "diet_flags": profile.dietFlags,
-        "lang": profile.language
-    ]
-    request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-
-    guard let httpResponse = response as? HTTPURLResponse else {
-        throw APIError.invalidResponse
-    }
-
-    switch httpResponse.statusCode {
-    case 200:
-        return try JSONDecoder().decode(WeekPlan.self, from: data)
-    case 403:
+func generateWeeklyPlan(
+    apiClient: APIClientProtocol,
+    apiKeyProvider: () -> String?,
+    targets: JSONValue = .emptyObject()
+) async throws -> WeeklyPlanDTO {
+    guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
         throw APIError.invalidAPIKey
-    case 401:
-        throw APIError.insufficientTier // PRO tier required
-    default:
-        throw APIError.serverError(httpResponse.statusCode)
     }
+
+    let service = DefaultWeeklyPlanService(apiClient: apiClient)
+    let requestBody = try targets.encodeSorted()
+
+    return try await service.fetchWeeklyPlan(
+        request: WeeklyPlanRequest(
+            endpointPath: "/api/v1/pro/meal/weekly",
+            body: requestBody,
+            apiKey: apiKey
+        )
+    )
 }
 ```
+
+Use the existing `APIClient` / `HTTPClient` seam for iOS transport. Direct
+`URLSession` snippets are legacy examples only and are forbidden for new app
+runtime code.
 
 ---
 

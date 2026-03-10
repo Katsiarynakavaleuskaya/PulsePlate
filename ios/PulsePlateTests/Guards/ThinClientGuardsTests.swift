@@ -202,15 +202,13 @@ final class ThinClientGuardsTests: XCTestCase {
 
         XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
 
-        let forbiddenRegex = try secretEnvFallbackRegexes()
         var hits: [String] = []
 
         for file in swiftFiles {
             let content = try String(contentsOf: file, encoding: .utf8)
             hits.append(contentsOf: try secretEnvFallbackHits(
                 in: content,
-                sourceLabel: relativePath(file, root: root),
-                forbiddenRegex: forbiddenRegex
+                sourceLabel: relativePath(file, root: root)
             ))
         }
 
