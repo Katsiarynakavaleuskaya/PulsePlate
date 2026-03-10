@@ -402,9 +402,7 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
 def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> dict[str, Any]:
     """Evaluate a candidate patch against a validated experiment packet."""
 
-    candidate_patch_ref = normalize_repo_path(candidate_patch_path.resolve())
-    shared_status_before = _shared_tree_status(REPO_ROOT)
-    patch_text = _read_patch_text(candidate_patch_path)
+    candidate_patch_ref = normalize_repo_path(candidate_patch_path)
     budget_observations = {
         "configured_budgets": dict(packet["budgets"]),
         "stop_condition": packet["budgets"].get("stop_condition", DEFAULT_STOP_CONDITION),
@@ -414,8 +412,11 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         "attempts": 0,
         "retries_consumed": 0,
     }
+    shared_status_before: str | None = None
 
     try:
+        shared_status_before = _shared_tree_status(REPO_ROOT)
+        patch_text = _read_patch_text(candidate_patch_path)
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:
@@ -502,12 +503,20 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             shared_tree_untouched=True,
         )
 
-    shared_status_after = _shared_tree_status(REPO_ROOT)
-    if shared_status_before != shared_status_after:
-        result["shared_tree_untouched"] = False
-        result["status"] = "rejected"
-        result["failure_class"] = "infra_flake"
-        result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
+    if shared_status_before is not None:
+        try:
+            shared_status_after = _shared_tree_status(REPO_ROOT)
+        except InfraFlakeError as exc:
+            result["shared_tree_untouched"] = False
+            result["status"] = "rejected"
+            result["failure_class"] = "infra_flake"
+            result["budget_observations"]["runner_error"] = str(exc)
+            return result
+        if shared_status_before != shared_status_after:
+            result["shared_tree_untouched"] = False
+            result["status"] = "rejected"
+            result["failure_class"] = "infra_flake"
+            result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
     return result
 
 

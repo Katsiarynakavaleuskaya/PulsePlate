@@ -613,6 +613,28 @@ def test_evaluate_candidate_maps_non_applicable_patch_to_infra_flake(
     assert result["failure_class"] == "infra_flake"
 
 
+def test_evaluate_candidate_returns_infra_flake_for_missing_patch_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preflight patch-read failures must still return a deterministic result artifact."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+        )
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, tmp_path / "missing.patch")
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert "Unable to read candidate patch" in result["budget_observations"]["runner_error"]
+
+
 def test_main_writes_result_inside_artifact_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
