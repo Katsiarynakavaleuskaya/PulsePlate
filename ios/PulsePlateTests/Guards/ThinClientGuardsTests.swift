@@ -140,7 +140,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
             Fix:
             - Remove placeholder keys from iOS sources.
-            - Provide keys via env (DEBUG) or Keychain storage, never hardcoded.
+            - Use Keychain-backed providers or explicit test injection seams, never hardcoded values.
 
             Hits:
             \(hits.joined(separator: "\n"))
@@ -188,6 +188,76 @@ final class ThinClientGuardsTests: XCTestCase {
             \(hits.joined(separator: "\n"))
             """
         )
+    }
+
+    func test_noRuntimeSecretEnvFallbackInAppSources() throws {
+        let root = try repoRoot(from: #filePath)
+
+        let swiftFiles = try collectTextFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: guardedSourceExcludeSubpaths(),
+            allowedExtensions: Set(["swift"])
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        let forbiddenRegex = try secretEnvFallbackRegexes()
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            hits.append(contentsOf: try secretEnvFallbackHits(
+                in: content,
+                sourceLabel: relativePath(file, root: root),
+                forbiddenRegex: forbiddenRegex
+            ))
+        }
+
+        hits.sort()
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: runtime secret env fallback detected in iOS app sources.
+
+            Fix:
+            - Use Keychain-backed providers for runtime secrets.
+            - Keep dev/test injection explicit at call sites, not via ProcessInfo env fallback.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_secretEnvFallbackGuardMatchesProcessInfoSecretLookup() throws {
+        let snippet = """
+        if let key = ProcessInfo.processInfo.environment["PRO_API_KEY"], !key.isEmpty {
+            return key
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretEnvFallbackGuardDoesNotMatchNonSecretEnvLookups() throws {
+        let snippet = """
+        let baseURL = ProcessInfo.processInfo.environment["API_BASE_URL"]
+        let lang = ProcessInfo.processInfo.environment["APP_LANGUAGE"]
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertTrue(hits.isEmpty)
     }
 
     func test_secretStorageGuardMatchesIndirectKeyForms() throws {
@@ -392,6 +462,41 @@ private func secretStorageGuardHits(
     let regexes = try forbiddenRegex ?? secretStorageForbiddenRegexes(
         userDefaultsAliases: extractUserDefaultsAliases(from: scanContent)
     )
+    let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+    var hits: [String] = []
+
+    for (name, regex) in regexes {
+        let matches = regex.matches(in: scanContent, options: [], range: range)
+        for match in matches {
+            let location = lineAndSnippet(for: match.range, in: scanContent)
+            hits.append(
+                "\(sourceLabel):\(location.line): forbidden regex '\(name)' -> \(location.snippet)"
+            )
+        }
+    }
+
+    return hits
+}
+
+private func secretEnvFallbackRegexes() throws -> [(String, NSRegularExpression)] {
+    [
+        (
+            "processinfo-secret-env",
+            try NSRegularExpression(
+                pattern: #"ProcessInfo\.processInfo\.environment\s*\[\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\]"#,
+                options: [.caseInsensitive]
+            )
+        ),
+    ]
+}
+
+private func secretEnvFallbackHits(
+    in content: String,
+    sourceLabel: String,
+    forbiddenRegex: [(String, NSRegularExpression)]? = nil
+) throws -> [String] {
+    let scanContent = stripSwiftComments(from: content)
+    let regexes = try forbiddenRegex ?? secretEnvFallbackRegexes()
     let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
     var hits: [String] = []
 

@@ -252,11 +252,6 @@ Response:
 
 ### Development/Testing
 
-**Test API Keys** (only work in dev/test environments):
-
-- **PRO**: `test_pro_key`
-- **VIP**: `test_vip_key`
-
 **Environment Detection**:
 
 ```swift
@@ -268,11 +263,13 @@ struct APIConfig {
         return "https://api.pulseplate.com"
         #endif
     }
-
-    static var testProKey: String { "test_pro_key" }
-    static var testVIPKey: String { "test_vip_key" }
 }
 ```
+
+**Runtime Secret Source**:
+
+- iOS runtime secrets come from Keychain only.
+- Tests and previews should inject explicit `apiKeyProvider` values instead of using hidden config or environment fallbacks.
 
 ### Production
 
@@ -474,7 +471,7 @@ Response:
 - [ ] Implement proper error handling (401 vs 403)
 - [ ] Add tier detection logic
 - [ ] Store API keys securely (Keychain on iOS with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
-- [ ] Test with test API keys from Config.plist in dev (never hardcode)
+- [ ] Use explicit injected test doubles for development and previews; do not rely on `Config.plist`, env, or DEBUG secret fallbacks
 - [ ] Implement IAP → API key flow
 - [ ] Add retry logic for 429/503 errors
 - [ ] Update Swagger/OpenAPI client if using code generation
@@ -489,7 +486,7 @@ Response:
 ### For New Mobile Apps
 
 - [ ] Review tier structure and choose appropriate endpoints
-- [ ] Use test API keys from Config.plist for development (add Config.plist to .gitignore)
+- [ ] Use explicit injected API key providers for development flows; keep runtime secrets in Keychain only
 - [ ] Implement subscription manager
 - [ ] Add proper analytics for tier usage
 - [ ] **Implement offline resilience**:

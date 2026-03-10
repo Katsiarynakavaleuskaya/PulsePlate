@@ -17,7 +17,7 @@
 
 - Transport: `ios/PulsePlate/Networking/{APIClient,HTTPClient,APIError}.swift` (protocol: `APIClient.swift:4`)
 - Base URL: `ios/PulsePlate/Services/AppConfig.swift` (`BASE_URL` Info.plist → env → fallback)
-- PRO key: `ios/PulsePlate/Services/ProKeyProvider.swift:3` (Keychain + DEBUG env)
+- PRO key: `ios/PulsePlate/Services/ProKeyProvider.swift:3` (Keychain-only runtime source)
 - Profile query params: `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (`ProfileProviding` protocol)
 - Guards:
   - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (no BMI logic/thresholds in app sources)
