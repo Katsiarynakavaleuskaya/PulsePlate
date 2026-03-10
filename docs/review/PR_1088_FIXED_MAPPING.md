@@ -23,13 +23,19 @@ Evidence: `bd020a6e` makes `evaluate_candidate()` consume `budgets.retry_budget`
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `9b1da1c9` makes experiment packets valid by construction by enforcing the oracle binary allowlist in `scripts/orchestration/experiment_contract.py:122`, requiring an explicit primary metric in `scripts/orchestration/experiment_contract.py:152`, preserving unknown budget keys for fail-closed validation in `scripts/orchestration/experiment_contract.py:263`, tracking `rename from` / `copy from` sources during patch parsing in `scripts/orchestration/experiment_runner.py:125`, and tightening deterministic runner regressions for forbidden renames, absolute `git` resolution, non-allowlisted oracle binaries, unknown budget keys, and timeout simulation in `tests/test_experiment_runner.py:17`, `tests/test_experiment_runner.py:121`, `tests/test_experiment_runner.py:150`, `tests/test_experiment_runner.py:253`, and `tests/test_experiment_runner.py:330`.
+Evidence: `9b1da1c9` makes experiment packets valid by construction by enforcing the oracle binary allowlist in `scripts/orchestration/experiment_contract.py:122`, requiring an explicit primary metric in `scripts/orchestration/experiment_contract.py:152`, preserving unknown budget keys for fail-closed validation in `scripts/orchestration/experiment_contract.py:263`, tracking `rename from` sources during patch parsing in `scripts/orchestration/experiment_runner.py:125`, and tightening deterministic runner regressions for forbidden renames, absolute `git` resolution, non-allowlisted oracle binaries, unknown budget keys, and timeout simulation in `tests/test_experiment_runner.py:17`, `tests/test_experiment_runner.py:121`, `tests/test_experiment_runner.py:150`, `tests/test_experiment_runner.py:253`, and `tests/test_experiment_runner.py:341`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245125 -> 9b1da1c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245134 -> 9b1da1c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245141 -> 9b1da1c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245147 -> 9b1da1c9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245161 -> 9b1da1c9
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `1d823d20` narrows patch-source tracking in `scripts/orchestration/experiment_runner.py:148` so only `rename from` contributes to mutable-surface validation, and adds the regression `tests/test_experiment_runner.py:282` proving `copy from` does not create a false policy/budget rejection by injecting an immutable source path into `mutated_paths`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914383243 -> 1d823d20
 
 Disposition: FIXED
 Commit: see mapping entries below
