@@ -25,9 +25,9 @@ Rules:
 Planned endpoints (contract-first; final path lock happens in runtime PR):
 
 1. `POST /api/v1/billing/apple/verify-receipt`
-2. `POST /api/v1/billing/ru-by/manual-intent`
-3. `POST /api/v1/billing/ru-by/reconcile`
-4. `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+2. `POST /api/v1/pro/payments/ru-by/manual-intent`
+3. `POST /api/v1/pro/payments/ru-by/reconcile`
+4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}`
 
 Legacy behavior remains unchanged until runtime migration is merged.
 
