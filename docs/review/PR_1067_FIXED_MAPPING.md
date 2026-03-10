@@ -65,6 +65,11 @@ Disposition: FIXED
 Evidence: docs/MOBILE_API_MIGRATION_GUIDE.md:292; docs/MOBILE_API_MIGRATION_GUIDE.md:468
 Reason: the production Keychain sample now uses `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, matching the checklist requirement and the intended runtime accessibility policy.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920850927
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910329581; docs/MOBILE_API_MIGRATION_GUIDE.md:292; docs/MOBILE_API_MIGRATION_GUIDE.md:468
+Reason: this CodeRabbit review entry is the summary shell for the single child comment dispositioned immediately above; the underlying checklist/sample mismatch was fixed in `b2535fee`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920196887
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727064; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727068; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727078; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727082
