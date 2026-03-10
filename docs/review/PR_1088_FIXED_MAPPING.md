@@ -11,8 +11,15 @@ Evidence: `69744238` makes `validate_experiment_packet()` fail closed on incompa
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925158278 -> 69744238
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914207490 -> 69744238
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914207499 -> 69744238
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914214557 -> 69744238
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914214559 -> 69744238
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `bd020a6e` makes `evaluate_candidate()` consume `budgets.retry_budget` for transient `infra_flake` failures in `scripts/orchestration/experiment_runner.py:401` while preserving isolated temp-checkout cleanup, and adds a deterministic retry regression in `tests/test_experiment_runner.py:411` proving the runner retries once and then accepts a recovered oracle run instead of rejecting on the first transient failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914207496 -> bd020a6e
 
 Disposition: FIXED
 Commit: see mapping entries below
