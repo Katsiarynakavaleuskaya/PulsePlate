@@ -5,7 +5,12 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1085#pullrequestreview-3923386521
+  - Disposition: NOT-A-BUG
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4766`; no other `BACKLOG_LEDGER` entries reference `ledger-p2-fitchef-runtime-orchestration-dedup`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1085#pullrequestreview-3923401355 -> d9fa214b
+  - Disposition: FIXED
+  - Evidence: moved the closed dedup block into `## Completed Items / ### P2` in `docs/roadmap/BACKLOG_LEDGER.md`
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
