@@ -60,6 +60,12 @@ Evidence: `docs/contracts/API_CANONICAL_MAP.md:12`, `docs/contracts/API_CANONICA
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911908087 -> 7a9d0ece
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911908090 -> 7a9d0ece
 
+Disposition: FIXED
+Commit: 1c347dc1
+Evidence: `app/services/payments_activation.py:175`, `app/services/payments_activation.py:182`, `tests/test_apple_receipt_verify_service_helpers.py:117`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922817091 -> 1c347dc1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2912109794 -> 1c347dc1
+
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
 - [ ] No unresolved review threads
