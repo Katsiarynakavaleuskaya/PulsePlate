@@ -693,6 +693,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_worker_proxy_contract.py`
   - DoD:
     - Worker path scope is allowlisted to `/api/*`
+    - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
     - Wildcard CORS and header pass-through are removed or bounded to trusted origins
     - Authorization and client-IP forwarding policy is documented and tested
     - Deployment docs state that worker runtime is supported only as a bounded first-party proxy

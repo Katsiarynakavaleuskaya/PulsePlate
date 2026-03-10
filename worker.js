@@ -10,14 +10,27 @@ const ALLOWED_FORWARD_HEADERS = [
   "x-api-key",
 ];
 const ALLOWED_PREFLIGHT_HEADERS = "Content-Type, Authorization, X-API-Key";
-const PLACEHOLDER_TARGET_SNIPPETS = [
-  "replace_me",
-  "trycloudflare.com",
-  "example.com",
-];
+const PLACEHOLDER_TARGET_HOSTS = new Set(["example.com", "localhost", "127.0.0.1"]);
+const PLACEHOLDER_TARGET_SUFFIXES = [".trycloudflare.com"];
 let cachedAllowedOriginsRaw = null;
 let cachedAllowedOrigins = new Set();
 
+/**
+ * @typedef {{
+ *   TARGET_BASE?: string,
+ *   WORKER_ALLOWED_ORIGINS?: string
+ * }} WorkerEnv
+ */
+
+/**
+ * @typedef {false | null | string} TrustedOrigin
+ */
+
+/**
+ * @param {string} message
+ * @param {number} status
+ * @returns {Response}
+ */
 function jsonError(message, status) {
   return new Response(JSON.stringify({ error: message, status }), {
     status,
@@ -27,24 +40,38 @@ function jsonError(message, status) {
   });
 }
 
+/**
+ * @param {WorkerEnv} env
+ * @returns {URL | null}
+ */
 function normalizeTargetBase(env) {
   const targetBase = (env.TARGET_BASE || "").trim();
-  const lowered = targetBase.toLowerCase();
-
-  if (
-    !targetBase ||
-    PLACEHOLDER_TARGET_SNIPPETS.some((snippet) => lowered.includes(snippet))
-  ) {
+  if (!targetBase) {
     return null;
   }
 
   try {
-    return new URL(targetBase);
+    const parsed = new URL(targetBase);
+    const hostname = parsed.hostname.toLowerCase();
+    const isPlaceholderHost = PLACEHOLDER_TARGET_HOSTS.has(hostname);
+    const isPlaceholderSuffix = PLACEHOLDER_TARGET_SUFFIXES.some(
+      (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+    );
+
+    if (parsed.protocol !== "https:" || isPlaceholderHost || isPlaceholderSuffix) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
 }
 
+/**
+ * @param {string} rawOrigins
+ * @returns {Set<string>}
+ */
 function parseAllowedOrigins(rawOrigins) {
   if (rawOrigins === cachedAllowedOriginsRaw) {
     return cachedAllowedOrigins;
@@ -60,6 +87,10 @@ function parseAllowedOrigins(rawOrigins) {
   return cachedAllowedOrigins;
 }
 
+/**
+ * @param {string} origin
+ * @returns {Record<string, string>}
+ */
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Credentials": "true",
@@ -71,6 +102,28 @@ function corsHeaders(origin) {
   };
 }
 
+/**
+ * @param {Headers} headers
+ * @param {string} value
+ * @returns {void}
+ */
+function mergeVaryHeader(headers, value) {
+  const existing = headers.get("Vary");
+  const merged = new Set(
+    (existing || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+  merged.add(value);
+  headers.set("Vary", Array.from(merged).join(", "));
+}
+
+/**
+ * @param {Request} request
+ * @param {WorkerEnv} env
+ * @returns {TrustedOrigin}
+ */
 function trustedOriginOrNull(request, env) {
   const requestOrigin = request.headers.get("Origin");
   if (!requestOrigin) {
@@ -85,6 +138,10 @@ function trustedOriginOrNull(request, env) {
   return allowedOrigins.has(requestOrigin) ? requestOrigin : false;
 }
 
+/**
+ * @param {Request} request
+ * @returns {Headers}
+ */
 function buildForwardHeaders(request) {
   const headers = new Headers();
 
@@ -99,6 +156,11 @@ function buildForwardHeaders(request) {
 }
 
 export default {
+  /**
+   * @param {Request} request
+   * @param {WorkerEnv} env
+   * @returns {Promise<Response>}
+   */
   async fetch(request, env) {
     const url = new URL(request.url);
     const trustedOrigin = trustedOriginOrNull(request, env);
@@ -145,7 +207,11 @@ export default {
 
     if (trustedOrigin) {
       for (const [key, value] of Object.entries(corsHeaders(trustedOrigin))) {
-        out.headers.set(key, value);
+        if (key === "Vary") {
+          mergeVaryHeader(out.headers, value);
+        } else {
+          out.headers.set(key, value);
+        }
       }
     }
 

@@ -11,7 +11,9 @@ The Cloudflare Worker runtime is supported only as a bounded first-party proxy i
 - Scope: proxy only `/api/*` paths.
 - Methods: allow only `GET`, `POST`, and `OPTIONS`.
 - Required config:
-  - `TARGET_BASE`: explicit API origin; placeholder values are forbidden.
+  - `TARGET_BASE`: explicit HTTPS API origin; placeholder values are forbidden.
+    Forbidden examples: empty string, `https://example.com`, `http://localhost:8000`.
+    Minimal allowed example: `https://api.mydomain.com`.
   - `WORKER_ALLOWED_ORIGINS`: comma-separated trusted browser origins allowed to receive reflected CORS headers.
 - CORS policy:
   - wildcard `Access-Control-Allow-Origin: *` is forbidden
