@@ -137,8 +137,7 @@ def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[di
             raise ValueError("Oracle command must not be empty.")
         if argv[0] not in ORACLE_BINARY_ALLOWLIST:
             raise ValueError(
-                f"Oracle binary {argv[0]!r} is not allowlisted. "
-                f"Allowed: {allowed_binaries}"
+                f"Oracle binary {argv[0]!r} is not allowlisted. " f"Allowed: {allowed_binaries}"
             )
         normalized_oracles.append(
             {
@@ -265,13 +264,9 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Experiment packet budgets must be an object.")
     stop_condition = str(budgets_raw.get("stop_condition", DEFAULT_STOP_CONDITION)).strip()
     normalized_budget_overrides = {
-        key: int(value)
-        for key, value in budgets_raw.items()
-        if key != "stop_condition"
+        key: int(value) for key, value in budgets_raw.items() if key != "stop_condition"
     }
-    validated_budgets = validate_budget_payload(
-        normalized_budget_overrides
-    )
+    validated_budgets = validate_budget_payload(normalized_budget_overrides)
 
     metrics_raw = packet.get("metrics")
     if not isinstance(metrics_raw, dict):
