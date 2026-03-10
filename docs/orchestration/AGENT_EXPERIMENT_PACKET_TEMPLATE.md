@@ -86,6 +86,9 @@ Choose exactly one:
 ## Deferred Follow-up Block
 
 - Backlog item:
+- Owner:
+- Priority:
 - Reason for deferral:
+- Relevant links:
 - Target PR:
 - DoD:

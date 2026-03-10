@@ -2011,7 +2011,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR template or runbook suggests optional "Violations addressed" section for guard/security remediation PRs
     - Not mandatory; adopt when useful
 
-
+<a id="ledger-p2-cv-photo-food"></a>
 - [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD

@@ -331,6 +331,7 @@ A **task** is any unit of work that:
 - Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Research brainstorming (brainstorm → optional web/OSS intake → decision → promotion): `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - Agent knowledge library worktree runbook (brainstorm → promotion → PR): `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+- Experimentation lane (bounded eval/optimization only; no hidden memory, autonomous merge, or runtime autonomy): `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
 - Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
