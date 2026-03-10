@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087#pullrequestreview-3925160422 -> 722fd965
+Disposition: FIXED
+Commit: `722fd965`
+Evidence: `tests/test_app_openapi_coverage.py:146`; `tests/test_app_basic_combined.py:50`
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
