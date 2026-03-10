@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 
@@ -308,7 +308,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
 def _normalize_lexeme(value: str) -> str:
     """Normalize keyword phrases with the same rules as task text."""
 
-    return normalize_text(value)
+    return cast(str, normalize_text(value))
 
 
 def _has_prefix(path: str, prefix: str) -> bool:

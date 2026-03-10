@@ -13,7 +13,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 EXPERIMENT_BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(EXPERIMENT_BOOTSTRAP_REPO_ROOT) not in sys.path:
@@ -255,7 +255,10 @@ def _resolve_experiment_domain(
         return "ml"
     if _contains_hint(normalized_text, ML_TEXT_HINTS):
         return "ml"
-    return resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
+    return cast(
+        str,
+        resolve_domain(task_class=task_class, candidate_paths=mutable_paths),
+    )
 
 
 def _recommend_advisory_agents(
