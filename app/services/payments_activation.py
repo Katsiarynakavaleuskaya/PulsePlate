@@ -45,6 +45,7 @@ APPLE_VERIFY_SANDBOX_URL = "https://sandbox.itunes.apple.com/verifyReceipt"
 APPLE_SANDBOX_RECEIPT_STATUS = 21007
 APPLE_EXPIRED_RECEIPT_STATUS = 21006
 APPLE_VERIFY_TIMEOUT_SECONDS = 10.0
+APPLE_ETC_GMT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S Etc/GMT"
 
 
 class ActivationAccessForbiddenError(PermissionError):
@@ -128,8 +129,13 @@ def _apple_request_body(receipt_data: str) -> dict[str, Any]:
 async def _call_apple_verify_endpoint(url: str, receipt_data: str) -> dict[str, Any]:
     """Call Apple verifyReceipt endpoint and return parsed JSON response."""
     try:
+        request_body = _apple_request_body(receipt_data)
+    except RuntimeError as exc:
+        raise AppleVerifyTransportError from exc
+
+    try:
         async with httpx.AsyncClient(timeout=APPLE_VERIFY_TIMEOUT_SECONDS) as client:
-            response = await client.post(url, json=_apple_request_body(receipt_data))
+            response = await client.post(url, json=request_body)
             response.raise_for_status()
             payload = response.json()
     except httpx.TimeoutException as exc:
@@ -173,6 +179,13 @@ def _parse_apple_datetime(raw_value: Any) -> datetime | None:
             return None
         if normalized.isdigit():
             return datetime.fromtimestamp(int(normalized) / 1000.0, tz=timezone.utc)
+        try:
+            return datetime.strptime(
+                normalized,
+                APPLE_ETC_GMT_DATETIME_FORMAT,
+            ).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
         iso_value = normalized.replace("Z", "+00:00")
         try:
             parsed = datetime.fromisoformat(iso_value)
@@ -182,6 +195,27 @@ def _parse_apple_datetime(raw_value: Any) -> datetime | None:
             return parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc)
     return None
+
+
+def _first_present_entry_value(entry: dict[str, Any], *keys: str) -> Any:
+    """Return the first non-empty provider field from a receipt entry."""
+    for key in keys:
+        value = entry.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _entry_expires_at(entry: dict[str, Any]) -> datetime | None:
+    """Return normalized Apple receipt expiry when present."""
+    return _parse_apple_datetime(
+        _first_present_entry_value(entry, "expires_date_ms", "expires_date")
+    )
+
+
+def _entry_has_expiry_value(entry: dict[str, Any]) -> bool:
+    """Return whether Apple provided an expiry value that must be parseable."""
+    return _first_present_entry_value(entry, "expires_date_ms", "expires_date") is not None
 
 
 def _receipt_entries(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -204,8 +238,10 @@ def _receipt_entries(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _entry_sort_key(entry: dict[str, Any]) -> tuple[float, float]:
     """Return deterministic ordering key for Apple receipt entries."""
-    expires_at = _parse_apple_datetime(entry.get("expires_date_ms") or entry.get("expires_date"))
-    purchase_at = _parse_apple_datetime(entry.get("purchase_date_ms") or entry.get("purchase_date"))
+    expires_at = _entry_expires_at(entry)
+    purchase_at = _parse_apple_datetime(
+        _first_present_entry_value(entry, "purchase_date_ms", "purchase_date")
+    )
     expires_ts = expires_at.timestamp() if expires_at is not None else float("-inf")
     purchase_ts = purchase_at.timestamp() if purchase_at is not None else float("-inf")
     return (expires_ts, purchase_ts)
@@ -238,7 +274,7 @@ def _has_reliable_restore_signal(
 def _entry_cancellation_at(entry: dict[str, Any]) -> datetime | None:
     """Return Apple cancellation timestamp for refunded/revoked transactions."""
     return _parse_apple_datetime(
-        entry.get("cancellation_date_ms") or entry.get("cancellation_date")
+        _first_present_entry_value(entry, "cancellation_date_ms", "cancellation_date")
     )
 
 
@@ -290,15 +326,21 @@ def _normalize_apple_verification(
         raw_product_id = latest_entry.get("product_id")
         if isinstance(raw_product_id, str):
             product_id = raw_product_id.strip() or None
-        expires_at = _parse_apple_datetime(
-            latest_entry.get("expires_date_ms") or latest_entry.get("expires_date")
-        )
+        expires_at = _entry_expires_at(latest_entry)
+        if _entry_has_expiry_value(latest_entry) and expires_at is None:
+            return _build_invalid_verification_response(
+                environment=environment,
+                product_id=product_id,
+                code="APPLE_RECEIPT_INVALID",
+                message="Receipt verification failed",
+                verification_state=AppleVerificationState.invalid,
+            )
         cancellation_at = _entry_cancellation_at(latest_entry)
         if cancellation_at is not None:
             return _build_invalid_verification_response(
                 environment=environment,
                 product_id=product_id,
-                expires_at=cancellation_at,
+                expires_at=expires_at,
                 code="APPLE_RECEIPT_INVALID",
                 message="Receipt verification failed",
                 verification_state=AppleVerificationState.invalid,

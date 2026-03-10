@@ -328,6 +328,28 @@ def test_apple_verify_receipt_upstream_error_returns_502(
     }
 
 
+def test_apple_verify_receipt_missing_shared_secret_returns_502(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
+
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers=_billing_headers(monkeypatch),
+        json=_request_payload(),
+    )
+
+    assert response.status_code == 502, response.text
+    payload = _json(response)
+    assert payload["verified"] is False
+    assert payload["verification_state"] == "invalid"
+    assert payload["error"] == {
+        "code": "APPLE_UPSTREAM_ERROR",
+        "message": "Apple receipt verification failed",
+    }
+
+
 def test_apple_verify_receipt_repeated_calls_are_stateless_replays(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -442,6 +464,7 @@ def test_apple_verify_receipt_rejects_cancelled_receipt(
     assert payload["verified"] is False
     assert payload["verification_state"] == "invalid"
     assert payload["activation_payload"] is None
+    assert payload["expires_at"] == "2100-01-01T00:00:00Z"
 
 
 def test_require_billing_transport_key_returns_500_when_validator_missing(

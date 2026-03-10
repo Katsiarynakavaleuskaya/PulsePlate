@@ -97,6 +97,7 @@ def test_coerce_apple_status_covers_supported_inputs() -> None:
         ("4102444800000", datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc)),
         ("2026-04-01T00:00:00Z", datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc)),
         ("2026-04-01T00:00:00", datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc)),
+        ("2026-04-01 00:00:00 Etc/GMT", datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc)),
     ],
 )
 def test_parse_apple_datetime_accepts_supported_formats(
@@ -210,6 +211,25 @@ async def test_call_apple_verify_endpoint_raises_transport_for_http_error(
             payments_activation.APPLE_VERIFY_PRODUCTION_URL,
             "receipt-data-validated-12345",
         )
+
+
+@pytest.mark.asyncio
+async def test_call_apple_verify_endpoint_raises_transport_when_secret_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
+    fake_client = _install_fake_async_client(
+        monkeypatch,
+        response=_FakeResponse({"status": 0}),
+    )
+
+    with pytest.raises(payments_activation.AppleVerifyTransportError):
+        await payments_activation._call_apple_verify_endpoint(
+            payments_activation.APPLE_VERIFY_PRODUCTION_URL,
+            "receipt-data-validated-12345",
+        )
+
+    assert fake_client.captured_payload is None
 
 
 @pytest.mark.asyncio
@@ -366,4 +386,25 @@ def test_normalize_apple_verification_rejects_cancelled_receipt() -> None:
     assert response.verification_state is AppleVerificationState.invalid
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
-    assert response.expires_at == datetime(2026, 3, 8, 0, 0, tzinfo=timezone.utc)
+    assert response.expires_at == datetime.fromtimestamp(4102444800000 / 1000.0, tz=timezone.utc)
+
+
+def test_normalize_apple_verification_rejects_unparseable_expiry_field() -> None:
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date": "definitely-not-a-supported-apple-date",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is False
+    assert response.verification_state is AppleVerificationState.invalid
+    assert response.error is not None
+    assert response.error.code == "APPLE_RECEIPT_INVALID"
+    assert response.expires_at is None
