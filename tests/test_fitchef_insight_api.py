@@ -1556,7 +1556,8 @@ class TestFitChefSlipSupportTierAndFlags:
 
         assert response.status_code == 422
         body = _json_body(response)
-        assert body["detail"][0]["loc"] == ["body", "event_text"]
+        detail = cast(list[dict[str, object]], body["detail"])
+        assert detail[0]["loc"] == ["body", "event_text"]
 
 
 class TestFitChefSlipSupportRuntimeBehavior:
