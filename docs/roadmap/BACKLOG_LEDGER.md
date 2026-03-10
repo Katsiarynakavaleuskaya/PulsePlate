@@ -3866,6 +3866,42 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Weekly-plan numeric normalization covers malformed, non-finite, and overflow-prone values with deterministic regressions
 
 
+<a id="ledger-p1-weekly-plan-openapi-parity-wave"></a>
+- [x] P1: Weekly-plan OpenAPI and web parity wave
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (OpenAPI reconciliation / frontend thin-client parity)
+  - Target PR: PR #1068 (`fix(openapi): reconcile weekly plan canonical schema`), PR #1069 (`refactor(weekly-plan): hide legacy flexible alias`), PR #1070 (`fix(frontend): normalize weekly plan consumer parity`), PR #1075 (`fix(frontend): gate weekly plan initial load`)
+  - Status: ✅ Merged (including post-merge hotfix)
+  - Merge SHA: eff51947 (wave), b57333be (post-merge hotfix)
+  - Area: backend / OpenAPI / frontend weekly-plan runtime
+  - Finding Type: schema reconciliation + legacy alias cleanup + normalized web consumer parity
+  - Reason: The repo had already moved to the canonical PRO route `POST /api/v1/pro/meal/weekly` and shared backend DTO normalization, but the remaining work was reconciliation and finishing rather than route migration. The wave locked `WeeklyMealPlanResponse` as the generated OpenAPI truth, kept `/api/v1/premium/plan/week-flexible` as a hidden runtime-compatible alias, and moved web weekly-plan consumers to one normalized UI view-model instead of ad-hoc raw payload assumptions. A follow-up hotfix then closed the initial-render regression where `WeeklyPlanViewer` could briefly flash the empty summary before the first fetch transitioned into loading.
+  - Links:
+    - [PR #1068](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068)
+    - [PR #1069](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1069)
+    - [PR #1070](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070)
+    - [PR #1075](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075)
+    - `app/schemas/weekly_plan.py`
+    - `app/routers/pro.py`
+    - `app/routers/premium_week.py`
+    - `legacy_app.py`
+    - `frontend/src/api/openapi.json`
+    - `frontend/src/api/schema.ts`
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `frontend/src/features/plan/__tests__/WeeklyPlanViewer.test.tsx`
+    - `frontend/src/hooks/useWhoTargetsWithWeeklyPlan.ts`
+    - `docs/review/PR_1068_FIXED_MAPPING.md`
+    - `docs/review/PR_1069_FIXED_MAPPING.md`
+    - `docs/review/PR_1070_FIXED_MAPPING.md`
+    - `docs/review/PR_1075_FIXED_MAPPING.md`
+  - DoD:
+    - ✅ `WeeklyMealPlanResponse` remains the single canonical weekly-plan response shape for backend normalization and generated OpenAPI artifacts
+    - ✅ Public OpenAPI exposes `POST /api/v1/pro/meal/weekly` and keeps `POST /api/v1/premium/plan/week-flexible` hidden as a deprecated runtime alias
+    - ✅ Legacy VIP alias cleanup stays thin and schema-hidden without reintroducing separate weekly-plan business logic
+    - ✅ Web weekly-plan consumers render a normalized weekly-plan view-model instead of depending on raw response shape details, including initial-load gating that treats `data == null && err == null` as loading instead of flashing the empty summary
+    - ✅ Regression coverage exists for malformed payload normalization, schema visibility, legacy alias parity, and normalized weekly-plan web consumption
+
+
 - [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (docs correctness)
