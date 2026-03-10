@@ -1990,11 +1990,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: None (deferred by scope, not blocked)
 
 <a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
-- [ ] P2: FitChef runtime orchestration dedup
+- [x] P2: FitChef runtime orchestration dedup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1083 (`refactor(fitchef): deduplicate runtime orchestration path`)
-  - Status: Open
+  - Status: Merged on 10 March 2026 via PR #1083
   - Area: AI runtime / orchestration / tech debt
   - Finding Type: tech-debt
   - Locations:
@@ -2004,11 +2004,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-weekly-reflection-endpoint`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-slip-support-endpoint`
+    - `docs/review/PR_1083_FIXED_MAPPING.md`
   - DoD:
     - Shared orchestration helper removes duplicated FitChef VIP runtime flow without changing public route contracts
     - Mascot, weekly reflection, and slip-support still preserve feature-flag, tier, rate-limit, quota, audit, and provider error ordering
     - Deterministic regression tests cover the shared helper paths
-  - Blockers: Depends on [P2: FitChef weekly reflection endpoint](#ledger-p2-fitchef-weekly-reflection-endpoint) and [P2: FitChef slip-support endpoint](#ledger-p2-fitchef-slip-support-endpoint)
+  - Blockers: None
 
 
 - [ ] P2: Violations-addressed list in security/guard remediation PRs
