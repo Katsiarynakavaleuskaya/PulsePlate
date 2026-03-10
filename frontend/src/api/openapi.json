@@ -3,14 +3,20 @@
     "schemas": {
       "ActivateSubscriptionRequest": {
         "additionalProperties": false,
-        "description": "Activation request payload (contract-first, deterministic).",
+        "description": "Activation request envelope supporting canonical and legacy contracts.",
         "properties": {
           "client_event_id": {
-            "description": "Client-generated idempotency event ID",
-            "maxLength": 128,
-            "minLength": 6,
-            "title": "Client Event Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
           },
           "external_txn_id": {
             "anyOf": [
@@ -23,12 +29,29 @@
                 "type": "null"
               }
             ],
-            "description": "Provider-side transaction or intent ID",
             "title": "External Txn Id"
           },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
           "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan",
-            "description": "Canonical required plan code for activation intent"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "source": {
             "$ref": "#/components/schemas/PaymentSource"
@@ -42,33 +65,19 @@
                 "type": "null"
               }
             ],
-            "description": "Deterministic verification result for baseline R1 contract",
             "title": "Verification Ok"
           },
           "verification_payload": {
             "additionalProperties": true,
-            "description": "Opaque verification payload. Server remains source of truth.",
             "title": "Verification Payload",
             "type": "object"
           }
         },
         "required": [
-          "source",
-          "plan",
-          "client_event_id"
+          "source"
         ],
         "title": "ActivateSubscriptionRequest",
         "type": "object"
-      },
-      "ActivationStatus": {
-        "description": "Canonical activation state for subscription activation flow.",
-        "enum": [
-          "pending_verification",
-          "active",
-          "rejected"
-        ],
-        "title": "ActivationStatus",
-        "type": "string"
       },
       "AdherenceResponse": {
         "description": "Response schema for adherence endpoints.\n\nRU: Схема ответа для эндпоинтов adherence.\nEN: Response schema for adherence endpoints.",
@@ -192,7 +201,7 @@
                 "type": "null"
               }
             ],
-            "description": "Downstream activation-prep hint. The future activation service maps this hint into canonical source/plan fields."
+            "description": "Downstream activation-prep hint. The activation service maps this hint into canonical source/tier fields."
           },
           "environment": {
             "anyOf": [
@@ -2235,7 +2244,7 @@
         "type": "object"
       },
       "ManualPaymentSource": {
-        "description": "Manual payment sources allowed in RU/BY intent flow.",
+        "description": "Manual payment sources allowed on RU/BY billing surfaces.",
         "enum": [
           "erip_qr",
           "swift_manual"
@@ -3632,8 +3641,17 @@
         "title": "PaymentErrorResponse",
         "type": "object"
       },
+      "PaymentPlatform": {
+        "description": "Platform surface for the payment state.",
+        "enum": [
+          "ios",
+          "web"
+        ],
+        "title": "PaymentPlatform",
+        "type": "string"
+      },
       "PaymentSource": {
-        "description": "Canonical payment sources (RU/BY + iOS baseline).",
+        "description": "Canonical payment sources for the current billing baseline.",
         "enum": [
           "ios_app_store",
           "erip_qr",
@@ -4218,7 +4236,7 @@
         "type": "string"
       },
       "ReconcileStatus": {
-        "description": "Reconciliation status for financial audit trail.",
+        "description": "Reconciliation state used by legacy manual-rail routes.",
         "enum": [
           "pending",
           "verified",
@@ -5216,20 +5234,58 @@
         "type": "object"
       },
       "SubscriptionActivationResponse": {
-        "description": "Canonical activation response for all payment sources.",
+        "description": "Canonical response with compatibility fields for legacy billing routes.",
         "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
           "activation_id": {
             "title": "Activation Id",
             "type": "string"
           },
           "audit_id": {
-            "title": "Audit Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Id"
           },
           "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
           },
           "external_txn_id": {
             "anyOf": [
@@ -5243,29 +5299,134 @@
             "title": "External Txn Id"
           },
           "intent_id": {
-            "title": "Intent Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Id"
           },
           "payment_source": {
-            "$ref": "#/components/schemas/PaymentSource"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentPlatform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
           },
           "reconcile_status": {
-            "$ref": "#/components/schemas/ReconcileStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconcileStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Reference"
           },
           "status": {
-            "$ref": "#/components/schemas/ActivationStatus"
+            "$ref": "#/components/schemas/SubscriptionStatus"
           },
           "subscription_tier": {
-            "$ref": "#/components/schemas/SubscriptionTierValue",
-            "description": "Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier."
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionTierValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requested paid tier implied by the billing intent or verified product mapping. This is the paid target tier, not a free-access fallback."
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
           },
           "verified_at": {
             "anyOf": [
@@ -5282,21 +5443,13 @@
         },
         "required": [
           "activation_id",
-          "intent_id",
-          "audit_id",
-          "payment_source",
-          "plan",
-          "subscription_tier",
-          "status",
-          "reconcile_status",
-          "created_at",
-          "updated_at"
+          "status"
         ],
         "title": "SubscriptionActivationResponse",
         "type": "object"
       },
       "SubscriptionPlan": {
-        "description": "Canonical subscription plans for billing activation.",
+        "description": "Legacy plan contract kept for billing compatibility routes.",
         "enum": [
           "pro_monthly",
           "vip_monthly"
@@ -5304,8 +5457,31 @@
         "title": "SubscriptionPlan",
         "type": "string"
       },
+      "SubscriptionStatus": {
+        "description": "Persisted subscription lifecycle values.",
+        "enum": [
+          "pending_manual_review",
+          "pending_verification",
+          "active",
+          "expired",
+          "cancelled",
+          "rejected"
+        ],
+        "title": "SubscriptionStatus",
+        "type": "string"
+      },
+      "SubscriptionTier": {
+        "description": "Canonical persisted subscription tiers.",
+        "enum": [
+          "free",
+          "pro",
+          "vip"
+        ],
+        "title": "SubscriptionTier",
+        "type": "string"
+      },
       "SubscriptionTierValue": {
-        "description": "Requested paid tier implied by the selected billing plan.",
+        "description": "Paid subscription tiers used by legacy billing responses.",
         "enum": [
           "pro",
           "vip"
@@ -7397,7 +7573,7 @@
     },
     "/api/v1/pro/payments/activate": {
       "post": {
-        "description": "Create activation or return idempotent replay.",
+        "description": "Create or replay a deterministic subscription activation event.",
         "operationId": "activate_subscription_api_v1_pro_payments_activate_post",
         "requestBody": {
           "content": {
@@ -7418,17 +7594,17 @@
                 }
               }
             },
-            "description": "Idempotent replay"
+            "description": "Successful Response"
           },
-          "201": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Missing or invalid transport protection"
           },
           "409": {
             "content": {
@@ -7438,7 +7614,7 @@
                 }
               }
             },
-            "description": "client_event_id conflict"
+            "description": "Deterministic activation conflict"
           },
           "422": {
             "content": {
@@ -7465,7 +7641,7 @@
     },
     "/api/v1/pro/payments/activations/{activation_id}": {
       "get": {
-        "description": "Get activation status by ID.",
+        "description": "Get persisted activation event by ID.",
         "operationId": "get_subscription_activation_api_v1_pro_payments_activations__activation_id__get",
         "parameters": [
           {
@@ -7488,6 +7664,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid transport protection"
           },
           "403": {
             "content": {

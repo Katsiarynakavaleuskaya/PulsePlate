@@ -807,6 +807,7 @@ def init_db(database_url: str | None = None) -> "Engine":
 
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
+    import app.models  # noqa: F401  # pylint: disable=unused-import
 
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
@@ -970,6 +971,7 @@ def get_unified_food_db() -> "UnifiedFoodDatabase | None":
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
     import core.models  # noqa: F401  # pylint: disable=unused-import
+    import app.models  # noqa: F401  # pylint: disable=unused-import
 
     metadata = Base.metadata
 
