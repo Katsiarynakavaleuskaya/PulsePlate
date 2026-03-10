@@ -41,6 +41,11 @@ Evidence: docs/review/PR_1076_FIXED_MAPPING.md:8
 Evidence: PR body sections `Deferred / Follow-ups` and `Discussion Thread Pass`
 Reason: The aggregate CodeRabbit review included the artifact checkbox fix already landed in `86fd53f7` plus the PR-body follow-up requirement; both are now satisfied on the current head and body mirror.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1076#discussion_r2911348213 -> 66e226ca
+Disposition: FIXED
+Commit: 66e226ca
+Evidence: tests/test_fitchef_insight_api.py:1559
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
