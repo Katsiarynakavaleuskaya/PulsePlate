@@ -1903,7 +1903,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: FitChef runtime orchestration dedup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-RUNTIME-DEDUP
+  - Target PR: PR #1083 (`refactor(fitchef): deduplicate runtime orchestration path`)
   - Status: Open
   - Area: AI runtime / orchestration / tech debt
   - Finding Type: tech-debt
