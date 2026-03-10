@@ -2,11 +2,11 @@
 Combined basic app tests: import, VIP integration, and package spec.
 """
 
+import importlib
 import sys
 from fastapi import FastAPI
 
 import app
-import legacy_app
 import pytest
 
 
@@ -54,7 +54,9 @@ class TestAppImport:
         """The package shim must preserve the underlying legacy FastAPI object."""
         from app.main import app as main_app
 
-        assert app.app is legacy_app.app
+        legacy_module = importlib.import_module("legacy_app")
+
+        assert app.app is legacy_module.app
         assert app.app is main_app
 
     def test_app_package_rehydrates_bootstrap_after_legacy_app_swap(
@@ -64,10 +66,12 @@ class TestAppImport:
         """Facade access must reapply additive bootstrap when legacy_app.app changes."""
         import app.main as main_module
 
+        legacy_module = importlib.import_module("legacy_app")
+
         original_main_app = main_module.app
         replacement_app = FastAPI()
         monkeypatch.setattr(main_module, "app", original_main_app)
-        monkeypatch.setattr(legacy_app, "app", replacement_app)
+        monkeypatch.setattr(legacy_module, "app", replacement_app)
 
         package_app = app.app
         route_paths = {
