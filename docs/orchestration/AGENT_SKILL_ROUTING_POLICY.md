@@ -38,11 +38,9 @@ Boundary note:
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md` remains the canonical source of truth for agent/domain routing.
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and `scripts/orchestration/skill_router.py` are the canonical skill-selection layer that runs after domain routing resolves.
 
-`scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for this selection.
-The packet contract is materialized at `scripts/orchestration/task_bootstrap.py:80`,
-with routing outputs populated from `scripts/orchestration/task_bootstrap.py:73`.
-Deterministic coverage lives in `tests/test_task_bootstrap.py:16` and
-`tests/test_task_bootstrap.py:105`.
+`scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for generic coordinator task packets.
+`scripts/orchestration/experiment_bootstrap.py` is the deterministic bootstrap entrypoint for governed experimentation packets.
+Deterministic coverage lives in `tests/test_task_bootstrap.py` and `tests/test_experiment_bootstrap.py`.
 
 The bootstrap packet should expose:
 
@@ -55,6 +53,7 @@ For experimentation tasks, the bootstrap packet should also reference:
 
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- lexical intents such as `experiment`, `benchmark`, `eval`, `optimization`, `reliability`, and `cv`
 
 ---
 
