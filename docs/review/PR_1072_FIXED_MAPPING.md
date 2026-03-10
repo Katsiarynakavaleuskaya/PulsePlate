@@ -23,6 +23,12 @@ Commit: f1bf76d4
 Evidence: tests/test_test_router.py:9; tests/test_test_router.py:31
 Reason: the reload-sensitive test now resolves runtime env through the `settings` module at call time instead of binding a direct import that can go stale across reloads.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911151300 -> 47723a37
+Disposition: FIXED
+Commit: 47723a37
+Evidence: docs/review/PR_1072_FIXED_MAPPING.md:14; docs/review/PR_1072_FIXED_MAPPING.md:17
+Reason: commit `47723a37` tightened the old FIXED proof to the exact corrected mapping line, so the resolution for `discussion_r2911024762` is independently verifiable.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#pullrequestreview-3921607289
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911020392; tests/test_legacy_app_diff_coverage.py:1052; tests/test_legacy_app_diff_coverage.py:1064; tests/test_legacy_app_diff_coverage.py:1080; tests/test_test_router.py:29; tests/test_legacy_runtime_env_canonicalization.py:10
