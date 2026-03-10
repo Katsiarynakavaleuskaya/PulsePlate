@@ -42,6 +42,7 @@ class TestVIPRegistrationIdempotent:
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/api/v1/vip" in path for path in paths), "VIP routes should be registered"
         assert "/api/v1/insight/fitchef" in paths
+        assert "/api/v1/insight/fitchef/weekly-reflection" in paths
 
     def test_register_vip_routes_keeps_fitchef_registration_idempotent(self, monkeypatch):
         """Repeated registration must not duplicate any VIP routes."""
@@ -59,6 +60,7 @@ class TestVIPRegistrationIdempotent:
 
         assert second_paths == first_paths
         assert second_paths.count("/api/v1/insight/fitchef") == 1
+        assert second_paths.count("/api/v1/insight/fitchef/weekly-reflection") == 1
 
     def test_register_vip_routes_noop_when_disabled(self, monkeypatch):
         """Test that register_vip_routes is a no-op when VIP module disabled."""
@@ -75,6 +77,7 @@ class TestVIPRegistrationIdempotent:
             "/api/v1/vip" in path for path in paths
         ), "VIP routes should not be registered"
         assert "/api/v1/insight/fitchef" not in paths
+        assert "/api/v1/insight/fitchef/weekly-reflection" not in paths
 
 
 class TestVIPShoplistPDFExport:
