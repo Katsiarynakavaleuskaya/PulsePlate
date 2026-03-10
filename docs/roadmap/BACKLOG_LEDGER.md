@@ -24,6 +24,8 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
+
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
 ### P0

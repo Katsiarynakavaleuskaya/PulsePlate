@@ -19,6 +19,8 @@ from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = REPO_ROOT / "artifacts" / "agent_runs"
+EXPERIMENT_RESULTS_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+EXPERIMENT_PROMOTIONS_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "promotions"
 OUT_DIR = REPO_ROOT / "artifacts" / "orchestration"
 OUT_PATH = OUT_DIR / "telemetry_rollup.json"
 
@@ -48,6 +50,18 @@ class RunSignal:
     gate_status: str
     retries: int
     outcome: str
+
+
+@dataclass(frozen=True)
+class ExperimentSignal:
+    """Joined result/promotion signal for one governed experiment."""
+
+    experiment_id: str
+    status: str
+    failure_class: str | None
+    promotion_target: str | None
+    disposition: str | None
+    domain: str | None
 
 
 def _iter_json_files(root: Path) -> Iterable[Path]:
@@ -224,7 +238,7 @@ def _aggregate(signals: list[RunSignal]) -> dict[str, Any]:
         rows.sort(key=lambda r: (r["avg_score"], r["runs"]), reverse=True)
 
     return {
-        "schema_version": "2.0",
+        "schema_version": "2.1",
         "signals_count": len(signals),
         "agents": agent_table,
         "domains": recommendations,
@@ -232,7 +246,101 @@ def _aggregate(signals: list[RunSignal]) -> dict[str, Any]:
     }
 
 
-def build_rollup(runs_dir: Path) -> dict[str, Any]:
+def _load_experiment_signals(
+    results_dir: Path,
+    promotions_dir: Path,
+) -> list[ExperimentSignal]:
+    """Load experiment result and promotion artifacts as joined telemetry rows."""
+
+    results_by_id: dict[str, dict[str, Any]] = {}
+    for path in _iter_json_files(results_dir):
+        payload = _safe_read_json(path)
+        if not payload:
+            continue
+        experiment_id = str(payload.get("experiment_id", "")).strip()
+        status = str(payload.get("status", "")).strip()
+        if not experiment_id or status not in {"accepted", "rejected"}:
+            continue
+        results_by_id[experiment_id] = payload
+
+    promotions_by_id: dict[str, dict[str, Any]] = {}
+    for path in _iter_json_files(promotions_dir):
+        payload = _safe_read_json(path)
+        if not payload:
+            continue
+        experiment_id = str(payload.get("experiment_id", "")).strip()
+        disposition = str(payload.get("disposition", "")).strip()
+        if not experiment_id or disposition not in {"promoted", "deferred"}:
+            continue
+        promotions_by_id[experiment_id] = payload
+
+    signals: list[ExperimentSignal] = []
+    for experiment_id in sorted(set(results_by_id) | set(promotions_by_id)):
+        result = results_by_id.get(experiment_id, {})
+        promotion = promotions_by_id.get(experiment_id, {})
+        signals.append(
+            ExperimentSignal(
+                experiment_id=experiment_id,
+                status=str(result.get("status", "unknown")).strip() or "unknown",
+                failure_class=(
+                    None
+                    if result.get("failure_class") is None
+                    else str(result.get("failure_class", "")).strip() or None
+                ),
+                promotion_target=(str(promotion.get("promotion_target", "")).strip() or None),
+                disposition=str(promotion.get("disposition", "")).strip() or None,
+                domain=str(promotion.get("domain", "")).strip() or None,
+            )
+        )
+    return signals
+
+
+def _aggregate_experiments(signals: list[ExperimentSignal]) -> dict[str, Any]:
+    by_status: dict[str, int] = defaultdict(int)
+    by_failure_class: dict[str, int] = defaultdict(int)
+    by_promotion_target: dict[str, int] = defaultdict(int)
+    by_domain: dict[str, int] = defaultdict(int)
+    rows: dict[str, Any] = {}
+    promoted_count = 0
+    deferred_count = 0
+
+    for signal in signals:
+        by_status[signal.status] += 1
+        if signal.failure_class:
+            by_failure_class[signal.failure_class] += 1
+        if signal.promotion_target:
+            by_promotion_target[signal.promotion_target] += 1
+        if signal.domain:
+            by_domain[signal.domain] += 1
+        if signal.disposition == "promoted":
+            promoted_count += 1
+        if signal.disposition == "deferred":
+            deferred_count += 1
+        rows[signal.experiment_id] = {
+            "status": signal.status,
+            "failure_class": signal.failure_class,
+            "promotion_target": signal.promotion_target,
+            "disposition": signal.disposition,
+            "domain": signal.domain,
+        }
+
+    return {
+        "by_status": dict(sorted(by_status.items())),
+        "by_failure_class": dict(sorted(by_failure_class.items())),
+        "by_promotion_target": dict(sorted(by_promotion_target.items())),
+        "by_domain": dict(sorted(by_domain.items())),
+        "promoted_count": promoted_count,
+        "deferred_count": deferred_count,
+        "rows": dict(sorted(rows.items())),
+    }
+
+
+def build_rollup(
+    runs_dir: Path,
+    *,
+    experiment_results_dir: Path = EXPERIMENT_RESULTS_DIR,
+    experiment_promotions_dir: Path = EXPERIMENT_PROMOTIONS_DIR,
+) -> dict[str, Any]:
     signals: list[RunSignal] = []
     for p in _iter_json_files(runs_dir):
         payload = _safe_read_json(p)
@@ -243,11 +351,27 @@ def build_rollup(runs_dir: Path) -> dict[str, Any]:
             signals.append(sig)
 
     rollup = _aggregate(signals)
+    experiment_signals = _load_experiment_signals(
+        experiment_results_dir,
+        experiment_promotions_dir,
+    )
+    rollup["experiment_signals_count"] = len(experiment_signals)
+    rollup["experiments"] = _aggregate_experiments(experiment_signals)
     try:
         rel = runs_dir.resolve().relative_to(REPO_ROOT)
         rollup["runs_dir"] = rel.as_posix()
     except ValueError:
         rollup["runs_dir"] = str(runs_dir)
+    try:
+        rel_results = experiment_results_dir.resolve().relative_to(REPO_ROOT)
+        rollup["experiment_results_dir"] = rel_results.as_posix()
+    except ValueError:
+        rollup["experiment_results_dir"] = str(experiment_results_dir)
+    try:
+        rel_promotions = experiment_promotions_dir.resolve().relative_to(REPO_ROOT)
+        rollup["experiment_promotions_dir"] = rel_promotions.as_posix()
+    except ValueError:
+        rollup["experiment_promotions_dir"] = str(experiment_promotions_dir)
     return rollup
 
 
@@ -268,6 +392,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(OUT_PATH),
         help="Output JSON path.",
     )
+    ap.add_argument(
+        "--experiment-results-dir",
+        type=str,
+        default=str(EXPERIMENT_RESULTS_DIR),
+        help="Directory containing governed experiment result artifacts.",
+    )
+    ap.add_argument(
+        "--experiment-promotions-dir",
+        type=str,
+        default=str(EXPERIMENT_PROMOTIONS_DIR),
+        help="Directory containing governed experiment promotion decision artifacts.",
+    )
     return ap.parse_args(argv)
 
 
@@ -275,8 +411,14 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     runs_dir = Path(args.runs_dir)
     out_path = Path(args.output)
+    experiment_results_dir = Path(args.experiment_results_dir)
+    experiment_promotions_dir = Path(args.experiment_promotions_dir)
 
-    rollup = build_rollup(runs_dir)
+    rollup = build_rollup(
+        runs_dir,
+        experiment_results_dir=experiment_results_dir,
+        experiment_promotions_dir=experiment_promotions_dir,
+    )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

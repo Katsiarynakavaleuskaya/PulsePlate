@@ -24,6 +24,16 @@ PROMOTION_TARGETS: tuple[str, ...] = (
     "backlog_entry",
     "memory_capsule",
 )
+RESULT_STATUSES: tuple[str, ...] = ("accepted", "rejected")
+FAILURE_CLASSES: tuple[str, ...] = (
+    "timeout",
+    "oom",
+    "metric_regression",
+    "guard_failure",
+    "policy_violation",
+    "unchanged_result",
+    "infra_flake",
+)
 
 DEFAULT_STOP_CONDITION = (
     "Stop on timeout, OOM, metric regression, guard failure, policy violation, or unchanged result."
@@ -307,4 +317,94 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     normalized["metrics"] = metric_payload
     normalized["negative_controls"] = negative_controls
     normalized["promotion_target"] = promotion_target
+    return normalized
+
+
+def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Validate a PR3 experiment result artifact for PR4 promotion/telemetry."""
+
+    if not isinstance(result, dict):
+        raise ValueError("Experiment result must be a JSON object.")
+
+    schema_version = str(result.get("schema_version", "")).strip()
+    if schema_version != SCHEMA_VERSION:
+        raise ValueError(
+            f"Experiment result schema_version must equal {SCHEMA_VERSION!r}, "
+            f"got {schema_version!r}."
+        )
+
+    experiment_id = str(result.get("experiment_id", "")).strip()
+    if not experiment_id:
+        raise ValueError("Experiment result must include a non-empty experiment_id.")
+
+    status = str(result.get("status", "")).strip()
+    if status not in RESULT_STATUSES:
+        allowed_statuses = ", ".join(RESULT_STATUSES)
+        raise ValueError(f"Experiment result status must be one of: {allowed_statuses}")
+
+    failure_class_raw = result.get("failure_class")
+    if failure_class_raw is not None:
+        failure_class = str(failure_class_raw).strip()
+        if failure_class not in FAILURE_CLASSES:
+            allowed_failures = ", ".join(FAILURE_CLASSES)
+            raise ValueError(
+                f"Experiment result failure_class must be null or one of: {allowed_failures}"
+            )
+    else:
+        failure_class = None
+
+    mutated_paths_raw = result.get("mutated_paths")
+    if not isinstance(mutated_paths_raw, list):
+        raise ValueError("Experiment result mutated_paths must be a list.")
+    mutated_paths = repo_relative_paths([str(path) for path in mutated_paths_raw])
+
+    oracle_results_raw = result.get("oracle_results")
+    if not isinstance(oracle_results_raw, list):
+        raise ValueError("Experiment result oracle_results must be a list.")
+    oracle_results: list[dict[str, Any]] = []
+    for oracle_result in oracle_results_raw:
+        if not isinstance(oracle_result, dict):
+            raise ValueError("Each oracle result must be an object.")
+        command = str(oracle_result.get("command", "")).strip()
+        if not command:
+            raise ValueError("Each oracle result must include a non-empty command.")
+        oracle_results.append(
+            {
+                "command": command,
+                "returncode": int(oracle_result.get("returncode", 0) or 0),
+                "timed_out": bool(oracle_result.get("timed_out", False)),
+                "truncated": bool(oracle_result.get("truncated", False)),
+                "stdout": str(oracle_result.get("stdout", "")),
+                "stderr": str(oracle_result.get("stderr", "")),
+                "cwd": str(oracle_result.get("cwd", "")),
+            }
+        )
+
+    budget_observations = result.get("budget_observations")
+    if not isinstance(budget_observations, dict):
+        raise ValueError("Experiment result budget_observations must be an object.")
+
+    shared_tree_untouched = result.get("shared_tree_untouched")
+    if not isinstance(shared_tree_untouched, bool):
+        raise ValueError("Experiment result shared_tree_untouched must be a boolean.")
+
+    promotion_ready = result.get("promotion_ready")
+    if not isinstance(promotion_ready, bool):
+        raise ValueError("Experiment result promotion_ready must be a boolean.")
+
+    candidate_patch = str(result.get("candidate_patch", "")).strip()
+    if not candidate_patch:
+        raise ValueError("Experiment result must include a non-empty candidate_patch.")
+
+    normalized = dict(result)
+    normalized["schema_version"] = schema_version
+    normalized["experiment_id"] = experiment_id
+    normalized["status"] = status
+    normalized["failure_class"] = failure_class
+    normalized["mutated_paths"] = mutated_paths
+    normalized["oracle_results"] = oracle_results
+    normalized["budget_observations"] = dict(budget_observations)
+    normalized["shared_tree_untouched"] = shared_tree_untouched
+    normalized["promotion_ready"] = promotion_ready
+    normalized["candidate_patch"] = candidate_patch
     return normalized
