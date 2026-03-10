@@ -25,6 +25,47 @@ from app.routers.legal import router as legal_router
 
 app: FastAPI = _legacy_app
 
+_WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
+_FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
+_TERMS_ROUTE_PATH: str = "/terms"
+_CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
+
+
+def _has_route(
+    target_app: FastAPI,
+    path: str,
+    method: str | None = None,
+) -> bool:
+    """Check whether a route is already registered on the target app.
+
+    RU: Помогает делать additive bootstrap идемпотентным для reload paths.
+    EN: Keeps additive bootstrap idempotent for reload-path rehydration.
+    """
+    method_name = method.upper() if method else None
+    for route in target_app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method_name is None or method_name in methods:
+            return True
+    return False
+
+
+def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
+    """Fail fast when WS paths are already occupied before canonical registration.
+
+    RU: Отдельный guard сохраняет старый fail-fast контракт для tests/runtime.
+    EN: Separate guard preserves the legacy fail-fast contract for tests/runtime.
+    """
+    current_app = target_app or app
+    existing_paths = {getattr(route, "path", None) for route in current_app.routes}
+    for path in _WS_ROUTE_PATHS:
+        if path in existing_paths:
+            raise RuntimeError(
+                f"Duplicate {path} route detected. "
+                "Check legacy_app.py or other router registration points."
+            )
+
 
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     """Hide legacy users CRUD from the public OpenAPI contract.
@@ -53,37 +94,42 @@ def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     target_app.openapi_schema = None
 
 
-_internalize_users_openapi_surface(app)
-_install_openapi_builder(app)
-register_metrics(app)
-register_pro_contract_routes(app)
+def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
+    """Apply canonical additive bootstrap to the provided FastAPI instance.
+
+    RU: Используется и при первичном импорте `app.main`, и когда `app.app`
+    должен перевести facade на новый `legacy_app.app` без потери additive routes.
+    EN: Used both on initial `app.main` import and when `app.app` must rehydrate
+    a replaced `legacy_app.app` without losing additive routes.
+    """
+    global app
+
+    app = target_app
+    _internalize_users_openapi_surface(app)
+    _install_openapi_builder(app)
+    register_metrics(app)
+    register_pro_contract_routes(app)
+
+    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
+    if not ws_paths_present:
+        app.include_router(realtime_ws.router)
+    elif ws_paths_present != set(_WS_ROUTE_PATHS):
+        _assert_no_duplicate_ws_route(app)
+
+    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
+        app.include_router(feedback_router)
+
+    if not _has_route(app, _TERMS_ROUTE_PATH, "GET"):
+        app.include_router(legal_router)
+
+    register_billing_routes(app)
+
+    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+        app.include_router(cbt_insight_router)
+
+    return app
 
 
-def _assert_no_duplicate_ws_route() -> None:
-    """Fail fast if WS routes are already registered elsewhere."""
-    existing_paths = {getattr(route, "path", None) for route in app.routes}
-    ws_paths = ("/api/v1/pro/ws", "/ws")  # tuple for deterministic order
-    for path in ws_paths:
-        if path in existing_paths:
-            raise RuntimeError(
-                f"Duplicate {path} route detected. "
-                "Check legacy_app.py or other router registration points."
-            )
-
-
-_assert_no_duplicate_ws_route()
-app.include_router(realtime_ws.router)
-
-# Register feedback router (new endpoint, not legacy — belongs here per policy)
-app.include_router(feedback_router)
-
-# Register legal publication router outside legacy compatibility layer.
-app.include_router(legal_router)
-
-# Register billing router (canonical additive runtime payment surface).
-register_billing_routes(app)
-
-# Register CBT insight router (PRO tier, feature-flagged via FEATURE_CBT_AGENT)
-app.include_router(cbt_insight_router)
+ensure_canonical_app_bootstrap(app)
 
 __all__ = ["app"]

@@ -41,7 +41,6 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 
-@lru_cache(maxsize=1)
 def _ensure_canonical_bootstrap() -> None:
     """Run canonical additive bootstrap without changing facade identity.
 
@@ -52,7 +51,19 @@ def _ensure_canonical_bootstrap() -> None:
     `legacy_app.app`; the package must still expose `legacy_app.app` itself to
     preserve identity under tests and reload scenarios.
     """
-    importlib.import_module("app.main")
+    legacy_app_instance = getattr(_legacy(), "app")
+    main_module = sys.modules.get("app.main")
+
+    if main_module is None:
+        main_module = importlib.import_module("app.main")
+
+    main_app_instance = getattr(main_module, "app", None)
+    if main_app_instance is legacy_app_instance:
+        return
+
+    ensure_bootstrap = getattr(main_module, "ensure_canonical_app_bootstrap", None)
+    if callable(ensure_bootstrap):
+        ensure_bootstrap(legacy_app_instance)
 
 
 @lru_cache(maxsize=1)

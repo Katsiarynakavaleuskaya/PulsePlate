@@ -30,8 +30,6 @@ class TestAppImport:
 
     def test_app_package_exposes_canonical_bootstrapped_routes(self) -> None:
         """`import app` must expose additive routes registered in app.main."""
-        from app.main import app as main_app
-
         additive_paths = {
             "/api/v1/billing/apple/verify-receipt",
             "/api/v1/feedback/rag",
@@ -42,6 +40,8 @@ class TestAppImport:
             getattr(route, "path", None) or getattr(route, "path_format", "")
             for route in app.app.routes
         }
+        from app.main import app as main_app
+
         main_paths = {
             getattr(route, "path", None) or getattr(route, "path_format", "")
             for route in main_app.routes
@@ -56,6 +56,31 @@ class TestAppImport:
 
         assert app.app is legacy_app.app
         assert app.app is main_app
+
+    def test_app_package_rehydrates_bootstrap_after_legacy_app_swap(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Facade access must reapply additive bootstrap when legacy_app.app changes."""
+        import app.main as main_module
+
+        original_main_app = main_module.app
+        replacement_app = FastAPI()
+        monkeypatch.setattr(main_module, "app", original_main_app)
+        monkeypatch.setattr(legacy_app, "app", replacement_app)
+
+        package_app = app.app
+        route_paths = {
+            getattr(route, "path", None) or getattr(route, "path_format", "")
+            for route in package_app.routes
+        }
+
+        assert package_app is replacement_app
+        assert main_module.app is replacement_app
+        assert "/api/v1/billing/apple/verify-receipt" in route_paths
+        assert "/api/v1/feedback/rag" in route_paths
+        assert "/api/v1/pro/cbt/insight" in route_paths
+        assert "/ws" in route_paths
 
 
 class TestAppVIPIntegration:
