@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.orchestration.context_pack import REPO_ROOT
+import pytest
+
 from scripts.orchestration.experiment_bootstrap import (
+    EXPERIMENT_PACKET_DIR,
     _resolve_output_path,
     build_experiment_packet,
     main,
@@ -38,6 +40,8 @@ def test_build_experiment_packet_is_deterministic() -> None:
     assert "pulseplate-workflow" in first["recommended_skills"]
     assert "pulseplate-gates" in first["recommended_skills"]
     assert "docs-sync" in first["recommended_skills"]
+    assert first["metrics"]["baseline_reference"] == "current-main"
+    assert first["metrics"]["acceptance_threshold"] == "strict_improvement"
 
 
 def test_build_experiment_packet_adds_cv_agent_for_cv_intent() -> None:
@@ -60,23 +64,15 @@ def test_build_experiment_packet_adds_cv_agent_for_cv_intent() -> None:
 def test_validate_mutable_candidate_surface_rejects_forbidden_path() -> None:
     """Forbidden mutable surfaces should fail closed."""
 
-    try:
+    with pytest.raises(ValueError, match="Invalid paths"):
         validate_mutable_candidate_surface(["docs/orchestration/workflow.md"])
-    except ValueError as exc:
-        assert "Invalid paths" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for forbidden mutable surface")
 
 
 def test_validate_mutable_candidate_surface_rejects_traversal_escape() -> None:
     """Traversal segments must not bypass the mutable-surface allowlist."""
 
-    try:
+    with pytest.raises(ValueError, match="docs/orchestration/workflow.md"):
         validate_mutable_candidate_surface(["core/rag/../../docs/orchestration/workflow.md"])
-    except ValueError as exc:
-        assert "docs/orchestration/workflow.md" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for traversal escape")
 
 
 def test_validate_mutable_candidate_surface_normalizes_safe_relative_paths() -> None:
@@ -87,7 +83,7 @@ def test_validate_mutable_candidate_surface_normalizes_safe_relative_paths() -> 
     assert normalized == ["core/rag/vector_rag.py"]
 
 
-def test_main_rejects_missing_oracles(capsys) -> None:
+def test_main_rejects_missing_oracles(capsys: pytest.CaptureFixture[str]) -> None:
     """CLI should fail cleanly when no immutable oracle command is provided."""
 
     exit_code = main(
@@ -112,11 +108,14 @@ def test_main_rejects_missing_oracles(capsys) -> None:
     assert "FAIL: At least one --oracle-command is required." in captured.out
 
 
-def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
-    """CLI should write relative output and report the repo-relative artifact path."""
+def test_main_writes_relative_output_inside_repo(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI should write output under the experiment artifact directory."""
 
     relative_output = Path("tmp/experiment-packet.json")
-    repo_output = (REPO_ROOT / relative_output).resolve()
+    repo_output = (EXPERIMENT_PACKET_DIR / relative_output).resolve()
     if repo_output.exists():
         repo_output.unlink()
 
@@ -139,7 +138,12 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
             "test_budget": 2,
             "stop_condition": "stop",
         },
-        "metrics": {"primary": "val_bpb", "secondary": []},
+        "metrics": {
+            "primary": "val_bpb",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
         "negative_controls": ["oracle file unchanged", "no forbidden path mutation"],
         "promotion_target": "pr_packet",
         "primary_agent": "agent-coordinator",
@@ -191,19 +195,37 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
         assert exit_code == 0
         written = json.loads(repo_output.read_text(encoding="utf-8"))
         assert written["experiment_id"] == "exp-testpacket"
-        assert json.loads(captured.out)["output"] == relative_output.as_posix()
+        assert (
+            json.loads(captured.out)["output"]
+            == (Path("artifacts/orchestration/experiments") / relative_output).as_posix()
+        )
     finally:
         if repo_output.exists():
             repo_output.unlink()
 
 
-def test_resolve_output_path_rejects_outside_repo(tmp_path) -> None:
-    """Output path must remain inside the repository root."""
+def test_resolve_output_path_rejects_outside_repo(tmp_path: Path) -> None:
+    """Output path must remain inside the experiment artifact directory."""
 
     outside = tmp_path / "experiment-packet.json"
-    try:
+    with pytest.raises(
+        ValueError,
+        match="--output must stay within artifacts/orchestration/experiments",
+    ):
         _resolve_output_path(str(outside), "exp-ignored")
-    except ValueError as exc:
-        assert "--output must stay within the repository root" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for output outside repo")
+
+
+def test_build_experiment_packet_rejects_budget_overrides_above_hard_caps() -> None:
+    """Budget overrides above protocol caps must fail closed."""
+
+    with pytest.raises(ValueError, match="wall_clock_seconds must be <= 600"):
+        build_experiment_packet(
+            decision_question="Benchmark RAG reliability for contradiction reduction",
+            task_class="Experimentation",
+            mutable_paths=["core/rag/vector_rag.py"],
+            oracle_commands=["python scripts/benchmarks/philosophical_runtime_benchmark.py"],
+            metrics=["val_bpb"],
+            negative_controls=["oracle file unchanged", "no forbidden path mutation"],
+            promotion_target="pr_packet",
+            budgets={"wall_clock_seconds": 601},
+        )

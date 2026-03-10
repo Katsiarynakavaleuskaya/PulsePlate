@@ -18,7 +18,12 @@ EXPERIMENT_BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(EXPERIMENT_BOOTSTRAP_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(EXPERIMENT_BOOTSTRAP_REPO_ROOT))
 
-from scripts.orchestration.context_pack import REPO_ROOT, repo_relative_paths, resolve_domain
+from scripts.orchestration.context_pack import (
+    REPO_ROOT,
+    normalize_text,
+    repo_relative_paths,
+    resolve_domain,
+)
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.skill_router import route_skills
@@ -48,6 +53,17 @@ DEFAULT_BUDGETS: dict[str, int] = {
     "benchmark_budget": 1,
     "test_budget": 2,
 }
+MAX_BUDGETS: dict[str, int] = {
+    "wall_clock_seconds": 600,
+    "retry_budget": 2,
+    "max_changed_files": 5,
+    "network_budget": 20,
+    "benchmark_budget": 2,
+    "test_budget": 3,
+}
+
+DEFAULT_METRIC_BASELINE_REF = "current-main"
+DEFAULT_METRIC_ACCEPTANCE_THRESHOLD = "strict_improvement"
 
 ALLOWED_MUTABLE_PREFIXES: tuple[str, ...] = (
     "core/insight/",
@@ -83,15 +99,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-def _normalize_text(*parts: str) -> str:
-    """Normalize free text for deterministic lexical checks."""
-
-    raw = " ".join(part.strip().lower() for part in parts if part.strip())
-    for token in ("/", "_", "-", ".", ":", "(", ")", ","):
-        raw = raw.replace(token, " ")
-    return " ".join(raw.split())
 
 
 def _is_allowed_prompt_or_program_doc(path: str) -> bool:
@@ -155,15 +162,28 @@ def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[di
     return [{"command": command, "expected_signal": "must pass"} for command in cleaned]
 
 
-def validate_metrics(metrics: list[str] | tuple[str, ...]) -> dict[str, Any]:
+def validate_metrics(
+    metrics: list[str] | tuple[str, ...],
+    *,
+    baseline_reference: str = DEFAULT_METRIC_BASELINE_REF,
+    acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+) -> dict[str, Any]:
     """Require a primary metric and preserve stable ordering for secondary metrics."""
 
     cleaned = [metric.strip() for metric in metrics if metric.strip()]
     if not cleaned:
         raise ValueError("At least one --metric is required.")
+    normalized_baseline_reference = baseline_reference.strip()
+    normalized_acceptance_threshold = acceptance_threshold.strip()
+    if not normalized_baseline_reference:
+        raise ValueError("--metric-baseline-ref must be non-empty.")
+    if not normalized_acceptance_threshold:
+        raise ValueError("--metric-acceptance-threshold must be non-empty.")
     return {
         "primary": cleaned[0],
         "secondary": cleaned[1:],
+        "baseline_reference": normalized_baseline_reference,
+        "acceptance_threshold": normalized_acceptance_threshold,
     }
 
 
@@ -186,6 +206,24 @@ def validate_promotion_target(target: str) -> str:
     return normalized
 
 
+def validate_budget_payload(budgets: dict[str, int] | None = None) -> dict[str, int]:
+    """Reject invalid budget overrides and enforce protocol hard caps."""
+
+    budget_payload = dict(DEFAULT_BUDGETS)
+    if budgets:
+        budget_payload.update(budgets)
+
+    for key, cap in MAX_BUDGETS.items():
+        value = budget_payload[key]
+        if value < 0:
+            raise ValueError(f"{key} must be >= 0.")
+        if key != "network_budget" and value == 0:
+            raise ValueError(f"{key} must be > 0.")
+        if value > cap:
+            raise ValueError(f"{key} must be <= {cap}.")
+    return budget_payload
+
+
 def _resolve_experiment_domain(
     *,
     decision_question: str,
@@ -194,7 +232,7 @@ def _resolve_experiment_domain(
 ) -> str:
     """Resolve the dominant experiment domain without mutating shared routing helpers."""
 
-    normalized_text = _normalize_text(decision_question, task_class, *mutable_paths)
+    normalized_text = normalize_text(decision_question, task_class, *mutable_paths)
     if any(hint in normalized_text for hint in CV_TEXT_HINTS):
         return "ml"
     if any(
@@ -213,7 +251,7 @@ def _recommend_advisory_agents(
 ) -> list[str]:
     """Return deterministic advisory agents for the experimentation lane."""
 
-    normalized_text = _normalize_text(decision_question, *mutable_paths)
+    normalized_text = normalize_text(decision_question, *mutable_paths)
     advisory_agents = ["data-scientist-agent"]
     if any(hint in normalized_text for hint in CV_TEXT_HINTS):
         advisory_agents.extend(["cv-agent", "ml-engineer-agent"])
@@ -262,17 +300,21 @@ def build_experiment_packet(
     telemetry_path: Path = TELEMETRY_PATH,
     budgets: dict[str, int] | None = None,
     stop_condition: str = DEFAULT_STOP_CONDITION,
+    metric_baseline_reference: str = DEFAULT_METRIC_BASELINE_REF,
+    metric_acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
 ) -> dict[str, Any]:
     """Build a deterministic experiment packet for PR2 bootstrap tooling."""
 
     validated_paths = validate_mutable_candidate_surface(mutable_paths)
     immutable_oracles = validate_immutable_oracles(oracle_commands)
-    metric_payload = validate_metrics(metrics)
+    metric_payload = validate_metrics(
+        metrics,
+        baseline_reference=metric_baseline_reference,
+        acceptance_threshold=metric_acceptance_threshold,
+    )
     validated_negative_controls = validate_negative_controls(negative_controls)
     validated_promotion_target = validate_promotion_target(promotion_target)
-    budget_payload = dict(DEFAULT_BUDGETS)
-    if budgets:
-        budget_payload.update(budgets)
+    budget_payload = validate_budget_payload(budgets)
 
     domain = _resolve_experiment_domain(
         decision_question=decision_question,
@@ -347,21 +389,21 @@ def build_experiment_packet(
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
-    """Resolve output path relative to repo root and reject out-of-repo writes."""
+    """Resolve output path under the local experiment artifact directory only."""
 
     if not raw_output:
         return (EXPERIMENT_PACKET_DIR / f"{experiment_id}.json").resolve()
 
     candidate = Path(raw_output)
     if not candidate.is_absolute():
-        candidate = (REPO_ROOT / candidate).resolve()
+        candidate = (EXPERIMENT_PACKET_DIR / candidate).resolve()
     else:
         candidate = candidate.resolve()
 
     try:
-        candidate.relative_to(REPO_ROOT)
+        candidate.relative_to(EXPERIMENT_PACKET_DIR.resolve())
     except ValueError as exc:
-        raise ValueError("--output must stay within the repository root") from exc
+        raise ValueError("--output must stay within artifacts/orchestration/experiments") from exc
     return candidate
 
 
@@ -377,6 +419,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--metric", action="append", default=[])
     parser.add_argument("--negative-control", action="append", default=[])
     parser.add_argument("--promotion-target", required=True)
+    parser.add_argument("--metric-baseline-ref", default=DEFAULT_METRIC_BASELINE_REF)
+    parser.add_argument(
+        "--metric-acceptance-threshold",
+        default=DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    )
     parser.add_argument(
         "--wall-clock-seconds", type=int, default=DEFAULT_BUDGETS["wall_clock_seconds"]
     )
@@ -398,7 +445,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default=None,
-        help="Optional JSON output path. Defaults to artifacts/orchestration/experiments/<id>.json",
+        help=(
+            "Optional JSON output path under artifacts/orchestration/experiments/. "
+            "Defaults to artifacts/orchestration/experiments/<id>.json"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -424,6 +474,8 @@ def main(argv: list[str] | None = None) -> int:
                 "test_budget": args.test_budget,
             },
             stop_condition=args.stop_condition,
+            metric_baseline_reference=args.metric_baseline_ref,
+            metric_acceptance_threshold=args.metric_acceptance_threshold,
         )
         out_path = _resolve_output_path(args.output, packet["experiment_id"])
     except ValueError as exc:

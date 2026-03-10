@@ -11,7 +11,7 @@ import os
 import re
 from typing import Any
 
-from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 
 ROUTING_POLICY_VERSION = "2026-03-08"
 SELECTION_MODE = "deterministic-weighted"
@@ -305,22 +305,10 @@ SKILL_RULES: tuple[SkillRule, ...] = (
 )
 
 
-def _normalize_text(goal: str, task_class: str, normalized_paths: list[str]) -> str:
-    """Return one normalized string for lexical matching."""
-
-    raw = " ".join([goal.strip(), task_class.strip(), *normalized_paths]).lower()
-    for token in ("/", "_", "-", ".", ":", "(", ")", ","):
-        raw = raw.replace(token, " ")
-    return " ".join(raw.split())
-
-
 def _normalize_lexeme(value: str) -> str:
     """Normalize keyword phrases with the same rules as task text."""
 
-    normalized = value.strip().lower()
-    for token in ("/", "_", "-", ".", ":", "(", ")", ","):
-        normalized = normalized.replace(token, " ")
-    return " ".join(normalized.split())
+    return normalize_text(value)
 
 
 def _has_prefix(path: str, prefix: str) -> bool:
@@ -406,14 +394,8 @@ def route_skills(
     """Return deterministic skill routing decision with evidence."""
 
     normalized_paths = repo_relative_paths(candidate_paths)
-    normalized_text = _normalize_text(
-        goal=goal, task_class=task_class, normalized_paths=normalized_paths
-    )
-    normalized_request_text = _normalize_text(
-        goal=goal,
-        task_class=task_class,
-        normalized_paths=[],
-    )
+    normalized_text = normalize_text(goal, task_class, *normalized_paths)
+    normalized_request_text = normalize_text(goal, task_class)
 
     blocked = [
         {"label": pattern, "reason": reason}
