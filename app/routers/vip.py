@@ -615,7 +615,7 @@ async def execute_legacy_premium_week_alias_payload(
     )
     if has_targets_only_payload:
         raise HTTPException(
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Targets-based weekly plans are not supported on this endpoint. "
                 "Provide full profile data or use /api/v1/premium/plan/week-flexible."
@@ -763,7 +763,7 @@ async def weekly_menu_plan_alias(
             ]
         ):
             raise HTTPException(
-                status_code=422,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
             )
 
