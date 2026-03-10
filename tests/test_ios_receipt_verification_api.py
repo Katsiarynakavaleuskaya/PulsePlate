@@ -492,6 +492,79 @@ def test_require_billing_transport_key_returns_500_on_non_string_validator_resul
     assert exc_info.value.status_code == 500
 
 
+def test_get_app_get_api_key_imports_and_caches_validator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+
+    def _accept(api_key: str) -> str:
+        return api_key
+
+    billing._APP_MODULE = None
+    monkeypatch.setattr(app_module, "get_api_key", _accept, raising=False)
+
+    assert billing._get_app_get_api_key() is _accept
+    assert billing._APP_MODULE is app_module
+
+
+def test_require_billing_transport_key_returns_normalized_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+
+    def _accept(api_key: str) -> str:
+        return api_key
+
+    billing._APP_MODULE = None
+    monkeypatch.setattr(app_module, "get_api_key", _accept, raising=False)
+
+    assert billing._require_billing_transport_key("  billing-verify-test-key  ") == (
+        "billing-verify-test-key"
+    )
+
+
+def test_require_billing_transport_key_translates_http_exception_to_401(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app as app_module
+    from app.routers import billing
+    from fastapi import HTTPException
+
+    def _reject(_: str) -> str:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+
+    billing._APP_MODULE = None
+    monkeypatch.setattr(app_module, "get_api_key", _reject, raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        billing._require_billing_transport_key("billing-verify-test-key")
+
+    assert exc_info.value.status_code == 401
+
+
+def test_activation_state_detail_maps_manual_status_detail() -> None:
+    from app.routers import billing
+    from app.services import payments_activation
+
+    exc = payments_activation.ActivationStateError(
+        "manual reconciliation status is unavailable for ios_app_store"
+    )
+
+    assert billing._activation_state_detail(exc) == "manual_status_not_supported_for_ios"
+
+
+def test_billing_module_reload_reinitializes_app_module_cache() -> None:
+    import importlib
+    import app.routers.billing as billing_module
+
+    billing_module._APP_MODULE = object()
+    reloaded_module = importlib.reload(billing_module)
+
+    assert reloaded_module._APP_MODULE is None
+
+
 @pytest.mark.asyncio
 async def test_verify_apple_receipt_response_wraps_transport_error(
     monkeypatch: pytest.MonkeyPatch,

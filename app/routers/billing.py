@@ -36,6 +36,7 @@ router = APIRouter(prefix="/api/v1/pro/payments", tags=["pro", "payments"])
 __all__ = ["billing_router", "register_billing_routes", "router"]
 
 logger = logging.getLogger(__name__)
+_APP_MODULE = None
 
 _DETAIL_IDEMPOTENCY_CONFLICT = "existing client_event_id is bound to a different payload"
 _DETAIL_FORBIDDEN = "issuer_access_denied"
@@ -131,9 +132,7 @@ def _require_billing_transport_key(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    import app as app_module
-
-    app_get_api_key = getattr(app_module, "get_api_key", None)
+    app_get_api_key = _get_app_get_api_key()
     if not callable(app_get_api_key):
         logger.error("Billing transport key validation is unavailable")
         raise HTTPException(
@@ -164,6 +163,16 @@ def _require_billing_transport_key(
             detail="API key validation unavailable",
         )
     return result
+
+
+def _get_app_get_api_key():
+    """Resolve the app-level API-key validator via a cached module import."""
+    global _APP_MODULE
+    if _APP_MODULE is None:
+        import app as app_module
+
+        _APP_MODULE = app_module
+    return getattr(_APP_MODULE, "get_api_key", None)
 
 
 def _apple_operational_error_response(
