@@ -246,6 +246,22 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertFalse(hits.isEmpty)
     }
 
+    func test_secretEnvFallbackGuardMatchesAliasedProcessInfoEnvironment() throws {
+        let snippet = """
+        let env = ProcessInfo.processInfo.environment
+        if let key = env["PRO_API_KEY"], !key.isEmpty {
+            return key
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
     func test_secretEnvFallbackGuardDoesNotMatchNonSecretEnvLookups() throws {
         let snippet = """
         let baseURL = ProcessInfo.processInfo.environment["API_BASE_URL"]
@@ -478,25 +494,15 @@ private func secretStorageGuardHits(
     return hits
 }
 
-private func secretEnvFallbackRegexes() throws -> [(String, NSRegularExpression)] {
-    [
-        (
-            "processinfo-secret-env",
-            try NSRegularExpression(
-                pattern: #"ProcessInfo\.processInfo\.environment\s*\[\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\]"#,
-                options: [.caseInsensitive]
-            )
-        ),
-    ]
-}
-
 private func secretEnvFallbackHits(
     in content: String,
     sourceLabel: String,
     forbiddenRegex: [(String, NSRegularExpression)]? = nil
 ) throws -> [String] {
     let scanContent = stripSwiftComments(from: content)
-    let regexes = try forbiddenRegex ?? secretEnvFallbackRegexes()
+    let regexes = try forbiddenRegex ?? secretEnvFallbackRegexes(
+        environmentAliases: extractProcessInfoEnvironmentAliases(from: scanContent)
+    )
     let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
     var hits: [String] = []
 
@@ -511,6 +517,48 @@ private func secretEnvFallbackHits(
     }
 
     return hits
+}
+
+private func extractProcessInfoEnvironmentAliases(from content: String) -> Set<String> {
+    let patterns = [
+        #"\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
+        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\[[^\]]+\]\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
+    ]
+    var aliases: Set<String> = []
+    let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
+
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            continue
+        }
+        for match in regex.matches(in: content, options: [], range: searchRange) {
+            guard
+                match.numberOfRanges > 1,
+                let aliasRange = Range(match.range(at: 1), in: content)
+            else {
+                continue
+            }
+            aliases.insert(String(content[aliasRange]))
+        }
+    }
+
+    return aliases
+}
+
+private func secretEnvFallbackRegexes(
+    environmentAliases: Set<String> = []
+) throws -> [(String, NSRegularExpression)] {
+    let aliasAlternation = environmentAliasAlternation(environmentAliases)
+
+    return [
+        (
+            "processinfo-secret-env",
+            try NSRegularExpression(
+                pattern: #"\b(?:ProcessInfo\.processInfo\.environment"# + aliasAlternation + #")\s*\[\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\]"#,
+                options: [.caseInsensitive]
+            )
+        ),
+    ]
 }
 
 private func extractUserDefaultsAliases(from content: String) -> Set<String> {
@@ -538,6 +586,19 @@ private func extractUserDefaultsAliases(from content: String) -> Set<String> {
     }
 
     return aliases
+}
+
+private func environmentAliasAlternation(_ aliases: Set<String>) -> String {
+    guard !aliases.isEmpty else {
+        return ""
+    }
+
+    let escapedAliases = aliases
+        .sorted()
+        .map(NSRegularExpression.escapedPattern(for:))
+        .joined(separator: "|")
+
+    return "|(?:\(escapedAliases))"
 }
 
 private func userDefaultsAliasAlternation(_ aliases: Set<String>) -> String {

@@ -252,7 +252,7 @@ Response:
 
 ### Development/Testing
 
-**Environment Detection**:
+**Base URL Detection (Non-secret)**:
 
 ```swift
 struct APIConfig {
@@ -528,7 +528,7 @@ Response:
    → API returns 401 Unauthorized. App should prompt user to renew subscription
 
 4. **How do I test PRO/VIP features without paying?**
-   → Use test API keys in development mode
+   → Pass test/dev keys through explicit injected `apiKeyProvider` seams in previews, UI tests, or dedicated debug harnesses; iOS runtime no longer reads hidden env/config fallbacks for premium API secrets
 
 5. **What's the rate limit?**
    → FREE: 100 req/hour, PRO: 1000 req/hour, VIP: 5000 req/hour (subject to change)

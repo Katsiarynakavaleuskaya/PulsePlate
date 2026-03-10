@@ -3941,7 +3941,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> follow-up `feat/p1-ios-keychain-conformance-pr`
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
   - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
   - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR completes the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
   - Links:

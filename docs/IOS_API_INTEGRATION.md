@@ -99,7 +99,7 @@ If you need new key types (e.g., VIP), add providers deliberately and track secu
 
 Keep future work out of the canonical networking guide; track it as discrete backlog items:
 
-- Keychain-backed key storage for PRO/VIP
+- Onboarding/UX around existing Keychain-backed PRO flows
 - Additional Keychain-backed providers for future secret types (for example VIP)
 - Receipt validation / IAP orchestration
 - Deep-link allowlist and onboarding gates

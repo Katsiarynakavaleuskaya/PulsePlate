@@ -59,7 +59,7 @@
 "plate_issue_title_decoding" = "Unexpected response";
 "plate_issue_title_unknown" = "Something went wrong";
 
-"plate_issue_message_missing_pro_key_debug" = "Configure PRO API key (PRO_API_KEY) in the Xcode scheme environment.";
+"plate_issue_message_missing_pro_key_debug" = "Load a PRO key through the app's secure settings or an explicit injected test provider. Xcode environment variables are not used for runtime PRO access.";
 "plate_issue_message_missing_pro_key" = "PRO is not available on this device.";
 "plate_issue_message_missing_profile" = "Open Profile and enter sex, age, height, and weight.";
 "plate_issue_message_unauthorized" = "Your PRO key is missing or invalid.";
