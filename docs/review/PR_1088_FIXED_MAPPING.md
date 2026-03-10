@@ -13,3 +13,33 @@ Evidence: `69744238` makes `validate_experiment_packet()` fail closed on incompa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914207490 -> 69744238
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914214557 -> 69744238
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914214559 -> 69744238
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `9b1da1c9` makes experiment packets valid by construction by enforcing the oracle binary allowlist in `scripts/orchestration/experiment_contract.py:122`, requiring an explicit primary metric in `scripts/orchestration/experiment_contract.py:152`, preserving unknown budget keys for fail-closed validation in `scripts/orchestration/experiment_contract.py:263`, tracking `rename from` / `copy from` sources during patch parsing in `scripts/orchestration/experiment_runner.py:125`, and tightening deterministic runner regressions for forbidden renames, absolute `git` resolution, non-allowlisted oracle binaries, unknown budget keys, and timeout simulation in `tests/test_experiment_runner.py:17`, `tests/test_experiment_runner.py:121`, `tests/test_experiment_runner.py:150`, `tests/test_experiment_runner.py:253`, and `tests/test_experiment_runner.py:330`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245125 -> 9b1da1c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245134 -> 9b1da1c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245141 -> 9b1da1c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245147 -> 9b1da1c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245161 -> 9b1da1c9
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `1814f699` updates the experimentation epic and PR3 runner ledger traceability in `docs/roadmap/BACKLOG_LEDGER.md:5243`, replaces stale placeholders with the in-flight PR reference `#1088` in `docs/roadmap/BACKLOG_LEDGER.md:5281`, and swaps stale philosophical-runtime links for the actual runner/bootstrap evidence surfaces in `docs/roadmap/BACKLOG_LEDGER.md:5290` and `docs/roadmap/BACKLOG_LEDGER.md:5356`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245106 -> 1814f699
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245117 -> 1814f699
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `1d05dd87` adds the required same-PR scoped agent-instructions update in `scripts/AGENTS.md:12`, documenting the governed experimentation runner entrypoints, repo-root execution requirement, isolated temp-checkout rule, SoT pointer for mutable/oracle constraints, and local-only result-artifact contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245099 -> 1d05dd87
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `145d6ce0` closes the post-comment sandbox follow-up by clarifying the deterministic `infra_flake` error path in `scripts/orchestration/experiment_runner.py:352` and extending the regression assertion in `tests/test_experiment_runner.py:372` so sandbox exceptions are emitted as rejected result artifacts instead of uncaught CLI failures. This was the final actionable item from CodeRabbit review `3925189381`; the PR body mirror was also updated with the required `Deferred / Follow-ups` section linking the PR4 ledger item.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245155 -> 145d6ce0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925189381 -> 145d6ce0
