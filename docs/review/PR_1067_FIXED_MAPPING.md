@@ -60,6 +60,11 @@ Disposition: FIXED
 Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:263; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:539; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:573; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:607
 Reason: the env-fallback architectural guard now catches access-controlled aliases without explicit type annotations and matches `self.env[...]` secret lookups via the repo-wide scan path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910329581 -> b2535fee
+Disposition: FIXED
+Evidence: docs/MOBILE_API_MIGRATION_GUIDE.md:292; docs/MOBILE_API_MIGRATION_GUIDE.md:468
+Reason: the production Keychain sample now uses `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, matching the checklist requirement and the intended runtime accessibility policy.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920196887
 Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727064; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727068; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727078; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727082
