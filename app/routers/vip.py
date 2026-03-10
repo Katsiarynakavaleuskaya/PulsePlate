@@ -600,6 +600,35 @@ async def _execute_weekly_menu_plan_payload(
     return request_obj, echo_payload, result.menu
 
 
+async def execute_legacy_premium_week_alias_payload(
+    payload: Mapping[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    """Run the canonical VIP weekly-plan path for the legacy premium alias.
+
+    RU: Выполнить canonical VIP weekly-plan path для legacy premium alias.
+    EN: Execute the canonical VIP weekly-plan path for the legacy premium alias.
+    """
+    has_targets_only_payload = payload.get("targets") is not None and not any(
+        payload.get(key) is not None for key in ("sex", "age", "height_cm", "weight_kg", "activity")
+    )
+    if has_targets_only_payload:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Targets-based weekly plans are not supported on this endpoint. "
+                "Provide full profile data or use /api/v1/premium/plan/week-flexible."
+            ),
+        )
+
+    _, _, menu_payload = await _execute_weekly_menu_plan_payload(
+        dict(payload),
+        menu_builder=menu_builder,
+    )
+    return menu_payload
+
+
 def _require_api_key_dev_legacy(request: Request) -> str:
     """Dev-friendly variant: allow anonymous in dev/test/local by default for legacy path.
 
