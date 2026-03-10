@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any, Callable, Literal, cast
 
 from fastapi import HTTPException, status
@@ -16,6 +17,7 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.schemas.fitchef import (
     FitChefCoachInsightResult,
     FitChefCoachInsightTaskEnvelope,
+    FitChefExecutionMode,
     FitChefMascotInsightResult,
     FitChefMascotInsightTaskEnvelope,
     FitChefQuotaState,
@@ -41,6 +43,7 @@ from app.security.server_salt import require_server_salt
 from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
 from core.insight.fitchef_companion import (
+    FitChefCoachingDraft,
     build_mascot_prompt,
     build_slip_support_prompt,
     build_weekly_reflection_prompt,
@@ -227,6 +230,205 @@ def _persist_privileged_action_audit(
         secret=signing_secret,
     )
     persist_audit_envelope(envelope, metadata=audit_metadata)
+
+
+@dataclass(frozen=True)
+class _FitChefVipTextTaskConfig:
+    """Shared config for VIP FitChef text flows."""
+
+    retrieval_text: str
+    api_key: str
+    endpoint: str
+    method: str
+    mode: FitChefExecutionMode
+    prompt_builder: Callable[[str], str]
+    draft_builder: Callable[[str], FitChefCoachingDraft]
+    unavailable_detail: str
+    log_label: str
+
+
+@dataclass(frozen=True)
+class _FitChefVipTextTaskOutput:
+    """Shared result for VIP FitChef text flows."""
+
+    prepared: FitChefCoachingDraft
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    quota_state: FitChefQuotaState
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+async def _run_fitchef_vip_text_task(
+    config: _FitChefVipTextTaskConfig,
+) -> _FitChefVipTextTaskOutput:
+    """Run the shared VIP FitChef text orchestration flow."""
+
+    rag_context_str = ""
+    sources: list[FitChefSourceItem] = []
+    confidence = 0.0
+    warnings: list[str] = []
+    quota_state: FitChefQuotaState = "not_consumed"
+    redaction_applied = False
+    sanitization_applied = False
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="rag.retrieve",
+            target="corpus://fitchef-agent",
+            mode=config.mode,
+            endpoint=config.endpoint,
+            metadata={
+                "method": config.method,
+                "query_hash": _sha256_hex(config.retrieval_text),
+                "query_length": len(config.retrieval_text),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("%s RAG gate failed", config.log_label, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="rag_retrieval_unavailable",
+        ) from exc
+
+    try:
+        from core.rag.vector_rag import retrieve_context_structured
+
+        rag_ctx = await run_in_threadpool(
+            retrieve_context_structured,
+            config.retrieval_text,
+            max_chunks=5,
+            agent_id="fitchef-agent",
+            user_tier="VIP",
+            subject_id=derive_subject_id_from_api_key(config.api_key),
+        )
+
+        if rag_ctx.chunks:
+            context_parts: list[str] = []
+            for chunk in rag_ctx.chunks:
+                sanitized_chunk = sanitize_rag_markdown(chunk.content)
+                if sanitized_chunk != chunk.content:
+                    sanitization_applied = True
+                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
+                if sanitized_content != sanitized_chunk:
+                    redaction_applied = True
+                if not sanitized_content.strip():
+                    continue
+                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
+                sources.append(
+                    FitChefSourceItem(
+                        chunk_id=chunk.chunk_id,
+                        file=chunk.file,
+                        preview=sanitize_chunk_preview(sanitized_content) or "",
+                        score=chunk.score,
+                    )
+                )
+            if context_parts:
+                rag_context_str = "\n\n".join(context_parts)
+                confidence = rag_ctx.confidence
+    except Exception:
+        logger.warning("%s RAG retrieval failed", config.log_label, exc_info=True)
+        warnings.append("rag_retrieval_failed")
+
+    if sanitization_applied:
+        warnings.append("source_content_sanitized")
+    if redaction_applied:
+        warnings.append("source_content_redacted")
+
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        )
+    notice_surface_id = transparency_notice.get("surface_id")
+    notice_boundary = transparency_notice.get("boundary")
+    if notice_surface_id is None or notice_boundary is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_incomplete",
+        )
+
+    prompt = config.prompt_builder(rag_context_str)
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="llm.generate",
+            target="provider://default",
+            mode=config.mode,
+            endpoint=config.endpoint,
+            metadata={
+                "method": config.method,
+                "prompt_hash": _sha256_hex(prompt),
+                "prompt_length": len(prompt),
+                "source_count": len(sources),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("%s LLM gate failed", config.log_label, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_generation_unavailable",
+        ) from exc
+
+    try:
+        from llm import get_provider
+
+        provider = get_provider()
+
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            config.api_key,
+            tier="VIP",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="quota_exceeded",
+            )
+        raw_message = await asyncio.wait_for(
+            run_in_threadpool(provider.generate, prompt),
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+        if not isinstance(raw_message, str) or not raw_message.strip():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM provider returned empty response",
+            )
+        prepared = config.draft_builder(raw_message)
+        quota_state = "consumed"
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider not available",
+        ) from None
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="LLM provider call timed out",
+        ) from None
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("%s generation failed", config.log_label, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=config.unavailable_detail,
+        ) from exc
+
+    result = _FitChefVipTextTaskOutput(
+        prepared=prepared,
+        sources=sources,
+        confidence=min(max(confidence, 0.0), 1.0),
+        warnings=[*warnings, *prepared.warnings],
+        quota_state=quota_state,
+        transparency_notice_id=str(notice_surface_id),
+        wellness_boundary=str(notice_boundary),
+    )
+    return result
 
 
 async def run_coach_insight_task(
@@ -440,174 +642,30 @@ async def run_mascot_insight_task(
     """Run FitChef mascot insight orchestration. / Выполнить mascot-insight оркестрацию."""
 
     safe_query = task.input.safe_query
-    api_key = task.input.api_key
-    endpoint = task.input.endpoint
-    method = task.input.method
-
-    rag_context_str = ""
-    sources: list[FitChefSourceItem] = []
-    confidence = 0.0
-    warnings: list[str] = []
-    quota_state: FitChefQuotaState = "not_consumed"
-    redaction_applied = False
-    sanitization_applied = False
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="rag.retrieve",
-            target="corpus://fitchef-agent",
+    shared_result = await _run_fitchef_vip_text_task(
+        _FitChefVipTextTaskConfig(
+            retrieval_text=safe_query,
+            api_key=task.input.api_key,
+            endpoint=task.input.endpoint,
+            method=task.input.method,
             mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "query_hash": _sha256_hex(safe_query),
-                "query_length": len(safe_query),
-            },
+            prompt_builder=lambda rag_context: build_mascot_prompt(safe_query, rag_context),
+            draft_builder=lambda raw_message: prepare_mascot_draft(raw_message, query=safe_query),
+            unavailable_detail="fitchef_mascot_unavailable",
+            log_label="FitChef mascot",
         )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef mascot RAG gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="rag_retrieval_unavailable",
-        ) from exc
-
-    try:
-        from core.rag.vector_rag import retrieve_context_structured
-
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            safe_query,
-            max_chunks=5,
-            agent_id="fitchef-agent",
-            user_tier="VIP",
-            subject_id=derive_subject_id_from_api_key(api_key),
-        )
-
-        if rag_ctx.chunks:
-            context_parts: list[str] = []
-            for chunk in rag_ctx.chunks:
-                sanitized_chunk = sanitize_rag_markdown(chunk.content)
-                if sanitized_chunk != chunk.content:
-                    sanitization_applied = True
-                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
-                if sanitized_content != sanitized_chunk:
-                    redaction_applied = True
-                if not sanitized_content.strip():
-                    continue
-                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
-                sources.append(
-                    FitChefSourceItem(
-                        chunk_id=chunk.chunk_id,
-                        file=chunk.file,
-                        preview=sanitize_chunk_preview(sanitized_content) or "",
-                        score=chunk.score,
-                    )
-                )
-            if context_parts:
-                rag_context_str = "\n\n".join(context_parts)
-                confidence = rag_ctx.confidence
-    except Exception:
-        logger.warning("FitChef mascot RAG retrieval failed", exc_info=True)
-        warnings.append("rag_retrieval_failed")
-
-    if sanitization_applied:
-        warnings.append("source_content_sanitized")
-    if redaction_applied:
-        warnings.append("source_content_redacted")
-
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    notice_surface_id = transparency_notice.get("surface_id")
-    notice_boundary = transparency_notice.get("boundary")
-    if notice_surface_id is None or notice_boundary is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_incomplete",
-        )
-
-    prompt = build_mascot_prompt(safe_query, rag_context_str)
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="llm.generate",
-            target="provider://default",
-            mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "prompt_hash": _sha256_hex(prompt),
-                "prompt_length": len(prompt),
-                "source_count": len(sources),
-            },
-        )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef mascot LLM gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="llm_generation_unavailable",
-        ) from exc
-
-    try:
-        from llm import get_provider
-
-        provider = get_provider()
-
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            api_key,
-            tier="VIP",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="quota_exceeded",
-            )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-        if not isinstance(raw_message, str) or not raw_message.strip():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider returned empty response",
-            )
-        prepared = prepare_mascot_draft(raw_message, query=safe_query)
-        quota_state = "consumed"
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider not available",
-        ) from None
-    except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM provider call timed out",
-        ) from None
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("FitChef mascot generation failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="fitchef_mascot_unavailable",
-        ) from exc
+    )
 
     result: FitChefMascotInsightResult = FitChefMascotInsightResult(
-        message=prepared.message,
-        sources=sources,
-        confidence=min(max(confidence, 0.0), 1.0),
-        warnings=[*warnings, *prepared.warnings],
-        action_items=prepared.action_items,
+        message=shared_result.prepared.message,
+        sources=shared_result.sources,
+        confidence=shared_result.confidence,
+        warnings=shared_result.warnings,
+        action_items=shared_result.prepared.action_items,
         mode=task.mode,
-        quota_state=quota_state,
-        transparency_notice_id=str(notice_surface_id),
-        wellness_boundary=str(notice_boundary),
+        quota_state=shared_result.quota_state,
+        transparency_notice_id=shared_result.transparency_notice_id,
+        wellness_boundary=shared_result.wellness_boundary,
     )
     return result
 
@@ -619,179 +677,39 @@ async def run_weekly_reflection_task(
 
     safe_summary = task.input.safe_summary
     safe_goal = task.input.safe_goal
-    api_key = task.input.api_key
-    endpoint = task.input.endpoint
-    method = task.input.method
-
     retrieval_text = _build_fitchef_reflection_query(safe_summary, safe_goal)
-    rag_context_str = ""
-    sources: list[FitChefSourceItem] = []
-    confidence = 0.0
-    warnings: list[str] = []
-    quota_state: FitChefQuotaState = "not_consumed"
-    redaction_applied = False
-    sanitization_applied = False
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="rag.retrieve",
-            target="corpus://fitchef-agent",
+    shared_result = await _run_fitchef_vip_text_task(
+        _FitChefVipTextTaskConfig(
+            retrieval_text=retrieval_text,
+            api_key=task.input.api_key,
+            endpoint=task.input.endpoint,
+            method=task.input.method,
             mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "query_hash": _sha256_hex(retrieval_text),
-                "query_length": len(retrieval_text),
-            },
+            prompt_builder=lambda rag_context: build_weekly_reflection_prompt(
+                safe_summary,
+                safe_goal,
+                rag_context,
+            ),
+            draft_builder=lambda raw_message: prepare_weekly_reflection_draft(
+                raw_message,
+                summary=safe_summary,
+                goal=safe_goal,
+            ),
+            unavailable_detail="fitchef_weekly_reflection_unavailable",
+            log_label="FitChef weekly reflection",
         )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef weekly reflection RAG gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="rag_retrieval_unavailable",
-        ) from exc
-
-    try:
-        from core.rag.vector_rag import retrieve_context_structured
-
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            retrieval_text,
-            max_chunks=5,
-            agent_id="fitchef-agent",
-            user_tier="VIP",
-            subject_id=derive_subject_id_from_api_key(api_key),
-        )
-
-        if rag_ctx.chunks:
-            context_parts: list[str] = []
-            for chunk in rag_ctx.chunks:
-                sanitized_chunk = sanitize_rag_markdown(chunk.content)
-                if sanitized_chunk != chunk.content:
-                    sanitization_applied = True
-                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
-                if sanitized_content != sanitized_chunk:
-                    redaction_applied = True
-                if not sanitized_content.strip():
-                    continue
-                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
-                sources.append(
-                    FitChefSourceItem(
-                        chunk_id=chunk.chunk_id,
-                        file=chunk.file,
-                        preview=sanitize_chunk_preview(sanitized_content) or "",
-                        score=chunk.score,
-                    )
-                )
-            if context_parts:
-                rag_context_str = "\n\n".join(context_parts)
-                confidence = rag_ctx.confidence
-    except Exception:
-        logger.warning("FitChef weekly reflection RAG retrieval failed", exc_info=True)
-        warnings.append("rag_retrieval_failed")
-
-    if sanitization_applied:
-        warnings.append("source_content_sanitized")
-    if redaction_applied:
-        warnings.append("source_content_redacted")
-
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    notice_surface_id = transparency_notice.get("surface_id")
-    notice_boundary = transparency_notice.get("boundary")
-    if notice_surface_id is None or notice_boundary is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_incomplete",
-        )
-
-    prompt = build_weekly_reflection_prompt(safe_summary, safe_goal, rag_context_str)
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="llm.generate",
-            target="provider://default",
-            mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "prompt_hash": _sha256_hex(prompt),
-                "prompt_length": len(prompt),
-                "source_count": len(sources),
-            },
-        )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef weekly reflection LLM gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="llm_generation_unavailable",
-        ) from exc
-
-    try:
-        from llm import get_provider
-
-        provider = get_provider()
-
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            api_key,
-            tier="VIP",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="quota_exceeded",
-            )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-        if not isinstance(raw_message, str) or not raw_message.strip():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider returned empty response",
-            )
-        prepared = prepare_weekly_reflection_draft(
-            raw_message,
-            summary=safe_summary,
-            goal=safe_goal,
-        )
-        quota_state = "consumed"
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider not available",
-        ) from None
-    except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM provider call timed out",
-        ) from None
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("FitChef weekly reflection generation failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="fitchef_weekly_reflection_unavailable",
-        ) from exc
+    )
 
     result: FitChefWeeklyReflectionResult = FitChefWeeklyReflectionResult(
-        message=prepared.message,
-        sources=sources,
-        confidence=min(max(confidence, 0.0), 1.0),
-        warnings=[*warnings, *prepared.warnings],
-        action_items=prepared.action_items,
+        message=shared_result.prepared.message,
+        sources=shared_result.sources,
+        confidence=shared_result.confidence,
+        warnings=shared_result.warnings,
+        action_items=shared_result.prepared.action_items,
         mode=task.mode,
-        quota_state=quota_state,
-        transparency_notice_id=str(notice_surface_id),
-        wellness_boundary=str(notice_boundary),
+        quota_state=shared_result.quota_state,
+        transparency_notice_id=shared_result.transparency_notice_id,
+        wellness_boundary=shared_result.wellness_boundary,
     )
     return result
 
@@ -803,179 +721,39 @@ async def run_slip_support_task(
 
     safe_event_text = task.input.safe_event_text
     safe_goal = task.input.safe_goal
-    api_key = task.input.api_key
-    endpoint = task.input.endpoint
-    method = task.input.method
-
     retrieval_text = _build_fitchef_slip_support_query(safe_event_text, safe_goal)
-    rag_context_str = ""
-    sources: list[FitChefSourceItem] = []
-    confidence = 0.0
-    warnings: list[str] = []
-    quota_state: FitChefQuotaState = "not_consumed"
-    redaction_applied = False
-    sanitization_applied = False
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="rag.retrieve",
-            target="corpus://fitchef-agent",
+    shared_result = await _run_fitchef_vip_text_task(
+        _FitChefVipTextTaskConfig(
+            retrieval_text=retrieval_text,
+            api_key=task.input.api_key,
+            endpoint=task.input.endpoint,
+            method=task.input.method,
             mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "query_hash": _sha256_hex(retrieval_text),
-                "query_length": len(retrieval_text),
-            },
+            prompt_builder=lambda rag_context: build_slip_support_prompt(
+                safe_event_text,
+                safe_goal,
+                rag_context,
+            ),
+            draft_builder=lambda raw_message: prepare_slip_support_draft(
+                raw_message,
+                event_text=safe_event_text,
+                goal=safe_goal,
+            ),
+            unavailable_detail="fitchef_slip_support_unavailable",
+            log_label="FitChef slip-support",
         )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef slip-support RAG gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="rag_retrieval_unavailable",
-        ) from exc
-
-    try:
-        from core.rag.vector_rag import retrieve_context_structured
-
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            retrieval_text,
-            max_chunks=5,
-            agent_id="fitchef-agent",
-            user_tier="VIP",
-            subject_id=derive_subject_id_from_api_key(api_key),
-        )
-
-        if rag_ctx.chunks:
-            context_parts: list[str] = []
-            for chunk in rag_ctx.chunks:
-                sanitized_chunk = sanitize_rag_markdown(chunk.content)
-                if sanitized_chunk != chunk.content:
-                    sanitization_applied = True
-                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
-                if sanitized_content != sanitized_chunk:
-                    redaction_applied = True
-                if not sanitized_content.strip():
-                    continue
-                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
-                sources.append(
-                    FitChefSourceItem(
-                        chunk_id=chunk.chunk_id,
-                        file=chunk.file,
-                        preview=sanitize_chunk_preview(sanitized_content) or "",
-                        score=chunk.score,
-                    )
-                )
-            if context_parts:
-                rag_context_str = "\n\n".join(context_parts)
-                confidence = rag_ctx.confidence
-    except Exception:
-        logger.warning("FitChef slip-support RAG retrieval failed", exc_info=True)
-        warnings.append("rag_retrieval_failed")
-
-    if sanitization_applied:
-        warnings.append("source_content_sanitized")
-    if redaction_applied:
-        warnings.append("source_content_redacted")
-
-    transparency_notice = get_transparency_registry().get("ai_generated_insight")
-    if transparency_notice is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_unavailable",
-        )
-    notice_surface_id = transparency_notice.get("surface_id")
-    notice_boundary = transparency_notice.get("boundary")
-    if notice_surface_id is None or notice_boundary is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="transparency_registry_incomplete",
-        )
-
-    prompt = build_slip_support_prompt(safe_event_text, safe_goal, rag_context_str)
-
-    try:
-        await run_in_threadpool(
-            _persist_privileged_action_audit,
-            action="llm.generate",
-            target="provider://default",
-            mode=task.mode,
-            endpoint=endpoint,
-            metadata={
-                "method": method,
-                "prompt_hash": _sha256_hex(prompt),
-                "prompt_length": len(prompt),
-                "source_count": len(sources),
-            },
-        )
-    except (PermissionError, RuntimeError) as exc:
-        logger.error("FitChef slip-support LLM gate failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="llm_generation_unavailable",
-        ) from exc
-
-    try:
-        from llm import get_provider
-
-        provider = get_provider()
-
-        allowed = await run_in_threadpool(
-            attempt_consume_llm_monthly_quota,
-            api_key,
-            tier="VIP",
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="quota_exceeded",
-            )
-        raw_message = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-        if not isinstance(raw_message, str) or not raw_message.strip():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider returned empty response",
-            )
-        prepared = prepare_slip_support_draft(
-            raw_message,
-            event_text=safe_event_text,
-            goal=safe_goal,
-        )
-        quota_state = "consumed"
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider not available",
-        ) from None
-    except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM provider call timed out",
-        ) from None
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("FitChef slip-support generation failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="fitchef_slip_support_unavailable",
-        ) from exc
+    )
 
     result: FitChefSlipSupportResult = FitChefSlipSupportResult(
-        message=prepared.message,
-        sources=sources,
-        confidence=min(max(confidence, 0.0), 1.0),
-        warnings=[*warnings, *prepared.warnings],
-        action_items=prepared.action_items,
+        message=shared_result.prepared.message,
+        sources=shared_result.sources,
+        confidence=shared_result.confidence,
+        warnings=shared_result.warnings,
+        action_items=shared_result.prepared.action_items,
         mode=task.mode,
-        quota_state=quota_state,
-        transparency_notice_id=str(notice_surface_id),
-        wellness_boundary=str(notice_boundary),
+        quota_state=shared_result.quota_state,
+        transparency_notice_id=shared_result.transparency_notice_id,
+        wellness_boundary=shared_result.wellness_boundary,
     )
     return result
 
