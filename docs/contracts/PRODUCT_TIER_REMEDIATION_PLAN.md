@@ -17,8 +17,8 @@ This document outlines the remediation plan to fix architectural confusion betwe
 ## Priority 1: Documentation (✅ Done in PR-A)
 
 * [x] Зафиксировать в `AGENTS.md`: PRO и VIP — реальные уровни, premium — deprecated namespace
-* [ ] Обновить `API_CANONICAL_MAP.md` с этой таблицей
-* [ ] Добавить deprecation warnings в OpenAPI schema для `/premium/*`
+* [x] Обновить `API_CANONICAL_MAP.md` с этой таблицей
+* [x] Добавить deprecation warnings в OpenAPI schema для `/premium/*`
 
 ---
 
@@ -26,9 +26,9 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 ### PR-B: Schema Hygiene
 
-* [ ] Set `include_in_schema=False` on all `/premium/*` endpoints
-* [ ] Verify: `make openapi` → zero `/premium/*` paths in schema
-* [ ] Runtime: endpoints still work (backward compatible)
+* [ ] Keep `/premium/*` public-schema exposure limited to explicitly sanctioned compatibility paths only
+* [x] Verify: `make openapi` hides `/api/v1/premium/plan/week` and `/api/v1/premium/plan/week-flexible`
+* [x] Runtime: endpoints still work (backward compatible)
 
 ### PR-C: VIP Alignment
 
@@ -43,9 +43,12 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 ### PR-D: PRO Canon Exposure
 
-* [ ] Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
-* [ ] Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
-* [ ] Ensure `/api/v1/pro/meal/weekly` exists and is in schema
+* [x] Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
+* [x] Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
+* [x] Ensure `/api/v1/pro/meal/weekly` exists and is in schema
+
+**Status:** ✅ Canonical PRO weekly/targets/daily routes are present in `frontend/src/api/openapi.json`
+and are the current generated-contract basis for thin clients.
 
 ### Future: Code Cleanup
 
