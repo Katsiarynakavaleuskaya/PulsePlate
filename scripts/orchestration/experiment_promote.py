@@ -12,19 +12,27 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
-EXPERIMENT_PROMOTE_REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(EXPERIMENT_PROMOTE_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(EXPERIMENT_PROMOTE_REPO_ROOT))
+try:
+    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+    from scripts.orchestration.experiment_contract import (
+        SCHEMA_VERSION,
+        validate_experiment_packet,
+        validate_experiment_result,
+    )
+except ImportError:  # pragma: no cover - CLI fallback for direct script execution.
+    import sys
 
-from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
-from scripts.orchestration.experiment_contract import (
-    SCHEMA_VERSION,
-    validate_experiment_packet,
-    validate_experiment_result,
-)
+    experiment_promote_repo_root = Path(__file__).resolve().parents[2]
+    if str(experiment_promote_repo_root) not in sys.path:
+        sys.path.insert(0, str(experiment_promote_repo_root))
+    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+    from scripts.orchestration.experiment_contract import (
+        SCHEMA_VERSION,
+        validate_experiment_packet,
+        validate_experiment_result,
+    )
 
 PROMOTION_ARTIFACT_DIR = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "promotions"
