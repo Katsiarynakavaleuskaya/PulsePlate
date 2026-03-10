@@ -49,7 +49,7 @@ Disposition: FIXED
 Evidence: app/services/payments_activation.py:146; app/services/payments_activation.py:1299; tests/test_payment_reconciliation_api.py:358; tests/test_payment_reconciliation_api.py:381; tests/test_subscription_activation_api.py:605; tests/test_pro_vip_route_dependency_guard.py:83
 Reason: manual reconciliation now trusts persisted DB state instead of stale shadow-cache state, negative amounts fail closed, and the allowlist guard message uses the dependency name when available.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1095#discussion_r2915056416 -> TO_BE_REPLACED_ARTIFACT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1095#discussion_r2915056416 -> 1d56aad9
 Disposition: FIXED
 Evidence: docs/review/PR_1095_FIXED_MAPPING.md:5; docs/review/PR_1095_FIXED_MAPPING.md:6
 Reason: the discussion-pass checklist is now checked only after recording explicit dispositions.
