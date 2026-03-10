@@ -24,6 +24,7 @@ def test_worker_requires_explicit_target_base_and_trusted_origins() -> None:
     assert "TARGET_BASE must be explicitly configured" in source
     assert "REPLACE_ME.trycloudflare.com" not in source
     assert "WORKER_ALLOWED_ORIGINS" in source
+    assert "cachedAllowedOriginsRaw" in source
     assert "Trusted browser origin is required" in source
 
 
@@ -32,13 +33,16 @@ def test_worker_bounds_path_method_and_forwarded_headers() -> None:
 
     assert 'url.pathname.startsWith("/api/")' in source
     assert 'new Set(["GET", "POST", "OPTIONS"])' in source
+    assert 'new Set(["GET", "HEAD"])' in source
     assert "new Headers(request.headers)" not in source
 
     for header_name in [
         "accept",
         "authorization",
+        "cf-connecting-ip",
         "content-type",
         "cookie",
+        "x-forwarded-for",
         "x-api-key",
     ]:
         assert f'"{header_name}"' in source

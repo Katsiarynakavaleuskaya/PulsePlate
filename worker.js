@@ -1,9 +1,12 @@
 const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS"]);
+const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
 const ALLOWED_FORWARD_HEADERS = [
   "accept",
   "authorization",
+  "cf-connecting-ip",
   "content-type",
   "cookie",
+  "x-forwarded-for",
   "x-api-key",
 ];
 const ALLOWED_PREFLIGHT_HEADERS = "Content-Type, Authorization, X-API-Key";
@@ -12,6 +15,8 @@ const PLACEHOLDER_TARGET_SNIPPETS = [
   "trycloudflare.com",
   "example.com",
 ];
+let cachedAllowedOriginsRaw = null;
+let cachedAllowedOrigins = new Set();
 
 function jsonError(message, status) {
   return new Response(JSON.stringify({ error: message, status }), {
@@ -40,13 +45,19 @@ function normalizeTargetBase(env) {
   }
 }
 
-function parseAllowedOrigins(env) {
-  return new Set(
-    (env.WORKER_ALLOWED_ORIGINS || "")
+function parseAllowedOrigins(rawOrigins) {
+  if (rawOrigins === cachedAllowedOriginsRaw) {
+    return cachedAllowedOrigins;
+  }
+
+  cachedAllowedOriginsRaw = rawOrigins;
+  cachedAllowedOrigins = new Set(
+    rawOrigins
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean)
   );
+  return cachedAllowedOrigins;
 }
 
 function corsHeaders(origin) {
@@ -66,7 +77,7 @@ function trustedOriginOrNull(request, env) {
     return null;
   }
 
-  const allowedOrigins = parseAllowedOrigins(env);
+  const allowedOrigins = parseAllowedOrigins(env.WORKER_ALLOWED_ORIGINS || "");
   if (allowedOrigins.size === 0) {
     return false;
   }
@@ -123,10 +134,9 @@ export default {
     const init = {
       method: request.method,
       headers: buildForwardHeaders(request),
-      body:
-        request.method === "GET"
-          ? undefined
-          : await request.arrayBuffer(),
+      body: BODYLESS_METHODS.has(request.method)
+        ? undefined
+        : await request.arrayBuffer(),
       redirect: "manual",
     };
 

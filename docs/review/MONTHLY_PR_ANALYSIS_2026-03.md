@@ -44,7 +44,7 @@
 | `#1041` | Sandbox stream budget | Prevented unbounded streamed output | output-budget enforcement in sandbox lane |
 | `#1044` | RAG input sanitizer | Closed prompt-injection/vector ingestion risk | sanitization before RAG indexing/retrieval |
 | `#1046` | EU compliance control plane | Established a compliance/runtime baseline | privacy, transparency, minimization, DSAR support map; follow-through remains open in backlog |
-| `#995`, `#1003`, `#1030`, `#1063` | Session/auth transport | Closed the browser-storage auth transport gap on web | HttpOnly session-cookie path plus web/session alignment, smoke/logout cleanup, and fail-closed legacy storage handling |
+| `#995`, `#1003`, `#1030` | Session/auth transport | Moved browser auth toward safer transport | HttpOnly session-cookie path plus web/session alignment and legacy cleanup |
 | `#978` | GDPR log retention cleanup | Retention/compliance hygiene | safer log-retention handling |
 
 **Pattern:** most security work followed the same posture: fail-closed defaults, explicit evidence artifacts, tighter surface visibility, and runtime hardening before growth work.
@@ -149,7 +149,7 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 ### 3.1 Now Bucket
 
-1. Session/auth transport hardening follow-through after `#995`, `#1003`, `#1030`.
+1. Worker proxy hardening and edge fail-closed follow-through.
 2. Insight reliability: deterministic fallback chain plus VIP/echo visibility.
 3. Payments runtime W1 for `ios_app_store`, `erip_qr`, and `swift_manual`.
 4. Access-control parity: iOS Keychain conformance and diet-flags sync.

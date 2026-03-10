@@ -681,11 +681,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Lock down Cloudflare worker proxy before any public deployment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-WORKER-PROXY-HARDENING (`feat/p1-worker-proxy-hardening-pr`)
+  - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
   - Status: 🟡 In progress (supported runtime is being bounded to first-party `/api/*` proxy use only)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
-  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, and no wildcard CORS.
+  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, preserved client-IP headers for backend rate limiting, and no wildcard CORS.
   - Links:
     - `worker.js`
     - `docs/security/SECURITY_POSTURE.md`
@@ -694,7 +694,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Worker path scope is allowlisted to `/api/*`
     - Wildcard CORS and header pass-through are removed or bounded to trusted origins
-    - Authorization forwarding policy is documented and tested
+    - Authorization and client-IP forwarding policy is documented and tested
     - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
 
 
