@@ -1908,7 +1908,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: FitChef weekly reflection endpoint
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-WEEKLY-REFLECTION
+  - Target PR: #1071
   - Status: Open
   - Area: AI runtime / coaching / product
   - Finding Type: execution
