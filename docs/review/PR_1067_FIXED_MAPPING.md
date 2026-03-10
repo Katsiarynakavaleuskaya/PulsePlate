@@ -17,8 +17,8 @@ Reason: the migration guide now uses the canonical `APIClient` / `DefaultWeeklyP
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727068 -> 0909148a
 Disposition: FIXED
-Evidence: docs/roadmap/BACKLOG_LEDGER.md:3891; docs/roadmap/BACKLOG_LEDGER.md:3944; docs/roadmap/BACKLOG_LEDGER.md:3946
-Reason: the ledger now keeps the historical PR-667 DoD neutral (`runtime storage`) and uses future-tense wording for PR #1067 so the item stays truthful while still in progress.
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3944; docs/roadmap/BACKLOG_LEDGER.md:3946
+Reason: the ledger now uses future-tense wording for PR #1067 so the item stays truthful while still in progress.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2909727078 -> 768bed2b
 Disposition: FIXED
@@ -29,6 +29,21 @@ Reason: the roadmap now states that PRO runtime already reads from Keychain and 
 Disposition: FIXED
 Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:193; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:247; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:494; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:520; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:546; ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:589
 Reason: the repo-wide guard scan now lets `secretEnvFallbackHits(...)` build alias-aware regexes per file, so aliased `ProcessInfo.processInfo.environment` lookups are caught in the same path used against app sources.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158437 -> 3daf8aa2
+Disposition: FIXED
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3891
+Reason: the completed PR-667 ledger item now keeps the historical DoD phrasing neutral by referring to the app's secure key provider instead of implying PR #1067's stronger Keychain-only runtime invariant was already merged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158468 -> 0909148a
+Disposition: FIXED
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3944; docs/roadmap/BACKLOG_LEDGER.md:3946
+Reason: the iOS Keychain conformance item keeps `PR #1067` in `In progress` state and now uses future-tense wording for the remaining runtime requirement.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#discussion_r2910158474 -> 0909148a
+Disposition: FIXED
+Evidence: ios/PulsePlate/en.lproj/Localizable.strings:62; ios/PulsePlate/ru.lproj/Localizable.strings:76; ios/PulsePlate/es.lproj/Localizable.strings:76
+Reason: the debug remediation copy now points to the real UI path (`PRO Settings -> Debug Tools -> Keychain`) and uses grammatically correct injected-provider wording.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1067#pullrequestreview-3920196887
 Disposition: NOT-A-BUG
