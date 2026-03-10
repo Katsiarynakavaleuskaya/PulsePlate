@@ -403,6 +403,7 @@ def test_evaluate_candidate_maps_sandbox_exception_to_infra_flake(
 
     assert result["status"] == "rejected"
     assert result["failure_class"] == "infra_flake"
+    assert "Unable to execute oracle" in result["budget_observations"]["runner_error"]
     assert "sandbox exploded" in result["budget_observations"]["runner_error"]
     assert result["shared_tree_untouched"] is True
 

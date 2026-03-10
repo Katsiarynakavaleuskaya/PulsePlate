@@ -356,7 +356,7 @@ def _run_oracles(
                 )
             except Exception as exc:
                 raise InfraFlakeError(
-                    f"Sandbox oracle execution failed for {oracle['command']}: {exc}"
+                    f"Unable to execute oracle {oracle['command']!r}: {exc}"
                 ) from exc
 
         oracle_results.append(
