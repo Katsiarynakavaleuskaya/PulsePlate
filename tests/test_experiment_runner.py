@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -14,8 +15,11 @@ import scripts.orchestration.experiment_runner as experiment_runner
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    git_binary = shutil.which("git")
+    if not git_binary:
+        raise AssertionError("git binary is required for experiment runner tests.")
     return subprocess.run(
-        ["git", *args],
+        [git_binary, *args],
         cwd=str(repo),
         capture_output=True,
         text=True,
@@ -114,6 +118,51 @@ def test_validate_packet_rejects_wrong_schema_version() -> None:
         experiment_contract.validate_experiment_packet(packet)
 
 
+def test_validate_packet_rejects_non_allowlisted_oracle_binary() -> None:
+    """Packet validation should reject oracles that the runner would reject later."""
+
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='bash -lc "exit 0"',
+    )
+
+    with pytest.raises(ValueError, match="not allowlisted"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
+def test_validate_packet_rejects_empty_primary_metric() -> None:
+    """The primary metric must be explicit and non-empty."""
+
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["metrics"] = {
+        **packet["metrics"],
+        "primary": "",
+        "secondary": ["latency_p95_ms"],
+    }
+
+    with pytest.raises(ValueError, match="primary --metric"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
+def test_validate_packet_rejects_unknown_budget_keys() -> None:
+    """Unsupported budget keys must fail closed during packet validation."""
+
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["budgets"] = {
+        **packet["budgets"],
+        "gpu_budget": 1,
+    }
+
+    with pytest.raises(ValueError, match="Unsupported budget keys: gpu_budget"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
 def test_evaluate_candidate_accepts_allowlisted_patch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -201,6 +250,35 @@ def test_evaluate_candidate_rejects_traversal_patch_path(
     assert result["failure_class"] == "policy_violation"
 
 
+def test_evaluate_candidate_rejects_rename_from_forbidden_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rename sources must count toward mutable-surface validation."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = tmp_path / "rename-forbidden.patch"
+    patch_path.write_text(
+        "diff --git a/docs/orchestration/workflow.md b/core/rag/allowed.py\n"
+        "similarity index 100%\n"
+        "rename from docs/orchestration/workflow.md\n"
+        "rename to core/rag/allowed.py\n",
+        encoding="utf-8",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+        )
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+
+
 def test_evaluate_candidate_returns_unchanged_result_for_empty_patch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -270,6 +348,19 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
         "wall_clock_seconds": 1,
     }
     validated_packet = _validate_packet(packet)
+    monkeypatch.setattr(
+        experiment_runner.sandbox,
+        "run_local_sandbox",
+        lambda *_args, **_kwargs: SandboxResult(
+            argv=("python3", "-c", "import time; time.sleep(2)"),
+            returncode=124,
+            stdout="",
+            stderr="command timed out",
+            timed_out=True,
+            truncated=False,
+            cwd=".",
+        ),
+    )
 
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
 

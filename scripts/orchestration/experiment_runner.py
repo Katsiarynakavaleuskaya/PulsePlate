@@ -33,23 +33,13 @@ from app.security.execution_sandbox import SandboxRequest
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
+    ORACLE_BINARY_ALLOWLIST,
     SCHEMA_VERSION,
     validate_experiment_packet,
 )
 
 RESULT_SCHEMA_VERSION = SCHEMA_VERSION
 RESULT_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
-ORACLE_BINARY_ALLOWLIST: tuple[str, ...] = (
-    "coverage",
-    "diff-cover",
-    "git",
-    "make",
-    "mypy",
-    "pytest",
-    "python",
-    "python3",
-    "ruff",
-)
 OOM_MARKERS: tuple[str, ...] = (
     "out of memory",
     "oom",
@@ -154,6 +144,12 @@ def _extract_mutated_paths(patch_text: str) -> list[str]:
             target = _normalize_patch_target(raw_line.split(" ", 2)[2])
             if target:
                 mutated_paths.add(target)
+            continue
+        if raw_line.startswith(("rename from ", "copy from ")):
+            saw_diff_marker = True
+            source = _normalize_patch_target(raw_line.split(" ", 2)[2])
+            if source:
+                mutated_paths.add(source)
             continue
         if raw_line.startswith("+++ "):
             saw_diff_marker = True

@@ -7,6 +7,7 @@ EN: Shared constants and fail-closed validation helpers for experiment packets.
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 from typing import Any
 
 from scripts.orchestration.context_pack import REPO_ROOT, repo_relative_paths
@@ -53,6 +54,17 @@ ALLOWED_MUTABLE_PREFIXES: tuple[str, ...] = (
 )
 ALLOWED_DOC_SUFFIXES: tuple[str, ...] = ("program.md",)
 ALLOWED_DOC_SEGMENTS: tuple[str, ...] = ("/prompts/", "/programs/")
+ORACLE_BINARY_ALLOWLIST: tuple[str, ...] = (
+    "coverage",
+    "diff-cover",
+    "git",
+    "make",
+    "mypy",
+    "pytest",
+    "python",
+    "python3",
+    "ruff",
+)
 
 
 def _is_allowed_prompt_or_program_doc(path: str) -> bool:
@@ -110,10 +122,31 @@ def validate_mutable_candidate_surface(paths: list[str] | tuple[str, ...]) -> li
 def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[dict[str, str]]:
     """Validate oracle commands and normalize them into the packet shape."""
 
-    cleaned = [command.strip() for command in commands if command.strip()]
-    if not cleaned:
+    cleaned_commands = [command.strip() for command in commands if command.strip()]
+    if not cleaned_commands:
         raise ValueError("At least one --oracle-command is required.")
-    return [{"command": command, "expected_signal": "must pass"} for command in cleaned]
+
+    normalized_oracles: list[dict[str, str]] = []
+    allowed_binaries = ", ".join(ORACLE_BINARY_ALLOWLIST)
+    for command in cleaned_commands:
+        try:
+            argv = shlex.split(command)
+        except ValueError as exc:
+            raise ValueError(f"Unable to parse oracle command: {command}") from exc
+        if not argv:
+            raise ValueError("Oracle command must not be empty.")
+        if argv[0] not in ORACLE_BINARY_ALLOWLIST:
+            raise ValueError(
+                f"Oracle binary {argv[0]!r} is not allowlisted. "
+                f"Allowed: {allowed_binaries}"
+            )
+        normalized_oracles.append(
+            {
+                "command": command,
+                "expected_signal": "must pass",
+            }
+        )
+    return normalized_oracles
 
 
 def validate_metrics(
@@ -124,9 +157,9 @@ def validate_metrics(
 ) -> dict[str, Any]:
     """Require a primary metric and preserve stable ordering for secondary metrics."""
 
+    if not metrics or not str(metrics[0]).strip():
+        raise ValueError("A primary --metric is required.")
     cleaned = [metric.strip() for metric in metrics if metric.strip()]
-    if not cleaned:
-        raise ValueError("At least one --metric is required.")
     normalized_baseline_reference = baseline_reference.strip()
     normalized_acceptance_threshold = acceptance_threshold.strip()
     if not normalized_baseline_reference:
@@ -231,8 +264,13 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(budgets_raw, dict):
         raise ValueError("Experiment packet budgets must be an object.")
     stop_condition = str(budgets_raw.get("stop_condition", DEFAULT_STOP_CONDITION)).strip()
+    normalized_budget_overrides = {
+        key: int(value)
+        for key, value in budgets_raw.items()
+        if key != "stop_condition"
+    }
     validated_budgets = validate_budget_payload(
-        {key: int(budgets_raw[key]) for key in DEFAULT_BUDGETS if key in budgets_raw}
+        normalized_budget_overrides
     )
 
     metrics_raw = packet.get("metrics")
