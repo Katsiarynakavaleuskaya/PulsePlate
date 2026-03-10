@@ -221,6 +221,10 @@ def validate_budget_payload(budgets: dict[str, int] | None = None) -> dict[str, 
 
     budget_payload = dict(DEFAULT_BUDGETS)
     if budgets:
+        unknown_keys = sorted(set(budgets) - set(DEFAULT_BUDGETS))
+        if unknown_keys:
+            joined = ", ".join(unknown_keys)
+            raise ValueError(f"Unsupported budget keys: {joined}.")
         budget_payload.update(budgets)
 
     for key, cap in MAX_BUDGETS.items():
@@ -279,6 +283,8 @@ def compute_experiment_id(
     metrics: dict[str, Any],
     negative_controls: list[str],
     promotion_target: str,
+    budgets: dict[str, int],
+    stop_condition: str,
 ) -> str:
     """Return deterministic short experiment id."""
 
@@ -291,6 +297,8 @@ def compute_experiment_id(
             "metrics": metrics,
             "negative_controls": negative_controls,
             "promotion_target": promotion_target,
+            "budgets": budgets,
+            "stop_condition": stop_condition.strip() or DEFAULT_STOP_CONDITION,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -352,6 +360,8 @@ def build_experiment_packet(
         metrics=metric_payload,
         negative_controls=validated_negative_controls,
         promotion_target=validated_promotion_target,
+        budgets=budget_payload,
+        stop_condition=stop_condition,
     )
 
     recommended_agents = [PRIMARY_AGENT, routing_decision.primary]

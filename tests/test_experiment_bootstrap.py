@@ -11,6 +11,7 @@ import scripts.orchestration.experiment_bootstrap as experiment_bootstrap
 from scripts.orchestration.experiment_bootstrap import (
     _resolve_output_path,
     build_experiment_packet,
+    compute_experiment_id,
     main,
     validate_mutable_candidate_surface,
 )
@@ -245,6 +246,86 @@ def test_build_experiment_packet_rejects_budget_overrides_above_hard_caps() -> N
             promotion_target="pr_packet",
             budgets={"wall_clock_seconds": 601},
         )
+
+
+def test_build_experiment_packet_rejects_unsupported_budget_keys() -> None:
+    """Unknown budget override keys must fail closed before packet generation."""
+
+    with pytest.raises(ValueError, match="Unsupported budget keys: gpu_budget"):
+        build_experiment_packet(
+            decision_question="Benchmark RAG reliability for contradiction reduction",
+            task_class="Experimentation",
+            mutable_paths=["core/rag/vector_rag.py"],
+            oracle_commands=["python scripts/benchmarks/philosophical_runtime_benchmark.py"],
+            metrics=["val_bpb"],
+            negative_controls=["oracle file unchanged", "no forbidden path mutation"],
+            promotion_target="pr_packet",
+            budgets={"gpu_budget": 1},
+        )
+
+
+def test_compute_experiment_id_changes_with_budgets_and_stop_condition() -> None:
+    """Execution constraints must participate in deterministic experiment ids."""
+
+    base_kwargs = {
+        "decision_question": "Benchmark RAG reliability for contradiction reduction",
+        "task_class": "Experimentation",
+        "mutable_paths": ["core/rag/vector_rag.py"],
+        "immutable_oracles": [
+            {
+                "command": "python scripts/benchmarks/philosophical_runtime_benchmark.py",
+                "expected_signal": "must pass",
+            }
+        ],
+        "metrics": {
+            "primary": "val_bpb",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+        "negative_controls": ["oracle file unchanged", "no forbidden path mutation"],
+        "promotion_target": "pr_packet",
+    }
+
+    default_id = compute_experiment_id(
+        budgets={
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 3,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 2,
+        },
+        stop_condition="Stop on timeout.",
+        **base_kwargs,
+    )
+    budget_variant_id = compute_experiment_id(
+        budgets={
+            "wall_clock_seconds": 301,
+            "retry_budget": 1,
+            "max_changed_files": 3,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 2,
+        },
+        stop_condition="Stop on timeout.",
+        **base_kwargs,
+    )
+    stop_variant_id = compute_experiment_id(
+        budgets={
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 3,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 2,
+        },
+        stop_condition="Stop on unchanged result.",
+        **base_kwargs,
+    )
+
+    assert default_id != budget_variant_id
+    assert default_id != stop_variant_id
 
 
 def test_main_fails_cleanly_on_output_write_error(
