@@ -108,7 +108,9 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
         "task_class": "Experimentation",
         "domain": "ml",
         "mutable_candidate_surface": ["core/rag/vector_rag.py"],
-        "immutable_oracles": [{"command": "pytest -q tests/test_rag.py", "expected_signal": "must pass"}],
+        "immutable_oracles": [
+            {"command": "pytest -q tests/test_rag.py", "expected_signal": "must pass"}
+        ],
         "budgets": {
             "wall_clock_seconds": 300,
             "retry_budget": 1,

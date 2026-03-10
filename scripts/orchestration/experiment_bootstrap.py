@@ -181,9 +181,7 @@ def _resolve_experiment_domain(
     if any(hint in normalized_text for hint in CV_TEXT_HINTS):
         return "ml"
     if any(
-        path.startswith(prefix)
-        for path in mutable_paths
-        for prefix in ALLOWED_MUTABLE_PREFIXES
+        path.startswith(prefix) for path in mutable_paths for prefix in ALLOWED_MUTABLE_PREFIXES
     ):
         return "ml"
     if any(hint in normalized_text for hint in ML_TEXT_HINTS):
@@ -362,7 +360,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--metric", action="append", default=[])
     parser.add_argument("--negative-control", action="append", default=[])
     parser.add_argument("--promotion-target", required=True)
-    parser.add_argument("--wall-clock-seconds", type=int, default=DEFAULT_BUDGETS["wall_clock_seconds"])
+    parser.add_argument(
+        "--wall-clock-seconds", type=int, default=DEFAULT_BUDGETS["wall_clock_seconds"]
+    )
     parser.add_argument("--retry-budget", type=int, default=DEFAULT_BUDGETS["retry_budget"])
     parser.add_argument(
         "--max-changed-files",
