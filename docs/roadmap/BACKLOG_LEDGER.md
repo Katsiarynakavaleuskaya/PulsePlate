@@ -5270,7 +5270,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
     - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
-    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_contract.py`
   - DoD:
     - Local experiment packet bootstrap tooling exists with deterministic JSON output
     - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
