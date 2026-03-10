@@ -1952,7 +1952,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: FitChef slip-support endpoint
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-SLIP-SUPPORT
+  - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
   - Status: Open
   - Area: AI runtime / coaching / product
   - Finding Type: execution
