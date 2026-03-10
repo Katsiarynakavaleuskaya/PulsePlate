@@ -152,6 +152,8 @@ dmypy.json
 
 # IDE
 .vscode/
+!.vscode/
+!.vscode/extensions.json
 .idea/
 .claude/
 *.swp
