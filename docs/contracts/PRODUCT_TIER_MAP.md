@@ -136,6 +136,7 @@
 | Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `legacy_app.py:2443` (`FEATURE_INSIGHT`, VIP guard) |
 | FitChef mascot insight | `/api/v1/insight/fitchef`       | ⚠️ flag     | VIP          | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
+| FitChef slip support | `/api/v1/insight/fitchef/slip-support` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:364`          |
 | Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:299`          |
 | Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:402`          |

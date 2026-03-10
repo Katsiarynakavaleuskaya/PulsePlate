@@ -19,6 +19,7 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*(.+?)\s*$")
 _DEFAULT_ACTION_KEYWORDS = ("try", "start", "choose", "add")
 _WEEKLY_REFLECTION_ACTION_KEYWORDS = ("keep", "plan", "notice", *_DEFAULT_ACTION_KEYWORDS)
+_SLIP_SUPPORT_ACTION_KEYWORDS = ("pause", "restart", "return", "plan", *_DEFAULT_ACTION_KEYWORDS)
 
 
 @dataclass(frozen=True)
@@ -144,6 +145,66 @@ def prepare_weekly_reflection_draft(
     )
 
 
+def build_slip_support_prompt(event_text: str, goal: str | None, rag_context: str) -> str:
+    """Build the FitChef slip-support prompt."""
+
+    goal_line = f"Current goal: {goal}" if goal else "Current goal: not provided"
+    system_prompt = """You are FitChef, a friendly mascot-style wellness coach for PulsePlate.
+
+Goals:
+- Help the user recover from a slip with calm, non-judgmental wellness coaching.
+- Turn the moment into 2-3 concrete next steps.
+- Keep the tone steady, practical, and recovery-oriented.
+
+Hard boundaries:
+- Do not diagnose, treat, or cure conditions.
+- Do not present yourself as a therapist or clinician.
+- Do not shame, blame, or moralize about food or setbacks.
+- Do not promise guaranteed outcomes.
+"""
+
+    if rag_context:
+        return f"""{system_prompt}
+
+Relevant context:
+{rag_context}
+
+Slip event:
+{event_text}
+
+{goal_line}
+
+Return a concise recovery-oriented response with 2-3 short bullet next steps."""
+
+    return f"""{system_prompt}
+
+Slip event:
+{event_text}
+
+{goal_line}
+
+Return a concise recovery-oriented response with 2-3 short bullet next steps."""
+
+
+def prepare_slip_support_draft(
+    raw_text: str,
+    *,
+    event_text: str,
+    goal: str | None,
+) -> FitChefCoachingDraft:
+    """Normalize slip-support output and rewrite blocker language deterministically."""
+
+    return _prepare_fitchef_draft(
+        raw_text=raw_text,
+        fallback_builder=lambda warnings: _slip_support_fallback_draft(
+            event_text=event_text,
+            goal=goal,
+            warnings=warnings,
+        ),
+        action_keywords=_SLIP_SUPPORT_ACTION_KEYWORDS,
+    )
+
+
 def _prepare_fitchef_draft(
     *,
     raw_text: str,
@@ -209,6 +270,25 @@ def _weekly_reflection_fallback_draft(
     )
 
 
+def _slip_support_fallback_draft(
+    *,
+    event_text: str,
+    goal: str | None,
+    warnings: list[str],
+) -> FitChefCoachingDraft:
+    """Return a deterministic safe fallback for slip-support."""
+
+    safe_message = (
+        "FitChef is here to help you reset with a calm, wellness-only next step. "
+        "A slip is a moment, not a verdict, so let's pause, restart, and pick one small recovery move."
+    )
+    return FitChefCoachingDraft(
+        message=safe_message,
+        action_items=_slip_support_action_items(event_text, goal),
+        warnings=warnings,
+    )
+
+
 def _default_action_items(query: str) -> list[str]:
     """Return deterministic fallback actions."""
 
@@ -246,6 +326,29 @@ def _weekly_reflection_action_items(summary: str, goal: str | None) -> list[str]
         "Keep one meal habit that already worked this week.",
         "Choose one friction point to simplify before next week starts.",
         "Plan one small reset you can do at the next meal, not next Monday.",
+    ]
+
+
+def _slip_support_action_items(event_text: str, goal: str | None) -> list[str]:
+    """Return deterministic fallback actions for slip-support."""
+
+    lowered_event = event_text.lower()
+    if "night" in lowered_event or "late" in lowered_event:
+        return [
+            "Pause before the next late-night snack and add water or tea first.",
+            "Restart with one balanced meal at the next eating moment, not tomorrow.",
+            "Plan one evening cue that helps you stop the spiral earlier.",
+        ]
+    if goal:
+        return [
+            f"Return to one next step that still supports your goal: {goal}.",
+            "Pause the blame language and restart with the next meal or snack.",
+            "Plan one friction-reducing recovery step before the next trigger window.",
+        ]
+    return [
+        "Pause for one calm breath before choosing the next meal or snack.",
+        "Restart with one balanced next step instead of trying to fix the whole day.",
+        "Plan one small recovery action for the next trigger moment you expect.",
     ]
 
 
