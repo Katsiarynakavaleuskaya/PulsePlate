@@ -3886,7 +3886,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (OpenAPI reconciliation / frontend thin-client parity)
   - Target PR: PR #1068 (`docs(openapi): reconcile weekly-plan contract truth`), PR #1069 (`refactor(vip): thin premium weekly alias`), PR #1070 (`refactor(frontend): normalize weekly plan consumers`), PR #1075 (`fix(frontend): gate weekly plan initial load`)
   - Ledger closure PR: PR #1077 (`docs(ledger): record weekly-plan wave hotfix`)
-  - Status: ✅ Merged (runtime wave and post-merge hotfix); closure synchronized in PR #1077
+  - Related follow-up PR: PR #1079 (`fix(ci): bound trivy image scan`)
+  - Status: ✅ Merged (runtime wave and post-merge hotfix); closure synchronized in PR #1077 with Trivy workflow split traced through PR #1079
   - Merge SHAs:
     - PR #1068: `888dc69a`
     - PR #1069: `68fe8d57`
@@ -3904,6 +3905,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [PR #1070](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070)
     - [PR #1075](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075)
     - [PR #1077](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077)
+    - [PR #1079](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1079)
     - `app/schemas/weekly_plan.py`
     - `app/routers/pro.py`
     - `app/routers/premium_week.py`
