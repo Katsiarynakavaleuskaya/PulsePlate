@@ -175,6 +175,33 @@ Disposition: FIXED
 Commit: 022b88b3
 Evidence: tests/test_fitchef_insight_api.py:66
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#pullrequestreview-3920154039 -> 461ab018
+Disposition: FIXED
+Commit: 461ab018
+Evidence: app/services/fitchef_runtime.py:529
+Evidence: app/routers/vip_registration.py:48
+Evidence: tests/test_fitchef_insight_api.py:243
+Evidence: tests/vip/test_vip_diff_coverage.py:46
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2909687236 -> 461ab018
+Disposition: FIXED
+Commit: 461ab018
+Evidence: app/services/fitchef_runtime.py:529
+Evidence: tests/test_fitchef_insight_api.py:560
+Evidence: tests/test_fitchef_insight_api.py:592
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2909687247
+Disposition: NOT-A-BUG
+Evidence: app/middleware/api_tiers.py:372
+Evidence: app/middleware/api_tiers.py:400
+Reason: The canonical VIP auth contract returns 403 for invalid, empty, and missing VIP credentials, so this endpoint should document 403 rather than add a new 401 branch in this PR.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2909687250 -> 461ab018
+Disposition: FIXED
+Commit: 461ab018
+Evidence: app/routers/vip_registration.py:48
+Evidence: tests/vip/test_vip_diff_coverage.py:46
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
