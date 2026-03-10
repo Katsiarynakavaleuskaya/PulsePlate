@@ -1894,88 +1894,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Security review confirms each mascot endpoint keeps policy/quota/audit gates ahead of execution
   - Blockers: None (deferred by scope, not blocked)
 
-<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
-- [ ] P2: FitChef mascot insight endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-MASCOT-INSIGHT
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/contracts/API_CANONICAL_MAP.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
-    - Request/response schemas are typed and documented in OpenAPI
-    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
-    - `/api/v1/insight` remains unchanged
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
-
-<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
-- [ ] P2: FitChef weekly reflection endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR `#1071`
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
-    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
-    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
-    - No persistence, exports, or client-owned orchestration is added
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
-
-<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
-- [ ] P2: FitChef slip-support endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
-    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
-    - Non-judgmental recovery guidance is covered by deterministic tests
-    - No reminders, background jobs, realtime fan-out, or export hooks are added
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
-
 <a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
 - [ ] P2: FitChef runtime orchestration dedup
   - Owner: @katsiaryna_kavaleuskaya
@@ -4638,6 +4556,91 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
+- [x] P2: FitChef mascot insight endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1065`
+  - Status: Merged on 10 March 2026 (`#1065`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1065_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
+    - Request/response schemas are typed and documented in OpenAPI
+    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
+    - `/api/v1/insight` remains unchanged
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
+
+<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
+- [x] P2: FitChef weekly reflection endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1071`
+  - Status: Merged on 10 March 2026 (`#1071`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1071_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
+    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
+    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
+    - No persistence, exports, or client-owned orchestration is added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
+- [x] P2: FitChef slip-support endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
+  - Status: Merged on 10 March 2026 (`#1076`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1076_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
+    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
+    - Non-judgmental recovery guidance is covered by deterministic tests
+    - No reminders, background jobs, realtime fan-out, or export hooks are added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
 
 <a id="ledger-p2-monthly-pr-analysis-cadence"></a>
 - [ ] P2: Monthly PR analysis cadence and evidence hygiene
