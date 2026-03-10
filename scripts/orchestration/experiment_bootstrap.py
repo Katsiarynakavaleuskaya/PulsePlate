@@ -255,7 +255,10 @@ def _resolve_experiment_domain(
         return "ml"
     if _contains_hint(normalized_text, ML_TEXT_HINTS):
         return "ml"
-    return resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
+    resolved_domain = resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
+    if not isinstance(resolved_domain, str):
+        raise TypeError("resolve_domain() must return str")
+    return resolved_domain
 
 
 def _recommend_advisory_agents(
