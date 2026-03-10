@@ -302,7 +302,7 @@ export default function WeeklyPlanViewer() {
 
               return (
                 <li
-                  key={`${dayTitle}-${menu.day}`}
+                  key={`day-${menu.day}`}
                   className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
                 >
                   <div className="flex items-center justify-between">
