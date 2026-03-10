@@ -261,7 +261,7 @@ def build_summary(
                 "oracle_name": str(experiment_context.get("oracle_name", "")).strip(),
                 "benchmark_delta": experiment_context.get("benchmark_delta"),
             }.items()
-            if value not in {"", None}
+            if value not in ("", None)
         }
         if normalized_context:
             summary["experiment_context"] = normalized_context

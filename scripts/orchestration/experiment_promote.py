@@ -18,6 +18,7 @@ try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
     from scripts.orchestration.experiment_contract import (
         SCHEMA_VERSION,
+        validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
     )
@@ -30,6 +31,7 @@ except ImportError:  # pragma: no cover - CLI fallback for direct script executi
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
     from scripts.orchestration.experiment_contract import (
         SCHEMA_VERSION,
+        validate_experiment_id,
         validate_experiment_packet,
         validate_experiment_result,
     )
@@ -105,6 +107,7 @@ def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:
 
 
 def _artifact_paths_for_target(experiment_id: str, target: str) -> list[Path]:
+    experiment_id = validate_experiment_id(experiment_id, label="Promotion target")
     upper_id = experiment_id.upper().replace("-", "_")
     if target == "pr_packet":
         return [PR_PACKET_DIR / f"{experiment_id}.md"]

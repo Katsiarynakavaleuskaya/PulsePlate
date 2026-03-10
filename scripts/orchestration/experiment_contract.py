@@ -7,6 +7,7 @@ EN: Shared constants and fail-closed validation helpers for experiment packets.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import shlex
 from typing import Any
 
@@ -75,6 +76,7 @@ ORACLE_BINARY_ALLOWLIST: tuple[str, ...] = (
     "python3",
     "ruff",
 )
+EXPERIMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
 def _is_allowed_prompt_or_program_doc(path: str) -> bool:
@@ -224,6 +226,20 @@ def validate_budget_payload(budgets: dict[str, int] | None = None) -> dict[str, 
     return budget_payload
 
 
+def validate_experiment_id(value: Any, *, label: str) -> str:
+    """Require a deterministic, path-safe experiment identifier."""
+
+    experiment_id = str(value).strip()
+    if not experiment_id:
+        raise ValueError(f"{label} must include a non-empty experiment_id.")
+    if not EXPERIMENT_ID_RE.fullmatch(experiment_id):
+        raise ValueError(
+            f"{label} experiment_id must contain only ASCII letters, digits, hyphens, "
+            "and underscores, and must not contain path separators."
+        )
+    return experiment_id
+
+
 def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     """Validate a PR2 experiment packet for deterministic PR3 consumption."""
 
@@ -237,9 +253,10 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
             f"got {schema_version!r}."
         )
 
-    experiment_id = str(packet.get("experiment_id", "")).strip()
-    if not experiment_id:
-        raise ValueError("Experiment packet must include a non-empty experiment_id.")
+    experiment_id = validate_experiment_id(
+        packet.get("experiment_id", ""),
+        label="Experiment packet",
+    )
 
     decision_question = str(packet.get("decision_question", "")).strip()
     if not decision_question:
@@ -333,9 +350,10 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             f"got {schema_version!r}."
         )
 
-    experiment_id = str(result.get("experiment_id", "")).strip()
-    if not experiment_id:
-        raise ValueError("Experiment result must include a non-empty experiment_id.")
+    experiment_id = validate_experiment_id(
+        result.get("experiment_id", ""),
+        label="Experiment result",
+    )
 
     status = str(result.get("status", "")).strip()
     if status not in RESULT_STATUSES:
@@ -352,6 +370,12 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             )
     else:
         failure_class = None
+    if status == "rejected" and failure_class is None:
+        allowed_failures = ", ".join(FAILURE_CLASSES)
+        raise ValueError(
+            "Experiment result failure_class must be one of: "
+            f"{allowed_failures} when status is 'rejected'."
+        )
 
     mutated_paths_raw = result.get("mutated_paths")
     if not isinstance(mutated_paths_raw, list):

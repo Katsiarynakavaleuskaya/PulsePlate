@@ -281,11 +281,15 @@ def _load_experiment_signals(
         signals.append(
             ExperimentSignal(
                 experiment_id=experiment_id,
-                status=str(result.get("status", "unknown")).strip() or "unknown",
+                status=(
+                    str(result.get("status", "")).strip()
+                    or str(promotion.get("result_status", "")).strip()
+                    or "unknown"
+                ),
                 failure_class=(
-                    None
-                    if result.get("failure_class") is None
-                    else str(result.get("failure_class", "")).strip() or None
+                    str(result.get("failure_class", "")).strip()
+                    or str(promotion.get("failure_class", "")).strip()
+                    or None
                 ),
                 promotion_target=(str(promotion.get("promotion_target", "")).strip() or None),
                 disposition=str(promotion.get("disposition", "")).strip() or None,

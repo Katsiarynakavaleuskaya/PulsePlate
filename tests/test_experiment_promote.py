@@ -273,6 +273,16 @@ def test_mismatched_experiment_id_fails(
         experiment_promote.build_promotion_decision(packet, result)
 
 
+def test_validate_packet_rejects_pathlike_experiment_id() -> None:
+    with pytest.raises(ValueError, match="must contain only ASCII letters"):
+        experiment_contract.validate_experiment_packet(_packet(experiment_id="../escape"))
+
+
+def test_validate_result_requires_failure_class_for_rejection() -> None:
+    with pytest.raises(ValueError, match="when status is 'rejected'"):
+        experiment_contract.validate_experiment_result(_result(status="rejected"))
+
+
 def test_existing_target_with_different_content_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -297,3 +307,8 @@ def test_resolve_output_path_rejects_escape(
 
     with pytest.raises(ValueError, match="promotions"):
         experiment_promote._resolve_output_path("../outside.json", "exp-promote")
+
+
+def test_artifact_paths_reject_pathlike_experiment_id() -> None:
+    with pytest.raises(ValueError, match="must contain only ASCII letters"):
+        experiment_promote._artifact_paths_for_target("../escape", "pr_packet")

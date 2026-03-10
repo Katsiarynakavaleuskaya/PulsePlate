@@ -295,3 +295,42 @@ def test_build_rollup_ignores_malformed_experiment_artifacts(tmp_path: Path) -> 
 
     assert out["experiment_signals_count"] == 0
     assert out["experiments"]["rows"] == {}
+
+
+def test_build_rollup_uses_promotion_fallback_when_result_is_missing(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "runs"
+    results_dir = tmp_path / "results"
+    promotions_dir = tmp_path / "promotions"
+    runs_dir.mkdir()
+    results_dir.mkdir()
+    promotions_dir.mkdir()
+
+    (promotions_dir / "exp-2.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "experiment_id": "exp-2",
+                "result_status": "rejected",
+                "failure_class": "infra_flake",
+                "promotion_target": "backlog_entry",
+                "disposition": "deferred",
+                "durable_artifact_path": "docs/roadmap/BACKLOG_LEDGER.md",
+                "shared_tree_untouched": True,
+                "domain": "ml",
+                "evidence": {"oracle_count": 0},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    out = build_rollup(
+        runs_dir,
+        experiment_results_dir=results_dir,
+        experiment_promotions_dir=promotions_dir,
+    )
+
+    assert out["experiment_signals_count"] == 1
+    assert out["experiments"]["by_status"] == {"rejected": 1}
+    assert out["experiments"]["by_failure_class"] == {"infra_flake": 1}
+    assert out["experiments"]["rows"]["exp-2"]["status"] == "rejected"
