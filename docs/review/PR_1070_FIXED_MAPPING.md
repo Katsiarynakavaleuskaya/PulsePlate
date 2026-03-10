@@ -9,7 +9,7 @@
 
 ## Merge Readiness
 - [ ] All required checks are PASS
-- [x] Fixed in Commit Mapping artifact updated
+- [ ] Fixed in Commit Mapping artifact updated
 - [ ] No unresolved review threads remain
 - [ ] No actionable bot comments remain
 - [ ] Final wait-cycle completed after latest review/bot activity

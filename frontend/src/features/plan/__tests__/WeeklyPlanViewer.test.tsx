@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import WeeklyPlanViewer from '../WeeklyPlanViewer';
@@ -24,8 +24,10 @@ vi.mock('../../weekly-plan/hooks/useWeeklyPlan', () => ({
 }));
 
 import { useWeeklyPlan } from '../../weekly-plan/hooks/useWeeklyPlan';
+import { getClientLocale } from '../../../lib/i18n';
 
 const mockUseWeeklyPlan = vi.mocked(useWeeklyPlan);
+const mockGetClientLocale = vi.mocked(getClientLocale);
 
 const WEEK_PLAN_VM: WeekPlanVM = {
   days: [
@@ -66,6 +68,7 @@ const WEEK_PLAN_VM: WeekPlanVM = {
 describe('WeeklyPlanViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetClientLocale.mockReturnValue('en');
     mockUseWeeklyPlan.mockReturnValue({
       data: null,
       loading: false,
@@ -89,6 +92,20 @@ describe('WeeklyPlanViewer', () => {
     expect(screen.getByText('plan.loadingWeek')).toBeInTheDocument();
   });
 
+  it('renders the hook error state', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: false,
+      error: 'backend unavailable',
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('plan.loadError: backend unavailable')).toBeInTheDocument();
+  });
+
   it('renders normalized week-plan view-model data', () => {
     mockUseWeeklyPlan.mockReturnValue({
       data: WEEK_PLAN_VM,
@@ -105,5 +122,31 @@ describe('WeeklyPlanViewer', () => {
     expect(screen.getByText(/620 plan.kcal/)).toBeInTheDocument();
     expect(screen.getByText(/chicken: 180 g/i)).toBeInTheDocument();
     expect(screen.getByText(/rice: 150 g/i)).toBeInTheDocument();
+  });
+
+  it('preserves localized day labels for non-English users', async () => {
+    mockGetClientLocale.mockReturnValue('ru');
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+      () =>
+        ({
+          format: () => 'понедельник',
+        }) as Intl.DateTimeFormat
+    );
+    mockUseWeeklyPlan.mockReturnValue({
+      data: WEEK_PLAN_VM,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    await waitFor(() => {
+      expect(screen.getByText('понедельник')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Monday')).not.toBeInTheDocument();
+
+    dateTimeFormatSpy.mockRestore();
   });
 });

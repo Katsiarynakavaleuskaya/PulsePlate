@@ -10,6 +10,7 @@ import { useWeeklyPlan } from "../weekly-plan/hooks/useWeeklyPlan";
 import type { Meal } from "../weekly-plan/model/types";
 
 const DEFAULT_TTL_SECONDS = 900;
+const MONDAY_REFERENCE_UTC = Date.UTC(2024, 0, 1);
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -66,8 +67,30 @@ const DEFAULT_REQUEST: ProWeekPlanRequest = {
   lang: "en",
 };
 
-function getDayTitle(index: number, t: (key: string, options?: Record<string, unknown>) => string): string {
-  return t("plan.day_fallback", { number: index + 1 });
+function getLocalizedWeekday(index: number, locale: string): string | null {
+  try {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      timeZone: "UTC",
+    });
+    return formatter.format(new Date(MONDAY_REFERENCE_UTC + index * 24 * 60 * 60 * 1000));
+  } catch {
+    return null;
+  }
+}
+
+function getDayTitle(
+  index: number,
+  locale: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  normalizedDayName?: string
+): string {
+  const fallbackTitle = normalizedDayName || t("plan.day_fallback", { number: index + 1 });
+  if (locale === "en") {
+    return fallbackTitle;
+  }
+
+  return getLocalizedWeekday(index, locale) || fallbackTitle;
 }
 
 function getMealName(meal: Meal): string {
@@ -125,6 +148,7 @@ export default function WeeklyPlanViewer() {
   }
 
   const dailyMenus = data?.days ?? [];
+  const displayLocale = request?.lang ?? "en";
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -268,7 +292,7 @@ export default function WeeklyPlanViewer() {
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
-              const dayTitle = menu.dayName || getDayTitle(idx, t);
+              const dayTitle = getDayTitle(idx, displayLocale, t, menu.dayName);
               const dayEnergy = menu.kcal;
               const meals = menu.meals;
 
