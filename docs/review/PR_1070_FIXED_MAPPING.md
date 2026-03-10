@@ -12,6 +12,12 @@ Commit: 47c9b325
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#pullrequestreview-3920757103 -> 47c9b325
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#discussion_r2910248564 -> 47c9b325
 
+Disposition: FIXED
+Commit: de6908df
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#pullrequestreview-3920884181 -> de6908df
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#discussion_r2910360398 -> de6908df
+
 ## Merge Readiness
 - [ ] All required checks are PASS
 - [ ] Fixed in Commit Mapping artifact updated
