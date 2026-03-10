@@ -82,7 +82,7 @@ def build_weekly_reflection_prompt(summary: str, goal: str | None, rag_context: 
 
 Goals:
 - Help the user reflect on the week in a supportive, non-judgmental way.
-- Turn the reflection into 2-4 realistic next steps.
+- Turn the reflection into 2-3 realistic next steps.
 - Keep the coaching practical, wellness-only, and emotionally steady.
 
 Hard boundaries:
@@ -103,7 +103,7 @@ Weekly summary:
 
 {goal_line}
 
-Return a concise weekly reflection with practical next steps."""
+Return a concise weekly reflection with 2-3 short bullet next steps."""
 
     return f"""{system_prompt}
 
@@ -112,7 +112,7 @@ Weekly summary:
 
 {goal_line}
 
-Return a concise weekly reflection with practical next steps."""
+Return a concise weekly reflection with 2-3 short bullet next steps."""
 
 
 def prepare_mascot_draft(raw_text: str, *, query: str) -> FitChefCoachingDraft:
