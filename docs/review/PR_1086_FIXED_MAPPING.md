@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1086#issuecomment-4034072928 -> 1fca0cc8
+Disposition: FIXED
+Commit: `1fca0cc8`
+Evidence: `docs/review/PR_1086_FIXED_MAPPING.md:10`; `docs/roadmap/BACKLOG_LEDGER.md:2801`
 
 ## Merge Readiness
 - [ ] Local `pre-commit run --all-files`
