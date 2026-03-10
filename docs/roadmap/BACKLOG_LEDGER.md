@@ -190,31 +190,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
     - No duplicate or conflicting ownership across active worktrees
 
-
-<a id="ledger-p0-session-cookie-hardening"></a>
-- [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (security blocker)
-  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR #1063 -> PR-TBD-SESSION-COOKIE-HARDENING-W2
-  - Status: 🟡 In progress (foundation in PR #1003; W1 hardening merged in PR #1030 + PR #1063; cleanup-guarantee carryover remains)
-  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling from the web flow. The item remains open because the current browser-storage cleanup path is not yet guaranteed to remove legacy secrets under transient `removeItem()` failure semantics, so the ledger must track a follow-up hardening pass instead of declaring the transport migration fully complete. (RU: PR #1003, PR #1030 и PR #1063 закрыли foundation/W1 часть hardening, но пункт остаётся открытым, потому что очистка legacy browser storage пока не гарантирована при ошибках `removeItem()`. Нужен отдельный carryover hardening pass, а не преждевременное закрытие P0.)
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - app/security/auth.py
-    - app/routers/pro_registration.py
-    - frontend/src/auth/storage.ts
-    - frontend/src/components/TabBar.tsx
-    - frontend/src/auth/__tests__/storage.test.ts
-    - frontend/src/components/__tests__/TabBar.test.tsx
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1063
-  - DoD:
-    - No sensitive session/auth token persists in browser local storage, including cleanup-failure paths
-    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
-    - Regression tests cover authenticated flows, logout/invalidation, and cleanup-failure semantics
-
-
 ### P1
 
 <a id="ledger-p1-dsar-direct-user-helper-contract"></a>
@@ -681,19 +656,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Lock down Cloudflare worker proxy before any public deployment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-WORKER-PROXY-HARDENING
+  - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
+  - Status: 🟡 In progress (supported runtime is being bounded to first-party `/api/*` proxy use only)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
-  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. If deployed publicly in its current form it behaves like an open proxy and can leak credentials.
+  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS.
   - Links:
     - `worker.js`
     - `docs/security/SECURITY_POSTURE.md`
-    - `deploy/PRODUCTION.md`
+    - `docs/deploy/PRODUCTION.md`
+    - `tests/test_worker_proxy_contract.py`
   - DoD:
-    - Worker path scope is allowlisted or the file is explicitly marked non-deployable/demo-only
+    - Worker path scope is allowlisted to `/api/*`
+    - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
+    - Worker proxy tests prove `redirect: "manual"` remains enforced for upstream fetches
     - Wildcard CORS and header pass-through are removed or bounded to trusted origins
-    - Authorization forwarding policy is documented and tested
-    - Deployment docs state whether worker runtime is supported or forbidden
+    - Authorization forwarding policy is documented and tested, and spoofable client-IP headers are stripped or ignored fail-closed
+    - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
 
 
 <a id="ledger-p1-frontend-ai-parity"></a>
@@ -2114,6 +2093,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Server-side Apple receipt verification normalizes into the canonical billing activation flow
     - Receipt verification failure modes are deterministic and test-covered
     - Activation/status contracts stay additive for existing clients
+
+<a id="ledger-p0-session-cookie-hardening"></a>
+- [x] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security blocker)
+  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR #1063
+  - Status: ✅ Merged evidence (web session migration delivered on `main`; audit trail reconciled in a later docs/security follow-up)
+  - Reason (EN): Master checklist item #1 identified XSS exposure when auth/session keys were persisted in browser storage. That web runtime gap is now closed on `main`: PR #1003 moved route gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling while keeping cleanup semantics fail-closed in `frontend/src/auth/storage.ts`. This backlog item is therefore closed as delivered evidence rather than carried forward into a fake W2 runtime PR. The canonical closure was reconciled later in a docs/security follow-up so the ledger matches already-merged runtime evidence. (RU: Web runtime gap по browser-stored auth secrets уже закрыт в `main`: PR #1003 перевёл gate-логику на session truth, PR #1030 усилил W1 migration path, PR #1063 убрал оставшуюся storage-seeded smoke/logout связку и оставил cleanup fail-closed. Псевдо-carryover `PR-TBD-SESSION-COOKIE-HARDENING-W2` больше не нужен; поздний docs/security follow-up лишь синхронизировал ledger с уже смерженным runtime evidence.)
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - app/security/auth.py
+    - app/routers/pro_registration.py
+    - frontend/src/auth/storage.ts
+    - frontend/src/components/TabBar.tsx
+    - frontend/src/auth/__tests__/storage.test.ts
+    - frontend/src/components/__tests__/TabBar.test.tsx
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1063
+  - DoD:
+    - No sensitive session/auth token persists in browser local storage, including cleanup-failure paths
+    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
+    - Regression tests cover authenticated flows, logout/invalidation, and cleanup-failure semantics
 
 - [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
   - Owner: @katsiaryna_kavaleuskaya
