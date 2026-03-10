@@ -20,6 +20,25 @@ Evidence: core/insight/fitchef_companion.py:143
 Evidence: core/insight/fitchef_companion.py:252
 Evidence: tests/test_fitchef_insight_api.py:1403
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1071#discussion_r2910591146 -> c03cddfb
+Disposition: FIXED
+Commit: c03cddfb
+Evidence: core/insight/fitchef_companion.py:85
+Evidence: core/insight/fitchef_companion.py:106
+Evidence: core/insight/fitchef_companion.py:115
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1071#discussion_r2910591150 -> c03cddfb
+Disposition: FIXED
+Commit: c03cddfb
+Evidence: app/routers/fitchef_insight.py:172
+Evidence: tests/test_fitchef_insight_api.py:833
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1071#discussion_r2910591152 -> c03cddfb
+Disposition: FIXED
+Commit: c03cddfb
+Evidence: app/services/fitchef_runtime.py:743
+Evidence: tests/test_fitchef_insight_api.py:1268
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
