@@ -74,6 +74,7 @@ When coordinating multi-agent work, use these canonical protocols:
 - Parallel Work Protocol: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Message envelopes (multi-model robustness): `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - Research track (web/OSS intake): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+- Experimentation protocol (bounded optimization/eval loops): `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - Reflection / KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - Skill routing policy: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 
@@ -125,10 +126,13 @@ When a task is created:
    - If the task packet already includes `recommended_skills` / `skill_routing`, use those outputs as authoritative
    - Otherwise start with `pulseplate-workflow`
    - Resolve additional skills via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+   - If the task is a fixed-budget optimization/eval loop, load
+     `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` before selecting mutable surfaces
    - Prefer repo-tracked PulsePlate skills before global installed skills
    - Do not auto-select broad scraping workflows for PulsePlate
    - For design/system tasks, follow the canonical source precedence in
      `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+     with default order `Figma -> Notion -> Airweave -> Penpot`
 
 4. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
@@ -144,6 +148,8 @@ After agents complete work:
 3. **Final quality check**: Verify quality gates pass (see Quality Gates section)
 4. **Promote reusable knowledge (KPP)**:
    - Follow the canonical KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`.
+   - Experiment winners must promote to exactly one durable destination per
+     `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
 5. **Generate final conclusion**: Summary, effectiveness, corrective actions, follow-ups
 
 ## Available Agents
@@ -220,6 +226,7 @@ UI/UX design, brand assets, App Store visuals, and marketing creatives.
 
 **Canonical doc:** `.cursor/agents/creative-designer.md`
 **Canonical design-source precedence:** `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+**Default design-source order:** `Figma -> Notion -> Airweave -> Penpot`
 
 ---
 

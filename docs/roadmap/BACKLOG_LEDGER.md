@@ -61,20 +61,75 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Apple receipt verification backend follow-through
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-APPLE-VERIFY
-  - Status: 📋 Planned
+  - Target PR: PR `#1074` (`feat(billing): add Apple receipt verification endpoint`)
+  - Status: 🚧 In Progress (`feat/billing-apple-verify-endpoint`)
   - Area: backend / payments / iOS monetization
   - Finding Type: payment integrity
   - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `app/routers/pro_payments.py`
+    - `app/routers/billing.py`
+    - `docs/review/PR_1074_FIXED_MAPPING.md`
     - `app/services/payments_activation.py`
   - DoD:
     - Server-side Apple receipt verification normalizes into the canonical billing activation flow
     - Receipt verification failure modes are deterministic and test-covered
     - Activation/status contracts stay additive for existing clients
+
+<a id="ledger-p0-billing-activation-service"></a>
+- [ ] P0: Billing activation service follow-through after Apple verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-ACTIVATION-SERVICE
+  - Area: backend / payments / activation
+  - Finding Type: monetization chain gap
+  - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Activation service consumes the Apple verification contract without reintroducing client tier truth
+    - Verify and activate remain separate runtime stages with deterministic handoff semantics
+    - Activation-path tests cover success, replay, and failure transitions
+
+<a id="ledger-p0-billing-subscription-persistence"></a>
+- [ ] P0: Subscription persistence for billing activation outcomes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-SUBSCRIPTION-PERSISTENCE
+  - Area: backend / payments / persistence
+  - Finding Type: subscription state gap
+  - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `app/schemas/payments.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Subscription state is persisted with deterministic idempotency semantics
+    - Persistence schema stores canonical tier/platform/expires_at/receipt audit fields
+    - Tests prove repeated activation cannot create duplicate subscription state
+
+<a id="ledger-p0-billing-entitlement-routing"></a>
+- [ ] P0: Entitlement-backed routing after billing activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Area: backend / authz / routing
+  - Finding Type: access-control gap
+  - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/middleware/api_tiers.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Entitlement truth is derived from backend activation/subscription state
+    - Route guards consume entitlement state instead of client-declared tier
+    - Regression tests cover paid, expired, and missing-entitlement paths
 
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
@@ -246,6 +301,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Product/state transitions are deterministic and test-covered
     - No client-side billing logic duplicates backend activation policy
 
+<a id="ledger-p1-apple-server-api-migration"></a>
+- [ ] P1: Apple receipt verification migration to App Store Server API
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
+  - Area: backend / payments / provider integration
+  - Finding Type: provider modernization
+  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
+    - Existing verification contract remains backward-compatible for downstream activation
+    - Provider migration paths are covered with deterministic tests and rollout notes
+
+<a id="ledger-p1-ios-subscription-orchestration"></a>
+- [ ] P1: iOS SubscriptionManager orchestration follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 💤 Superseded by `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - Area: ios / payments / orchestration
+  - Finding Type: client orchestration gap
+  - Reason: Backend verify is now separated cleanly, but the iOS thin client still needs explicit orchestration for purchase -> verify -> activation handoff without embedding billing truth on-device. The canonical surviving tracker is `ledger-p1-ios-subscription-manager`; this entry remains as an audit bridge from the billing wave only.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - DoD:
+    - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
+
 <a id="ledger-p1-ios-storekit-products"></a>
 - [ ] P1: iOS StoreKit products contract and setup baseline
   - Owner: @katsiaryna_kavaleuskaya
@@ -268,16 +358,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
-  - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
-  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR is intended to complete the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067 -> PR #1078 (`feat/p1-ios-keychain-conformance-pr2`)
+  - Status: 🟡 In progress (runtime Keychain-only behavior is already on `main`; this follow-up tightens canonical test-surface coverage and current-state setup docs)
+  - Reason (EN): Master checklist item #5 remains active until the repo's canonical iOS enforcement surfaces match runtime truth. The `ProcessInfo` fallback has already been removed from `ProKeyProvider`, but default iOS test lanes and current-state setup docs still need to encode the Keychain-only invariant so future drift is caught by default.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
     - ios/PulsePlate/Services/ProKeyProvider.swift
     - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+    - ios/PulsePlateTests/Services/ProKeyProviderTests.swift
+    - ios/PulsePlateTests/Services/KeychainStoreTests.swift
+    - ios/SHOPPING_LIST_SETUP.md
   - DoD:
-    - iOS secret paths are verified to use Keychain storage only
+    - iOS runtime secret paths are verified to use Keychain storage only
+    - Default local and CI iOS test surfaces include Keychain provider roundtrip/ignore-env coverage
+    - Current-state iOS setup docs no longer advertise `PRO_API_KEY` or placeholder fallback as runtime auth truth
     - Guard tests prevent regression to insecure storage
 
 <a id="ledger-p1-diet-flags-contract-sync"></a>
@@ -469,7 +564,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonicalize legacy runtime env gating
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LEGACY-RUNTIME-ENV-CANONICALIZATION
+  - Target PR: PR `#1072`
+  - Status: 🟡 In progress (branch `feat/p1-legacy-runtime-env-canonicalization-pr`)
   - Follow-up from PR `#1054` (parent: `ledger-p1-api-key-toggle-guard`)
   - Area: backend / security / legacy compatibility
   - Finding Type: configuration drift
@@ -1893,88 +1989,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Security review confirms each mascot endpoint keeps policy/quota/audit gates ahead of execution
   - Blockers: None (deferred by scope, not blocked)
 
-<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
-- [ ] P2: FitChef mascot insight endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-MASCOT-INSIGHT
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/contracts/API_CANONICAL_MAP.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
-    - Request/response schemas are typed and documented in OpenAPI
-    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
-    - `/api/v1/insight` remains unchanged
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
-
-<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
-- [ ] P2: FitChef weekly reflection endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR `#1071`
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
-    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
-    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
-    - No persistence, exports, or client-owned orchestration is added
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
-
-<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
-- [ ] P2: FitChef slip-support endpoint
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-SLIP-SUPPORT
-  - Status: Open
-  - Area: AI runtime / coaching / product
-  - Finding Type: execution
-  - Locations:
-    - `core/insight/fitchef_companion.py`
-    - `app/routers/fitchef_insight.py`
-    - `app/schemas/fitchef_coaching.py`
-  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/design/NUTRITION_COACHING_DESIGN.md`
-    - `core/insight/creative_scientific_innovations.md`
-  - DoD:
-    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
-    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
-    - Non-judgmental recovery guidance is covered by deterministic tests
-    - No reminders, background jobs, realtime fan-out, or export hooks are added
-    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
-    - One happy-path integration test lands in the same PR
-    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
-  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
-
 <a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
 - [ ] P2: FitChef runtime orchestration dedup
   - Owner: @katsiaryna_kavaleuskaya
@@ -2011,7 +2025,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR template or runbook suggests optional "Violations addressed" section for guard/security remediation PRs
     - Not mandatory; adopt when useful
 
-
+<a id="ledger-p2-cv-photo-food"></a>
 - [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
@@ -4684,6 +4698,91 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
+- [x] P2: FitChef mascot insight endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1065`
+  - Status: Merged on 10 March 2026 (`#1065`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1065_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
+    - Request/response schemas are typed and documented in OpenAPI
+    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
+    - `/api/v1/insight` remains unchanged
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
+
+<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
+- [x] P2: FitChef weekly reflection endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1071`
+  - Status: Merged on 10 March 2026 (`#1071`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1071_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
+    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
+    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
+    - No persistence, exports, or client-owned orchestration is added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
+- [x] P2: FitChef slip-support endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
+  - Status: Merged on 10 March 2026 (`#1076`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1076_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
+    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
+    - Non-judgmental recovery guidance is covered by deterministic tests
+    - No reminders, background jobs, realtime fan-out, or export hooks are added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
 <a id="ledger-p2-monthly-pr-analysis-cadence"></a>
 - [ ] P2: Monthly PR analysis cadence and evidence hygiene
   - Owner: @katsiaryna_kavaleuskaya
@@ -5185,6 +5284,130 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       and deferred-item ledger block
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
+
+<a id="ledger-p1-agent-experimentation-lane"></a>
+- [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (process scalability + bounded AI optimization)
+  - Target PR: PR_TBD_AGENT_EXPERIMENTATION_GOVERNANCE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+  - DoD:
+    - PR1 governance SoT is merged and linked from the canonical orchestration docs
+    - PR2 bootstrap tooling, PR3 runner MVP, PR4 promotion/telemetry, PR5 CV eval lane, and PR6 first applied reliability optimization all have explicit backlog entries
+    - No phase of the lane permits hidden memory, autonomous merge, or mutation of immutable evaluation oracles
+    - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
+
+<a id="ledger-p1-agent-experiment-bootstrap"></a>
+- [ ] P1: PR2 deterministic experiment bootstrap tooling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency for the experimentation lane)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_BOOTSTRAP
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+  - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `scripts/orchestration/task_bootstrap.py`
+  - DoD:
+    - Local experiment packet bootstrap tooling exists with deterministic JSON output
+    - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
+    - Outputs live under gitignored local artifacts only
+    - Tooling does not mutate runtime code or public contracts
+
+<a id="ledger-p1-agent-experiment-runner"></a>
+- [ ] P1: PR3 experiment runner MVP for bounded candidate loops
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency for first applied optimization)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_RUNNER
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
+  - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `scripts/orchestration/agent_run_summary.py`
+  - DoD:
+    - Runner uses isolated execution and never mutates a dirty shared worktree
+    - Runner enforces budgets and failure classes from the experimentation protocol
+    - Immutable oracle mutation is rejected fail-closed
+    - Runner outputs candidate result artifacts, not autonomous merge-ready commits
+
+<a id="ledger-p1-agent-experiment-promotion"></a>
+- [ ] P1: PR4 experiment promotion and telemetry integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (governance closure for experiment outputs)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_PROMOTION
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): Winning candidates need one governed promotion path into PR packets, audits, guards, ledger items, or memory capsules, and telemetry needs experiment-aware fields so orchestration learning remains artifact-based and observable.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+    - `scripts/orchestration/agent_run_summary.py`
+    - `scripts/orchestration/telemetry_rollup.py`
+  - DoD:
+    - Promotion tooling enforces exactly one durable destination per winning experiment
+    - Telemetry rollups understand experiment identifiers and failure/promotion classes
+    - Deferred experiment outcomes are ledgered immediately
+    - No hidden-memory path bypasses KPP promotion
+
+<a id="ledger-p1-agent-experiment-cv-lane"></a>
+- [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (future multimodal track, no runtime integration yet)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
+  - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `.cursor/agents/cv-agent.md`
+    - `.cursor/agents/data-scientist-agent.md`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+  - DoD:
+    - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
+    - CV lane remains docs/eval only with no image-retention runtime behavior
+    - Coordinator routing for CV experiments is explicit and bounded
+    - Deterministic acceptance criteria are documented
+
+<a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
+- [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (first practical output of the experimentation lane)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+    - [P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)](#ledger-p1-recursive-methods)
+  - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `scripts/benchmarks/philosophical_runtime_benchmark.py`
+    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `core/rag/`
+    - `core/insight/`
+  - DoD:
+    - One bounded reliability candidate is generated through the governed lane
+    - Candidate improvement is accepted by immutable oracles and documented with evidence
+    - Result is promoted through a normal human-reviewed PR
+    - No storage-cost or CV scope is mixed into this first applied optimization
 
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot

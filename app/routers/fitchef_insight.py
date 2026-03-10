@@ -16,6 +16,8 @@ from app.middleware.api_tiers import require_vip_tier
 from app.schemas.fitchef import (
     FitChefMascotInsightInput,
     FitChefMascotInsightTaskEnvelope,
+    FitChefSlipSupportInput,
+    FitChefSlipSupportTaskEnvelope,
     FitChefWeeklyReflectionInput,
     FitChefWeeklyReflectionTaskEnvelope,
 )
@@ -24,6 +26,8 @@ from app.schemas.fitchef_coaching import (
     FitChefCoachingRequest,
     FitChefCoachingSourceItem,
     FitChefMascotInsightResponse,
+    FitChefSlipSupportRequest,
+    FitChefSlipSupportResponse,
     FitChefWeeklyReflectionRequest,
     FitChefWeeklyReflectionResponse,
 )
@@ -189,6 +193,87 @@ async def fitchef_weekly_reflection(
     response: FitChefWeeklyReflectionResponse = FitChefWeeklyReflectionResponse(
         message=result.message,
         scenario="weekly_reflection",
+        sources=[
+            FitChefCoachingSourceItem(
+                file=item.file,
+                preview=item.preview,
+                score=item.score,
+            )
+            for item in result.sources
+        ],
+        confidence=result.confidence,
+        warnings=result.warnings,
+        action_items=result.action_items,
+        quota_state=result.quota_state,
+        transparency_notice_id=result.transparency_notice_id,
+        wellness_boundary=result.wellness_boundary,
+    )
+    return response
+
+
+@router.post(
+    "/fitchef/slip-support",
+    response_model=FitChefSlipSupportResponse,
+    responses={
+        200: {"description": "FitChef slip-support coaching generated"},
+        400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
+        403: {"description": "VIP tier required", "model": FitChefCoachingErrorResponse},
+        429: {"description": "Rate limit exceeded or monthly quota exhausted"},
+        503: {
+            "description": "Feature disabled or provider unavailable",
+            "model": FitChefCoachingErrorResponse,
+        },
+        504: {"description": "LLM provider call timed out", "model": FitChefCoachingErrorResponse},
+        **RATE_LIMIT_429_RESPONSES,
+    },
+)
+@limit_if_available(RATE_LIMIT_INSIGHT)
+async def fitchef_slip_support(
+    payload: FitChefSlipSupportRequest,
+    request: Request,
+    vip_key: str = Depends(require_vip_tier),
+) -> FitChefSlipSupportResponse:
+    """Generate VIP-only slip-support coaching via the FitChef runtime."""
+
+    if not _is_fitchef_mascot_enabled():
+        raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_MASCOT is disabled")
+
+    try:
+        execution_mode = cast(
+            FitChefMascotMode,
+            normalize_execution_mode(os.getenv(FITCHEF_MASCOT_EXECUTION_MODE_ENV)),
+        )
+        require_execution_mode(execution_mode)
+    except RuntimeError as exc:
+        logger.error("FitChef slip-support execution mode misconfigured", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="agent_execution_mode_misconfigured",
+        ) from exc
+    except PermissionError:
+        detail = f"agent_execution_{execution_mode.replace('-', '_')}"
+        raise HTTPException(status_code=503, detail=detail)
+
+    safe_event_text = require_safe_ai_agent_input(payload.event_text)
+    safe_goal = (
+        require_safe_ai_agent_input(payload.goal)
+        if payload.goal is not None and payload.goal.strip()
+        else None
+    )
+    task = FitChefSlipSupportTaskEnvelope(
+        mode=execution_mode,
+        input=FitChefSlipSupportInput(
+            safe_event_text=safe_event_text,
+            safe_goal=safe_goal,
+            api_key=vip_key,
+            endpoint=str(request.url.path),
+            method=request.method,
+        ),
+    )
+    result = await fitchef_runtime.run_slip_support_task(task)
+    response: FitChefSlipSupportResponse = FitChefSlipSupportResponse(
+        message=result.message,
+        scenario="slip_support",
         sources=[
             FitChefCoachingSourceItem(
                 file=item.file,

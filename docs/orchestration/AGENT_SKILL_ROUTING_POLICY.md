@@ -22,6 +22,7 @@
    Practical inspiration is acceptable from formal semantics, relevance weighting,
    and linguistic compositionality, but every output must remain deterministic,
    testable, and inspectable in the task packet.
+8. Experimentation and optimization tasks must follow `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; skills do not bypass mutable-surface or promotion rules.
 
 ---
 
@@ -50,6 +51,11 @@ The bootstrap packet should expose:
 
 This keeps routing explainable without relying on hidden reasoning.
 
+For experimentation tasks, the bootstrap packet should also reference:
+
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+- `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+
 ---
 
 ## 3. Project-Fit Skill Lanes
@@ -57,6 +63,7 @@ This keeps routing explainable without relying on hidden reasoning.
 | Lane | Default Skills | Conditional Skills |
 |------|----------------|--------------------|
 | Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `code-review-expert`, `create-pr` |
+| Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
 | Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices` |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
@@ -106,6 +113,20 @@ The coordinator may use installed skills when they improve delivery and align wi
 For design-system, prototype, and visual implementation tasks, use the
 canonical source precedence defined in
 `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
+
+Default order:
+
+1. `Figma`
+2. `Notion`
+3. `Airweave`
+4. `Penpot`
+
+Interpretation:
+
+- `Figma` is the canonical design-to-code lane.
+- `Notion` is structured memory only.
+- `Airweave` is research ingestion only.
+- `Penpot` is a secondary design lane only.
 ### Approved now
 
 - YouTube transcript / channel monitoring for founder research and trend tracking
@@ -143,4 +164,6 @@ If a task includes PR preparation, release packaging, or review-thread handling:
 - `docs/dev/CODEX_SKILLS.md`
 - `docs/orchestration/workflow.md`
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+- `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
 - `.cursor/agents/agent-coordinator.md`

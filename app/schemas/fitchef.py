@@ -16,6 +16,7 @@ FitChefTaskType = Literal[
     "shopping_followup",
     "mascot_insight",
     "weekly_reflection",
+    "slip_support",
 ]
 FitChefQuotaState = Literal["not_consumed", "consumed"]
 
@@ -78,6 +79,23 @@ class FitChefWeeklyReflectionTaskEnvelope(FitChefTaskEnvelope):
     input: FitChefWeeklyReflectionInput
 
 
+class FitChefSlipSupportInput(BaseModel):
+    """Internal slip-support task input. / Входные данные slip-support задачи."""
+
+    safe_event_text: str = Field(..., min_length=1)
+    safe_goal: str | None = None
+    api_key: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    method: str = Field(..., min_length=1)
+
+
+class FitChefSlipSupportTaskEnvelope(FitChefTaskEnvelope):
+    """Slip-support task envelope. / Envelope для slip-support."""
+
+    task_type: Literal["slip_support"] = "slip_support"
+    input: FitChefSlipSupportInput
+
+
 class FitChefWeeklyPlanInput(BaseModel):
     """Internal weekly-plan input. / Входные данные weekly-plan задачи."""
 
@@ -136,6 +154,21 @@ class FitChefWeeklyReflectionResult(BaseModel):
 
     message: str
     scenario: Literal["weekly_reflection"] = "weekly_reflection"
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    action_items: list[str]
+    mode: FitChefExecutionMode
+    quota_state: FitChefQuotaState
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefSlipSupportResult(BaseModel):
+    """Internal slip-support result. / Внутренний результат slip-support."""
+
+    message: str
+    scenario: Literal["slip_support"] = "slip_support"
     sources: list[FitChefSourceItem]
     confidence: float
     warnings: list[str]

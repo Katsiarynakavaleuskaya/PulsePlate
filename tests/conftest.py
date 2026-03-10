@@ -590,6 +590,7 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     # Set consistent environment for deterministic testing
     monkeypatch.setenv("TESTING", "true")
     monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
@@ -599,6 +600,10 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     yield
     # Cleanup is automatic with monkeypatch
 

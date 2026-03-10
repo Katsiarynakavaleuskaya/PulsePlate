@@ -137,8 +137,9 @@ export default function WeeklyPlanViewer() {
   const { data, loading, error: err } = useWeeklyPlan({
     targets: request,
   });
+  const isInitialLoad = data === null && err === null;
 
-  if (loading) {
+  if (loading || isInitialLoad) {
     return <div className="max-w-3xl mx-auto p-6">{t('plan.loadingWeek')}</div>;
   }
 

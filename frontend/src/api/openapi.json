@@ -123,46 +123,159 @@
         "title": "AdherenceResponse",
         "type": "object"
       },
+      "AppleActivationHint": {
+        "description": "Activation-prep hint for downstream Apple billing flow.",
+        "properties": {
+          "platform": {
+            "default": "ios",
+            "title": "Platform",
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/SubscriptionTierValue"
+          }
+        },
+        "required": [
+          "tier"
+        ],
+        "title": "AppleActivationHint",
+        "type": "object"
+      },
+      "AppleProviderError": {
+        "description": "Canonical provider error details for Apple receipt verification.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "AppleProviderError",
+        "type": "object"
+      },
       "AppleReceiptVerificationRequest": {
         "additionalProperties": false,
         "description": "Request contract for iOS receipt verification.",
         "properties": {
-          "client_event_id": {
-            "maxLength": 128,
-            "minLength": 6,
-            "title": "Client Event Id",
-            "type": "string"
-          },
-          "external_txn_id": {
+          "receipt_data": {
+            "description": "Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.",
+            "minLength": 8,
+            "title": "Receipt Data",
+            "type": "string",
+            "x-accepted-aliases": [
+              "receipt"
+            ]
+          }
+        },
+        "required": [
+          "receipt_data"
+        ],
+        "title": "AppleReceiptVerificationRequest",
+        "type": "object"
+      },
+      "AppleReceiptVerificationResponse": {
+        "description": "Normalized Apple receipt verification result without activation side effects.",
+        "properties": {
+          "activation_payload": {
             "anyOf": [
               {
-                "maxLength": 128,
-                "minLength": 3,
+                "$ref": "#/components/schemas/AppleActivationHint"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downstream activation-prep hint. The future activation service maps this hint into canonical source/plan fields."
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppleVerificationEnvironment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppleProviderError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "External Txn Id"
+            "title": "Expires At"
           },
-          "plan": {
-            "$ref": "#/components/schemas/SubscriptionPlan"
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
           },
-          "receipt": {
-            "description": "Opaque App Store receipt blob",
-            "minLength": 8,
-            "title": "Receipt",
+          "provider": {
+            "default": "apple",
+            "title": "Provider",
             "type": "string"
+          },
+          "verification_state": {
+            "$ref": "#/components/schemas/AppleVerificationState"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
           }
         },
         "required": [
-          "plan",
-          "client_event_id",
-          "receipt"
+          "verified",
+          "verification_state"
         ],
-        "title": "AppleReceiptVerificationRequest",
+        "title": "AppleReceiptVerificationResponse",
         "type": "object"
+      },
+      "AppleVerificationEnvironment": {
+        "description": "Verification environment resolved by Apple receipt validation.",
+        "enum": [
+          "production",
+          "sandbox"
+        ],
+        "title": "AppleVerificationEnvironment",
+        "type": "string"
+      },
+      "AppleVerificationState": {
+        "description": "Normalized business outcome of Apple receipt verification.",
+        "enum": [
+          "active",
+          "expired",
+          "restored",
+          "invalid"
+        ],
+        "title": "AppleVerificationState",
+        "type": "string"
       },
       "BMICalculateProRequest": {
         "additionalProperties": false,
@@ -1843,6 +1956,105 @@
           "scenario"
         ],
         "title": "FitChefMascotInsightResponse",
+        "type": "object"
+      },
+      "FitChefSlipSupportRequest": {
+        "description": "Slip-support request payload.",
+        "properties": {
+          "event_text": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Event Text",
+            "type": "string"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          }
+        },
+        "required": [
+          "event_text"
+        ],
+        "title": "FitChefSlipSupportRequest",
+        "type": "object"
+      },
+      "FitChefSlipSupportResponse": {
+        "description": "Public slip-support response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "slip_support",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "sources",
+          "confidence",
+          "warnings",
+          "action_items",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary",
+          "scenario"
+        ],
+        "title": "FitChefSlipSupportResponse",
         "type": "object"
       },
       "FitChefWeeklyReflectionRequest": {
@@ -5842,6 +6054,92 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/billing/apple/verify-receipt": {
+      "post": {
+        "description": "Canonical Apple receipt verification route on additive billing namespace.",
+        "operationId": "verify_apple_receipt_api_v1_billing_apple_verify_receipt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleReceiptVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "description": "FastAPI auth error detail from tier guard",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Missing or invalid API key"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Apple upstream error"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleReceiptVerificationResponse"
+                }
+              }
+            },
+            "description": "Apple verify timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Verify Apple Receipt",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/bmi": {
       "post": {
         "description": "RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).\nТеперь это тонкий прокси в канонический handler (app/routers/bmi.py),\nчтобы не было дублирования BMI-логики и чтобы результаты были идентичны.\n\nEN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).\nNow it is a thin proxy to the canonical handler (app/routers/bmi.py)\nto avoid duplicate BMI logic and ensure identical results.",
@@ -6067,6 +6365,105 @@
           }
         ],
         "summary": "Fitchef Mascot Insight",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
+      }
+    },
+    "/api/v1/insight/fitchef/slip-support": {
+      "post": {
+        "description": "Generate VIP-only slip-support coaching via the FitChef runtime.",
+        "operationId": "fitchef_slip_support_api_v1_insight_fitchef_slip_support_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefSlipSupportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefSlipSupportResponse"
+                }
+              }
+            },
+            "description": "FitChef slip-support coaching generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Slip Support",
         "tags": [
           "fitchef",
           "insight",
@@ -7129,93 +7526,6 @@
           }
         ],
         "summary": "Get Subscription Activation",
-        "tags": [
-          "payments",
-          "pro"
-        ]
-      }
-    },
-    "/api/v1/pro/payments/apple/verify-receipt": {
-      "post": {
-        "description": "Create or replay iOS receipt activation using deterministic baseline verification.",
-        "operationId": "verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AppleReceiptVerificationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
-                }
-              }
-            },
-            "description": "Idempotent replay"
-          },
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionActivationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "detail": {
-                      "description": "FastAPI auth error detail from tier guard",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "detail"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Missing or invalid API key"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentErrorResponse"
-                }
-              }
-            },
-            "description": "client_event_id conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "APIKeyHeader": []
-          }
-        ],
-        "summary": "Verify Apple Receipt",
         "tags": [
           "payments",
           "pro"
