@@ -70,3 +70,9 @@ Evidence: `145d6ce0` closes the post-comment sandbox follow-up by clarifying the
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245155 -> 145d6ce0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925189381 -> 145d6ce0
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `9155fa4a` moves `_create_temp_checkout()` into the retried `InfraFlakeError` path in `scripts/orchestration/experiment_runner.py:443`, so transient checkout/bootstrap failures now consume `budgets.retry_budget` instead of escaping the retry loop, and adds regression coverage in `tests/test_experiment_runner.py:530` proving the runner retries the checkout failure once and still accepts a later successful attempt.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914488864 -> 9155fa4a
