@@ -5297,8 +5297,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP is in progress in `#1088`)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR_TBD_AGENT_EXPERIMENT_PROMOTION
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; PR4 promotion/telemetry is next)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5333,11 +5333,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tooling does not mutate runtime code or public contracts
 
 <a id="ledger-p1-agent-experiment-runner"></a>
-- [ ] P1: PR3 experiment runner MVP for bounded candidate loops
+- [x] P1: PR3 experiment runner MVP for bounded candidate loops
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for first applied optimization)
   - Target PR: PR #1088
-  - Status: 🟡 In progress (PR `#1088`)
+  - Status: ✅ Merged on 2026-03-10 (`00e8143a`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
@@ -5359,7 +5359,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
   - Target PR: PR_TBD_AGENT_EXPERIMENT_PROMOTION
-  - Status: 📋 Planned
+  - Status: 🟡 Next after PR3 merge (`main` @ `00e8143a`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
