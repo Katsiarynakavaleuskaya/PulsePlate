@@ -17,6 +17,8 @@ _ACTION_ITEM_LIMIT = 3
 _MIN_ACTION_ITEM_LENGTH = 8
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*(.+?)\s*$")
+_DEFAULT_ACTION_KEYWORDS = ("try", "start", "choose", "add")
+_WEEKLY_REFLECTION_ACTION_KEYWORDS = ("keep", "plan", "notice", *_DEFAULT_ACTION_KEYWORDS)
 
 
 @dataclass(frozen=True)
@@ -119,6 +121,7 @@ def prepare_mascot_draft(raw_text: str, *, query: str) -> FitChefCoachingDraft:
     return _prepare_fitchef_draft(
         raw_text=raw_text,
         fallback_builder=lambda warnings: _fallback_draft(query=query, warnings=warnings),
+        action_keywords=_DEFAULT_ACTION_KEYWORDS,
     )
 
 
@@ -137,6 +140,7 @@ def prepare_weekly_reflection_draft(
             goal=goal,
             warnings=warnings,
         ),
+        action_keywords=_WEEKLY_REFLECTION_ACTION_KEYWORDS,
     )
 
 
@@ -144,6 +148,7 @@ def _prepare_fitchef_draft(
     *,
     raw_text: str,
     fallback_builder: Callable[[list[str]], FitChefCoachingDraft],
+    action_keywords: tuple[str, ...],
 ) -> FitChefCoachingDraft:
     """Normalize FitChef coaching output and rewrite blocker language deterministically."""
 
@@ -164,7 +169,7 @@ def _prepare_fitchef_draft(
         return fallback_builder(warnings)
 
     bounded_action_source = (normalized_lines or raw_text)[:_MAX_MESSAGE_LENGTH]
-    action_items = _extract_action_items(bounded_action_source)
+    action_items = _extract_action_items(bounded_action_source, action_keywords=action_keywords)
     if not action_items:
         fallback = fallback_builder(warnings.copy())
         action_items = fallback.action_items
@@ -244,7 +249,7 @@ def _weekly_reflection_action_items(summary: str, goal: str | None) -> list[str]
     ]
 
 
-def _extract_action_items(text: str) -> list[str]:
+def _extract_action_items(text: str, *, action_keywords: tuple[str, ...]) -> list[str]:
     """Extract up to three concrete action items from model output."""
 
     items: list[str] = []
@@ -263,7 +268,7 @@ def _extract_action_items(text: str) -> list[str]:
         candidate = sentence.strip(" -•\t")
         if len(candidate) < _MIN_ACTION_ITEM_LENGTH:
             continue
-        if not any(keyword in candidate.lower() for keyword in ("try", "start", "choose", "add")):
+        if not any(keyword in candidate.lower() for keyword in action_keywords):
             continue
         items.append(candidate)
         if len(items) >= _ACTION_ITEM_LIMIT:

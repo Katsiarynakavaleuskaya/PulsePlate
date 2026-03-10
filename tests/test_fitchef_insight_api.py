@@ -1400,6 +1400,26 @@ def test_prepare_weekly_reflection_draft_preserves_bulleted_action_items() -> No
     ]
 
 
+def test_prepare_weekly_reflection_draft_preserves_sentence_action_items() -> None:
+    """Weekly reflection should keep valid sentence-style action items."""
+
+    from core.insight.fitchef_companion import prepare_weekly_reflection_draft
+
+    draft = prepare_weekly_reflection_draft(
+        "Keep one breakfast routine that already worked. "
+        "Plan one simpler lunch for your busiest day. "
+        "Notice one moment that made dinner easier.",
+        summary="Meals felt uneven this week",
+        goal="more steady meals",
+    )
+
+    assert draft.action_items == [
+        "Keep one breakfast routine that already worked.",
+        "Plan one simpler lunch for your busiest day.",
+        "Notice one moment that made dinner easier.",
+    ]
+
+
 def test_prepare_weekly_reflection_draft_uses_goal_aware_fallback() -> None:
     """Weekly reflection fallback should reference the supplied goal when needed."""
 
