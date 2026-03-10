@@ -30,6 +30,11 @@ Disposition: FIXED
 Commit: `f19de674`
 Evidence: `app/routers/feedback.py:157`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914524554 -> f19de674
+Disposition: FIXED
+Commit: `f19de674`
+Evidence: `app/routers/feedback.py:157`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914543537 -> f19de674
 Disposition: FIXED
 Commit: `f19de674`
