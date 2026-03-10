@@ -240,17 +240,20 @@ class TestFitChefMascotRuntimeBehavior:
             },
         )
 
-    def test_quota_enforced_before_provider_call(self) -> None:
-        """Monthly quota must stop mascot insight before provider invocation."""
+    def test_quota_enforced_before_provider_generation(self) -> None:
+        """Monthly quota must stop mascot insight before provider generation."""
 
+        mock_provider = MagicMock()
+
+        def _unexpected_generate(_: str) -> str:
+            pytest.fail("provider.generate must not run when quota is exhausted")
+
+        mock_provider.generate.side_effect = _unexpected_generate
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
             lambda *args, **kwargs: False,
         )
-        self.monkeypatch.setattr(
-            "llm.get_provider",
-            lambda: pytest.fail("provider must not be resolved when quota is exhausted"),
-        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         response = self.client.post(
             self.url,
@@ -559,13 +562,19 @@ class TestFitChefMascotRuntimeCoverage:
 
         from app.services import fitchef_runtime
 
+        quota_calls = {"count": 0}
+
+        def _consume_quota(*args: object, **kwargs: object) -> bool:
+            quota_calls["count"] += 1
+            return True
+
         self.monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             lambda *args, **kwargs: _make_rag_context(),
         )
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
-            lambda *args, **kwargs: True,
+            _consume_quota,
         )
         self.monkeypatch.setattr(
             "llm.get_provider",
@@ -577,6 +586,32 @@ class TestFitChefMascotRuntimeCoverage:
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
+        assert quota_calls["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
+        """Non-string provider payloads must map to stable empty-response 503."""
+
+        from app.services import fitchef_runtime
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = {"message": "not-a-string"}
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fitchef_runtime.run_mascot_insight_task(self._task())
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "LLM provider returned empty response"
 
     @pytest.mark.asyncio
     async def test_runtime_timeout_returns_504(self) -> None:

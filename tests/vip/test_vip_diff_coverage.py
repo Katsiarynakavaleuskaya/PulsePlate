@@ -44,7 +44,7 @@ class TestVIPRegistrationIdempotent:
         assert "/api/v1/insight/fitchef" in paths
 
     def test_register_vip_routes_keeps_fitchef_registration_idempotent(self, monkeypatch):
-        """Repeated registration must not duplicate the FitChef mascot route."""
+        """Repeated registration must not duplicate any VIP routes."""
 
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
 
@@ -53,10 +53,12 @@ class TestVIPRegistrationIdempotent:
         app = FastAPI()
 
         register_vip_routes(app)
+        first_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
         register_vip_routes(app)
+        second_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
 
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
-        assert paths.count("/api/v1/insight/fitchef") == 1
+        assert second_paths == first_paths
+        assert second_paths.count("/api/v1/insight/fitchef") == 1
 
     def test_register_vip_routes_noop_when_disabled(self, monkeypatch):
         """Test that register_vip_routes is a no-op when VIP module disabled."""

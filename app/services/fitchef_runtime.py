@@ -527,6 +527,10 @@ async def run_mascot_insight_task(
         ) from exc
 
     try:
+        from llm import get_provider
+
+        provider = get_provider()
+
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
             api_key,
@@ -537,20 +541,17 @@ async def run_mascot_insight_task(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="quota_exceeded",
             )
-        quota_state = "consumed"
-
-        from llm import get_provider
-
-        provider = get_provider()
         raw_message = await asyncio.wait_for(
             run_in_threadpool(provider.generate, prompt),
             timeout=LLM_TIMEOUT_SECONDS,
         )
-        if not raw_message:
+        if not isinstance(raw_message, str) or not raw_message.strip():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="LLM provider returned empty response",
             )
+        prepared = prepare_mascot_draft(raw_message, query=safe_query)
+        quota_state = "consumed"
     except ImportError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -570,7 +571,6 @@ async def run_mascot_insight_task(
             detail="fitchef_mascot_unavailable",
         ) from exc
 
-    prepared = prepare_mascot_draft(raw_message, query=safe_query)
     result: FitChefMascotInsightResult = FitChefMascotInsightResult(
         message=prepared.message,
         sources=sources,
