@@ -5289,7 +5289,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `tests/test_philosophical_runtime.py`
     - `scripts/orchestration/agent_run_summary.py`
   - DoD:
     - Runner uses isolated execution and never mutates a dirty shared worktree
@@ -5353,8 +5353,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `scripts/benchmarks/philosophical_runtime_benchmark.py`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `tests/test_philosophical_runtime.py`
+    - `core/insight/philosophical_runtime.py`
     - `core/rag/`
     - `core/insight/`
   - DoD:

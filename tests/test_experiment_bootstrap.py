@@ -24,7 +24,7 @@ def test_build_experiment_packet_is_deterministic() -> None:
         "decision_question": "Benchmark RAG reliability for contradiction reduction",
         "task_class": "Experimentation",
         "mutable_paths": ["core/rag/vector_rag.py", "core/insight/pipeline.py"],
-        "oracle_commands": ["python scripts/benchmarks/philosophical_runtime_benchmark.py"],
+        "oracle_commands": ["pytest -q tests/test_philosophical_runtime.py"],
         "metrics": ["val_bpb", "latency_p95_ms"],
         "negative_controls": ["oracle file unchanged", "no forbidden path mutation"],
         "promotion_target": "pr_packet",
@@ -52,7 +52,9 @@ def test_build_experiment_packet_adds_cv_agent_for_cv_intent() -> None:
         decision_question="Evaluate CV photo pipeline confidence on food image reliability",
         task_class="Experimentation",
         mutable_paths=["docs/prompts/cv/program.md"],
-        oracle_commands=["pytest -q tests/test_cv_contract.py"],
+        oracle_commands=[
+            "pytest -q tests/test_skill_router.py -k experimentation_lane_skills_for_cv_eval"
+        ],
         metrics=["confidence_error"],
         negative_controls=["oracle file unchanged", "no hidden memory"],
         promotion_target="audit_artifact",
@@ -69,7 +71,7 @@ def test_build_experiment_packet_does_not_match_cv_hint_on_substrings() -> None:
         decision_question="Evaluate drag coefficient with cve notes",
         task_class="Experimentation",
         mutable_paths=["core/rag/vector_rag.py"],
-        oracle_commands=["pytest -q tests/test_rag_contracts.py"],
+        oracle_commands=["pytest -q tests/test_skill_router.py -k experimentation_lane_skills"],
         metrics=["reliability_score"],
         negative_controls=["oracle file unchanged", "no hidden memory"],
         promotion_target="audit_artifact",
@@ -148,7 +150,10 @@ def test_main_writes_relative_output_inside_repo(
         "domain": "ml",
         "mutable_candidate_surface": ["core/rag/vector_rag.py"],
         "immutable_oracles": [
-            {"command": "pytest -q tests/test_rag.py", "expected_signal": "must pass"}
+            {
+                "command": "pytest -q tests/test_skill_router.py -k experimentation_lane_skills",
+                "expected_signal": "must pass",
+            }
         ],
         "budgets": {
             "wall_clock_seconds": 300,
@@ -198,7 +203,7 @@ def test_main_writes_relative_output_inside_repo(
             "--mutable-path",
             "core/rag/vector_rag.py",
             "--oracle-command",
-            "pytest -q tests/test_rag.py",
+            "pytest -q tests/test_skill_router.py -k experimentation_lane_skills",
             "--metric",
             "val_bpb",
             "--negative-control",
@@ -240,7 +245,7 @@ def test_build_experiment_packet_rejects_budget_overrides_above_hard_caps() -> N
             decision_question="Benchmark RAG reliability for contradiction reduction",
             task_class="Experimentation",
             mutable_paths=["core/rag/vector_rag.py"],
-            oracle_commands=["python scripts/benchmarks/philosophical_runtime_benchmark.py"],
+            oracle_commands=["pytest -q tests/test_philosophical_runtime.py"],
             metrics=["val_bpb"],
             negative_controls=["oracle file unchanged", "no forbidden path mutation"],
             promotion_target="pr_packet",
@@ -256,7 +261,7 @@ def test_build_experiment_packet_rejects_unsupported_budget_keys() -> None:
             decision_question="Benchmark RAG reliability for contradiction reduction",
             task_class="Experimentation",
             mutable_paths=["core/rag/vector_rag.py"],
-            oracle_commands=["python scripts/benchmarks/philosophical_runtime_benchmark.py"],
+            oracle_commands=["pytest -q tests/test_philosophical_runtime.py"],
             metrics=["val_bpb"],
             negative_controls=["oracle file unchanged", "no forbidden path mutation"],
             promotion_target="pr_packet",
@@ -273,7 +278,7 @@ def test_compute_experiment_id_changes_with_budgets_and_stop_condition() -> None
         "mutable_paths": ["core/rag/vector_rag.py"],
         "immutable_oracles": [
             {
-                "command": "python scripts/benchmarks/philosophical_runtime_benchmark.py",
+                "command": "pytest -q tests/test_philosophical_runtime.py",
                 "expected_signal": "must pass",
             }
         ],
@@ -351,7 +356,7 @@ def test_main_fails_cleanly_on_output_write_error(
             "--mutable-path",
             "core/rag/vector_rag.py",
             "--oracle-command",
-            "pytest -q tests/test_rag.py",
+            "pytest -q tests/test_skill_router.py -k experimentation_lane_skills",
             "--metric",
             "val_bpb",
             "--negative-control",
