@@ -108,6 +108,17 @@ def require_apple_shared_secret() -> str:
     return secret
 
 
+def validate_apple_receipt_verification_config() -> None:
+    """Fail fast for Apple receipt verification config in production-like envs.
+
+    RU: Проверяет APPLE_SHARED_SECRET на startup только в production/staging.
+    EN: Enforces APPLE_SHARED_SECRET at startup only for production-like environments.
+    """
+
+    if is_production_like_env():
+        require_apple_shared_secret()
+
+
 def is_private_exports_enabled() -> bool:
     """Return whether signed private exports are enabled.
 

@@ -180,7 +180,7 @@ def test_apple_verify_receipt_returns_expired_business_envelope(
     }
 
 
-def test_apple_verify_receipt_uses_restored_state_only_for_restore_like_signal(
+def test_apple_verify_receipt_keeps_normal_renewal_active(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -209,8 +209,38 @@ def test_apple_verify_receipt_uses_restored_state_only_for_restore_like_signal(
     assert response.status_code == 200, response.text
     payload = _json(response)
     assert payload["verified"] is True
-    assert payload["verification_state"] == "restored"
+    assert payload["verification_state"] == "active"
     assert payload["activation_payload"] == {"tier": "pro", "platform": "ios"}
+
+
+def test_apple_verify_receipt_uses_restored_state_only_for_explicit_signal(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APPLE_SHARED_SECRET", "StrongAppleSharedSecretForTests123456789!")
+    _install_apple_stub(
+        monkeypatch,
+        [
+            {
+                "status": 0,
+                "restore_detected": True,
+                "latest_receipt_info": [
+                    _apple_receipt_entry(),
+                ],
+            }
+        ],
+    )
+
+    response = client.post(
+        "/api/v1/billing/apple/verify-receipt",
+        headers={"X-API-Key": "transport-only-key"},
+        json=_request_payload(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = _json(response)
+    assert payload["verified"] is True
+    assert payload["verification_state"] == "restored"
 
 
 def test_apple_verify_receipt_timeout_returns_504(

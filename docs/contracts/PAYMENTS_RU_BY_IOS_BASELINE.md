@@ -82,7 +82,7 @@ Lifecycle invariants:
 
 1. iOS verification path is automated and server-side validated only; the app must not call `verifyReceipt` directly.
 2. Apple verification runs production-first with exactly one sandbox fallback on Apple status `21007`; no generic retry loop is part of the contract.
-3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests.
+3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests; production/staging must fail fast on startup when it is missing.
 4. Any webhook/event handler must validate signature before state transition.
 5. Idempotency key precedence:
    - provider event id (if exists), else
@@ -154,4 +154,4 @@ Required runtime PR gates:
 
 1. Runtime Apple receipt verification is exposed under the additive billing namespace `/api/v1/billing/apple/verify-receipt`.
 2. Manual RU/BY payment surfaces remain under `/api/v1/pro/payments/ru-by/*` during the transition window.
-3. The legacy alias `/api/v1/pro/payments/apple/verify-receipt` may exist as a hidden compatibility route, but the canonical OpenAPI surface is `/api/v1/billing/apple/verify-receipt`.
+3. Do not advertise `/api/v1/pro/payments/apple/verify-receipt` as a compatibility alias; the canonical runtime/OpenAPI surface is `/api/v1/billing/apple/verify-receipt`.

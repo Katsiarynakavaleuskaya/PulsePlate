@@ -140,8 +140,24 @@ async def test_lifespan_requires_apple_shared_secret(
 
     lifespan_globals = app.lifespan.__wrapped__.__globals__
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
     monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
 
     with pytest.raises(RuntimeError, match="APPLE_SHARED_SECRET"):
         async with app.lifespan(app.app):
             pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_allows_missing_apple_shared_secret_in_test_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
+
+    async with app.lifespan(app.app):
+        pass

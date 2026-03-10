@@ -56,7 +56,6 @@ These routes remain for compatibility and migration. They must not be described 
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
 | `/api/v1/premium/exports/*` | POST | VIP | `/api/v1/vip/shoplist/export` | Wrong-namespace compatibility exports |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |
-| `/api/v1/pro/payments/apple/verify-receipt` | POST | Legacy PRO compatibility | `/api/v1/billing/apple/verify-receipt` | Hidden compatibility alias |
 
 ### Compatibility Notes
 

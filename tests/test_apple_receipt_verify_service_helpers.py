@@ -236,3 +236,42 @@ def test_normalize_apple_verification_rejects_unknown_product() -> None:
     assert response.verification_state is AppleVerificationState.invalid
     assert response.error is not None
     assert response.error.code == "APPLE_RECEIPT_INVALID"
+
+
+def test_normalize_apple_verification_keeps_renewal_active_without_restore_signal() -> None:
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": "4102444800000",
+                    "transaction_id": "txn-renewal-2",
+                    "original_transaction_id": "txn-original-1",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is True
+    assert response.verification_state is AppleVerificationState.active
+
+
+def test_normalize_apple_verification_uses_restored_only_for_explicit_signal() -> None:
+    response = payments_activation._normalize_apple_verification(
+        payload={
+            "status": 0,
+            "restore_detected": True,
+            "latest_receipt_info": [
+                {
+                    "product_id": "com.pulseplate.premium.monthly",
+                    "expires_date_ms": "4102444800000",
+                }
+            ],
+        },
+        environment=AppleVerificationEnvironment.production,
+    )
+
+    assert response.verified is True
+    assert response.verification_state is AppleVerificationState.restored

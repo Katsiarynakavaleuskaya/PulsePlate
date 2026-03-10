@@ -327,7 +327,7 @@ def test_payments_activation_reset_state_clears_process_local_records() -> None:
     )
 
 
-def test_legacy_apple_verify_alias_still_requires_pro_tier(
+def test_legacy_apple_verify_alias_is_removed(
     client: TestClient,
 ) -> None:
     response = client.post(
@@ -335,44 +335,4 @@ def test_legacy_apple_verify_alias_still_requires_pro_tier(
         headers={"X-API-Key": "transport-only-key"},
         json={"receipt_data": "receipt-data-validated-12345"},
     )
-    assert response.status_code == 403
-
-
-def test_legacy_apple_verify_alias_matches_canonical_response(
-    client: TestClient,
-    pro_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.services import payments_activation
-
-    async def _fake(url: str, receipt_data: str) -> dict[str, Any]:
-        assert receipt_data == "receipt-data-validated-12345"
-        assert url == payments_activation.APPLE_VERIFY_PRODUCTION_URL
-        return {
-            "status": 0,
-            "latest_receipt_info": [
-                {
-                    "product_id": "com.pulseplate.premium.monthly",
-                    "expires_date_ms": "4102444800000",
-                    "transaction_id": "txn-1",
-                    "original_transaction_id": "txn-1",
-                }
-            ],
-        }
-
-    monkeypatch.setattr(payments_activation, "_call_apple_verify_endpoint", _fake)
-
-    canonical = client.post(
-        "/api/v1/billing/apple/verify-receipt",
-        headers={"X-API-Key": "transport-only-key"},
-        json={"receipt_data": "receipt-data-validated-12345"},
-    )
-    legacy = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={"receipt_data": "receipt-data-validated-12345"},
-    )
-
-    assert canonical.status_code == 200, canonical.text
-    assert legacy.status_code == 200, legacy.text
-    assert _json(canonical) == _json(legacy)
+    assert response.status_code == 404

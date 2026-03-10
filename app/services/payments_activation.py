@@ -219,11 +219,14 @@ def _select_latest_receipt_entry(payload: dict[str, Any]) -> dict[str, Any] | No
     return max(entries, key=_entry_sort_key)
 
 
-def _is_restored_receipt(entry: dict[str, Any]) -> bool:
-    """Best-effort restore heuristic for compatibility-only response shaping."""
-    original_transaction_id = str(entry.get("original_transaction_id") or "").strip()
-    transaction_id = str(entry.get("transaction_id") or "").strip()
-    if original_transaction_id and transaction_id and original_transaction_id != transaction_id:
+def _has_reliable_restore_signal(
+    payload: dict[str, Any],
+    entry: dict[str, Any],
+) -> bool:
+    """Return True only for explicit restore-specific provider/orchestration signals."""
+    if payload.get("restore_detected") is True:
+        return True
+    if entry.get("restore_detected") is True:
         return True
     return False
 
@@ -331,7 +334,7 @@ def _normalize_apple_verification(
 
     verification_state = (
         AppleVerificationState.restored
-        if _is_restored_receipt(latest_entry)
+        if _has_reliable_restore_signal(payload, latest_entry)
         else AppleVerificationState.active
     )
     return AppleReceiptVerificationResponse(

@@ -192,34 +192,6 @@ async def verify_apple_receipt(
 
 
 @router.post(
-    "/apple/verify-receipt",
-    response_model=AppleReceiptVerificationResponse,
-    status_code=status.HTTP_200_OK,
-    include_in_schema=False,
-    responses={
-        status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN: {
-            "description": "PRO tier required on legacy alias",
-        },
-        status.HTTP_502_BAD_GATEWAY: {
-            "description": "Apple upstream error",
-            "model": AppleReceiptVerificationResponse,
-        },
-        status.HTTP_504_GATEWAY_TIMEOUT: {
-            "description": "Apple verify timeout",
-            "model": AppleReceiptVerificationResponse,
-        },
-    },
-)
-async def verify_apple_receipt_legacy_alias(
-    payload: AppleReceiptVerificationRequest,
-    _x_api_key: str = Depends(require_pro_tier),
-) -> AppleReceiptVerificationResponse | JSONResponse:
-    """Legacy PRO alias for Apple receipt verification."""
-    return await _verify_apple_receipt_response(payload)
-
-
-@router.post(
     "/ru-by/manual-intent",
     response_model=SubscriptionActivationResponse,
     status_code=status.HTTP_201_CREATED,
