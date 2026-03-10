@@ -370,22 +370,39 @@ def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
 
 def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> None:
     """DSAR helpers must set DB RLS context before user-bound SQL operations."""
-    rls_calls: list[int] = []
+    trace: list[tuple[str, str]] = []
+    current_helper = {"name": ""}
+
     monkeypatch.setattr(
         dsar_service,
         "apply_user_rls_context",
-        lambda session, *, user_id: rls_calls.append(user_id),
+        lambda session, *, user_id: trace.append(("apply", current_helper["name"])),
     )
 
     session = MagicMock()
-    session.get.return_value = None
     scalar_result = MagicMock()
     scalar_result.scalar_one.return_value = 0
     scalar_result.scalars.return_value.all.return_value = []
-    session.execute.return_value = scalar_result
+    session.get.side_effect = (
+        lambda *args, **kwargs: trace.append(("get", current_helper["name"])) or None
+    )
+    session.execute.side_effect = (
+        lambda *args, **kwargs: trace.append(("execute", current_helper["name"])) or scalar_result
+    )
 
-    export_direct_user_artifacts(session=cast(Session, session), user_id=17)
-    build_direct_user_deletion_plan(session=cast(Session, session), user_id=17)
-    delete_direct_user_artifacts(session=cast(Session, session), user_id=17)
+    for helper in (
+        export_direct_user_artifacts,
+        build_direct_user_deletion_plan,
+        delete_direct_user_artifacts,
+    ):
+        current_helper["name"] = helper.__name__
+        helper(session=cast(Session, session), user_id=17)
 
-    assert rls_calls == [17, 17, 17]
+    for helper_name in (
+        "export_direct_user_artifacts",
+        "build_direct_user_deletion_plan",
+        "delete_direct_user_artifacts",
+    ):
+        helper_trace = [event for event in trace if event[1] == helper_name]
+        assert helper_trace[0] == ("apply", helper_name)
+        assert any(event[0] in {"get", "execute"} for event in helper_trace[1:])

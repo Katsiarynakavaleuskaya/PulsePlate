@@ -34,10 +34,11 @@ def apply_user_rls_context(session: Session, *, user_id: int) -> None:
         raise ValueError("user_id must be a positive integer for DB RLS context")
     if not _is_postgres_session(session):
         return
-    session.execute(
-        text("SELECT set_config(:setting_name, :user_id, true)"),
-        {
-            "setting_name": RLS_CURRENT_USER_SETTING,
-            "user_id": str(user_id),
-        },
-    )
+    with session.no_autoflush:
+        session.execute(
+            text("SELECT set_config(:setting_name, :user_id, true)"),
+            {
+                "setting_name": RLS_CURRENT_USER_SETTING,
+                "user_id": str(user_id),
+            },
+        )

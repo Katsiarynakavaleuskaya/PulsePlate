@@ -156,17 +156,18 @@ def submit_rag_feedback(
 
     apply_user_rls_context(db, user_id=current_user.user_id)
     db.add(record)
+    db.flush()
+    record_id = record.id
     db.commit()
-    db.refresh(record)
 
     logger.info(
         "RAG feedback submitted",
         extra={
-            "feedback_id": record.id,
+            "feedback_id": record_id,
             "agent_id": feedback.agent_id,
             "has_rating": feedback.user_rating is not None,
             "has_correction": feedback.user_correction is not None,
         },
     )
 
-    return RAGFeedbackResponse(id=record.id)
+    return RAGFeedbackResponse(id=record_id)

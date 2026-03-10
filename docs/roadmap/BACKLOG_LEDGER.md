@@ -873,7 +873,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/db_rls.py`
     - `alembic/versions/202603100001_enable_rag_user_rls.py`
   - DoD:
-    - Postgres RLS policy exists for `user_knowledge` (and companion policy for `rag_feedback` if required)
+    - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
     - Canonical transaction-local session context is set before RAG retrieval, feedback writes, and DSAR helper queries
     - Migration + rollback path documented
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
