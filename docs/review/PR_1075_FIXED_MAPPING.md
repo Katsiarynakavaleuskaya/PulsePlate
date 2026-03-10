@@ -3,13 +3,11 @@
 This artifact remains scoped to PR `#1075` only.
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-Pending initial review.
-
-No actionable review threads recorded yet.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
