@@ -29,14 +29,20 @@ let cachedAllowedOrigins = new Set();
 /**
  * @param {string} message
  * @param {number} status
+ * @param {string | null} [origin]
  * @returns {Response}
  */
-function jsonError(message, status) {
+function jsonError(message, status, origin = null) {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+  };
+  if (origin) {
+    Object.assign(headers, corsHeaders(origin));
+  }
+
   return new Response(JSON.stringify({ error: message, status }), {
     status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-    },
+    headers,
   });
 }
 
@@ -165,17 +171,18 @@ export default {
     const url = new URL(request.url);
     const trustedOrigin = trustedOriginOrNull(request, env);
     const targetBase = normalizeTargetBase(env);
+    const corsOrigin = typeof trustedOrigin === "string" ? trustedOrigin : null;
 
     if (!ALLOWED_METHODS.has(request.method)) {
-      return jsonError("Method not allowed", 405);
+      return jsonError("Method not allowed", 405, corsOrigin);
     }
 
     if (!url.pathname.startsWith("/api/")) {
-      return jsonError("Only /api/* paths are supported", 403);
+      return jsonError("Only /api/* paths are supported", 403, corsOrigin);
     }
 
     if (!targetBase) {
-      return jsonError("TARGET_BASE must be explicitly configured", 500);
+      return jsonError("TARGET_BASE must be explicitly configured", 500, corsOrigin);
     }
 
     if (trustedOrigin === false) {

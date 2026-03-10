@@ -77,9 +77,9 @@ async function main() {{
     return;
   }}
 
-  if (caseName === "missing_target_base") {{
-    const response = await worker.fetch(
-      new Request("https://edge.example.com/api/foods", {{
+    if (caseName === "missing_target_base") {{
+      const response = await worker.fetch(
+        new Request("https://edge.example.com/api/foods", {{
         method: "GET",
         headers: {{ Origin: "https://app.pulseplate.app" }},
       }}),
@@ -91,6 +91,7 @@ async function main() {{
     console.log(JSON.stringify({{
       status: response.status,
       body: await response.json(),
+      headers: toObject(response.headers),
       captured,
     }}));
     return;
@@ -110,6 +111,7 @@ async function main() {{
     console.log(JSON.stringify({{
       status: response.status,
       body: await response.json(),
+      headers: toObject(response.headers),
       captured,
     }}));
     return;
@@ -261,6 +263,8 @@ def test_worker_fails_closed_when_target_base_is_missing_or_invalid() -> None:
     assert invalid["body"] == missing["body"]
     assert missing["captured"] is None
     assert invalid["captured"] is None
+    assert missing["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"
+    assert missing["headers"]["vary"] == "Origin"
 
 
 def test_worker_preflight_reflects_only_trusted_origins() -> None:
