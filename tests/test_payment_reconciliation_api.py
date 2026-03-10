@@ -355,7 +355,7 @@ def test_manual_status_rejects_ios_activation_via_api(
     assert payload["detail"] == "manual_status_not_supported_for_ios"
 
 
-def test_manual_reconcile_rejects_unsupported_state_via_service() -> None:
+def test_manual_reconcile_ignores_stale_shadow_state_via_service() -> None:
     from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
 
@@ -363,23 +363,22 @@ def test_manual_reconcile_rejects_unsupported_state_via_service() -> None:
     activation_id = _create_manual_intent_via_service(issuer=issuer, source="erip_qr")
     payments_activation._ACTIVATIONS[activation_id]["reconcile_status"] = "unsupported_state"
 
-    with pytest.raises(
-        payments_activation.ActivationStateError,
-        match="manual reconcile transition requires pending state",
-    ):
-        payments_activation.reconcile_activation(
-            issuer=issuer,
-            payload=ManualRailReconcileRequest.model_validate(
-                {
-                    "intent_id": activation_id,
-                    "client_event_id": "evt-unsupported-reconcile-1",
-                    "decision": "verified",
-                }
-            ),
-        )
+    response = payments_activation.reconcile_activation(
+        issuer=issuer,
+        payload=ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": activation_id,
+                "client_event_id": "evt-unsupported-reconcile-1",
+                "decision": "verified",
+            }
+        ),
+    )
+
+    assert response.status == "active"
+    assert response.reconcile_status == "verified"
 
 
-def test_manual_reconcile_rejects_unsupported_state_via_api(
+def test_manual_reconcile_ignores_stale_shadow_state_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
@@ -398,9 +397,9 @@ def test_manual_reconcile_rejects_unsupported_state_via_api(
             "decision": "verified",
         },
     )
-    assert response.status_code == 422
-    assert _json(response)["code"] == "invalid_reconcile_state"
-    assert _json(response)["detail"] == "manual_reconcile_transition_requires_pending_state"
+    assert response.status_code == 200, response.text
+    assert _json(response)["status"] == "active"
+    assert _json(response)["reconcile_status"] == "verified"
 
 
 def test_activation_state_detail_maps_manual_status_and_unknown_errors() -> None:

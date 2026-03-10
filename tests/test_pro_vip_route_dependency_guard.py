@@ -81,7 +81,8 @@ def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI)
                         getattr(call, "__name__", type(call).__name__) for call in flattened_calls
                     )
                     missing_guards.append(
-                        f"{methods} {route.path} missing {type(expected_dependency).__name__}; "
+                        f"{methods} {route.path} missing "
+                        f"{getattr(expected_dependency, '__name__', type(expected_dependency).__name__)}; "
                         f"got [{names}]"
                     )
                 break

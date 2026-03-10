@@ -143,6 +143,9 @@ def _amount_to_minor_units(submitted_amount: str | None) -> int | None:
     except InvalidOperation as exc:
         raise ValueError("submitted_amount must be a valid decimal string") from exc
 
+    if amount < 0:
+        raise ValueError("submitted_amount must be non-negative")
+
     normalized = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return int(normalized * 100)
 
@@ -1293,9 +1296,6 @@ def reconcile_activation(
                 ),
                 external_txn_id_override=payload.external_txn_id,
             )
-        shadow_entry = _ACTIVATIONS.get(payload.intent_id, {})
-        if shadow_entry.get("reconcile_status") not in {None, ReconcileStatus.pending.value}:
-            raise ActivationStateError("manual reconcile transition requires pending state")
         if subscription.status not in {
             SubscriptionStatus.pending_manual_review.value,
             SubscriptionStatus.pending_verification.value,

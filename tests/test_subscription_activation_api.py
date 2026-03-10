@@ -602,6 +602,11 @@ def test_internal_helper_rejects_invalid_amount() -> None:
         payments_activation._amount_to_minor_units("not-a-number")
 
 
+def test_internal_helper_rejects_negative_amount() -> None:
+    with pytest.raises(ValueError, match="submitted_amount must be non-negative"):
+        payments_activation._amount_to_minor_units("-1.00")
+
+
 def test_internal_reconcile_status_helper_covers_all_paths() -> None:
     assert (
         payments_activation._reconcile_status_from_subscription_status(
