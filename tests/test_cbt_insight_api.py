@@ -567,6 +567,40 @@ class TestCBTInsightRAGIntegration:
         data = _json_body(response)
         assert data["detail"] == "rag_retrieval_unavailable"
 
+    def test_rag_audit_target_matches_cbt_corpus(self) -> None:
+        """CBT insight must audit the same corpus it retrieves from."""
+
+        audit_targets: list[tuple[str, str]] = []
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "Here is a CBT-informed response."
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
+
+        def _track_audit(**kwargs: object) -> None:
+            audit_targets.append((str(kwargs["action"]), str(kwargs["target"])))
+
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
+            _track_audit,
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        response = self.client.post(
+            self.url,
+            json={"query": "How do I reset after a hard day?"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert audit_targets[0] == ("rag.retrieve", "corpus://cbt-agent")
+
     def test_response_redacts_pii_in_sources(self) -> None:
         """Source previews must redact common PII before returning to client."""
         from core.rag.contracts import RAGChunk

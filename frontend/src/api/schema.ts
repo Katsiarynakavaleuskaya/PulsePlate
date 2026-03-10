@@ -95,6 +95,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insight/fitchef": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Mascot Insight
+         * @description Generate VIP-only mascot coaching insight via the FitChef runtime.
+         */
+        post: operations["fitchef_mascot_insight_api_v1_insight_fitchef_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/attribution": {
         parameters: {
             query?: never;
@@ -2378,6 +2398,64 @@ export interface components {
             status: string;
         };
         /**
+         * FitChefCoachingErrorResponse
+         * @description Standard JSON detail envelope for FitChef coaching errors.
+         */
+        FitChefCoachingErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * FitChefCoachingRequest
+         * @description Mascot insight request payload.
+         */
+        FitChefCoachingRequest: {
+            /** Query */
+            query: string;
+        };
+        /**
+         * FitChefCoachingSourceItem
+         * @description Public RAG source item for mascot coaching.
+         */
+        FitChefCoachingSourceItem: {
+            /** File */
+            file: string;
+            /** Preview */
+            preview: string;
+            /** Score */
+            score: number;
+        };
+        /**
+         * FitChefMascotInsightResponse
+         * @description Public mascot insight response envelope.
+         */
+        FitChefMascotInsightResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "mascot_insight";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
          * FoodAttributionResponse
          * @description RU: Ответ endpoint с атрибуцией источников.
          *     EN: Attribution endpoint response for food data sources.
@@ -4423,6 +4501,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fitchef_mascot_insight_api_v1_insight_fitchef_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefCoachingRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef mascot coaching insight generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefMascotInsightResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
                 };
             };
         };

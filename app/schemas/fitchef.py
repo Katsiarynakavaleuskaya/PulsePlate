@@ -10,7 +10,7 @@ from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
 
 FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
-FitChefTaskType = Literal["coach_insight", "weekly_plan", "shopping_followup"]
+FitChefTaskType = Literal["coach_insight", "weekly_plan", "shopping_followup", "mascot_insight"]
 FitChefQuotaState = Literal["not_consumed", "consumed"]
 
 
@@ -37,6 +37,22 @@ class FitChefCoachInsightTaskEnvelope(FitChefTaskEnvelope):
 
     task_type: Literal["coach_insight"] = "coach_insight"
     input: FitChefCoachInsightInput
+
+
+class FitChefMascotInsightInput(BaseModel):
+    """Internal mascot-insight task input. / Входные данные mascot-insight задачи."""
+
+    safe_query: str = Field(..., min_length=1)
+    api_key: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    method: str = Field(..., min_length=1)
+
+
+class FitChefMascotInsightTaskEnvelope(FitChefTaskEnvelope):
+    """Mascot-insight task envelope. / Envelope для задачи mascot-insight."""
+
+    task_type: Literal["mascot_insight"] = "mascot_insight"
+    input: FitChefMascotInsightInput
 
 
 class FitChefWeeklyPlanInput(BaseModel):
@@ -73,6 +89,21 @@ class FitChefCoachInsightResult(BaseModel):
     mode: FitChefExecutionMode
     quota_state: FitChefQuotaState
     automated_analysis: bool
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefMascotInsightResult(BaseModel):
+    """Internal mascot-insight result. / Внутренний результат mascot-insight."""
+
+    message: str
+    scenario: Literal["mascot_insight"] = "mascot_insight"
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    action_items: list[str]
+    mode: FitChefExecutionMode
+    quota_state: FitChefQuotaState
     transparency_notice_id: str
     wellness_boundary: str
 

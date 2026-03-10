@@ -41,6 +41,24 @@ class TestVIPRegistrationIdempotent:
         # Verify VIP routes are registered (covers lines 53-57: hasattr check and include_router)
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/api/v1/vip" in path for path in paths), "VIP routes should be registered"
+        assert "/api/v1/insight/fitchef" in paths
+
+    def test_register_vip_routes_keeps_fitchef_registration_idempotent(self, monkeypatch):
+        """Repeated registration must not duplicate any VIP routes."""
+
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+
+        from app.routers.vip_registration import register_vip_routes
+
+        app = FastAPI()
+
+        register_vip_routes(app)
+        first_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
+        register_vip_routes(app)
+        second_paths = sorted(route.path for route in app.routes if hasattr(route, "path"))
+
+        assert second_paths == first_paths
+        assert second_paths.count("/api/v1/insight/fitchef") == 1
 
     def test_register_vip_routes_noop_when_disabled(self, monkeypatch):
         """Test that register_vip_routes is a no-op when VIP module disabled."""
@@ -56,6 +74,7 @@ class TestVIPRegistrationIdempotent:
         assert not any(
             "/api/v1/vip" in path for path in paths
         ), "VIP routes should not be registered"
+        assert "/api/v1/insight/fitchef" not in paths
 
 
 class TestVIPShoplistPDFExport:
@@ -114,4 +133,5 @@ class TestVIPShoplistPDFExport:
 
         # Should return 501 NOT IMPLEMENTED (covers line 567: except ImportError as e)
         assert response.status_code == 501
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert "PDF export is not available" in response.json()["detail"]
