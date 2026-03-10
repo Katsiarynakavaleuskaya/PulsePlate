@@ -3322,6 +3322,28 @@ def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMe
     )
 
 
+def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
+    """Resolve the canonical weekly-menu builder for the legacy premium alias.
+
+    RU: Разрешить canonical weekly-menu builder для legacy premium alias.
+    EN: Resolve the canonical weekly-menu builder for the legacy premium alias.
+    """
+    import sys as _sys
+
+    package_module = _sys.modules.get("app")
+    package_has_override = package_module is not None and "make_weekly_menu" in getattr(
+        package_module,
+        "__dict__",
+        {},
+    )
+    if package_has_override:
+        package_builder = getattr(package_module, "make_weekly_menu")
+        return package_builder if callable(package_builder) else None
+
+    local_builder = globals().get("make_weekly_menu")
+    return local_builder if callable(local_builder) else None
+
+
 class WeeklyPlanFlexibleRequest(BaseModel):
     # Either 'targets' or a lightweight user profile
     targets: Optional[Dict[str, Any]] = None
@@ -4624,53 +4646,17 @@ async def api_weekly_menu(
         if _vip_env is None and not VIP_MODULE_ENABLED:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
-        # Mode A: targets-only payloads are not yet supported for this endpoint.
-        # For such requests, return a clear validation error instead of leaking 500s.
-        if req.targets is not None and not any(
-            [req.sex, req.age, req.height_cm, req.weight_kg, req.activity]
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "Targets-based weekly plans are not supported on this endpoint. "
-                    "Provide full profile data or use /api/v1/premium/plan/week-flexible."
-                ),
-            )
-
-        # Resolve make_weekly_menu with preference for package-level patching in tests
-        import sys as _sys
-
-        pkg_mod = _sys.modules.get("app")
-        pkg_has_override = pkg_mod is not None and "make_weekly_menu" in getattr(
-            pkg_mod, "__dict__", {}
-        )
-        _make_weekly_menu = (
-            getattr(pkg_mod, "make_weekly_menu")
-            if pkg_has_override
-            else globals().get("make_weekly_menu")
-        )
-        if not callable(_make_weekly_menu):
+        menu_builder = _resolve_legacy_weekly_menu_builder()
+        if menu_builder is None:
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"
             )
 
-        from app.routers.vip import _execute_weekly_menu_plan_payload
+        from app.routers.vip import execute_legacy_premium_week_alias_payload
 
-        if (
-            req.sex is None
-            or req.age is None
-            or req.height_cm is None
-            or req.weight_kg is None
-            or req.activity is None
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail="Required fields missing: sex, age, height_cm, weight_kg, and activity are all required.",
-            )
-
-        _, _, menu_payload = await _execute_weekly_menu_plan_payload(
+        menu_payload = await execute_legacy_premium_week_alias_payload(
             req.model_dump(exclude_none=True),
-            menu_builder=_make_weekly_menu,
+            menu_builder=menu_builder,
         )
         return _build_legacy_weekly_menu_response(menu_payload)
 
