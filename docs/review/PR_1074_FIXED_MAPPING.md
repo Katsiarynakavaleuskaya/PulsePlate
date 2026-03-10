@@ -36,6 +36,16 @@ Commit: 661cfe9c
 Evidence: `docs/review/PR_1074_FIXED_MAPPING.md:3`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911285670 -> 661cfe9c
 
+Disposition: FIXED
+Commit: 65e0290a
+Evidence: `app/routers/billing.py:168`, `docs/contracts/API_CANONICAL_MAP.md:16`, `docs/roadmap/BACKLOG_LEDGER.md:64`, `docs/roadmap/BACKLOG_LEDGER.md:156`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922339679 -> 65e0290a
+
+Disposition: FIXED
+Commit: 29df8752
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:321`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922347821 -> 29df8752
+
 ## Merge Readiness
 - [ ] All required checks are green on latest commit (no pending/rerun required)
 - [ ] No unresolved review threads
