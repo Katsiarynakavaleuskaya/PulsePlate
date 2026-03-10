@@ -65,6 +65,21 @@ const WEEK_PLAN_VM: WeekPlanVM = {
   },
 };
 
+const SPARSE_WEEK_PLAN_VM: WeekPlanVM = {
+  ...WEEK_PLAN_VM,
+  days: [
+    {
+      ...WEEK_PLAN_VM.days[0],
+      day: 3,
+      dayName: 'Wednesday',
+    },
+  ],
+  meta: {
+    total_days: 1,
+    has_incomplete_data: true,
+  },
+};
+
 describe('WeeklyPlanViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -146,6 +161,38 @@ describe('WeeklyPlanViewer', () => {
       expect(screen.getByText('понедельник')).toBeInTheDocument();
     });
     expect(screen.queryByText('Monday')).not.toBeInTheDocument();
+
+    dateTimeFormatSpy.mockRestore();
+  });
+
+  it('uses the normalized day number for sparse localized plans', async () => {
+    mockGetClientLocale.mockReturnValue('ru');
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+      () =>
+        ({
+          format: (date: Date) => {
+            const weekday = date.getUTCDay();
+            if (weekday === 3) {
+              return 'среда';
+            }
+            return 'понедельник';
+          },
+        }) as Intl.DateTimeFormat
+    );
+    mockUseWeeklyPlan.mockReturnValue({
+      data: SPARSE_WEEK_PLAN_VM,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    await waitFor(() => {
+      expect(screen.getByText('среда')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('понедельник')).not.toBeInTheDocument();
 
     dateTimeFormatSpy.mockRestore();
   });

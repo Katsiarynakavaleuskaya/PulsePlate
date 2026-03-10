@@ -291,14 +291,15 @@ export default function WeeklyPlanViewer() {
           <div className="opacity-80">{t('plan.emptySummary')}</div>
         ) : (
           <ul className="space-y-4">
-            {dailyMenus.map((menu, idx) => {
-              const dayTitle = getDayTitle(idx, displayLocale, t, menu.dayName);
+            {dailyMenus.map((menu) => {
+              const dayIndex = Math.max(menu.day - 1, 0);
+              const dayTitle = getDayTitle(dayIndex, displayLocale, t, menu.dayName);
               const dayEnergy = menu.kcal;
               const meals = menu.meals;
 
               return (
                 <li
-                  key={`${dayTitle}-${idx}`}
+                  key={`${dayTitle}-${menu.day}`}
                   className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
                 >
                   <div className="flex items-center justify-between">
