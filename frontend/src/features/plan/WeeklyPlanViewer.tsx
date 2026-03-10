@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ProWeekPlanRequest } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
@@ -15,6 +15,14 @@ const SUPPORTED_REQUEST_LANGS: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"]
 
 function isSupportedRequestLang(locale: string): locale is ProWeekPlanRequest["lang"] {
   return SUPPORTED_REQUEST_LANGS.some((supportedLocale) => supportedLocale === locale);
+}
+
+function getInitialRequest(): ProWeekPlanRequest {
+  const clientLocale = getClientLocale();
+  return {
+    ...DEFAULT_REQUEST,
+    lang: isSupportedRequestLang(clientLocale) ? clientLocale : "en",
+  };
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -124,19 +132,10 @@ export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
-  const [request, setRequest] = useState<ProWeekPlanRequest | null>(null);
-
-  useEffect(() => {
-    const clientLocale = getClientLocale();
-    setRequest({
-      ...DEFAULT_REQUEST,
-      lang: isSupportedRequestLang(clientLocale) ? clientLocale : "en",
-    });
-  }, []);
+  const [request] = useState<ProWeekPlanRequest>(getInitialRequest);
 
   const { data, loading, error: err } = useWeeklyPlan({
     targets: request,
-    enabled: request !== null,
   });
 
   if (loading) {
@@ -152,7 +151,7 @@ export default function WeeklyPlanViewer() {
   }
 
   const dailyMenus = data?.days ?? [];
-  const displayLocale = request?.lang ?? "en";
+  const displayLocale = request.lang;
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");

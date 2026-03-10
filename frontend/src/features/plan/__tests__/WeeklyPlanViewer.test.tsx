@@ -121,6 +121,29 @@ describe('WeeklyPlanViewer', () => {
     expect(screen.getByText('plan.loadError: backend unavailable')).toBeInTheDocument();
   });
 
+  it('builds the locale-adjusted request on the first render', () => {
+    mockGetClientLocale.mockReturnValue('ru');
+
+    render(<WeeklyPlanViewer />);
+
+    expect(mockUseWeeklyPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: expect.objectContaining({
+          ...{
+            sex: 'female',
+            age: 30,
+            height_cm: 168,
+            weight_kg: 62,
+            activity: 'moderate',
+            goal: 'maintain',
+            diet_flags: [],
+          },
+          lang: 'ru',
+        }),
+      })
+    );
+  });
+
   it('renders normalized week-plan view-model data', () => {
     mockUseWeeklyPlan.mockReturnValue({
       data: WEEK_PLAN_VM,
