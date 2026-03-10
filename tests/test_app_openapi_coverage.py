@@ -143,7 +143,7 @@ class TestAppOpenAPICoverage:
         assert "post" in paths["/api/v1/vip/menu/weekly/plan"]
         assert "post" in paths["/api/v1/vip/weekly-plan"]
 
-    def test_app_openapi_exposes_additive_runtime_surface(self, client):
+    def test_app_openapi_exposes_additive_runtime_surface(self, client) -> None:
         """Runtime `/openapi.json` must include additive routes registered in app.main."""
         response = client.get("/openapi.json")
         assert response.status_code == 200

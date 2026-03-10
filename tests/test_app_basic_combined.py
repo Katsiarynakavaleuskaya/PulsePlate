@@ -49,7 +49,6 @@ class TestAppImport:
 
         assert additive_paths.issubset(package_paths)
         assert additive_paths.issubset(main_paths)
-        assert additive_paths.issubset(package_paths & main_paths)
 
     def test_app_package_keeps_legacy_app_identity(self) -> None:
         """The package shim must preserve the underlying legacy FastAPI object."""
