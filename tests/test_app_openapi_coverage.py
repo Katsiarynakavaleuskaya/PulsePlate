@@ -143,6 +143,16 @@ class TestAppOpenAPICoverage:
         assert "post" in paths["/api/v1/vip/menu/weekly/plan"]
         assert "post" in paths["/api/v1/vip/weekly-plan"]
 
+    def test_app_openapi_exposes_additive_runtime_surface(self, client) -> None:
+        """Runtime `/openapi.json` must include additive routes registered in app.main."""
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+        _assert_json_content_type(response)
+
+        paths = response.json()["paths"]
+        assert "/api/v1/billing/apple/verify-receipt" in paths
+        assert "/api/v1/pro/cbt/insight" in paths
+
     def test_app_openapi_parameters_coverage(self, client):
         """Тест покрытия app.py OpenAPI parameters"""
         # Тестируем OpenAPI parameters
