@@ -25,7 +25,9 @@ def get_subscription_for_user_source(
         Subscription.user_id == user_id,
         Subscription.source == source.value,
     )
-    return session.execute(statement).scalar_one_or_none()
+    subscription: Subscription | None
+    subscription = session.execute(statement).scalar_one_or_none()
+    return subscription
 
 
 def get_audit_by_user_key(
@@ -40,7 +42,9 @@ def get_audit_by_user_key(
         SubscriptionActivationAudit.user_id == user_id,
         SubscriptionActivationAudit.idempotency_key == idempotency_key,
     )
-    return session.execute(statement).scalar_one_or_none()
+    audit: SubscriptionActivationAudit | None
+    audit = session.execute(statement).scalar_one_or_none()
+    return audit
 
 
 def get_audit_by_id(
@@ -50,7 +54,9 @@ def get_audit_by_id(
 ) -> SubscriptionActivationAudit | None:
     """Return activation audit row by public activation id."""
 
-    return session.get(SubscriptionActivationAudit, activation_id)
+    audit: SubscriptionActivationAudit | None
+    audit = session.get(SubscriptionActivationAudit, activation_id)
+    return audit
 
 
 def get_subscription_by_id(
@@ -60,7 +66,9 @@ def get_subscription_by_id(
 ) -> Subscription | None:
     """Return subscription row by primary key."""
 
-    return session.get(Subscription, subscription_id)
+    subscription: Subscription | None
+    subscription = session.get(Subscription, subscription_id)
+    return subscription
 
 
 def get_latest_audit_for_subscription(
@@ -79,4 +87,6 @@ def get_latest_audit_for_subscription(
         )
         .limit(1)
     )
-    return session.execute(statement).scalar_one_or_none()
+    audit: SubscriptionActivationAudit | None
+    audit = session.execute(statement).scalar_one_or_none()
+    return audit

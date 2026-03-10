@@ -248,14 +248,18 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
 
         if self.payload is None:
             raise ValueError("ios activation payload is unavailable for legacy requests")
-        return IOSAppStoreActivationPayload.model_validate(self.payload)
+        payload_obj: IOSAppStoreActivationPayload
+        payload_obj = IOSAppStoreActivationPayload.model_validate(self.payload)
+        return payload_obj
 
     def get_manual_payload(self) -> ManualActivationPayload:
         """Return typed manual activation payload."""
 
         if self.payload is None:
             raise ValueError("manual activation payload is unavailable for legacy requests")
-        return ManualActivationPayload.model_validate(self.payload)
+        payload_obj: ManualActivationPayload
+        payload_obj = ManualActivationPayload.model_validate(self.payload)
+        return payload_obj
 
     @property
     def uses_canonical_payload(self) -> bool:

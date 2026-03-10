@@ -211,9 +211,10 @@ def _get_sqlite_poolclass(db_url: str) -> type | None:
     is_xdist = "PYTEST_XDIST_WORKER" in os.environ
     if not (is_test or is_xdist):
         return None
-    from sqlalchemy.pool import NullPool
+    from sqlalchemy.pool import NullPool, Pool
 
-    return NullPool
+    pool_class: type[Pool] = NullPool
+    return pool_class
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:

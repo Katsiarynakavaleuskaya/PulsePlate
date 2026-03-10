@@ -550,6 +550,7 @@ def _to_response(
         ReconcileStatus.rejected,
     }:
         verified_at = subscription.updated_at if subscription is not None else audit.created_at
+    response: SubscriptionActivationResponse
     response = SubscriptionActivationResponse.model_validate(
         {
             "activation_id": activation_id,
