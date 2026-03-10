@@ -7,7 +7,7 @@
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `fcc107db` rebuilt PR #1073 on top of `origin/main` and removed the unintended `AGENTS.md` / `docs/runbooks/ENGINEER_QUICKPATH.md` drift from the PR diff, while preserving the intended PR1 scope; `86b56fbf` added the required root `AGENTS.md` sync, completed the deferred ledger block fields, switched the canonical workflow preflight command to module form, and restored the missing CV ledger anchor; `40825f7f` adds the exact `docs(agents): update instructions` follow-up commit requested by CodeRabbit and extends the root instructions with the immutable-oracle guard and PR1→PR6 rollout sequence.
+Evidence: `fcc107db` rebuilt PR #1073 on top of `origin/main` and removed the unintended `AGENTS.md` / `docs/runbooks/ENGINEER_QUICKPATH.md` drift from the PR diff, while preserving the intended PR1 scope; `f7dd7411` checked the required `Discussion Thread Pass` boxes in the canonical mapping artifact; `86b56fbf` added the required root `AGENTS.md` sync, completed the deferred ledger block fields, switched the canonical workflow preflight command to module form, and restored the missing CV ledger anchor; `40825f7f` adds the exact `docs(agents): update instructions` follow-up commit requested by CodeRabbit and extends the root instructions with the immutable-oracle guard and PR1→PR6 rollout sequence.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#pullrequestreview-3921934779 -> fcc107db
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911295085 -> fcc107db
@@ -20,6 +20,8 @@ Evidence: `fcc107db` rebuilt PR #1073 on top of `origin/main` and removed the un
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509358 -> 86b56fbf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509378 -> 86b56fbf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509385 -> 86b56fbf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509389 -> f7dd7411
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509406 -> 86b56fbf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911509410 -> 86b56fbf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#pullrequestreview-3922226001 -> 40825f7f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1073#discussion_r2911591286 -> 40825f7f
