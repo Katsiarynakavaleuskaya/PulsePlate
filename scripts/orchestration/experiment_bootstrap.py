@@ -102,10 +102,27 @@ def _is_allowed_prompt_or_program_doc(path: str) -> bool:
     return any(segment in f"/{path}" for segment in ALLOWED_DOC_SEGMENTS)
 
 
+def _normalize_mutable_surface_path(raw_path: str) -> str:
+    """Collapse traversal segments before mutable-surface allowlist checks."""
+
+    candidate = Path(raw_path)
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+    else:
+        resolved = (REPO_ROOT / candidate).resolve()
+
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
 def validate_mutable_candidate_surface(paths: list[str] | tuple[str, ...]) -> list[str]:
     """Validate mutable surfaces against the PR1 experimentation allowlist."""
 
-    normalized_paths = repo_relative_paths(paths)
+    normalized_paths = sorted(
+        {_normalize_mutable_surface_path(path) for path in repo_relative_paths(paths)}
+    )
     if not normalized_paths:
         raise ValueError("At least one --mutable-path is required.")
 

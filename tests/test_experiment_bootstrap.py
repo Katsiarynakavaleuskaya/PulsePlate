@@ -68,6 +68,25 @@ def test_validate_mutable_candidate_surface_rejects_forbidden_path() -> None:
         raise AssertionError("Expected ValueError for forbidden mutable surface")
 
 
+def test_validate_mutable_candidate_surface_rejects_traversal_escape() -> None:
+    """Traversal segments must not bypass the mutable-surface allowlist."""
+
+    try:
+        validate_mutable_candidate_surface(["core/rag/../../docs/orchestration/workflow.md"])
+    except ValueError as exc:
+        assert "docs/orchestration/workflow.md" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for traversal escape")
+
+
+def test_validate_mutable_candidate_surface_normalizes_safe_relative_paths() -> None:
+    """Benign traversal inside an allowed root should normalize to the allowed file."""
+
+    normalized = validate_mutable_candidate_surface(["core/rag/../rag/vector_rag.py"])
+
+    assert normalized == ["core/rag/vector_rag.py"]
+
+
 def test_main_rejects_missing_oracles(capsys) -> None:
     """CLI should fail cleanly when no immutable oracle command is provided."""
 
