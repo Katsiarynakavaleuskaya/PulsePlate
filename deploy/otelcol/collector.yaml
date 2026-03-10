@@ -1,0 +1,24 @@
+receivers:
+  otlp:
+    protocols:
+      http: {}
+      grpc: {}
+
+processors:
+  batch: {}
+  attributes:
+    actions:
+      - key: service.environment
+        action: upsert
+        value: prod
+
+exporters:
+  logging:
+    loglevel: warn
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [logging]

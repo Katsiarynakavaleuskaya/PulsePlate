@@ -22,6 +22,22 @@ If it is not recorded here — it does not exist.
 
 ---
 
+- [ ] P1: Telemetry maturity follow-through for audited vault retrieval and budget dashboards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (post-foundation observability maturity)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): The telemetry foundation PR intentionally stops at lightweight spans plus encrypted pointer storage. Audited decrypt workflow, detector budget dashboards, and retention/DSR operating hooks remain deferred so the first runtime slice stays additive and low-risk.
+  - Links:
+    - `docs/telemetry/TELEMETRY_POLICY.md`
+    - `docs/telemetry/LLM_DETECTORS.md`
+    - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
+    - `deploy/otelcol/collector.yaml`
+  - DoD:
+    - Audited decrypt workflow exists for approved vault retrieval
+    - Dashboards cover span volume, full-capture rate, and detector distribution
+    - Retention and deletion hooks for telemetry vault references are documented and test-covered
+
 ## Open Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
