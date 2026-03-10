@@ -11,11 +11,11 @@ Commit: a12edd5f
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:472
 Reason: the backlog item now points to active PR `#1072`, so the in-progress ledger entry no longer advertises a TBD target.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911024762 -> dfb97e2a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#discussion_r2911024762 -> b9bbbaaf
 Disposition: FIXED
-Commit: dfb97e2a
-Evidence: docs/review/PR_1072_FIXED_MAPPING.md:7
-Reason: the canonical artifact now uses the required no-actionable marker instead of the invalid placeholder text.
+Commit: b9bbbaaf
+Evidence: docs/review/PR_1072_FIXED_MAPPING.md:11
+Reason: the canonical artifact now records explicit FIXED commit proof for the post-review mapping correction, satisfying the phase2/disposition contract after the comment timestamp.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1072#pullrequestreview-3921607289
 Disposition: NOT-A-BUG
