@@ -59,6 +59,15 @@ PATH_DOMAIN_HINTS: tuple[tuple[str, str], ...] = (
 )
 
 
+def normalize_text(*parts: str) -> str:
+    """Normalize free text for deterministic lexical matching."""
+
+    raw = " ".join(part.strip().lower() for part in parts if part.strip())
+    for token in ("/", "_", "-", ".", ":", "(", ")", ","):
+        raw = raw.replace(token, " ")
+    return " ".join(raw.split())
+
+
 def normalize_repo_path(raw_path: str | Path) -> str:
     """Return repo-relative normalized POSIX path."""
 

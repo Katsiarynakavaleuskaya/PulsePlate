@@ -220,3 +220,33 @@ def test_skill_router_ignores_scraping_tokens_from_candidate_paths() -> None:
     )
 
     assert decision["blocked"] == []
+
+
+def test_skill_router_selects_experimentation_lane_skills() -> None:
+    """Experimentation intent should route the experiment-friendly default stack."""
+
+    skills = select_recommended_skills(
+        goal="Bootstrap experiment packet for RAG reliability benchmark",
+        task_class="Experimentation",
+        candidate_paths=["core/rag/vector_rag.py"],
+        domain="ml",
+    )
+
+    assert "pulseplate-workflow" in skills
+    assert "pulseplate-gates" in skills
+    assert "docs-sync" in skills
+
+
+def test_skill_router_selects_experimentation_lane_skills_for_cv_eval() -> None:
+    """CV evaluation wording should still select the experimentation lane stack."""
+
+    skills = select_recommended_skills(
+        goal="Run CV eval for image reliability and benchmark confidence drift",
+        task_class="Experimentation",
+        candidate_paths=["core/insight/cv_adapter.py"],
+        domain="ml",
+    )
+
+    assert "pulseplate-workflow" in skills
+    assert "pulseplate-gates" in skills
+    assert "docs-sync" in skills
