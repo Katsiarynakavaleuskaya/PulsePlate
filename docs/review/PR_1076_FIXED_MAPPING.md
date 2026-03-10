@@ -46,6 +46,12 @@ Disposition: FIXED
 Commit: 66e226ca
 Evidence: tests/test_fitchef_insight_api.py:1559
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1076#pullrequestreview-3921962850 -> a9cf5071
+Disposition: FIXED
+Commit: a9cf5071
+Evidence: tests/test_fitchef_insight_api.py:1377
+Evidence: tests/test_fitchef_insight_api.py:1382
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
