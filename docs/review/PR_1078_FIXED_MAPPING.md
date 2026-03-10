@@ -9,9 +9,9 @@
   - Comment: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1078#issuecomment-4031243664
   - Commit: `ae4c0f1b`
   - Evidence:
-    - [Makefile](/tmp/pulseplate-ios-keychain-conformance-v2.ughZwd/Makefile#L443)
-    - [BACKLOG_LEDGER.md](/tmp/pulseplate-ios-keychain-conformance-v2.ughZwd/docs/roadmap/BACKLOG_LEDGER.md#L271)
-    - [SHOPPING_LIST_SETUP.md](/tmp/pulseplate-ios-keychain-conformance-v2.ughZwd/ios/SHOPPING_LIST_SETUP.md#L38)
+    - `Makefile:443`
+    - `docs/roadmap/BACKLOG_LEDGER.md:271`
+    - `ios/SHOPPING_LIST_SETUP.md:38`
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
