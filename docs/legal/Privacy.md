@@ -51,6 +51,7 @@
 - не предназначен для emergency use
 - не должен использоваться как единственное основание для treatment decisions
 - при признаках клинического риска нужен переход к qualified professional support
+- backend tracing хранит только HMAC-отпечатки, длины и usage metadata; raw prompts/completions не экспортируются в v1
 
 ### Внешние и self-hosted processors
 
@@ -130,6 +131,7 @@ For these surfaces:
 - they are not for emergency use
 - they must not be used as the sole basis for treatment decisions
 - signs of clinical risk require escalation to qualified professional support
+- backend tracing stores only HMAC fingerprints, lengths, and bounded usage metadata; raw prompts/completions are not exported in v1
 
 ### External and Self-Hosted Processors
 
@@ -190,6 +192,7 @@ Algunas superficies realizan análisis automatizado de wellness:
 - superficies AI insight (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
 
 Estos resultados son para wellness y educación, no para emergencias ni decisiones de tratamiento.
+El tracing backend solo almacena huellas HMAC, longitudes y metadatos de uso limitados; no exporta prompts/completions en texto plano en v1.
 
 ### Procesadores Externos y Self-Hosted
 

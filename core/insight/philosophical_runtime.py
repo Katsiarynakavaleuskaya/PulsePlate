@@ -33,6 +33,7 @@ from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
+from app.telemetry.genai import finalize_llm_span, llm_span, retrieval_span, set_attributes
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
@@ -339,6 +340,8 @@ class PhilosophicalRuntime:
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
         philosophy_pragmatic_enabled: bool,
+        trace_route: str,
+        trace_user_tier: str,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
         public_metadata_enabled = any(
@@ -391,13 +394,19 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            rag_result = await rag_orchestration.retrieve_and_validate_rag(
-                prompt_input,
+            with retrieval_span(
+                user_tier=trace_user_tier,
+                route=trace_route,
                 max_chunks=3,
-                philo_validation_enabled=philo_validation_enabled,
-                recursive_rag_enabled=recursive_rag_enabled,
-                subject_id=subject_id,
-            )
+            ) as span:
+                rag_result = await rag_orchestration.retrieve_and_validate_rag(
+                    prompt_input,
+                    max_chunks=3,
+                    philo_validation_enabled=philo_validation_enabled,
+                    recursive_rag_enabled=recursive_rag_enabled,
+                    subject_id=subject_id,
+                )
+                set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence
             rag_used = rag_result.rag_actually_used
@@ -413,7 +422,14 @@ class PhilosophicalRuntime:
         )
         prompt_text = _trim_prompt(prompt_text)
 
-        answer = await provider.generate(prompt_text)
+        with llm_span(
+            provider_name=provider.name,
+            user_tier=trace_user_tier,
+            route=trace_route,
+            prompt_text=prompt_text,
+        ) as span:
+            answer = await provider.generate(prompt_text)
+            finalize_llm_span(span, answer)
         rewrite_count = 0
         fallback_reason = ""
         verification_report: VerificationReport | None = None
@@ -442,7 +458,15 @@ class PhilosophicalRuntime:
                     falsification_report=falsification_report,
                     contradiction_count=contradiction_count,
                 )
-                answer = await provider.generate(_trim_prompt(rewrite_prompt))
+                rewritten_prompt = _trim_prompt(rewrite_prompt)
+                with llm_span(
+                    provider_name=provider.name,
+                    user_tier=trace_user_tier,
+                    route=trace_route,
+                    prompt_text=rewritten_prompt,
+                ) as rewrite_span:
+                    answer = await provider.generate(rewritten_prompt)
+                    finalize_llm_span(rewrite_span, answer)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
                 contradiction_count = self._contradictions.count(answer)

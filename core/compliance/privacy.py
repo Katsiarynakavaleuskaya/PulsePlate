@@ -54,7 +54,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="xAI Grok provider family",
         category="external_processor",
         role="Configured LLM provider for selected AI insight surfaces",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -63,7 +66,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="OpenAI-compatible provider family",
         category="external_processor",
         role="Configured external LLM endpoint when selected by deployment",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -72,7 +78,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Anthropic-compatible provider family",
         category="external_processor",
         role="Configured external LLM endpoint when selected by deployment",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -81,7 +90,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Ollama or compatible self-hosted provider",
         category="self_hosted_processor",
         role="Self-hosted/local LLM processing",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Deployment-controlled; not assumed to be zero-retention by default",
         activation="Conditional, configuration-based",
     ),
@@ -90,7 +102,10 @@ _PROVIDER_INVENTORY: tuple[ProviderDisclosure, ...] = (
         name="Pico provider family",
         category="external_processor",
         role="Configured external provider for selected AI insight surfaces",
-        data_scope="User-submitted text and derived prompts for configured insight endpoints",
+        data_scope=(
+            "User-submitted text and derived prompts for configured insight endpoints; "
+            "PulsePlate-side tracing stores HMAC fingerprints, lengths, and bounded usage metadata only"
+        ),
         retention="Provider-specific terms apply when enabled",
         activation="Conditional, configuration-based",
     ),
@@ -130,8 +145,14 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
         endpoints=("/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"),
         purpose="Generate wellness-oriented, automated AI responses and explanations",
         sensitivity="derived sensitive",
-        third_party_exposure="May involve configured provider families or self-hosted processors",
-        retention="Provider- and deployment-specific; local audit metadata is minimized and signed",
+        third_party_exposure=(
+            "May involve configured provider families or self-hosted processors; "
+            "local tracing stores fingerprint-only request metadata"
+        ),
+        retention=(
+            "Provider- and deployment-specific; local audit metadata is minimized and signed, "
+            "and tracing remains fingerprint-only"
+        ),
         deletion_path="Direct-user feedback/personalization artifacts can be deleted; provider-side artifacts follow provider policy",
     ),
     ProcessingCategory(
@@ -202,7 +223,10 @@ def build_privacy_endpoint_payload() -> dict[str, object]:
         "llm_processing": {
             "endpoints": ["/insight", "/api/v1/insight", "/api/v1/pro/cbt/insight"],
             "purpose": "Generate wellness-oriented insights using configured AI providers or self-hosted runtimes",
-            "data_transmitted": "User-provided text queries and derived prompts for enabled AI surfaces",
+            "data_transmitted": (
+                "User-provided text queries and derived prompts for enabled AI surfaces; "
+                "PulsePlate-side tracing stores only HMAC fingerprints, lengths, and bounded usage metadata"
+            ),
             "recipients": "Configured provider families or self-hosted processors listed in provider inventory",
             "retention_by_provider": "Varies by provider and deployment configuration",
             "legal_basis": "Product operation, legitimate interest, and surface-specific user action",

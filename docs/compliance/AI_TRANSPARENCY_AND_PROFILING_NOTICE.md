@@ -34,6 +34,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Endpoints: `/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`
 - Analysis type: automated AI-assisted analysis
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
+- Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
 
 ## User Notice Contract
 
