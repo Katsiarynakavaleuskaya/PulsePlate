@@ -4,6 +4,27 @@
 
 This guide covers setting up a production server for PulsePlate with automated deployments via GitHub Actions.
 
+## Optional Cloudflare Worker Edge Proxy
+
+The Cloudflare Worker runtime is supported only as a bounded first-party proxy in front of the API.
+
+- Scope: proxy only `/api/*` paths.
+- Methods: allow only `GET`, `POST`, and `OPTIONS`.
+- Required config:
+  - `TARGET_BASE`: explicit API origin; placeholder values are forbidden.
+  - `WORKER_ALLOWED_ORIGINS`: comma-separated trusted browser origins allowed to receive reflected CORS headers.
+- CORS policy:
+  - wildcard `Access-Control-Allow-Origin: *` is forbidden
+  - trusted origins are reflected exactly with `Vary: Origin`
+  - browser preflight fails closed when origin/path is not allowed
+- Header policy:
+  - bounded forwarding only (`Accept`, `Content-Type`, `Authorization`, `X-API-Key`, `Cookie`)
+  - hop/proxy headers and arbitrary pass-through are forbidden
+- Redirect policy:
+  - upstream fetches must remain `redirect: "manual"` to avoid broad proxy behavior
+
+If you do not need this bounded edge proxy, do not deploy `worker.js` at all.
+
 ## Prerequisites
 
 - Production server (VPS/Cloud instance)

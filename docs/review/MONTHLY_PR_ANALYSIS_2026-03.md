@@ -44,7 +44,7 @@
 | `#1041` | Sandbox stream budget | Prevented unbounded streamed output | output-budget enforcement in sandbox lane |
 | `#1044` | RAG input sanitizer | Closed prompt-injection/vector ingestion risk | sanitization before RAG indexing/retrieval |
 | `#1046` | EU compliance control plane | Established a compliance/runtime baseline | privacy, transparency, minimization, DSAR support map; follow-through remains open in backlog |
-| `#995`, `#1003`, `#1030` | Session/auth transport | Moved browser auth toward safer transport | HttpOnly session-cookie path plus web/session alignment and legacy cleanup |
+| `#995`, `#1003`, `#1030`, `#1063` | Session/auth transport | Closed the browser-storage auth transport gap on web | HttpOnly session-cookie path plus web/session alignment, smoke/logout cleanup, and fail-closed legacy storage handling |
 | `#978` | GDPR log retention cleanup | Retention/compliance hygiene | safer log-retention handling |
 
 **Pattern:** most security work followed the same posture: fail-closed defaults, explicit evidence artifacts, tighter surface visibility, and runtime hardening before growth work.
@@ -119,7 +119,7 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 | Target PR | Domain | Snapshot status |
 |-----------|--------|-----------------|
-| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | materially advanced by `#995`, `#1003`, `#1030`, but not represented as fully complete in the recovery queue |
+| `PR-TBD-SESSION-COOKIE-HARDENING-W1` | security | closed in code by `#995`, `#1003`, `#1030`, `#1063`; any remaining follow-up is ledger/doc sync only |
 | `PR-TBD-INSIGHT-FALLBACK-CHAIN` | ml | still open |
 | `PR-TBD-RAG-INPUT-SANITIZER` | security | closed by `#1044`, with ledger close-out recorded in `#1045` |
 | `PR-TBD-IOS-KEYCHAIN-CONFORMANCE` | ios | still open; guard coverage landed separately in `#1011` |
