@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments as of initial PR creation.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Local `pre-commit run --all-files`
