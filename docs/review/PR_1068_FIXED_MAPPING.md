@@ -9,6 +9,7 @@ Disposition: FIXED
 Commit: e8460514
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068#pullrequestreview-3920182593 -> e8460514
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068#discussion_r2909715770 -> e8460514
 
 ## Merge Readiness
 - [ ] All required checks are PASS
