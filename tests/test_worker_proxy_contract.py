@@ -369,7 +369,7 @@ def test_worker_normalizes_upstream_transport_failures() -> None:
 
     assert payload["status"] == 502
     assert payload["body"] == {
-        "error": "Upstream request failed: dns failure",
+        "error": "Upstream request failed",
         "status": 502,
     }
     assert payload["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"

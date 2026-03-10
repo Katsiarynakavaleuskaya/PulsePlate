@@ -212,9 +212,8 @@ export default {
     let resp;
     try {
       resp = await fetch(upstream.toString(), init);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "unknown transport error";
-      return jsonError(`Upstream request failed: ${detail}`, 502, corsOrigin);
+    } catch (_error) {
+      return jsonError("Upstream request failed", 502, corsOrigin);
     }
     const out = new Response(resp.body, resp);
 
