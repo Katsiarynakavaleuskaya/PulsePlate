@@ -107,6 +107,21 @@ describe('WeeklyPlanViewer', () => {
     expect(screen.getByText('plan.loadingWeek')).toBeInTheDocument();
   });
 
+  it('treats the initial empty hook state as loading instead of empty summary', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('plan.loadingWeek')).toBeInTheDocument();
+    expect(screen.queryByText('plan.emptySummary')).not.toBeInTheDocument();
+  });
+
   it('renders the hook error state', () => {
     mockUseWeeklyPlan.mockReturnValue({
       data: null,
