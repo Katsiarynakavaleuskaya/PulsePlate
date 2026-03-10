@@ -27,6 +27,7 @@ Disposition: FIXED
 Commit: 924ce77d
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#pullrequestreview-3921127026 -> 924ce77d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070#discussion_r2910573251 -> 924ce77d
 
 ## Merge Readiness
 - [ ] All required checks are PASS
