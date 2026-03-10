@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.experiment_bootstrap as experiment_bootstrap
 from scripts.orchestration.experiment_bootstrap import (
-    EXPERIMENT_PACKET_DIR,
     _resolve_output_path,
     build_experiment_packet,
     main,
@@ -61,6 +61,22 @@ def test_build_experiment_packet_adds_cv_agent_for_cv_intent() -> None:
     assert "ml-engineer-agent" in packet["recommended_agents"]
 
 
+def test_build_experiment_packet_does_not_match_cv_hint_on_substrings() -> None:
+    """Substring noise like 'cve' must not force the cv advisory path."""
+
+    packet = build_experiment_packet(
+        decision_question="Evaluate drag coefficient with cve notes",
+        task_class="Experimentation",
+        mutable_paths=["core/rag/vector_rag.py"],
+        oracle_commands=["pytest -q tests/test_rag_contracts.py"],
+        metrics=["reliability_score"],
+        negative_controls=["oracle file unchanged", "no hidden memory"],
+        promotion_target="audit_artifact",
+    )
+
+    assert "cv-agent" not in packet["recommended_agents"]
+
+
 def test_validate_mutable_candidate_surface_rejects_forbidden_path() -> None:
     """Forbidden mutable surfaces should fail closed."""
 
@@ -111,13 +127,17 @@ def test_main_rejects_missing_oracles(capsys: pytest.CaptureFixture[str]) -> Non
 def test_main_writes_relative_output_inside_repo(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
     """CLI should write output under the experiment artifact directory."""
 
+    repo_root = tmp_path.resolve()
+    experiment_dir = (repo_root / "artifacts" / "orchestration" / "experiments").resolve()
+    monkeypatch.setattr(experiment_bootstrap, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(experiment_bootstrap, "EXPERIMENT_PACKET_DIR", experiment_dir)
+
     relative_output = Path("tmp/experiment-packet.json")
-    repo_output = (EXPERIMENT_PACKET_DIR / relative_output).resolve()
-    if repo_output.exists():
-        repo_output.unlink()
+    repo_output = (experiment_bootstrap.EXPERIMENT_PACKET_DIR / relative_output).resolve()
 
     packet = {
         "schema_version": "1.0",
@@ -170,38 +190,34 @@ def test_main_writes_relative_output_inside_repo(
         lambda **_: packet,
     )
 
-    try:
-        exit_code = main(
-            [
-                "--decision-question",
-                "ignored",
-                "--mutable-path",
-                "core/rag/vector_rag.py",
-                "--oracle-command",
-                "pytest -q tests/test_rag.py",
-                "--metric",
-                "val_bpb",
-                "--negative-control",
-                "oracle file unchanged",
-                "--negative-control",
-                "no forbidden path mutation",
-                "--promotion-target",
-                "pr_packet",
-                "--output",
-                str(relative_output),
-            ]
-        )
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        written = json.loads(repo_output.read_text(encoding="utf-8"))
-        assert written["experiment_id"] == "exp-testpacket"
-        assert (
-            json.loads(captured.out)["output"]
-            == (Path("artifacts/orchestration/experiments") / relative_output).as_posix()
-        )
-    finally:
-        if repo_output.exists():
-            repo_output.unlink()
+    exit_code = main(
+        [
+            "--decision-question",
+            "ignored",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "pytest -q tests/test_rag.py",
+            "--metric",
+            "val_bpb",
+            "--negative-control",
+            "oracle file unchanged",
+            "--negative-control",
+            "no forbidden path mutation",
+            "--promotion-target",
+            "pr_packet",
+            "--output",
+            str(relative_output),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    written = json.loads(repo_output.read_text(encoding="utf-8"))
+    assert written["experiment_id"] == "exp-testpacket"
+    assert (
+        json.loads(captured.out)["output"]
+        == (Path("artifacts/orchestration/experiments") / relative_output).as_posix()
+    )
 
 
 def test_resolve_output_path_rejects_outside_repo(tmp_path: Path) -> None:
@@ -229,3 +245,45 @@ def test_build_experiment_packet_rejects_budget_overrides_above_hard_caps() -> N
             promotion_target="pr_packet",
             budgets={"wall_clock_seconds": 601},
         )
+
+
+def test_main_fails_cleanly_on_output_write_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """Write failures inside the artifact tree must respect the FAIL/exit=1 contract."""
+
+    repo_root = tmp_path.resolve()
+    experiment_dir = (repo_root / "artifacts" / "orchestration" / "experiments").resolve()
+    experiment_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(experiment_bootstrap, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(experiment_bootstrap, "EXPERIMENT_PACKET_DIR", experiment_dir)
+
+    output_dir = experiment_dir / "occupied"
+    output_dir.mkdir()
+
+    exit_code = main(
+        [
+            "--decision-question",
+            "ignored",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "pytest -q tests/test_rag.py",
+            "--metric",
+            "val_bpb",
+            "--negative-control",
+            "oracle file unchanged",
+            "--negative-control",
+            "no forbidden path mutation",
+            "--promotion-target",
+            "pr_packet",
+            "--output",
+            "occupied",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "FAIL: unable to write experiment packet:" in captured.out

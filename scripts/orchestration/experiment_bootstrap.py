@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -89,6 +90,15 @@ CV_TEXT_HINTS: tuple[str, ...] = (
     "photo",
     "vision",
 )
+
+
+def _contains_hint(normalized_text: str, hints: tuple[str, ...]) -> bool:
+    """Match hints on token boundaries to avoid accidental substring hits."""
+
+    return any(
+        re.search(rf"(?<!\w){re.escape(normalize_text(hint))}(?!\w)", normalized_text)
+        for hint in hints
+    )
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -233,13 +243,13 @@ def _resolve_experiment_domain(
     """Resolve the dominant experiment domain without mutating shared routing helpers."""
 
     normalized_text = normalize_text(decision_question, task_class, *mutable_paths)
-    if any(hint in normalized_text for hint in CV_TEXT_HINTS):
+    if _contains_hint(normalized_text, CV_TEXT_HINTS):
         return "ml"
     if any(
         path.startswith(prefix) for path in mutable_paths for prefix in ALLOWED_MUTABLE_PREFIXES
     ):
         return "ml"
-    if any(hint in normalized_text for hint in ML_TEXT_HINTS):
+    if _contains_hint(normalized_text, ML_TEXT_HINTS):
         return "ml"
     return resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
 
@@ -253,7 +263,7 @@ def _recommend_advisory_agents(
 
     normalized_text = normalize_text(decision_question, *mutable_paths)
     advisory_agents = ["data-scientist-agent"]
-    if any(hint in normalized_text for hint in CV_TEXT_HINTS):
+    if _contains_hint(normalized_text, CV_TEXT_HINTS):
         advisory_agents.extend(["cv-agent", "ml-engineer-agent"])
     else:
         advisory_agents.append("ml-engineer-agent")
@@ -482,11 +492,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {exc}")
         return 1
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        print(f"FAIL: unable to write experiment packet: {exc}")
+        return 1
     try:
         output_ref = str(out_path.relative_to(REPO_ROOT))
     except ValueError:
