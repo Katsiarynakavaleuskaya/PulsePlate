@@ -1895,11 +1895,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: None (deferred by scope, not blocked)
 
 <a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
-- [ ] P2: FitChef mascot insight endpoint
+- [x] P2: FitChef mascot insight endpoint
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-FITCHEF-MASCOT-INSIGHT
-  - Status: Open
+  - Target PR: PR `#1065`
+  - Status: Merged on 10 March 2026 (`#1065`)
   - Area: AI runtime / coaching / product
   - Finding Type: execution
   - Locations:
@@ -1912,6 +1912,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/design/NUTRITION_COACHING_DESIGN.md`
     - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1065_FIXED_MAPPING.md`
   - DoD:
     - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
     - Request/response schemas are typed and documented in OpenAPI
@@ -1923,11 +1924,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
 
 <a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
-- [ ] P2: FitChef weekly reflection endpoint
+- [x] P2: FitChef weekly reflection endpoint
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1071`
-  - Status: Open
+  - Status: Merged on 10 March 2026 (`#1071`)
   - Area: AI runtime / coaching / product
   - Finding Type: execution
   - Locations:
@@ -1939,6 +1940,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
     - `docs/design/NUTRITION_COACHING_DESIGN.md`
     - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1071_FIXED_MAPPING.md`
   - DoD:
     - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
     - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
@@ -1950,11 +1952,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
 
 <a id="ledger-p2-fitchef-slip-support-endpoint"></a>
-- [ ] P2: FitChef slip-support endpoint
+- [x] P2: FitChef slip-support endpoint
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
-  - Status: Open
+  - Status: Merged on 10 March 2026 (`#1076`)
   - Area: AI runtime / coaching / product
   - Finding Type: execution
   - Locations:
@@ -1966,6 +1968,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
     - `docs/design/NUTRITION_COACHING_DESIGN.md`
     - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1076_FIXED_MAPPING.md`
   - DoD:
     - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
     - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
