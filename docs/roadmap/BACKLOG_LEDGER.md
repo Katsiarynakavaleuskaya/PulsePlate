@@ -3870,12 +3870,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Weekly-plan OpenAPI and web parity wave
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (OpenAPI reconciliation / frontend thin-client parity)
-  - Target PR: PR #1068 (`fix(openapi): reconcile weekly plan canonical schema`), PR #1069 (`refactor(weekly-plan): hide legacy flexible alias`), PR #1070 (`fix(frontend): normalize weekly plan consumer parity`), PR #1075 (`fix(frontend): gate weekly plan initial load`)
+  - Target PR: PR #1068 (`fix(openapi): reconcile weekly plan canonical schema`), PR #1069 (`refactor(weekly-plan): hide legacy flexible alias`), PR #1070 (`fix(frontend): normalize weekly plan consumer parity`), PR #1075 (`fix(frontend): gate weekly plan initial load`), PR #1077 (`docs(ledger): record weekly-plan wave hotfix`)
   - Status: ✅ Merged (including post-merge hotfix)
-  - Merge SHA: eff51947 (wave), b57333be (post-merge hotfix)
+  - Merge SHAs: `eff51947` (wave), `b57333be` (post-merge hotfix)
   - Area: backend / OpenAPI / frontend weekly-plan runtime
   - Finding Type: schema reconciliation + legacy alias cleanup + normalized web consumer parity
-  - Reason: The repo had already moved to the canonical PRO route `POST /api/v1/pro/meal/weekly` and shared backend DTO normalization, but the remaining work was reconciliation and finishing rather than route migration. The wave locked `WeeklyMealPlanResponse` as the generated OpenAPI truth, kept `/api/v1/premium/plan/week-flexible` as a hidden runtime-compatible alias, and moved web weekly-plan consumers to one normalized UI view-model instead of ad-hoc raw payload assumptions. A follow-up hotfix then closed the initial-render regression where `WeeklyPlanViewer` could briefly flash the empty summary before the first fetch transitioned into loading.
+  - Reason:
+    - The repo had already moved to the canonical PRO route `POST /api/v1/pro/meal/weekly` and shared backend DTO normalization, so the remaining work was reconciliation and finishing rather than route migration.
+    - The wave locked `WeeklyMealPlanResponse` as the generated OpenAPI truth, kept `/api/v1/premium/plan/week-flexible` as a hidden runtime-compatible alias, and moved web weekly-plan consumers to one normalized UI view-model instead of ad-hoc raw payload assumptions.
+    - A follow-up hotfix then closed the initial-render regression where `WeeklyPlanViewer` could briefly flash the empty summary before the first fetch transitioned into loading.
   - Links:
     - [PR #1068](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068)
     - [PR #1069](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1069)
