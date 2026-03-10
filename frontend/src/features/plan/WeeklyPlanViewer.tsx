@@ -11,6 +11,11 @@ import type { Meal } from "../weekly-plan/model/types";
 
 const DEFAULT_TTL_SECONDS = 900;
 const MONDAY_REFERENCE_UTC = Date.UTC(2024, 0, 1);
+const SUPPORTED_REQUEST_LANGS: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+
+function isSupportedRequestLang(locale: string): locale is ProWeekPlanRequest["lang"] {
+  return SUPPORTED_REQUEST_LANGS.some((supportedLocale) => supportedLocale === locale);
+}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -122,11 +127,10 @@ export default function WeeklyPlanViewer() {
   const [request, setRequest] = useState<ProWeekPlanRequest | null>(null);
 
   useEffect(() => {
-    const locale = getClientLocale() as ProWeekPlanRequest["lang"];
-    const supportedLangs: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+    const clientLocale = getClientLocale();
     setRequest({
       ...DEFAULT_REQUEST,
-      lang: supportedLangs.includes(locale) ? locale : "en",
+      lang: isSupportedRequestLang(clientLocale) ? clientLocale : "en",
     });
   }, []);
 
