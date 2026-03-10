@@ -39,6 +39,14 @@ Evidence: `1d823d20` narrows patch-source tracking in `scripts/orchestration/exp
 
 Disposition: FIXED
 Commit: see mapping entries below
+Evidence: `8467f024` hardens the runner boundary conditions by letting a `wall_clock_seconds=1` packet start its first oracle in `scripts/orchestration/experiment_runner.py:331`, forcing default result paths through the containment check in `scripts/orchestration/experiment_runner.py:382`, and applying the exact validated in-memory patch text via stdin in `scripts/orchestration/experiment_runner.py:204`, `scripts/orchestration/experiment_runner.py:272`, and `scripts/orchestration/experiment_runner.py:444`. Regression coverage was added for the one-second budget boundary, default output-path escape rejection, and TOCTOU-resistant patch application in `tests/test_experiment_runner.py:385`, `tests/test_experiment_runner.py:673`, and `tests/test_experiment_runner.py:689`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406881 -> 8467f024
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406888 -> 8467f024
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406892 -> 8467f024
+
+Disposition: FIXED
+Commit: see mapping entries below
 Evidence: `1814f699` updates the experimentation epic and PR3 runner ledger traceability in `docs/roadmap/BACKLOG_LEDGER.md:5243`, replaces stale placeholders with the in-flight PR reference `#1088` in `docs/roadmap/BACKLOG_LEDGER.md:5281`, and swaps stale philosophical-runtime links for the actual runner/bootstrap evidence surfaces in `docs/roadmap/BACKLOG_LEDGER.md:5290` and `docs/roadmap/BACKLOG_LEDGER.md:5356`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914245106 -> 1814f699
