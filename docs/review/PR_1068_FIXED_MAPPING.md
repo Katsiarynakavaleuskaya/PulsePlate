@@ -6,9 +6,9 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: pending mapping update
+Commit: e8460514
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068#pullrequestreview-3920182593
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068#pullrequestreview-3920182593 -> e8460514
 
 ## Merge Readiness
 - [ ] All required checks are PASS
