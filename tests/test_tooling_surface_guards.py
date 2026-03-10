@@ -21,9 +21,9 @@ def _run(script_path: Path, root: Path, *extra_args: str) -> subprocess.Complete
 
 
 def test_actions_pin_guard_rejects_tag_pins(tmp_path: Path) -> None:
-    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir = tmp_path / ".github" / "workflows" / "nested"
     workflow_dir.mkdir(parents=True)
-    (workflow_dir / "test.yml").write_text(
+    (workflow_dir / "test.yaml").write_text(
         "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n",
         encoding="utf-8",
     )
@@ -47,6 +47,15 @@ def test_npm_install_guard_rejects_postinstall(tmp_path: Path) -> None:
     assert "scripts.postinstall is forbidden" in result.stdout
 
 
+def test_npm_install_guard_rejects_non_object_payload(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text('["not-an-object"]', encoding="utf-8")
+
+    result = _run(GUARD_NPM, tmp_path)
+
+    assert result.returncode == 1
+    assert "payload must be a JSON object" in result.stdout
+
+
 def test_vscode_guard_rejects_recommendation_drift(tmp_path: Path) -> None:
     vscode_dir = tmp_path / ".vscode"
     vscode_dir.mkdir(parents=True)
@@ -66,6 +75,43 @@ def test_vscode_guard_rejects_recommendation_drift(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "is not in allowlist" in result.stdout
+
+
+def test_vscode_guard_rejects_non_object_payload(tmp_path: Path) -> None:
+    vscode_dir = tmp_path / ".vscode"
+    vscode_dir.mkdir(parents=True)
+    (vscode_dir / "extensions.json").write_text('["not-an-object"]', encoding="utf-8")
+    allowlist = tmp_path / "allowlist.txt"
+    allowlist.write_text("ms-python.python\n", encoding="utf-8")
+
+    result = _run(
+        GUARD_VSCODE,
+        tmp_path,
+        "--allowlist",
+        str(allowlist.relative_to(tmp_path)),
+    )
+
+    assert result.returncode == 1
+    assert "payload must be a JSON object" in result.stdout
+
+
+def test_vscode_guard_reports_external_allowlist_path(tmp_path: Path) -> None:
+    vscode_dir = tmp_path / ".vscode"
+    vscode_dir.mkdir(parents=True)
+    (vscode_dir / "extensions.json").write_text(
+        json.dumps({"recommendations": ["ms-python.python"]}),
+        encoding="utf-8",
+    )
+
+    result = _run(
+        GUARD_VSCODE,
+        tmp_path,
+        "--allowlist",
+        str((tmp_path.parent / "outside-allowlist.txt").resolve()),
+    )
+
+    assert result.returncode == 1
+    assert "outside-allowlist.txt: allowlist file is required" in result.stdout
 
 
 def test_repo_tooling_guards_pass_on_current_repo() -> None:

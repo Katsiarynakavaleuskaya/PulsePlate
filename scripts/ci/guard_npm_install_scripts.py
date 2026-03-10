@@ -17,6 +17,11 @@ def find_install_hook_violations(root: Path) -> list[str]:
         if "node_modules" in package_json.parts:
             continue
         payload = json.loads(package_json.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            violations.append(
+                f"{package_json.relative_to(root)}: package.json payload must be a JSON object"
+            )
+            continue
         scripts = payload.get("scripts", {})
         if not isinstance(scripts, dict):
             continue

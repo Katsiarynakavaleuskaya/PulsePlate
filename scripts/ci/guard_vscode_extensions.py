@@ -15,6 +15,13 @@ def _load_allowlist(path: Path) -> set[str]:
     }
 
 
+def _display_path(path: Path, *, repo_root: Path) -> str:
+    try:
+        return str(path.relative_to(repo_root))
+    except ValueError:
+        return str(path)
+
+
 def find_extension_allowlist_violations(
     *,
     extensions_json_path: Path,
@@ -25,22 +32,28 @@ def find_extension_allowlist_violations(
 
     if not extensions_json_path.exists():
         return [
-            f"{extensions_json_path.relative_to(repo_root)}: tracked recommendations file is required"
+            f"{_display_path(extensions_json_path, repo_root=repo_root)}: tracked recommendations file is required"
         ]
     if not allowlist_path.exists():
-        return [f"{allowlist_path.relative_to(repo_root)}: allowlist file is required"]
+        return [f"{_display_path(allowlist_path, repo_root=repo_root)}: allowlist file is required"]
 
     payload = json.loads(extensions_json_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return [
+            f"{_display_path(extensions_json_path, repo_root=repo_root)}: payload must be a JSON object with a 'recommendations' list"
+        ]
     recommendations = payload.get("recommendations", [])
     if not isinstance(recommendations, list):
-        return [f"{extensions_json_path.relative_to(repo_root)}: recommendations must be a list"]
+        return [
+            f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendations must be a list"
+        ]
 
     allowlist = _load_allowlist(allowlist_path)
     violations: list[str] = []
     for recommendation in sorted(recommendations):
         if recommendation not in allowlist:
             violations.append(
-                f"{extensions_json_path.relative_to(repo_root)}: recommendation '{recommendation}' is not in allowlist"
+                f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendation '{recommendation}' is not in allowlist"
             )
     return violations
 
