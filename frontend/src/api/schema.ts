@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/billing/apple/verify-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Apple Receipt
+         * @description Canonical Apple receipt verification route on additive billing namespace.
+         */
+        post: operations["verify_apple_receipt_api_v1_billing_apple_verify_receipt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bmi": {
         parameters: {
             query?: never;
@@ -547,26 +567,6 @@ export interface paths {
         get: operations["get_subscription_activation_api_v1_pro_payments_activations__activation_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/pro/payments/apple/verify-receipt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Verify Apple Receipt
-         * @description Create or replay iOS receipt activation using deterministic baseline verification.
-         */
-        post: operations["verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1471,21 +1471,71 @@ export interface components {
             user_id: number;
         };
         /**
+         * AppleActivationPayload
+         * @description Activation-ready payload for downstream Apple billing flow.
+         */
+        AppleActivationPayload: {
+            /**
+             * Platform
+             * @default ios
+             */
+            platform: string;
+            tier: components["schemas"]["SubscriptionTierValue"];
+        };
+        /**
+         * AppleProviderError
+         * @description Canonical provider error details for Apple receipt verification.
+         */
+        AppleProviderError: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
+        /**
          * AppleReceiptVerificationRequest
          * @description Request contract for iOS receipt verification.
          */
         AppleReceiptVerificationRequest: {
-            /** Client Event Id */
-            client_event_id: string;
-            /** External Txn Id */
-            external_txn_id?: string | null;
-            plan: components["schemas"]["SubscriptionPlan"];
             /**
-             * Receipt
+             * Receipt Data
              * @description Opaque App Store receipt blob
              */
-            receipt: string;
+            receipt_data: string;
         };
+        /**
+         * AppleReceiptVerificationResponse
+         * @description Normalized Apple receipt verification result without activation side effects.
+         */
+        AppleReceiptVerificationResponse: {
+            activation_payload?: components["schemas"]["AppleActivationPayload"] | null;
+            environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
+            error?: components["schemas"]["AppleProviderError"] | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /**
+             * Provider
+             * @default apple
+             */
+            provider: string;
+            verification_state: components["schemas"]["AppleVerificationState"];
+            /** Verified */
+            verified: boolean;
+        };
+        /**
+         * AppleVerificationEnvironment
+         * @description Verification environment resolved by Apple receipt validation.
+         * @enum {string}
+         */
+        AppleVerificationEnvironment: "production" | "sandbox";
+        /**
+         * AppleVerificationState
+         * @description Normalized business outcome of Apple receipt verification.
+         * @enum {string}
+         */
+        AppleVerificationState: "active" | "expired" | "restored" | "invalid";
         /**
          * BMICalculateProRequest
          * @description PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
@@ -4404,6 +4454,69 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    verify_apple_receipt_api_v1_billing_apple_verify_receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleReceiptVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description FastAPI auth error detail from tier guard */
+                        detail: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Apple upstream error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+            /** @description Apple verify timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleReceiptVerificationResponse"];
+                };
+            };
+        };
+    };
     bmi_endpoint_v1_api_v1_bmi_post: {
         parameters: {
             query?: never;
@@ -5202,69 +5315,6 @@ export interface operations {
             };
             /** @description Activation not found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    verify_apple_receipt_api_v1_pro_payments_apple_verify_receipt_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AppleReceiptVerificationRequest"];
-            };
-        };
-        responses: {
-            /** @description Idempotent replay */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
-                };
-            };
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
-                };
-            };
-            /** @description Missing or invalid API key */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description FastAPI auth error detail from tier guard */
-                        detail: string;
-                    };
-                };
-            };
-            /** @description client_event_id conflict */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

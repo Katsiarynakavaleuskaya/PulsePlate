@@ -24,10 +24,10 @@ Rules:
 
 Planned endpoints (contract-first; final path lock happens in runtime PR):
 
-1. `POST /api/v1/pro/payments/apple/verify-receipt`
-2. `POST /api/v1/pro/payments/ru-by/manual-intent`
-3. `POST /api/v1/pro/payments/ru-by/reconcile`
-4. `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}`
+1. `POST /api/v1/billing/apple/verify-receipt`
+2. `POST /api/v1/billing/ru-by/manual-intent`
+3. `POST /api/v1/billing/ru-by/reconcile`
+4. `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
 
 Legacy behavior remains unchanged until runtime migration is merged.
 
@@ -80,13 +80,16 @@ Lifecycle invariants:
 
 ## 5. Webhook/Signature and Idempotency Contract
 
-1. iOS verification path is automated and server-side validated.
-2. Any webhook/event handler must validate signature before state transition.
-3. Idempotency key precedence:
+1. iOS verification path is automated and server-side validated only; the app must not call `verifyReceipt` directly.
+2. Apple verification runs production-first with exactly one sandbox fallback on Apple status `21007`; no generic retry loop is part of the contract.
+3. `APPLE_SHARED_SECRET` is required runtime config for Apple receipt verification requests.
+4. Any webhook/event handler must validate signature before state transition.
+5. Idempotency key precedence:
    - provider event id (if exists), else
    - deterministic hash of `(source, external_txn_id, plan, amount_minor, currency)`.
-4. Duplicate events return previous activation outcome (no double-upgrade).
-5. Corrections/refunds must use a new provider event id and explicit adjustment type; they must not overwrite prior activation event identity.
+6. Duplicate events return previous activation outcome (no double-upgrade).
+7. Corrections/refunds must use a new provider event id and explicit adjustment type; they must not overwrite prior activation event identity.
+8. Apple receipt verification may use the classic `verifyReceipt` path only as a transitional compatibility flow; migration to App Store Server API / signed transaction validation remains a follow-up.
 
 ## 6. Error Envelope (canonical)
 
@@ -149,7 +152,6 @@ Required runtime PR gates:
 
 ## 12. Runtime W1 Namespace Lock
 
-1. Runtime billing surfaces live under `/api/v1/pro/payments/*` to respect the
-   canonical public namespace policy (`/api/v1/bmi`, `/api/v1/pro`, `/api/v1/vip`).
-2. Earlier docs-only drafts used `/api/v1/billing/*`; that path is not canonical
-   under the current namespace guards and must not be reintroduced.
+1. Runtime Apple receipt verification is exposed under the additive billing namespace `/api/v1/billing/apple/verify-receipt`.
+2. Manual RU/BY payment surfaces remain under `/api/v1/pro/payments/ru-by/*` during the transition window.
+3. The legacy alias `/api/v1/pro/payments/apple/verify-receipt` may exist as a hidden compatibility route, but the canonical OpenAPI surface is `/api/v1/billing/apple/verify-receipt`.

@@ -62,14 +62,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-TBD-BILLING-APPLE-VERIFY
-  - Status: 📋 Planned
+  - Status: 🚧 In Progress (`feat/billing-apple-verify-endpoint`)
   - Area: backend / payments / iOS monetization
   - Finding Type: payment integrity
   - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `app/routers/pro_payments.py`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
     - `app/services/payments_activation.py`
   - DoD:
     - Server-side Apple receipt verification normalizes into the canonical billing activation flow

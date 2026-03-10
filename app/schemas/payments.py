@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class PaymentSource(str, Enum):
@@ -65,6 +65,22 @@ class ReconcileStatus(str, Enum):
     verified = "verified"
     rejected = "rejected"
     not_required = "not_required"
+
+
+class AppleVerificationEnvironment(str, Enum):
+    """Verification environment resolved by Apple receipt validation."""
+
+    production = "production"
+    sandbox = "sandbox"
+
+
+class AppleVerificationState(str, Enum):
+    """Normalized business outcome of Apple receipt verification."""
+
+    active = "active"
+    expired = "expired"
+    restored = "restored"
+    invalid = "invalid"
 
 
 class PaymentRequestModel(BaseModel):
@@ -149,12 +165,14 @@ class SubscriptionActivationResponse(BaseModel):
 class AppleReceiptVerificationRequest(PaymentRequestModel):
     """Request contract for iOS receipt verification."""
 
-    plan: SubscriptionPlan
-    client_event_id: str = Field(..., min_length=6, max_length=128)
-    receipt: str = Field(..., min_length=8, description="Opaque App Store receipt blob")
-    external_txn_id: str | None = Field(default=None, min_length=3, max_length=128)
+    receipt_data: str = Field(
+        ...,
+        min_length=8,
+        description="Opaque App Store receipt blob",
+        validation_alias=AliasChoices("receipt_data", "receipt"),
+    )
 
-    @field_validator("client_event_id", "receipt", mode="before")
+    @field_validator("receipt_data", mode="before")
     @classmethod
     def _normalize_non_empty_str(cls, value: Any) -> Any:
         if not isinstance(value, str):
@@ -164,15 +182,32 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
             raise ValueError("value must not be empty")
         return normalized
 
-    @field_validator("external_txn_id", mode="before")
-    @classmethod
-    def _normalize_optional_txn_id(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            return value
-        normalized = value.strip()
-        return normalized or None
+
+class AppleActivationPayload(BaseModel):
+    """Activation-ready payload for downstream Apple billing flow."""
+
+    tier: SubscriptionTierValue
+    platform: str = "ios"
+
+
+class AppleProviderError(BaseModel):
+    """Canonical provider error details for Apple receipt verification."""
+
+    code: str
+    message: str
+
+
+class AppleReceiptVerificationResponse(BaseModel):
+    """Normalized Apple receipt verification result without activation side effects."""
+
+    provider: str = "apple"
+    verified: bool
+    verification_state: AppleVerificationState
+    environment: AppleVerificationEnvironment | None = None
+    product_id: str | None = None
+    expires_at: datetime | None = None
+    activation_payload: AppleActivationPayload | None = None
+    error: AppleProviderError | None = None
 
 
 class ManualRailIntentRequest(PaymentRequestModel):

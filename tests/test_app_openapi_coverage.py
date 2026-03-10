@@ -62,14 +62,16 @@ class TestAppOpenAPICoverage:
         openapi_schema = response.json()
         paths = openapi_schema["paths"]
 
-        # Проверяем канонические публичные пути (bmi/pro/vip)
+        # Проверяем канонические публичные пути (bmi/billing/pro/vip)
         assert "/api/v1/bmi" in paths
+        assert "/api/v1/billing/apple/verify-receipt" in paths
         assert "/api/v1/pro/meal/weekly" in paths
         assert "/api/v1/pro/nutrition/daily" in paths
         assert "/api/v1/vip/menu/weekly/plan" in paths
         assert "/api/v1/vip/weekly-plan" in paths
         assert "/api/v1/premium/plan/week" not in paths
         assert "/api/v1/premium/plan/week-flexible" not in paths
+        assert "/api/v1/pro/payments/apple/verify-receipt" not in paths
         # /api/v1/pro/nutrition/targets is validated in generated-schema checks.
         # Runtime /openapi.json coverage here anchors the currently exposed public paths.
         # /docs и /openapi.json не являются путями в схеме
@@ -135,6 +137,7 @@ class TestAppOpenAPICoverage:
 
         # Проверяем операции для канонических public endpoints
         assert "post" in paths["/api/v1/bmi"]
+        assert "post" in paths["/api/v1/billing/apple/verify-receipt"]
         assert "post" in paths["/api/v1/pro/meal/weekly"]
         assert "get" in paths["/api/v1/pro/nutrition/daily"]
         assert "post" in paths["/api/v1/vip/menu/weekly/plan"]

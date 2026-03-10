@@ -9,88 +9,6 @@ from tests.payment_test_utils import json_response_payload as _json
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
 
-def test_apple_verify_receipt_happy_path(
-    client: TestClient,
-    pro_headers: dict[str, str],
-) -> None:
-    response = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "vip_monthly",
-            "client_event_id": "evt-ios-billing-1",
-            "receipt": "receipt-token-validated-12345",
-            "external_txn_id": "ios-txn-1",
-        },
-    )
-    assert response.status_code == 201, response.text
-    payload = _json(response)
-    assert payload["payment_source"] == "ios_app_store"
-    assert payload["plan"] == "vip_monthly"
-    assert payload["subscription_tier"] == "vip"
-    assert payload["status"] == "active"
-    assert payload["reconcile_status"] == "verified"
-    assert payload["audit_id"] == payload["activation_id"]
-    assert payload["intent_id"] == payload["activation_id"]
-
-
-def test_apple_verify_receipt_vip_headers_are_tier_compatible(
-    client: TestClient,
-    vip_headers: dict[str, str],
-) -> None:
-    response = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=vip_headers,
-        json={
-            "plan": "vip_monthly",
-            "client_event_id": "evt-ios-billing-vip-1",
-            "receipt": "receipt-token-validated-98765",
-            "external_txn_id": "ios-vip-txn-1",
-        },
-    )
-    assert response.status_code == 201, response.text
-    payload = _json(response)
-    assert payload["payment_source"] == "ios_app_store"
-    assert payload["plan"] == "vip_monthly"
-    assert payload["subscription_tier"] == "vip"
-    assert payload["status"] == "active"
-    assert payload["reconcile_status"] == "verified"
-    assert payload["audit_id"] == payload["activation_id"]
-    assert payload["intent_id"] == payload["activation_id"]
-
-
-def test_apple_verify_receipt_short_receipt_rejects(
-    client: TestClient,
-    pro_headers: dict[str, str],
-) -> None:
-    response = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-billing-2",
-            "receipt": "shortbad",
-        },
-    )
-    assert response.status_code == 201, response.text
-    payload = _json(response)
-    assert payload["status"] == "rejected"
-    assert payload["reconcile_status"] == "rejected"
-    assert payload["subscription_tier"] == "pro"
-
-
-def test_apple_verify_receipt_requires_api_key(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-billing-3",
-            "receipt": "receipt-token-validated-12345",
-        },
-    )
-    assert response.status_code == 401
-
-
 def test_manual_intent_happy_path(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -183,20 +101,15 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
 
     valid_apple = AppleReceiptVerificationRequest.model_validate(
         {
-            "plan": "pro_monthly",
-            "client_event_id": "evt-apple-validate-1",
-            "receipt": "receipt-token-validated-12345",
-            "external_txn_id": None,
+            "receipt_data": "receipt-token-validated-12345",
         }
     )
-    assert valid_apple.external_txn_id is None
+    assert valid_apple.receipt_data == "receipt-token-validated-12345"
 
     with pytest.raises(ValidationError):
         AppleReceiptVerificationRequest.model_validate(
             {
-                "plan": "pro_monthly",
-                "client_event_id": "evt-apple-validate-2",
-                "receipt": "        ",
+                "receipt_data": "        ",
             }
         )
 
@@ -305,18 +218,14 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
     with pytest.raises(ValidationError):
         AppleReceiptVerificationRequest.model_validate(
             {
-                "plan": "pro_monthly",
-                "client_event_id": 123456,
-                "receipt": "receipt-token-validated-typed-12345",
+                "receipt_data": 123456,
             }
         )
 
     with pytest.raises(ValidationError):
         AppleReceiptVerificationRequest.model_validate(
             {
-                "plan": "pro_monthly",
-                "client_event_id": "evt-apple-typed-3",
-                "receipt": "receipt-token-validated-typed-54321",
+                "receipt_data": "receipt-token-validated-typed-54321",
                 "external_txn_id": 99,
             }
         )
@@ -324,9 +233,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
     with pytest.raises(ValidationError):
         AppleReceiptVerificationRequest.model_validate(
             {
-                "plan": "pro_monthly",
-                "client_event_id": "evt-apple-extra-1",
-                "receipt": "receipt-token-validated-typed-77777",
+                "receipt_data": "receipt-token-validated-typed-77777",
                 "reason_key": "unexpected",
             }
         )
@@ -405,58 +312,6 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
                 "extra_flag": True,
             }
         )
-
-
-def test_apple_verify_receipt_idempotent_replay_returns_200(
-    client: TestClient,
-    pro_headers: dict[str, str],
-) -> None:
-    payload = {
-        "plan": "vip_monthly",
-        "client_event_id": "evt-ios-replay-1",
-        "receipt": "receipt-token-validated-abcde",
-        "external_txn_id": "ios-replay-1",
-    }
-    first = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json=payload,
-    )
-    second = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json=payload,
-    )
-    assert first.status_code == 201, first.text
-    assert second.status_code == 200, second.text
-    assert _json(first) == _json(second)
-
-
-def test_apple_verify_receipt_conflict_returns_409(
-    client: TestClient,
-    pro_headers: dict[str, str],
-) -> None:
-    first = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-conflict-1",
-            "receipt": "receipt-token-validated-abcde",
-        },
-    )
-    conflict = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-conflict-1",
-            "receipt": "receipt-token-validated-xyz987",
-        },
-    )
-    assert first.status_code == 201, first.text
-    assert conflict.status_code == 409, conflict.text
-    assert _json(conflict)["code"] == "idempotency_conflict"
 
 
 def test_manual_intent_idempotent_replay_returns_200(

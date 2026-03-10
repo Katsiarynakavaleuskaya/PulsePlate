@@ -50,6 +50,25 @@ def _create_manual_intent_via_service(*, issuer: str, source: str) -> str:
     return activation.activation_id
 
 
+def _create_ios_activation_via_service(*, issuer: str) -> str:
+    from app.schemas.payments import ActivateSubscriptionRequest
+    from app.services import payments_activation
+
+    activation, _ = payments_activation.activate_subscription(
+        issuer=issuer,
+        payload=ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+                "client_event_id": "evt-ios-service-intent-1",
+                "verification_ok": True,
+                "verification_payload": {"receipt": "receipt-token-validated-99999"},
+            }
+        ),
+    )
+    return activation.activation_id
+
+
 def test_manual_reconcile_verified_flow(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -252,33 +271,18 @@ def test_manual_reconcile_forbidden_for_other_issuer_on_post(
 
 
 def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
-    from app.schemas.payments import (
-        AppleReceiptVerificationRequest,
-        ManualRailReconcileRequest,
-    )
+    from app.schemas.payments import ManualRailReconcileRequest
     from app.services import payments_activation
 
     issuer = payments_activation.issuer_from_api_key("test_pro_key")
-    activation_request = payments_activation.build_ios_activation_request(
-        payload=AppleReceiptVerificationRequest.model_validate(
-            {
-                "plan": "pro_monthly",
-                "client_event_id": "evt-ios-service-1",
-                "receipt": "receipt-token-validated-99999",
-            }
-        )
-    )
-    activation, _ = payments_activation.activate_subscription(
-        issuer=issuer,
-        payload=activation_request,
-    )
+    activation_id = _create_ios_activation_via_service(issuer=issuer)
 
     with pytest.raises(payments_activation.ActivationStateError, match="cannot be reconciled"):
         payments_activation.reconcile_activation(
             issuer=issuer,
             payload=ManualRailReconcileRequest.model_validate(
                 {
-                    "intent_id": activation.activation_id,
+                    "intent_id": activation_id,
                     "client_event_id": "evt-ios-reconcile-1",
                     "decision": "verified",
                 }
@@ -290,17 +294,11 @@ def test_manual_reconcile_rejects_ios_activation_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
-    created = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-api-1",
-            "receipt": "receipt-token-validated-api-12345",
-        },
+    from app.services import payments_activation
+
+    activation_id = _create_ios_activation_via_service(
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"])
     )
-    assert created.status_code == 201, created.text
-    activation_id = _json(created)["activation_id"]
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
@@ -319,17 +317,11 @@ def test_manual_status_rejects_ios_activation_via_api(
     client: TestClient,
     pro_headers: dict[str, str],
 ) -> None:
-    created = client.post(
-        "/api/v1/pro/payments/apple/verify-receipt",
-        headers=pro_headers,
-        json={
-            "plan": "pro_monthly",
-            "client_event_id": "evt-ios-api-status-1",
-            "receipt": "receipt-token-validated-status-12345",
-        },
+    from app.services import payments_activation
+
+    activation_id = _create_ios_activation_via_service(
+        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"])
     )
-    assert created.status_code == 201, created.text
-    activation_id = _json(created)["activation_id"]
 
     response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{activation_id}",
