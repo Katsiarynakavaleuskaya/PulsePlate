@@ -408,6 +408,60 @@ def test_evaluate_candidate_maps_sandbox_exception_to_infra_flake(
     assert result["shared_tree_untouched"] is True
 
 
+def test_evaluate_candidate_retries_infra_flake_within_retry_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transient infra flakes should consume retry_budget before final rejection."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "retry.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["budgets"] = {
+        **packet["budgets"],
+        "retry_budget": 1,
+    }
+    validated_packet = _validate_packet(packet)
+
+    attempts = {"count": 0}
+
+    def _flaky_sandbox(*_args: object, **_kwargs: object) -> SandboxResult:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("temporary sandbox failure")
+        return SandboxResult(
+            argv=("python3", "-c", "import sys; sys.exit(0)"),
+            returncode=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=".",
+        )
+
+    monkeypatch.setattr(
+        experiment_runner.sandbox,
+        "run_local_sandbox",
+        _flaky_sandbox,
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "accepted"
+    assert result["failure_class"] is None
+    assert result["budget_observations"]["attempts"] == 2
+    assert result["budget_observations"]["retries_consumed"] == 1
+
+
 def test_evaluate_candidate_enforces_total_wall_clock_budget_across_oracles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

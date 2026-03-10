@@ -410,6 +410,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         "oracle_commands_configured": len(packet["immutable_oracles"]),
         "oracle_commands_executed": 0,
         "candidate_changed_files": 0,
+        "attempts": 0,
+        "retries_consumed": 0,
     }
 
     try:
@@ -430,37 +432,50 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
 
         _validate_patch_targets(packet, mutated_paths)
 
-        temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
-        try:
-            _apply_candidate_patch(checkout_root, candidate_patch_path)
-            if not _has_effective_diff(checkout_root):
+        max_attempts = int(packet["budgets"]["retry_budget"]) + 1
+        last_infra_error: str | None = None
+        for attempt_number in range(1, max_attempts + 1):
+            budget_observations["attempts"] = attempt_number
+            budget_observations["retries_consumed"] = attempt_number - 1
+
+            temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+            try:
+                _apply_candidate_patch(checkout_root, candidate_patch_path)
+                if not _has_effective_diff(checkout_root):
+                    result = _result_payload(
+                        experiment_id=packet["experiment_id"],
+                        candidate_patch=candidate_patch_ref,
+                        status="rejected",
+                        failure_class="unchanged_result",
+                        mutated_paths=mutated_paths,
+                        oracle_results=[],
+                        budget_observations=budget_observations,
+                        shared_tree_untouched=True,
+                    )
+                    return result
+
+                oracle_results, failure_class = _run_oracles(packet, checkout_root)
+                budget_observations["oracle_commands_executed"] = len(oracle_results)
+                status = "accepted" if failure_class is None else "rejected"
                 result = _result_payload(
                     experiment_id=packet["experiment_id"],
                     candidate_patch=candidate_patch_ref,
-                    status="rejected",
-                    failure_class="unchanged_result",
+                    status=status,
+                    failure_class=failure_class,
                     mutated_paths=mutated_paths,
-                    oracle_results=[],
+                    oracle_results=oracle_results,
                     budget_observations=budget_observations,
                     shared_tree_untouched=True,
                 )
-                return result
-
-            oracle_results, failure_class = _run_oracles(packet, checkout_root)
-            budget_observations["oracle_commands_executed"] = len(oracle_results)
-            status = "accepted" if failure_class is None else "rejected"
-            result = _result_payload(
-                experiment_id=packet["experiment_id"],
-                candidate_patch=candidate_patch_ref,
-                status=status,
-                failure_class=failure_class,
-                mutated_paths=mutated_paths,
-                oracle_results=oracle_results,
-                budget_observations=budget_observations,
-                shared_tree_untouched=True,
-            )
-        finally:
-            temp_dir.cleanup()
+                break
+            except InfraFlakeError as exc:
+                last_infra_error = str(exc)
+                if attempt_number == max_attempts:
+                    raise
+            finally:
+                temp_dir.cleanup()
+        else:
+            raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
