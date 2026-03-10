@@ -23,9 +23,9 @@ Commit: 8913e1d1
 Evidence: tests/test_fitchef_insight_api.py:1357
 Evidence: tests/test_fitchef_insight_api.py:1539
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1076#discussion_r2911269226 -> 86fd53f7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1076#discussion_r2911269226 -> 05171dff
 Disposition: FIXED
-Commit: 86fd53f7
+Commit: 05171dff
 Evidence: docs/review/PR_1076_FIXED_MAPPING.md:3
 Evidence: docs/review/PR_1076_FIXED_MAPPING.md:4
 
