@@ -15,6 +15,7 @@ import json
 import math
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shlex
 import shutil
 import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-07-31, ref: PR-1082)
@@ -40,10 +41,10 @@ from scripts.orchestration.experiment_contract import (
 
 RESULT_SCHEMA_VERSION = SCHEMA_VERSION
 RESULT_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
-OOM_MARKERS: tuple[str, ...] = (
-    "out of memory",
-    "oom",
-    "cannot allocate memory",
+OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bout of memory\b", re.IGNORECASE),
+    re.compile(r"\boom\b", re.IGNORECASE),
+    re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
 )
 
 
@@ -310,8 +311,8 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
 
     if result.timed_out:
         return "timeout"
-    combined_output = f"{result.stdout}\n{result.stderr}".lower()
-    if any(marker in combined_output for marker in OOM_MARKERS):
+    combined_output = f"{result.stdout}\n{result.stderr}"
+    if any(pattern.search(combined_output) for pattern in OOM_PATTERNS):
         return "oom"
     return "guard_failure"
 
@@ -399,10 +400,55 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
     return candidate
 
 
+def _evaluate_attempt(
+    *,
+    packet: dict[str, Any],
+    patch_text: str,
+    mutated_paths: list[str],
+    budget_observations: dict[str, Any],
+    candidate_patch_ref: str,
+) -> dict[str, Any]:
+    """Run one isolated evaluation attempt and fail closed on cleanup errors."""
+
+    temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+    try:
+        _apply_candidate_patch(checkout_root, patch_text)
+        if not _has_effective_diff(checkout_root):
+            return _result_payload(
+                experiment_id=packet["experiment_id"],
+                candidate_patch=candidate_patch_ref,
+                status="rejected",
+                failure_class="unchanged_result",
+                mutated_paths=mutated_paths,
+                oracle_results=[],
+                budget_observations=budget_observations,
+                shared_tree_untouched=True,
+            )
+
+        oracle_results, failure_class = _run_oracles(packet, checkout_root)
+        budget_observations["oracle_commands_executed"] = len(oracle_results)
+        status = "accepted" if failure_class is None else "rejected"
+        return _result_payload(
+            experiment_id=packet["experiment_id"],
+            candidate_patch=candidate_patch_ref,
+            status=status,
+            failure_class=failure_class,
+            mutated_paths=mutated_paths,
+            oracle_results=oracle_results,
+            budget_observations=budget_observations,
+            shared_tree_untouched=True,
+        )
+    finally:
+        try:
+            temp_dir.cleanup()
+        except Exception as exc:
+            raise InfraFlakeError(f"Unable to clean temp checkout: {exc}") from exc
+
+
 def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> dict[str, Any]:
     """Evaluate a candidate patch against a validated experiment packet."""
 
-    candidate_patch_ref = normalize_repo_path(candidate_patch_path)
+    candidate_patch_ref = str(candidate_patch_path)
     budget_observations = {
         "configured_budgets": dict(packet["budgets"]),
         "stop_condition": packet["budgets"].get("stop_condition", DEFAULT_STOP_CONDITION),
@@ -415,6 +461,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     shared_status_before: str | None = None
 
     try:
+        candidate_patch_ref = normalize_repo_path(candidate_patch_path)
         shared_status_before = _shared_tree_status(REPO_ROOT)
         patch_text = _read_patch_text(candidate_patch_path)
         mutated_paths = _extract_mutated_paths(patch_text)
@@ -439,45 +486,21 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         for attempt_number in range(1, max_attempts + 1):
             budget_observations["attempts"] = attempt_number
             budget_observations["retries_consumed"] = attempt_number - 1
+            budget_observations["oracle_commands_executed"] = 0
 
-            temp_dir: tempfile.TemporaryDirectory[str] | None = None
             try:
-                temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
-                _apply_candidate_patch(checkout_root, patch_text)
-                if not _has_effective_diff(checkout_root):
-                    result = _result_payload(
-                        experiment_id=packet["experiment_id"],
-                        candidate_patch=candidate_patch_ref,
-                        status="rejected",
-                        failure_class="unchanged_result",
-                        mutated_paths=mutated_paths,
-                        oracle_results=[],
-                        budget_observations=budget_observations,
-                        shared_tree_untouched=True,
-                    )
-                    return result
-
-                oracle_results, failure_class = _run_oracles(packet, checkout_root)
-                budget_observations["oracle_commands_executed"] = len(oracle_results)
-                status = "accepted" if failure_class is None else "rejected"
-                result = _result_payload(
-                    experiment_id=packet["experiment_id"],
-                    candidate_patch=candidate_patch_ref,
-                    status=status,
-                    failure_class=failure_class,
+                result = _evaluate_attempt(
+                    packet=packet,
+                    patch_text=patch_text,
                     mutated_paths=mutated_paths,
-                    oracle_results=oracle_results,
                     budget_observations=budget_observations,
-                    shared_tree_untouched=True,
+                    candidate_patch_ref=candidate_patch_ref,
                 )
                 break
             except InfraFlakeError as exc:
                 last_infra_error = str(exc)
                 if attempt_number == max_attempts:
                     raise
-            finally:
-                if temp_dir is not None:
-                    temp_dir.cleanup()
         else:
             raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:
@@ -490,7 +513,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             mutated_paths=[],
             oracle_results=[],
             budget_observations=budget_observations,
-            shared_tree_untouched=True,
+            shared_tree_untouched=shared_status_before is not None,
         )
     except InfraFlakeError as exc:
         budget_observations["runner_error"] = str(exc)
@@ -502,25 +525,34 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             mutated_paths=[],
             oracle_results=[],
             budget_observations=budget_observations,
-            shared_tree_untouched=True,
+            shared_tree_untouched=shared_status_before is not None,
         )
 
-    if shared_status_before is not None:
-        try:
-            shared_status_after = _shared_tree_status(REPO_ROOT)
-        except InfraFlakeError as exc:
-            result["shared_tree_untouched"] = False
-            result["status"] = "rejected"
-            result["failure_class"] = "infra_flake"
-            result["budget_observations"]["runner_error"] = str(exc)
-            return result
-        if shared_status_before != shared_status_after:
-            result["shared_tree_untouched"] = False
-            result["status"] = "rejected"
-            result["failure_class"] = "infra_flake"
-            result["budget_observations"][
-                "runner_error"
-            ] = "Shared working tree changed during run."
+    if shared_status_before is None:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"].setdefault(
+            "runner_error",
+            "Unable to capture shared working tree status before run.",
+        )
+        return result
+
+    try:
+        shared_status_after = _shared_tree_status(REPO_ROOT)
+    except InfraFlakeError as exc:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"]["runner_error"] = str(exc)
+        return result
+    if shared_status_before != shared_status_after:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"][
+            "runner_error"
+        ] = "Shared working tree changed during run."
     return result
 
 

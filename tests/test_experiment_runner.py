@@ -383,6 +383,32 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
     assert result["oracle_results"][0]["timed_out"] is True
 
 
+def test_classify_oracle_failure_matches_only_standalone_oom_markers() -> None:
+    """OOM classification should ignore unrelated substrings such as rooms/zoom."""
+
+    noisy_result = SandboxResult(
+        argv=("python3", "-c", "import sys; sys.exit(1)"),
+        returncode=1,
+        stdout="rooms.py failed",
+        stderr="zoom level mismatch",
+        timed_out=False,
+        truncated=False,
+        cwd=".",
+    )
+    oom_result = SandboxResult(
+        argv=("python3", "-c", "import sys; sys.exit(1)"),
+        returncode=1,
+        stdout="",
+        stderr="Worker hit OOM while loading batch",
+        timed_out=False,
+        truncated=False,
+        cwd=".",
+    )
+
+    assert experiment_runner._classify_oracle_failure(noisy_result) == "guard_failure"
+    assert experiment_runner._classify_oracle_failure(oom_result) == "oom"
+
+
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -517,6 +543,65 @@ def test_evaluate_candidate_retries_infra_flake_within_retry_budget(
         experiment_runner.sandbox,
         "run_local_sandbox",
         _flaky_sandbox,
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "accepted"
+    assert result["failure_class"] is None
+    assert result["budget_observations"]["attempts"] == 2
+    assert result["budget_observations"]["retries_consumed"] == 1
+
+
+def test_evaluate_candidate_retries_cleanup_infra_flake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cleanup failures should route through retry_budget instead of escaping raw."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "cleanup-retry.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["budgets"] = {
+        **packet["budgets"],
+        "retry_budget": 1,
+    }
+    validated_packet = _validate_packet(packet)
+
+    real_create_temp_checkout = experiment_runner._create_temp_checkout
+    cleanup_failures = {"count": 0}
+
+    class _CleanupWrapper:
+        def __init__(self, inner: tempfile.TemporaryDirectory[str]) -> None:
+            self._inner = inner
+            self.name = inner.name
+
+        def cleanup(self) -> None:
+            self._inner.cleanup()
+            raise OSError("cleanup locked")
+
+    def _checkout_with_flaky_cleanup(
+        root: Path,
+    ) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+        temp_dir, checkout_root = real_create_temp_checkout(root)
+        if cleanup_failures["count"] == 0:
+            cleanup_failures["count"] += 1
+            return _CleanupWrapper(temp_dir), checkout_root
+        return temp_dir, checkout_root
+
+    monkeypatch.setattr(
+        experiment_runner,
+        "_create_temp_checkout",
+        _checkout_with_flaky_cleanup,
     )
 
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
@@ -681,6 +766,51 @@ def test_evaluate_candidate_returns_infra_flake_for_missing_patch_file(
     assert result["status"] == "rejected"
     assert result["failure_class"] == "infra_flake"
     assert "Unable to read candidate patch" in result["budget_observations"]["runner_error"]
+
+
+def test_evaluate_candidate_marks_unverified_shared_tree_probe_as_infra_flake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Baseline shared-tree probe failures must not claim untouched=True."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "shared-status.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+        )
+    )
+
+    calls = {"count": 0}
+    real_shared_tree_status = experiment_runner._shared_tree_status
+
+    def _flaky_shared_tree_status(root: Path) -> str:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise experiment_runner.InfraFlakeError("baseline status probe failed")
+        return real_shared_tree_status(root)
+
+    monkeypatch.setattr(
+        experiment_runner,
+        "_shared_tree_status",
+        _flaky_shared_tree_status,
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert result["shared_tree_untouched"] is False
+    assert "baseline status probe failed" in result["budget_observations"]["runner_error"]
+    assert calls["count"] == 1
 
 
 def test_main_writes_result_inside_artifact_dir(
