@@ -73,7 +73,7 @@
 "plate_issue_title_decoding" = "Respuesta inesperada";
 "plate_issue_title_unknown" = "Algo salió mal";
 
-"plate_issue_message_missing_pro_key_debug" = "Configura la clave de API PRO (PRO_API_KEY) en el esquema de Xcode.";
+"plate_issue_message_missing_pro_key_debug" = "Carga una clave PRO en PRO Settings -> Debug Tools -> Keychain o usa un proveedor de prueba inyectado explícitamente. Las variables de entorno de Xcode ya no se usan para el acceso PRO en runtime.";
 "plate_issue_message_missing_pro_key" = "PRO no está disponible en este dispositivo.";
 "plate_issue_message_missing_profile" = "Abre Perfil e introduce sexo, edad, altura y peso.";
 "plate_issue_message_unauthorized" = "Tu clave PRO falta o no es válida.";

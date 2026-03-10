@@ -160,9 +160,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (security blocker)
-  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR-TBD-SESSION-COOKIE-HARDENING-W2
-  - Status: 🟡 In progress (foundation in PR #1003; W1 hardening in PR #1030; cleanup-guarantee carryover remains)
-  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, and PR #1030 hardened the W1 migration path by treating legacy browser-stored API keys as one-time artifacts and failing closed at the app boundary when cleanup fails. The item remains open because the current browser-storage cleanup path is not yet guaranteed to remove legacy secrets under transient `removeItem()` failure semantics, so the ledger must track a follow-up hardening pass instead of declaring the transport migration fully complete. (RU: PR #1003 и PR #1030 закрыли foundation/W1 часть hardening, но пункт остаётся открытым, потому что очистка legacy browser storage пока не гарантирована при ошибках `removeItem()`. Нужен отдельный carryover hardening pass, а не преждевременное закрытие P0.)
+  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR #1063 -> PR-TBD-SESSION-COOKIE-HARDENING-W2
+  - Status: 🟡 In progress (foundation in PR #1003; W1 hardening merged in PR #1030 + PR #1063; cleanup-guarantee carryover remains)
+  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. PR #1003 moved frontend gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling from the web flow. The item remains open because the current browser-storage cleanup path is not yet guaranteed to remove legacy secrets under transient `removeItem()` failure semantics, so the ledger must track a follow-up hardening pass instead of declaring the transport migration fully complete. (RU: PR #1003, PR #1030 и PR #1063 закрыли foundation/W1 часть hardening, но пункт остаётся открытым, потому что очистка legacy browser storage пока не гарантирована при ошибках `removeItem()`. Нужен отдельный carryover hardening pass, а не преждевременное закрытие P0.)
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - app/security/auth.py
@@ -173,6 +173,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - frontend/src/components/__tests__/TabBar.test.tsx
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1063
   - DoD:
     - No sensitive session/auth token persists in browser local storage, including cleanup-failure paths
     - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
@@ -262,6 +263,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical StoreKit product identifiers and setup checklist are versioned in-repo
     - Billing/runtime follow-through references the same product contract without client-side drift
     - Release checklist is explicit enough for future iOS submission work
+
+<a id="ledger-p1-mobile-secret-conformance"></a>
+- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (mobile security correctness)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
+  - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
+  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR is intended to complete the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - ios/PulsePlate/Services/KeychainStore.swift
+    - ios/PulsePlate/Services/ProKeyProvider.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+  - DoD:
+    - iOS secret paths are verified to use Keychain storage only
+    - Guard tests prevent regression to insecure storage
 
 <a id="ledger-p1-diet-flags-contract-sync"></a>
 - [ ] P1: Diet flags contract sync across schemas and clients
@@ -3922,7 +3939,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Backend canonical route (guarded by PRO tier): `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
   - DoD:
     - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
-    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env
+    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` sourced from the app's secure key provider
     - UX: explicit states for missing PRO key / missing profile / 422 validation errors
     - Tests:
       - unit test for building daily nutrition request query (deterministic)
@@ -3971,21 +3988,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No dual-path networking
 
 
-<a id="ledger-p1-mobile-secret-conformance"></a>
-- [x] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`)
-  - Status: ✅ Merged (PR #1011, 2026-03-07)
-  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - ios/PulsePlate/Services/KeychainStore.swift
-    - ios/PulsePlate/Services/ProKeyProvider.swift
-    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
-  - DoD:
-    - iOS secret paths are verified to use Keychain storage only
-    - Guard tests prevent regression to insecure storage
 
 
 - [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
