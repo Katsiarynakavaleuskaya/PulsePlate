@@ -56,10 +56,10 @@ Disposition: FIXED
 Commit: `3e6cb9f0`
 Evidence: `worker.js:216`; `tests/test_worker_proxy_contract.py:372`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#issuecomment-4032049481 -> fc9f4a3a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#issuecomment-4032049481 -> e64255b4
 Disposition: FIXED
-Commit: `fc9f4a3a`
-Evidence: `scripts/orchestration/experiment_bootstrap.py:16`; `scripts/orchestration/experiment_bootstrap.py:258`; `tests/test_worker_proxy_contract.py:313`; `tests/test_worker_proxy_contract.py:355`; `worker.js:3`; `docs/roadmap/BACKLOG_LEDGER.md:663`; `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:9`
+Commit: `e64255b4`
+Evidence: `scripts/orchestration/experiment_bootstrap.py:16`; `scripts/orchestration/experiment_bootstrap.py:258`; `scripts/orchestration/experiment_bootstrap.py:260`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912919570 -> fc9f4a3a
 Disposition: FIXED
