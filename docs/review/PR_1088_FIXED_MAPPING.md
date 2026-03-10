@@ -76,3 +76,53 @@ Commit: see mapping entries below
 Evidence: `9155fa4a` moves `_create_temp_checkout()` into the retried `InfraFlakeError` path in `scripts/orchestration/experiment_runner.py:443`, so transient checkout/bootstrap failures now consume `budgets.retry_budget` instead of escaping the retry loop, and adds regression coverage in `tests/test_experiment_runner.py:530` proving the runner retries the checkout failure once and still accepts a later successful attempt.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914488864 -> 9155fa4a
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `dd4f455e` hardens late-runner failure handling in `scripts/orchestration/experiment_runner.py:44`, `scripts/orchestration/experiment_runner.py:403`, and `scripts/orchestration/experiment_runner.py:531` by matching standalone OOM tokens only, routing temp-checkout cleanup failures back through the `infra_flake` retry path, and marking baseline shared-tree probe failures as `shared_tree_untouched=false`. Regression coverage was added in `tests/test_experiment_runner.py:386`, `tests/test_experiment_runner.py:556`, and `tests/test_experiment_runner.py:771`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530026 -> dd4f455e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530038 -> dd4f455e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914539033 -> dd4f455e
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `77fefcb3` refreshes the merged PR2 evidence links in `docs/roadmap/BACKLOG_LEDGER.md:5262` so the bootstrap lane points to `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_contract.py`. The duplicate reminder about `Deferred / Follow-ups` is already satisfied by the current PR body section `## Deferred / Follow-ups`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925354676 -> 77fefcb3
+
+Disposition: NOT-A-BUG
+Evidence: This cubic aggregate review only restates the already-fixed inline finding at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914383243`, which is mapped above to `1d823d20`.
+Reason: Aggregate review URL identified by cubic does not require a separate code change beyond the inline disposition already recorded in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925330431
+
+Disposition: NOT-A-BUG
+Evidence: This CodeRabbit aggregate review only summarizes inline findings already dispositioned in this artifact: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406881`, `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406888`, `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914406892`, and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914458229`.
+Reason: Aggregate review URL does not introduce an extra actionable item beyond the individual inline comments already mapped to `8467f024` and `e99083fd`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925407198
+
+Disposition: NOT-A-BUG
+Evidence: This cubic aggregate review only restates the inline checkout-retry finding at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914488864`, which is mapped above to `9155fa4a`.
+Reason: Aggregate review URL identified by cubic does not require a separate code change beyond the inline disposition already recorded in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925441786
+
+Disposition: NOT-A-BUG
+Evidence: This CodeRabbit aggregate review summarizes inline findings already dispositioned in this artifact: the new runner hardening comments `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530026` and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530038` are fixed by `dd4f455e`, while the duplicated preflight concern is already covered by `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914458229` -> `e99083fd`.
+Reason: Aggregate review URL does not require a separate code change beyond the individual inline dispositions already recorded in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925487479
+
+Disposition: NOT-A-BUG
+Evidence: This cubic aggregate review only restates the inline shared-tree baseline finding at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914539033`, which is mapped above to `dd4f455e`.
+Reason: Aggregate review URL identified by cubic does not require a separate code change beyond the inline disposition already recorded in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925498146
+
+Disposition: NOT-A-BUG
+Evidence: This CodeRabbit aggregate review only summarizes inline findings already dispositioned in this artifact: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530026` and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#discussion_r2914530038` are both fixed by `dd4f455e`.
+Reason: Aggregate review URL does not require a separate code change beyond the individual inline dispositions already recorded in this artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1088#pullrequestreview-3925509218
