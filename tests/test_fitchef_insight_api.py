@@ -6,6 +6,7 @@ EN: Tests for the VIP-only FitChef mascot insight endpoint.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
@@ -1357,13 +1358,13 @@ class TestFitChefSlipSupportTierAndFlags:
     @pytest.fixture(autouse=True)
     def setup(
         self,
-        client: TestClient,
         vip_headers: dict[str, str],
         pro_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
-    ) -> None:
-        self.client = client
+    ) -> Iterator[None]:
+        from app.main import app as main_app
+
         self.vip_headers = vip_headers
         self.pro_headers = pro_headers
         self.monkeypatch = monkeypatch
@@ -1373,6 +1374,9 @@ class TestFitChefSlipSupportTierAndFlags:
             str(tmp_path / "fitchef-slip-support-audit.jsonl"),
         )
         self.monkeypatch.setenv("FITCHEF_MASCOT_EXECUTION_MODE", "auto-safe")
+        with TestClient(main_app) as isolated_client:
+            self.client = isolated_client
+            yield
 
     def test_vip_only_rejects_missing_api_key(self) -> None:
         """Missing key must fail with VIP gate semantics."""
@@ -1534,6 +1538,25 @@ class TestFitChefSlipSupportTierAndFlags:
 
         assert response.status_code == 400
         assert _json_body(response) == {"detail": "unsafe_ai_input"}
+
+    def test_blank_event_text_rejected_before_runtime(self) -> None:
+        """Whitespace-only event text must fail before runtime delegation."""
+
+        self.monkeypatch.setenv("FEATURE_FITCHEF_MASCOT", "true")
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_insight.fitchef_runtime.run_slip_support_task",
+            lambda *args, **kwargs: pytest.fail("runtime must not run for blank payload"),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"event_text": "   "},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 422
+        body = _json_body(response)
+        assert body["detail"][0]["loc"] == ["body", "event_text"]
 
 
 class TestFitChefSlipSupportRuntimeBehavior:
