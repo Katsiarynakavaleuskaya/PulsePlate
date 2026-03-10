@@ -77,9 +77,9 @@ async function main() {{
     return;
   }}
 
-    if (caseName === "missing_target_base") {{
-      const response = await worker.fetch(
-        new Request("https://edge.example.com/api/foods", {{
+  if (caseName === "missing_target_base") {{
+    const response = await worker.fetch(
+      new Request("https://edge.example.com/api/foods", {{
         method: "GET",
         headers: {{ Origin: "https://app.pulseplate.app" }},
       }}),
@@ -92,6 +92,24 @@ async function main() {{
       status: response.status,
       body: await response.json(),
       headers: toObject(response.headers),
+      captured,
+    }}));
+    return;
+  }}
+
+  if (caseName === "originless_without_allowlist") {{
+    const response = await worker.fetch(
+      new Request("https://edge.example.com/api/foods", {{
+        method: "GET",
+      }}),
+      {{
+        TARGET_BASE: "https://api.pulseplate.app",
+        WORKER_ALLOWED_ORIGINS: "",
+      }}
+    );
+    console.log(JSON.stringify({{
+      status: response.status,
+      body: await response.json(),
       captured,
     }}));
     return;
@@ -210,6 +228,29 @@ async function main() {{
     return;
   }}
 
+  if (caseName === "upstream_failure") {{
+    globalThis.fetch = async () => {{
+      throw new Error("dns failure");
+    }};
+
+    const response = await worker.fetch(
+      new Request("https://edge.example.com/api/foods", {{
+        method: "GET",
+        headers: {{ Origin: "https://app.pulseplate.app" }},
+      }}),
+      {{
+        TARGET_BASE: "https://api.pulseplate.app",
+        WORKER_ALLOWED_ORIGINS: "https://app.pulseplate.app",
+      }}
+    );
+    console.log(JSON.stringify({{
+      status: response.status,
+      body: await response.json(),
+      headers: toObject(response.headers),
+    }}));
+    return;
+  }}
+
   throw new Error(`Unknown worker case: ${{caseName}}`);
 }}
 
@@ -282,6 +323,14 @@ def test_worker_preflight_reflects_only_trusted_origins() -> None:
     assert blocked["captured"] is None
 
 
+def test_worker_fails_closed_without_origin_when_allowlist_is_missing() -> None:
+    payload = _run_worker_case("originless_without_allowlist")
+
+    assert payload["status"] == 403
+    assert payload["body"] == {"error": "Origin not allowed", "status": 403}
+    assert payload["captured"] is None
+
+
 def test_worker_forwards_only_bounded_headers_and_preserves_vary() -> None:
     payload = _run_worker_case("forward_headers_and_vary")
     captured = payload["captured"]
@@ -313,3 +362,15 @@ def test_worker_forwards_post_bodies_to_allowed_upstream_paths() -> None:
     assert payload["body"] == "upstream-ok"
     assert captured["method"] == "POST"
     assert captured["bodyLength"] > 0
+
+
+def test_worker_normalizes_upstream_transport_failures() -> None:
+    payload = _run_worker_case("upstream_failure")
+
+    assert payload["status"] == 502
+    assert payload["body"] == {
+        "error": "Upstream request failed: dns failure",
+        "status": 502,
+    }
+    assert payload["headers"]["access-control-allow-origin"] == "https://app.pulseplate.app"
+    assert payload["headers"]["vary"] == "Origin"

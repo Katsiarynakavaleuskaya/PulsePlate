@@ -131,14 +131,14 @@ function mergeVaryHeader(headers, value) {
  * @returns {TrustedOrigin}
  */
 function trustedOriginOrNull(request, env) {
-  const requestOrigin = request.headers.get("Origin");
-  if (!requestOrigin) {
-    return null;
-  }
-
   const allowedOrigins = parseAllowedOrigins(env.WORKER_ALLOWED_ORIGINS || "");
   if (allowedOrigins.size === 0) {
     return false;
+  }
+
+  const requestOrigin = request.headers.get("Origin");
+  if (!requestOrigin) {
+    return null;
   }
 
   return allowedOrigins.has(requestOrigin) ? requestOrigin : false;
@@ -209,7 +209,13 @@ export default {
       redirect: "manual",
     };
 
-    const resp = await fetch(upstream.toString(), init);
+    let resp;
+    try {
+      resp = await fetch(upstream.toString(), init);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "unknown transport error";
+      return jsonError(`Upstream request failed: ${detail}`, 502, corsOrigin);
+    }
     const out = new Response(resp.body, resp);
 
     if (trustedOrigin) {
