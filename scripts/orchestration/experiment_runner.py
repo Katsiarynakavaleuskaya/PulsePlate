@@ -440,8 +440,9 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             budget_observations["attempts"] = attempt_number
             budget_observations["retries_consumed"] = attempt_number - 1
 
-            temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+            temp_dir: tempfile.TemporaryDirectory[str] | None = None
             try:
+                temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
                 _apply_candidate_patch(checkout_root, patch_text)
                 if not _has_effective_diff(checkout_root):
                     result = _result_payload(
@@ -475,7 +476,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                 if attempt_number == max_attempts:
                     raise
             finally:
-                temp_dir.cleanup()
+                if temp_dir is not None:
+                    temp_dir.cleanup()
         else:
             raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:

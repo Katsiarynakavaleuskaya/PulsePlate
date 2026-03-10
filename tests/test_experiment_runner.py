@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 import pytest
 
@@ -516,6 +517,53 @@ def test_evaluate_candidate_retries_infra_flake_within_retry_budget(
         experiment_runner.sandbox,
         "run_local_sandbox",
         _flaky_sandbox,
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "accepted"
+    assert result["failure_class"] is None
+    assert result["budget_observations"]["attempts"] == 2
+    assert result["budget_observations"]["retries_consumed"] == 1
+
+
+def test_evaluate_candidate_retries_temp_checkout_infra_flake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transient clone/checkout failures should also consume retry_budget."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "checkout-retry.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["budgets"] = {
+        **packet["budgets"],
+        "retry_budget": 1,
+    }
+    validated_packet = _validate_packet(packet)
+
+    attempts = {"count": 0}
+    real_create_temp_checkout = experiment_runner._create_temp_checkout
+
+    def _flaky_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise experiment_runner.InfraFlakeError("temporary checkout failure")
+        return real_create_temp_checkout(root)
+
+    monkeypatch.setattr(
+        experiment_runner,
+        "_create_temp_checkout",
+        _flaky_checkout,
     )
 
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
