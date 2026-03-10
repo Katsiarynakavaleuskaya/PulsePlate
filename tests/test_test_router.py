@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from settings import get_runtime_env_name
+import settings as app_settings
 
 
 def _import_fresh_app() -> FastAPI:
@@ -28,7 +28,7 @@ def _import_fresh_app() -> FastAPI:
     app = legacy_app.app  # canonical app instance after env-driven wiring
 
     # Fail fast with a clear message if staging claims test routes should exist but doesn't.
-    runtime_env = get_runtime_env_name()
+    runtime_env = app_settings.get_runtime_env_name()
     if runtime_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
         has_test_routes = any(
             getattr(route, "path", "").startswith("/api/v1/test/")
