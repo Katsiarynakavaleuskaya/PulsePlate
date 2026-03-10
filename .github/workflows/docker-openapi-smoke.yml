@@ -57,6 +57,7 @@ jobs:
           allow_dev_api_key_name="ALLOW_DEV_API""_KEY"
           export_token_secret_name="EXPORT_TOKEN""_SECRET"
           server_salt_name="SERVER""_SALT"
+          apple_shared_secret_name="APPLE_SHARED""_SECRET"
 
           args=(
             -d
@@ -65,6 +66,7 @@ jobs:
             -e "${api_key_name}=test_key"
             -e "${export_token_secret_name}=ci-smoke-export-secret"
             -e "${server_salt_name}=StrongServerSaltForCI1234567890!"
+            -e "${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!"
             -e APP_ENV=production
             -e ENVIRONMENT=production
             -e "${allow_dev_api_key_name}=false"

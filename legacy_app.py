@@ -708,6 +708,7 @@ app = FastAPI(
 
 _OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
     "/api/v1/bmi/",
+    "/api/v1/billing/",
     "/api/v1/insight/",
     "/api/v1/pro/",
     "/api/v1/vip/",
@@ -718,7 +719,7 @@ _OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/api/v1/insi
 
 
 def _is_openapi_public_path(path: str) -> bool:
-    """Keep OpenAPI surface restricted to canonical BMI/PRO/VIP namespaces."""
+    """Keep OpenAPI surface restricted to canonical public namespaces."""
     if path in _OPENAPI_ALLOWED_EXACT:
         return True
     return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)

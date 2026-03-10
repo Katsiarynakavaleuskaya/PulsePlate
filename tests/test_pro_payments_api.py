@@ -325,3 +325,15 @@ def test_payments_activation_reset_state_clears_process_local_records() -> None:
         )
         is None
     )
+
+
+def test_legacy_apple_verify_alias_is_removed(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/apple/verify-receipt",
+        headers=pro_headers,
+        json={"receipt_data": "receipt-data-validated-12345"},
+    )
+    assert response.status_code == 404

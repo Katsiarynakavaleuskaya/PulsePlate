@@ -50,9 +50,12 @@ jobs:
           # Set up cleanup trap to ensure container is always removed
           trap "docker stop pulseplate-test 2>/dev/null || true; docker rm pulseplate-test 2>/dev/null || true" EXIT
 
+          apple_shared_secret_name="APPLE_SHARED""_SECRET"
+
           # Start container with tightened security
           docker run -d --name pulseplate-test -p 8000:8000 \
             -e SERVER_SALT=StrongServerSaltForCI1234567890! \
+            -e "${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!" \
             --cap-drop=ALL \
             --security-opt no-new-privileges \
             pulseplate:test

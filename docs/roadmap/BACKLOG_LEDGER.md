@@ -61,20 +61,75 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Apple receipt verification backend follow-through
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-APPLE-VERIFY
-  - Status: 📋 Planned
+  - Target PR: PR `#1074` (`feat(billing): add Apple receipt verification endpoint`)
+  - Status: 🚧 In Progress (`feat/billing-apple-verify-endpoint`)
   - Area: backend / payments / iOS monetization
   - Finding Type: payment integrity
   - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
   - Links:
     - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
     - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
-    - `app/routers/pro_payments.py`
+    - `app/routers/billing.py`
+    - `docs/review/PR_1074_FIXED_MAPPING.md`
     - `app/services/payments_activation.py`
   - DoD:
     - Server-side Apple receipt verification normalizes into the canonical billing activation flow
     - Receipt verification failure modes are deterministic and test-covered
     - Activation/status contracts stay additive for existing clients
+
+<a id="ledger-p0-billing-activation-service"></a>
+- [ ] P0: Billing activation service follow-through after Apple verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-ACTIVATION-SERVICE
+  - Area: backend / payments / activation
+  - Finding Type: monetization chain gap
+  - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Activation service consumes the Apple verification contract without reintroducing client tier truth
+    - Verify and activate remain separate runtime stages with deterministic handoff semantics
+    - Activation-path tests cover success, replay, and failure transitions
+
+<a id="ledger-p0-billing-subscription-persistence"></a>
+- [ ] P0: Subscription persistence for billing activation outcomes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-SUBSCRIPTION-PERSISTENCE
+  - Area: backend / payments / persistence
+  - Finding Type: subscription state gap
+  - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `app/schemas/payments.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Subscription state is persisted with deterministic idempotency semantics
+    - Persistence schema stores canonical tier/platform/expires_at/receipt audit fields
+    - Tests prove repeated activation cannot create duplicate subscription state
+
+<a id="ledger-p0-billing-entitlement-routing"></a>
+- [ ] P0: Entitlement-backed routing after billing activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Area: backend / authz / routing
+  - Finding Type: access-control gap
+  - Reason: The release spine still needs entitlement truth and protected routing after activation so paid users reach the correct guarded surfaces without client-side unlock shortcuts.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/middleware/api_tiers.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Entitlement truth is derived from backend activation/subscription state
+    - Route guards consume entitlement state instead of client-declared tier
+    - Regression tests cover paid, expired, and missing-entitlement paths
 
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
@@ -245,6 +300,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS subscription orchestration remains thin and backend-driven
     - Product/state transitions are deterministic and test-covered
     - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-apple-server-api-migration"></a>
+- [ ] P1: Apple receipt verification migration to App Store Server API
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
+  - Area: backend / payments / provider integration
+  - Finding Type: provider modernization
+  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
+    - Existing verification contract remains backward-compatible for downstream activation
+    - Provider migration paths are covered with deterministic tests and rollout notes
+
+<a id="ledger-p1-ios-subscription-orchestration"></a>
+- [ ] P1: iOS SubscriptionManager orchestration follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 💤 Superseded by `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - Area: ios / payments / orchestration
+  - Finding Type: client orchestration gap
+  - Reason: Backend verify is now separated cleanly, but the iOS thin client still needs explicit orchestration for purchase -> verify -> activation handoff without embedding billing truth on-device. The canonical surviving tracker is `ledger-p1-ios-subscription-manager`; this entry remains as an audit bridge from the billing wave only.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - DoD:
+    - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
 
 <a id="ledger-p1-ios-storekit-products"></a>
 - [ ] P1: iOS StoreKit products contract and setup baseline

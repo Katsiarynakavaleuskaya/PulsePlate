@@ -7,17 +7,22 @@ EN: Canonical billing endpoints for RU/BY + iOS baseline.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.responses import JSONResponse
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
 from app.middleware.api_tiers import require_pro_tier
+from app.routers.api_key import api_key_header
 from app.schemas.payments import (
+    AppleProviderError,
     AppleReceiptVerificationRequest,
+    AppleReceiptVerificationResponse,
+    AppleVerificationState,
     ManualRailIntentRequest,
     ManualRailReconcileRequest,
     PaymentErrorResponse,
@@ -25,9 +30,13 @@ from app.schemas.payments import (
 )
 from app.services import payments_activation
 
+billing_router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 router = APIRouter(prefix="/api/v1/pro/payments", tags=["pro", "payments"])
 
-__all__ = ["register_billing_routes", "router"]
+__all__ = ["billing_router", "register_billing_routes", "router"]
+
+logger = logging.getLogger(__name__)
+_APP_MODULE = None
 
 _DETAIL_IDEMPOTENCY_CONFLICT = "existing client_event_id is bound to a different payload"
 _DETAIL_FORBIDDEN = "issuer_access_denied"
@@ -69,12 +78,20 @@ _RESPONSE_422_VALIDATION_OR_PAYMENT = {
 
 def register_billing_routes(app: "FastAPI") -> APIRouter:
     """Register canonical billing routes idempotently on the provided app."""
-    has_apple_verify = any(
-        getattr(route, "path", None) == "/api/v1/pro/payments/apple/verify-receipt"
+    routes = getattr(app, "routes", None) or []
+    has_canonical_apple_verify = any(
+        getattr(route, "path", None) == "/api/v1/billing/apple/verify-receipt"
         and "POST" in (getattr(route, "methods", None) or set())
-        for route in getattr(app, "routes", None) or []
+        for route in routes
     )
-    if not has_apple_verify:
+    has_legacy_manual_intent = any(
+        getattr(route, "path", None) == "/api/v1/pro/payments/ru-by/manual-intent"
+        and "POST" in (getattr(route, "methods", None) or set())
+        for route in routes
+    )
+    if not has_canonical_apple_verify:
+        app.include_router(billing_router)
+    if not has_legacy_manual_intent:
         app.include_router(router)
     return router
 
@@ -97,6 +114,82 @@ def _payment_error_response(
     return JSONResponse(status_code=status_code, content=error.model_dump(mode="json"))
 
 
+def _require_billing_transport_key(
+    x_api_key: Optional[str] = Security(api_key_header),
+) -> str:
+    """Require a validated transport API key without tier or cookie semantics."""
+    if x_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required for billing verification",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    normalized_api_key = x_api_key.strip()
+    if not normalized_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required for billing verification",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    app_get_api_key = _get_app_get_api_key()
+    if not callable(app_get_api_key):
+        logger.error("Billing transport key validation is unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+
+    try:
+        result = app_get_api_key(normalized_api_key)
+    except HTTPException as exc:
+        logger.warning("Billing transport key rejected by app-level validator")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required for billing verification",
+            headers={"WWW-Authenticate": "ApiKey"},
+        ) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Billing transport key validation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        ) from exc
+
+    if not isinstance(result, str):
+        logger.error("Billing transport key validator returned non-string result")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+    return result
+
+
+def _get_app_get_api_key():
+    """Resolve the app-level API-key validator via a cached module import."""
+    global _APP_MODULE
+    if _APP_MODULE is None:
+        import app as app_module
+
+        _APP_MODULE = app_module
+    return getattr(_APP_MODULE, "get_api_key", None)
+
+
+def _apple_operational_error_response(
+    exc: payments_activation.AppleVerifyTransportError,
+) -> JSONResponse:
+    """Return canonical Apple verification transport error response."""
+    payload = AppleReceiptVerificationResponse(
+        verified=False,
+        verification_state=AppleVerificationState.invalid,
+        error=AppleProviderError(code=exc.error_code, message=exc.error_message),
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=payload.model_dump(mode="json"),
+    )
+
+
 def _activation_state_detail(exc: payments_activation.ActivationStateError) -> str:
     """Map internal state exceptions to stable public error details."""
     detail = str(exc)
@@ -109,46 +202,38 @@ def _activation_state_detail(exc: payments_activation.ActivationStateError) -> s
     return "invalid_reconcile_state"
 
 
-@router.post(
+async def _verify_apple_receipt_response(
+    payload: AppleReceiptVerificationRequest,
+) -> AppleReceiptVerificationResponse | JSONResponse:
+    """Verify Apple receipt and return normalized response without side effects."""
+    try:
+        return await payments_activation.verify_apple_receipt(payload.receipt_data)
+    except payments_activation.AppleVerifyTransportError as exc:
+        return _apple_operational_error_response(exc)
+
+
+@billing_router.post(
     "/apple/verify-receipt",
-    response_model=SubscriptionActivationResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=AppleReceiptVerificationResponse,
+    status_code=status.HTTP_200_OK,
     responses={
         status.HTTP_401_UNAUTHORIZED: _RESPONSE_401_UNAUTHORIZED,
-        status.HTTP_200_OK: {
-            "description": "Idempotent replay",
-            "model": SubscriptionActivationResponse,
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Apple upstream error",
+            "model": AppleReceiptVerificationResponse,
         },
-        status.HTTP_409_CONFLICT: {
-            "description": "client_event_id conflict",
-            "model": PaymentErrorResponse,
+        status.HTTP_504_GATEWAY_TIMEOUT: {
+            "description": "Apple verify timeout",
+            "model": AppleReceiptVerificationResponse,
         },
     },
 )
-def verify_apple_receipt(
+async def verify_apple_receipt(
     payload: AppleReceiptVerificationRequest,
-    x_api_key: str = Depends(require_pro_tier),
-) -> SubscriptionActivationResponse | JSONResponse:
-    """Create or replay iOS receipt activation using deterministic baseline verification."""
-    activation_request = payments_activation.build_ios_activation_request(payload=payload)
-    try:
-        activation, is_new = payments_activation.activate_subscription(
-            issuer=_issuer_from_api_key(x_api_key),
-            payload=activation_request,
-        )
-    except payments_activation.IdempotencyConflictError:
-        return _payment_error_response(
-            code="idempotency_conflict",
-            message="client_event_id conflict",
-            detail=_DETAIL_IDEMPOTENCY_CONFLICT,
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    if is_new:
-        return activation
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content=activation.model_dump(mode="json"),
-    )
+    _x_api_key: str = Depends(_require_billing_transport_key),
+) -> AppleReceiptVerificationResponse | JSONResponse:
+    """Canonical Apple receipt verification route on additive billing namespace."""
+    return await _verify_apple_receipt_response(payload)
 
 
 @router.post(

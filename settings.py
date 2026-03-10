@@ -11,6 +11,14 @@ _EXPORT_SIGNING_PLACEHOLDERS = frozenset(
         "replace_me_with_export_secret",
     }
 )
+_APPLE_SHARED_SECRET_PLACEHOLDERS = frozenset(
+    {
+        "__set_me__",
+        "replace_me",
+        "replace_me_with_apple_secret",
+        "replace_me_with_apple_shared_secret",
+    }
+)
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 _PRODUCTION_LIKE_ENVS = frozenset({"production", "prod", "staging"})
 _DEVELOPER_LIKE_ENVS = frozenset({"local", "dev", "development", "test", "testing", "ci"})
@@ -81,6 +89,34 @@ def validate_api_key_toggle_guard() -> None:
     if invalid_flags:
         joined = ", ".join(invalid_flags)
         raise RuntimeError(f"{joined} must be false in production/staging environments.")
+
+
+def require_apple_shared_secret() -> str:
+    """Return Apple shared secret or raise on missing/placeholder config.
+
+    RU: Требует обязательный shared secret для server-side Apple receipt verification.
+    EN: Requires the Apple shared secret for server-side Apple receipt verification.
+    """
+
+    secret = (os.getenv("APPLE_SHARED_SECRET") or "").strip()
+    normalized_secret = secret.casefold()
+    if not secret or normalized_secret in _APPLE_SHARED_SECRET_PLACEHOLDERS:
+        raise RuntimeError(
+            "APPLE_SHARED_SECRET is required for Apple receipt verification. "
+            "Set it to a non-default App Store shared secret."
+        )
+    return secret
+
+
+def validate_apple_receipt_verification_config() -> None:
+    """Fail fast for Apple receipt verification config in production-like envs.
+
+    RU: Проверяет APPLE_SHARED_SECRET на startup только в production/staging.
+    EN: Enforces APPLE_SHARED_SECRET at startup only for production-like environments.
+    """
+
+    if is_production_like_env():
+        require_apple_shared_secret()
 
 
 def is_private_exports_enabled() -> bool:
