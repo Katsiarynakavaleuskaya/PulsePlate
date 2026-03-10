@@ -40,15 +40,19 @@ Disposition: FIXED
 Commit: 65e0290a
 Evidence: `app/routers/billing.py:168`, `docs/contracts/API_CANONICAL_MAP.md:16`, `docs/roadmap/BACKLOG_LEDGER.md:64`, `docs/roadmap/BACKLOG_LEDGER.md:156`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922339679 -> 65e0290a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911690901 -> 65e0290a
 
 Disposition: FIXED
 Commit: 29df8752
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:321`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922347821 -> 29df8752
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911698813 -> 29df8752
 
 Disposition: FIXED
 Commit: 7a9d0ece
 Evidence: `docs/contracts/API_CANONICAL_MAP.md:12`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/contracts/API_CANONICAL_MAP.md:37`, `docs/IOS_API_INTEGRATION.md:116`, `docs/IOS_API_INTEGRATION.md:121`, `app/schemas/payments.py:168`, `app/schemas/payments.py:190`, `app/schemas/payments.py:213`, `frontend/src/api/openapi.json:126`, `frontend/src/api/openapi.json:167`, `frontend/src/api/openapi.json:186`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922530060 -> 7a9d0ece
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#pullrequestreview-3922581495 -> 7a9d0ece
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911862268 -> 7a9d0ece
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911862291 -> 7a9d0ece
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1074#discussion_r2911908078 -> 7a9d0ece
