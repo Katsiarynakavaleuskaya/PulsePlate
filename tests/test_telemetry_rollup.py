@@ -334,3 +334,60 @@ def test_build_rollup_uses_promotion_fallback_when_result_is_missing(tmp_path: P
     assert out["experiments"]["by_status"] == {"rejected": 1}
     assert out["experiments"]["by_failure_class"] == {"infra_flake": 1}
     assert out["experiments"]["rows"]["exp-2"]["status"] == "rejected"
+
+
+def test_build_rollup_does_not_stringify_none_failure_class(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "runs"
+    results_dir = tmp_path / "results"
+    promotions_dir = tmp_path / "promotions"
+    runs_dir.mkdir()
+    results_dir.mkdir()
+    promotions_dir.mkdir()
+
+    (results_dir / "exp-3.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "experiment_id": "exp-3",
+                "candidate_patch": "candidate.patch",
+                "status": "accepted",
+                "failure_class": None,
+                "mutated_paths": ["core/rag/allowed.py"],
+                "oracle_results": [],
+                "budget_observations": {},
+                "shared_tree_untouched": True,
+                "promotion_ready": False,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (promotions_dir / "exp-3.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "experiment_id": "exp-3",
+                "result_status": "accepted",
+                "failure_class": None,
+                "promotion_target": "pr_packet",
+                "disposition": "promoted",
+                "durable_artifact_path": "docs/orchestration/experiment_pr_packets/exp-3.md",
+                "shared_tree_untouched": True,
+                "domain": "ml",
+                "evidence": {"oracle_count": 1},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    out = build_rollup(
+        runs_dir,
+        experiment_results_dir=results_dir,
+        experiment_promotions_dir=promotions_dir,
+    )
+
+    assert out["experiment_signals_count"] == 1
+    assert out["experiments"]["by_status"] == {"accepted": 1}
+    assert out["experiments"]["by_failure_class"] == {}
+    assert out["experiments"]["rows"]["exp-3"]["failure_class"] is None

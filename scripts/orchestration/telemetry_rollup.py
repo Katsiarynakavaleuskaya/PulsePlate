@@ -287,8 +287,8 @@ def _load_experiment_signals(
                     or "unknown"
                 ),
                 failure_class=(
-                    str(result.get("failure_class", "")).strip()
-                    or str(promotion.get("failure_class", "")).strip()
+                    str(result.get("failure_class") or "").strip()
+                    or str(promotion.get("failure_class") or "").strip()
                     or None
                 ),
                 promotion_target=(str(promotion.get("promotion_target", "")).strip() or None),
