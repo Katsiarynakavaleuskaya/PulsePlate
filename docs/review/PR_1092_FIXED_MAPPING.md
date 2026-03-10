@@ -25,3 +25,15 @@ Evidence: `203bea3c` hardens the promotion lane by enforcing a path-safe `experi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#discussion_r2914971964 -> 203bea3c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#discussion_r2914971970 -> 203bea3c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#pullrequestreview-3925952928 -> 203bea3c
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/experiment_promote.py:93` intentionally promotes accepted results based on `status` plus `shared_tree_untouched`, while the current PR4 contract tests prove accepted promotion still occurs with `promotion_ready=False` in `tests/test_experiment_promote.py:131` and `tests/test_experiment_promote.py:154`.
+Reason: PR3 result artifacts intentionally carry `promotion_ready=false` by default, so making PR4 block every accepted result on that field would break the governed promotion flow this PR is introducing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#discussion_r2915004862
+
+Disposition: NOT-A-BUG
+Evidence: Path-like experiment IDs are now rejected fail-closed by `validate_experiment_id()` in `scripts/orchestration/experiment_contract.py:229`, `_artifact_paths_for_target()` revalidates that identifier before composing durable paths in `scripts/orchestration/experiment_promote.py:109`, and regression coverage exists in `tests/test_experiment_promote.py:276` and `tests/test_experiment_promote.py:312`.
+Reason: The reported escape route is closed by the current validated identifier contract; extra directory-confinement scaffolding would be redundant for the allowed `[A-Za-z0-9_-]+` identifier space.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#discussion_r2915004866
