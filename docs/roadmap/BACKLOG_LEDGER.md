@@ -1989,29 +1989,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Security review confirms each mascot endpoint keeps policy/quota/audit gates ahead of execution
   - Blockers: None (deferred by scope, not blocked)
 
-<a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
-- [x] P2: FitChef runtime orchestration dedup
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #1083 (`refactor(fitchef): deduplicate runtime orchestration path`)
-  - Status: Merged on 10 March 2026 via PR #1083
-  - Area: AI runtime / orchestration / tech debt
-  - Finding Type: tech-debt
-  - Locations:
-    - `app/services/fitchef_runtime.py`
-  - Reason: `run_mascot_insight_task()` and `run_weekly_reflection_task()` currently duplicate the bounded orchestration path for RAG retrieval, audit gates, quota enforcement, provider calls, and stable error mapping. This should be consolidated only after the Phase 2 slices stabilize.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-weekly-reflection-endpoint`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-slip-support-endpoint`
-    - `docs/review/PR_1083_FIXED_MAPPING.md`
-  - DoD:
-    - Shared orchestration helper removes duplicated FitChef VIP runtime flow without changing public route contracts
-    - Mascot, weekly reflection, and slip-support still preserve feature-flag, tier, rate-limit, quota, audit, and provider error ordering
-    - Deterministic regression tests cover the shared helper paths
-  - Blockers: None
-
-
 - [ ] P2: Violations-addressed list in security/guard remediation PRs
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -4785,6 +4762,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - One happy-path integration test lands in the same PR
     - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
   - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
+- [x] P2: FitChef runtime orchestration dedup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1083 (`refactor(fitchef): deduplicate runtime orchestration path`)
+  - Status: Merged on 10 March 2026 via PR #1083
+  - Area: AI runtime / orchestration / tech debt
+  - Finding Type: tech-debt
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+  - Reason: `run_mascot_insight_task()` and `run_weekly_reflection_task()` currently duplicate the bounded orchestration path for RAG retrieval, audit gates, quota enforcement, provider calls, and stable error mapping. This should be consolidated only after the Phase 2 slices stabilize.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-weekly-reflection-endpoint`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-slip-support-endpoint`
+    - `docs/review/PR_1083_FIXED_MAPPING.md`
+  - DoD:
+    - Shared orchestration helper removes duplicated FitChef VIP runtime flow without changing public route contracts
+    - Mascot, weekly reflection, and slip-support still preserve feature-flag, tier, rate-limit, quota, audit, and provider error ordering
+    - Deterministic regression tests cover the shared helper paths
+  - Blockers: None
 
 <a id="ledger-p2-monthly-pr-analysis-cadence"></a>
 - [ ] P2: Monthly PR analysis cadence and evidence hygiene
