@@ -58,12 +58,24 @@ def _ensure_canonical_bootstrap() -> None:
         main_module = importlib.import_module("app.main")
 
     main_app_instance = getattr(main_module, "app", None)
+    ensure_bootstrap = getattr(main_module, "ensure_canonical_app_bootstrap", None)
     if main_app_instance is legacy_app_instance:
+        # RU: Даже при совпадающем объекте дополнительно удерживаем ссылку
+        # `app.main.app` синхронизированной для reload / monkeypatch churn.
+        # EN: Keep `app.main.app` synchronized even when identity already matches
+        # to stabilize reload / monkeypatch churn across Python versions.
+        setattr(main_module, "app", legacy_app_instance)
         return
 
-    ensure_bootstrap = getattr(main_module, "ensure_canonical_app_bootstrap", None)
     if callable(ensure_bootstrap):
         ensure_bootstrap(legacy_app_instance)
+        return
+
+    # RU: Фолбэк только для safety-path; нормальный runtime идёт через
+    # `ensure_canonical_app_bootstrap` в app.main.
+    # EN: Safety fallback only; normal runtime should go through
+    # `ensure_canonical_app_bootstrap` in app.main.
+    setattr(main_module, "app", legacy_app_instance)
 
 
 @lru_cache(maxsize=1)

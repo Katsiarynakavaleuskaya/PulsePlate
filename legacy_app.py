@@ -3334,7 +3334,22 @@ def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
         return package_builder if callable(package_builder) else None
 
     local_builder = globals().get("make_weekly_menu")
-    return local_builder if callable(local_builder) else None
+    if callable(local_builder):
+        return cast(Callable[..., Any], local_builder)
+
+    # RU: Если legacy_app.make_weekly_menu временно пропатчен в None, но пакет
+    # `app` по-прежнему экспортирует canonical builder через lazy facade,
+    # используем package export как стабильный fallback.
+    # EN: If legacy_app.make_weekly_menu is temporarily patched to None while the
+    # `app` package still exports the canonical builder through the lazy facade,
+    # use the package export as the stable fallback.
+    if package_module is not None:
+        package_builder = getattr(package_module, "make_weekly_menu", None)
+        if callable(package_builder):
+            return cast(Callable[..., Any], package_builder)
+        return None
+
+    return None
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
