@@ -3323,19 +3323,31 @@ def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
     """
     import sys as _sys
 
-    package_module = _sys.modules.get("app")
-    package_has_override = package_module is not None and "make_weekly_menu" in getattr(
-        package_module,
-        "__dict__",
-        {},
-    )
-    if package_has_override:
-        package_builder = getattr(package_module, "make_weekly_menu")
-        return package_builder if callable(package_builder) else None
+    def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
+        """Return a typed callable or None for explicit override semantics.
 
+        RU: Явно сохраняем семантику override: невызываемое значение означает
+        отключение, а не молчаливый fallback.
+        EN: Preserve explicit override semantics: a non-callable value means
+        disable/override, not a silent fallback.
+        """
+
+        return cast(Callable[..., Any], value) if callable(value) else None
+
+    package_module = _sys.modules.get("app")
+    package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
+
+    # RU: Приоритет №1 — явный override в `app.__dict__`.
+    # EN: Priority #1 — explicit override in `app.__dict__`.
+    if "make_weekly_menu" in package_namespace:
+        return _callable_or_none(package_namespace.get("make_weekly_menu"))
+
+    # RU: Приоритет №2 — legacy_app global, если он всё ещё вызываемый.
+    # EN: Priority #2 — legacy_app global, if it is still callable.
     local_builder = globals().get("make_weekly_menu")
-    if callable(local_builder):
-        return cast(Callable[..., Any], local_builder)
+    resolved_local_builder = _callable_or_none(local_builder)
+    if resolved_local_builder is not None:
+        return resolved_local_builder
 
     # RU: Если legacy_app.make_weekly_menu временно пропатчен в None, но пакет
     # `app` по-прежнему экспортирует canonical builder через lazy facade,
@@ -3343,13 +3355,12 @@ def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
     # EN: If legacy_app.make_weekly_menu is temporarily patched to None while the
     # `app` package still exports the canonical builder through the lazy facade,
     # use the package export as the stable fallback.
-    if package_module is not None:
-        package_builder = getattr(package_module, "make_weekly_menu", None)
-        if callable(package_builder):
-            return cast(Callable[..., Any], package_builder)
+    if package_module is None:
         return None
 
-    return None
+    # RU: Приоритет №3 — lazy package export через `app.__getattr__`.
+    # EN: Priority #3 — lazy package export via `app.__getattr__`.
+    return _callable_or_none(getattr(package_module, "make_weekly_menu", None))
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
