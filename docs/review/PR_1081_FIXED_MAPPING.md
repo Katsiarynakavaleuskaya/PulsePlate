@@ -33,3 +33,12 @@ Commit: see mapping entries below
 Evidence: `887a094c` removes the drift-prone hard-coded line numbers from the `NOT-A-BUG` evidence block and switches that proof to symbol-based references, keeping the canonical artifact stable across later edits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#pullrequestreview-3922810255 -> 887a094c
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `6b9ac1fe` hardens `scripts/orchestration/experiment_bootstrap.py` with boundary-aware ML/CV hint matching and `OSError -> FAIL` handling for packet writes, and updates `tests/test_experiment_bootstrap.py` to sandbox artifact writes under `tmp_path` while adding regression coverage for the write-error contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#pullrequestreview-3922962959 -> 6b9ac1fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244710 -> 6b9ac1fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244732 -> 6b9ac1fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244738 -> 6b9ac1fe
