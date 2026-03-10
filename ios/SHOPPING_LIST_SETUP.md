@@ -35,7 +35,7 @@ Shopping List Generator экран интегрирован в Debug Tools вк�
 
 ## 📋 Files Structure
 
-```
+```text
 ios/PulsePlate/
 ├── Services/
 │   ├── AppConfig.swift                     # Base URL configuration

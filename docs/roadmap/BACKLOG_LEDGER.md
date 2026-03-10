@@ -268,7 +268,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067 -> PR-TBD-IOS-KEYCHAIN-CONFORMANCE-PR2 (`feat/p1-ios-keychain-conformance-pr2`)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067 -> PR #1078 (`feat/p1-ios-keychain-conformance-pr2`)
   - Status: 🟡 In progress (runtime Keychain-only behavior is already on `main`; this follow-up tightens canonical test-surface coverage and current-state setup docs)
   - Reason (EN): Master checklist item #5 remains active until the repo's canonical iOS enforcement surfaces match runtime truth. The `ProcessInfo` fallback has already been removed from `ProKeyProvider`, but default iOS test lanes and current-state setup docs still need to encode the Keychain-only invariant so future drift is caught by default.
   - Links:
