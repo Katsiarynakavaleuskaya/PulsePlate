@@ -1470,6 +1470,8 @@ jobs:
               "-scheme", "PulsePlate",
               "-skip-testing:PulsePlateUITests",
               "-only-testing:PulsePlateTests/ThinClientGuardsTests",
+              "-only-testing:PulsePlateTests/ProKeyProviderTests",
+              "-only-testing:PulsePlateTests/KeychainStoreTests",
               "-only-testing:PulsePlateTests/BMIServiceTests",
               "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
               "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
