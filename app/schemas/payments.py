@@ -231,10 +231,12 @@ class ActivateSubscriptionRequest(PaymentRequestModel):
     @model_validator(mode="after")
     def _validate_payload_shape(self) -> "ActivateSubscriptionRequest":
         if self.payload is not None:
+            normalized_payload: IOSAppStoreActivationPayload | ManualActivationPayload
             if self.source is PaymentSource.ios_app_store:
-                IOSAppStoreActivationPayload.model_validate(self.payload)
+                normalized_payload = IOSAppStoreActivationPayload.model_validate(self.payload)
             else:
-                ManualActivationPayload.model_validate(self.payload)
+                normalized_payload = ManualActivationPayload.model_validate(self.payload)
+            self.payload = normalized_payload.model_dump(mode="json", exclude_none=True)
             return self
 
         if self.plan is None:

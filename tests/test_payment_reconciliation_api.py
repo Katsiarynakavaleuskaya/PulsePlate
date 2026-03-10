@@ -120,6 +120,24 @@ def test_manual_reconcile_is_idempotent(
     assert second.status_code == 200, second.text
     assert _json(first) == _json(second)
 
+    status_response = client.get(
+        f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
+        headers=pro_headers,
+    )
+    assert status_response.status_code == 200, status_response.text
+    status_payload = _json(status_response)
+    assert status_payload["status"] == "rejected"
+    assert status_payload["reconcile_status"] == "rejected"
+
+    activation_response = client.get(
+        f"/api/v1/pro/payments/activations/{intent_id}",
+        headers=pro_headers,
+    )
+    assert activation_response.status_code == 200, activation_response.text
+    activation_payload = _json(activation_response)
+    assert activation_payload["status"] == "rejected"
+    assert activation_payload["reconcile_status"] == "rejected"
+
 
 def test_manual_reconcile_rejects_second_transition_after_verification(
     client: TestClient,

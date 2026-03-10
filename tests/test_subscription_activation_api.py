@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import create_engine, inspect, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.models import Subscription, SubscriptionActivationAudit
 from app.schemas.payments import (
@@ -276,6 +276,32 @@ def test_manual_sources_create_pending_manual_review(
     assert payload["activated_at"] is None
 
 
+def test_manual_replay_is_stable_after_payload_normalization(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    first = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_manual_payload(source="erip_qr", source_reference="ERIP-QR-12345"),
+    )
+    second = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json={
+            "source": "erip_qr",
+            "payload": {
+                "source_reference": "  ERIP-QR-12345  ",
+                "submitted_amount": " 9.99 ",
+                "submitted_currency": " byn ",
+            },
+        },
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert _json(first)["activation_id"] == _json(second)["activation_id"]
+
+
 def test_manual_source_conflict_returns_409(
     client: TestClient,
     pro_headers: dict[str, str],
@@ -312,6 +338,25 @@ def test_activate_subscription_malformed_body_returns_422(
     )
     assert response.status_code == 422, response.text
     assert response.headers["content-type"].startswith("application/json")
+
+
+def test_activate_subscription_legacy_body_is_rejected_on_runtime_route(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json={
+            "source": "ios_app_store",
+            "plan": "pro_monthly",
+            "client_event_id": "evt-legacy-runtime-1",
+            "verification_ok": True,
+        },
+    )
+    assert response.status_code == 422, response.text
+    payload = _json(response)
+    assert payload["detail"] == "canonical activation payload is required on this route"
 
 
 def test_get_activation_happy_path(
@@ -468,6 +513,25 @@ def test_manual_payload_allows_missing_optional_amount_and_currency() -> None:
 
     assert payload.submitted_amount is None
     assert payload.submitted_currency is None
+
+
+def test_activate_subscription_request_normalizes_canonical_payload_for_stable_hashing() -> None:
+    request = ActivateSubscriptionRequest.model_validate(
+        {
+            "source": "erip_qr",
+            "payload": {
+                "source_reference": "  ERIP-QR-12345  ",
+                "submitted_amount": " 9.99 ",
+                "submitted_currency": " byn ",
+            },
+        }
+    )
+
+    assert request.payload == {
+        "source_reference": "ERIP-QR-12345",
+        "submitted_amount": "9.99",
+        "submitted_currency": "BYN",
+    }
 
 
 def test_activate_subscription_request_legacy_requires_client_event_id() -> None:
@@ -678,6 +742,88 @@ def test_activate_subscription_rolls_back_on_sqlalchemy_error(
         )
 
     assert session.rolled_back is True
+
+
+def test_activate_subscription_replays_after_integrity_race(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = payments_activation.ActivateSubscriptionRequest.model_validate(_ios_payload())
+    normalized = payments_activation._normalize_activation(payload=request)
+    replay_audit = type(
+        "Audit",
+        (),
+        {
+            "id": "activation-replay-1",
+            "user_id": 1,
+            "source": "ios_app_store",
+            "subscription_id": "sub-1",
+            "payload_hash": normalized.payload_hash,
+            "tier": "pro",
+            "status": "active",
+            "platform": "ios",
+            "provider_receipt_hash": "receipt-hash",
+            "source_reference": "txn-race-1",
+            "product_id": "com.pulseplate.premium.monthly",
+            "expires_at": datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
+            "activated_at": datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc),
+            "submitted_amount_minor": None,
+            "submitted_currency": None,
+            "evidence_summary": {"reconcile_status": "verified"},
+            "created_at": datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc),
+        },
+    )()
+
+    class IntegrityRaceSession:
+        def __init__(self) -> None:
+            self.rollback_count = 0
+            self.commit_count = 0
+
+        def add(self, _obj: object) -> None:
+            return None
+
+        def flush(self) -> None:
+            return None
+
+        def commit(self) -> None:
+            self.commit_count += 1
+            raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        def rollback(self) -> None:
+            self.rollback_count += 1
+
+        def close(self) -> None:
+            return None
+
+    session = IntegrityRaceSession()
+
+    monkeypatch.setattr(
+        payments_activation,
+        "get_session_factory",
+        lambda: (lambda: session),
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_user_key",
+        lambda **kwargs: (
+            None
+            if kwargs["idempotency_key"] == normalized.idempotency_key and session.commit_count == 0
+            else replay_audit
+        ),
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_subscription_for_user_source",
+        lambda **_: None,
+    )
+
+    response = payments_activation.activate_subscription(
+        user_id=1,
+        payload=request,
+    )
+
+    assert isinstance(response, SubscriptionActivationResponse)
+    assert response.activation_id == "activation-replay-1"
+    assert session.rollback_count == 1
 
 
 def test_get_reconcile_activation_status_returns_none_when_subscription_missing(

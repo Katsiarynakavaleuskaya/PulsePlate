@@ -17,7 +17,7 @@ from typing import Any, overload
 from uuid import uuid4
 
 from sqlalchemy import delete
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.models import Subscription, SubscriptionActivationAudit
@@ -266,6 +266,14 @@ def _build_audit_evidence(
     return evidence
 
 
+def _build_idempotency_key(prefix: str, *parts: str) -> str:
+    """Build bounded deterministic idempotency keys from normalized parts."""
+
+    joined_parts = "|".join(parts)
+    digest = hashlib.sha256(joined_parts.encode("utf-8")).hexdigest()
+    return f"{prefix}:{digest}"
+
+
 def _normalize_canonical_ios_activation(
     *,
     payload: ActivateSubscriptionRequest,
@@ -282,13 +290,16 @@ def _normalize_canonical_ios_activation(
     )
     activated_at = _utc_now() if status is SubscriptionStatus.active else None
     receipt_hash = _hash_receipt(ios_payload.receipt_data)
-    safe_payload = payload.model_dump(mode="json")
+    safe_payload = payload.model_dump(mode="json", exclude_none=True)
     return NormalizedActivation(
         source=PaymentSource.ios_app_store,
         tier=verification_result.subscription_tier,
         status=status,
         platform=verification_result.platform,
-        idempotency_key=f"ios_app_store:{verification_result.transaction_id}",
+        idempotency_key=_build_idempotency_key(
+            PaymentSource.ios_app_store.value,
+            verification_result.transaction_id,
+        ),
         payload_hash=_hash_payload(safe_payload),
         source_reference=verification_result.transaction_id,
         product_id=verification_result.product_id,
@@ -324,13 +335,16 @@ def _normalize_canonical_manual_activation(
     """Normalize canonical manual-rail activation requests."""
 
     amount_minor = _amount_to_minor_units(manual_payload.submitted_amount)
-    safe_payload = request_payload.model_dump(mode="json")
+    safe_payload = request_payload.model_dump(mode="json", exclude_none=True)
     return NormalizedActivation(
         source=source,
         tier=SubscriptionTier.pro,
         status=SubscriptionStatus.pending_manual_review,
         platform=PaymentPlatform.web,
-        idempotency_key=f"{source.value}:{manual_payload.source_reference}",
+        idempotency_key=_build_idempotency_key(
+            source.value,
+            manual_payload.source_reference,
+        ),
         payload_hash=_hash_payload(safe_payload),
         source_reference=manual_payload.source_reference,
         product_id=None,
@@ -390,7 +404,7 @@ def _normalize_legacy_activation(
     submitted_currency = raw_currency if isinstance(raw_currency, str) else None
     raw_receipt = payload.verification_payload.get("receipt")
     receipt_hash = _hash_receipt(raw_receipt if isinstance(raw_receipt, str) else None)
-    safe_payload = payload.model_dump(mode="json")
+    safe_payload = payload.model_dump(mode="json", exclude_none=True)
     return NormalizedActivation(
         source=payload.source,
         tier=requested_tier,
@@ -400,7 +414,11 @@ def _normalize_legacy_activation(
             if payload.source is PaymentSource.ios_app_store
             else PaymentPlatform.web
         ),
-        idempotency_key=f"legacy:{payload.source.value}:{payload.client_event_id}",
+        idempotency_key=_build_idempotency_key(
+            "legacy",
+            payload.source.value,
+            payload.client_event_id,
+        ),
         payload_hash=_hash_payload(safe_payload),
         source_reference=payload.external_txn_id or payload.client_event_id,
         product_id=product_id,
@@ -443,6 +461,35 @@ def _normalize_activation(
             request_payload=payload,
         )
     return _normalize_legacy_activation(payload=payload)
+
+
+def _replay_existing_activation_or_raise(
+    *,
+    session: Any,
+    user_id: int,
+    normalized: NormalizedActivation,
+    user_id_was_explicit: bool,
+    issuer: str | None,
+    error: IntegrityError,
+) -> SubscriptionActivationResponse | tuple[SubscriptionActivationResponse, bool]:
+    """Return replayed activation after a uniqueness race when payload matches."""
+
+    existing_audit = subscriptions_store.get_audit_by_user_key(
+        session=session,
+        user_id=user_id,
+        idempotency_key=normalized.idempotency_key,
+    )
+    if existing_audit is None:
+        raise error
+    if existing_audit.payload_hash != normalized.payload_hash:
+        raise IdempotencyConflictError("deterministic activation key conflict")
+    existing_response = _to_response(
+        activation_id=existing_audit.id,
+        audit=existing_audit,
+    )
+    if _legacy_response_mode(user_id=user_id if user_id_was_explicit else None, issuer=issuer):
+        return existing_response, False
+    return existing_response
 
 
 def _apply_subscription_state(
@@ -585,6 +632,41 @@ def _to_response(
         }
     )
     return response
+
+
+def _current_manual_response_overrides(
+    *,
+    session: Any,
+    audit: SubscriptionActivationAudit,
+) -> tuple[Subscription | None, ReconcileStatus | None, str | None]:
+    """Return manual-reconcile overrides for current-state read paths."""
+
+    if audit.source == PaymentSource.ios_app_store.value:
+        return None, None, None
+    subscription = subscriptions_store.get_subscription_by_id(
+        session=session,
+        subscription_id=audit.subscription_id,
+    )
+    if subscription is None:
+        return None, None, None
+    latest_audit = subscriptions_store.get_latest_audit_for_subscription(
+        session=session,
+        subscription_id=subscription.id,
+    )
+    if latest_audit is None:
+        return subscription, None, None
+
+    latest_summary = latest_audit.evidence_summary or {}
+    external_txn_id = None
+    raw_external_txn = latest_summary.get("external_txn_id")
+    if isinstance(raw_external_txn, str) and raw_external_txn.strip():
+        external_txn_id = raw_external_txn.strip()
+
+    return (
+        subscription,
+        _parse_optional_reconcile_status(latest_summary.get("reconcile_status")),
+        external_txn_id,
+    )
 
 
 def _parse_optional_reconcile_status(raw_value: Any) -> ReconcileStatus | None:
@@ -1047,6 +1129,16 @@ def activate_subscription(
         if _legacy_response_mode(user_id=user_id, issuer=issuer):
             return response, True
         return response
+    except IntegrityError as exc:
+        session.rollback()
+        return _replay_existing_activation_or_raise(
+            session=session,
+            user_id=resolved_user_id,
+            normalized=normalized,
+            user_id_was_explicit=user_id is not None,
+            issuer=issuer,
+            error=exc,
+        )
     except IdempotencyConflictError:
         session.rollback()
         raise
@@ -1074,7 +1166,17 @@ def get_activation(
             return None
         if audit.user_id != resolved_user_id:
             raise ActivationAccessForbiddenError("activation access forbidden")
-        return _to_response(activation_id=activation_id, audit=audit)
+        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
+            session=session,
+            audit=audit,
+        )
+        return _to_response(
+            activation_id=activation_id,
+            audit=audit,
+            subscription=subscription,
+            reconcile_status_override=reconcile_status,
+            external_txn_id_override=external_txn_id,
+        )
     finally:
         session.close()
 
@@ -1100,26 +1202,17 @@ def get_reconcile_activation_status(
             raise ActivationStateError(
                 "manual reconciliation status is unavailable for ios_app_store"
             )
-        subscription = subscriptions_store.get_subscription_by_id(
+        subscription, reconcile_status, external_txn_id = _current_manual_response_overrides(
             session=session,
-            subscription_id=audit.subscription_id,
+            audit=audit,
         )
         if subscription is None:
             return None
-        latest_audit = subscriptions_store.get_latest_audit_for_subscription(
-            session=session,
-            subscription_id=subscription.id,
-        )
-        external_txn_id = None
-        if latest_audit is not None:
-            latest_summary = latest_audit.evidence_summary or {}
-            raw_external = latest_summary.get("external_txn_id")
-            if isinstance(raw_external, str) and raw_external.strip():
-                external_txn_id = raw_external.strip()
         return _to_response(
             activation_id=intent_id,
             audit=audit,
             subscription=subscription,
+            reconcile_status_override=reconcile_status,
             external_txn_id_override=external_txn_id,
         )
     finally:

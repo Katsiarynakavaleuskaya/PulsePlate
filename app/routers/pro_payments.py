@@ -7,7 +7,7 @@ EN: Runtime endpoints for activation + persisted subscription state.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response, Security, status
+from fastapi import APIRouter, HTTPException, Response, Security, status
 from fastapi.responses import JSONResponse
 
 from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
@@ -89,6 +89,11 @@ def activate_subscription(
 
     try:
         current_user = _resolve_activation_user(x_api_key)
+        if not payload.uses_canonical_payload:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="canonical activation payload is required on this route",
+            )
         activation = payments_activation.activate_subscription(
             user_id=current_user.user_id,
             payload=payload,
