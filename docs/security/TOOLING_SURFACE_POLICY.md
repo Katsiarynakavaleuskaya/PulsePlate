@@ -18,6 +18,8 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
   Evidence anchors:
   - `.vscode/extensions.json:1`
   - `docs/security/vscode_extensions_allowlist.txt:1`
+  - `scripts/ci/guard_vscode_extensions.py:1`
+  - external allowlist paths are forbidden; the reviewed allowlist must stay inside the repo
 
 ## Canonical Guards
 

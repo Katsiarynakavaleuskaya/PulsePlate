@@ -34,15 +34,30 @@ def find_extension_allowlist_violations(
         return [
             f"{_display_path(extensions_json_path, repo_root=repo_root)}: tracked recommendations file is required"
         ]
+    try:
+        allowlist_path.relative_to(repo_root)
+    except ValueError:
+        return [
+            f"{_display_path(allowlist_path, repo_root=repo_root)}: allowlist path must stay inside the reviewed repo surface"
+        ]
     if not allowlist_path.exists():
         return [f"{_display_path(allowlist_path, repo_root=repo_root)}: allowlist file is required"]
 
-    payload = json.loads(extensions_json_path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(extensions_json_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [
+            f"{_display_path(extensions_json_path, repo_root=repo_root)}: invalid JSON ({exc.msg})"
+        ]
     if not isinstance(payload, dict):
         return [
             f"{_display_path(extensions_json_path, repo_root=repo_root)}: payload must be a JSON object with a 'recommendations' list"
         ]
-    recommendations = payload.get("recommendations", [])
+    if "recommendations" not in payload:
+        return [
+            f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendations key is required"
+        ]
+    recommendations = payload["recommendations"]
     if not isinstance(recommendations, list):
         return [
             f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendations must be a list"
@@ -50,7 +65,12 @@ def find_extension_allowlist_violations(
 
     allowlist = _load_allowlist(allowlist_path)
     violations: list[str] = []
-    for recommendation in sorted(recommendations):
+    for index, recommendation in enumerate(recommendations):
+        if not isinstance(recommendation, str):
+            violations.append(
+                f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendations[{index}] must be a string"
+            )
+            continue
         if recommendation not in allowlist:
             violations.append(
                 f"{_display_path(extensions_json_path, repo_root=repo_root)}: recommendation '{recommendation}' is not in allowlist"

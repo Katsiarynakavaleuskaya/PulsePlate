@@ -6,7 +6,7 @@ import argparse
 import re
 from pathlib import Path
 
-USES_RE = re.compile(r"^\s*-?\s*uses:\s*(?P<action>\S+)\s*$")
+USES_RE = re.compile(r"^\s*-?\s*uses:\s*(?P<action>\S+?)(?:\s+#.*)?\s*$")
 PINNED_SHA_RE = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 
 

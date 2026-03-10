@@ -16,14 +16,23 @@ def find_install_hook_violations(root: Path) -> list[str]:
     for package_json in sorted(root.glob("**/package.json")):
         if "node_modules" in package_json.parts:
             continue
-        payload = json.loads(package_json.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(package_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            violations.append(f"{package_json.relative_to(root)}: invalid JSON ({exc.msg})")
+            continue
         if not isinstance(payload, dict):
             violations.append(
                 f"{package_json.relative_to(root)}: package.json payload must be a JSON object"
             )
             continue
-        scripts = payload.get("scripts", {})
+        scripts = payload.get("scripts")
+        if scripts is None:
+            continue
         if not isinstance(scripts, dict):
+            violations.append(
+                f"{package_json.relative_to(root)}: scripts must be a JSON object when present"
+            )
             continue
         for script_name in FORBIDDEN_SCRIPTS:
             command = scripts.get(script_name)

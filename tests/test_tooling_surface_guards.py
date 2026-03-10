@@ -34,6 +34,67 @@ def test_actions_pin_guard_rejects_tag_pins(tmp_path: Path) -> None:
     assert "must pin a 40-char commit SHA" in result.stdout
 
 
+def test_actions_pin_guard_rejects_39_char_sha(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yaml").write_text(
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0123456789abcdef0123456789abcdef0123456\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert "must pin a 40-char commit SHA" in result.stdout
+
+
+def test_actions_pin_guard_accepts_40_char_sha(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yaml").write_text(
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert "OK: all workflow actions are pinned to full commit SHAs" in result.stdout
+
+
+def test_actions_pin_guard_rejects_41_char_sha(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yaml").write_text(
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0123456789abcdef0123456789abcdef012345678\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert "must pin a 40-char commit SHA" in result.stdout
+
+
+def test_actions_pin_guard_allows_inline_comments_after_sha_pin(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yaml").write_text(
+        (
+            "jobs:\n"
+            "  test:\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567 # pinned\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert "OK: all workflow actions are pinned to full commit SHAs" in result.stdout
+
+
 def test_npm_install_guard_rejects_postinstall(tmp_path: Path) -> None:
     package_json = {
         "name": "tmp",
@@ -54,6 +115,27 @@ def test_npm_install_guard_rejects_non_object_payload(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "payload must be a JSON object" in result.stdout
+
+
+def test_npm_install_guard_rejects_invalid_json(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text("{not-json}", encoding="utf-8")
+
+    result = _run(GUARD_NPM, tmp_path)
+
+    assert result.returncode == 1
+    assert "invalid JSON" in result.stdout
+
+
+def test_npm_install_guard_rejects_non_object_scripts(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(
+        json.dumps({"name": "tmp", "scripts": ["postinstall"]}),
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_NPM, tmp_path)
+
+    assert result.returncode == 1
+    assert "scripts must be a JSON object when present" in result.stdout
 
 
 def test_vscode_guard_rejects_recommendation_drift(tmp_path: Path) -> None:
@@ -95,6 +177,63 @@ def test_vscode_guard_rejects_non_object_payload(tmp_path: Path) -> None:
     assert "payload must be a JSON object" in result.stdout
 
 
+def test_vscode_guard_rejects_invalid_json(tmp_path: Path) -> None:
+    vscode_dir = tmp_path / ".vscode"
+    vscode_dir.mkdir(parents=True)
+    (vscode_dir / "extensions.json").write_text("{not-json}", encoding="utf-8")
+    allowlist = tmp_path / "allowlist.txt"
+    allowlist.write_text("ms-python.python\n", encoding="utf-8")
+
+    result = _run(
+        GUARD_VSCODE,
+        tmp_path,
+        "--allowlist",
+        str(allowlist.relative_to(tmp_path)),
+    )
+
+    assert result.returncode == 1
+    assert "invalid JSON" in result.stdout
+
+
+def test_vscode_guard_rejects_non_string_recommendations(tmp_path: Path) -> None:
+    vscode_dir = tmp_path / ".vscode"
+    vscode_dir.mkdir(parents=True)
+    (vscode_dir / "extensions.json").write_text(
+        json.dumps({"recommendations": ["ms-python.python", 7]}),
+        encoding="utf-8",
+    )
+    allowlist = tmp_path / "allowlist.txt"
+    allowlist.write_text("ms-python.python\n", encoding="utf-8")
+
+    result = _run(
+        GUARD_VSCODE,
+        tmp_path,
+        "--allowlist",
+        str(allowlist.relative_to(tmp_path)),
+    )
+
+    assert result.returncode == 1
+    assert "recommendations[1] must be a string" in result.stdout
+
+
+def test_vscode_guard_requires_recommendations_key(tmp_path: Path) -> None:
+    vscode_dir = tmp_path / ".vscode"
+    vscode_dir.mkdir(parents=True)
+    (vscode_dir / "extensions.json").write_text(json.dumps({}), encoding="utf-8")
+    allowlist = tmp_path / "allowlist.txt"
+    allowlist.write_text("ms-python.python\n", encoding="utf-8")
+
+    result = _run(
+        GUARD_VSCODE,
+        tmp_path,
+        "--allowlist",
+        str(allowlist.relative_to(tmp_path)),
+    )
+
+    assert result.returncode == 1
+    assert "recommendations key is required" in result.stdout
+
+
 def test_vscode_guard_reports_external_allowlist_path(tmp_path: Path) -> None:
     vscode_dir = tmp_path / ".vscode"
     vscode_dir.mkdir(parents=True)
@@ -102,16 +241,18 @@ def test_vscode_guard_reports_external_allowlist_path(tmp_path: Path) -> None:
         json.dumps({"recommendations": ["ms-python.python"]}),
         encoding="utf-8",
     )
+    external_allowlist = tmp_path.parent / "outside-allowlist.txt"
+    external_allowlist.write_text("ms-python.python\n", encoding="utf-8")
 
     result = _run(
         GUARD_VSCODE,
         tmp_path,
         "--allowlist",
-        str((tmp_path.parent / "outside-allowlist.txt").resolve()),
+        str(external_allowlist.resolve()),
     )
 
     assert result.returncode == 1
-    assert "outside-allowlist.txt: allowlist file is required" in result.stdout
+    assert "allowlist path must stay inside the reviewed repo surface" in result.stdout
 
 
 def test_repo_tooling_guards_pass_on_current_repo() -> None:

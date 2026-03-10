@@ -151,8 +151,7 @@ dmypy.json
 .pyre/
 
 # IDE
-.vscode/
-!.vscode/
+.vscode/*
 !.vscode/extensions.json
 .idea/
 .claude/
