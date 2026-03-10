@@ -6,7 +6,7 @@ user-contributed knowledge for VIP personalization.
 Migration from RAG_CONTRACT.md schema (§7):
 - Uses Integer PK (not UUID) to align with existing tables
 - Uses Integer user_id FK (users.id is Integer)
-- Application-layer RLS only (no DB policies yet)
+- PostgreSQL RLS policies enabled via transaction-local session context
 - JSONB via JSONEncodedDict for SQLite compatibility
 
 See: docs/contracts/RAG_CONTRACT.md, docs/db/rag_feedback_schema.md
@@ -42,7 +42,8 @@ class RAGFeedback(Base):
     to enable recursive learning and quality improvement.
 
     Security:
-    - All queries filtered by authenticated user_id (application-layer RLS)
+    - PostgreSQL RLS isolates rows by authenticated user_id
+    - Application-layer filtering remains as defense in depth
     - PII redacted before storage via core.pii_redaction.redact_pii_from_text()
 
     Fields:
@@ -109,7 +110,8 @@ class UserKnowledge(Base):
     On SQLite (tests), embeddings are stored as TEXT/JSON (not searchable).
 
     Security:
-    - All queries filtered by authenticated user_id (application-layer RLS)
+    - PostgreSQL RLS isolates rows by authenticated user_id
+    - Application-layer filtering remains as defense in depth
     - Content should not contain PII without user consent
 
     Future enhancements (tracked in BACKLOG_LEDGER):

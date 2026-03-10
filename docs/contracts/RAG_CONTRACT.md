@@ -225,7 +225,7 @@ Evidence anchors (audit policy: architecture docs must cite `file:line` or mark 
 
 - `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
 - `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py:201` (fail-closed on missing `subject_id`), `core/rag/vector_rag.py:317` (fallback to Jaccard on empty/error vector path), `core/rag/orchestration.py:137` and `core/rag/orchestration.py:147` (subject propagation into recursive/vector retrieval), `legacy_app.py:2202` and `legacy_app.py:2332` (authenticated `/api/v1/insight` derives and forwards `subject_id`), `legacy_app.py:2274` (legacy `/insight` passes `subject_id=None`), `app/routers/cbt_insight.py:176` (PRO CBT endpoint derives and forwards `subject_id`).
-- `user_knowledge.embedding` изолирован по `user_id` через RLS. **Target-state:** DDL в §7 включает `ENABLE ROW LEVEL SECURITY`; при миграции добавить политику `USING (auth.uid() = user_id)` (или аналог). **Tracking:** `docs/roadmap/BACKLOG_LEDGER.md:2040`.
+- `user_knowledge` и `rag_feedback` изолированы по `user_id` через PostgreSQL RLS с transaction-local session context `app.current_user_id`. Runtime bridge задаётся перед query/write path через `core/db_rls.py`; app-layer `user_id` filtering остаётся как defense in depth. **Evidence:** `core/db_rls.py` (session-local `set_config` helper), `core/rag/vector_rag.py` (RLS context before retrieval), `app/routers/feedback.py` (RLS context before insert/commit), `core/compliance/dsar_service.py` (RLS context before export/delete helpers), `alembic/versions/202603100001_enable_rag_user_rls.py` (ENABLE/FORCE RLS + policies).
 - `rag_feedback.llm_response` не хранится без редактирования (PII). **Target-state:** при реализации записи в `rag_feedback` применять redaction (тот же `core/insight/safety.py` или отдельный redactor) перед сохранением.
 - Rate limit на RAG-эндпоинты (insight) сохраняется. **Evidence:** детерминированные 429-тесты — `tests/test_rate_limit_llm_and_exports_api.py:95-108` (`/api/v1/insight`), `:117-130` (`/insight`); tier-guard — `tests/test_insight_vip_guard_api.py:50-78`.
 
@@ -235,7 +235,7 @@ Evidence anchors (audit policy: architecture docs must cite `file:line` or mark 
 
 1. Реализовать `RAGChunk`, `RAGContext` в `core/rag/contracts.py`.
 2. Добавить `sources[]` и `confidence` в response schema Insight (отдельный PR).
-3. Создать миграцию для `rag_feedback` и `user_knowledge`.
+3. Добавить integration coverage для live Postgres RLS deny-by-default path.
 4. Обновить `retrieve_context` signature с обратной совместимостью (default args).
 5. Добавить `rag_constants.py` в `core/rag/`.
 

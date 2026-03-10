@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import select
@@ -365,3 +366,26 @@ def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
 
     assert broken_session.rollback_called is True
     assert "DSAR direct-user artifact delete failed" in caplog.text
+
+
+def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DSAR helpers must set DB RLS context before user-bound SQL operations."""
+    rls_calls: list[int] = []
+    monkeypatch.setattr(
+        dsar_service,
+        "apply_user_rls_context",
+        lambda session, *, user_id: rls_calls.append(user_id),
+    )
+
+    session = MagicMock()
+    session.get.return_value = None
+    scalar_result = MagicMock()
+    scalar_result.scalar_one.return_value = 0
+    scalar_result.scalars.return_value.all.return_value = []
+    session.execute.return_value = scalar_result
+
+    export_direct_user_artifacts(session=cast(Session, session), user_id=17)
+    build_direct_user_deletion_plan(session=cast(Session, session), user_id=17)
+    delete_direct_user_artifacts(session=cast(Session, session), user_id=17)
+
+    assert rls_calls == [17, 17, 17]

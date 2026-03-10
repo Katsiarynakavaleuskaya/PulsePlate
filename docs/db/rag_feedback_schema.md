@@ -42,7 +42,8 @@ Stores user ratings, corrections, and metadata about RAG interactions to enable 
 
 ### Security
 
-- **Application-layer RLS**: All queries filtered by authenticated `user_id`
+- **PostgreSQL RLS**: `rag_feedback` and `user_knowledge` enforce `user_id` isolation with transaction-local setting `app.current_user_id`
+- **Application-layer filtering**: Existing authenticated `user_id` scoping remains in runtime code as defense in depth
 - **PII redaction**: `llm_response` and `user_correction` pass through `core.pii_redaction.redact_pii_from_text()` before storage
 
 ---
@@ -83,7 +84,7 @@ Stores user-specific content for personalized RAG retrieval. VIP-only feature.
 |--------|----------|----------------|-----------|
 | Primary Keys | UUID | Integer | All existing tables use Integer PKs |
 | User FK | UUID | Integer | `users.id` is Integer |
-| RLS | DB policies | Application-layer | No RLS anywhere in codebase |
+| RLS | DB policies | PostgreSQL RLS + app-layer filters | SQLite tests stay app-layer only |
 | JSONB | Native | TEXT with JSONEncodedDict | SQLite test compatibility |
 
 ---

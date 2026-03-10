@@ -26,6 +26,7 @@ from app.middleware.api_tiers import (
 )
 from core.compliance import minimize_free_text, sanitize_chunk_preview
 from core.db import get_session
+from core.db_rls import apply_user_rls_context
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ def submit_rag_feedback(
         hops=feedback.hops,
     )
 
+    apply_user_rls_context(db, user_id=current_user.user_id)
     db.add(record)
     db.commit()
     db.refresh(record)
