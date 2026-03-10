@@ -56,6 +56,11 @@ Disposition: FIXED
 Commit: `3e6cb9f0`
 Evidence: `worker.js:216`; `tests/test_worker_proxy_contract.py:372`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#pullrequestreview-3923701081 -> 8764d1a1
+Disposition: FIXED
+Commit: `8764d1a1`
+Evidence: Aggregate review wave captured below via `#issuecomment-4032049481`, `#discussion_r2912919570`, `#discussion_r2912919581`, `#discussion_r2912919591`, and `#discussion_r2912919601`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#issuecomment-4032049481 -> e64255b4
 Disposition: FIXED
 Commit: `e64255b4`
