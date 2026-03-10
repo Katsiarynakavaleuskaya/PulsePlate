@@ -169,7 +169,9 @@ def test_build_promotion_decision_writes_audit_artifact(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
-    packet = experiment_contract.validate_experiment_packet(_packet(promotion_target="audit_artifact"))
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="audit_artifact")
+    )
     result = experiment_contract.validate_experiment_result(_result())
 
     decision = experiment_promote.build_promotion_decision(packet, result)
@@ -194,7 +196,9 @@ def test_build_promotion_decision_writes_guard_proposal(
     decision = experiment_promote.build_promotion_decision(packet, result)
 
     assert decision["promotion_target"] == "guard_test_proposal"
-    proposal_path = repo / "docs" / "orchestration" / "experiment_guard_proposals" / "exp-promote.md"
+    proposal_path = (
+        repo / "docs" / "orchestration" / "experiment_guard_proposals" / "exp-promote.md"
+    )
     assert proposal_path.exists()
     assert "Experiment Guard Proposal" in proposal_path.read_text(encoding="utf-8")
 
@@ -205,7 +209,9 @@ def test_memory_capsule_updates_index_once(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
-    packet = experiment_contract.validate_experiment_packet(_packet(promotion_target="memory_capsule"))
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="memory_capsule")
+    )
     result = experiment_contract.validate_experiment_result(_result())
 
     first = experiment_promote.build_promotion_decision(packet, result)
@@ -224,7 +230,9 @@ def test_rejected_result_backlog_entry_is_allowed(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
-    packet = experiment_contract.validate_experiment_packet(_packet(promotion_target="backlog_entry"))
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
     result = experiment_contract.validate_experiment_result(
         _result(status="rejected", failure_class="guard_failure")
     )
@@ -281,7 +289,9 @@ def test_existing_target_with_different_content_fails(
         experiment_promote.build_promotion_decision(packet, result)
 
 
-def test_resolve_output_path_rejects_escape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_output_path_rejects_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
 

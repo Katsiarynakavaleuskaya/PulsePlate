@@ -34,9 +34,7 @@ except ImportError:  # pragma: no cover - CLI fallback for direct script executi
         validate_experiment_result,
     )
 
-PROMOTION_ARTIFACT_DIR = (
-    REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "promotions"
-)
+PROMOTION_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "promotions"
 PR_PACKET_DIR = REPO_ROOT / "docs" / "orchestration" / "experiment_pr_packets"
 GUARD_PROPOSAL_DIR = REPO_ROOT / "docs" / "orchestration" / "experiment_guard_proposals"
 AUDIT_PREFIX = "EXPERIMENT_"
@@ -101,9 +99,7 @@ def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:
         return "promoted"
     if status == "rejected":
         if target != "backlog_entry":
-            raise ExperimentPromotionError(
-                "Rejected results may promote only to backlog_entry."
-            )
+            raise ExperimentPromotionError("Rejected results may promote only to backlog_entry.")
         return "deferred"
     raise ExperimentPromotionError(f"Unsupported result status: {status}")
 
@@ -218,7 +214,9 @@ def _insert_once(path: Path, marker: str, block: str) -> None:
     if block in content:
         return
     if marker not in content:
-        raise ExperimentPromotionError(f"Missing deterministic marker in {normalize_repo_path(path)}")
+        raise ExperimentPromotionError(
+            f"Missing deterministic marker in {normalize_repo_path(path)}"
+        )
     updated = content.replace(marker, f"{marker}\n{block.rstrip()}\n", 1)
     path.write_text(updated, encoding="utf-8")
 
@@ -227,7 +225,7 @@ def _render_backlog_entry(packet: dict[str, Any], result: dict[str, Any], dispos
     experiment_slug = packet["experiment_id"].replace("_", "-")
     failure_class = result["failure_class"] if result["failure_class"] is not None else "none"
     return (
-        f"<a id=\"ledger-{experiment_slug}\"></a>\n"
+        f'<a id="ledger-{experiment_slug}"></a>\n'
         f"- [ ] P1: Experiment follow-up for {packet['experiment_id']}\n"
         f"  - Owner: {DEFAULT_BACKLOG_OWNER}\n"
         f"  - Priority: {DEFAULT_BACKLOG_PRIORITY}\n"
@@ -274,12 +272,16 @@ def _write_durable_artifacts(
         return normalize_repo_path(durable_path)
     if target == "backlog_entry":
         durable_path = artifact_paths[0]
-        _insert_once(durable_path, BACKLOG_MARKER, _render_backlog_entry(packet, result, disposition))
+        _insert_once(
+            durable_path, BACKLOG_MARKER, _render_backlog_entry(packet, result, disposition)
+        )
         return normalize_repo_path(durable_path)
     if target == "memory_capsule":
         capsule_path, index_path = artifact_paths
         _stable_write(capsule_path, _render_memory_capsule(packet, result, disposition))
-        _insert_once(index_path, MEMORY_INDEX_MARKER, _render_memory_index_line(packet["experiment_id"]))
+        _insert_once(
+            index_path, MEMORY_INDEX_MARKER, _render_memory_index_line(packet["experiment_id"])
+        )
         return normalize_repo_path(capsule_path)
     raise ExperimentPromotionError(f"Unsupported promotion target: {target}")
 
@@ -333,8 +335,12 @@ def main(argv: list[str] | None = None) -> int:
     result_path = Path(args.result).expanduser().resolve()
 
     try:
-        packet = validate_experiment_packet(_read_json_object(packet_path, label="experiment packet"))
-        result = validate_experiment_result(_read_json_object(result_path, label="experiment result"))
+        packet = validate_experiment_packet(
+            _read_json_object(packet_path, label="experiment packet")
+        )
+        result = validate_experiment_result(
+            _read_json_object(result_path, label="experiment result")
+        )
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         decision = build_promotion_decision(packet, result)
     except (ValueError, ExperimentPromotionError) as exc:
