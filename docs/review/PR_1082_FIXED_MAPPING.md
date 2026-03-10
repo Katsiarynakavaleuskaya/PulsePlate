@@ -56,6 +56,31 @@ Disposition: FIXED
 Commit: `3e6cb9f0`
 Evidence: `worker.js:216`; `tests/test_worker_proxy_contract.py:372`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#issuecomment-4032049481 -> fc9f4a3a
+Disposition: FIXED
+Commit: `fc9f4a3a`
+Evidence: `scripts/orchestration/experiment_bootstrap.py:16`; `scripts/orchestration/experiment_bootstrap.py:258`; `tests/test_worker_proxy_contract.py:313`; `tests/test_worker_proxy_contract.py:355`; `worker.js:3`; `docs/roadmap/BACKLOG_LEDGER.md:663`; `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:9`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912919570 -> fc9f4a3a
+Disposition: FIXED
+Commit: `fc9f4a3a`
+Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:9`; `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:123`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912919581 -> fc9f4a3a
+Disposition: FIXED
+Commit: `fc9f4a3a`
+Evidence: `worker.js:3`; `tests/test_worker_proxy_contract.py:364`; `docs/roadmap/BACKLOG_LEDGER.md:663`; `docs/roadmap/BACKLOG_LEDGER.md:674`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912919591 -> fc9f4a3a
+Disposition: FIXED
+Commit: `fc9f4a3a`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2124`; `docs/roadmap/BACKLOG_LEDGER.md:2125`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1082#discussion_r2912919601
+Disposition: NOT-A-BUG
+Evidence: `worker.js:131`; `worker.js:190`; `tests/test_worker_proxy_contract.py:355`
+Reason: Originless non-browser requests remain intentionally supported when an allowlist exists; the new regression test locks that server-side behavior, while browser preflight still requires a trusted `Origin`.
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
