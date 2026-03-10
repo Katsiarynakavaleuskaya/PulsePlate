@@ -15,6 +15,16 @@ Disposition: FIXED
 Commit: d9fa214b
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4766`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1085#pullrequestreview-3923523564 -> 2ca74b36
+Disposition: FIXED
+Commit: 2ca74b36
+Evidence: `docs/review/PR_1085_FIXED_MAPPING.md:8`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1085#discussion_r2912755148 -> 2ca74b36
+Disposition: FIXED
+Commit: 2ca74b36
+Evidence: `docs/review/PR_1085_FIXED_MAPPING.md:8`
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
