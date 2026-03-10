@@ -1491,10 +1491,10 @@ export interface components {
             user_id: number;
         };
         /**
-         * AppleActivationPayload
-         * @description Activation-ready payload for downstream Apple billing flow.
+         * AppleActivationHint
+         * @description Activation-prep hint for downstream Apple billing flow.
          */
-        AppleActivationPayload: {
+        AppleActivationHint: {
             /**
              * Platform
              * @default ios
@@ -1519,7 +1519,7 @@ export interface components {
         AppleReceiptVerificationRequest: {
             /**
              * Receipt Data
-             * @description Opaque App Store receipt blob
+             * @description Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.
              */
             receipt_data: string;
         };
@@ -1528,7 +1528,8 @@ export interface components {
          * @description Normalized Apple receipt verification result without activation side effects.
          */
         AppleReceiptVerificationResponse: {
-            activation_payload?: components["schemas"]["AppleActivationPayload"] | null;
+            /** @description Downstream activation-prep hint. The future activation service maps this hint into canonical source/plan fields. */
+            activation_payload?: components["schemas"]["AppleActivationHint"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
             /** Expires At */

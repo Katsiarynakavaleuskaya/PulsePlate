@@ -168,8 +168,12 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
     receipt_data: str = Field(
         ...,
         min_length=8,
-        description="Opaque App Store receipt blob",
+        description=(
+            "Opaque App Store receipt blob. "
+            "Canonical field: receipt_data. Compatibility alias accepted: receipt."
+        ),
         validation_alias=AliasChoices("receipt_data", "receipt"),
+        json_schema_extra={"x-accepted-aliases": ["receipt"]},
     )
 
     @field_validator("receipt_data", mode="before")
@@ -183,8 +187,8 @@ class AppleReceiptVerificationRequest(PaymentRequestModel):
         return normalized
 
 
-class AppleActivationPayload(BaseModel):
-    """Activation-ready payload for downstream Apple billing flow."""
+class AppleActivationHint(BaseModel):
+    """Activation-prep hint for downstream Apple billing flow."""
 
     tier: SubscriptionTierValue
     platform: str = "ios"
@@ -206,7 +210,13 @@ class AppleReceiptVerificationResponse(BaseModel):
     environment: AppleVerificationEnvironment | None = None
     product_id: str | None = None
     expires_at: datetime | None = None
-    activation_payload: AppleActivationPayload | None = None
+    activation_payload: AppleActivationHint | None = Field(
+        default=None,
+        description=(
+            "Downstream activation-prep hint. "
+            "The future activation service maps this hint into canonical source/plan fields."
+        ),
+    )
     error: AppleProviderError | None = None
 
 

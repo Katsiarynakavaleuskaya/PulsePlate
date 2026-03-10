@@ -19,7 +19,7 @@ from uuid import uuid4
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     ActivationStatus,
-    AppleActivationPayload,
+    AppleActivationHint,
     AppleProviderError,
     AppleReceiptVerificationResponse,
     AppleVerificationEnvironment,
@@ -278,17 +278,17 @@ def _entry_cancellation_at(entry: dict[str, Any]) -> datetime | None:
     )
 
 
-def _activation_payload_for_product(product_id: str | None) -> AppleActivationPayload | None:
-    """Map Apple product identifiers to activation-ready payload."""
+def _activation_payload_for_product(product_id: str | None) -> AppleActivationHint | None:
+    """Map Apple product identifiers to downstream activation-prep hints."""
     if not product_id:
         return None
     normalized = product_id.strip().lower()
     if normalized.startswith("com.pulseplate.premium.") or normalized.startswith(
         "com.pulseplate.pro."
     ):
-        return AppleActivationPayload(tier=SubscriptionTierValue.pro)
+        return AppleActivationHint(tier=SubscriptionTierValue.pro)
     if normalized.startswith("com.pulseplate.vip."):
-        return AppleActivationPayload(tier=SubscriptionTierValue.vip)
+        return AppleActivationHint(tier=SubscriptionTierValue.vip)
     return None
 
 

@@ -123,8 +123,8 @@
         "title": "AdherenceResponse",
         "type": "object"
       },
-      "AppleActivationPayload": {
-        "description": "Activation-ready payload for downstream Apple billing flow.",
+      "AppleActivationHint": {
+        "description": "Activation-prep hint for downstream Apple billing flow.",
         "properties": {
           "platform": {
             "default": "ios",
@@ -138,7 +138,7 @@
         "required": [
           "tier"
         ],
-        "title": "AppleActivationPayload",
+        "title": "AppleActivationHint",
         "type": "object"
       },
       "AppleProviderError": {
@@ -165,10 +165,13 @@
         "description": "Request contract for iOS receipt verification.",
         "properties": {
           "receipt_data": {
-            "description": "Opaque App Store receipt blob",
+            "description": "Opaque App Store receipt blob. Canonical field: receipt_data. Compatibility alias accepted: receipt.",
             "minLength": 8,
             "title": "Receipt Data",
-            "type": "string"
+            "type": "string",
+            "x-accepted-aliases": [
+              "receipt"
+            ]
           }
         },
         "required": [
@@ -183,12 +186,13 @@
           "activation_payload": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AppleActivationPayload"
+                "$ref": "#/components/schemas/AppleActivationHint"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Downstream activation-prep hint. The future activation service maps this hint into canonical source/plan fields."
           },
           "environment": {
             "anyOf": [

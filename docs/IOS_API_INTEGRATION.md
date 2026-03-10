@@ -113,16 +113,16 @@ Contract source:
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
-2. Receipt/business decision logic stays server-side (canonical `/api/v1/billing/*` contracts) and is tracked as runtime rollout, not client logic (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
+2. Receipt/business decision logic stays server-side; the additive Apple verify seam is `/api/v1/billing/apple/verify-receipt`, while RU/BY payment transport remains on `/api/v1/pro/payments/ru-by/*` until the runtime migration lands (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
 3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
 4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
 5. The iOS app must never call Apple `verifyReceipt` directly; server-side verification is production-first with a single sandbox fallback on `21007` and requires backend-held `APPLE_SHARED_SECRET`.
 
-Planned transport surfaces (runtime PRs):
-- `POST /api/v1/billing/apple/verify-receipt`
-- `POST /api/v1/billing/ru-by/manual-intent`
-- `POST /api/v1/billing/ru-by/reconcile`
-- `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+Current / planned transport surfaces:
+- `POST /api/v1/billing/apple/verify-receipt` (implemented additive billing seam for verify-only receipt validation)
+- `POST /api/v1/pro/payments/ru-by/manual-intent` (current runtime transport during the transition window)
+- `POST /api/v1/pro/payments/ru-by/reconcile` (current runtime transport during the transition window)
+- `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` (current runtime transport during the transition window)
 
 Testing expectations (runtime PRs):
 - Deterministic service tests with URLProtocol stubs.
