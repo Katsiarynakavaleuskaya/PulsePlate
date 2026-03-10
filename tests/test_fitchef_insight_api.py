@@ -2059,6 +2059,233 @@ class TestFitChefSlipSupportRuntimeCoverage:
         assert exc_info.value.detail == "fitchef_slip_support_unavailable"
 
 
+@pytest.mark.parametrize(
+    ("runner_name", "task_factory", "provider_text"),
+    [
+        (
+            "run_mascot_insight_task",
+            lambda: FitChefMascotInsightTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefMascotInsightInput(
+                    safe_query="Need help with breakfast consistency",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef",
+                    method="POST",
+                ),
+            ),
+            "- Choose one balanced breakfast.\n- Add protein to the first meal.",
+        ),
+        (
+            "run_weekly_reflection_task",
+            lambda: FitChefWeeklyReflectionTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefWeeklyReflectionInput(
+                    safe_summary="Meals felt uneven and evenings were rushed",
+                    safe_goal="more steady dinners",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef/weekly-reflection",
+                    method="POST",
+                ),
+            ),
+            "- Keep one dinner template.\n- Plan one calmer evening reset.",
+        ),
+        (
+            "run_slip_support_task",
+            lambda: FitChefSlipSupportTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefSlipSupportInput(
+                    safe_event_text="I kept snacking after dinner",
+                    safe_goal="more steady dinners",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef/slip-support",
+                    method="POST",
+                ),
+            ),
+            "- Pause before the next snack.\n- Restart with one balanced next meal.",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_fitchef_text_tasks_preserve_shared_audit_sequence(
+    runner_name: str,
+    task_factory,
+    provider_text: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All FitChef text tasks should keep the same audit sequence after dedup."""
+
+    from app.services import fitchef_runtime
+
+    audit_calls: list[tuple[str, str]] = []
+
+    def _track_audit(**kwargs: object) -> None:
+        audit_calls.append((str(kwargs["action"]), str(kwargs["target"])))
+
+    mock_provider = MagicMock()
+    mock_provider.generate.return_value = provider_text
+
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.get_transparency_registry",
+        lambda: {
+            "ai_generated_insight": {
+                "surface_id": "ai_generated_insight",
+                "boundary": "Wellness coaching only.",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime._persist_privileged_action_audit",
+        _track_audit,
+    )
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda *args, **kwargs: _make_rag_context(),
+    )
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+    runner = getattr(fitchef_runtime, runner_name)
+    await runner(task_factory())
+
+    assert audit_calls[:2] == [
+        ("rag.retrieve", "corpus://fitchef-agent"),
+        ("llm.generate", "provider://default"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("runner_name", "task_factory", "expected_message", "expected_calls"),
+    [
+        (
+            "run_mascot_insight_task",
+            lambda: FitChefMascotInsightTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefMascotInsightInput(
+                    safe_query="Need breakfast support",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef",
+                    method="POST",
+                ),
+            ),
+            "mascot-draft",
+            {"mascot": 1, "weekly": 0, "slip": 0},
+        ),
+        (
+            "run_weekly_reflection_task",
+            lambda: FitChefWeeklyReflectionTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefWeeklyReflectionInput(
+                    safe_summary="Meals felt uneven",
+                    safe_goal="more steady dinners",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef/weekly-reflection",
+                    method="POST",
+                ),
+            ),
+            "weekly-draft",
+            {"mascot": 0, "weekly": 1, "slip": 0},
+        ),
+        (
+            "run_slip_support_task",
+            lambda: FitChefSlipSupportTaskEnvelope(
+                mode="auto-safe",
+                input=FitChefSlipSupportInput(
+                    safe_event_text="I kept snacking after dinner",
+                    safe_goal="more steady dinners",
+                    api_key=TEST_KEY_VIP,
+                    endpoint="/api/v1/insight/fitchef/slip-support",
+                    method="POST",
+                ),
+            ),
+            "slip-draft",
+            {"mascot": 0, "weekly": 0, "slip": 1},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_fitchef_text_tasks_use_task_specific_draft_builder(
+    runner_name: str,
+    task_factory,
+    expected_message: str,
+    expected_calls: dict[str, int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dedup must keep each task wired to its own draft preparer."""
+
+    from app.services import fitchef_runtime
+    from core.insight.fitchef_companion import FitChefCoachingDraft
+
+    draft_calls = {"mascot": 0, "weekly": 0, "slip": 0}
+
+    def _mascot_draft(*args: object, **kwargs: object) -> FitChefCoachingDraft:
+        draft_calls["mascot"] += 1
+        return FitChefCoachingDraft(
+            message="mascot-draft",
+            action_items=["mascot action"],
+            warnings=["mascot warning"],
+        )
+
+    def _weekly_draft(*args: object, **kwargs: object) -> FitChefCoachingDraft:
+        draft_calls["weekly"] += 1
+        return FitChefCoachingDraft(
+            message="weekly-draft",
+            action_items=["weekly action"],
+            warnings=["weekly warning"],
+        )
+
+    def _slip_draft(*args: object, **kwargs: object) -> FitChefCoachingDraft:
+        draft_calls["slip"] += 1
+        return FitChefCoachingDraft(
+            message="slip-draft",
+            action_items=["slip action"],
+            warnings=["slip warning"],
+        )
+
+    mock_provider = MagicMock()
+    mock_provider.generate.return_value = "raw provider text"
+
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.get_transparency_registry",
+        lambda: {
+            "ai_generated_insight": {
+                "surface_id": "ai_generated_insight",
+                "boundary": "Wellness coaching only.",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime._persist_privileged_action_audit",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "core.rag.vector_rag.retrieve_context_structured",
+        lambda *args, **kwargs: _make_rag_context(),
+    )
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+    monkeypatch.setattr("app.services.fitchef_runtime.prepare_mascot_draft", _mascot_draft)
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.prepare_weekly_reflection_draft",
+        _weekly_draft,
+    )
+    monkeypatch.setattr(
+        "app.services.fitchef_runtime.prepare_slip_support_draft",
+        _slip_draft,
+    )
+
+    runner = getattr(fitchef_runtime, runner_name)
+    result = await runner(task_factory())
+
+    assert result.message == expected_message
+    assert draft_calls == expected_calls
+
+
 def test_prepare_mascot_draft_preserves_bulleted_action_items() -> None:
     """Bullet/newline structure should survive action-item extraction."""
 
