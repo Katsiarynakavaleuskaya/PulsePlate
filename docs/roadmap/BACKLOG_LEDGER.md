@@ -3888,7 +3888,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Backend canonical route (guarded by PRO tier): `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
   - DoD:
     - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
-    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from runtime storage
+    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` sourced from the app's secure key provider
     - UX: explicit states for missing PRO key / missing profile / 422 validation errors
     - Tests:
       - unit test for building daily nutrition request query (deterministic)
