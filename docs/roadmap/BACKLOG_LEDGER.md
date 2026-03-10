@@ -246,6 +246,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Billing/runtime follow-through references the same product contract without client-side drift
     - Release checklist is explicit enough for future iOS submission work
 
+<a id="ledger-p1-mobile-secret-conformance"></a>
+- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (mobile security correctness)
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
+  - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
+  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR is intended to complete the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - ios/PulsePlate/Services/KeychainStore.swift
+    - ios/PulsePlate/Services/ProKeyProvider.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+  - DoD:
+    - iOS secret paths are verified to use Keychain storage only
+    - Guard tests prevent regression to insecure storage
+
 <a id="ledger-p1-diet-flags-contract-sync"></a>
 - [ ] P1: Diet flags contract sync across schemas and clients
   - Owner: @katsiaryna_kavaleuskaya
@@ -3937,21 +3953,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No dual-path networking
 
 
-<a id="ledger-p1-mobile-secret-conformance"></a>
-- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
-  - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
-  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR is intended to complete the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - ios/PulsePlate/Services/KeychainStore.swift
-    - ios/PulsePlate/Services/ProKeyProvider.swift
-    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
-  - DoD:
-    - iOS secret paths are verified to use Keychain storage only
-    - Guard tests prevent regression to insecure storage
 
 
 - [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)

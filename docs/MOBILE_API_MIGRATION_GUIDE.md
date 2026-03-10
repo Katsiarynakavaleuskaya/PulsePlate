@@ -71,6 +71,12 @@ let request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/foo
 **Canonical Endpoint**:
 
 ```
+POST /api/v1/pro/meal/weekly
+```
+
+Deprecated alias (hidden from public OpenAPI, do not use as source of truth):
+
+```
 POST /api/v1/premium/plan/week-flexible
 ```
 

@@ -260,6 +260,25 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertFalse(hits.isEmpty)
     }
 
+    func test_secretEnvFallbackGuardMatchesPrivateAliasedProcessInfoEnvironment() throws {
+        let snippet = """
+        final class SecretHolder {
+            private let env = ProcessInfo.processInfo.environment
+
+            func key() -> String? {
+                self.env["PRO_API_KEY"]
+            }
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
     func test_secretEnvFallbackGuardDoesNotMatchNonSecretEnvLookups() throws {
         let snippet = """
         let baseURL = ProcessInfo.processInfo.environment["API_BASE_URL"]
@@ -519,8 +538,7 @@ private func secretEnvFallbackHits(
 
 private func extractProcessInfoEnvironmentAliases(from content: String) -> Set<String> {
     let patterns = [
-        #"\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
-        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\[[^\]]+\]\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
+        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*\[[^\]]+\])?\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
     ]
     var aliases: Set<String> = []
     let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
@@ -596,7 +614,7 @@ private func environmentAliasAlternation(_ aliases: Set<String>) -> String {
         .map(NSRegularExpression.escapedPattern(for:))
         .joined(separator: "|")
 
-    return "|(?:\(escapedAliases))"
+    return "|(?:(?:self\\.)?(?:\(escapedAliases)))"
 }
 
 private func userDefaultsAliasAlternation(_ aliases: Set<String>) -> String {
