@@ -1,11 +1,14 @@
 # PR 1068 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No review threads or actionable bot comments recorded yet.
+Disposition: FIXED
+Commit: pending mapping update
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068#pullrequestreview-3920182593
 
 ## Merge Readiness
 - [ ] All required checks are PASS
