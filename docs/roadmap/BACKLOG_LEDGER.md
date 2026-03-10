@@ -5297,8 +5297,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR_TBD_AGENT_EXPERIMENTATION_GOVERNANCE
-  - Status: 📋 Planned
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP is in progress in `#1088`)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5313,18 +5313,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
 
 <a id="ledger-p1-agent-experiment-bootstrap"></a>
-- [ ] P1: PR2 deterministic experiment bootstrap tooling
+- [x] P1: PR2 deterministic experiment bootstrap tooling
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_BOOTSTRAP
-  - Status: 📋 Planned
+  - Target PR: PR #1081
+  - Status: ✅ Merged on 2026-03-10 (`fd7a1626`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
   - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
     - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
-    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_contract.py`
   - DoD:
     - Local experiment packet bootstrap tooling exists with deterministic JSON output
     - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
@@ -5335,16 +5336,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR3 experiment runner MVP for bounded candidate loops
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for first applied optimization)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_RUNNER
-  - Status: 📋 Planned
+  - Target PR: PR #1088
+  - Status: 🟡 In progress (PR `#1088`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
   - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
-    - `scripts/orchestration/agent_run_summary.py`
+    - `scripts/orchestration/experiment_contract.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
   - DoD:
     - Runner uses isolated execution and never mutates a dirty shared worktree
     - Runner enforces budgets and failure classes from the experimentation protocol
@@ -5407,10 +5410,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `scripts/benchmarks/philosophical_runtime_benchmark.py`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
-    - `core/rag/`
-    - `core/insight/`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
   - DoD:
     - One bounded reliability candidate is generated through the governed lane
     - Candidate improvement is accepted by immutable oracles and documented with evidence

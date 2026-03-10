@@ -22,56 +22,29 @@ if str(EXPERIMENT_BOOTSTRAP_REPO_ROOT) not in sys.path:
 from scripts.orchestration.context_pack import (
     REPO_ROOT,
     normalize_text,
-    repo_relative_paths,
     resolve_domain,
+)
+from scripts.orchestration.experiment_contract import (
+    ALLOWED_MUTABLE_PREFIXES,
+    DEFAULT_BUDGETS,
+    DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    DEFAULT_METRIC_BASELINE_REF,
+    DEFAULT_STOP_CONDITION,
+    PRIMARY_AGENT,
+    REVIEWER,
+    SCHEMA_VERSION,
+    validate_budget_payload,
+    validate_immutable_oracles,
+    validate_metrics,
+    validate_mutable_candidate_surface,
+    validate_negative_controls,
+    validate_promotion_target,
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.skill_router import route_skills
 
-SCHEMA_VERSION = "1.0"
 EXPERIMENT_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "experiments"
-
-PRIMARY_AGENT = "agent-coordinator"
-REVIEWER = "architecture-specialist"
-
-PROMOTION_TARGETS: tuple[str, ...] = (
-    "pr_packet",
-    "audit_artifact",
-    "guard_test_proposal",
-    "backlog_entry",
-    "memory_capsule",
-)
-
-DEFAULT_STOP_CONDITION = (
-    "Stop on timeout, OOM, metric regression, guard failure, policy violation, or unchanged result."
-)
-DEFAULT_BUDGETS: dict[str, int] = {
-    "wall_clock_seconds": 300,
-    "retry_budget": 1,
-    "max_changed_files": 3,
-    "network_budget": 0,
-    "benchmark_budget": 1,
-    "test_budget": 2,
-}
-MAX_BUDGETS: dict[str, int] = {
-    "wall_clock_seconds": 600,
-    "retry_budget": 2,
-    "max_changed_files": 5,
-    "network_budget": 20,
-    "benchmark_budget": 2,
-    "test_budget": 3,
-}
-
-DEFAULT_METRIC_BASELINE_REF = "current-main"
-DEFAULT_METRIC_ACCEPTANCE_THRESHOLD = "strict_improvement"
-
-ALLOWED_MUTABLE_PREFIXES: tuple[str, ...] = (
-    "core/insight/",
-    "core/rag/",
-)
-ALLOWED_DOC_SUFFIXES: tuple[str, ...] = ("program.md",)
-ALLOWED_DOC_SEGMENTS: tuple[str, ...] = ("/prompts/", "/programs/")
 
 ML_TEXT_HINTS: tuple[str, ...] = (
     "benchmark",
@@ -109,133 +82,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-def _is_allowed_prompt_or_program_doc(path: str) -> bool:
-    if not path.startswith("docs/"):
-        return False
-    if any(path.endswith(suffix) for suffix in ALLOWED_DOC_SUFFIXES):
-        return True
-    return any(segment in f"/{path}" for segment in ALLOWED_DOC_SEGMENTS)
-
-
-def _normalize_mutable_surface_path(raw_path: str) -> str:
-    """Collapse traversal segments before mutable-surface allowlist checks."""
-
-    candidate = Path(raw_path)
-    if candidate.is_absolute():
-        resolved = candidate.resolve()
-    else:
-        resolved = (REPO_ROOT / candidate).resolve()
-
-    try:
-        return resolved.relative_to(REPO_ROOT).as_posix()
-    except ValueError:
-        return resolved.as_posix()
-
-
-def validate_mutable_candidate_surface(paths: list[str] | tuple[str, ...]) -> list[str]:
-    """Validate mutable surfaces against the PR1 experimentation allowlist."""
-
-    normalized_paths = sorted(
-        {_normalize_mutable_surface_path(path) for path in repo_relative_paths(paths)}
-    )
-    if not normalized_paths:
-        raise ValueError("At least one --mutable-path is required.")
-
-    invalid_paths: list[str] = []
-    for path in normalized_paths:
-        if Path(path).is_absolute():
-            invalid_paths.append(path)
-            continue
-        if any(path.startswith(prefix) for prefix in ALLOWED_MUTABLE_PREFIXES):
-            continue
-        if _is_allowed_prompt_or_program_doc(path):
-            continue
-        invalid_paths.append(path)
-
-    if invalid_paths:
-        joined = ", ".join(invalid_paths)
-        raise ValueError(
-            "Mutable candidate surface must stay within core/insight/*, core/rag/*, "
-            f"or approved prompt/program docs. Invalid paths: {joined}"
-        )
-    return normalized_paths
-
-
-def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[dict[str, str]]:
-    """Validate oracle commands and normalize them into the packet shape."""
-
-    cleaned = [command.strip() for command in commands if command.strip()]
-    if not cleaned:
-        raise ValueError("At least one --oracle-command is required.")
-    return [{"command": command, "expected_signal": "must pass"} for command in cleaned]
-
-
-def validate_metrics(
-    metrics: list[str] | tuple[str, ...],
-    *,
-    baseline_reference: str = DEFAULT_METRIC_BASELINE_REF,
-    acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
-) -> dict[str, Any]:
-    """Require a primary metric and preserve stable ordering for secondary metrics."""
-
-    cleaned = [metric.strip() for metric in metrics if metric.strip()]
-    if not cleaned:
-        raise ValueError("At least one --metric is required.")
-    normalized_baseline_reference = baseline_reference.strip()
-    normalized_acceptance_threshold = acceptance_threshold.strip()
-    if not normalized_baseline_reference:
-        raise ValueError("--metric-baseline-ref must be non-empty.")
-    if not normalized_acceptance_threshold:
-        raise ValueError("--metric-acceptance-threshold must be non-empty.")
-    return {
-        "primary": cleaned[0],
-        "secondary": cleaned[1:],
-        "baseline_reference": normalized_baseline_reference,
-        "acceptance_threshold": normalized_acceptance_threshold,
-    }
-
-
-def validate_negative_controls(items: list[str] | tuple[str, ...]) -> list[str]:
-    """Require at least two negative controls, as mandated by the protocol."""
-
-    cleaned = [item.strip() for item in items if item.strip()]
-    if len(cleaned) < 2:
-        raise ValueError("At least two --negative-control values are required.")
-    return cleaned
-
-
-def validate_promotion_target(target: str) -> str:
-    """Accept only protocol-approved promotion targets."""
-
-    normalized = target.strip().lower()
-    if normalized not in PROMOTION_TARGETS:
-        allowed = ", ".join(PROMOTION_TARGETS)
-        raise ValueError(f"--promotion-target must be one of: {allowed}")
-    return normalized
-
-
-def validate_budget_payload(budgets: dict[str, int] | None = None) -> dict[str, int]:
-    """Reject invalid budget overrides and enforce protocol hard caps."""
-
-    budget_payload = dict(DEFAULT_BUDGETS)
-    if budgets:
-        unknown_keys = sorted(set(budgets) - set(DEFAULT_BUDGETS))
-        if unknown_keys:
-            joined = ", ".join(unknown_keys)
-            raise ValueError(f"Unsupported budget keys: {joined}.")
-        budget_payload.update(budgets)
-
-    for key, cap in MAX_BUDGETS.items():
-        value = budget_payload[key]
-        if value < 0:
-            raise ValueError(f"{key} must be >= 0.")
-        if key != "network_budget" and value == 0:
-            raise ValueError(f"{key} must be > 0.")
-        if value > cap:
-            raise ValueError(f"{key} must be <= {cap}.")
-    return budget_payload
 
 
 def _resolve_experiment_domain(
