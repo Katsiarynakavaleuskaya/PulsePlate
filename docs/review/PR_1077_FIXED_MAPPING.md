@@ -5,7 +5,22 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077#pullrequestreview-3922132927 -> 5f4e1e34
+Disposition: FIXED
+Commit: 5f4e1e34
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3873
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3875
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3878
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077#discussion_r2911519094 -> 5f4e1e34
+Disposition: FIXED
+Commit: 5f4e1e34
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3873
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077#pullrequestreview-3922147128 -> 5f4e1e34
+Disposition: FIXED
+Commit: 5f4e1e34
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3873
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
