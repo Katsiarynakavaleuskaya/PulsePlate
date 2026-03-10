@@ -386,8 +386,8 @@ except ImportError:
 
 # Only load the local .env automatically for explicit local/dev environments.
 _env_was_sanitized = "PATH" not in os.environ
-_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
-_should_load_local_env = _app_env in {"", "local", "dev", "development"}
+_app_env = get_runtime_env_name()
+_should_load_local_env = _app_env in {"local", "dev", "development"}
 if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
     dotenv.load_dotenv()
 
@@ -431,11 +431,7 @@ _DEFAULT_GET_UPDATE_SCHEDULER = get_update_scheduler
 # Set up logging
 # Configure logging - ensure pytest can capture logs
 # In test environment, use DEBUG level to capture all logs
-_log_level = (
-    logging.DEBUG
-    if os.getenv("APP_ENV") == "test" or os.getenv("ENVIRONMENT") == "test"
-    else logging.INFO
-)
+_log_level = logging.DEBUG if _app_env in {"test", "testing"} else logging.INFO
 logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
@@ -1015,7 +1011,7 @@ except ImportError as e:  # pragma: no cover
 # Conditionally include test router for non-production environments
 # Reuse _app_env defined earlier (line 302) to avoid duplication
 # Exclude staging from test endpoints for security (staging may be externally accessible)
-if _app_env in {"", "local", "dev", "development", "test"} or (
+if _app_env in {"local", "dev", "development", "test", "testing", "ci"} or (
     _app_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
 ):
     try:
@@ -1725,11 +1721,7 @@ async def health() -> Dict[str, Any]:
 
     # RU: Окружение должно приходить из env. В проде ставим production по умолчанию.
     # EN: Environment must come from env vars. Default to production in prod.
-    environment = (
-        (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or os.getenv("ENV") or "production")
-        .strip()
-        .lower()
-    )
+    environment = get_runtime_env_name()
 
     # Get git SHA if available (for version tracking)
     git_sha = _short_git_sha(os.getenv("GIT_SHA"))
@@ -4765,9 +4757,8 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 @app.get("/debug_env")
 async def debug_env() -> JSONResponse:
     # Gate /debug_env to avoid leaking environment details in production
-    allowed_envs = {"", "local", "dev", "development", "test"}
     debug_flag = _is_truthy(os.getenv("ENABLE_DEBUG_ENDPOINT"))
-    if os.getenv("APP_ENV", "").strip().lower() not in allowed_envs and not debug_flag:
+    if not is_explicit_developer_env() and not debug_flag:
         raise HTTPException(status_code=404, detail="Not found")
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
@@ -5011,7 +5002,7 @@ _export_testing_flag = (
     _is_truthy(os.getenv("TESTING")) if os.getenv("TESTING") is not None else False
 )
 if not _export_testing_flag:
-    _export_app_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").strip().lower()
+    _export_app_env = get_runtime_env_name()
     if _export_app_env in {"test", "testing", "ci"}:
         _export_testing_flag = True
     elif "pytest" in sys.modules:

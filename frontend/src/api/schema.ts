@@ -135,6 +135,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insight/fitchef/weekly-reflection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Weekly Reflection
+         * @description Generate VIP-only weekly reflection coaching via the FitChef runtime.
+         */
+        post: operations["fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/attribution": {
         parameters: {
             query?: never;
@@ -2506,6 +2526,46 @@ export interface components {
             wellness_boundary: string;
         };
         /**
+         * FitChefWeeklyReflectionRequest
+         * @description Weekly reflection request payload.
+         */
+        FitChefWeeklyReflectionRequest: {
+            /** Goal */
+            goal?: string | null;
+            /** Summary */
+            summary: string;
+        };
+        /**
+         * FitChefWeeklyReflectionResponse
+         * @description Public weekly reflection response envelope.
+         */
+        FitChefWeeklyReflectionResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "weekly_reflection";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
          * FoodAttributionResponse
          * @description RU: Ответ endpoint с атрибуцией источников.
          *     EN: Attribution endpoint response for food data sources.
@@ -4638,6 +4698,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FitChefMascotInsightResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefWeeklyReflectionRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef weekly reflection generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefWeeklyReflectionResponse"];
                 };
             };
             /** @description Unsafe AI input blocked */

@@ -69,6 +69,11 @@ def create_rate_limited_app() -> tuple[FastAPI, Limiter]:
     async def fitchef_mascot(request: Request) -> dict[str, str]:
         return {"message": "fitchef"}
 
+    @router.post("/api/v1/insight/fitchef/weekly-reflection")
+    @test_limiter.limit("2/minute")
+    async def fitchef_weekly_reflection(request: Request) -> dict[str, str]:
+        return {"message": "weekly reflection"}
+
     @router.post("/insight")
     @test_limiter.limit("2/minute")
     async def insight_legacy(request: Request) -> dict[str, str]:
@@ -134,6 +139,27 @@ def test_fitchef_mascot_rate_limited_200_then_429() -> None:
     r1 = client.post("/api/v1/insight/fitchef", json=payload, headers=headers)
     r2 = client.post("/api/v1/insight/fitchef", json=payload, headers=headers)
     r3 = client.post("/api/v1/insight/fitchef", json=payload, headers=headers)
+
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429
+    assert r3.headers.get("content-type", "").startswith("application/json")
+
+    lang = normalize_lang("en")
+    expected_detail = t(lang, "rate_limit.exceeded")
+    assert r3.json()["detail"] == expected_detail
+
+
+def test_fitchef_weekly_reflection_rate_limited_200_then_429() -> None:
+    """Test /api/v1/insight/fitchef/weekly-reflection returns 200 twice, then 429."""
+    app, _ = create_rate_limited_app()
+    client = TestClient(app)
+    headers = {"accept-language": "en", "x-test-id": "fitchef-weekly-reflection"}
+    payload = {"summary": "late dinners", "goal": "steady dinners"}
+
+    r1 = client.post("/api/v1/insight/fitchef/weekly-reflection", json=payload, headers=headers)
+    r2 = client.post("/api/v1/insight/fitchef/weekly-reflection", json=payload, headers=headers)
+    r3 = client.post("/api/v1/insight/fitchef/weekly-reflection", json=payload, headers=headers)
 
     assert r1.status_code == 200
     assert r2.status_code == 200

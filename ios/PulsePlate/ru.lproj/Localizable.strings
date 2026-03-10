@@ -73,7 +73,7 @@
 "plate_issue_title_decoding" = "Неожиданный ответ";
 "plate_issue_title_unknown" = "Что-то пошло не так";
 
-"plate_issue_message_missing_pro_key_debug" = "Настройте PRO API key (PRO_API_KEY) в Xcode Scheme → Environment Variables.";
+"plate_issue_message_missing_pro_key_debug" = "Загрузите PRO-ключ через PRO Settings -> Debug Tools -> Keychain или через явно внедрённый тестовый провайдер. Xcode Environment Variables больше не используются для runtime-доступа PRO.";
 "plate_issue_message_missing_pro_key" = "PRO недоступен на этом устройстве.";
 "plate_issue_message_missing_profile" = "Откройте профиль и укажите пол, возраст, рост и вес.";
 "plate_issue_message_unauthorized" = "Ваш PRO ключ отсутствует или неверный.";

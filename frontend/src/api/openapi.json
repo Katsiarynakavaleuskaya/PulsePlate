@@ -1942,16 +1942,115 @@
         },
         "required": [
           "message",
-          "scenario",
           "sources",
           "confidence",
           "warnings",
           "action_items",
           "quota_state",
           "transparency_notice_id",
-          "wellness_boundary"
+          "wellness_boundary",
+          "scenario"
         ],
         "title": "FitChefMascotInsightResponse",
+        "type": "object"
+      },
+      "FitChefWeeklyReflectionRequest": {
+        "description": "Weekly reflection request payload.",
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "FitChefWeeklyReflectionRequest",
+        "type": "object"
+      },
+      "FitChefWeeklyReflectionResponse": {
+        "description": "Public weekly reflection response envelope.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "quota_state": {
+            "enum": [
+              "not_consumed",
+              "consumed"
+            ],
+            "title": "Quota State",
+            "type": "string"
+          },
+          "scenario": {
+            "const": "weekly_reflection",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FitChefCoachingSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transparency_notice_id": {
+            "title": "Transparency Notice Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wellness_boundary": {
+            "title": "Wellness Boundary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "sources",
+          "confidence",
+          "warnings",
+          "action_items",
+          "quota_state",
+          "transparency_notice_id",
+          "wellness_boundary",
+          "scenario"
+        ],
+        "title": "FitChefWeeklyReflectionResponse",
         "type": "object"
       },
       "FoodAttributionResponse": {
@@ -6163,6 +6262,105 @@
           }
         ],
         "summary": "Fitchef Mascot Insight",
+        "tags": [
+          "fitchef",
+          "insight",
+          "vip"
+        ]
+      }
+    },
+    "/api/v1/insight/fitchef/weekly-reflection": {
+      "post": {
+        "description": "Generate VIP-only weekly reflection coaching via the FitChef runtime.",
+        "operationId": "fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitChefWeeklyReflectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefWeeklyReflectionResponse"
+                }
+              }
+            },
+            "description": "FitChef weekly reflection generated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Unsafe AI input blocked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or provider unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "LLM provider call timed out"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fitchef Weekly Reflection",
         "tags": [
           "fitchef",
           "insight",
