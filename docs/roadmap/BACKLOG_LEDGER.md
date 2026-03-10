@@ -5243,8 +5243,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR_TBD_AGENT_EXPERIMENTATION_GOVERNANCE
-  - Status: 📋 Planned
+  - Target PR: PR #1073 -> PR #1081 -> PR_TBD_AGENT_EXPERIMENT_RUNNER
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP is next)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5259,11 +5259,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
 
 <a id="ledger-p1-agent-experiment-bootstrap"></a>
-- [ ] P1: PR2 deterministic experiment bootstrap tooling
+- [x] P1: PR2 deterministic experiment bootstrap tooling
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_BOOTSTRAP
-  - Status: 📋 Planned
+  - Target PR: PR #1081
+  - Status: ✅ Merged on 2026-03-10 (`fd7a1626`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
   - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
@@ -5282,7 +5282,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for first applied optimization)
   - Target PR: PR_TBD_AGENT_EXPERIMENT_RUNNER
-  - Status: 📋 Planned
+  - Status: 🟡 Ready after PR2 merge
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
