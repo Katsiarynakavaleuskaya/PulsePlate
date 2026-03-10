@@ -26,15 +26,12 @@ Shopping List Generator экран интегрирован в Debug Tools вк�
 
 ### PRO API Key
 
-**Development:**
-- Default fallback: `test_pro_key`
-- Настраивается через environment variable:
-  - Product → Scheme → Edit Scheme → Run → Environment Variables
-  - Добавьте: `PRO_API_KEY` = `<your-test-key>`
-
-**Production:**
-- TODO: Implement Keychain storage
-- Сейчас возвращает `nil` → требует реализации secure storage
+**Development / Production:**
+- Runtime source: **Keychain only**
+- Xcode `PRO_API_KEY` environment variable is **not** used for runtime access
+- Load the key via the in-app path:
+  - **PRO Settings → Debug Tools → Keychain**
+- Tests and previews may still use explicitly injected providers, but app runtime does not fall back to env vars
 
 ## 📋 Files Structure
 
@@ -42,7 +39,7 @@ Shopping List Generator экран интегрирован в Debug Tools вк�
 ios/PulsePlate/
 ├── Services/
 │   ├── AppConfig.swift                     # Base URL configuration
-│   ├── ProKeyProvider.swift                # API key provider
+│   ├── ProKeyProvider.swift                # Keychain-only API key provider
 │   └── DefaultShoppingListService.swift    # Network service
 ├── Models/ShoppingList/
 │   ├── ShoppingListDTO.swift               # Backend contract DTOs
@@ -67,12 +64,15 @@ ios/PulsePlate/
 2. **Configure Xcode scheme:**
    - Edit Scheme → Environment Variables
    - `BASE_URL` = `http://localhost:8000` (or your local IP for device testing)
-   - `PRO_API_KEY` = `test_pro_key`
 
-3. **Run app:**
+3. **Load a PRO key in app runtime:**
+   - Open **PRO Settings → Debug Tools → Keychain**
+   - Add your test PRO key there
+
+4. **Run app:**
    - Debug → Debug Tools → Shopping List Generator
 
-4. **Expected response:**
+5. **Expected response:**
    - Should show 3 items (oats, banana, milk)
    - Categories: grains, fruits, dairy
    - No warnings (valid stub data)
@@ -84,13 +84,12 @@ ios/PulsePlate/
 - Configuration section shows current BASE_URL and API key status
 
 **Common issues:**
-- Missing API key → Shows "Not configured" (orange)
+- Missing API key → Shows "Not configured" (orange); load a key via **PRO Settings → Debug Tools → Keychain**
 - Invalid URL → App crashes with clear fatalError message (DEBUG only)
 - Backend unreachable → Network error displayed in UI
 
 ## 🚀 Next Steps
 
-- [ ] Add Keychain integration for PRO_API_KEY storage
 - [ ] Add warnings sheet UI
 - [ ] Add empty state handling
 - [ ] Add pull-to-refresh
@@ -101,3 +100,4 @@ ios/PulsePlate/
 - Debug вкладка **автоматически скрывается** в Release builds (`#if DEBUG`)
 - Stub plan data соответствует backend contract (minimal valid daily_menus)
 - Все localization keys уже добавлены (EN/RU/ES)
+- Runtime PRO access is Keychain-backed; do not rely on Xcode environment variables for secrets

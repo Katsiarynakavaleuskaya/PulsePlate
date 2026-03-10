@@ -268,16 +268,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067
-  - Status: 🟡 Reopened / In progress (PR #1011 merged the guard baseline; runtime Keychain-only conformance follow-up is still required)
-  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail. PR #1011 merged the guard baseline, and this follow-up PR is intended to complete the remaining runtime requirement by removing the `ProcessInfo` DEBUG fallback so Keychain becomes the only secret source in app runtime.
+  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE -> PR #1011 (`feat/p1-ios-keychain-conformance`) -> PR #1067 -> PR-TBD-IOS-KEYCHAIN-CONFORMANCE-PR2 (`feat/p1-ios-keychain-conformance-pr2`)
+  - Status: 🟡 In progress (runtime Keychain-only behavior is already on `main`; this follow-up tightens canonical test-surface coverage and current-state setup docs)
+  - Reason (EN): Master checklist item #5 remains active until the repo's canonical iOS enforcement surfaces match runtime truth. The `ProcessInfo` fallback has already been removed from `ProKeyProvider`, but default iOS test lanes and current-state setup docs still need to encode the Keychain-only invariant so future drift is caught by default.
   - Links:
     - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
     - ios/PulsePlate/Services/KeychainStore.swift
     - ios/PulsePlate/Services/ProKeyProvider.swift
     - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+    - ios/PulsePlateTests/Services/ProKeyProviderTests.swift
+    - ios/PulsePlateTests/Services/KeychainStoreTests.swift
+    - ios/SHOPPING_LIST_SETUP.md
   - DoD:
-    - iOS secret paths are verified to use Keychain storage only
+    - iOS runtime secret paths are verified to use Keychain storage only
+    - Default local and CI iOS test surfaces include Keychain provider roundtrip/ignore-env coverage
+    - Current-state iOS setup docs no longer advertise `PRO_API_KEY` or placeholder fallback as runtime auth truth
     - Guard tests prevent regression to insecure storage
 
 <a id="ledger-p1-diet-flags-contract-sync"></a>
