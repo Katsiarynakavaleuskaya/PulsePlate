@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import httpx
 import json
-from typing import Any
+from typing import Any, overload
 from uuid import uuid4
 
 from sqlalchemy import delete
@@ -372,8 +372,8 @@ def _normalize_legacy_activation(
 ) -> NormalizedActivation:
     """Normalize legacy activation requests from the additive billing surface."""
 
-    assert payload.plan is not None
-    assert payload.client_event_id is not None
+    if payload.plan is None or payload.client_event_id is None:
+        raise ValueError("legacy activation requires plan and client_event_id")
     status, reconcile_status = _resolve_legacy_status(
         source=payload.source,
         verification_ok=payload.verification_ok,
@@ -381,7 +381,9 @@ def _normalize_legacy_activation(
     requested_tier = _plan_to_subscription_tier(payload.plan)
     activated_at = _utc_now() if status is SubscriptionStatus.active else None
     raw_product_id = payload.verification_payload.get("product_id")
-    product_id = raw_product_id if isinstance(raw_product_id, str) and raw_product_id.strip() else None
+    product_id = (
+        raw_product_id if isinstance(raw_product_id, str) and raw_product_id.strip() else None
+    )
     amount_minor = payload.verification_payload.get("amount_minor")
     submitted_amount_minor = amount_minor if isinstance(amount_minor, int) else None
     raw_currency = payload.verification_payload.get("currency")
@@ -393,9 +395,11 @@ def _normalize_legacy_activation(
         source=payload.source,
         tier=requested_tier,
         status=status,
-        platform=PaymentPlatform.ios
-        if payload.source is PaymentSource.ios_app_store
-        else PaymentPlatform.web,
+        platform=(
+            PaymentPlatform.ios
+            if payload.source is PaymentSource.ios_app_store
+            else PaymentPlatform.web
+        ),
         idempotency_key=f"legacy:{payload.source.value}:{payload.client_event_id}",
         payload_hash=_hash_payload(safe_payload),
         source_reference=payload.external_txn_id or payload.client_event_id,
@@ -556,7 +560,9 @@ def _to_response(
             "platform": platform,
             "product_id": subscription.product_id if subscription is not None else audit.product_id,
             "source_reference": (
-                subscription.source_reference if subscription is not None else audit.source_reference
+                subscription.source_reference
+                if subscription is not None
+                else audit.source_reference
             ),
             "expires_at": subscription.expires_at if subscription is not None else audit.expires_at,
             "activated_at": (
@@ -939,6 +945,24 @@ async def verify_apple_receipt(receipt_data: str) -> AppleReceiptVerificationRes
     )
 
 
+@overload
+def activate_subscription(
+    *,
+    payload: ActivateSubscriptionRequest,
+    user_id: int,
+    issuer: None = None,
+) -> SubscriptionActivationResponse: ...
+
+
+@overload
+def activate_subscription(
+    *,
+    payload: ActivateSubscriptionRequest,
+    user_id: None = None,
+    issuer: str,
+) -> tuple[SubscriptionActivationResponse, bool]: ...
+
+
 def activate_subscription(
     *,
     payload: ActivateSubscriptionRequest,
@@ -1072,7 +1096,9 @@ def get_reconcile_activation_status(
         if audit.user_id != resolved_user_id:
             raise ActivationAccessForbiddenError("activation access forbidden")
         if audit.source == PaymentSource.ios_app_store.value:
-            raise ActivationStateError("manual reconciliation status is unavailable for ios_app_store")
+            raise ActivationStateError(
+                "manual reconciliation status is unavailable for ios_app_store"
+            )
         subscription = subscriptions_store.get_subscription_by_id(
             session=session,
             subscription_id=audit.subscription_id,
@@ -1160,7 +1186,9 @@ def reconcile_activation(
             raise ActivationNotFoundError("activation not found")
         if replay_audit is not None:
             if replay_audit.payload_hash != payload_hash:
-                raise IdempotencyConflictError("client_event_id conflict: reconcile payload mismatch")
+                raise IdempotencyConflictError(
+                    "client_event_id conflict: reconcile payload mismatch"
+                )
             return _to_response(
                 activation_id=payload.intent_id,
                 audit=initial_audit,
@@ -1190,9 +1218,7 @@ def reconcile_activation(
             if payload.decision is ReconcileDecision.verified
             else SubscriptionStatus.rejected.value
         )
-        subscription.activated_at = (
-            now if payload.decision is ReconcileDecision.verified else None
-        )
+        subscription.activated_at = now if payload.decision is ReconcileDecision.verified else None
         subscription.updated_at = now
 
         initial_summary = initial_audit.evidence_summary or {}

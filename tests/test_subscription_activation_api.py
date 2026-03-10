@@ -13,7 +13,17 @@ from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models import Subscription, SubscriptionActivationAudit
-from app.schemas.payments import IOSVerifiedActivationResult, ManualActivationPayload
+from app.schemas.payments import (
+    ActivateSubscriptionRequest,
+    IOSAppStoreActivationPayload,
+    IOSVerifiedActivationResult,
+    ManualActivationPayload,
+    PaymentSource,
+    ReconcileStatus,
+    SubscriptionActivationResponse,
+    SubscriptionStatus,
+    SubscriptionTier,
+)
 from app.services import payments_activation
 from core import db as core_db
 
@@ -428,6 +438,25 @@ def test_ios_verified_result_requires_expires_at_for_active_status() -> None:
         )
 
 
+def test_ios_verified_result_allows_missing_expires_at_for_rejected_status() -> None:
+    result = IOSVerifiedActivationResult.model_validate(
+        {
+            "transaction_id": "txn-rejected-1",
+            "product_id": "product-id",
+            "subscription_tier": "pro",
+            "status": "rejected",
+            "platform": "ios",
+        }
+    )
+
+    assert result.expires_at is None
+
+
+def test_ios_payload_validator_passthrough_branches() -> None:
+    assert IOSAppStoreActivationPayload._normalize_receipt_data(None) is None
+    assert IOSAppStoreActivationPayload._normalize_receipt_data(123) == 123
+
+
 def test_manual_payload_allows_missing_optional_amount_and_currency() -> None:
     payload = ManualActivationPayload.model_validate(
         {
@@ -441,6 +470,64 @@ def test_manual_payload_allows_missing_optional_amount_and_currency() -> None:
     assert payload.submitted_currency is None
 
 
+def test_activate_subscription_request_legacy_requires_client_event_id() -> None:
+    with pytest.raises(ValueError, match="client_event_id is required when payload is omitted"):
+        ActivateSubscriptionRequest.model_validate(
+            {
+                "source": "ios_app_store",
+                "plan": "pro_monthly",
+            }
+        )
+
+
+def test_legacy_request_accessors_reject_payload_lookup() -> None:
+    request = ActivateSubscriptionRequest.model_validate(
+        {
+            "source": "erip_qr",
+            "plan": "pro_monthly",
+            "client_event_id": "evt-legacy-accessor-1",
+        }
+    )
+
+    with pytest.raises(ValueError, match="ios activation payload is unavailable"):
+        request.get_ios_payload()
+    with pytest.raises(ValueError, match="manual activation payload is unavailable"):
+        request.get_manual_payload()
+
+
+def test_subscription_activation_response_fills_compatibility_fields() -> None:
+    response = SubscriptionActivationResponse.model_validate(
+        {
+            "activation_id": "activation-1",
+            "source": "ios_app_store",
+            "tier": "pro",
+            "status": "active",
+            "platform": "ios",
+        }
+    )
+
+    assert response.intent_id == "activation-1"
+    assert response.audit_id == "activation-1"
+    assert response.payment_source == PaymentSource.ios_app_store
+    assert response.subscription_tier is not None
+    assert response.subscription_tier.value == "pro"
+
+
+def test_subscription_activation_response_fills_canonical_fields_from_legacy_values() -> None:
+    response = SubscriptionActivationResponse.model_validate(
+        {
+            "activation_id": "activation-2",
+            "payment_source": "swift_manual",
+            "subscription_tier": "vip",
+            "status": "pending_verification",
+            "platform": "web",
+        }
+    )
+
+    assert response.source == PaymentSource.swift_manual
+    assert response.tier == SubscriptionTier.vip
+
+
 def test_internal_helper_handles_none_receipt_and_none_amount() -> None:
     assert payments_activation._hash_receipt(None) is None
     assert payments_activation._amount_to_minor_units(None) is None
@@ -449,6 +536,100 @@ def test_internal_helper_handles_none_receipt_and_none_amount() -> None:
 def test_internal_helper_rejects_invalid_amount() -> None:
     with pytest.raises(ValueError, match="submitted_amount must be a valid decimal string"):
         payments_activation._amount_to_minor_units("not-a-number")
+
+
+def test_internal_reconcile_status_helper_covers_all_paths() -> None:
+    assert (
+        payments_activation._reconcile_status_from_subscription_status(
+            status=SubscriptionStatus.pending_manual_review
+        )
+        == ReconcileStatus.pending
+    )
+    assert (
+        payments_activation._reconcile_status_from_subscription_status(
+            status=SubscriptionStatus.rejected
+        )
+        == ReconcileStatus.rejected
+    )
+    assert (
+        payments_activation._reconcile_status_from_subscription_status(
+            status=SubscriptionStatus.expired
+        )
+        == ReconcileStatus.verified
+    )
+    assert (
+        payments_activation._reconcile_status_from_subscription_status(
+            status=SubscriptionStatus.cancelled
+        )
+        == ReconcileStatus.not_required
+    )
+
+
+def test_internal_optional_parsers_fail_closed() -> None:
+    assert payments_activation._parse_optional_plan(123) is None
+    assert payments_activation._parse_optional_plan("enterprise") is None
+    assert payments_activation._parse_optional_subscription_tier_value(123) is None
+    assert payments_activation._parse_optional_subscription_tier_value("gold") is None
+    assert (
+        payments_activation._response_tier_value(
+            tier=SubscriptionTier.free,
+            evidence_summary={},
+        )
+        is None
+    )
+
+
+def test_internal_resolve_user_id_fail_closed() -> None:
+    with pytest.raises(ValueError, match="user_id or issuer is required"):
+        payments_activation._resolve_user_id(user_id=None, issuer=None)
+    with pytest.raises(ValueError, match="issuer is invalid"):
+        payments_activation._resolve_user_id(user_id=None, issuer="api_key:abc")
+    with pytest.raises(ValueError, match="issuer is invalid"):
+        payments_activation._resolve_user_id(user_id=None, issuer="subject:not-a-number")
+
+
+def test_internal_legacy_status_and_reconcile_status_parsers() -> None:
+    assert payments_activation._resolve_legacy_status(
+        source=PaymentSource.ios_app_store,
+        verification_ok=False,
+    ) == (SubscriptionStatus.rejected, ReconcileStatus.rejected)
+    assert payments_activation._resolve_legacy_status(
+        source=PaymentSource.erip_qr,
+        verification_ok=None,
+    ) == (SubscriptionStatus.pending_verification, ReconcileStatus.pending)
+    assert payments_activation._parse_optional_reconcile_status(123) is None
+    assert payments_activation._parse_optional_reconcile_status("unsupported") is None
+
+
+def test_internal_normalize_legacy_activation_rejects_missing_fields() -> None:
+    request = ActivateSubscriptionRequest.model_construct(
+        source=PaymentSource.ios_app_store,
+        payload=None,
+        plan=None,
+        client_event_id=None,
+        external_txn_id=None,
+        verification_ok=None,
+        verification_payload={},
+    )
+
+    with pytest.raises(ValueError, match="legacy activation requires plan and client_event_id"):
+        payments_activation._normalize_legacy_activation(payload=request)
+
+
+def test_internal_coerce_datetime_covers_fail_closed_paths() -> None:
+    naive = datetime(2026, 4, 1, 0, 0, 0)
+    aware = datetime(2026, 4, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    assert payments_activation._coerce_datetime(None) is None
+    assert payments_activation._coerce_datetime(naive) == naive.replace(tzinfo=timezone.utc)
+    assert payments_activation._coerce_datetime(aware) == aware
+    assert payments_activation._coerce_datetime("  ") is None
+    assert payments_activation._coerce_datetime("not-a-date") is None
+
+
+def test_issuer_from_api_key_rejects_blank_key() -> None:
+    with pytest.raises(ValueError, match="api_key is required"):
+        payments_activation.issuer_from_api_key("   ")
 
 
 def test_activate_subscription_rolls_back_on_sqlalchemy_error(
@@ -497,6 +678,152 @@ def test_activate_subscription_rolls_back_on_sqlalchemy_error(
         )
 
     assert session.rolled_back is True
+
+
+def test_get_reconcile_activation_status_returns_none_when_subscription_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummySession:
+        def close(self) -> None:
+            return None
+
+    audit = type(
+        "Audit",
+        (),
+        {
+            "id": "activation-1",
+            "user_id": 1,
+            "source": "erip_qr",
+            "subscription_id": "sub-1",
+        },
+    )()
+
+    monkeypatch.setattr(
+        payments_activation, "get_session_factory", lambda: (lambda: DummySession())
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_id",
+        lambda **_: audit,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_subscription_by_id",
+        lambda **_: None,
+    )
+
+    result = payments_activation.get_reconcile_activation_status("activation-1", user_id=1)
+    assert result is None
+
+
+def test_reconcile_activation_raises_not_found_when_subscription_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummySession:
+        def rollback(self) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    audit = type(
+        "Audit",
+        (),
+        {
+            "id": "activation-1",
+            "user_id": 1,
+            "source": "erip_qr",
+            "subscription_id": "sub-1",
+        },
+    )()
+
+    monkeypatch.setattr(
+        payments_activation, "get_session_factory", lambda: (lambda: DummySession())
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_id",
+        lambda **_: audit,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_user_key",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_subscription_by_id",
+        lambda **_: None,
+    )
+
+    with pytest.raises(payments_activation.ActivationNotFoundError, match="activation not found"):
+        payments_activation.reconcile_activation(
+            user_id=1,
+            payload=payments_activation.ManualRailReconcileRequest.model_validate(
+                {
+                    "intent_id": "activation-1",
+                    "client_event_id": "evt-reconcile-missing-sub-1",
+                    "decision": "verified",
+                }
+            ),
+        )
+
+
+def test_reconcile_activation_rejects_non_pending_subscription_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummySession:
+        def rollback(self) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    audit = type(
+        "Audit",
+        (),
+        {
+            "id": "activation-1",
+            "user_id": 1,
+            "source": "erip_qr",
+            "subscription_id": "sub-1",
+        },
+    )()
+    subscription = type("Subscription", (), {"status": "active"})()
+
+    monkeypatch.setattr(
+        payments_activation, "get_session_factory", lambda: (lambda: DummySession())
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_id",
+        lambda **_: audit,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_audit_by_user_key",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        payments_activation.subscriptions_store,
+        "get_subscription_by_id",
+        lambda **_: subscription,
+    )
+
+    with pytest.raises(
+        payments_activation.ActivationStateError,
+        match="manual reconcile transition requires pending state",
+    ):
+        payments_activation.reconcile_activation(
+            user_id=1,
+            payload=payments_activation.ManualRailReconcileRequest.model_validate(
+                {
+                    "intent_id": "activation-1",
+                    "client_event_id": "evt-reconcile-active-sub-1",
+                    "decision": "verified",
+                }
+            ),
+        )
 
 
 def test_reset_state_rolls_back_on_sqlalchemy_error(
