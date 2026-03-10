@@ -105,6 +105,31 @@ Disposition: FIXED
 Commit: 6849444e
 Evidence: tests/test_fitchef_insight_api.py:653
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908279327 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: app/services/fitchef_runtime.py:463
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908279331 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: app/schemas/fitchef_coaching.py:38
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908279336 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: app/schemas/fitchef_coaching.py:39
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908279338 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: tests/test_fitchef_insight_api.py:30
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1065#discussion_r2908279344 -> 022b88b3
+Disposition: FIXED
+Commit: 022b88b3
+Evidence: tests/test_fitchef_insight_api.py:66
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
