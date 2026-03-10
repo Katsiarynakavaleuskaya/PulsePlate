@@ -8,6 +8,7 @@ import subprocess
 
 import pytest
 
+from app.security.execution_sandbox import SandboxResult
 import scripts.orchestration.experiment_contract as experiment_contract
 import scripts.orchestration.experiment_runner as experiment_runner
 
@@ -27,8 +28,7 @@ def _init_repo(tmp_path: Path) -> Path:
     (repo / "core" / "rag").mkdir(parents=True)
     (repo / "docs" / "orchestration").mkdir(parents=True)
     (repo / "core" / "rag" / "allowed.py").write_text(
-        "def candidate_value() -> int:\n"
-        "    return 1\n",
+        "def candidate_value() -> int:\n" "    return 1\n",
         encoding="utf-8",
     )
     (repo / "docs" / "orchestration" / "workflow.md").write_text(
@@ -54,7 +54,9 @@ def _write_patch(repo: Path, relative_path: str, new_text: str, patch_path: Path
     return patch_path
 
 
-def _base_packet(*, mutable_path: str, oracle_command: str, experiment_id: str = "exp-test") -> dict[str, object]:
+def _base_packet(
+    *, mutable_path: str, oracle_command: str, experiment_id: str = "exp-test"
+) -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
@@ -99,6 +101,19 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     return validated
 
 
+def test_validate_packet_rejects_wrong_schema_version() -> None:
+    """Runner input must fail closed on incompatible packet schema versions."""
+
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["schema_version"] = "0.9"
+
+    with pytest.raises(ValueError, match="schema_version"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
 def test_evaluate_candidate_accepts_allowlisted_patch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -108,15 +123,14 @@ def test_evaluate_candidate_accepts_allowlisted_patch(
     patch_path = _write_patch(
         repo,
         "core/rag/allowed.py",
-        "def candidate_value() -> int:\n"
-        "    return 2\n",
+        "def candidate_value() -> int:\n" "    return 2\n",
         tmp_path / "accepted.patch",
     )
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
             oracle_command=(
-                "python3 -c \"from pathlib import Path; import sys; "
+                'python3 -c "from pathlib import Path; import sys; '
                 "sys.exit(0 if 'return 2' in Path('core/rag/allowed.py').read_text() else 1)\""
             ),
         )
@@ -147,7 +161,7 @@ def test_evaluate_candidate_rejects_forbidden_patch_target(
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
-            oracle_command="python3 -c \"import sys; sys.exit(0)\"",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
         )
     )
 
@@ -177,7 +191,7 @@ def test_evaluate_candidate_rejects_traversal_patch_path(
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
-            oracle_command="python3 -c \"import sys; sys.exit(0)\"",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
         )
     )
 
@@ -198,7 +212,7 @@ def test_evaluate_candidate_returns_unchanged_result_for_empty_patch(
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
-            oracle_command="python3 -c \"import sys; sys.exit(0)\"",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
         )
     )
 
@@ -218,14 +232,13 @@ def test_evaluate_candidate_maps_nonzero_oracle_to_guard_failure(
     patch_path = _write_patch(
         repo,
         "core/rag/allowed.py",
-        "def candidate_value() -> int:\n"
-        "    return 2\n",
+        "def candidate_value() -> int:\n" "    return 2\n",
         tmp_path / "guard.patch",
     )
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
-            oracle_command="python3 -c \"import sys; sys.exit(3)\"",
+            oracle_command='python3 -c "import sys; sys.exit(3)"',
         )
     )
 
@@ -245,13 +258,12 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
     patch_path = _write_patch(
         repo,
         "core/rag/allowed.py",
-        "def candidate_value() -> int:\n"
-        "    return 2\n",
+        "def candidate_value() -> int:\n" "    return 2\n",
         tmp_path / "timeout.patch",
     )
     packet = _base_packet(
         mutable_path="core/rag/allowed.py",
-        oracle_command="python3 -c \"import time; time.sleep(2)\"",
+        oracle_command='python3 -c "import time; time.sleep(2)"',
     )
     packet["budgets"] = {
         **packet["budgets"],
@@ -264,6 +276,102 @@ def test_evaluate_candidate_maps_timeout_oracle_to_timeout(
     assert result["status"] == "rejected"
     assert result["failure_class"] == "timeout"
     assert result["oracle_results"][0]["timed_out"] is True
+
+
+def test_evaluate_candidate_maps_sandbox_exception_to_infra_flake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sandbox failures must return a deterministic infra_flake result artifact."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "sandbox-exception.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+        )
+    )
+
+    def _raise_sandbox_error(*_args: object, **_kwargs: object) -> SandboxResult:
+        raise RuntimeError("sandbox exploded")
+
+    monkeypatch.setattr(
+        experiment_runner.sandbox,
+        "run_local_sandbox",
+        _raise_sandbox_error,
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert "sandbox exploded" in result["budget_observations"]["runner_error"]
+    assert result["shared_tree_untouched"] is True
+
+
+def test_evaluate_candidate_enforces_total_wall_clock_budget_across_oracles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Total wall_clock_seconds must bound the full oracle sequence, not each command."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "budget.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["immutable_oracles"] = [
+        {"command": 'python3 -c "import sys; sys.exit(0)"', "expected_signal": "must pass"},
+        {"command": 'python3 -c "import sys; sys.exit(0)"', "expected_signal": "must pass"},
+    ]
+    packet["budgets"] = {
+        **packet["budgets"],
+        "wall_clock_seconds": 1,
+    }
+    validated_packet = _validate_packet(packet)
+
+    monotonic_values = iter([0.0, 0.0, 1.6])
+    monkeypatch.setattr(
+        experiment_runner.time,
+        "monotonic",
+        lambda: next(monotonic_values),
+    )
+    monkeypatch.setattr(
+        experiment_runner.sandbox,
+        "run_local_sandbox",
+        lambda *_args, **_kwargs: SandboxResult(
+            argv=("python3", "-c", "import sys; sys.exit(0)"),
+            returncode=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=".",
+        ),
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "timeout"
+    assert len(result["oracle_results"]) == 2
+    assert result["oracle_results"][0]["returncode"] == 0
+    assert result["oracle_results"][1]["timed_out"] is True
+    assert result["budget_observations"]["oracle_commands_executed"] == 2
 
 
 def test_evaluate_candidate_maps_non_applicable_patch_to_infra_flake(
@@ -285,7 +393,7 @@ def test_evaluate_candidate_maps_non_applicable_patch_to_infra_flake(
     packet = _validate_packet(
         _base_packet(
             mutable_path="core/rag/allowed.py",
-            oracle_command="python3 -c \"import sys; sys.exit(0)\"",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
         )
     )
 
@@ -306,8 +414,7 @@ def test_main_writes_result_inside_artifact_dir(
     patch_path = _write_patch(
         repo,
         "core/rag/allowed.py",
-        "def candidate_value() -> int:\n"
-        "    return 2\n",
+        "def candidate_value() -> int:\n" "    return 2\n",
         tmp_path / "cli.patch",
     )
     packet_path.write_text(
@@ -315,7 +422,7 @@ def test_main_writes_result_inside_artifact_dir(
             _base_packet(
                 mutable_path="core/rag/allowed.py",
                 oracle_command=(
-                    "python3 -c \"from pathlib import Path; import sys; "
+                    'python3 -c "from pathlib import Path; import sys; '
                     "sys.exit(0 if 'return 2' in Path('core/rag/allowed.py').read_text() else 1)\""
                 ),
                 experiment_id="exp-cli",
@@ -345,6 +452,9 @@ def test_main_writes_result_inside_artifact_dir(
     assert result_path.exists()
     written = json.loads(result_path.read_text(encoding="utf-8"))
     assert written["experiment_id"] == "exp-cli"
-    assert json.loads(captured.out)["output"] == (
-        Path("artifacts/orchestration/experiments/results") / "nested" / "result.json"
-    ).as_posix()
+    assert (
+        json.loads(captured.out)["output"]
+        == (
+            Path("artifacts/orchestration/experiments/results") / "nested" / "result.json"
+        ).as_posix()
+    )

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import shlex
@@ -19,6 +20,7 @@ import shutil
 import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-07-31, ref: PR-1082)
 import sys
 import tempfile
+import time
 from typing import Any, Iterator
 
 RUNNER_REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -192,8 +194,7 @@ def _validate_patch_targets(packet: dict[str, Any], mutated_paths: list[str]) ->
     if invalid_paths:
         joined = ", ".join(invalid_paths)
         raise PolicyViolationError(
-            "Candidate patch touches paths outside mutable_candidate_surface: "
-            f"{joined}"
+            "Candidate patch touches paths outside mutable_candidate_surface: " f"{joined}"
         )
 
 
@@ -317,41 +318,65 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
     return "guard_failure"
 
 
-def _run_oracles(packet: dict[str, Any], checkout_root: Path) -> tuple[list[dict[str, Any]], str | None]:
+def _run_oracles(
+    packet: dict[str, Any], checkout_root: Path
+) -> tuple[list[dict[str, Any]], str | None]:
     """Execute immutable oracle commands in the isolated sandbox root."""
 
     oracle_results: list[dict[str, Any]] = []
     failure_class: str | None = None
-    requests = [
-        _command_to_request(oracle["command"]) for oracle in packet["immutable_oracles"]
-    ]
+    requests = [_command_to_request(oracle["command"]) for oracle in packet["immutable_oracles"]]
     allowed_binaries = tuple(sorted({request.binary for request in requests}))
-    timeout_seconds = int(packet["budgets"]["wall_clock_seconds"])
+    total_wall_clock_seconds = int(packet["budgets"]["wall_clock_seconds"])
+    started_at = time.monotonic()
 
-    with _temporary_sandbox_env(
-        sandbox_root=checkout_root,
-        allowed_binaries=allowed_binaries,
-        timeout_seconds=timeout_seconds,
-    ):
-        for oracle, request in zip(packet["immutable_oracles"], requests, strict=True):
-            result = sandbox.run_local_sandbox(
-                request,
-                allowlist={("sandbox.exec", "local://sandbox")},
-            )
+    for oracle, request in zip(packet["immutable_oracles"], requests, strict=True):
+        remaining_seconds = total_wall_clock_seconds - (time.monotonic() - started_at)
+        if remaining_seconds < 1:
             oracle_results.append(
                 {
                     "command": oracle["command"],
-                    "returncode": result.returncode,
-                    "timed_out": result.timed_out,
-                    "truncated": result.truncated,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "cwd": result.cwd,
+                    "returncode": 124,
+                    "timed_out": True,
+                    "truncated": False,
+                    "stdout": "",
+                    "stderr": "Experiment wall_clock_seconds budget exhausted before oracle start.",
+                    "cwd": str(checkout_root),
                 }
             )
-            if result.returncode != 0 and failure_class is None:
-                failure_class = _classify_oracle_failure(result)
-                break
+            failure_class = "timeout"
+            break
+
+        timeout_seconds = max(1, math.floor(remaining_seconds))
+        with _temporary_sandbox_env(
+            sandbox_root=checkout_root,
+            allowed_binaries=allowed_binaries,
+            timeout_seconds=timeout_seconds,
+        ):
+            try:
+                result = sandbox.run_local_sandbox(
+                    request,
+                    allowlist={("sandbox.exec", "local://sandbox")},
+                )
+            except Exception as exc:
+                raise InfraFlakeError(
+                    f"Sandbox oracle execution failed for {oracle['command']}: {exc}"
+                ) from exc
+
+        oracle_results.append(
+            {
+                "command": oracle["command"],
+                "returncode": result.returncode,
+                "timed_out": result.timed_out,
+                "truncated": result.truncated,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "cwd": result.cwd,
+            }
+        )
+        if result.returncode != 0 and failure_class is None:
+            failure_class = _classify_oracle_failure(result)
+            break
 
     return oracle_results, failure_class
 

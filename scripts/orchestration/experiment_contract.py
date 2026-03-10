@@ -188,6 +188,13 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(packet, dict):
         raise ValueError("Experiment packet must be a JSON object.")
 
+    schema_version = str(packet.get("schema_version", "")).strip()
+    if schema_version != SCHEMA_VERSION:
+        raise ValueError(
+            f"Experiment packet schema_version must equal {SCHEMA_VERSION!r}, "
+            f"got {schema_version!r}."
+        )
+
     experiment_id = str(packet.get("experiment_id", "")).strip()
     if not experiment_id:
         raise ValueError("Experiment packet must include a non-empty experiment_id.")
@@ -225,11 +232,7 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Experiment packet budgets must be an object.")
     stop_condition = str(budgets_raw.get("stop_condition", DEFAULT_STOP_CONDITION)).strip()
     validated_budgets = validate_budget_payload(
-        {
-            key: int(budgets_raw[key])
-            for key in DEFAULT_BUDGETS
-            if key in budgets_raw
-        }
+        {key: int(budgets_raw[key]) for key in DEFAULT_BUDGETS if key in budgets_raw}
     )
 
     metrics_raw = packet.get("metrics")
@@ -241,9 +244,7 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Experiment packet metrics.secondary must be a list.")
     metric_payload = validate_metrics(
         [primary_metric, *[str(item) for item in secondary_metrics_raw]],
-        baseline_reference=str(
-            metrics_raw.get("baseline_reference", DEFAULT_METRIC_BASELINE_REF)
-        ),
+        baseline_reference=str(metrics_raw.get("baseline_reference", DEFAULT_METRIC_BASELINE_REF)),
         acceptance_threshold=str(
             metrics_raw.get(
                 "acceptance_threshold",
@@ -255,14 +256,12 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     negative_controls_raw = packet.get("negative_controls")
     if not isinstance(negative_controls_raw, list):
         raise ValueError("Experiment packet negative_controls must be a list.")
-    negative_controls = validate_negative_controls(
-        [str(item) for item in negative_controls_raw]
-    )
+    negative_controls = validate_negative_controls([str(item) for item in negative_controls_raw])
 
     promotion_target = validate_promotion_target(str(packet.get("promotion_target", "")))
 
     normalized = dict(packet)
-    normalized["schema_version"] = str(packet.get("schema_version", SCHEMA_VERSION))
+    normalized["schema_version"] = schema_version
     normalized["experiment_id"] = experiment_id
     normalized["decision_question"] = decision_question
     normalized["task_class"] = task_class
