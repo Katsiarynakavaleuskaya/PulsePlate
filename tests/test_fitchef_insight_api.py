@@ -6,11 +6,13 @@ EN: Tests for the VIP-only FitChef mascot insight endpoint.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
+from httpx import Response
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_VIP
@@ -25,12 +27,12 @@ if TYPE_CHECKING:
     from core.rag.contracts import RAGContext
 
 
-def _json_body(response: object) -> object:
+def _json_body(response: Response) -> dict[str, object]:
     """Assert JSON content-type before decoding."""
 
-    content_type = getattr(response, "headers", {}).get("content-type", "")
+    content_type = response.headers.get("content-type", "")
     assert content_type.startswith("application/json")
-    return getattr(response, "json")()
+    return cast(dict[str, object], response.json())
 
 
 def _make_rag_context(
@@ -61,7 +63,7 @@ class TestFitChefMascotTierAndFlags:
         vip_headers: dict[str, str],
         pro_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
-        tmp_path: object,
+        tmp_path: Path,
     ) -> None:
         self.client = client
         self.vip_headers = vip_headers
@@ -212,7 +214,7 @@ class TestFitChefMascotRuntimeBehavior:
         client: TestClient,
         vip_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
-        tmp_path: object,
+        tmp_path: Path,
     ) -> None:
         self.client = client
         self.vip_headers = vip_headers
@@ -340,6 +342,10 @@ class TestFitChefMascotRuntimeBehavior:
                 responses[status]["content"]["application/json"]["schema"]["$ref"]
                 == "#/components/schemas/FitChefCoachingErrorResponse"
             )
+        success_schema = responses["200"]["content"]["application/json"]["schema"]
+        assert success_schema["$ref"] == "#/components/schemas/FitChefMascotInsightResponse"
+        required = set(schema["components"]["schemas"]["FitChefMascotInsightResponse"]["required"])
+        assert {"scenario", "sources", "warnings", "action_items"} <= required
 
 
 class TestFitChefMascotRuntimeCoverage:
@@ -434,6 +440,7 @@ class TestFitChefMascotRuntimeCoverage:
         assert len(result.sources) == 1
         assert result.sources[0].file == "docs/design/NUTRITION_COACHING_DESIGN.md"
         assert "[EMAIL_REDACTED]" in result.sources[0].preview
+        assert "source_content_redacted" in result.warnings
 
     @pytest.mark.asyncio
     async def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:

@@ -35,11 +35,11 @@ class FitChefMascotInsightResponse(BaseModel):
     """Public mascot insight response envelope."""
 
     message: str = Field(..., min_length=1)
-    scenario: Literal["mascot_insight"] = "mascot_insight"
-    sources: list[FitChefCoachingSourceItem] = Field(default_factory=list)
+    scenario: Literal["mascot_insight"] = Field(...)
+    sources: list[FitChefCoachingSourceItem] = Field(...)
     confidence: float = Field(..., ge=0.0, le=1.0)
-    warnings: list[str] = Field(default_factory=list)
-    action_items: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(...)
+    action_items: list[str] = Field(...)
     quota_state: Literal["not_consumed", "consumed"]
     transparency_notice_id: str
     wellness_boundary: str

@@ -2431,7 +2431,7 @@ export interface components {
          */
         FitChefMascotInsightResponse: {
             /** Action Items */
-            action_items?: string[];
+            action_items: string[];
             /** Confidence */
             confidence: number;
             /** Message */
@@ -2443,16 +2443,15 @@ export interface components {
             quota_state: "not_consumed" | "consumed";
             /**
              * Scenario
-             * @default mascot_insight
              * @constant
              */
             scenario: "mascot_insight";
             /** Sources */
-            sources?: components["schemas"]["FitChefCoachingSourceItem"][];
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
             /** Transparency Notice Id */
             transparency_notice_id: string;
             /** Warnings */
-            warnings?: string[];
+            warnings: string[];
             /** Wellness Boundary */
             wellness_boundary: string;
         };

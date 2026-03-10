@@ -1805,7 +1805,6 @@
           },
           "scenario": {
             "const": "mascot_insight",
-            "default": "mascot_insight",
             "title": "Scenario",
             "type": "string"
           },
@@ -1834,7 +1833,11 @@
         },
         "required": [
           "message",
+          "scenario",
+          "sources",
           "confidence",
+          "warnings",
+          "action_items",
           "quota_state",
           "transparency_notice_id",
           "wellness_boundary"

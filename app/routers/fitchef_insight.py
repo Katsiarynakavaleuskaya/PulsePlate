@@ -100,6 +100,7 @@ async def fitchef_mascot_insight(
     result = await fitchef_runtime.run_mascot_insight_task(task)
     response: FitChefMascotInsightResponse = FitChefMascotInsightResponse(
         message=result.message,
+        scenario="mascot_insight",
         sources=[
             FitChefCoachingSourceItem(
                 file=item.file,

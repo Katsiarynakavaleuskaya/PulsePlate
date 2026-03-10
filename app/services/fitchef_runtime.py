@@ -422,6 +422,8 @@ async def run_mascot_insight_task(
     confidence = 0.0
     warnings: list[str] = []
     quota_state: FitChefQuotaState = "not_consumed"
+    redaction_applied = False
+    sanitization_applied = False
 
     try:
         await run_in_threadpool(
@@ -459,7 +461,11 @@ async def run_mascot_insight_task(
             context_parts: list[str] = []
             for chunk in rag_ctx.chunks:
                 sanitized_chunk = sanitize_rag_markdown(chunk.content)
+                if sanitized_chunk != chunk.content:
+                    sanitization_applied = True
                 sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
+                if sanitized_content != sanitized_chunk:
+                    redaction_applied = True
                 if not sanitized_content.strip():
                     continue
                 context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
@@ -477,6 +483,11 @@ async def run_mascot_insight_task(
     except Exception:
         logger.warning("FitChef mascot RAG retrieval failed", exc_info=True)
         warnings.append("rag_retrieval_failed")
+
+    if sanitization_applied:
+        warnings.append("source_content_sanitized")
+    if redaction_applied:
+        warnings.append("source_content_redacted")
 
     transparency_notice = get_transparency_registry().get("ai_generated_insight")
     if transparency_notice is None:
