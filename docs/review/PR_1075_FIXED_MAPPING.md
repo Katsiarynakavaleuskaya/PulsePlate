@@ -7,7 +7,11 @@ This artifact remains scoped to PR `#1075` only.
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 3617401f
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075#discussion_r2911251623 -> 3617401f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075#pullrequestreview-3921854659 -> 3617401f
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
