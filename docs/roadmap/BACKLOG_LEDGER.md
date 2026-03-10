@@ -653,14 +653,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-worker-proxy-hardening"></a>
-- [ ] P1: Lock down Cloudflare worker proxy before any public deployment
+- [x] P1: Lock down Cloudflare worker proxy before any public deployment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
-  - Status: 🟡 In progress (supported runtime is being bounded to first-party `/api/*` proxy use only)
+  - Status: ✅ Merged evidence (worker runtime on `main` is now bounded to first-party `/api/*` proxy use only)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
-  - Reason: `worker.js` currently forwards arbitrary paths with wildcard CORS and passes through `Authorization`. This PR lane keeps the worker supported, but hardens it into a bounded first-party API proxy: `/api/*` only, `GET/POST/OPTIONS` only, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS.
+  - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
   - Links:
     - `worker.js`
     - `docs/security/SECURITY_POSTURE.md`
