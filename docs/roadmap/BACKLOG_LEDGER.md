@@ -2804,6 +2804,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
   - Related follow-up: PR #1087 (`fix/p0-app-package-bootstrap-alignment`)
+  - Related follow-up status: ✅ Merged (PR #1087, 2026-03-10)
+  - Related follow-up SHA: `4e5ce31a08ec03393f70b59d3c93b811edb43633`
   - Status: ✅ Merged evidence (PR #1082 bounded the worker runtime to first-party `/api/*` proxy use only; PR #1087 then re-aligned the `app` package bootstrap on `main` so additive public runtime/OpenAPI surfaces stay visible through `import app`)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
@@ -2813,6 +2815,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/deploy/PRODUCTION.md`
     - `tests/test_worker_proxy_contract.py`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087`
     - `docs/review/PR_1087_FIXED_MAPPING.md`
   - DoD:
     - Worker path scope is allowlisted to `/api/*`
