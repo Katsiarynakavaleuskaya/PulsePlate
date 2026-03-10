@@ -2803,7 +2803,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
-  - Status: ✅ Merged evidence (worker runtime on `main` is now bounded to first-party `/api/*` proxy use only)
+  - Related follow-up: PR #1087 (`fix/p0-app-package-bootstrap-alignment`)
+  - Status: ✅ Merged evidence (PR #1082 bounded the worker runtime to first-party `/api/*` proxy use only; PR #1087 then re-aligned the `app` package bootstrap on `main` so additive public runtime/OpenAPI surfaces stay visible through `import app`)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
   - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
@@ -2812,6 +2813,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/deploy/PRODUCTION.md`
     - `tests/test_worker_proxy_contract.py`
+    - `docs/review/PR_1087_FIXED_MAPPING.md`
   - DoD:
     - Worker path scope is allowlisted to `/api/*`
     - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
