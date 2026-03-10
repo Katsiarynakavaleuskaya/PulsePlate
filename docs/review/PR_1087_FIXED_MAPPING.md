@@ -1,11 +1,11 @@
 # PR 1087 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Initial state: no review threads or actionable bot comments mapped yet.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
