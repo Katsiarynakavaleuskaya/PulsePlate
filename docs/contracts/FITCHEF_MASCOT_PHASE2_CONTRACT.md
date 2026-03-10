@@ -46,8 +46,8 @@ surface stable.
 
 ## Public contract freeze
 
-Approved contract paths for this wave — not yet implemented; runtime delivery is
-deferred to follow-up PRs:
+Approved contract paths for this wave — runtime delivery remains slice-based and
+must land through separate follow-up PRs:
 
 - `POST /api/v1/insight/fitchef`
 - `POST /api/v1/insight/fitchef/weekly-reflection`

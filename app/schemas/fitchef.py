@@ -10,7 +10,13 @@ from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
 
 FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
-FitChefTaskType = Literal["coach_insight", "weekly_plan", "shopping_followup", "mascot_insight"]
+FitChefTaskType = Literal[
+    "coach_insight",
+    "weekly_plan",
+    "shopping_followup",
+    "mascot_insight",
+    "weekly_reflection",
+]
 FitChefQuotaState = Literal["not_consumed", "consumed"]
 
 
@@ -53,6 +59,23 @@ class FitChefMascotInsightTaskEnvelope(FitChefTaskEnvelope):
 
     task_type: Literal["mascot_insight"] = "mascot_insight"
     input: FitChefMascotInsightInput
+
+
+class FitChefWeeklyReflectionInput(BaseModel):
+    """Internal weekly-reflection task input. / Входные данные weekly-reflection задачи."""
+
+    safe_summary: str = Field(..., min_length=1)
+    safe_goal: str | None = None
+    api_key: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    method: str = Field(..., min_length=1)
+
+
+class FitChefWeeklyReflectionTaskEnvelope(FitChefTaskEnvelope):
+    """Weekly-reflection task envelope. / Envelope для weekly-reflection."""
+
+    task_type: Literal["weekly_reflection"] = "weekly_reflection"
+    input: FitChefWeeklyReflectionInput
 
 
 class FitChefWeeklyPlanInput(BaseModel):
@@ -98,6 +121,21 @@ class FitChefMascotInsightResult(BaseModel):
 
     message: str
     scenario: Literal["mascot_insight"] = "mascot_insight"
+    sources: list[FitChefSourceItem]
+    confidence: float
+    warnings: list[str]
+    action_items: list[str]
+    mode: FitChefExecutionMode
+    quota_state: FitChefQuotaState
+    transparency_notice_id: str
+    wellness_boundary: str
+
+
+class FitChefWeeklyReflectionResult(BaseModel):
+    """Internal weekly-reflection result. / Внутренний результат weekly-reflection."""
+
+    message: str
+    scenario: Literal["weekly_reflection"] = "weekly_reflection"
     sources: list[FitChefSourceItem]
     confidence: float
     warnings: list[str]

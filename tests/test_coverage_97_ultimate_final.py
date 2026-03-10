@@ -27,6 +27,7 @@ class TestCoverage97UltimateFinal:
         assert "/insight" not in paths
         assert "/api/v1/insight" not in paths
         assert "/api/v1/insight/fitchef" in paths
+        assert "/api/v1/insight/fitchef/weekly-reflection" in paths
 
     def test_app_docs_endpoint(self) -> None:
         """Test docs endpoint."""
