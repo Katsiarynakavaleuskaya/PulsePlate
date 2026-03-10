@@ -26,14 +26,18 @@ def _import_fresh_app() -> FastAPI:
     app = legacy_app.app  # canonical app instance after env-driven wiring
 
     # Fail fast with a clear message if staging claims test routes should exist but doesn't.
-    if os.getenv("APP_ENV") == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
+    runtime_env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "local").strip().lower()
+    if runtime_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
         has_test_routes = any(
             getattr(route, "path", "").startswith("/api/v1/test/")
             for route in getattr(app, "routes", [])
         )
         assert has_test_routes, (
             "Test router routes are missing after legacy_app reload. "
-            f"APP_ENV={os.getenv('APP_ENV')}, ENABLE_TEST_ROUTES={os.getenv('ENABLE_TEST_ROUTES')}"
+            "runtime_env="
+            f"{runtime_env}, APP_ENV={os.getenv('APP_ENV')}, "
+            f"ENVIRONMENT={os.getenv('ENVIRONMENT')}, "
+            f"ENABLE_TEST_ROUTES={os.getenv('ENABLE_TEST_ROUTES')}"
         )
 
     return app
@@ -46,6 +50,7 @@ def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
     Note: Staging requires ENABLE_TEST_ROUTES=1 to include test endpoints
     for security (staging may be externally accessible).
     """
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
     yield
@@ -54,6 +59,7 @@ def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture
 def mock_env_production(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to production to exclude test router."""
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "production")
     yield
 
@@ -65,6 +71,7 @@ def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch):
     RU: В staging тестовые ручки должны быть выключены по умолчанию.
     EN: In staging, test endpoints must be disabled by default.
     """
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.delenv("ENABLE_TEST_ROUTES", raising=False)
     yield

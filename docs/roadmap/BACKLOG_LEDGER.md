@@ -470,6 +470,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-LEGACY-RUNTIME-ENV-CANONICALIZATION
+  - Status: 🟡 In progress (branch `feat/p1-legacy-runtime-env-canonicalization-pr`)
   - Follow-up from PR `#1054` (parent: `ledger-p1-api-key-toggle-guard`)
   - Area: backend / security / legacy compatibility
   - Finding Type: configuration drift

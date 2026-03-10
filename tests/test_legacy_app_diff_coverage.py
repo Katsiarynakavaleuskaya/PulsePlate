@@ -1042,6 +1042,7 @@ def test_exports_flag_warning_outside_tests_is_coverable(
     monkeypatch.delitem(sys.modules, "pytest", raising=False)
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
     try:
         importlib.reload(legacy_app)
@@ -1059,6 +1060,7 @@ def test_exports_testing_flag_is_set_for_ci_env(monkeypatch: pytest.MonkeyPatch)
     """Cover export testing flag detection for APP_ENV=ci (line ~4837)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "ci")
     importlib.reload(legacy_app)
     assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
@@ -1068,6 +1070,7 @@ def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.Mon
     """Cover export testing flag detection via pytest heuristic (line ~4839)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
     importlib.reload(legacy_app)
     assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
