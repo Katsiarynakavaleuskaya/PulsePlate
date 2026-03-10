@@ -131,41 +131,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Route guards consume entitlement state instead of client-declared tier
     - Regression tests cover paid, expired, and missing-entitlement paths
 
-<a id="ledger-p1-apple-server-api-migration"></a>
-- [ ] P1: Apple receipt verification migration to App Store Server API
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
-  - Area: backend / payments / provider integration
-  - Finding Type: provider modernization
-  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work.
-  - Links:
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-    - `app/services/payments_activation.py`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
-  - DoD:
-    - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
-    - Existing verification contract remains backward-compatible for downstream activation
-    - Provider migration paths are covered with deterministic tests and rollout notes
-
-<a id="ledger-p1-ios-subscription-orchestration"></a>
-- [ ] P1: iOS SubscriptionManager orchestration follow-through
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
-  - Status: 💤 Superseded by `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
-  - Area: ios / payments / orchestration
-  - Finding Type: client orchestration gap
-  - Reason: Backend verify is now separated cleanly, but the iOS thin client still needs explicit orchestration for purchase -> verify -> activation handoff without embedding billing truth on-device. The canonical surviving tracker is `ledger-p1-ios-subscription-manager`; this entry remains as an audit bridge from the billing wave only.
-  - Links:
-    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
-    - `app/routers/billing.py`
-    - `app/services/payments_activation.py`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
-  - DoD:
-    - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
-
 <a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
 - [ ] P0: EU-first compliance control plane follow-through
   - Owner: @katsiaryna_kavaleuskaya
@@ -335,6 +300,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS subscription orchestration remains thin and backend-driven
     - Product/state transitions are deterministic and test-covered
     - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-apple-server-api-migration"></a>
+- [ ] P1: Apple receipt verification migration to App Store Server API
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
+  - Area: backend / payments / provider integration
+  - Finding Type: provider modernization
+  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
+    - Existing verification contract remains backward-compatible for downstream activation
+    - Provider migration paths are covered with deterministic tests and rollout notes
+
+<a id="ledger-p1-ios-subscription-orchestration"></a>
+- [ ] P1: iOS SubscriptionManager orchestration follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 💤 Superseded by `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - Area: ios / payments / orchestration
+  - Finding Type: client orchestration gap
+  - Reason: Backend verify is now separated cleanly, but the iOS thin client still needs explicit orchestration for purchase -> verify -> activation handoff without embedding billing truth on-device. The canonical surviving tracker is `ledger-p1-ios-subscription-manager`; this entry remains as an audit bridge from the billing wave only.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - DoD:
+    - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
 
 <a id="ledger-p1-ios-storekit-products"></a>
 - [ ] P1: iOS StoreKit products contract and setup baseline
