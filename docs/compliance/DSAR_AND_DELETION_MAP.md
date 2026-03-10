@@ -18,5 +18,6 @@ direct-user artifacts without promising a public self-service endpoint.
 ## Current DSAR Posture
 
 - Support can service access/export/delete requests for direct-user SQL artifacts.
+- Internal runtime helpers now provide deterministic export coverage for `users`, plus bounded delete execution for `rag_feedback` and `user_knowledge` with an explicit account-delete plan.
 - Pseudonymous security artifacts and minimized audit artifacts are not exposed as public self-service assets.
 - Deletion is implemented as row removal or retention-driven cleanup, not arbitrary in-place editing.

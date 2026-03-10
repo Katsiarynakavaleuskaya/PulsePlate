@@ -116,8 +116,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical privacy and terms publication paths exist in-repo
     - Web and iOS clients link to the published policy paths consistently
     - Published text stays aligned with runtime wellness/compliance posture
-
-
 <a id="ledger-p0-insight-fallback-chain"></a>
 - [ ] P0: Insight fallback chain + echo-mode readiness visibility
   - Owner: @katsiaryna_kavaleuskaya
@@ -182,6 +180,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P1
+
+<a id="ledger-p1-dsar-direct-user-helper-contract"></a>
+- [ ] P1: Internal DSAR direct-user helper contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1049
+  - Area: backend / privacy
+  - Finding Type: compliance runtime hardening
+  - Reason: The compliance control plane now documents support-led DSAR handling, but the runtime still needs deterministic helper functions that export direct-user SQL artifacts and execute bounded deletion without exposing a public endpoint. This slice keeps DSAR execution consistent for `users`, `rag_feedback`, and `user_knowledge` while keeping account-row deletion on the dedicated existing path.
+  - Links:
+    - `core/compliance/dsar.py`
+    - `core/compliance/dsar_service.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Internal helper functions export direct-user SQL artifacts in a deterministic, serializable format
+    - Internal helper functions delete `rag_feedback` and `user_knowledge` idempotently and report per-artifact counts
+    - Internal helper functions expose an explicit deletion plan for the `users` row instead of silently widening into full account deletion
+    - No public DSAR endpoint is introduced before an explicit auth/ownership contract exists
+    - Deterministic tests cover export + delete paths for `users`, `rag_feedback`, and `user_knowledge`
 
 <a id="ledger-p1-token-expansion-activation"></a>
 - [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
@@ -927,6 +945,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-dsar-transaction-neutral-helper"></a>
+- [ ] P2: Make internal DSAR delete helper transaction-neutral
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DSAR-TRANSACTION-NEUTRAL-HELPER
+  - Area: backend / privacy
+  - Finding Type: transaction-boundary hardening
+  - Reason: `delete_direct_user_artifacts()` currently owns `commit()` / `rollback()` while accepting a caller-provided SQLAlchemy `Session`. That is acceptable for the current support-led standalone helper contract, but a future support/admin workflow may batch DSAR artifact deletion with other writes on the same session. The helper should eventually declare or narrow its transaction ownership explicitly instead of implicitly committing caller-owned work.
+  - Links:
+    - `core/compliance/dsar_service.py`
+    - `tests/test_compliance_control_plane.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+  - DoD:
+    - The DSAR helper either becomes transaction-neutral or moves to an explicit session/transaction ownership contract
+    - Tests cover caller-owned session behavior for batched writes and rollback semantics
+    - Support-led DSAR docs stay aligned with the final ownership contract
 
 - [ ] P2 Optional: Evaluate Lenny's Podcast Transcripts for insights, marketing, and Bayesian context
   - Owner: @katsiaryna_kavaleuskaya
