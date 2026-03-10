@@ -17,6 +17,12 @@ Disposition: FIXED
 Commit: `4c0b9c73`
 Evidence: `app/__init__.py:54`; `app/main.py:54`; `app/main.py:97`; `tests/test_app_basic_combined.py:31`; `tests/test_app_basic_combined.py:60`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087#pullrequestreview-3925377952 -> 94dfa281
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087#discussion_r2914429902 -> 94dfa281
+Disposition: FIXED
+Commit: `94dfa281`
+Evidence: `tests/test_app_basic_combined.py:57`; `tests/test_app_basic_combined.py:69`; `tests/test_app_basic_combined.py:74`
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
