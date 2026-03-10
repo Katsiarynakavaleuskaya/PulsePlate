@@ -131,4 +131,5 @@ class TestVIPShoplistPDFExport:
 
         # Should return 501 NOT IMPLEMENTED (covers line 567: except ImportError as e)
         assert response.status_code == 501
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert "PDF export is not available" in response.json()["detail"]
