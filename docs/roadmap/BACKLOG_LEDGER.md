@@ -469,7 +469,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonicalize legacy runtime env gating
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-LEGACY-RUNTIME-ENV-CANONICALIZATION
+  - Target PR: PR `#1072`
   - Status: 🟡 In progress (branch `feat/p1-legacy-runtime-env-canonicalization-pr`)
   - Follow-up from PR `#1054` (parent: `ledger-p1-api-key-toggle-guard`)
   - Area: backend / security / legacy compatibility

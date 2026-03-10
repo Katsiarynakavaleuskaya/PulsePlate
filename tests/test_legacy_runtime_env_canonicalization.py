@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import importlib
+from types import ModuleType
 
 import dotenv
 import pytest
 from fastapi import HTTPException
 
 
-def _reload_legacy_app():
+def _reload_legacy_app() -> ModuleType:
     """Reload legacy_app after env changes.
 
     RU: Перезагружаем legacy_app после изменения env, чтобы import-time wiring

@@ -1050,9 +1050,11 @@ def test_exports_flag_warning_outside_tests_is_coverable(
         assert any("Export endpoints enabled outside tests" in r.message for r in caplog.records)
     finally:
         if saved_pytest is not None:
-            sys.modules["pytest"] = saved_pytest
+            monkeypatch.setitem(sys.modules, "pytest", saved_pytest)
         # Restore a normal testing reload for other tests.
         monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
         importlib.reload(legacy_app)
 
 
@@ -1062,8 +1064,14 @@ def test_exports_testing_flag_is_set_for_ci_env(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "ci")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)
 
 
 def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1072,5 +1080,11 @@ def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.Mon
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)
