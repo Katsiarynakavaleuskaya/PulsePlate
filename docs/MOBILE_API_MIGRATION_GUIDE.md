@@ -289,7 +289,7 @@ class APIKeyManager {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "pulseplate_api_key_\(tier.rawValue)",
             kSecValueData as String: keyData,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
         SecItemDelete(query as CFDictionary)
