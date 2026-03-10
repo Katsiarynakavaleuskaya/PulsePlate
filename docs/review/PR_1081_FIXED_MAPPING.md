@@ -42,3 +42,11 @@ Evidence: `6b9ac1fe` hardens `scripts/orchestration/experiment_bootstrap.py` wit
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244710 -> 6b9ac1fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244732 -> 6b9ac1fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912244738 -> 6b9ac1fe
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `5d811963` rejects unsupported budget override keys before merge, includes `budgets` and `stop_condition` in the deterministic `experiment_id` hash payload inside `scripts/orchestration/experiment_bootstrap.py`, and adds regressions in `tests/test_experiment_bootstrap.py` proving unknown budget keys fail closed and execution-constraint changes produce distinct ids.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#pullrequestreview-3923105498 -> 5d811963
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912375156 -> 5d811963
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1081#discussion_r2912375168 -> 5d811963
