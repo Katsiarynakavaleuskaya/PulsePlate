@@ -24,6 +24,13 @@ class FitChefWeeklyReflectionRequest(BaseModel):
     goal: str | None = Field(default=None, max_length=200)
 
 
+class FitChefSlipSupportRequest(BaseModel):
+    """Slip-support request payload."""
+
+    event_text: str = Field(..., min_length=1, max_length=500)
+    goal: str | None = Field(default=None, max_length=200)
+
+
 class FitChefCoachingSourceItem(BaseModel):
     """Public RAG source item for mascot coaching."""
 
@@ -61,3 +68,9 @@ class FitChefWeeklyReflectionResponse(FitChefCoachingResponseBase):
     """Public weekly reflection response envelope."""
 
     scenario: Literal["weekly_reflection"] = Field(...)
+
+
+class FitChefSlipSupportResponse(FitChefCoachingResponseBase):
+    """Public slip-support response envelope."""
+
+    scenario: Literal["slip_support"] = Field(...)

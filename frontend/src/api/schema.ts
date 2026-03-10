@@ -115,6 +115,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insight/fitchef/slip-support": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fitchef Slip Support
+         * @description Generate VIP-only slip-support coaching via the FitChef runtime.
+         */
+        post: operations["fitchef_slip_support_api_v1_insight_fitchef_slip_support_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insight/fitchef/weekly-reflection": {
         parameters: {
             query?: never;
@@ -2476,6 +2496,46 @@ export interface components {
             wellness_boundary: string;
         };
         /**
+         * FitChefSlipSupportRequest
+         * @description Slip-support request payload.
+         */
+        FitChefSlipSupportRequest: {
+            /** Event Text */
+            event_text: string;
+            /** Goal */
+            goal?: string | null;
+        };
+        /**
+         * FitChefSlipSupportResponse
+         * @description Public slip-support response envelope.
+         */
+        FitChefSlipSupportResponse: {
+            /** Action Items */
+            action_items: string[];
+            /** Confidence */
+            confidence: number;
+            /** Message */
+            message: string;
+            /**
+             * Quota State
+             * @enum {string}
+             */
+            quota_state: "not_consumed" | "consumed";
+            /**
+             * Scenario
+             * @constant
+             */
+            scenario: "slip_support";
+            /** Sources */
+            sources: components["schemas"]["FitChefCoachingSourceItem"][];
+            /** Transparency Notice Id */
+            transparency_notice_id: string;
+            /** Warnings */
+            warnings: string[];
+            /** Wellness Boundary */
+            wellness_boundary: string;
+        };
+        /**
          * FitChefWeeklyReflectionRequest
          * @description Weekly reflection request payload.
          */
@@ -4585,6 +4645,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FitChefMascotInsightResponse"];
+                };
+            };
+            /** @description Unsafe AI input blocked */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or provider unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description LLM provider call timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_slip_support_api_v1_insight_fitchef_slip_support_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FitChefSlipSupportRequest"];
+            };
+        };
+        responses: {
+            /** @description FitChef slip-support coaching generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefSlipSupportResponse"];
                 };
             };
             /** @description Unsafe AI input blocked */

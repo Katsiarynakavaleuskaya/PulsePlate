@@ -19,6 +19,8 @@ from app.schemas.fitchef import (
     FitChefMascotInsightResult,
     FitChefMascotInsightTaskEnvelope,
     FitChefQuotaState,
+    FitChefSlipSupportResult,
+    FitChefSlipSupportTaskEnvelope,
     FitChefShoppingFollowupResult,
     FitChefShoppingFollowupTaskEnvelope,
     FitChefSourceItem,
@@ -40,8 +42,10 @@ from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
 from core.insight.fitchef_companion import (
     build_mascot_prompt,
+    build_slip_support_prompt,
     build_weekly_reflection_prompt,
     prepare_mascot_draft,
+    prepare_slip_support_draft,
     prepare_weekly_reflection_draft,
 )
 from core.pii_redaction import redact_pii_from_text
@@ -64,6 +68,14 @@ def _build_fitchef_reflection_query(summary: str, goal: str | None) -> str:
     if goal:
         return f"Weekly reflection summary: {summary}\nGoal: {goal}"
     return f"Weekly reflection summary: {summary}"
+
+
+def _build_fitchef_slip_support_query(event_text: str, goal: str | None) -> str:
+    """Build retrieval text for FitChef slip-support flows."""
+
+    if goal:
+        return f"Slip support event: {event_text}\nGoal: {goal}"
+    return f"Slip support event: {event_text}"
 
 
 def _build_cbt_prompt(query: str, rag_context: str) -> str:
@@ -771,6 +783,190 @@ async def run_weekly_reflection_task(
         ) from exc
 
     result: FitChefWeeklyReflectionResult = FitChefWeeklyReflectionResult(
+        message=prepared.message,
+        sources=sources,
+        confidence=min(max(confidence, 0.0), 1.0),
+        warnings=[*warnings, *prepared.warnings],
+        action_items=prepared.action_items,
+        mode=task.mode,
+        quota_state=quota_state,
+        transparency_notice_id=str(notice_surface_id),
+        wellness_boundary=str(notice_boundary),
+    )
+    return result
+
+
+async def run_slip_support_task(
+    task: FitChefSlipSupportTaskEnvelope,
+) -> FitChefSlipSupportResult:
+    """Run FitChef slip-support orchestration."""
+
+    safe_event_text = task.input.safe_event_text
+    safe_goal = task.input.safe_goal
+    api_key = task.input.api_key
+    endpoint = task.input.endpoint
+    method = task.input.method
+
+    retrieval_text = _build_fitchef_slip_support_query(safe_event_text, safe_goal)
+    rag_context_str = ""
+    sources: list[FitChefSourceItem] = []
+    confidence = 0.0
+    warnings: list[str] = []
+    quota_state: FitChefQuotaState = "not_consumed"
+    redaction_applied = False
+    sanitization_applied = False
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="rag.retrieve",
+            target="corpus://fitchef-agent",
+            mode=task.mode,
+            endpoint=endpoint,
+            metadata={
+                "method": method,
+                "query_hash": _sha256_hex(retrieval_text),
+                "query_length": len(retrieval_text),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("FitChef slip-support RAG gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="rag_retrieval_unavailable",
+        ) from exc
+
+    try:
+        from core.rag.vector_rag import retrieve_context_structured
+
+        rag_ctx = await run_in_threadpool(
+            retrieve_context_structured,
+            retrieval_text,
+            max_chunks=5,
+            agent_id="fitchef-agent",
+            user_tier="VIP",
+            subject_id=derive_subject_id_from_api_key(api_key),
+        )
+
+        if rag_ctx.chunks:
+            context_parts: list[str] = []
+            for chunk in rag_ctx.chunks:
+                sanitized_chunk = sanitize_rag_markdown(chunk.content)
+                if sanitized_chunk != chunk.content:
+                    sanitization_applied = True
+                sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
+                if sanitized_content != sanitized_chunk:
+                    redaction_applied = True
+                if not sanitized_content.strip():
+                    continue
+                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
+                sources.append(
+                    FitChefSourceItem(
+                        chunk_id=chunk.chunk_id,
+                        file=chunk.file,
+                        preview=sanitize_chunk_preview(sanitized_content) or "",
+                        score=chunk.score,
+                    )
+                )
+            if context_parts:
+                rag_context_str = "\n\n".join(context_parts)
+                confidence = rag_ctx.confidence
+    except Exception:
+        logger.warning("FitChef slip-support RAG retrieval failed", exc_info=True)
+        warnings.append("rag_retrieval_failed")
+
+    if sanitization_applied:
+        warnings.append("source_content_sanitized")
+    if redaction_applied:
+        warnings.append("source_content_redacted")
+
+    transparency_notice = get_transparency_registry().get("ai_generated_insight")
+    if transparency_notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_unavailable",
+        )
+    notice_surface_id = transparency_notice.get("surface_id")
+    notice_boundary = transparency_notice.get("boundary")
+    if notice_surface_id is None or notice_boundary is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="transparency_registry_incomplete",
+        )
+
+    prompt = build_slip_support_prompt(safe_event_text, safe_goal, rag_context_str)
+
+    try:
+        await run_in_threadpool(
+            _persist_privileged_action_audit,
+            action="llm.generate",
+            target="provider://default",
+            mode=task.mode,
+            endpoint=endpoint,
+            metadata={
+                "method": method,
+                "prompt_hash": _sha256_hex(prompt),
+                "prompt_length": len(prompt),
+                "source_count": len(sources),
+            },
+        )
+    except (PermissionError, RuntimeError) as exc:
+        logger.error("FitChef slip-support LLM gate failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="llm_generation_unavailable",
+        ) from exc
+
+    try:
+        from llm import get_provider
+
+        provider = get_provider()
+
+        allowed = await run_in_threadpool(
+            attempt_consume_llm_monthly_quota,
+            api_key,
+            tier="VIP",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="quota_exceeded",
+            )
+        raw_message = await asyncio.wait_for(
+            run_in_threadpool(provider.generate, prompt),
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+        if not isinstance(raw_message, str) or not raw_message.strip():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM provider returned empty response",
+            )
+        prepared = prepare_slip_support_draft(
+            raw_message,
+            event_text=safe_event_text,
+            goal=safe_goal,
+        )
+        quota_state = "consumed"
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider not available",
+        ) from None
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="LLM provider call timed out",
+        ) from None
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("FitChef slip-support generation failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fitchef_slip_support_unavailable",
+        ) from exc
+
+    result: FitChefSlipSupportResult = FitChefSlipSupportResult(
         message=prepared.message,
         sources=sources,
         confidence=min(max(confidence, 0.0), 1.0),

@@ -292,6 +292,9 @@ The merged food database follows a standardized schema:
 - `POST /api/v1/insight/fitchef/weekly-reflection` - VIP-only FitChef weekly reflection coaching (feature-flagged)
   - Input: `{"summary": "Late dinners made the week feel uneven", "goal": "more steady meals"}`
   - Output: weekly reflection coaching envelope with `message`, `action_items`, `sources`, and `warnings`
+- `POST /api/v1/insight/fitchef/slip-support` - VIP-only FitChef slip-support coaching (feature-flagged)
+  - Input: `{"event_text": "I kept snacking after dinner", "goal": "more steady meals"}`
+  - Output: slip-support coaching envelope with `message`, `action_items`, `sources`, and `warnings`
 
 ### Tiered Nutrition APIs
 
@@ -492,6 +495,7 @@ Access the API at `http://localhost:8000`
 - `POST /api/v1/insight` - Generate AI insight text output (requires `API_KEY`)
 - `POST /api/v1/insight/fitchef` - Generate VIP-only FitChef mascot coaching output (requires VIP-tier `API_KEY` access and `FEATURE_FITCHEF_MASCOT`)
 - `POST /api/v1/insight/fitchef/weekly-reflection` - Generate VIP-only FitChef weekly reflection output (requires VIP-tier `API_KEY` access and `FEATURE_FITCHEF_MASCOT`)
+- `POST /api/v1/insight/fitchef/slip-support` - Generate VIP-only FitChef slip-support output (requires VIP-tier `API_KEY` access and `FEATURE_FITCHEF_MASCOT`)
 - Tiered nutrition, planning, payments, and compatibility routes are summarized in `docs/contracts/API_CANONICAL_MAP.md`
 
 ### Weekly planning note
