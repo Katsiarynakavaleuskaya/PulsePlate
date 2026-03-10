@@ -5140,6 +5140,130 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
+<a id="ledger-p1-agent-experimentation-lane"></a>
+- [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (process scalability + bounded AI optimization)
+  - Target PR: PR_TBD_AGENT_EXPERIMENTATION_GOVERNANCE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+  - DoD:
+    - PR1 governance SoT is merged and linked from the canonical orchestration docs
+    - PR2 bootstrap tooling, PR3 runner MVP, PR4 promotion/telemetry, PR5 CV eval lane, and PR6 first applied reliability optimization all have explicit backlog entries
+    - No phase of the lane permits hidden memory, autonomous merge, or mutation of immutable evaluation oracles
+    - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
+
+<a id="ledger-p1-agent-experiment-bootstrap"></a>
+- [ ] P1: PR2 deterministic experiment bootstrap tooling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency for the experimentation lane)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_BOOTSTRAP
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+  - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `scripts/orchestration/task_bootstrap.py`
+  - DoD:
+    - Local experiment packet bootstrap tooling exists with deterministic JSON output
+    - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
+    - Outputs live under gitignored local artifacts only
+    - Tooling does not mutate runtime code or public contracts
+
+<a id="ledger-p1-agent-experiment-runner"></a>
+- [ ] P1: PR3 experiment runner MVP for bounded candidate loops
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency for first applied optimization)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_RUNNER
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
+  - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `scripts/orchestration/agent_run_summary.py`
+  - DoD:
+    - Runner uses isolated execution and never mutates a dirty shared worktree
+    - Runner enforces budgets and failure classes from the experimentation protocol
+    - Immutable oracle mutation is rejected fail-closed
+    - Runner outputs candidate result artifacts, not autonomous merge-ready commits
+
+<a id="ledger-p1-agent-experiment-promotion"></a>
+- [ ] P1: PR4 experiment promotion and telemetry integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (governance closure for experiment outputs)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_PROMOTION
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): Winning candidates need one governed promotion path into PR packets, audits, guards, ledger items, or memory capsules, and telemetry needs experiment-aware fields so orchestration learning remains artifact-based and observable.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+    - `scripts/orchestration/agent_run_summary.py`
+    - `scripts/orchestration/telemetry_rollup.py`
+  - DoD:
+    - Promotion tooling enforces exactly one durable destination per winning experiment
+    - Telemetry rollups understand experiment identifiers and failure/promotion classes
+    - Deferred experiment outcomes are ledgered immediately
+    - No hidden-memory path bypasses KPP promotion
+
+<a id="ledger-p1-agent-experiment-cv-lane"></a>
+- [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (future multimodal track, no runtime integration yet)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
+  - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `.cursor/agents/cv-agent.md`
+    - `.cursor/agents/data-scientist-agent.md`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+  - DoD:
+    - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
+    - CV lane remains docs/eval only with no image-retention runtime behavior
+    - Coordinator routing for CV experiments is explicit and bounded
+    - Deterministic acceptance criteria are documented
+
+<a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
+- [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (first practical output of the experimentation lane)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+    - [P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)](#ledger-p1-recursive-methods)
+  - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `scripts/benchmarks/philosophical_runtime_benchmark.py`
+    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
+    - `core/rag/`
+    - `core/insight/`
+  - DoD:
+    - One bounded reliability candidate is generated through the governed lane
+    - Candidate improvement is accepted by immutable oracles and documented with evidence
+    - Result is promoted through a normal human-reviewed PR
+    - No storage-cost or CV scope is mixed into this first applied optimization
+
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
   - Owner: @katsiaryna_kavaleuskaya

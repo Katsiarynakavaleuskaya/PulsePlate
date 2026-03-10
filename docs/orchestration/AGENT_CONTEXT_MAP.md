@@ -40,6 +40,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md` — when outputs must be parseable across models
 - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md` — when doing web/OSS intake or external research
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when running fixed-budget optimization/eval loops or drafting experiment packets
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` — when capturing incidents for KPP promotion
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` — when installed skills may improve execution or when orchestration-layer docs/scripts are touched
 
@@ -435,6 +436,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — privacy and safety boundaries
 - `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when planning CV eval packets or bounded experiment lanes
 
 **Must know:**
 
@@ -463,6 +465,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (for experiment charters, metrics, and negative controls)
 
 **Must know:**
 
@@ -477,6 +480,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — determinism + performance expectations
 - `providers/AGENTS.md` (if packaging model/provider calls)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when defining bounded candidate loops and cost/latency budgets
 
 **Must know:**
 
