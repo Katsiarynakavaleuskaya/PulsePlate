@@ -43,3 +43,10 @@ Evidence: This aggregate CodeRabbit review only summarizes the two threads alrea
 Reason: No additional actionable item exists beyond the thread-level dispositions already recorded in this artifact.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#pullrequestreview-3925983439
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `36826fe1` preserves nullable failure-class semantics in `scripts/orchestration/telemetry_rollup.py:289` by normalizing both result and promotion fallback values through `or ""` before string conversion, so `None` no longer pollutes telemetry as the literal string `"None"`. Regression coverage was added in `tests/test_telemetry_rollup.py:339`, which proves accepted experiment rows keep `failure_class is None` and `experiments.by_failure_class == {}`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#discussion_r2915045913 -> 36826fe1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1092#pullrequestreview-3926029698 -> 36826fe1
