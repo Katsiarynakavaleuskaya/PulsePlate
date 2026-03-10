@@ -145,7 +145,7 @@ def _extract_mutated_paths(patch_text: str) -> list[str]:
             if target:
                 mutated_paths.add(target)
             continue
-        if raw_line.startswith(("rename from ", "copy from ")):
+        if raw_line.startswith("rename from "):
             saw_diff_marker = True
             source = _normalize_patch_target(raw_line.split(" ", 2)[2])
             if source:

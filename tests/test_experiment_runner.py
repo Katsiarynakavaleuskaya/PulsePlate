@@ -279,6 +279,19 @@ def test_evaluate_candidate_rejects_rename_from_forbidden_path(
     assert result["failure_class"] == "policy_violation"
 
 
+def test_extract_mutated_paths_ignores_copy_from_source() -> None:
+    """Copy diffs should validate only the mutated target path."""
+
+    mutated_paths = experiment_runner._extract_mutated_paths(
+        "diff --git a/docs/orchestration/workflow.md b/core/rag/allowed.py\n"
+        "similarity index 100%\n"
+        "copy from docs/orchestration/workflow.md\n"
+        "copy to core/rag/allowed.py\n"
+    )
+
+    assert mutated_paths == ["core/rag/allowed.py"]
+
+
 def test_evaluate_candidate_returns_unchanged_result_for_empty_patch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
