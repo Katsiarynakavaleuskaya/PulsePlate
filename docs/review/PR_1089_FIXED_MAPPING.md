@@ -90,9 +90,34 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1089_FIXED_MAPPING.md:94`; `tests/test_compliance_control_plane.py:371`; `app/middleware/api_tiers.py:520`; `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1`
 Reason: This CodeRabbit summary review aggregates the fixed checkbox, RLS principal, and DSAR test findings above; current head addresses each concrete issue in `0a5f621a`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914902331 -> 83b91507
+Disposition: FIXED
+Commit: `83b91507`
+Evidence: `docs/contracts/RAG_CONTRACT.md:228`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914902340 -> 83b91507
+Disposition: FIXED
+Commit: `83b91507`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:866`; `docs/roadmap/BACKLOG_LEDGER.md:867`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914917602 -> 83b91507
+Disposition: FIXED
+Commit: `83b91507`
+Evidence: `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:68`; `tests/test_db_rls.py:88`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3925883672
+Disposition: NOT-A-BUG
+Evidence: `docs/contracts/RAG_CONTRACT.md:228`; `docs/roadmap/BACKLOG_LEDGER.md:866`
+Reason: This CodeRabbit summary review aggregates the two inline findings immediately above, and both are fixed in `83b91507`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3925898576
+Disposition: NOT-A-BUG
+Evidence: `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:68`; `tests/test_db_rls.py:88`
+Reason: This cubic summary review aggregates the rollback-FK finding immediately above, and current head fixes it in `83b91507`.
+
 ## Merge Readiness
-- [ ] Local `pre-commit run --all-files`
-- [ ] Local `make verify`
+- [x] Local `pre-commit run --all-files`
+- [x] Local `make verify`
 - [ ] Required remote checks PASS
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
