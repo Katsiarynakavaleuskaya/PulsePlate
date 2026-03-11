@@ -9,6 +9,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2917980302 -> 64387d53
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2917980308 -> 64387d53
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929179703 -> 64387d53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918085352 -> b8b3d337
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918085358 -> b8b3d337
 Disposition: FIXED
 Commit: 95f618c0
 Evidence: `docs/design/COLOR_PROFILE_GOVERNANCE.md`, section `Repo-grounded evidence`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`, section `Repo-grounded evidence`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`, section `Workflow definitions`
@@ -18,6 +20,11 @@ Disposition: FIXED
 Commit: 64387d53
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2154`; `docs/roadmap/BACKLOG_LEDGER.md:2182`; `docs/roadmap/BACKLOG_LEDGER.md:2209`
 Reason: Moved both unchecked P1 follow-up trackers out of `## Completed Items` and into the open backlog, so the ledger once again keeps active work under the open-item lane instead of mixing it with merged entries.
+
+Disposition: FIXED
+Commit: b8b3d337
+Evidence: `docs/design/COLOR_PROFILE_GOVERNANCE.md`, section `Repo-grounded evidence`; `docs/review/PR_1111_FIXED_MAPPING.md`, section `## Fixed in Commit Mapping`
+Reason: Tightened the color-governance wording so `Color.init(hex:)` is described as an `sRGB` helper instead of an asset bridge, and aligned the Sourcery mapping proof with the actual section/symbol-based evidence rather than stale line-number references.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
