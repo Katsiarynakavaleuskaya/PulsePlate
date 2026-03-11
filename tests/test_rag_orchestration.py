@@ -470,7 +470,7 @@ class TestRetrieveAndValidateRag:
         """Malformed filtered scores should degrade confidence, not the full RAG result."""
         chunks = [
             _make_chunk("c1", score=cast(float, "bad-score")),
-            _make_chunk("c2", score=cast(float, float("nan"))),
+            _make_chunk("c2", score=float("nan")),
         ]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
         pipeline_result = PipelineResult(

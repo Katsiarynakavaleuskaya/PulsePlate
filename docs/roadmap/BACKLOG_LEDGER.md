@@ -5418,11 +5418,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No hidden-memory path bypasses KPP promotion
 
 <a id="ledger-p1-agent-experiment-cv-lane"></a>
-- [x] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+- [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`; CV overlay + packet schema extension + orchestration drift audit delivered)
+  - Status: 🟡 Delivered in PR `#1102` on 2026-03-11 (`55783414`; CV overlay + packet schema extension + orchestration drift audit shipped), but canonical ledger closeout remains pending the docs-only normalization follow-up tracked in [P2: Normalize PR5 ledger closeout via docs-only follow-up PR](#ledger-p2-pr5-ledger-closeout-docs-only)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
