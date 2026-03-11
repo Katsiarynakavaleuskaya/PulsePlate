@@ -14,7 +14,7 @@ import asyncio
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional, SupportsFloat, cast
 
 if TYPE_CHECKING:
     from core.rag.contracts import RAGChunk
@@ -69,11 +69,18 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
     )
 
 
-def _normalize_confidence_value(value: Any) -> float | None:
+def _normalize_confidence_value(value: object) -> float | None:
     """Return a finite rounded confidence value or ``None`` for malformed input."""
 
+    if isinstance(value, (str, bytes, bytearray, int, float)):
+        candidate: SupportsFloat | str | bytes | bytearray = value
+    elif hasattr(value, "__float__"):
+        candidate = cast(SupportsFloat, value)
+    else:
+        return None
+
     try:
-        numeric = float(value)
+        numeric = float(candidate)
     except (TypeError, ValueError):
         return None
     if not math.isfinite(numeric):
@@ -96,7 +103,7 @@ def _mean_chunk_score(chunks: list["RAGChunk"]) -> float | None:
 
 def _resolve_confidence(
     *,
-    rag_confidence: Any,
+    rag_confidence: object,
     chunks_to_use: list["RAGChunk"],
     philo_enabled: bool,
 ) -> float | None:

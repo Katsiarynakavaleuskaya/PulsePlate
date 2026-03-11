@@ -5466,6 +5466,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
 
+<a id="ledger-p2-phase2-body-artifact-sync"></a>
 - [ ] P2: Eliminate PR body and mapping artifact phase2 drift
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -5481,6 +5482,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Late review-cycle updates no longer require manual duplication of mapping lines
     - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
 
+<a id="ledger-p2-clean-clone-dependency-parity"></a>
 - [ ] P2: Restore deterministic clean-clone dependency parity for local verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -5497,6 +5499,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Local setup docs mention the canonical venv refresh command when lockfile drift is suspected
     - At least one deterministic check guards against silently incomplete clean-clone environments
 
+<a id="ledger-p2-gh-checks-current-head-filter"></a>
 - [ ] P2: Filter superseded GitHub check noise in merge triage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -5510,6 +5513,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
     - Merge triage output clearly labels stale runs as non-blocking when canonical readiness already passed
     - Final merge checklist references the filtered current-head view
+
+<a id="ledger-p2-pr5-ledger-closeout-docs-only"></a>
+- [ ] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Area: orchestration / ledger governance
+  - Reason: `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md` requires a docs-only follow-up PR when a merged PR closes a ledger item. PR5 closeout was captured during the mixed-scope PR6 kickoff sequence, so it needs a narrow docs-only normalization PR instead of widening PR6 further.
+  - Links:
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+  - DoD:
+    - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
+    - The follow-up PR references PR `#1102` and this deferred remediation item
+    - No runtime or tooling files are mixed into that normalization PR
 
 - [ ] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
