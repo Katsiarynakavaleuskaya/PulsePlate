@@ -312,6 +312,17 @@ python scripts/orchestration/telemetry_rollup.py
 
 See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
 
+### Experiment promotion (governed lane)
+
+```bash
+mkdir -p artifacts/orchestration/experiments/promotions
+python scripts/orchestration/experiment_promote.py \
+  --packet artifacts/orchestration/experiments/<experiment_id>.json \
+  --result artifacts/orchestration/experiments/results/<experiment_id>.json
+```
+
+Rule: promotion writes exactly one durable destination artifact plus one local promotion decision artifact.
+
 ---
 
 ## Step 6: DoD (Definition of Done)

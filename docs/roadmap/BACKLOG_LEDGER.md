@@ -22,6 +22,8 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
+
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
 ### P0
@@ -30,8 +32,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1
-  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
+  - Target PR: PR #983 (contract docs) -> PR #1095 (activation + persistence runtime) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: 🟡 In progress (PR #1095 owns runtime Wave R1 activation + persisted subscription state; entitlement routing remains tracked in `ledger-p0-billing-entitlement-routing`)
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -59,7 +61,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-ACTIVATION-SERVICE
+  - Target PR: PR #1095
   - Area: backend / payments / activation
   - Finding Type: monetization chain gap
   - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
@@ -77,7 +79,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Subscription persistence for billing activation outcomes
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-SUBSCRIPTION-PERSISTENCE
+  - Target PR: PR #1095
   - Area: backend / payments / persistence
   - Finding Type: subscription state gap
   - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
@@ -189,6 +191,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
+
+<a id="backlog-restore-signed-build-provenance"></a>
+- [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): Workflow pinning and tooling-surface guards can be enforced immediately, but signed provenance and downstream verification remain intentionally deferred until the documented Docker/buildx cache seam is removed and attestation can be re-enabled without destabilizing the release path.
+  - Links:
+    - `.github/workflows/build.yml`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+  - DoD:
+    - Build provenance is enabled again in the canonical image workflow
+    - Signed provenance/SBOM verification is enforced before deploy
+    - Follow-up docs and CI checks explicitly cover the restored path
+
+<a id="ledger-p1-billing-activation-openapi-refinements"></a>
+- [ ] P1: Billing activation OpenAPI refinements after PR #1095
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first clarity)
+  - Target PR: PR-TBD-BILLING-ACTIVATION-OPENAPI-REFINEMENTS
+  - Area: backend / frontend / payments / OpenAPI
+  - Finding Type: contract refinement follow-up
+  - Reason: PR #1095 intentionally keeps the runtime scope narrow around activation + persistence. The follow-up OpenAPI work should explicitly model source-specific activation variants, reuse canonical enums in Apple verify hints, and mark compatibility aliases as deprecated without expanding the current backend runtime PR.
+  - Links:
+    - `app/schemas/payments.py`
+    - `frontend/src/api/openapi.json`
+    - `frontend/src/api/schema.ts`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
+  - DoD:
+    - `ActivateSubscriptionRequest` is expressed as a discriminated `oneOf` keyed by `source`
+    - Apple verify activation hints reuse canonical `PaymentPlatform`
+    - Compatibility aliases in `SubscriptionActivationResponse` are explicitly deprecated in OpenAPI
+    - `make openapi-check` passes with regenerated frontend artifacts
 
 <a id="ledger-p1-dsar-direct-user-helper-contract"></a>
 - [ ] P1: Internal DSAR direct-user helper contract
@@ -5312,8 +5349,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP is in progress in `#1088`)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1092
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry is executing in `#1092`; PR5-PR6 remain open)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5348,11 +5385,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tooling does not mutate runtime code or public contracts
 
 <a id="ledger-p1-agent-experiment-runner"></a>
-- [ ] P1: PR3 experiment runner MVP for bounded candidate loops
+- [x] P1: PR3 experiment runner MVP for bounded candidate loops
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for first applied optimization)
   - Target PR: PR #1088
-  - Status: 🟡 In progress (PR `#1088`)
+  - Related follow-up: PR #1096 (`fix(app): restore bootstrap patchability on main`)
+  - Related follow-up status: ✅ Merged (PR #1096, 2026-03-11)
+  - Related follow-up SHA: `ddfee576e0d2b53d3a24e08ee58080a6c73cb75d`
+  - Status: ✅ Merged with hotfix traceability (PR `#1088` delivered the bounded experiment runner MVP; PR `#1096` then remediated the post-merge `app` bootstrap/patchability regression on `main` without widening scope into FitChef, sandbox, or design lanes)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
@@ -5373,8 +5413,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_PROMOTION
-  - Status: 📋 Planned
+  - Target PR: PR #1092
+  - Status: 🟡 In progress (`#1092`, based on `main` @ `00e8143a`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
