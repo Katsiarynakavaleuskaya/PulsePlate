@@ -237,6 +237,12 @@ class TestDBLookupHelpers:
         normalized = api_tiers_mod._normalize_utc_datetime(aware_value)
         assert normalized == datetime(2026, 3, 11, 12, 30, tzinfo=timezone.utc)
 
+    def test_normalize_utc_datetime_rejects_non_datetime_values(self) -> None:
+        """Malformed persisted expiry values must be treated as invalid state."""
+
+        with pytest.raises(TypeError, match="expires_at must be datetime"):
+            api_tiers_mod._normalize_utc_datetime("2026-01-01")
+
     def test_tier_allows_access_helper(self) -> None:
         """Test tier inclusion matrix helper."""
         assert api_tiers_mod._tier_allows_access(SubscriptionTier.VIP, SubscriptionTier.PRO) is True
@@ -304,6 +310,28 @@ class TestDBLookupHelpers:
             lambda **_kwargs: [_subscription_row(tier="not_a_tier", status="active")],
         )
         result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.INVALID_TIER
+        assert result.tier is None
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_rejects_invalid_expires_at_type(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Malformed persisted expiry values must fail closed instead of unlocking access."""
+        import core.db as core_db
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [
+                _subscription_row(tier="vip", status="active", expires_at="2026-01-01")
+            ],
+        )
+
+        result = api_tiers_mod._lookup_tier_from_db("key")
+
         assert result.status == DBLookupStatus.INVALID_TIER
         assert result.tier is None
         assert session.closed is True

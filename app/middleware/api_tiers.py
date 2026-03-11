@@ -39,7 +39,6 @@ from app.schemas.payments import (
     SubscriptionTier as PersistedSubscriptionTier,
 )
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
-from app.services import subscriptions as subscriptions_store
 
 from app.utils.feature_flags import is_vip_module_enabled
 from settings import (
@@ -165,8 +164,10 @@ def _parse_persisted_subscription_status(
 def _normalize_utc_datetime(value: object) -> datetime | None:
     """Normalize naive/aware datetimes to UTC for deterministic expiry checks."""
 
-    if not isinstance(value, datetime):
+    if value is None:
         return None
+    if not isinstance(value, datetime):
+        raise TypeError(f"expires_at must be datetime | None, got {type(value)!r}")
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
@@ -190,6 +191,7 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     """
     try:
         from core.db import get_session_factory
+        from app.services import subscriptions as subscriptions_store
 
         user_id = derive_subject_id_from_api_key(api_key)
         session_factory = get_session_factory()
@@ -228,7 +230,12 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         if parsed_status is not PersistedSubscriptionStatus.active:
             continue
 
-        expires_at = _normalize_utc_datetime(getattr(subscription, "expires_at", None))
+        raw_expires_at = getattr(subscription, "expires_at", None)
+        try:
+            expires_at = _normalize_utc_datetime(raw_expires_at)
+        except TypeError:
+            saw_invalid_state = True
+            continue
         if expires_at is not None and expires_at <= now:
             continue
 
