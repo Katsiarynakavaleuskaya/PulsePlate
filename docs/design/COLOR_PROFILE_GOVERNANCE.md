@@ -12,15 +12,13 @@ review evidence so web and iOS do not drift into ad-hoc profile handling.
 
 Repo-grounded evidence:
 
-- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:22` defines repo artifacts as the
-  final source of truth.
-- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:45` sets the web runtime token
-  contract.
-- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:47` and
-  `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:48` define the generated and runtime
-  iOS mirrors.
-- `ios/PulsePlate/Extensions/Color+Assets.swift:64` currently bridges asset
-  colors through `Color(..., colorSpace: .sRGB)`.
+- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`, section `## 2. Source
+  precedence`, defines repo artifacts as the final source of truth.
+- `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`, section `### Runtime layer`,
+  defines the web runtime token contract plus the generated and runtime iOS
+  mirrors.
+- `ios/PulsePlate/Extensions/Color+Assets.swift`, initializer `Color.init(hex:)`,
+  currently bridges asset colors through `Color(..., colorSpace: .sRGB)`.
 
 ## 2. Baseline policy
 

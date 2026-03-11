@@ -13,17 +13,42 @@ treat technically reachable data as automatically safe to ship or reuse.
 
 Repo-grounded evidence:
 
-- `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md:58` already lists
-  canonical source tiers, including USDA, Open Food Facts, MenuStat-style, and
-  Nutritionix-style lanes.
-- `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md:62` marks the
-  restaurant/commercial enrichment lane as a later expansion surface.
-- `app/routers/pro_food_attribution.py:20` anchors the current attribution
-  runtime contract.
-- `docs/legal/ODbL_COMPLIANCE.md:21` defines the provider-specific ODbL policy
-  for Open Food Facts.
+- `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`, section
+  `## 4. Source Tiers and Update Cadence`, already lists canonical source tiers,
+  including USDA, Open Food Facts, MenuStat-style, and Nutritionix-style lanes.
+- `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`, section
+  `### 5.1 Snapshot contract`, defines the repo's snapshot-oriented operating
+  lane.
+- `app/routers/pro_food_attribution.py`, route `GET /api/v1/pro/attribution`,
+  anchors the current attribution runtime contract.
+- `docs/legal/ODbL_COMPLIANCE.md`, section `## Policy`, defines the
+  provider-specific ODbL policy for Open Food Facts.
 
-## 2. Default operating rules
+## 2. Workflow definitions
+
+### Snapshot workflow
+
+Snapshot workflow means deterministic, non-request-time ingestion, build, or
+refresh jobs that create or update local canonical datasets before runtime
+serving.
+
+Current repo examples:
+
+- `scripts/build_food_db.py`
+- `core/food_apis/update_manager.py`
+- source-specific ingestion and normalization logic under `core/food_sources/`
+
+### Runtime workflow
+
+Runtime workflow means request-time serving, lookup, attribution, or fallback
+behavior that executes while handling application/API traffic.
+
+Current repo examples:
+
+- `app/routers/pro_food_attribution.py`
+- food-serving and source-license lookup paths under `app/services/food_store.py`
+
+## 3. Default operating rules
 
 - Hard rule: no new external food or menu source may enter runtime or snapshot
   workflows without a reviewed matrix entry in this policy or a stricter
@@ -35,7 +60,7 @@ Repo-grounded evidence:
 - Attribution defaults to required when terms or source status are uncertain.
 - Commercial usage defaults to medium-or-higher risk until reviewed.
 
-## 3. Source matrix
+## 4. Source matrix
 
 | Source lane | Ingestion | Local cache | Redistribution | Attribution | Commercial risk note |
 | --- | --- | --- | --- | --- | --- |
@@ -44,7 +69,7 @@ Repo-grounded evidence:
 | MenuStat-style public research datasets | Allowed only after file-level license review in onboarding PR | Allowed for reviewed local snapshots | Not allowed by default | Required | Medium: publication is public/research-oriented, but redistribution rights may be narrower than access suggests |
 | Nutritionix-style commercial datasets | Not allowed by default without contract | Not allowed by default without contract | Not allowed by default | Contract-dependent | High: commercial provider terms usually govern cache, display, and redistribution rights |
 
-## 4. Relationship to provider-specific docs
+## 5. Relationship to provider-specific docs
 
 - `docs/legal/ODbL_COMPLIANCE.md` remains the canonical provider-specific policy
   for Open Food Facts.
@@ -52,7 +77,7 @@ Repo-grounded evidence:
   document wins.
 - If a source is not listed here, it is treated as not approved for rollout.
 
-## 5. Operating requirements for rollout PRs
+## 6. Operating requirements for rollout PRs
 
 Every future source-onboarding or expansion PR must state:
 
@@ -64,19 +89,19 @@ Every future source-onboarding or expansion PR must state:
 - commercial-risk note
 - whether a provider-specific policy doc is required
 
-## 6. Prohibited assumptions
+## 7. Prohibited assumptions
 
 - "Publicly downloadable" does not mean "safe to redistribute"
 - "Factual nutrition data" does not mean "contract-free to cache forever"
 - "Available through an API" does not mean "safe for bulk ingestion or model
   training"
 
-## 7. Deferred enforcement
+## 8. Deferred enforcement
 
 Automation that validates source onboarding against this matrix is deferred and
 must be tracked in `docs/roadmap/BACKLOG_LEDGER.md`.
 
-## 8. Related docs
+## 9. Related docs
 
 - `docs/legal/ODbL_COMPLIANCE.md`
 - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
