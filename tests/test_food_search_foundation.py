@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from fastapi import FastAPI
 import httpx
 import pytest
+from typing import Literal
 
 from app.bootstrap.food_search import (
     _safe_index_name,
@@ -99,6 +101,26 @@ def test_meili_backend_returns_empty_when_hits_is_not_a_list() -> None:
     assert backend.search_foods("apple") == []
 
 
+def test_meili_backend_falls_back_when_response_root_is_not_an_object() -> None:
+    class _FallbackBackend:
+        def search_foods(
+            self,
+            query: str,
+            limit: int | str = 20,
+            offset: int | str = 0,
+        ) -> list[dict[str, str]]:
+            return [{"id": "legacy"}]
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        transport=lambda *_args: ["unexpected-root"],
+        fallback_backend=_FallbackBackend(),
+    )
+
+    assert backend.search_foods("apple") == [{"id": "legacy"}]
+
+
 def test_shadow_backend_returns_baseline_when_shadow_diverges() -> None:
     class _Baseline:
         def search_foods(
@@ -118,9 +140,52 @@ def test_shadow_backend_returns_baseline_when_shadow_diverges() -> None:
         ) -> list[dict[str, str]]:
             return [{"id": "shadow"}]
 
-    backend = ShadowSearchBackend(baseline_backend=_Baseline(), shadow_backend=_Shadow())
+    backend = ShadowSearchBackend(
+        baseline_backend=_Baseline(),
+        shadow_backend=_Shadow(),
+        shadow_runner=lambda task: task(),
+    )
 
     assert backend.search_foods("banana") == [{"id": "baseline"}]
+
+
+def test_shadow_backend_does_not_block_on_shadow_query() -> None:
+    class _Baseline:
+        def search_foods(
+            self,
+            query: str,
+            limit: int | str = 20,
+            offset: int | str = 0,
+        ) -> list[dict[str, str]]:
+            return [{"id": "baseline"}]
+
+    class _Shadow:
+        def __init__(self) -> None:
+            self.called = False
+
+        def search_foods(
+            self,
+            query: str,
+            limit: int | str = 20,
+            offset: int | str = 0,
+        ) -> list[dict[str, str]]:
+            self.called = True
+            return [{"id": "shadow"}]
+
+    scheduled_tasks: list[Callable[[], None]] = []
+    shadow_backend = _Shadow()
+    backend = ShadowSearchBackend(
+        baseline_backend=_Baseline(),
+        shadow_backend=shadow_backend,
+        shadow_runner=scheduled_tasks.append,
+    )
+
+    assert backend.search_foods("banana") == [{"id": "baseline"}]
+    assert shadow_backend.called is False
+    assert len(scheduled_tasks) == 1
+
+    scheduled_tasks[0]()
+    assert shadow_backend.called is True
 
 
 def test_shadow_backend_returns_baseline_when_shadow_raises() -> None:
@@ -142,7 +207,11 @@ def test_shadow_backend_returns_baseline_when_shadow_raises() -> None:
         ) -> list[dict[str, str]]:
             raise RuntimeError("shadow down")
 
-    backend = ShadowSearchBackend(baseline_backend=_Baseline(), shadow_backend=_Shadow())
+    backend = ShadowSearchBackend(
+        baseline_backend=_Baseline(),
+        shadow_backend=_Shadow(),
+        shadow_runner=lambda task: task(),
+    )
 
     assert backend.search_foods("banana") == [{"id": "baseline"}]
 
@@ -193,10 +262,11 @@ def test_register_food_search_backend_falls_back_to_baseline_without_meili_url(
     app = FastAPI()
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "hybrid_shadow")
     monkeypatch.delenv("MEILI_URL", raising=False)
-
-    register_food_search_backend(app)
-
-    assert app.state.food_search_strategy == "baseline_fts"
+    try:
+        register_food_search_backend(app)
+        assert app.state.food_search_strategy == "baseline_fts"
+    finally:
+        food_store.reset_strategy_search_backend_adapter()
 
 
 def test_register_food_search_backend_registers_meili_strategy(
@@ -207,15 +277,15 @@ def test_register_food_search_backend_registers_meili_strategy(
     monkeypatch.setenv("MEILI_URL", "https://meili.example")
     monkeypatch.setenv("MEILI_FOODS_INDEX", "   ")
     monkeypatch.setenv("MEILI_TIMEOUT_SECONDS", "bad-timeout")
-
-    register_food_search_backend(app)
-
-    assert app.state.food_search_strategy == "meili"
-    backend = food_store.get_search_backend()
-    assert isinstance(backend, MeiliSearchBackend)
-    assert backend._index_name == "foods"
-    assert backend._timeout_seconds == 2.0
-    food_store.reset_strategy_search_backend_adapter()
+    try:
+        register_food_search_backend(app)
+        assert app.state.food_search_strategy == "meili"
+        backend = food_store.get_search_backend()
+        assert isinstance(backend, MeiliSearchBackend)
+        assert backend._index_name == "foods"
+        assert backend._timeout_seconds == 2.0
+    finally:
+        food_store.reset_strategy_search_backend_adapter()
 
 
 def test_register_food_search_backend_registers_shadow_strategy(
@@ -224,12 +294,12 @@ def test_register_food_search_backend_registers_shadow_strategy(
     app = FastAPI()
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "hybrid_shadow")
     monkeypatch.setenv("MEILI_URL", "https://meili.example")
-
-    register_food_search_backend(app)
-
-    assert app.state.food_search_strategy == "hybrid_shadow"
-    assert isinstance(food_store.get_search_backend(), ShadowSearchBackend)
-    food_store.reset_strategy_search_backend_adapter()
+    try:
+        register_food_search_backend(app)
+        assert app.state.food_search_strategy == "hybrid_shadow"
+        assert isinstance(food_store.get_search_backend(), ShadowSearchBackend)
+    finally:
+        food_store.reset_strategy_search_backend_adapter()
 
 
 def test_safe_timeout_and_index_helpers_use_fallbacks() -> None:
@@ -259,7 +329,7 @@ def test_default_transport_posts_json(monkeypatch: pytest.MonkeyPatch) -> None:
         def __enter__(self) -> "_Client":
             return self
 
-        def __exit__(self, exc_type, exc, tb) -> bool:
+        def __exit__(self, exc_type, exc, tb) -> Literal[False]:
             return False
 
         def post(

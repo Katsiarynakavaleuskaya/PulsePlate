@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 import json
 import logging
-from typing import Any, Callable, Mapping, Sequence, TYPE_CHECKING
+import threading
+from typing import Any, TYPE_CHECKING
 
 import httpx
 
@@ -13,7 +15,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-Transport = Callable[[str, dict[str, Any], Mapping[str, str], float], dict[str, Any]]
+Transport = Callable[[str, dict[str, Any], Mapping[str, str], float], Any]
+ShadowTaskRunner = Callable[[Callable[[], None]], None]
 
 
 def _numeric_field_or_default(hit: Mapping[str, Any], key: str) -> int | float:
@@ -30,15 +33,22 @@ def _default_transport(
     payload: dict[str, Any],
     headers: Mapping[str, str],
     timeout_seconds: float,
-) -> dict[str, Any]:
+) -> Any:
     """Execute a POST request against Meilisearch."""
 
     with httpx.Client(timeout=timeout_seconds) as client:
         response = client.post(url, json=payload, headers=dict(headers))
         response.raise_for_status()
-        parsed_response: dict[str, Any]
+        parsed_response: Any
         parsed_response = response.json()
         return parsed_response
+
+
+def _start_shadow_thread(task: Callable[[], None]) -> None:
+    """Run a best-effort shadow comparison off the request path."""
+
+    thread = threading.Thread(target=task, name="food-search-shadow", daemon=True)
+    thread.start()
 
 
 class MeiliSearchBackend:
@@ -60,6 +70,19 @@ class MeiliSearchBackend:
         self._timeout_seconds = timeout_seconds
         self._transport = transport
         self._fallback_backend = fallback_backend
+
+    def _fallback_search(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Return the baseline fallback rows or an empty result set."""
+
+        if self._fallback_backend is not None:
+            return self._fallback_backend.search_foods(query, limit=limit, offset=offset)
+        return []
 
     def search_foods(
         self,
@@ -106,12 +129,19 @@ class MeiliSearchBackend:
             logger.warning(
                 "Meilisearch request failed; falling back to baseline backend", exc_info=True
             )
-            if self._fallback_backend is not None:
-                fallback_rows: Sequence[Mapping[str, Any]] = self._fallback_backend.search_foods(
-                    query, limit=normalized_limit, offset=normalized_offset
-                )
-                return fallback_rows
-            return []
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
+
+        if not isinstance(response, Mapping):
+            logger.warning("Meilisearch response root was not an object")
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
 
         hits = response.get("hits", [])
         if not isinstance(hits, list):
@@ -145,9 +175,11 @@ class ShadowSearchBackend:
         *,
         baseline_backend: "FoodSearchBackend",
         shadow_backend: "FoodSearchBackend",
+        shadow_runner: ShadowTaskRunner = _start_shadow_thread,
     ) -> None:
         self._baseline_backend = baseline_backend
         self._shadow_backend = shadow_backend
+        self._shadow_runner = shadow_runner
 
     def search_foods(
         self,
@@ -158,19 +190,28 @@ class ShadowSearchBackend:
         """Serve baseline results and record shadow divergence in logs."""
 
         baseline_rows = list(self._baseline_backend.search_foods(query, limit=limit, offset=offset))
-        try:
-            shadow_rows = list(self._shadow_backend.search_foods(query, limit=limit, offset=offset))
-            baseline_ids = [str(row.get("id")) for row in baseline_rows]
-            shadow_ids = [str(row.get("id")) for row in shadow_rows]
-            if baseline_ids != shadow_ids:
-                logger.info(
-                    "Food search shadow divergence detected",
-                    extra={
-                        "query": query,
-                        "baseline_ids": baseline_ids,
-                        "shadow_ids": shadow_ids,
-                    },
+        baseline_ids = [str(row.get("id")) for row in baseline_rows]
+
+        def _compare_shadow() -> None:
+            try:
+                shadow_rows = list(
+                    self._shadow_backend.search_foods(query, limit=limit, offset=offset)
                 )
+                shadow_ids = [str(row.get("id")) for row in shadow_rows]
+                if baseline_ids != shadow_ids:
+                    logger.info(
+                        "Food search shadow divergence detected",
+                        extra={
+                            "query": query,
+                            "baseline_ids": baseline_ids,
+                            "shadow_ids": shadow_ids,
+                        },
+                    )
+            except Exception:
+                logger.debug("Food search shadow query failed", exc_info=True)
+
+        try:
+            self._shadow_runner(_compare_shadow)
         except Exception:
-            logger.debug("Food search shadow query failed", exc_info=True)
+            logger.debug("Food search shadow scheduling failed", exc_info=True)
         return baseline_rows
