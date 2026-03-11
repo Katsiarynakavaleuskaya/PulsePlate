@@ -83,6 +83,12 @@ def _ios_payload(
     return payload
 
 
+def _relative_iso(*, days: int) -> str:
+    """Return a deterministic ISO timestamp relative to now for entitlement tests."""
+
+    return (datetime.now(timezone.utc) + timedelta(days=days)).replace(microsecond=0).isoformat()
+
+
 def _manual_payload(
     *,
     source: str,
@@ -344,7 +350,7 @@ def test_active_pro_allows_pro_but_not_vip(
             transaction_id="txn-pro-route-1",
             tier="pro",
             status="active",
-            expires_at="2026-04-01T00:00:00Z",
+            expires_at=_relative_iso(days=30),
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -369,7 +375,7 @@ def test_active_vip_allows_vip_and_pro(
             transaction_id="txn-vip-route-1",
             tier="vip",
             status="active",
-            expires_at="2026-05-01T00:00:00Z",
+            expires_at=_relative_iso(days=45),
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -394,7 +400,7 @@ def test_expired_entitlement_denied_everywhere(
             transaction_id="txn-expired-route-1",
             tier="vip",
             status="expired",
-            expires_at="2026-03-01T00:00:00Z",
+            expires_at=_relative_iso(days=-10),
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -415,7 +421,7 @@ def test_cancelled_entitlement_denied_everywhere(
             transaction_id="txn-cancelled-route-1",
             tier="vip",
             status="active",
-            expires_at="2026-06-01T00:00:00Z",
+            expires_at=_relative_iso(days=60),
         ),
     )
     assert activation.status_code == 200, activation.text
@@ -466,7 +472,7 @@ def test_pre_entitlement_billing_route_stays_accessible(
             transaction_id="txn-pre-entitlement-1",
             tier="pro",
             status="active",
-            expires_at="2026-04-15T00:00:00Z",
+            expires_at=_relative_iso(days=35),
         ),
     )
     assert response.status_code == 200, response.text
@@ -511,7 +517,7 @@ def test_active_row_with_past_expiry_denies_paid_routes(
             transaction_id="txn-expiry-check-1",
             tier="pro",
             status="active",
-            expires_at="2026-06-01T00:00:00Z",
+            expires_at=_relative_iso(days=60),
         ),
     )
     assert activation.status_code == 200, activation.text
