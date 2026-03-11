@@ -23,4 +23,12 @@ Commit: see mapping entries below
 Evidence: `e4026349` adds explicit rollout/rollback instruction sync for the governed CV lane in `.cursor/agents/agent-coordinator.md:351` and `.cursor/agents/cv-agent.md:21`, satisfying the requested `docs(agents): update instructions` follow-up for the new orchestration behavior.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916582524 -> e4026349
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#pullrequestreview-3927626055 -> e4026349
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: cubic identified the separator-normalization bug in `is_cv_experiment()`. `b9be3da5` fixes that by normalizing CV hint input through `normalize_text()` in `scripts/orchestration/experiment_contract.py:268`, and `504ad3b1` hardens ML-domain hint matching to token boundaries in `scripts/orchestration/experiment_bootstrap.py:55`, adds a false-positive regression test in `tests/test_experiment_bootstrap.py:111`, and restores P1-before-P2 ordering in `docs/roadmap/BACKLOG_LEDGER.md:5411`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916601568 -> b9be3da5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916601574 -> 504ad3b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916601601 -> 504ad3b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#pullrequestreview-3927626055 -> 504ad3b1
