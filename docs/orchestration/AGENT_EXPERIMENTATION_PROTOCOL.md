@@ -265,6 +265,7 @@ If a candidate wins, the coordinator promotes it into exactly one destination:
 - winner includes reproducible evidence,
 - winner references the immutable oracle that accepted it,
 - deferred follow-ups go to `docs/roadmap/BACKLOG_LEDGER.md`,
+- promotion decisions are emitted through `scripts/orchestration/experiment_promote.py`,
 - no duplicate canonical policy wording across multiple docs.
 
 ---

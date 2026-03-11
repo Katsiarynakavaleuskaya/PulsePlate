@@ -204,6 +204,7 @@ def build_summary(
     gate_status: str = "not_run",
     retries: int = 0,
     outcome: str = "pass",
+    experiment_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build full summary dict (deterministic)."""
     repo_root = _repo_root()
@@ -226,7 +227,7 @@ def build_summary(
         static_ok=static_ok,
     )
 
-    return {
+    summary = {
         "schema_version": "2.0",
         "run_id": rid,
         "agent": agent,
@@ -246,6 +247,25 @@ def build_summary(
         "static_scans": static_scans,
         "decision": decision,
     }
+    if experiment_context:
+        normalized_context = {
+            key: value
+            for key, value in {
+                "experiment_id": str(experiment_context.get("experiment_id", "")).strip(),
+                "failure_class": (
+                    None
+                    if experiment_context.get("failure_class") is None
+                    else str(experiment_context.get("failure_class", "")).strip()
+                ),
+                "promotion_target": str(experiment_context.get("promotion_target", "")).strip(),
+                "oracle_name": str(experiment_context.get("oracle_name", "")).strip(),
+                "benchmark_delta": experiment_context.get("benchmark_delta"),
+            }.items()
+            if value not in ("", None)
+        }
+        if normalized_context:
+            summary["experiment_context"] = normalized_context
+    return summary
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -265,6 +285,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--gate-status", default="not_run")
     p.add_argument("--retries", type=int, default=0)
     p.add_argument("--outcome", default="pass")
+    p.add_argument("--experiment-id", default="")
+    p.add_argument("--failure-class", default="")
+    p.add_argument("--promotion-target", default="")
+    p.add_argument("--oracle-name", default="")
+    p.add_argument("--benchmark-delta", default="")
     p.add_argument(
         "--run-id",
         default=None,
@@ -305,6 +330,13 @@ def main(argv: list[str] | None = None) -> int:
         gate_status=args.gate_status,
         retries=args.retries,
         outcome=args.outcome,
+        experiment_context={
+            "experiment_id": args.experiment_id,
+            "failure_class": args.failure_class or None,
+            "promotion_target": args.promotion_target,
+            "oracle_name": args.oracle_name,
+            "benchmark_delta": args.benchmark_delta or None,
+        },
     )
 
     payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True)
