@@ -205,6 +205,7 @@ Use this extension when the task class is `creative_research`.
 **Creative Research Phase:**
 - Phase: `divergence` | `convergence` | `verification`
 - Current outcome target: `promote` | `defer` | `discard`
+- Current output class: `mechanistic_hypothesis` | `experimental_proposal` | `anomaly_explanation_candidate` | `creative_ideation`
 
 **Hypothesis contract status:**
 - claim:
@@ -214,10 +215,12 @@ Use this extension when the task class is `creative_research`.
 - confidence:
 - known_risks:
 - wellness_boundary:
+- output_class:
 - promotion_decision:
 
 **What Agent B must return:**
 - Updated hypothesis contract fields
+- Output class after this phase
 - Scorecard fields touched in this phase
 - Any downgrade to `creative_ideation`
 - Next PR packet inputs if this phase completes the cycle

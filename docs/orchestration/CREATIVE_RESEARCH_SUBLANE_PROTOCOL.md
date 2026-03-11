@@ -195,13 +195,14 @@ Downgrade rule:
 
 ## 7. Lane-specific defaults and stop conditions
 
-These are default charter values for `creative_research`. They must stay within the hard caps defined by the umbrella experimentation protocol.
+All numeric budgets and hard orchestration caps for this lane are inherited from the authoritative umbrella document:
 
-- `max_branches: 6`
-- `max_total_llm_calls: 10`
-- `max_recursive_depth: 2`
-- `max_retrieval_hops: 2`
-- `max_tokens_total: bounded`
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+
+This sub-lane may reference budget-sensitive expectations, but it must not redefine numeric limits or create a second budget source of truth.
+
+Lane-specific policy flags that remain in force:
+
 - `cache_required: true`
 - `feature_flag_required: true`
 - `quota_checked_before_calls: true`
@@ -209,7 +210,7 @@ These are default charter values for `creative_research`. They must stay within 
 Stop immediately when:
 
 - grounding is weak or contradictory
-- the candidate drifts into diagnosis or treatment claims
+- the candidate drifts into clinical or treatment-oriented assertions
 - the evidence plan is missing
 - the falsifier is absent or decorative
 - the proposal would require a new public heavy LLM core-path surface

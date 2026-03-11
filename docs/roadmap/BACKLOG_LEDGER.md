@@ -5465,8 +5465,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Creative research eval lane under governed experimentation epic
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research moat, bounded discovery workflow)
-  - Target PR: PR_TBD_CREATIVE_RESEARCH_PROTOCOL -> PR_TBD_CREATIVE_RESEARCH_EVAL -> PR_TBD_CREATIVE_RESEARCH_INTERNAL_PILOT
-  - Status: 📋 Planned
+  - Target PR: PR `#1106` -> PR_TBD_CREATIVE_RESEARCH_EVAL -> PR_TBD_CREATIVE_RESEARCH_INTERNAL_PILOT
+  - Status: 🟡 In progress (PR `#1106` carries the docs-only protocol/routing/evaluation visibility slice)
   - Dependencies:
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)

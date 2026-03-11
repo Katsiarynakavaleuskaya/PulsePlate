@@ -182,7 +182,7 @@ This contract defines **what "success" means** for each agent task class. It ena
 | 5 | Missing discovery fields trigger downgrade | Candidate lacking `mechanism`, `falsifier`, or `evidence_needed` is labeled `creative_ideation` |
 | 6 | Next PR scope is explicit | Packet includes files, tests, docs, gates, and human review requirement |
 | 7 | Deferred work is ledgered immediately | `docs/roadmap/BACKLOG_LEDGER.md` updated when applicable |
-| 8 | PR wave boundaries are preserved | PR-A docs-only; PR-B offline eval only; PR-C internal-only pilot |
+| 8 | Current rollout constraints are preserved | See `CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md` and the linked backlog item for the active wave boundaries |
 
 **Recall Checklist (optional):**
 

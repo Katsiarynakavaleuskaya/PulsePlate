@@ -129,4 +129,5 @@ Choose exactly one:
 - `required_tests`:
 - `required_docs`:
 - `quality_gates`:
+- `deferred_followups`:
 - `human_review_required`:
