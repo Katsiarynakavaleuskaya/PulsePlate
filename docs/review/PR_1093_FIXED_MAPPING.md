@@ -131,6 +131,12 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2916443979
 Reason: this CodeRabbit review entry is a summary shell for the actionable child thread dispositioned immediately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#pullrequestreview-3927538380 -> 386c9066
+Disposition: FIXED
+Commit: 386c9066
+Evidence: tests/test_genai_tracing.py:7; tests/test_genai_tracing.py:507
+Reason: the CBT tracing test now types the pytest `tmp_path` fixture as `pathlib.Path`, restoring precise typing without changing runtime behavior.
+
 ## Merge Readiness
 - [ ] Scope tied to PR objective
 - [ ] Docs/runtime changes applied
