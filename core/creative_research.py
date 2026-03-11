@@ -10,22 +10,108 @@ paths.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Literal, TypedDict, cast
 
 from core.insight.philosophy_validator import validate_llm_output
 
 SCHEMA_VERSION = "1.0"
 TASK_CLASS = "creative_research"
-VALID_PHASES: tuple[str, ...] = ("divergence", "convergence", "verification")
-CONFIDENCE_LEVELS: tuple[str, ...] = ("low", "medium", "high", "unknown")
-OUTPUT_CLASSES: tuple[str, ...] = (
+CreativeResearchPhase = Literal["divergence", "convergence", "verification"]
+CreativeResearchConfidence = Literal["low", "medium", "high", "unknown"]
+CreativeResearchOutputClass = Literal[
+    "mechanistic_hypothesis",
+    "experimental_proposal",
+    "anomaly_explanation_candidate",
+    "creative_ideation",
+]
+CreativeResearchPromotionDecision = Literal["promote", "defer", "discard"]
+
+VALID_PHASES: tuple[CreativeResearchPhase, ...] = ("divergence", "convergence", "verification")
+CONFIDENCE_LEVELS: tuple[CreativeResearchConfidence, ...] = ("low", "medium", "high", "unknown")
+OUTPUT_CLASSES: tuple[CreativeResearchOutputClass, ...] = (
     "mechanistic_hypothesis",
     "experimental_proposal",
     "anomaly_explanation_candidate",
     "creative_ideation",
 )
-PROMOTION_DECISIONS: tuple[str, ...] = ("promote", "defer", "discard")
+PROMOTION_DECISIONS: tuple[CreativeResearchPromotionDecision, ...] = (
+    "promote",
+    "defer",
+    "discard",
+)
 DISCOVERY_REQUIRED_FIELDS: tuple[str, ...] = ("mechanism", "evidence_needed", "falsifier")
+
+
+class CreativeResearchCandidateRecord(TypedDict):
+    """Validated creative-research candidate record."""
+
+    candidate_id: str
+    claim: str
+    mechanism: str
+    evidence_needed: str
+    falsifier: str
+    confidence: CreativeResearchConfidence
+    known_risks: list[str]
+    wellness_boundary: str
+
+
+class CreativeResearchBundleRecord(TypedDict):
+    """Validated creative-research bundle record."""
+
+    schema_version: str
+    bundle_id: str
+    task_class: str
+    phase: CreativeResearchPhase
+    prompt_seed: str
+    reference_corpus: list[str]
+    candidates: list[CreativeResearchCandidateRecord]
+
+
+class CreativeResearchScorecardRecord(TypedDict):
+    """Deterministic creative-research scorecard record."""
+
+    originality: int
+    flexibility: int
+    mechanism_specificity: int
+    groundedness: int
+    falsifiability: int
+    wellness_safety: int
+    hallucination_risk: int
+
+
+class CreativeResearchEvaluatedCandidateRecord(CreativeResearchCandidateRecord):
+    """Evaluated candidate record with deterministic outputs."""
+
+    output_class: CreativeResearchOutputClass
+    reference_overlap: float
+    peer_overlap: float
+    negative_controls_triggered: list[str]
+    scorecard: CreativeResearchScorecardRecord
+    promotion_decision: CreativeResearchPromotionDecision
+    presentation_label: str | None
+
+
+class CreativeResearchEvaluationSummaryRecord(TypedDict):
+    """Aggregate promote/defer/discard counts for one bundle."""
+
+    candidate_count: int
+    promote: int
+    defer: int
+    discard: int
+
+
+class CreativeResearchEvaluationResultRecord(TypedDict):
+    """Fully evaluated creative-research bundle record."""
+
+    schema_version: str
+    bundle_id: str
+    task_class: str
+    phase: CreativeResearchPhase
+    prompt_seed: str
+    reference_corpus_size: int
+    summary: CreativeResearchEvaluationSummaryRecord
+    candidates: list[CreativeResearchEvaluatedCandidateRecord]
+
 
 TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 STOPWORDS = {
@@ -136,14 +222,27 @@ def normalize_creative_research_text(*parts: str) -> str:
     return " ".join(raw.split())
 
 
-def _require_non_empty_string(payload: dict[str, Any], *, key: str, label: str) -> str:
+def _require_object_mapping(
+    raw: object,
+    *,
+    label: str,
+    expected_phrase: str = "an object",
+) -> dict[str, object]:
+    """Validate raw object payloads before domain normalization."""
+
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label} must be {expected_phrase}.")
+    return {str(key): value for key, value in raw.items()}
+
+
+def _require_non_empty_string(payload: dict[str, object], *, key: str, label: str) -> str:
     value = str(payload.get(key, "")).strip()
     if not value:
         raise ValueError(f"{label} must include a non-empty {key}.")
     return value
 
 
-def _normalize_string_list(raw: Any, *, label: str) -> list[str]:
+def _normalize_string_list(raw: object, *, label: str) -> list[str]:
     if not isinstance(raw, list):
         raise ValueError(f"{label} must be a list.")
     values = [str(item).strip() for item in raw if str(item).strip()]
@@ -202,13 +301,16 @@ def _contains_any(text: str, hints: tuple[str, ...]) -> bool:
     return _count_hints(text, hints) > 0
 
 
-def validate_bundle(payload: Any) -> dict[str, Any]:
+def validate_bundle(payload: object) -> CreativeResearchBundleRecord:
     """Validate and normalize a creative research bundle."""
 
-    if not isinstance(payload, dict):
-        raise ValueError("Creative research eval bundle must be a JSON object.")
+    payload_dict = _require_object_mapping(
+        payload,
+        label="Creative research eval bundle",
+        expected_phrase="a JSON object",
+    )
 
-    schema_version = str(payload.get("schema_version", "")).strip()
+    schema_version = str(payload_dict.get("schema_version", "")).strip()
     if schema_version != SCHEMA_VERSION:
         raise ValueError(
             f"Creative research eval bundle schema_version must equal {SCHEMA_VERSION!r}, "
@@ -216,12 +318,12 @@ def validate_bundle(payload: Any) -> dict[str, Any]:
         )
 
     bundle_id = _require_non_empty_string(
-        payload,
+        payload_dict,
         key="bundle_id",
         label="Creative research eval bundle",
     )
     task_class = _require_non_empty_string(
-        payload,
+        payload_dict,
         key="task_class",
         label="Creative research eval bundle",
     ).lower()
@@ -229,7 +331,7 @@ def validate_bundle(payload: Any) -> dict[str, Any]:
         raise ValueError(f"Creative research eval bundle task_class must equal {TASK_CLASS!r}.")
 
     phase = _require_non_empty_string(
-        payload,
+        payload_dict,
         key="phase",
         label="Creative research eval bundle",
     ).lower()
@@ -238,26 +340,28 @@ def validate_bundle(payload: Any) -> dict[str, Any]:
         raise ValueError(f"Creative research eval bundle phase must be one of: {allowed}.")
 
     prompt_seed = _require_non_empty_string(
-        payload,
+        payload_dict,
         key="prompt_seed",
         label="Creative research eval bundle",
     )
     reference_corpus = _normalize_string_list(
-        payload.get("reference_corpus", []),
+        payload_dict.get("reference_corpus", []),
         label="Creative research eval bundle reference_corpus",
     )
 
-    candidates_raw = payload.get("candidates")
+    candidates_raw = payload_dict.get("candidates")
     if not isinstance(candidates_raw, list) or not candidates_raw:
         raise ValueError("Creative research eval bundle candidates must be a non-empty list.")
 
-    candidates: list[dict[str, Any]] = []
+    candidates: list[CreativeResearchCandidateRecord] = []
     for index, candidate_raw in enumerate(candidates_raw, start=1):
-        if not isinstance(candidate_raw, dict):
-            raise ValueError(f"Creative research candidate #{index} must be an object.")
+        candidate_payload = _require_object_mapping(
+            candidate_raw,
+            label=f"Creative research candidate #{index}",
+        )
         label = f"Creative research candidate #{index}"
         confidence = _require_non_empty_string(
-            candidate_raw,
+            candidate_payload,
             key="confidence",
             label=label,
         ).lower()
@@ -265,50 +369,61 @@ def validate_bundle(payload: Any) -> dict[str, Any]:
             allowed = ", ".join(CONFIDENCE_LEVELS)
             raise ValueError(f"{label} confidence must be one of: {allowed}.")
 
-        candidates.append(
-            {
-                "candidate_id": _require_non_empty_string(
-                    candidate_raw,
-                    key="candidate_id",
-                    label=label,
-                ),
-                "claim": _require_non_empty_string(
-                    candidate_raw,
-                    key="claim",
-                    label=label,
-                ),
-                "mechanism": str(candidate_raw.get("mechanism", "")).strip(),
-                "evidence_needed": str(candidate_raw.get("evidence_needed", "")).strip(),
-                "falsifier": str(candidate_raw.get("falsifier", "")).strip(),
-                "confidence": confidence,
-                "known_risks": _normalize_string_list(
-                    candidate_raw.get("known_risks", []),
-                    label=f"{label} known_risks",
-                ),
-                "wellness_boundary": _require_non_empty_string(
-                    candidate_raw,
-                    key="wellness_boundary",
-                    label=label,
-                ),
-            }
-        )
+        normalized_confidence = cast(CreativeResearchConfidence, confidence)
+        candidate: CreativeResearchCandidateRecord = {
+            "candidate_id": _require_non_empty_string(
+                candidate_payload,
+                key="candidate_id",
+                label=label,
+            ),
+            "claim": _require_non_empty_string(
+                candidate_payload,
+                key="claim",
+                label=label,
+            ),
+            "mechanism": str(candidate_payload.get("mechanism", "")).strip(),
+            "evidence_needed": str(candidate_payload.get("evidence_needed", "")).strip(),
+            "falsifier": str(candidate_payload.get("falsifier", "")).strip(),
+            "confidence": normalized_confidence,
+            "known_risks": _normalize_string_list(
+                candidate_payload.get("known_risks", []),
+                label=f"{label} known_risks",
+            ),
+            "wellness_boundary": _require_non_empty_string(
+                candidate_payload,
+                key="wellness_boundary",
+                label=label,
+            ),
+        }
+        candidates.append(candidate)
 
-    return {
+    normalized_phase = cast(CreativeResearchPhase, phase)
+    bundle_record: CreativeResearchBundleRecord = {
         "schema_version": schema_version,
         "bundle_id": bundle_id,
         "task_class": task_class,
-        "phase": phase,
+        "phase": normalized_phase,
         "prompt_seed": prompt_seed,
         "reference_corpus": reference_corpus,
         "candidates": candidates,
     }
+    return bundle_record
 
 
-def classify_output(candidate: dict[str, Any]) -> tuple[str, list[str]]:
+def classify_output(
+    candidate: CreativeResearchCandidateRecord,
+) -> tuple[CreativeResearchOutputClass, list[str]]:
     """Return the deterministic output class and triggered control labels."""
 
+    candidate_required_values = {
+        "mechanism": candidate["mechanism"],
+        "evidence_needed": candidate["evidence_needed"],
+        "falsifier": candidate["falsifier"],
+    }
     missing_required = [
-        field_name for field_name in DISCOVERY_REQUIRED_FIELDS if not candidate[field_name].strip()
+        field_name
+        for field_name in DISCOVERY_REQUIRED_FIELDS
+        if not candidate_required_values[field_name].strip()
     ]
     controls: list[str] = []
     if missing_required:
@@ -316,7 +431,8 @@ def classify_output(candidate: dict[str, Any]) -> tuple[str, list[str]]:
         return "creative_ideation", controls
 
     classification_text = normalize_creative_research_text(
-        candidate["claim"], candidate["mechanism"]
+        candidate["claim"],
+        candidate["mechanism"],
     )
     if _contains_any(classification_text, ANOMALY_HINTS):
         return "anomaly_explanation_candidate", controls
@@ -326,13 +442,13 @@ def classify_output(candidate: dict[str, Any]) -> tuple[str, list[str]]:
 
 
 def build_scorecard(
-    candidate: dict[str, Any],
+    candidate: CreativeResearchCandidateRecord,
     *,
-    output_class: str,
+    output_class: CreativeResearchOutputClass,
     reference_overlap: float,
     peer_overlap: float,
     duplicate_candidate: bool,
-) -> tuple[dict[str, int], list[str]]:
+) -> tuple[CreativeResearchScorecardRecord, list[str]]:
     """Compute deterministic scorecard values and triggered controls."""
 
     combined_text = " ".join(
@@ -425,7 +541,7 @@ def build_scorecard(
     if not report.ok:
         hallucination_risk = 5
 
-    scorecard = {
+    scorecard: CreativeResearchScorecardRecord = {
         "originality": originality,
         "flexibility": flexibility,
         "mechanism_specificity": mechanism_specificity,
@@ -439,10 +555,10 @@ def build_scorecard(
 
 def select_promotion_decision(
     *,
-    output_class: str,
-    scorecard: dict[str, int],
+    output_class: CreativeResearchOutputClass,
+    scorecard: CreativeResearchScorecardRecord,
     negative_controls: list[str],
-) -> tuple[str, str | None]:
+) -> tuple[CreativeResearchPromotionDecision, str | None]:
     """Return deterministic promote/defer/discard plus optional degrade label."""
 
     if (
@@ -467,7 +583,7 @@ def select_promotion_decision(
     return "defer", "interesting but unverified hypothesis"
 
 
-def evaluate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+def evaluate_bundle(bundle: object) -> CreativeResearchEvaluationResultRecord:
     """Evaluate a normalized creative research bundle into deterministic results."""
 
     validated = validate_bundle(bundle)
@@ -481,7 +597,7 @@ def evaluate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         )
         for candidate in validated["candidates"]
     ]
-    evaluated_candidates: list[dict[str, Any]] = []
+    evaluated_candidates: list[CreativeResearchEvaluatedCandidateRecord] = []
 
     for index, candidate in enumerate(validated["candidates"]):
         output_class, controls = classify_output(candidate)
@@ -508,36 +624,41 @@ def evaluate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
             scorecard=scorecard,
             negative_controls=negative_controls,
         )
-        evaluated_candidates.append(
-            {
-                **candidate,
-                "output_class": output_class,
-                "reference_overlap": reference_overlap,
-                "peer_overlap": peer_overlap,
-                "negative_controls_triggered": negative_controls,
-                "scorecard": scorecard,
-                "promotion_decision": promotion_decision,
-                "presentation_label": degrade_label,
-            }
-        )
+        evaluated_candidate: CreativeResearchEvaluatedCandidateRecord = {
+            **candidate,
+            "output_class": output_class,
+            "reference_overlap": reference_overlap,
+            "peer_overlap": peer_overlap,
+            "negative_controls_triggered": negative_controls,
+            "scorecard": scorecard,
+            "promotion_decision": promotion_decision,
+            "presentation_label": degrade_label,
+        }
+        evaluated_candidates.append(evaluated_candidate)
 
-    decision_counts = {decision: 0 for decision in PROMOTION_DECISIONS}
+    decision_counts: dict[CreativeResearchPromotionDecision, int] = {
+        decision: 0 for decision in PROMOTION_DECISIONS
+    }
     for candidate in evaluated_candidates:
         decision_counts[candidate["promotion_decision"]] += 1
 
-    return {
+    summary: CreativeResearchEvaluationSummaryRecord = {
+        "candidate_count": len(evaluated_candidates),
+        "promote": decision_counts["promote"],
+        "defer": decision_counts["defer"],
+        "discard": decision_counts["discard"],
+    }
+    result: CreativeResearchEvaluationResultRecord = {
         "schema_version": SCHEMA_VERSION,
         "bundle_id": validated["bundle_id"],
         "task_class": validated["task_class"],
         "phase": validated["phase"],
         "prompt_seed": validated["prompt_seed"],
         "reference_corpus_size": len(validated["reference_corpus"]),
-        "summary": {
-            "candidate_count": len(evaluated_candidates),
-            **decision_counts,
-        },
+        "summary": summary,
         "candidates": evaluated_candidates,
     }
+    return result
 
 
 __all__ = [
@@ -548,6 +669,16 @@ __all__ = [
     "SCHEMA_VERSION",
     "TASK_CLASS",
     "VALID_PHASES",
+    "CreativeResearchBundleRecord",
+    "CreativeResearchCandidateRecord",
+    "CreativeResearchConfidence",
+    "CreativeResearchEvaluatedCandidateRecord",
+    "CreativeResearchEvaluationResultRecord",
+    "CreativeResearchEvaluationSummaryRecord",
+    "CreativeResearchOutputClass",
+    "CreativeResearchPhase",
+    "CreativeResearchPromotionDecision",
+    "CreativeResearchScorecardRecord",
     "_count_hints",
     "build_scorecard",
     "classify_output",
