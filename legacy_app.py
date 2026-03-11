@@ -125,7 +125,7 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
 )
-from app.telemetry.genai import chain_span
+from app.services.insight_runtime import generate_traced_insight
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
@@ -2268,16 +2268,6 @@ class _DirectInsightProviderStub:
         raise RuntimeError("Direct runtime route must not call provider.generate")
 
 
-def _insight_feature_flag_state() -> dict[str, bool]:
-    """Return deterministic feature-flag snapshot for insight tracing."""
-
-    return {
-        "insight": _is_truthy(os.getenv("FEATURE_INSIGHT", "false")),
-        "rag": _is_truthy(os.getenv("FEATURE_RAG", "false")),
-        "rag_vector": _is_truthy(os.getenv("FEATURE_RAG_VECTOR", "false")),
-    }
-
-
 async def _execute_insight_request(
     req: InsightRequest,
     *,
@@ -2313,28 +2303,23 @@ async def _execute_insight_request(
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )
-    with chain_span(
-        "insight chain",
-        user_tier=user_tier,
-        route=route_path,
+    runtime_result = await generate_traced_insight(
+        runtime=runtime,
+        text=prompt_input,
+        lang=None,
+        provider=provider,
+        use_rag=use_rag,
+        philo_validation_enabled=is_philosophy_validation_enabled(),
+        recursive_rag_enabled=is_recursive_rag_enabled(),
+        subject_id=subject_id,
+        philosophy_router_enabled=philosophy_router_enabled,
+        philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
+        philosophy_linguistic_enabled=philosophy_linguistic_enabled,
+        philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
+        route_path=route_path,
         route_type=decision.route_type.value,
-        feature_flags=_insight_feature_flag_state(),
-    ):
-        runtime_result = await runtime.generate_insight(
-            text=prompt_input,
-            lang=None,
-            provider=provider,
-            use_rag=use_rag,
-            philo_validation_enabled=is_philosophy_validation_enabled(),
-            recursive_rag_enabled=is_recursive_rag_enabled(),
-            subject_id=subject_id,
-            philosophy_router_enabled=philosophy_router_enabled,
-            philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
-            philosophy_linguistic_enabled=philosophy_linguistic_enabled,
-            philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
-            trace_route=route_path,
-            trace_user_tier=user_tier,
-        )
+        user_tier=user_tier,
+    )
     insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
     source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
     return InsightResponse(
@@ -2404,7 +2389,7 @@ async def insight(req: InsightRequest) -> InsightResponse:
         return await _execute_insight_request(
             req,
             route_path="/insight",
-            user_tier="FREE",
+            user_tier="VIP",
         )
     except HTTPException:
         raise

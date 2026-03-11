@@ -7,9 +7,10 @@ EN: Runtime chooses a cheaper/faster/more reliable answer path before LLM calls.
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 from core.insight.analytical import (
@@ -33,7 +34,6 @@ from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
-from app.telemetry.genai import finalize_llm_span, llm_span, retrieval_span, set_attributes
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
@@ -97,6 +97,9 @@ class _Provider(Protocol):
     name: str
 
     async def generate(self, text: str) -> str: ...
+
+
+_RagRetriever = Callable[..., Awaitable[Any]]
 
 
 class RouteType(str, Enum):
@@ -340,8 +343,7 @@ class PhilosophicalRuntime:
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
         philosophy_pragmatic_enabled: bool,
-        trace_route: str,
-        trace_user_tier: str,
+        rag_retriever: _RagRetriever | None = None,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
         public_metadata_enabled = any(
@@ -394,19 +396,14 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            with retrieval_span(
-                user_tier=trace_user_tier,
-                route=trace_route,
+            retrieve_rag = rag_retriever or rag_orchestration.retrieve_and_validate_rag
+            rag_result = await retrieve_rag(
+                prompt_input,
                 max_chunks=3,
-            ) as span:
-                rag_result = await rag_orchestration.retrieve_and_validate_rag(
-                    prompt_input,
-                    max_chunks=3,
-                    philo_validation_enabled=philo_validation_enabled,
-                    recursive_rag_enabled=recursive_rag_enabled,
-                    subject_id=subject_id,
-                )
-                set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
+                philo_validation_enabled=philo_validation_enabled,
+                recursive_rag_enabled=recursive_rag_enabled,
+                subject_id=subject_id,
+            )
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence
             rag_used = rag_result.rag_actually_used
@@ -422,14 +419,7 @@ class PhilosophicalRuntime:
         )
         prompt_text = _trim_prompt(prompt_text)
 
-        with llm_span(
-            provider_name=provider.name,
-            user_tier=trace_user_tier,
-            route=trace_route,
-            prompt_text=prompt_text,
-        ) as span:
-            answer = await provider.generate(prompt_text)
-            finalize_llm_span(span, answer)
+        answer = await provider.generate(prompt_text)
         rewrite_count = 0
         fallback_reason = ""
         verification_report: VerificationReport | None = None
@@ -459,14 +449,7 @@ class PhilosophicalRuntime:
                     contradiction_count=contradiction_count,
                 )
                 rewritten_prompt = _trim_prompt(rewrite_prompt)
-                with llm_span(
-                    provider_name=provider.name,
-                    user_tier=trace_user_tier,
-                    route=trace_route,
-                    prompt_text=rewritten_prompt,
-                ) as rewrite_span:
-                    answer = await provider.generate(rewritten_prompt)
-                    finalize_llm_span(rewrite_span, answer)
+                answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
                 contradiction_count = self._contradictions.count(answer)

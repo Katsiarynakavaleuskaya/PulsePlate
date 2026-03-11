@@ -18,6 +18,8 @@ from app.telemetry.setup import ensure_tracing_initialized
 
 logger = logging.getLogger(__name__)
 
+_STATE_REGISTRATION_KEY = "pulseplate_tracing_registered"
+
 
 async def tracing_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
     """Create a best-effort root request span with low-cardinality route metadata."""
@@ -60,15 +62,26 @@ async def tracing_middleware(request: Request, call_next: RequestResponseEndpoin
 def register_tracing(app: FastAPI) -> None:
     """Register tracing middleware on the canonical app instance."""
 
+    state = getattr(app, "state", None)
+    if state is not None and getattr(state, _STATE_REGISTRATION_KEY, False):
+        return
+
     can_mutate = getattr(app, "middleware_stack", None) is None
+    # Starlette does not expose a public middleware-registry API, so register_tracing()
+    # still checks user_middleware/middleware_stack for idempotency and keeps an app.state
+    # fallback marker once tracing_middleware is registered.
     has_middleware = any(
         mw.cls is BaseHTTPMiddleware
         and (getattr(mw, "options", None) or getattr(mw, "kwargs", None) or {}).get("dispatch")
         is tracing_middleware
         for mw in getattr(app, "user_middleware", None) or []
     )
+    if has_middleware and state is not None:
+        setattr(state, _STATE_REGISTRATION_KEY, True)
     if not has_middleware and can_mutate:
         app.middleware("http")(tracing_middleware)
+        if state is not None:
+            setattr(state, _STATE_REGISTRATION_KEY, True)
 
 
 __all__ = ["register_tracing", "tracing_middleware"]

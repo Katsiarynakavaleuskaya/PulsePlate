@@ -233,8 +233,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=False,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 0
@@ -258,8 +256,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=False,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 0
@@ -280,8 +276,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=False,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 0
@@ -303,8 +297,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=False,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 0
@@ -325,8 +317,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=True,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 2
@@ -352,8 +342,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=False,
             philosophy_linguistic_enabled=False,
             philosophy_pragmatic_enabled=False,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 1
@@ -525,8 +513,6 @@ class TestPhilosophicalRuntime:
             philosophy_phase12_enabled=True,
             philosophy_linguistic_enabled=True,
             philosophy_pragmatic_enabled=True,
-            trace_route="/tests/philosophical-runtime",
-            trace_user_tier="FREE",
         )
 
         assert provider.calls == 2

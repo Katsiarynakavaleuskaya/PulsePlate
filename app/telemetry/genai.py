@@ -47,6 +47,7 @@ _ALLOWED_ATTRS: frozenset[str] = frozenset(
         "gen_ai.response.model",
         "gen_ai.usage.input_tokens",
         "gen_ai.usage.output_tokens",
+        "http.request.method",
         OPENINFERENCE_SPAN_KIND,
         REQUEST_ID_ATTR,
         USER_TIER_ATTR,
@@ -109,8 +110,13 @@ NULL_SPAN = _NullSpan()
 
 
 def _span_kind(kind: str) -> Any:
-    trace_api = __import__("opentelemetry.trace", fromlist=["SpanKind"])
-    return getattr(trace_api, "SpanKind").__dict__[kind]
+    from opentelemetry.trace import SpanKind
+
+    return getattr(SpanKind, kind)
+
+
+def _hmac_key_available() -> bool:
+    return bool((os.getenv("PULSE_OBS_HMAC_KEY") or "").strip())
 
 
 def _sanitize_attrs(attrs: dict[str, Any]) -> dict[str, Any]:
@@ -196,7 +202,7 @@ def set_attributes(span: Any, **attrs: Any) -> None:
 def set_prompt_fingerprint(span: Any, prompt_text: str) -> None:
     """Attach prompt fingerprint and length to a span."""
 
-    if not tracing_is_enabled():
+    if not tracing_is_enabled() or not _hmac_key_available():
         return
     set_attributes(
         span,
@@ -210,7 +216,7 @@ def set_prompt_fingerprint(span: Any, prompt_text: str) -> None:
 def set_completion_fingerprint(span: Any, completion_text: str) -> None:
     """Attach completion fingerprint and length to a span."""
 
-    if not tracing_is_enabled():
+    if not tracing_is_enabled() or not _hmac_key_available():
         return
     set_attributes(
         span,
@@ -224,7 +230,7 @@ def set_completion_fingerprint(span: Any, completion_text: str) -> None:
 def add_prompt_event(span: Any, prompt_text: str, *, role: str) -> None:
     """Emit a fingerprint-only prompt event."""
 
-    if not tracing_is_enabled():
+    if not tracing_is_enabled() or not _hmac_key_available():
         return
     name = "pulseplate.gen_ai.prompt"
     if name not in _ALLOWED_EVENT_NAMES:
@@ -244,7 +250,7 @@ def add_prompt_event(span: Any, prompt_text: str, *, role: str) -> None:
 def add_completion_event(span: Any, completion_text: str) -> None:
     """Emit a fingerprint-only completion event."""
 
-    if not tracing_is_enabled():
+    if not tracing_is_enabled() or not _hmac_key_available():
         return
     name = "pulseplate.gen_ai.completion"
     if name not in _ALLOWED_EVENT_NAMES:
@@ -294,9 +300,8 @@ def request_span(method: str, request_id: str) -> Iterator[Any]:
         "http request",
         tracer_name=HTTP_TRACER_NAME,
         kind="SERVER",
-        attrs={REQUEST_ID_ATTR: request_id},
+        attrs={REQUEST_ID_ATTR: request_id, "http.request.method": method},
     ) as span:
-        span.set_attribute("http.request.method", method)
         yield span
 
 
