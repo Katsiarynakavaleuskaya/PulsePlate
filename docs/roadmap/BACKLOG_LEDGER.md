@@ -5915,14 +5915,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Final merge-readiness / wait-window evidence is recorded before merge
 
 <a id="ledger-p2-phase2-body-artifact-sync"></a>
-- [ ] P2: Eliminate PR body and mapping artifact phase2 drift
+- [x] P2: Eliminate PR body and mapping artifact phase2 drift
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_PHASE2_BODY_ARTIFACT_SYNC
+  - Target PR: PR `#1123`
   - Area: orchestration / CI governance
   - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
   - Links:
     - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `docs/review/PR_1123_FIXED_MAPPING.md`
     - `docs/review/PR_1102_FIXED_MAPPING.md`
     - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
   - DoD:
