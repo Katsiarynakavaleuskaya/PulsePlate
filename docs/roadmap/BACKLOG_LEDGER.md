@@ -5466,6 +5466,51 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
 
+- [ ] P2: Eliminate PR body and mapping artifact phase2 drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PHASE2_BODY_ARTIFACT_SYNC
+  - Area: orchestration / CI governance
+  - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - Phase2 body mirror is generated or validated from a single canonical source
+    - Late review-cycle updates no longer require manual duplication of mapping lines
+    - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
+
+- [ ] P2: Restore deterministic clean-clone dependency parity for local verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CLEAN_CLONE_DEPENDENCY_PARITY
+  - Area: tooling / developer-experience
+  - Reason: Final PR5 local `make verify` failed in the clean clone because `.venv` was missing locked `opentelemetry-*` packages required by `tests/test_genai_tracing.py`, even though `requirements.txt` already declared them. This is an environment parity gap, not a code regression, but it weakens merge confidence.
+  - Links:
+    - `Makefile`
+    - `requirements.txt`
+    - `tests/test_genai_tracing.py`
+    - `tests/test_genai_tracing_config.py`
+  - DoD:
+    - Fresh clean clones can run `make verify` after one documented bootstrap path with no missing locked dependencies
+    - Local setup docs mention the canonical venv refresh command when lockfile drift is suspected
+    - At least one deterministic check guards against silently incomplete clean-clone environments
+
+- [ ] P2: Filter superseded GitHub check noise in merge triage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_GH_CHECKS_CURRENT_HEAD_FILTER
+  - Area: orchestration / GitHub governance
+  - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
+  - Links:
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
+    - Merge triage output clearly labels stale runs as non-blocking when canonical readiness already passed
+    - Final merge checklist references the filtered current-head view
+
 - [ ] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
