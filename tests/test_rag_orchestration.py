@@ -24,6 +24,7 @@ from core.rag.orchestration import (
     RAGOrchestrationResult,
     _build_prompt_with_context,
     _empty_result,
+    _normalize_confidence_value,
     retrieve_and_validate_rag,
 )
 from core.rag.philosophy_pipeline import PipelineResult, StageResult
@@ -83,6 +84,26 @@ class TestBuildPromptWithContext:
         assert "some context" in result
         assert "Question: question?" in result
         assert "Answer:" in result
+
+
+class _FloatLike:
+    """Helper object exposing ``__float__`` for branch coverage."""
+
+    def __float__(self) -> float:
+        return 0.875
+
+
+class TestNormalizeConfidenceValue:
+    """Tests for confidence normalization helper."""
+
+    def test_supports_float_protocol_value_is_normalized(self) -> None:
+        assert _normalize_confidence_value(_FloatLike()) == 0.875
+
+    def test_unsupported_object_returns_none(self) -> None:
+        assert _normalize_confidence_value(object()) is None
+
+    def test_non_finite_value_returns_none(self) -> None:
+        assert _normalize_confidence_value(float("inf")) is None
 
 
 class TestRetrieveAndValidateRag:

@@ -107,7 +107,7 @@ def _resolve_confidence(
     chunks_to_use: list["RAGChunk"],
     philo_enabled: bool,
 ) -> float | None:
-    """Prefer explicit confidence, then fall back to valid chunk-score mean."""
+    """Resolve confidence from chunks for philo mode, else prefer normalized RAG confidence."""
 
     if philo_enabled:
         return _mean_chunk_score(chunks_to_use)
