@@ -43,9 +43,9 @@
 |----|--------|----------|---------|-----|
 | **BH-P1-1** | bug-hunter | `frontend/src/features/plan/WeeklyPlanViewer.tsx:171,182,203` | `catch (error: any)` — use `unknown` | Replace with `error: unknown` + type guard |
 | **BH-P1-2** | bug-hunter | `frontend/src/features/shoplist/ShoplistPreview.tsx:127` | `id: revokeTimeout as any` weakens type safety | Use `ReturnType<typeof setTimeout>` |
-| **BH-P1-3** | bug-hunter | `tests/test_api.py` | Missing type hints on `client` | Add `client: TestClient` |
+| **BH-P1-3** | bug-hunter | `tests/test_api.py:14,20,33` | Missing type hints on `client` | Add `client: TestClient` |
 | **SA-P1-1** | security-auditor | `run_coverage_tests.py:17` | Subprocess without nosec/absolute path | Add nosec or `shutil.which()` |
-| **SA-P1-2** | security-auditor | `agent_run_summary.py:48-50` | SHA256 truncation for run IDs | Document as non-crypto; no fix needed |
+| **SA-P1-2** | security-auditor | `scripts/orchestration/agent_run_summary.py:48-50` | SHA256 truncation for run IDs | Document as non-crypto; no fix needed |
 
 ---
 
@@ -53,23 +53,23 @@
 
 | ID | Source | Location | Finding |
 |----|--------|----------|---------|
-| **BH-P2-1** | bug-hunter | `ollama_diagnostic.sh` | `jq`, `free -h` — Linux-only; no existence check |
-| **BH-P2-2** | bug-hunter | `ollama_monitor.sh` | `bc -l` not default on macOS |
-| **BH-P2-3** | bug-hunter | `GlassCard.tsx:59,65` | Redundant undefined checks |
-| **BH-P2-4** | bug-hunter | `shareFile.ts:31,59-74` | No try/catch on `anchor.click()`; unreachable fallback |
-| **SA-P2-1** | security-auditor | Test files | Hardcoded secrets (allowlisted) |
-| **SA-P2-2** | security-auditor | `ProgressCharts.test.tsx`, `docs/graph/viewer/app.js` | innerHTML (test/docs only) |
-| **SA-P2-3** | security-auditor | Bayesian analyzer tests | eval() for detection tests |
+| **BH-P2-1** | bug-hunter | `ollama_diagnostic.sh:24,34,53,64` | `jq`, `free -h` — Linux-only; no existence check |
+| **BH-P2-2** | bug-hunter | `ollama_monitor.sh:27,35-37` | `bc -l` not default on macOS |
+| **BH-P2-3** | bug-hunter | `frontend/src/components/GlassCard.tsx:60,66` | Redundant undefined checks |
+| **BH-P2-4** | bug-hunter | `frontend/src/lib/shareFile.ts:31,59-74` | No try/catch on `anchor.click()`; unreachable fallback |
+| **SA-P2-1** | security-auditor | `tests/test_signed_links.py:5,13,21,29`, `tests/test_integrated_bayesian_analyzer.py:105,160,186,230`, `tests/test_web_session_security.py:118,123` | Hardcoded secrets (allowlisted) |
+| **SA-P2-2** | security-auditor | `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx:92`, `docs/graph/viewer/app.js:169,177` | innerHTML (test/docs only) |
+| **SA-P2-3** | security-auditor | `tests/test_integrated_bayesian_analyzer.py:161,187`, `tests/test_comprehensive_bayesian_analyzer.py:177` | eval() for detection tests |
 
 ---
 
-## 5. Verified Safe
+## 5. Source-Audit Summary
 
-- **BMI math:** No hardcoded thresholds in PR-touched files
-- **CORS:** `worker.js` uses `WORKER_ALLOWED_ORIGINS` allowlist
-- **SQL (production):** `food_store`, `restaurant_store`, `recipe_store`, `vector_rag` — parameterized
-- **Auth:** Tier guards on `/api/v1/pro/*`, `/api/v1/vip/*`
-- **Information disclosure:** No stack traces or PII in logs
+- **BMI math:** Source audit found no hardcoded thresholds in PR-touched files; see `docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md:67-70`.
+- **CORS:** Source audit records `worker.js` origin-allowlist handling at `worker.js:100-104` and `worker.js:131-134`; see `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md:114-120`.
+- **SQL (production):** Source audit lists parameterized production paths in `core/rag/vector_rag.py`, `app/services/food_store.py`, `app/services/restaurant_store.py`, and `app/services/recipe_store.py`; see `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md:149-157`.
+- **Auth:** Source audit cites tier-guard definitions and guarded route examples; see `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md:122-133`.
+- **Information disclosure:** Source audit cites stack-trace, debug-toggle, and PII/logging checks; see `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md:161-176`.
 
 ---
 
@@ -95,7 +95,9 @@
 
 ---
 
-## 7. Verification
+## 7. Reference Commands
+
+These are source-audit reproduction commands, not inline evidence triplets for this consolidated summary.
 
 ```bash
 pytest -q tests/test_repo_policy_guards.py

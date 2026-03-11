@@ -28,7 +28,7 @@
 **Status:** ❌ **Still present**
 
 **Evidence:**
-```
+```text
 tests/test_llm_extras.py:17,18  sys.modules[module_name] = module_obj
 tests/test_llm_extras.py:27,29  sys.modules[module_name] = original; sys.modules.pop(module_name, None)
 tests/test_llm_extras.py:36-38  del sys.modules["llm"]
@@ -136,7 +136,7 @@ Exit code:
 **Status:** ❌ **Still present** | **Production code**
 
 **Evidence:**
-```
+```text
 frontend/src/features/plan/WeeklyPlanViewer.tsx:172  } catch (error: any) {
 frontend/src/features/plan/WeeklyPlanViewer.tsx:183  } catch (error: any) {
 frontend/src/features/plan/WeeklyPlanViewer.tsx:193  } catch (error: any) {
@@ -166,7 +166,7 @@ Exit code:
 **Status:** ❌ **Still present** | **Production code**
 
 **Evidence:**
-```
+```text
 frontend/src/features/shoplist/ShoplistPreview.tsx:124-129
 const revokeTimeout = setTimeout(() => { ... });
 ...
@@ -241,15 +241,15 @@ Exit code:
 
 ---
 
-## 3. P2 Findings — Current State
+## 3. P2 Findings — File Presence Snapshot (not fully re-verified)
 
-| File | Finding | Status |
-|------|---------|--------|
-| `ollama_diagnostic.sh` | jq, free -h | ❌ Present (script exists) |
-| `ollama_monitor.sh` | bc -l | ❌ Present |
-| `frontend/src/components/GlassCard.tsx` | Redundant undefined checks | ❌ Present |
-| `frontend/src/lib/shareFile.ts` | No try/catch on anchor.click(); fallback dead code | ❌ Present |
-| `scripts/orchestration/agent_run_summary.py` | SHA256 truncation for run IDs | Documented non-crypto; no fix needed |
+| File | Finding | Snapshot |
+|------|---------|----------|
+| `ollama_diagnostic.sh:24,34,53,64` | jq, free -h | File exists; this P2 item was not re-verified with a command/output triplet in this pass |
+| `ollama_monitor.sh:27,35-37` | bc -l | File exists; this P2 item was not re-verified with a command/output triplet in this pass |
+| `frontend/src/components/GlassCard.tsx:60,66` | Redundant undefined checks | File exists; this P2 item was not re-verified with a command/output triplet in this pass |
+| `frontend/src/lib/shareFile.ts:31,59-74` | No try/catch on anchor.click(); fallback dead code | File exists; this P2 item was not re-verified with a command/output triplet in this pass |
+| `scripts/orchestration/agent_run_summary.py:48-55` | SHA256 truncation for run IDs | File exists; source audit already documents this as non-cryptographic run-id generation |
 
 ---
 
@@ -292,7 +292,7 @@ Exit code:
 
 ---
 
-## 6. Verification Commands
+## 6. Reference Commands
 
 ```bash
 # Confirm sys.modules in test_llm_extras (not in vip/)
@@ -310,4 +310,4 @@ git grep -n "as any" frontend/src/features/shoplist/ShoplistPreview.tsx
 
 ---
 
-*Verification performed 2026-03-11. Source: grep, file reads, guard test scope analysis.*
+*Verification performed 2026-03-11. P0/P1 findings above include inline evidence triplets; the P2 table is intentionally a file-presence snapshot only.*
