@@ -69,6 +69,27 @@ Evidence: `tests/test_design_generation_pipeline.py:49`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046609 -> 3827b81b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046621 -> 3827b81b
 
+Disposition: FIXED
+Commit: 19ab8875
+Evidence: `docs/design/UI_COMPONENT_VOCABULARY.md:77`
+Evidence: `scripts/design/generate_figma_instructions.py:133`
+Evidence: `scripts/design/generate_figma_instructions.py:973`
+Evidence: `scripts/design/generate_figma_instructions.py:1040`
+Evidence: `scripts/design/generate_figma_instructions.py:1073`
+Evidence: `scripts/design/generate_figma_instructions.py:1107`
+Evidence: `scripts/design/instructions/ios_home.json:4`
+Evidence: `scripts/design/instructions/ios_home.json:143`
+Evidence: `scripts/design/instructions/ios_plate.json:4`
+Evidence: `scripts/design/instructions/ios_plate.json:229`
+Evidence: `scripts/design/instructions/ios_progress.json:4`
+Evidence: `scripts/design/instructions/ios_progress.json:198`
+Evidence: `tests/test_design_generation_pipeline.py:15`
+Evidence: `tests/test_design_generation_pipeline.py:149`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921142754 -> 19ab8875
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921144994 -> 19ab8875
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921145010 -> 19ab8875
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921145013 -> 19ab8875
+
 Disposition: NOT-A-BUG
 Evidence: Individual actionable threads from the CodeRabbit review batch are mapped explicitly in this artifact.
 Evidence: `scripts/design/execute_design.py:67`
@@ -77,6 +98,7 @@ Evidence: `scripts/design/generate_figma_instructions.py:1087`
 Reason: This review-level wrapper aggregates already-mapped inline findings; the remaining architectural notes in the wrapper are advisory and do not require a separate fix beyond the mapped thread dispositions on the current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932379652
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932586855
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932705509
 
 Disposition: NOT-A-BUG
 Evidence: Individual actionable threads identified by cubic are mapped explicitly in this artifact.
@@ -86,6 +108,7 @@ Evidence: `scripts/design/generate_figma_instructions.py:898`
 Reason: This cubic aggregate review is a wrapper over the mapped inline findings; no separate unresolved change remains once the listed thread URLs are dispositioned.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932382558
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932581060
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932702982
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
