@@ -7,6 +7,7 @@
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
 **Backfill note:** PR `#1063` merged on `10 March 2026`, one day after the fixed snapshot window. It is referenced below only as a post-window closure backfill for the session-cookie lane, not as a change to the 4 February 2026 through 9 March 2026 review window.
+**Backfill note:** PRs `#1106`, `#1112`, `#1118`, `#1124`, and `#1126` merged on `11 March 2026` and completed the governed creative-research lane after the fixed snapshot window. They are summarized below as a post-window closure backfill and do not change the original February 4, 2026 through March 9, 2026 review scope.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
@@ -145,6 +146,20 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 2. **Baseline-before-runtime pattern:** payments and compliance first received contract/control-plane foundations, with runtime follow-through deferred into explicit next PRs.
 3. **Governance overhead was intentional:** merge-readiness, disposition discipline, and ledger sync consumed real throughput, but they also reduced long-term PR entropy.
 4. **Thin-scope discipline:** several larger ideas were kept split into baseline vs runtime vs follow-up, which lowered immediate risk at the cost of more docs/ledger work.
+
+### 2.4 Post-Window Backfill: Creative Research Lane
+
+The governed creative-research lane closed immediately after the fixed snapshot window and is now fully merged in `main`.
+
+| PR | Wave | Backfill status |
+|----|------|-----------------|
+| `#1106` | PR-A docs/protocol | merged on `11 March 2026`; established the governed sub-lane inside the existing experimentation contour |
+| `#1112` | PR-B offline eval | merged on `11 March 2026`; added deterministic offline scoring, contracts, and negative controls |
+| `#1118` | PR-C internal pilot | merged on `11 March 2026`; added the internal-only, feature-flagged pilot surface hidden from public OpenAPI |
+| `#1124` | hardening follow-up | merged on `11 March 2026`; tightened typed core domain contracts without widening runtime scope |
+| `#1126` | ledger closeout | merged on `11 March 2026`; closed the remaining creative-research ledger follow-through and synced the canonical docs trail |
+
+**Why this matters:** this lane landed as a research/moat capability, not as a release-blocker runtime track. It followed the repo's governed experimentation pattern end-to-end: docs/protocol first, offline eval second, internal-only pilot third, then a narrow type-hardening and closeout pass.
 
 ## 3. Planning Signals From the Window
 
