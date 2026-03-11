@@ -4,7 +4,7 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2914532840 -> a8c2aee3
 Disposition: FIXED
 Commit: `a8c2aee3`
