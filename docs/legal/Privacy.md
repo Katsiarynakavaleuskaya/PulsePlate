@@ -51,6 +51,7 @@
 - не предназначен для emergency use
 - не должен использоваться как единственное основание для treatment decisions
 - при признаках клинического риска нужен переход к qualified professional support
+- backend tracing хранит только HMAC-отпечатки, длины и usage metadata; raw prompts/completions не экспортируются в v1
 
 ### Внешние и self-hosted processors
 
@@ -59,8 +60,9 @@
 - локальным/runtime processing PulsePlate
 - self-hosted provider (например, Ollama-compatible)
 - external provider family (например, xAI/Grok, OpenAI-compatible, Anthropic-compatible, Pico)
+- OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
 
-Конкретный processor зависит от deployment configuration. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
+Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
 
 ### Хранение и удаление
 
@@ -130,6 +132,7 @@ For these surfaces:
 - they are not for emergency use
 - they must not be used as the sole basis for treatment decisions
 - signs of clinical risk require escalation to qualified professional support
+- backend tracing stores only HMAC fingerprints, lengths, and bounded usage metadata; raw prompts/completions are not exported in v1
 
 ### External and Self-Hosted Processors
 
@@ -138,8 +141,9 @@ When AI features are enabled, requests may be processed by:
 - PulsePlate local/runtime processing
 - a self-hosted provider family (for example, Ollama-compatible deployments)
 - an external provider family (for example, xAI/Grok, OpenAI-compatible, Anthropic-compatible, or Pico)
+- an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured
 
-The active processor depends on deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
+The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
 
 ### Retention and Deletion
 
@@ -190,6 +194,7 @@ Algunas superficies realizan análisis automatizado de wellness:
 - superficies AI insight (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
 
 Estos resultados son para wellness y educación, no para emergencias ni decisiones de tratamiento.
+El tracing backend solo almacena huellas HMAC, longitudes y metadatos de uso limitados; no exporta prompts/completions en texto plano en v1.
 
 ### Procesadores Externos y Self-Hosted
 
@@ -198,6 +203,9 @@ Cuando las funciones de AI están habilitadas, las solicitudes pueden ser proces
 - PulsePlate runtime local
 - una familia self-hosted (por ejemplo, Ollama-compatible)
 - una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
+- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado
+
+El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 
 ### Retención y Eliminación
 

@@ -40,6 +40,7 @@ from app.security.agent_control_plane import (
 )
 from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.server_salt import require_server_salt
+from app.telemetry.genai import finalize_llm_span, llm_span, retrieval_span, set_attributes
 from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
 from core.insight.fitchef_companion import (
@@ -473,14 +474,21 @@ async def run_coach_insight_task(
     try:
         from core.rag.vector_rag import retrieve_context_structured
 
-        rag_ctx = await run_in_threadpool(
-            retrieve_context_structured,
-            safe_query,
+        with retrieval_span(
+            user_tier="PRO",
+            route=endpoint,
             max_chunks=5,
             agent_id="cbt-agent",
-            user_tier="PRO",
-            subject_id=derive_subject_id_from_api_key(api_key),
-        )
+        ) as span:
+            rag_ctx = await run_in_threadpool(
+                retrieve_context_structured,
+                safe_query,
+                max_chunks=5,
+                agent_id="cbt-agent",
+                user_tier="PRO",
+                subject_id=derive_subject_id_from_api_key(api_key),
+            )
+            set_attributes(span, **{"pulseplate.rag.hops": rag_ctx.hops})
 
         if rag_ctx.chunks:
             context_parts = []
@@ -569,10 +577,17 @@ async def run_coach_insight_task(
         from llm import get_provider
 
         provider = get_provider()
-        insight_text = await asyncio.wait_for(
-            run_in_threadpool(provider.generate, prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        with llm_span(
+            provider_name=getattr(provider, "name", "unknown"),
+            user_tier="PRO",
+            route=endpoint,
+            prompt_text=prompt,
+        ) as span:
+            insight_text = await asyncio.wait_for(
+                run_in_threadpool(provider.generate, prompt),
+                timeout=LLM_TIMEOUT_SECONDS,
+            )
+            finalize_llm_span(span, insight_text or "")
         if not insight_text:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
