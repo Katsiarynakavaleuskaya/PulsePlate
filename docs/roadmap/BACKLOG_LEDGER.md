@@ -1019,7 +1019,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Govern the OpenAI external docs freshness pilot lifecycle
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1100
+  - Target PR: PR #1100 -> PR-TBD-OPENAI-DOCS-FRESHNESS-PILOT-FOLLOWUP
   - Area: docs / orchestration / dev-agent tooling
   - Finding Type: pilot lifecycle governance
   - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
