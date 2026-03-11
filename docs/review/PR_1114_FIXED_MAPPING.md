@@ -32,3 +32,21 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:28` and `docs/review/PR_1114_FIXED_MAPPING.md:29` already map the second CodeRabbit wave's actionable inline comments to `ee5aa57a`, so the aggregate review-status URL below is a mirror of those same items rather than a separate unresolved change request.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#pullrequestreview-3929582286
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `eb7c861e` corrects the stale line anchors in `docs/review/PR_1114_FIXED_MAPPING.md:32` so the second CodeRabbit-wave mirror evidence now points at the actual mapped entries.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918541088 -> eb7c861e
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `e186feca` preserves recursive-path fail-safe metadata in `core/rag/orchestration.py:60` and `core/rag/orchestration.py:186`, surfaces `rag_recursive_path` for executed recursive retrieval even when no usable chunks survive in `core/insight/philosophical_runtime.py:651`, and adds regressions in `tests/test_rag_orchestration.py:74`, `tests/test_rag_orchestration.py:573`, and `tests/test_philosophical_runtime.py:653`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918541100 -> e186feca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918541108 -> e186feca
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:40`, `docs/review/PR_1114_FIXED_MAPPING.md:46`, and `docs/review/PR_1114_FIXED_MAPPING.md:47` already capture the actionable cubic items from the latest wave, so the aggregate cubic review URL below is a mirror summary rather than a separate unresolved change request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#pullrequestreview-3929794699
