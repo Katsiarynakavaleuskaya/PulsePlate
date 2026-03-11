@@ -9,6 +9,8 @@ Screens:
 - `onboarding-value-usage.html` -> `iOS_Onboarding_02_Value_Usage`
 - `home.html` -> `iOS_Home`
 - `paywall-pro-vip.html` -> `iOS_Paywall_Pro_VIP`
+- `weekly-plan-reader.html` -> `iOS_WeeklyPlan_Reader`
+- `shopping-list.html` -> `iOS_ShoppingList`
 
 Rules for capture:
 
@@ -29,6 +31,8 @@ Current canonical screen map:
 - `iOS_Onboarding_02_Value_Usage` -> `3:2`
 - `iOS_Home` -> `4:2`
 - `iOS_Paywall_Pro_VIP` -> `2:2`
+- `iOS_WeeklyPlan_Reader` -> `6:2`
+- `iOS_ShoppingList` -> `5:2`
 
 Note:
 

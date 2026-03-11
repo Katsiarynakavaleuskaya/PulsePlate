@@ -248,6 +248,8 @@
 | `iOS_Onboarding_02_Value_Usage` | `3:2` | `Main Content (iOS Onboarding Value Usage)` | web onboarding structure + iOS-native rewrite |
 | `iOS_Home` | `4:2` | `Main Content (iOS Home)` | Design System + iOS Home CTA matrix |
 | `iOS_Paywall_Pro_VIP` | `2:2` | `Main Content (iOS Paywall Pro VIP)` | Paywall tier reconciliation from repo SoT |
+| `iOS_ShoppingList` | `5:2` | `Main Content (iOS Shopping List)` | Shopping list runtime + weekly-plan continuity |
+| `iOS_WeeklyPlan_Reader` | `6:2` | `Main Content (iOS Weekly Plan Reader)` | Weekly plan runtime + VIP follow-up hooks |
 
 ## Structural QA
 
@@ -262,6 +264,8 @@
   - `Список покупок`
 - PRO + VIP comparison on paywall: pass
 - FitChef support-brand label on home: pass
+- Weekly plan / diet menu surface present: pass
+- Shopping list surface present: pass
 - Duplicate long-scroll capture artifacts: not observed in v2 metadata/screenshot review
 
 ## Known Limits
@@ -274,4 +278,7 @@
 ## Implementation Status
 
 - `ios prototype v2` can now be treated as the current implementation reference for the first core-funnel slice.
+- `ios prototype v2` now includes the first feature-depth follow-up surfaces for:
+  - weekly plan / diet menu
+  - shopping list
 - raw `ios prototype` remains `reference_only`.
