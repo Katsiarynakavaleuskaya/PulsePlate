@@ -25,6 +25,11 @@ from app.middleware.request_telemetry import (
 from app.telemetry.detectors import DetectorContext, evaluate_capture_detectors
 from app.telemetry.reservoir import HourlyReservoir
 from app.telemetry.sampler import DeterministicHashSampler
+from app.telemetry import (
+    is_non_prod_environment,
+    telemetry_recorder_maxlen,
+    telemetry_reservoir_per_hour,
+)
 from app.telemetry.vault import (
     _resolve_field_name,
     _minimize_scalar,
@@ -100,6 +105,16 @@ def test_hourly_reservoir_resets_on_next_window() -> None:
     assert reservoir.take() is True
 
 
+def test_telemetry_config_accepts_explicit_zero_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RESERVOIR_PER_HOUR", "0")
+    monkeypatch.setenv("TELEMETRY_RECORDER_MAXLEN", "0")
+
+    assert telemetry_reservoir_per_hour() == 0
+    assert telemetry_recorder_maxlen() == 0
+
+
 def test_hourly_reservoir_ignores_backward_clock_jump() -> None:
     timeline = [7200.0]
     reservoir = HourlyReservoir(n=1, time_fn=lambda: timeline[0])
@@ -107,6 +122,23 @@ def test_hourly_reservoir_ignores_backward_clock_jump() -> None:
     assert reservoir.take() is True
     timeline[0] = 3599.0
     assert reservoir.take() is False
+
+
+def test_non_prod_environment_uses_explicit_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    assert is_non_prod_environment() is False
+
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    assert is_non_prod_environment() is False
+
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    assert is_non_prod_environment() is True
+
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    assert is_non_prod_environment() is True
 
 
 def test_detector_normalizes_explicit_hits_and_schema_mismatch() -> None:
@@ -231,8 +263,13 @@ def test_non_hash_only_fields_delegate_original_value_to_minimizer(
 def test_vault_key_rejects_invalid_length() -> None:
     encoded_key = base64.b64encode(b"short").decode("utf-8")
 
-    with pytest.raises(ValueError, match="TELEMETRY_VAULT_KEY must decode"):
+    with pytest.raises(ValueError, match="TELEMETRY_VAULT_KEY must be valid base64"):
         _load_vault_key(encoded_key)
+
+
+def test_vault_key_rejects_invalid_base64() -> None:
+    with pytest.raises(ValueError, match="TELEMETRY_VAULT_KEY must be valid base64"):
+        _load_vault_key("not-base64!!")
 
 
 def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(

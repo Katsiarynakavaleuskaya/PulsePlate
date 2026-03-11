@@ -16,6 +16,7 @@ DEFAULT_FULL_CAPTURE_RESERVOIR_PER_HOUR = 60
 DEFAULT_TELEMETRY_RECORDER_MAXLEN = 200
 DEFAULT_TELEMETRY_TIMEOUT_SECONDS = 2.0
 DEFAULT_TELEMETRY_SALT = "pp#2026"
+NON_PROD_ENVIRONMENTS = frozenset({"development", "dev", "test", "staging", "ci"})
 
 FEATURED_RUNTIME_FLAGS: tuple[str, ...] = (
     "FEATURE_CBT_AGENT",
@@ -42,14 +43,14 @@ def _parse_float(value: str | None, default: float) -> float:
     return max(0.0, min(parsed, 1.0))
 
 
-def _parse_positive_int(value: str | None, default: int) -> int:
-    """Parse positive integer env with safe fallback."""
+def _parse_non_negative_int(value: str | None, default: int) -> int:
+    """Parse non-negative integer env with safe fallback."""
 
     try:
         parsed = int(value) if value is not None else default
     except (TypeError, ValueError):
         return default
-    return parsed if parsed > 0 else default
+    return parsed if parsed >= 0 else default
 
 
 def telemetry_full_capture_rate() -> float:
@@ -64,7 +65,7 @@ def telemetry_full_capture_rate() -> float:
 def telemetry_reservoir_per_hour() -> int:
     """Return hourly reservoir budget for full captures."""
 
-    return _parse_positive_int(
+    return _parse_non_negative_int(
         os.getenv("TELEMETRY_FULL_CAPTURE_RESERVOIR_PER_HOUR"),
         DEFAULT_FULL_CAPTURE_RESERVOIR_PER_HOUR,
     )
@@ -109,7 +110,7 @@ def telemetry_sampler_salt() -> str:
 def telemetry_recorder_maxlen() -> int:
     """Return bounded in-memory recorder size."""
 
-    return _parse_positive_int(
+    return _parse_non_negative_int(
         os.getenv("TELEMETRY_RECORDER_MAXLEN"),
         DEFAULT_TELEMETRY_RECORDER_MAXLEN,
     )
@@ -118,13 +119,13 @@ def telemetry_recorder_maxlen() -> int:
 def telemetry_environment() -> str:
     """Return normalized runtime environment name."""
 
-    return (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "development").strip().lower()
+    return (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").strip().lower()
 
 
 def is_non_prod_environment() -> bool:
     """Return True for dev/test/staging-like environments."""
 
-    return telemetry_environment() != "production"
+    return telemetry_environment() in NON_PROD_ENVIRONMENTS
 
 
 __all__ = [

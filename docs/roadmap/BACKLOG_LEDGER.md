@@ -258,6 +258,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/telemetry/TELEMETRY_POLICY.md`
     - `docs/telemetry/LLM_DETECTORS.md`
     - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
     - `deploy/otelcol/collector.yaml`
   - DoD:
     - Audited decrypt workflow exists for approved vault retrieval

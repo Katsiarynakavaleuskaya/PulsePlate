@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -87,9 +88,16 @@ def minimize_capture_payload(payload: Any, *, field_path: str = "root") -> Any:
 def _load_vault_key(encoded_key: str) -> bytes:
     """Decode base64 vault key and validate AES-GCM key size."""
 
-    key = base64.b64decode(encoded_key.encode("utf-8"))
+    try:
+        key = base64.b64decode(encoded_key.encode("utf-8"), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(
+            "TELEMETRY_VAULT_KEY must be valid base64 and decode to 16, 24, or 32 bytes"
+        ) from exc
     if len(key) not in {16, 24, 32}:
-        raise ValueError("TELEMETRY_VAULT_KEY must decode to 16, 24, or 32 bytes")
+        raise ValueError(
+            "TELEMETRY_VAULT_KEY must be valid base64 and decode to 16, 24, or 32 bytes"
+        )
     return key
 
 
