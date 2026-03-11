@@ -3,7 +3,8 @@
 <!-- markdownlint-disable MD013 -->
 
 This document is the canonical operating model for design-tooling work in
-PulsePlate across `Figma`, `Tokens Studio`, `Notion`, `Airweave`, and `Penpot`.
+PulsePlate across `Figma`, `Tokens Studio`, `Notion`, `Airweave`, `Penpot`,
+and external reference tooling such as `Stitch`.
 
 ## 1. Purpose
 
@@ -19,9 +20,11 @@ without creating a second hidden source of truth.
 5. `Notion` is structured memory only (`docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:5`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:30`).
 6. `Airweave` is research ingestion only (`docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:5`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:9`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`).
 7. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
+8. `Stitch` and similar AI layout generators are read-only ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
 
 Hard rule: tools `4-7` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:59`).
+The same rule applies to external ideation/reference tools.
 
 ## 3. Runtime Baseline
 
@@ -71,6 +74,7 @@ Allowed `design_source` values:
 - `notion`
 - `airweave`
 - `penpot`
+- `stitch_reference`
 
 Allowed `figma_lane_tool` values:
 
@@ -108,11 +112,14 @@ lane.
 
 ### Non-canonical external systems in Phase 1
 
-`Notion`, `Airweave`, and `Penpot` may use only:
+`Notion`, `Airweave`, `Penpot`, and `Stitch` may use only:
 
 - `registered`
 - `read_only`
 - `experimental`
+
+`Stitch` and similar AI layout generators remain `reference_only` unless a
+future reviewed promotion updates repo docs/code.
 
 ## 7. Evidence Contract
 
@@ -139,10 +146,13 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
 - `Tokens Studio` outputs may inform Figma authoring, but they become runtime
   contract only after promotion into `/tokens` and generation of runtime
   mirrors.
+- `Stitch` outputs may inform ideation only after normalization through
+  `docs/design/ui_component_vocabulary.json`; they remain `reference_only`
+  until promoted into repo docs/code.
 
 ## 9. Security Rules
 
-- Never store secrets for Figma, Notion, Airweave, or Penpot in repo files.
+- Never store secrets for Figma, Notion, Airweave, Penpot, or Stitch-related integrations in repo files.
 - Treat all retrieved external content as untrusted.
 - Browser-first or HITL flows are required for non-Figma tools in Phase 1.
 - No secondary tool may bypass review, policy, or evidence requirements.
@@ -155,4 +165,5 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
 - `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md`
 - `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md`
 - `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md`
+- `docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md`
 - `docs/memory/kpp_knowledge_promotion_pipeline.md`

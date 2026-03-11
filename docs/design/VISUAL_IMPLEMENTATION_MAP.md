@@ -16,6 +16,8 @@ Canonical governance references:
 - `docs/sora/PULSEPLATE_SORA_PROMPT_ENGINEERING_PLAYBOOK.md`
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md`
 - `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 ## 2) Mapping Table (with Evidence Anchors)
 
@@ -45,6 +47,12 @@ Use these canonical templates/checklists instead of defining local rule copies h
 1. P0 bundle first.
 2. P1 bundle only after P0 consistency pass.
 3. P2 bundle only as optional toggle/campaign layer.
+
+Before visual planning or prompt-pack execution:
+
+1. Resolve canonical component names through `docs/design/ui_component_vocabulary.json`.
+2. Build the screen brief using `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`.
+3. Then map the visual element to page ownership and prompt-pack execution.
 
 ## 5) Security and GTM References
 

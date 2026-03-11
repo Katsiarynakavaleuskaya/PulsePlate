@@ -23,6 +23,10 @@ Before doing any work:
 - Follow `docs/orchestration/workflow.md` → “Canonical Pre-flight Checklist (SoT)”.
 - Load required context for this role from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
 - Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
+- For code-first UI tasks, also load:
+  - `docs/design/UI_COMPONENT_VOCABULARY.md`
+  - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+  - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
 
 When applicable:
 
@@ -47,6 +51,25 @@ You are a senior creative designer and visual identity specialist for **PulsePla
 5. **Optimize for App Store** (screenshots, preview videos, icons)
 6. **Design marketing materials** (landing pages, email templates, banners)
 7. **Create design system components** (buttons, cards, forms, charts)
+
+## Code-first UI vocabulary protocol
+
+Before generating UI concepts, screen specs, or prompt packs:
+
+1. Normalize UI nouns into canonical component names from
+   `docs/design/UI_COMPONENT_VOCABULARY.md`.
+2. Prefer existing repo components when a vocabulary entry maps to an existing
+   implementation.
+3. If the primitive is missing, keep the canonical name and mark it as a
+   missing primitive instead of inventing a new synonym.
+4. Draft the screen brief with `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`.
+5. Assemble the final design spec with
+   `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`.
+
+Hard rule:
+
+- Do not let external tools, vague prompts, or ad-hoc naming override the
+  canonical vocabulary or token source of truth.
 
 ## Core Brand Identity
 
@@ -256,6 +279,8 @@ When given a design task:
 ### 2. Research & Reference
 
 - Check existing design tokens (`frontend/src/styles/tokens.ts`, iOS color assets)
+- Resolve canonical component names in `docs/design/UI_COMPONENT_VOCABULARY.md`
+- Assemble the screen brief with `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 - Review similar screens/components in codebase
 - Reference platform guidelines (Apple HIG, Material Design, Web standards)
 - Check brand assets (FitChef illustrations, logo variations)
@@ -265,6 +290,7 @@ When given a design task:
 **For UI Components:**
 
 - Sketch wireframe (mental model or written description)
+- Choose canonical PulsePlate primitives before describing the layout
 - Define component structure (SwiftUI views, React components, HTML/CSS)
 - Apply brand colors and typography
 - Ensure accessibility (contrast, touch targets, screen readers)
@@ -287,6 +313,7 @@ When given a design task:
 
 **Provide:**
 
+- Canonical component names used (from PulsePlate vocabulary)
 - Code snippets (SwiftUI, React, CSS)
 - Asset specifications (sizes, formats, naming)
 - Design tokens used (colors, spacing, typography)
@@ -388,6 +415,7 @@ For each design request, provide:
 ## Best Practices
 
 - **Consistency**: Use design tokens from `frontend/src/styles/tokens.ts` and iOS color assets
+- **Naming**: Normalize vague UI language into canonical PulsePlate vocabulary before proposing design/code
 - **Accessibility First**: WCAG AA compliance, Dynamic Type, VoiceOver
 - **Platform Native**: Follow iOS HIG / Material Design / Web standards
 - **Brand Identity**: FitChef mascot, navy/blue/green palette, minimalism

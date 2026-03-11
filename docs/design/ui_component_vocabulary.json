@@ -1,0 +1,698 @@
+[
+  {
+    "id": "button",
+    "canonical_name": "button",
+    "aliases": ["cta", "action button"],
+    "intent": "Initiate a primary or secondary action with clear affordance.",
+    "when_to_use": ["Single next action", "Submit or confirm flows", "Toolbar or card actions"],
+    "when_not_to_use": ["Persistent navigation shell", "Binary state toggles", "Long-form text entry"],
+    "anatomy": ["label", "hit area", "variant", "state feedback"],
+    "states": ["default", "hover", "focus", "active", "disabled", "loading"],
+    "accessibility_notes": [
+      "Use semantic button element with accessible label.",
+      "Keep visible focus ring and minimum touch target."
+    ],
+    "token_guidance": ["--color-primary", "--color-text", "--radius-md", "--shadow-sm"],
+    "react_mapping": {
+      "component": "Button",
+      "repo_path": "frontend/src/components/ui/Button.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "Button",
+      "notes": "Prefer Button with variant-specific buttonStyle and token-backed colors."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Button.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["primary button", "secondary button", "button row", "loading button"],
+    "anti_generic_terms": ["nice button", "cool button", "random CTA"],
+    "stitch_normalization_hint": "Normalize call-to-action controls to button plus explicit variant and state."
+  },
+  {
+    "id": "input",
+    "canonical_name": "input",
+    "aliases": ["text input", "text field"],
+    "intent": "Collect short-form text or single-line structured input.",
+    "when_to_use": ["Names and labels", "Short queries", "Single-line form fields"],
+    "when_not_to_use": ["Long notes", "Single-choice selection", "Numeric-only entry with custom parsing"],
+    "anatomy": ["label", "field", "placeholder", "help text", "error text"],
+    "states": ["default", "focus", "filled", "error", "disabled", "readonly"],
+    "accessibility_notes": [
+      "Associate label and error text with the field.",
+      "Do not rely on placeholder as the only label."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--color-text", "--radius-md"],
+    "react_mapping": {
+      "component": "Input",
+      "repo_path": "frontend/src/components/ui/Input.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "TextField",
+      "notes": "Use TextField with label, prompt, and validation copy."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Input.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["single-line input", "labeled text field", "inline validation"],
+    "anti_generic_terms": ["input box", "typing area", "text thing"],
+    "stitch_normalization_hint": "Map generic text fields to input unless the concept explicitly requires multiline text."
+  },
+  {
+    "id": "select",
+    "canonical_name": "select",
+    "aliases": ["dropdown select", "picker"],
+    "intent": "Choose one option from a structured list.",
+    "when_to_use": ["Finite option sets", "Known categories", "Form-driven settings"],
+    "when_not_to_use": ["Open-ended text entry", "Binary on/off", "High-frequency tab navigation"],
+    "anatomy": ["label", "trigger", "selected value", "option list", "helper text"],
+    "states": ["default", "open", "selected", "focus", "error", "disabled"],
+    "accessibility_notes": [
+      "Expose selected value and expanded state.",
+      "Support keyboard navigation through options."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--color-text", "--radius-md"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "Picker",
+      "notes": "Use Picker or Menu depending on platform density."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["select field", "option picker", "single-choice dropdown"],
+    "anti_generic_terms": ["menu", "chooser thing", "list picker maybe"],
+    "stitch_normalization_hint": "Normalize dropdown-like form controls to select, not navigation menu."
+  },
+  {
+    "id": "textarea",
+    "canonical_name": "textarea",
+    "aliases": ["multiline input", "text area"],
+    "intent": "Capture longer free-form text in a form context.",
+    "when_to_use": ["Notes", "Journal or reflection fields", "Longer messages"],
+    "when_not_to_use": ["Short labels", "Single-select options", "Hidden metadata"],
+    "anatomy": ["label", "multiline field", "helper text", "error text"],
+    "states": ["default", "focus", "filled", "error", "disabled", "readonly"],
+    "accessibility_notes": [
+      "Keep a visible label and clear description of expected length.",
+      "Preserve resize or multiline affordance."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--color-text", "--radius-md"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "TextEditor",
+      "notes": "Use TextEditor with external label and validation hints."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["multiline field", "reflection textarea", "long-form input"],
+    "anti_generic_terms": ["big input", "writing space", "message box"],
+    "stitch_normalization_hint": "Normalize long-form fields to textarea when the content spans more than one line."
+  },
+  {
+    "id": "checkbox",
+    "canonical_name": "checkbox",
+    "aliases": ["check box", "multi-select control"],
+    "intent": "Capture an independent yes/no or multiple non-exclusive selections.",
+    "when_to_use": ["Consent", "Preferences", "Multiple independent options"],
+    "when_not_to_use": ["Single mutually exclusive choice", "Immediate settings toggle", "Primary actions"],
+    "anatomy": ["control", "label", "help text"],
+    "states": ["unchecked", "checked", "indeterminate", "focus", "disabled", "error"],
+    "accessibility_notes": [
+      "Keep label clickable and announce checked or indeterminate state.",
+      "Use grouped fieldset when multiple checkboxes appear together."
+    ],
+    "token_guidance": ["--color-primary", "--color-border", "--color-surface", "--radius-sm"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "Toggle",
+      "notes": "For checklist patterns prefer custom row with selected state rather than standard switch."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["checkbox row", "consent checkbox", "multi-select checklist"],
+    "anti_generic_terms": ["tick option", "little square", "choice box"],
+    "stitch_normalization_hint": "Normalize checkable square list items to checkbox when options are non-exclusive."
+  },
+  {
+    "id": "radio_group",
+    "canonical_name": "radio-group",
+    "aliases": ["radio buttons", "single-select control"],
+    "intent": "Choose exactly one option from a visible set.",
+    "when_to_use": ["Short mutually exclusive sets", "Tone or plan selection", "Inline choice groups"],
+    "when_not_to_use": ["Large option lists", "Multiple selection", "Binary toggle"],
+    "anatomy": ["group label", "options", "selection indicator", "help text"],
+    "states": ["unselected", "selected", "focus", "disabled", "error"],
+    "accessibility_notes": [
+      "Expose the group label and option count.",
+      "Use arrow-key navigation between options."
+    ],
+    "token_guidance": ["--color-primary", "--color-border", "--color-text", "--radius-full"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "Picker",
+      "notes": "Use picker or custom radio rows depending on density."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["radio group", "single-choice options", "inline option set"],
+    "anti_generic_terms": ["selection buttons", "pick one list", "toggle list"],
+    "stitch_normalization_hint": "Normalize mutually exclusive visible options to radio-group unless the surface clearly behaves like tabs."
+  },
+  {
+    "id": "card",
+    "canonical_name": "card",
+    "aliases": ["panel", "surface card"],
+    "intent": "Group related content and actions inside a bounded surface.",
+    "when_to_use": ["Dashboard modules", "Feature summaries", "Containerized content blocks"],
+    "when_not_to_use": ["Global page shell", "Inline status messages", "Transient tooltips"],
+    "anatomy": ["container", "header", "body", "optional footer or actions"],
+    "states": ["default", "hover", "selected", "disabled"],
+    "accessibility_notes": [
+      "Do not make the whole card clickable unless the affordance is explicit.",
+      "Preserve heading hierarchy inside the card."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--radius-lg", "--shadow-base"],
+    "react_mapping": {
+      "component": "Card",
+      "repo_path": "frontend/src/components/ui/Card.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "RoundedRectangle container",
+      "notes": "Use token-backed background, corner radius, and shadow."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Card.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["content card", "dashboard card", "card with actions"],
+    "anti_generic_terms": ["box", "container thing", "panel maybe"],
+    "stitch_normalization_hint": "Normalize generic grouped surfaces to card unless the surface is explicitly modal or navigation."
+  },
+  {
+    "id": "alert",
+    "canonical_name": "alert",
+    "aliases": ["notification", "inline alert"],
+    "intent": "Show important feedback in a prominent but local surface.",
+    "when_to_use": ["Errors", "Warnings", "Inline success or info feedback"],
+    "when_not_to_use": ["Ephemeral background toast only", "Primary content cards", "Blocking modal confirmations"],
+    "anatomy": ["tone indicator", "title", "message", "optional action"],
+    "states": ["info", "success", "warning", "error", "dismissed"],
+    "accessibility_notes": [
+      "Use live region only when the message is time-sensitive.",
+      "Ensure color is not the sole tone indicator."
+    ],
+    "token_guidance": ["--color-success", "--color-warning", "--color-error", "--color-info", "--radius-md"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "Custom alert banner",
+      "notes": "Prefer inline status banner; reserve Alert for blocking system confirmations."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["inline alert", "status banner", "warning message"],
+    "anti_generic_terms": ["message block", "colored notice", "feedback thing"],
+    "stitch_normalization_hint": "Normalize prominent inline feedback to alert, not card or toast."
+  },
+  {
+    "id": "badge",
+    "canonical_name": "badge",
+    "aliases": ["pill", "status badge"],
+    "intent": "Show compact status, tier, or categorical metadata.",
+    "when_to_use": ["Premium state", "Small labels", "Status chips"],
+    "when_not_to_use": ["Primary CTA", "Long descriptions", "Navigation tabs"],
+    "anatomy": ["label", "optional icon", "tone"],
+    "states": ["default", "accent", "success", "warning", "disabled"],
+    "accessibility_notes": [
+      "Keep text readable at small sizes.",
+      "Do not communicate critical information only through the badge tone."
+    ],
+    "token_guidance": ["--color-primary", "--color-success", "--color-warning", "--radius-full"],
+    "react_mapping": {
+      "component": "VipBadge",
+      "repo_path": "frontend/src/components/VipBadge.tsx",
+      "status": "specialized-existing"
+    },
+    "swiftui_mapping": {
+      "component": "Text with capsule background",
+      "notes": "Use capsule shape and semantic tone."
+    },
+    "existing_repo_component": "frontend/src/components/VipBadge.tsx",
+    "missing_status": "specialized-existing",
+    "prompt_terms": ["status badge", "tier pill", "small metadata chip"],
+    "anti_generic_terms": ["little label", "chip thing", "marker bubble"],
+    "stitch_normalization_hint": "Normalize compact chips to badge unless they are interactive filters."
+  },
+  {
+    "id": "dialog",
+    "canonical_name": "dialog",
+    "aliases": ["modal", "popup dialog"],
+    "intent": "Present blocking or focused overlay content that interrupts the current task.",
+    "when_to_use": ["Confirmations", "Focused forms", "Critical details or upsell overlays"],
+    "when_not_to_use": ["Inline details", "Small hover help", "Persistent navigation"],
+    "anatomy": ["overlay", "panel", "title", "body", "actions", "dismiss affordance"],
+    "states": ["open", "closing", "error", "disabled action"],
+    "accessibility_notes": [
+      "Trap focus when open and restore it on close.",
+      "Provide explicit title and dismiss action."
+    ],
+    "token_guidance": ["--color-surface", "--color-text", "--radius-xl", "--shadow-lg"],
+    "react_mapping": {
+      "component": "Dialog",
+      "repo_path": "frontend/src/components/ui/Dialog.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "sheet or custom overlay",
+      "notes": "Use sheet for native flows or custom overlay for branded modal presentations."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Dialog.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["modal dialog", "blocking overlay", "confirmation dialog"],
+    "anti_generic_terms": ["popup", "window", "overlay thing"],
+    "stitch_normalization_hint": "Normalize blocking overlays to dialog; reserve dropdown-menu for anchored action lists."
+  },
+  {
+    "id": "dropdown_menu",
+    "canonical_name": "dropdown-menu",
+    "aliases": ["menu", "context menu"],
+    "intent": "Reveal a short anchored list of actions or options on demand.",
+    "when_to_use": ["Overflow actions", "Secondary menu actions", "Compact option lists"],
+    "when_not_to_use": ["Primary page navigation", "Large hierarchical settings", "Single-choice form field with label"],
+    "anatomy": ["trigger", "anchored surface", "items", "optional section labels"],
+    "states": ["closed", "open", "highlighted item", "disabled item"],
+    "accessibility_notes": [
+      "Expose expanded state on the trigger.",
+      "Support arrow-key navigation and dismiss on escape."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--color-text", "--radius-md", "--shadow-md"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "Menu",
+      "notes": "Use Menu for anchored action lists."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["anchored action menu", "overflow dropdown", "context menu"],
+    "anti_generic_terms": ["menu list", "popup options", "action popup"],
+    "stitch_normalization_hint": "Normalize anchored overflow action lists to dropdown-menu, not select or dialog."
+  },
+  {
+    "id": "tabs",
+    "canonical_name": "tabs",
+    "aliases": ["tab set", "content tabs"],
+    "intent": "Switch between sibling content sections within the same screen.",
+    "when_to_use": ["Parallel content categories", "Settings subsections", "Segmented content views"],
+    "when_not_to_use": ["Global app navigation", "Binary toggles", "Long vertical filters"],
+    "anatomy": ["tab list", "tab", "active indicator", "tabpanel"],
+    "states": ["default", "active", "focus", "disabled"],
+    "accessibility_notes": [
+      "Expose selected state and link each tab to its panel.",
+      "Support keyboard traversal across tabs."
+    ],
+    "token_guidance": ["--color-primary", "--color-text", "--radius-md", "--color-border"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "custom segmented tab view",
+      "notes": "Use segmented controls or custom tab containers for in-screen content switching."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["content tabs", "tabbed panel", "section tabs"],
+    "anti_generic_terms": ["menu tabs", "switching buttons", "tab buttons"],
+    "stitch_normalization_hint": "Normalize in-screen sibling content switches to tabs, not navigation/tab-bar."
+  },
+  {
+    "id": "progress",
+    "canonical_name": "progress",
+    "aliases": ["progress bar", "completion bar"],
+    "intent": "Show completion or current progress toward a known range.",
+    "when_to_use": ["Setup completion", "Goals", "Loading or completion states"],
+    "when_not_to_use": ["Discrete steps with labels only", "Static charts", "Status badges"],
+    "anatomy": ["track", "fill", "label", "optional value"],
+    "states": ["0%", "in-progress", "complete", "indeterminate"],
+    "accessibility_notes": [
+      "Expose current value and range when determinate.",
+      "Pair color with text or numeric context."
+    ],
+    "token_guidance": ["--color-primary", "--color-success", "--color-surface", "--radius-full"],
+    "react_mapping": {
+      "component": "LiveProgressIndicator",
+      "repo_path": "frontend/src/features/progress/LiveProgressIndicator.tsx",
+      "status": "specialized-existing"
+    },
+    "swiftui_mapping": {
+      "component": "ProgressView",
+      "notes": "Use ProgressView or a token-backed custom bar."
+    },
+    "existing_repo_component": "frontend/src/features/progress/LiveProgressIndicator.tsx",
+    "missing_status": "specialized-existing",
+    "prompt_terms": ["progress bar", "completion indicator", "goal progress"],
+    "anti_generic_terms": ["loading line", "progress thing", "meter maybe"],
+    "stitch_normalization_hint": "Normalize linear completion surfaces to progress; map labeled steps separately to stepper/progress-indicator."
+  },
+  {
+    "id": "tooltip",
+    "canonical_name": "tooltip",
+    "aliases": ["hint", "hover hint"],
+    "intent": "Provide short supplemental information anchored to a control.",
+    "when_to_use": ["Icon explanations", "Short clarifications", "Dense toolbars"],
+    "when_not_to_use": ["Critical instructions", "Mobile-only hidden content", "Long-form education"],
+    "anatomy": ["trigger", "anchored bubble", "short copy"],
+    "states": ["hidden", "visible", "dismissed"],
+    "accessibility_notes": [
+      "Do not hide essential information only inside the tooltip.",
+      "Support focus-triggered reveal, not hover only."
+    ],
+    "token_guidance": ["--color-navy-900", "--color-text", "--radius-md", "--shadow-md"],
+    "react_mapping": {
+      "component": null,
+      "repo_path": null,
+      "status": "missing"
+    },
+    "swiftui_mapping": {
+      "component": "popover or custom hint bubble",
+      "notes": "Prefer popover or inline helper on touch surfaces."
+    },
+    "existing_repo_component": null,
+    "missing_status": "missing",
+    "prompt_terms": ["tooltip", "context hint", "anchored helper bubble"],
+    "anti_generic_terms": ["little popup", "hover message", "small bubble"],
+    "stitch_normalization_hint": "Normalize tiny anchored helper bubbles to tooltip unless the content becomes instructional."
+  },
+  {
+    "id": "empty_state",
+    "canonical_name": "empty-state",
+    "aliases": ["no data state", "blank state"],
+    "intent": "Guide the user when content is absent or a surface has no results yet.",
+    "when_to_use": ["First-run surfaces", "No results", "No progress yet"],
+    "when_not_to_use": ["Error recovery with technical failure", "Loaded content surfaces", "Blocking modal states"],
+    "anatomy": ["headline", "supporting copy", "illustration or icon", "next action"],
+    "states": ["default", "actionable", "retry", "premium tease"],
+    "accessibility_notes": [
+      "Keep the next action explicit and reachable by keyboard.",
+      "Avoid decorative art that hides the main message."
+    ],
+    "token_guidance": ["--color-surface", "--color-text", "--color-text-muted", "--radius-lg"],
+    "react_mapping": {
+      "component": "EmptyState",
+      "repo_path": "frontend/src/components/ui/EmptyState.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "VStack empty state",
+      "notes": "Use illustration plus CTA inside a centered stack."
+    },
+    "existing_repo_component": "frontend/src/components/ui/EmptyState.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["empty state", "first-run empty surface", "no results screen"],
+    "anti_generic_terms": ["placeholder page", "empty box", "nothing here"],
+    "stitch_normalization_hint": "Normalize no-content onboarding or retry surfaces to empty-state when they include guidance and next action."
+  },
+  {
+    "id": "segmented_control",
+    "canonical_name": "segmented-control",
+    "aliases": ["button group", "segmented tabs"],
+    "intent": "Switch between a small set of peer options in one horizontal control.",
+    "when_to_use": ["2-4 quick view modes", "Range switches", "Compact filter toggles"],
+    "when_not_to_use": ["Large content categories", "Primary app navigation", "Independent action buttons"],
+    "anatomy": ["segment list", "segment", "selected indicator"],
+    "states": ["default", "selected", "focus", "disabled"],
+    "accessibility_notes": [
+      "Expose selected segment and support keyboard navigation.",
+      "Keep labels short enough to avoid truncation."
+    ],
+    "token_guidance": ["--color-surface", "--color-primary", "--color-border", "--radius-full"],
+    "react_mapping": {
+      "component": "SegmentedControl",
+      "repo_path": "frontend/src/components/ui/SegmentedControl.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "Picker segmented style",
+      "notes": "Use segmented Picker for small peer options."
+    },
+    "existing_repo_component": "frontend/src/components/ui/SegmentedControl.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["segmented control", "range switch", "inline mode switcher"],
+    "anti_generic_terms": ["button row", "multi button switch", "tiny tabs"],
+    "stitch_normalization_hint": "Normalize compact equal-weight option switches to segmented-control, not tabs."
+  },
+  {
+    "id": "toggle",
+    "canonical_name": "toggle",
+    "aliases": ["switch", "on-off control"],
+    "intent": "Turn a single setting on or off with immediate state clarity.",
+    "when_to_use": ["Preferences", "Feature enablement", "Binary settings"],
+    "when_not_to_use": ["Multi-choice selection", "Primary actions", "Consent checklists"],
+    "anatomy": ["track", "thumb", "label", "optional helper text"],
+    "states": ["off", "on", "focus", "disabled"],
+    "accessibility_notes": [
+      "Announce on/off state explicitly.",
+      "Do not use for irreversible or destructive actions."
+    ],
+    "token_guidance": ["--color-primary", "--color-surface", "--color-border", "--radius-full"],
+    "react_mapping": {
+      "component": "Toggle",
+      "repo_path": "frontend/src/components/ui/Toggle.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "Toggle",
+      "notes": "Use native Toggle with custom tint when possible."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Toggle.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["toggle switch", "binary setting", "preference switch"],
+    "anti_generic_terms": ["switch button", "yes no slider", "toggle thing"],
+    "stitch_normalization_hint": "Normalize binary immediate settings to toggle, not checkbox."
+  },
+  {
+    "id": "skeleton",
+    "canonical_name": "skeleton",
+    "aliases": ["loading placeholder", "shimmer"],
+    "intent": "Preview layout structure while data is loading.",
+    "when_to_use": ["Async loading states", "Card grids", "Chart placeholders"],
+    "when_not_to_use": ["Error states", "Unknown layout", "Long blocking flows without context"],
+    "anatomy": ["shape placeholders", "layout mimic", "motion or pulse"],
+    "states": ["loading", "completed"],
+    "accessibility_notes": [
+      "Hide decorative placeholder shapes from assistive tech if needed.",
+      "Pair long loading with a textual status."
+    ],
+    "token_guidance": ["--color-surface", "--color-border", "--radius-md"],
+    "react_mapping": {
+      "component": "Skeleton",
+      "repo_path": "frontend/src/components/ui/Skeleton.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "redacted placeholder",
+      "notes": "Use redacted placeholders or custom shimmer blocks."
+    },
+    "existing_repo_component": "frontend/src/components/ui/Skeleton.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["skeleton loading", "layout placeholder", "shimmer state"],
+    "anti_generic_terms": ["loading shapes", "placeholder lines", "fake content"],
+    "stitch_normalization_hint": "Normalize gray placeholder replicas to skeleton, not empty-state."
+  },
+  {
+    "id": "mobile_menu",
+    "canonical_name": "mobile-menu",
+    "aliases": ["drawer menu", "nav sheet"],
+    "intent": "Expose compact navigation or actions on small screens.",
+    "when_to_use": ["Mobile nav overflow", "Small-screen action groups", "Responsive nav patterns"],
+    "when_not_to_use": ["Desktop global nav", "Single overflow action", "Primary tab navigation"],
+    "anatomy": ["trigger", "overlay or sheet", "nav items", "dismiss affordance"],
+    "states": ["closed", "open", "active item", "disabled item"],
+    "accessibility_notes": [
+      "Trap focus while open and expose active navigation item.",
+      "Support escape and explicit dismiss action."
+    ],
+    "token_guidance": ["--color-surface", "--color-text", "--radius-lg", "--shadow-lg"],
+    "react_mapping": {
+      "component": "MobileMenu",
+      "repo_path": "frontend/src/components/ui/MobileMenu.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "sheet or navigation drawer",
+      "notes": "Use sheet-style presentation for compact mobile menus."
+    },
+    "existing_repo_component": "frontend/src/components/ui/MobileMenu.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["mobile menu", "drawer navigation", "small-screen nav sheet"],
+    "anti_generic_terms": ["hamburger thing", "slide menu", "phone menu"],
+    "stitch_normalization_hint": "Normalize slide-in or sheet-based mobile navigation to mobile-menu."
+  },
+  {
+    "id": "navigation_tab_bar",
+    "canonical_name": "navigation/tab-bar",
+    "aliases": ["tab bar", "bottom navigation"],
+    "intent": "Provide persistent primary navigation across major app sections.",
+    "when_to_use": ["Core app shell navigation", "3-5 top-level destinations", "Mobile-first primary nav"],
+    "when_not_to_use": ["In-screen content switching", "Overflow menus", "One-off actions"],
+    "anatomy": ["nav container", "tab items", "icon", "label", "active state"],
+    "states": ["default", "active", "disabled", "locked"],
+    "accessibility_notes": [
+      "Use nav semantics and expose current destination.",
+      "Keep labels stable and concise."
+    ],
+    "token_guidance": ["--color-surface", "--color-text", "--color-primary", "--shadow-sm"],
+    "react_mapping": {
+      "component": "TabBar",
+      "repo_path": "frontend/src/components/TabBar.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "TabView",
+      "notes": "Use TabView for persistent primary navigation."
+    },
+    "existing_repo_component": "frontend/src/components/TabBar.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["bottom tab bar", "primary navigation", "persistent tab navigation"],
+    "anti_generic_terms": ["navigation menu", "bottom buttons", "footer nav thing"],
+    "stitch_normalization_hint": "Normalize bottom persistent nav to navigation/tab-bar, not tabs or dropdown-menu."
+  },
+  {
+    "id": "hero",
+    "canonical_name": "hero",
+    "aliases": ["hero section", "headline banner"],
+    "intent": "Establish the page promise, tone, and primary action in the top viewport.",
+    "when_to_use": ["Landing areas", "Home summary", "Campaign or premium entry points"],
+    "when_not_to_use": ["Dense admin forms", "Secondary detail pages", "Repeated cards inside lists"],
+    "anatomy": ["headline", "supporting copy", "primary action", "supporting visual"],
+    "states": ["default", "premium", "empty", "loading"],
+    "accessibility_notes": [
+      "Keep a clear heading hierarchy and avoid decorative overload.",
+      "Ensure the primary CTA is not hidden below the fold on mobile."
+    ],
+    "token_guidance": ["--pp-navy", "--color-primary", "--color-text", "--shadow-base"],
+    "react_mapping": {
+      "component": "Home page hero",
+      "repo_path": "frontend/src/pages/Home.tsx",
+      "status": "specialized-existing"
+    },
+    "swiftui_mapping": {
+      "component": "top summary stack",
+      "notes": "Use a prominent top summary block with clear action hierarchy."
+    },
+    "existing_repo_component": "frontend/src/pages/Home.tsx",
+    "missing_status": "specialized-existing",
+    "prompt_terms": ["hero section", "headline block", "primary above-the-fold summary"],
+    "anti_generic_terms": ["top area", "main banner", "intro block"],
+    "stitch_normalization_hint": "Normalize first-view marketing or dashboard summary sections to hero."
+  },
+  {
+    "id": "stats_card",
+    "canonical_name": "stats-card",
+    "aliases": ["metric card", "kpi card"],
+    "intent": "Show one compact metric with supporting label or trend.",
+    "when_to_use": ["Progress dashboards", "Summary metrics", "Goal snapshots"],
+    "when_not_to_use": ["Long-form explanations", "Primary navigation", "Blocking feedback"],
+    "anatomy": ["metric value", "label", "trend or status", "optional micro-copy"],
+    "states": ["default", "positive", "warning", "loading"],
+    "accessibility_notes": [
+      "Expose metric meaning in text, not only visual emphasis.",
+      "Keep the trend language understandable without charts."
+    ],
+    "token_guidance": ["--color-surface", "--color-text", "--color-success", "--shadow-base"],
+    "react_mapping": {
+      "component": "MacroCards or WaterCard",
+      "repo_path": "frontend/src/pages/NutritionSetup/MacroCards.tsx",
+      "status": "specialized-existing"
+    },
+    "swiftui_mapping": {
+      "component": "metric summary card",
+      "notes": "Use VStack with emphasized metric and supporting label."
+    },
+    "existing_repo_component": "frontend/src/pages/NutritionSetup/MacroCards.tsx",
+    "missing_status": "specialized-existing",
+    "prompt_terms": ["metric card", "summary stat", "dashboard KPI card"],
+    "anti_generic_terms": ["number tile", "value box", "stat thing"],
+    "stitch_normalization_hint": "Normalize compact value-focused cards to stats-card when the dominant content is one metric."
+  },
+  {
+    "id": "form_field",
+    "canonical_name": "form-field",
+    "aliases": ["field wrapper", "input field group"],
+    "intent": "Wrap label, control, hint, and validation into one reusable field block.",
+    "when_to_use": ["Forms with consistent spacing", "Validation-heavy inputs", "Stacked field groups"],
+    "when_not_to_use": ["Standalone bare control without label", "Navigation", "Display-only cards"],
+    "anatomy": ["label", "control", "description", "error"],
+    "states": ["default", "required", "error", "disabled", "readonly"],
+    "accessibility_notes": [
+      "Programmatically associate label, description, and error with the control.",
+      "Do not bury required state only in color."
+    ],
+    "token_guidance": ["--color-text", "--color-text-muted", "--spacing-3", "--spacing-4"],
+    "react_mapping": {
+      "component": "FormField",
+      "repo_path": "frontend/src/components/ui/FormField.tsx",
+      "status": "existing"
+    },
+    "swiftui_mapping": {
+      "component": "LabeledContent or VStack field wrapper",
+      "notes": "Use wrapper views to keep label, help, and error consistent."
+    },
+    "existing_repo_component": "frontend/src/components/ui/FormField.tsx",
+    "missing_status": "existing",
+    "prompt_terms": ["form field block", "labeled input group", "field with validation"],
+    "anti_generic_terms": ["input wrapper", "field box", "label plus input"],
+    "stitch_normalization_hint": "Normalize labeled input clusters to form-field plus the underlying control."
+  },
+  {
+    "id": "stepper_progress_indicator",
+    "canonical_name": "stepper/progress-indicator",
+    "aliases": ["step rail", "stepper"],
+    "intent": "Show discrete multi-step progress through a flow.",
+    "when_to_use": ["Onboarding", "Setup flows", "Guided checklists"],
+    "when_not_to_use": ["Continuous goal tracking", "Background loading only", "Primary nav"],
+    "anatomy": ["step list", "current step", "completed steps", "labels", "connector"],
+    "states": ["upcoming", "current", "completed", "error"],
+    "accessibility_notes": [
+      "Expose total steps and current position in text.",
+      "Keep current step label explicit."
+    ],
+    "token_guidance": ["--color-primary", "--color-success", "--color-surface", "--radius-full"],
+    "react_mapping": {
+      "component": "Setup completion step rail",
+      "repo_path": "frontend/src/pages/NutritionSetup/SetupForm.tsx",
+      "status": "missing-primitive-existing-flow"
+    },
+    "swiftui_mapping": {
+      "component": "custom stepper rail",
+      "notes": "Use HStack or VStack progress rail for guided flows."
+    },
+    "existing_repo_component": "frontend/src/pages/NutritionSetup/SetupForm.tsx",
+    "missing_status": "missing-primitive-existing-flow",
+    "prompt_terms": ["stepper", "multi-step progress", "setup step rail"],
+    "anti_generic_terms": ["progress steps", "wizard line", "flow tracker"],
+    "stitch_normalization_hint": "Normalize discrete flow progress with labeled steps to stepper/progress-indicator."
+  }
+]
