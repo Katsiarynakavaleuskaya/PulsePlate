@@ -121,6 +121,25 @@ def test_build_experiment_packet_does_not_match_cv_hint_on_substrings() -> None:
     assert "cv-agent" not in packet["recommended_agents"]
 
 
+def test_build_experiment_packet_detects_cv_hint_through_separator_normalization() -> None:
+    """Separator-heavy CV terms should still trigger the governed CV lane."""
+
+    packet = build_experiment_packet(
+        decision_question="Evaluate photo_recognition reliability on food images",
+        task_class="Experimentation",
+        mutable_paths=["docs/prompts/cv/program.md"],
+        oracle_commands=[
+            "pytest -q tests/test_skill_router.py -k experimentation_lane_skills_for_cv_eval"
+        ],
+        metrics=["confidence_error"],
+        negative_controls=["non-food image", "blurred image"],
+        promotion_target="audit_artifact",
+        cv_context=_cv_context(),
+    )
+
+    assert "cv-agent" in packet["recommended_agents"]
+
+
 def test_build_experiment_packet_requires_cv_context_for_cv_intent() -> None:
     """CV-oriented packets must fail closed without the CV metadata block."""
 

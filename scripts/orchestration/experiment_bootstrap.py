@@ -108,17 +108,6 @@ def _recommend_advisory_agents(
     return advisory_agents
 
 
-def _is_cv_experiment(
-    *,
-    decision_question: str,
-    task_class: str,
-    mutable_paths: list[str],
-) -> bool:
-    """RU: Определяет CV lane. EN: Detect whether the packet targets the CV lane."""
-
-    return is_cv_experiment(decision_question, task_class, *mutable_paths)
-
-
 def _has_explicit_cv_metadata(args: argparse.Namespace) -> bool:
     """Return whether CLI input includes any CV-specific packet metadata."""
 
@@ -241,11 +230,7 @@ def build_experiment_packet(
     validated_negative_controls = validate_negative_controls(negative_controls)
     validated_promotion_target = validate_promotion_target(promotion_target)
     budget_payload = validate_budget_payload(budgets)
-    cv_intent = _is_cv_experiment(
-        decision_question=decision_question,
-        task_class=task_class,
-        mutable_paths=validated_paths,
-    )
+    cv_intent = is_cv_experiment(decision_question, task_class, *validated_paths)
     validated_cv_context = validate_cv_context(cv_context) if cv_context is not None else None
     if cv_intent and validated_cv_context is None:
         raise ValueError(

@@ -267,7 +267,7 @@ def validate_experiment_id(value: Any, *, label: str) -> str:
 def is_cv_experiment(*parts: Any) -> bool:
     """Return whether the experiment intent is CV-oriented and needs cv_context."""
 
-    normalized = " ".join(str(part).strip().lower() for part in parts if str(part).strip())
+    normalized = normalize_text(*[str(part) for part in parts if str(part).strip()])
     return bool(normalized) and _contains_hint(normalized, CV_EXPERIMENT_HINTS)
 
 
