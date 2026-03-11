@@ -44,6 +44,13 @@ description: Start any PulsePlate task with the required policy, scope, and qual
 4. Start coordinator-first routing for multi-agent work:
    - Use `.cursor/agents/agent-coordinator.md` as entrypoint.
 
+5. For design/frontend tasks, load the code-first UI naming layer:
+
+   ```bash
+   sed -n '1,220p' docs/design/UI_COMPONENT_VOCABULARY.md
+   sed -n '1,220p' docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md
+   ```
+
 ## Output format
 
 - `Task summary`: one paragraph.

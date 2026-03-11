@@ -152,6 +152,9 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/AGENTS.md` — web UI constraints
 - `ios/AGENTS.md` — iOS UI constraints
 - `AGENTS.md` (root) — accessibility + thin-client guardrails (where applicable)
+- `docs/design/UI_COMPONENT_VOCABULARY.md` — canonical component naming and normalization
+- `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` — canonical screen-brief drafting template
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` — code-first brief assembly contract
 
 ---
 
@@ -213,11 +216,14 @@ This map reduces “missing context” failures by making required inputs explic
 - `frontend/src/styles/tokens.css`
 - `frontend/src/styles/tokens.ts`
 - `frontend/tailwind.config.ts`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 **Must know:**
 
 - Thin-client adapter policy (`frontend/src/api/client.ts` as network boundary)
 - UI style SoT is token-driven; avoid ad-hoc literals
+- UI naming/spec flow is vocabulary-driven before component or page generation
 
 ---
 

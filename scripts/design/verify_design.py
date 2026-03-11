@@ -15,20 +15,17 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Available screens
-AVAILABLE_SCREENS = [
-    "ios.home",
-    "ios.plate",
-    "ios.progress",
-    "web.home",
-    "web.plate",
-    "web.progress",
-]
+AVAILABLE_SCREENS = list(SUPPORTED_SCREENS)
 
 
 def load_manifest() -> dict[str, Any]:
@@ -39,7 +36,7 @@ def load_manifest() -> dict[str, Any]:
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
     with open(manifest_path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def load_instruction(screen_id: str) -> dict[str, Any]:
@@ -52,12 +49,12 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
     with open(instruction_path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
     """Verify a screen's design against its instruction."""
-    result = {
+    result: dict[str, Any] = {
         "screen_id": screen_id,
         "status": "unknown",
         "checks": [],
@@ -73,6 +70,15 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
         result["errors"].append(f"Instruction not found: {e}")
         return result
 
+    contract_errors = validate_instruction_contract(instruction)
+    if contract_errors:
+        result["status"] = "error"
+        result["errors"].extend(contract_errors)
+        result["checks"].append({"check": "instruction_contract", "status": "fail"})
+        return result
+
+    result["checks"].append({"check": "instruction_contract", "status": "pass"})
+
     # Check if screen exists in manifest exports
     exports = manifest.get("exports", [])
     screen_export = next((e for e in exports if e.get("screen_id") == screen_id), None)
@@ -84,6 +90,58 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
         return result
 
     result["checks"].append({"check": "manifest_entry", "status": "present"})
+
+    if screen_export.get("surface") == instruction.get("surface"):
+        result["checks"].append({"check": "surface", "status": "pass"})
+    else:
+        result["checks"].append({"check": "surface", "status": "fail"})
+        result["errors"].append(
+            "Manifest surface mismatch: "
+            f"expected {instruction.get('surface')}, got {screen_export.get('surface')}"
+        )
+
+    if screen_export.get("layout_pattern") == instruction.get("layout_pattern"):
+        result["checks"].append({"check": "layout_pattern", "status": "pass"})
+    else:
+        result["checks"].append({"check": "layout_pattern", "status": "fail"})
+        result["errors"].append(
+            "Manifest layout_pattern mismatch: "
+            f"expected {instruction.get('layout_pattern')}, got {screen_export.get('layout_pattern')}"
+        )
+
+    if screen_export.get("layout_archetype") == instruction.get("layout_archetype"):
+        result["checks"].append({"check": "layout_archetype", "status": "pass"})
+    else:
+        result["checks"].append({"check": "layout_archetype", "status": "fail"})
+        result["errors"].append(
+            "Manifest layout_archetype mismatch: "
+            f"expected {instruction.get('layout_archetype')}, got {screen_export.get('layout_archetype')}"
+        )
+
+    expected_section_count = len(instruction.get("sections", []))
+    actual_section_count = screen_export.get("section_count")
+    if expected_section_count == actual_section_count:
+        result["checks"].append(
+            {
+                "check": "section_count",
+                "status": "pass",
+                "expected": expected_section_count,
+                "actual": actual_section_count,
+            }
+        )
+    else:
+        result["checks"].append(
+            {
+                "check": "section_count",
+                "status": "fail",
+                "expected": expected_section_count,
+                "actual": actual_section_count,
+            }
+        )
+        result["errors"].append(
+            "Manifest section_count mismatch: "
+            f"expected {expected_section_count}, got {actual_section_count}"
+        )
 
     # Verify instruction count matches
     expected_count = len(instruction.get("instructions", []))
@@ -113,9 +171,25 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
 
     # Check execution status
     exec_status = screen_export.get("status", "unknown")
+    adapter_name = screen_export.get("adapter_name")
+    adapter_mode = screen_export.get("adapter_mode")
+    if adapter_name:
+        result["checks"].append(
+            {"check": "execution_adapter", "status": "pass", "value": adapter_name}
+        )
+    else:
+        result["warnings"].append("Execution adapter metadata missing in manifest export")
+        result["checks"].append({"check": "execution_adapter", "status": "missing"})
+
     if exec_status == "simulated":
         result["warnings"].append("Design was simulated, not actually created in Figma")
-        result["checks"].append({"check": "execution_status", "status": "simulated"})
+        result["checks"].append(
+            {
+                "check": "execution_status",
+                "status": "simulated",
+                "adapter_mode": adapter_mode,
+            }
+        )
     elif exec_status == "completed":
         result["checks"].append({"check": "execution_status", "status": "pass"})
     else:

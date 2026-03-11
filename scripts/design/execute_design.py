@@ -16,7 +16,16 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+from scripts.design.execution_adapters import (
+    available_adapter_names,
+    resolve_execution_adapter,
+)
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -31,13 +40,13 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
     if not instruction_path.exists():
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
-    with open(instruction_path) as f:
-        return json.load(f)
+    with open(instruction_path, encoding="utf-8") as f:
+        return cast(dict[str, Any], json.load(f))
 
 
 def validate_governance(instruction: dict[str, Any]) -> list[str]:
     """Validate instruction against governance rules."""
-    errors = []
+    errors: list[str] = list(validate_instruction_contract(instruction))
     checks = instruction.get("governance_checks", [])
 
     # Token usage check
@@ -51,21 +60,15 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     # HPP compliance check
     if "verify_hpp_compliance" in checks:
         screen_id = instruction.get("screen_id", "")
-        valid_screens = [
-            "ios.home",
-            "ios.plate",
-            "ios.progress",
-            "web.home",
-            "web.plate",
-            "web.progress",
-        ]
-        if screen_id not in valid_screens:
+        if screen_id not in SUPPORTED_SCREENS:
             errors.append(f"Screen {screen_id} not in H+P+Pr scope")
 
     # CTA registry check
     if "verify_cta_registry_match" in checks:
         instructions_list = instruction.get("instructions", [])
         for inst in instructions_list:
+            if not isinstance(inst, dict):
+                continue
             if inst.get("type") == "create_button":
                 cta_key = inst.get("cta_key", "")
                 if not cta_key:
@@ -74,48 +77,11 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     return errors
 
 
-def simulate_mcp_execution(instruction: dict[str, Any]) -> dict[str, Any]:
-    """Simulate MCP execution (placeholder for actual MCP calls).
+def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[str, Any]:
+    """Execute one instruction payload through the configured adapter seam."""
 
-    In production, this would invoke actual Figma MCP tools:
-    - figma.create_frame
-    - figma.create_components
-    - figma.apply_styles
-
-    For now, it returns a simulated result structure.
-    """
-    screen_id = instruction.get("screen_id", "unknown")
-    instructions_list = instruction.get("instructions", [])
-
-    # Simulate node ID generation
-    results = {
-        "screen_id": screen_id,
-        "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "status": "simulated",
-        "created_nodes": [],
-        "mcp_calls": [],
-    }
-
-    for i, inst in enumerate(instructions_list):
-        inst_type = inst.get("type", "unknown")
-        inst_name = inst.get("name", f"Node_{i}")
-
-        # Simulate MCP call
-        results["mcp_calls"].append(
-            {"tool": f"figma.{inst_type}", "params": {"name": inst_name}, "status": "simulated"}
-        )
-
-        # Simulate created node
-        results["created_nodes"].append(
-            {
-                "type": inst_type,
-                "name": inst_name,
-                "node_id": f"simulated:{screen_id}:{i}",
-                "status": "pending_real_execution",
-            }
-        )
-
-    return results
+    adapter = resolve_execution_adapter(adapter_name)
+    return cast(dict[str, Any], adapter.execute(instruction))
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
@@ -126,7 +92,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         print(f"Warning: Manifest not found at {manifest_path}")
         return
 
-    with open(manifest_path) as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
     # Add execution results to exports
@@ -140,6 +106,13 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "screen_id": screen_id,
         "executed_at": results.get("executed_at"),
         "status": results.get("status"),
+        "surface": results.get("surface"),
+        "layout_archetype": results.get("layout_archetype"),
+        "layout_pattern": results.get("layout_pattern"),
+        "section_count": results.get("section_count"),
+        "adapter_name": results.get("adapter_name"),
+        "adapter_mode": results.get("adapter_mode"),
+        "simulation_mode": results.get("simulation_mode"),
         "node_count": len(results.get("created_nodes", [])),
         "nodes": results.get("created_nodes", []),
     }
@@ -152,7 +125,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         # Add new entry
         manifest["exports"].append(export_entry)
 
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
 
     print(f"Updated manifest: {manifest_path}")
@@ -166,7 +139,7 @@ def log_execution(screen_id: str, results: dict[str, Any]) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     log_path = logs_dir / f"{timestamp}_{screen_id.replace('.', '_')}.json"
 
-    with open(log_path, "w") as f:
+    with open(log_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
     print(f"Execution log: {log_path}")
@@ -189,6 +162,12 @@ def main() -> int:
         "--execute",
         action="store_true",
         help="Execute instruction via MCP (currently simulated)",
+    )
+    parser.add_argument(
+        "--adapter",
+        choices=available_adapter_names(),
+        default="deterministic_stub",
+        help="Execution adapter seam to use",
     )
     parser.add_argument(
         "--update-manifest",
@@ -230,10 +209,11 @@ def main() -> int:
 
     # Execute (currently simulated)
     print("\nExecuting design instructions...")
-    results = simulate_mcp_execution(instruction)
+    results = execute_instruction(instruction, args.adapter)
 
     print("\nExecution results:")
     print(f"  Status: {results.get('status')}")
+    print(f"  Adapter: {results.get('adapter_name')} ({results.get('adapter_mode')})")
     print(f"  Nodes created: {len(results.get('created_nodes', []))}")
     print(f"  MCP calls: {len(results.get('mcp_calls', []))}")
 
@@ -244,8 +224,8 @@ def main() -> int:
     if args.update_manifest:
         update_manifest(args.screen, results)
 
-    print("\nNote: Actual MCP execution requires Figma MCP connection.")
-    print("Current execution is simulated. Connect MCP to create real designs.")
+    print("\nNote: Live MCP-backed execution is intentionally deferred.")
+    print("Current execution uses the deterministic adapter seam.")
 
     return 0
 
