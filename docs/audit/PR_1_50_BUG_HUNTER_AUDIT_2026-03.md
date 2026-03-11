@@ -54,11 +54,11 @@
 | 14 | tests/test_llm_extras.py | Mutates `sys.modules`; conflicts with tests/AGENTS.md "Do NOT mutate sys.modules" | P0 | tests/test_llm_extras.py:17,27,37 |
 | 14 | tests/test_llm_extras.py | Uses `sys.modules.pop` in restore_module; same policy concern | P0 | tests/test_llm_extras.py:29 |
 | 45 | frontend/src/components/GlassCard.tsx | Redundant `!== undefined` check for typed union `GlassCardTone`; defensive but redundant | P2 | frontend/src/components/GlassCard.tsx:59,65 |
-| 45 | frontend/src/features/plan/WeeklyPlanViewer.tsx | `catch (error: any)` — should use `error: unknown` per TypeScript best practices | P1 | WeeklyPlanViewer.tsx:171,182,203 |
-| 45 | frontend/src/features/shoplist/ShoplistPreview.tsx | `id: revokeTimeout as any` — type assertion to bypass `number \| NodeJS.Timeout`; weakens type safety | P1 | ShoplistPreview.tsx:127 |
-| 45 | frontend/src/features/shoplist/ShoplistPreview.tsx | `cleanupRef` stores `id` as number but `setTimeout` return type varies by environment | P2 | ShoplistPreview.tsx:126-129 |
-| 50 | frontend/src/lib/shareFile.ts | `downloadInBrowser` has no try/catch around `anchor.click()`; edge-case failures unhandled | P2 | shareFile.ts:31 |
-| 50 | frontend/src/lib/shareFile.ts | `arrayBufferToBase64` fallback path (no FileReader) is unreachable in browser; dead code in Node test env | P2 | shareFile.ts:59-74 |
+| 45 | frontend/src/features/plan/WeeklyPlanViewer.tsx | `catch (error: any)` — should use `error: unknown` per TypeScript best practices | P1 | frontend/src/features/plan/WeeklyPlanViewer.tsx:171,182,203 |
+| 45 | frontend/src/features/shoplist/ShoplistPreview.tsx | `id: revokeTimeout as any` — type assertion to bypass `number \| NodeJS.Timeout`; weakens type safety | P1 | frontend/src/features/shoplist/ShoplistPreview.tsx:127 |
+| 45 | frontend/src/features/shoplist/ShoplistPreview.tsx | `cleanupRef` stores `id` as number but `setTimeout` return type varies by environment | P2 | frontend/src/features/shoplist/ShoplistPreview.tsx:126-129 |
+| 50 | frontend/src/lib/shareFile.ts | `downloadInBrowser` has no try/catch around `anchor.click()`; edge-case failures unhandled | P2 | frontend/src/lib/shareFile.ts:31 |
+| 50 | frontend/src/lib/shareFile.ts | `arrayBufferToBase64` fallback path (no FileReader) is unreachable in browser; dead code in Node test env | P2 | frontend/src/lib/shareFile.ts:59-74 |
 
 ---
 
@@ -71,18 +71,18 @@
 
 ### 4.2 Dead Code / Unreachable Paths
 
-- `shareFile.ts` `arrayBufferToBase64` fallback (lines 59–74): Chunked base64 encoding when `FileReader` is unavailable — unreachable in browser; only relevant in Node/test environments.
+- `frontend/src/lib/shareFile.ts` `arrayBufferToBase64` fallback (lines 59–74): Chunked base64 encoding when `FileReader` is unavailable — unreachable in browser; only relevant in Node/test environments.
 
 ### 4.3 Error Handling
 
-- `WeeklyPlanViewer.tsx`: Uses `error: any` in catch blocks; should use `unknown` and narrow.
+- `frontend/src/features/plan/WeeklyPlanViewer.tsx`: Uses `error: any` in catch blocks; should use `unknown` and narrow.
 - `ollama_diagnostic.sh`: No explicit handling if `curl` or `jq` fail.
-- `shareFile.ts`: `downloadInBrowser` does not wrap `anchor.click()` in try/catch.
+- `frontend/src/lib/shareFile.ts`: `downloadInBrowser` does not wrap `anchor.click()` in try/catch.
 
 ### 4.4 SOLID / Code Quality
 
-- `GlassCard.tsx`: Redundant undefined checks for typed props (minor).
-- `ShoplistPreview.tsx`: `as any` on `revokeTimeout` weakens type safety.
+- `frontend/src/components/GlassCard.tsx`: Redundant undefined checks for typed props (minor).
+- `frontend/src/features/shoplist/ShoplistPreview.tsx`: `as any` on `revokeTimeout` weakens type safety.
 
 ### 4.5 Test Gaps
 
@@ -104,11 +104,11 @@
 ## 6. Recommended Actions
 
 1. **P0 (test_llm_extras):** Either add `test_llm_extras.py` to guard allowlist with documented rationale, or refactor to use `monkeypatch.setattr` / `patch()` instead of `sys.modules` mutation.
-2. **P1 (WeeklyPlanViewer):** Replace `error: any` with `error: unknown` and use type guards.
-3. **P1 (ShoplistPreview):** Use `ReturnType<typeof setTimeout>` or explicit `number` with env-specific handling instead of `as any`.
+2. **P1 (frontend/src/features/plan/WeeklyPlanViewer.tsx):** Replace `error: any` with `error: unknown` and use type guards.
+3. **P1 (frontend/src/features/shoplist/ShoplistPreview.tsx):** Use `ReturnType<typeof setTimeout>` or explicit `number` with env-specific handling instead of `as any`.
 4. **P1 (test_api.py):** Add `client: TestClient` type hints to all test functions.
 5. **P2 (ollama scripts):** Add `command -v jq` / `command -v bc` checks or document prerequisites.
-6. **P2 (shareFile.ts):** Consider removing or guarding the `arrayBufferToBase64` fallback; add try/catch around `anchor.click()` if desired.
+6. **P2 (frontend/src/lib/shareFile.ts):** Consider removing or guarding the `arrayBufferToBase64` fallback; add try/catch around `anchor.click()` if desired.
 
 ---
 

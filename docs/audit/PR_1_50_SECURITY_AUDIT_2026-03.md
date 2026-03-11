@@ -118,9 +118,16 @@
 
 ### 5.2 Auth bypass
 
-- Tier guards (`require_pro_tier`, `require_vip_tier`) are enforced per `app/middleware/api_tiers.py`.
-- No unguarded sensitive endpoints found in routers for `/api/v1/pro/*`, `/api/v1/vip/*`.
-- Agent input guard and RAG sanitizer added in later PRs (#1018, #1044).
+- Tier guard definitions are explicit in `app/middleware/api_tiers.py:497` (`require_pro_tier`) and `app/middleware/api_tiers.py:532` (`require_vip_tier`).
+- Example guarded PRO routes:
+  - `app/routers/pro.py:244`, `app/routers/pro.py:370`
+  - `app/routers/pro_restaurant_partner.py:37`
+  - `app/routers/cbt_insight.py:149`
+- Example guarded VIP routes:
+  - `app/routers/vip.py:507`, `app/routers/vip.py:521`, `app/routers/vip.py:840`, `app/routers/vip.py:864`
+  - `app/routers/vip_shoplist.py:311`, `app/routers/vip_shoplist.py:521`
+  - `app/routers/fitchef_insight.py:78`, `app/routers/fitchef_insight.py:153`, `app/routers/fitchef_insight.py:234`
+- Agent input guard is present in `app/security/agent_input_guard.py:191`, `app/security/agent_input_guard.py:267` and is applied in `app/routers/cbt_insight.py:23`, `app/routers/cbt_insight.py:181`, `app/routers/fitchef_insight.py:35`, `app/routers/fitchef_insight.py:101`, `app/routers/fitchef_insight.py:176`, `app/routers/fitchef_insight.py:257`.
 
 ---
 
@@ -152,18 +159,18 @@
 
 | Check | Result |
 |-------|--------|
-| Stack traces in production | No `traceback.print_exc()` or similar in app routers |
-| Debug in prod | `TELEMETRY_CLIENT_DEBUG_FULL` gated; no `DEBUG=true` in prod path |
-| PII in logs | No direct `log.info(request.body)` patterns in app |
-| Error messages | FastAPI `HTTPException` used; no raw exception leakage in responses |
+| Stack traces in production | `rg -n "traceback\\.print_exc" app` returned no matches (`EXIT_CODE=1`); router error paths use `HTTPException`, for example `app/routers/business.py:145-159`, `app/routers/vip.py:214-215`, `app/routers/users.py:93-100`. |
+| Debug in prod | `app/telemetry/__init__.py:86` gates `TELEMETRY_CLIENT_DEBUG_FULL` through `_is_truthy(os.getenv(...))`; no unconditional prod debug toggle found in `app/`. |
+| PII in logs | `rg -n "request\\.body\\(" app` returned no matches (`EXIT_CODE=1`); API-key-related logging is sanitized in `app/routers/vip.py:219-239`, and `app/services/payments_activation.py:254` explicitly builds evidence summaries without raw provider secrets. |
+| Error messages | FastAPI `HTTPException` is the dominant public error envelope in routers such as `app/routers/pro.py:288-315`, `app/routers/vip.py:289-381`, `app/routers/cbt_insight.py:160-179`, and `app/routers/fitchef_insight.py:83-99`. |
 
 ---
 
 ## 9. Rate Limit and PII
 
-- Rate limiting: `@limit_if_available` on LLM and export endpoints per `app/security/rate_limit.py`.
-- PII: No evidence of PII logged without redaction in app code.
-- Agent input guard: `app/security/agent_input_guard.py` screens AI inputs (added post-PR50).
+- Rate limiting helper is defined in `app/security/rate_limit.py:286`; export and AI endpoints use it in `app/routers/pro_restaurant_partner.py:79`, `app/routers/vip_shoplist.py:521`, `app/routers/shoplist_export.py:283`, `app/routers/shoplist_export.py:291`, `app/routers/shoplist_export.py:313`, `app/routers/plan_export.py:378`, `app/routers/plan_export.py:476`, `app/routers/plan_export.py:615`, `app/routers/cbt_insight.py:144`, `app/routers/fitchef_insight.py:74`, `app/routers/fitchef_insight.py:149`, and `app/routers/fitchef_insight.py:230`.
+- PII: no direct `request.body` logging was found in `app/` (`rg -n "request\\.body\\(" app` -> no matches), and the most sensitive auth-adjacent logging surface reviewed here, `app/routers/vip.py:219-239`, logs environment/context instead of raw API keys.
+- Agent input guard: `app/security/agent_input_guard.py:191-276` screens AI-facing text, with route integration at `app/routers/cbt_insight.py:181` and `app/routers/fitchef_insight.py:101`, `app/routers/fitchef_insight.py:176`, `app/routers/fitchef_insight.py:257`.
 
 ---
 
