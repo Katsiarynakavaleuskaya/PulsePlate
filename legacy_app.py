@@ -113,10 +113,11 @@ from core.bmr import (
 )
 from core.export_format import ExportFormat
 from app.scheduler_helpers import (
+    execute_async_starter,
+    handle_sync_test_mode,
+    resolve_app_package,
     resolve_scheduler_starter,
     resolve_stop_callable,
-    handle_sync_test_mode,
-    execute_async_starter,
     safe_stop_with_cleanup,
 )
 from app.utils.helpers import _resolve_app_callable, _short_git_sha
@@ -264,10 +265,7 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
     """
     import sys as _sys
 
-    pkg = _sys.modules.get("app") or _APP_PACKAGE_REF
-    if pkg is not None and not getattr(pkg, "__path__", None) and _APP_PACKAGE_REF is not None:
-        # Prefer the package wrapper when sys.modules['app'] points to app_module
-        pkg = _APP_PACKAGE_REF
+    pkg = resolve_app_package(_sys.modules.get("app"), _APP_PACKAGE_REF)
     alias_pkg = _sys.modules.get("app_module")
 
     _asyncio = getattr(pkg, "asyncio", None) or getattr(alias_pkg, "asyncio", None) or asyncio
@@ -282,26 +280,10 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
             if isinstance(maybe_called, list):
                 caller_called = maybe_called
 
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        pkg_attr = pkg.__dict__.get("_scheduler_start_background_updates") if pkg else None
-        candidates = [
-            (
-                pkg_attr
-                if pkg_attr is not None
-                else getattr(pkg, "_scheduler_start_background_updates", None)
-            ),
-            (
-                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
-                if pkg_appmod
-                else None
-            ),
-            globals().get("_scheduler_start_background_updates", None),
-        ]
-        for target in candidates:
-            if not callable(target):
-                continue
-            handle_sync_test_mode(target, update_interval_hours, caller_called)
-            break
+        starter = resolve_scheduler_starter(
+            pkg, alias_pkg, globals(), _scheduler_start_background_updates
+        )
+        handle_sync_test_mode(starter, update_interval_hours, caller_called)
         return None
 
     # Normal mode: resolve starter and execute
@@ -324,9 +306,7 @@ def stop_background_updates() -> None:
     """
     import sys as _sys
 
-    pkg = _sys.modules.get("app") or _APP_PACKAGE_REF
-    if pkg is not None and not getattr(pkg, "__path__", None) and _APP_PACKAGE_REF is not None:
-        pkg = _APP_PACKAGE_REF
+    pkg = resolve_app_package(_sys.modules.get("app"), _APP_PACKAGE_REF)
     alias_pkg = _sys.modules.get("app_module")
 
     _asyncio = getattr(pkg, "asyncio", None) or getattr(alias_pkg, "asyncio", None) or asyncio
@@ -341,22 +321,10 @@ def stop_background_updates() -> None:
             if isinstance(maybe_called, list):
                 caller_called = maybe_called
 
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        pkg_attr = pkg.__dict__.get("_scheduler_stop_background_updates") if pkg else None
-        candidates = [
-            (
-                pkg_attr
-                if pkg_attr is not None
-                else getattr(pkg, "_scheduler_stop_background_updates", None)
-            ),
-            getattr(pkg_appmod, "_scheduler_stop_background_updates", None) if pkg_appmod else None,
-            globals().get("_scheduler_stop_background_updates", None),
-        ]
-        for target in candidates:
-            if not callable(target):
-                continue
-            handle_sync_test_mode(target, None, caller_called)
-            break
+        stopper = resolve_stop_callable(
+            pkg, alias_pkg, globals(), _scheduler_stop_background_updates
+        )
+        handle_sync_test_mode(stopper, None, caller_called)
         return None
 
     # Normal mode: resolve stopper and execute

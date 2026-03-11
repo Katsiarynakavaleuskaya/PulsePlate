@@ -10,8 +10,39 @@ import pytest
 from app import scheduler_helpers
 
 
-def test_resolve_scheduler_starter_prefers_alias_and_pkg_appmod() -> None:
-    """resolve_scheduler_starter should resolve starter from alias/pkg hierarchy."""
+def test_resolve_app_package_import_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """resolve_app_package should import the canonical package when aliases are stale."""
+
+    fake_pkg = types.SimpleNamespace(__path__=["/tmp/app"])
+
+    monkeypatch.setattr(
+        scheduler_helpers.importlib,
+        "import_module",
+        lambda name: fake_pkg if name == "app" else None,
+    )
+
+    resolved = scheduler_helpers.resolve_app_package(object(), None)
+    assert resolved is fake_pkg
+
+
+def test_resolve_app_package_returns_fallback_when_import_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_app_package should fall back to the original candidate on import failure."""
+
+    stale_pkg = object()
+
+    def _boom(_name: str) -> None:
+        raise RuntimeError("import failed")
+
+    monkeypatch.setattr(scheduler_helpers.importlib, "import_module", _boom)
+
+    resolved = scheduler_helpers.resolve_app_package(stale_pkg, None)
+    assert resolved is stale_pkg
+
+
+def test_resolve_scheduler_starter_prefers_pkg_before_alias() -> None:
+    """resolve_scheduler_starter should prefer the app package over alias fallbacks."""
 
     def default_starter(interval: int) -> int:
         return interval
@@ -34,22 +65,30 @@ def test_resolve_scheduler_starter_prefers_alias_and_pkg_appmod() -> None:
     globs: Dict[str, Any] = {}
     starter = scheduler_helpers.resolve_scheduler_starter(Pkg(), AliasPkg(), globs, default_starter)
     result = starter(5)
-    # Alias package has highest precedence in the resolution chain.
-    assert result == "alias:5"
+    # The package wrapper must win so package-level monkeypatching stays stable.
+    assert result == "pkg:5"
 
-    # If the global dict provides an override, it should win.
+    # An explicit non-default global override should still win.
     def override_starter(interval: int) -> int:
         return interval * 2
 
+    class EmptyPkg:
+        app_module: Any = object()
+
     globs_override: Dict[str, Any] = {"_scheduler_start_background_updates": override_starter}
     starter_override = scheduler_helpers.resolve_scheduler_starter(
-        Pkg(), AliasPkg(), globs_override, default_starter
+        EmptyPkg(), None, globs_override, default_starter
     )
     assert starter_override is override_starter
 
+    default_only = scheduler_helpers.resolve_scheduler_starter(
+        EmptyPkg(), None, {}, default_starter
+    )
+    assert default_only is default_starter
 
-def test_resolve_stop_callable_prefers_alias_and_pkg_appmod() -> None:
-    """resolve_stop_callable should resolve stopper from alias/pkg hierarchy."""
+
+def test_resolve_stop_callable_prefers_pkg_before_alias() -> None:
+    """resolve_stop_callable should prefer the app package over alias fallbacks."""
 
     def default_stopper() -> str:
         return "default"
@@ -70,14 +109,17 @@ def test_resolve_stop_callable_prefers_alias_and_pkg_appmod() -> None:
 
     globs: Dict[str, Any] = {}
     stopper = scheduler_helpers.resolve_stop_callable(Pkg(), AliasPkg(), globs, default_stopper)
-    assert stopper() == "alias"
+    assert stopper() == "pkg"
 
     def override_stopper() -> str:
         return "override"
 
+    class EmptyPkg:
+        app_module: Any = object()
+
     globs_override: Dict[str, Any] = {"_scheduler_stop_background_updates": override_stopper}
     stopper_override = scheduler_helpers.resolve_stop_callable(
-        Pkg(), AliasPkg(), globs_override, default_stopper
+        EmptyPkg(), None, globs_override, default_stopper
     )
     assert stopper_override is override_stopper
 

@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import inspect
 from contextlib import suppress
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
+
+
+def resolve_app_package(pkg: Any, fallback_pkg: Any) -> Any:
+    """Return the canonical app package when sys.modules churn leaves stale aliases."""
+    for candidate in (pkg, fallback_pkg):
+        if candidate is not None and getattr(candidate, "__path__", None):
+            return candidate
+
+    with suppress(Exception):
+        imported_pkg = importlib.import_module("app")
+        if getattr(imported_pkg, "__path__", None):
+            return imported_pkg
+
+    return pkg or fallback_pkg
 
 
 def resolve_scheduler_starter(
@@ -16,22 +31,24 @@ def resolve_scheduler_starter(
 
     Returns the best available starter callable, falling back to default_starter.
     """
-    starter: Callable[[int], Any] = globs.get(
-        "_scheduler_start_background_updates", default_starter
-    )
-    if starter is default_starter:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        starter = (
-            getattr(alias_pkg, "_scheduler_start_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_start_background_updates", None)
-            or default_starter
+    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+    starter = (
+        getattr(pkg, "_scheduler_start_background_updates", None)
+        or (
+            getattr(pkg_appmod, "_scheduler_start_background_updates", None) if pkg_appmod else None
         )
-    return starter
+        or getattr(alias_pkg, "_scheduler_start_background_updates", None)
+    )
+    if callable(starter):
+        resolved_starter = cast(Callable[[int], Any], starter)
+        return resolved_starter
+
+    starter = globs.get("_scheduler_start_background_updates", default_starter)
+    if callable(starter) and starter is not default_starter:
+        resolved_starter = cast(Callable[[int], Any], starter)
+        return resolved_starter
+
+    return default_starter
 
 
 def resolve_stop_callable(
@@ -44,20 +61,22 @@ def resolve_stop_callable(
 
     Returns the best available stopper callable, falling back to default_stopper.
     """
-    stopper: Callable[[], Any] = globs.get("_scheduler_stop_background_updates", default_stopper)
-    if stopper is default_stopper:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        stopper = (
-            getattr(alias_pkg, "_scheduler_stop_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_stop_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_stop_background_updates", None)
-            or default_stopper
-        )
-    return stopper
+    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+    stopper = (
+        getattr(pkg, "_scheduler_stop_background_updates", None)
+        or (getattr(pkg_appmod, "_scheduler_stop_background_updates", None) if pkg_appmod else None)
+        or getattr(alias_pkg, "_scheduler_stop_background_updates", None)
+    )
+    if callable(stopper):
+        resolved_stopper = cast(Callable[[], Any], stopper)
+        return resolved_stopper
+
+    stopper = globs.get("_scheduler_stop_background_updates", default_stopper)
+    if callable(stopper) and stopper is not default_stopper:
+        resolved_stopper = cast(Callable[[], Any], stopper)
+        return resolved_stopper
+
+    return default_stopper
 
 
 def handle_sync_test_mode(

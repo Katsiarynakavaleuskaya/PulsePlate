@@ -69,6 +69,7 @@ def _ensure_canonical_bootstrap() -> None:
 
     if callable(ensure_bootstrap):
         ensure_bootstrap(legacy_app_instance)
+        setattr(main_module, "app", legacy_app_instance)
         return
 
     # RU: Фолбэк только для safety-path; нормальный runtime идёт через
