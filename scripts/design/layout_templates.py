@@ -197,7 +197,7 @@ def _dashboard_recovery_template(screen_id: str) -> ReusableLayoutTemplate:
     shell_id = f"{prefix}-shell"
     chart_id = f"{prefix}-chart"
     recovery_id = f"{prefix}-recovery"
-    sections = [
+    sections: list[LayoutSectionTemplate] = [
         {
             "id": "progress-summary",
             "name": "Progress summary",
