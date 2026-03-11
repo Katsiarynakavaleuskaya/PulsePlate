@@ -130,9 +130,11 @@ def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     return None
 
 
-def _parse_persisted_subscription_tier(raw_tier: str) -> SubscriptionTier | None:
+def _parse_persisted_subscription_tier(raw_tier: object) -> SubscriptionTier | None:
     """Convert persisted billing tier string into authz tier enum."""
 
+    if not isinstance(raw_tier, str):
+        return None
     normalized = raw_tier.strip().lower()
     try:
         persisted_tier = PersistedSubscriptionTier(normalized)
@@ -147,10 +149,12 @@ def _parse_persisted_subscription_tier(raw_tier: str) -> SubscriptionTier | None
 
 
 def _parse_persisted_subscription_status(
-    raw_status: str,
+    raw_status: object,
 ) -> PersistedSubscriptionStatus | None:
     """Convert persisted billing status string into canonical status enum."""
 
+    if not isinstance(raw_status, str):
+        return None
     normalized = raw_status.strip().lower()
     try:
         return PersistedSubscriptionStatus(normalized)
@@ -158,10 +162,10 @@ def _parse_persisted_subscription_status(
         return None
 
 
-def _normalize_utc_datetime(value: datetime | None) -> datetime | None:
+def _normalize_utc_datetime(value: object) -> datetime | None:
     """Normalize naive/aware datetimes to UTC for deterministic expiry checks."""
 
-    if value is None:
+    if not isinstance(value, datetime):
         return None
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
@@ -185,7 +189,6 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
     """
     try:
-        from app.services import subscriptions as subscriptions_store
         from core.db import get_session_factory
 
         user_id = derive_subject_id_from_api_key(api_key)
@@ -215,8 +218,8 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     effective_tier = SubscriptionTier.FREE
 
     for subscription in subscriptions:
-        parsed_tier = _parse_persisted_subscription_tier(subscription.tier)
-        parsed_status = _parse_persisted_subscription_status(subscription.status)
+        parsed_tier = _parse_persisted_subscription_tier(getattr(subscription, "tier", None))
+        parsed_status = _parse_persisted_subscription_status(getattr(subscription, "status", None))
         if parsed_tier is None or parsed_status is None:
             saw_invalid_state = True
             continue
@@ -225,7 +228,7 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         if parsed_status is not PersistedSubscriptionStatus.active:
             continue
 
-        expires_at = _normalize_utc_datetime(subscription.expires_at)
+        expires_at = _normalize_utc_datetime(getattr(subscription, "expires_at", None))
         if expires_at is not None and expires_at <= now:
             continue
 
