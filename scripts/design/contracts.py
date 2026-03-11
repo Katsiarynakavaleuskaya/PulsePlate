@@ -85,8 +85,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         "states",
         "token_constraints",
     ):
-        value = instruction.get(field_name)
-        if not isinstance(value, list) or not value:
+        list_value = instruction.get(field_name)
+        if not isinstance(list_value, list) or not list_value:
             errors.append(f"{field_name} must be a non-empty list")
 
     valid_components = canonical_component_names()
