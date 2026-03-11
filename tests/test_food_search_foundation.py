@@ -351,8 +351,9 @@ def test_build_swap_indexes_payload_is_atomic_pair_list() -> None:
 
 
 def test_numeric_field_or_default_returns_zero_for_missing_values() -> None:
-    hit = {"protein_g": None, "fat_g": "bad", "carbs_g": 3}
+    hit = {"protein_g": None, "fat_g": "bad", "carbs_g": 3, "kcal": True}
 
     assert _numeric_field_or_default(hit, "protein_g") == 0
     assert _numeric_field_or_default(hit, "fat_g") == 0
     assert _numeric_field_or_default(hit, "carbs_g") == 3
+    assert _numeric_field_or_default(hit, "kcal") == 0

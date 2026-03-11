@@ -20,6 +20,8 @@ def _numeric_field_or_default(hit: Mapping[str, Any], key: str) -> int | float:
     """Normalize optional numeric nutrient fields to deterministic defaults."""
 
     value = hit.get(key)
+    if isinstance(value, bool):
+        return 0
     return value if isinstance(value, (int, float)) else 0
 
 
