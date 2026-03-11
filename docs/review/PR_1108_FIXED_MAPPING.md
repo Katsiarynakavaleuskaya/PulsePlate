@@ -5,7 +5,15 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1108#discussion_r2917389515
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1037`; `docs/roadmap/BACKLOG_LEDGER.md:1040`; `docs/roadmap/BACKLOG_LEDGER.md:1041`
+Reason: Current HEAD already contains the requested ledger close-out, so this comment reflects the earlier pre-fix snapshot rather than a remaining issue.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1108#discussion_r2917406580
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1037`; `docs/roadmap/BACKLOG_LEDGER.md:1040`; `docs/roadmap/BACKLOG_LEDGER.md:1041`
+Reason: By the time this review comment was published, the requested ledger update was already present on the PR branch; no additional code or docs change is required beyond the recorded close-out.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
