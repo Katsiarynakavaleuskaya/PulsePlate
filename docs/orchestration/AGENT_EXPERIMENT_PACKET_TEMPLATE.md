@@ -6,6 +6,9 @@ Use this template for governed experiment charters and result packets.
 
 Canonical protocol: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 
+For offline `photo -> food` evaluation, use
+`docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` instead of extending this generic template ad hoc.
+
 ---
 
 ## Experiment Header

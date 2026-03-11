@@ -1,0 +1,243 @@
+"""Optional Meilisearch-backed search adapters with safe fallbacks."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+import json
+import logging
+import threading
+from typing import Any, TYPE_CHECKING
+
+import httpx
+
+if TYPE_CHECKING:
+    from app.services.food_store import FoodSearchBackend
+
+logger = logging.getLogger(__name__)
+
+Transport = Callable[[str, dict[str, Any], Mapping[str, str], float], Any]
+ShadowTaskRunner = Callable[[Callable[[], None]], None]
+_MAX_CONCURRENT_SHADOW_TASKS = 4
+_shadow_task_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_SHADOW_TASKS)
+
+
+def _numeric_field_or_default(hit: Mapping[str, Any], key: str) -> int | float:
+    """Normalize optional numeric nutrient fields to deterministic defaults."""
+
+    value = hit.get(key)
+    if isinstance(value, bool):
+        return 0
+    return value if isinstance(value, (int, float)) else 0
+
+
+def _default_transport(
+    url: str,
+    payload: dict[str, Any],
+    headers: Mapping[str, str],
+    timeout_seconds: float,
+) -> Any:
+    """Execute a POST request against Meilisearch."""
+
+    with httpx.Client(timeout=timeout_seconds) as client:
+        response = client.post(url, json=payload, headers=dict(headers))
+        response.raise_for_status()
+        parsed_response: Any
+        parsed_response = response.json()
+        return parsed_response
+
+
+def _start_shadow_thread(task: Callable[[], None]) -> None:
+    """Run a best-effort shadow comparison off the request path."""
+
+    if not _shadow_task_slots.acquire(blocking=False):
+        logger.debug("Food search shadow task skipped; concurrency limit reached")
+        return
+
+    def _run_shadow_task() -> None:
+        try:
+            task()
+        finally:
+            _shadow_task_slots.release()
+
+    try:
+        thread = threading.Thread(
+            target=_run_shadow_task,
+            name="food-search-shadow",
+            daemon=True,
+        )
+        thread.start()
+    except RuntimeError:
+        _shadow_task_slots.release()
+        logger.debug("Food search shadow task skipped; failed to start thread", exc_info=True)
+
+
+class MeiliSearchBackend:
+    """Optional Meilisearch backend preserving the food-search contract."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        index_name: str,
+        api_key: str | None = None,
+        timeout_seconds: float = 2.0,
+        transport: Transport = _default_transport,
+        fallback_backend: "FoodSearchBackend | None" = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._index_name = index_name
+        self._api_key = api_key
+        self._timeout_seconds = timeout_seconds
+        self._transport = transport
+        self._fallback_backend = fallback_backend
+
+    def _fallback_search(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Return the baseline fallback rows or an empty result set."""
+
+        if self._fallback_backend is not None:
+            fallback_rows: Sequence[Mapping[str, Any]]
+            fallback_rows = self._fallback_backend.search_foods(query, limit=limit, offset=offset)
+            return fallback_rows
+        return []
+
+    def search_foods(
+        self,
+        query: str,
+        limit: int | str = 20,
+        offset: int | str = 0,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Query Meilisearch and normalize hits to food contract fields."""
+
+        try:
+            normalized_limit = int(limit)
+            normalized_offset = int(offset)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit and offset must be integers") from exc
+
+        search_url = f"{self._base_url}/indexes/{self._index_name}/search"
+        headers: dict[str, str] = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        payload = {
+            "q": query,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+            "attributesToRetrieve": [
+                "id",
+                "canonical_name",
+                "name",
+                "kcal",
+                "protein_g",
+                "fat_g",
+                "carbs_g",
+                "source",
+                "content_hash",
+            ],
+        }
+        try:
+            response = self._transport(search_url, payload, headers, self._timeout_seconds)
+        except (
+            httpx.HTTPError,
+            TimeoutError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
+            logger.warning(
+                "Meilisearch request failed; falling back to baseline backend", exc_info=True
+            )
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
+
+        if not isinstance(response, Mapping):
+            logger.warning("Meilisearch response root was not an object")
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
+
+        hits = response.get("hits", [])
+        if not isinstance(hits, list):
+            logger.warning("Meilisearch response missing hits list")
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
+
+        normalized_hits: list[Mapping[str, Any]] = []
+        for hit in hits:
+            if not isinstance(hit, Mapping):
+                continue
+            normalized_hits.append(
+                {
+                    "id": hit.get("id"),
+                    "canonical_name": hit.get("canonical_name") or hit.get("name"),
+                    "kcal": _numeric_field_or_default(hit, "kcal"),
+                    "protein_g": _numeric_field_or_default(hit, "protein_g"),
+                    "fat_g": _numeric_field_or_default(hit, "fat_g"),
+                    "carbs_g": _numeric_field_or_default(hit, "carbs_g"),
+                    "source": hit.get("source"),
+                    "content_hash": hit.get("content_hash"),
+                }
+            )
+        return normalized_hits
+
+
+class ShadowSearchBackend:
+    """Return baseline results while running a best-effort shadow query."""
+
+    def __init__(
+        self,
+        *,
+        baseline_backend: "FoodSearchBackend",
+        shadow_backend: "FoodSearchBackend",
+        shadow_runner: ShadowTaskRunner = _start_shadow_thread,
+    ) -> None:
+        self._baseline_backend = baseline_backend
+        self._shadow_backend = shadow_backend
+        self._shadow_runner = shadow_runner
+
+    def search_foods(
+        self,
+        query: str,
+        limit: int | str = 20,
+        offset: int | str = 0,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Serve baseline results and record shadow divergence in logs."""
+
+        baseline_rows = list(self._baseline_backend.search_foods(query, limit=limit, offset=offset))
+        baseline_ids = [str(row.get("id")) for row in baseline_rows]
+
+        def _compare_shadow() -> None:
+            try:
+                shadow_rows = list(
+                    self._shadow_backend.search_foods(query, limit=limit, offset=offset)
+                )
+                shadow_ids = [str(row.get("id")) for row in shadow_rows]
+                if baseline_ids != shadow_ids:
+                    logger.info(
+                        "Food search shadow divergence detected",
+                        extra={
+                            "query": query,
+                            "baseline_ids": baseline_ids,
+                            "shadow_ids": shadow_ids,
+                        },
+                    )
+            except Exception:
+                logger.debug("Food search shadow query failed", exc_info=True)
+
+        try:
+            self._shadow_runner(_compare_shadow)
+        except Exception:
+            logger.debug("Food search shadow scheduling failed", exc_info=True)
+        return baseline_rows

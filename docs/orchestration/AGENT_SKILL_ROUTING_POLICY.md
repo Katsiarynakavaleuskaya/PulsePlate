@@ -53,7 +53,14 @@ For experimentation tasks, the bootstrap packet should also reference:
 
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` and
+  `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` when the task is a CV-oriented offline evaluation
 - lexical intents such as `experiment`, `benchmark`, `eval`, `optimization`, `reliability`, and `cv`
+
+CV routing note:
+
+- PR5 keeps graph-level routing under `ml`.
+- `cv-agent` remains an advisory specialist for experimentation packets; this policy does not create a first-class `cv` routing domain.
 
 ---
 
