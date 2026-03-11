@@ -11,7 +11,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929179703 -> 64387d53
 Disposition: FIXED
 Commit: 95f618c0
-Evidence: `docs/design/COLOR_PROFILE_GOVERNANCE.md:13`; `docs/design/COLOR_PROFILE_GOVERNANCE.md:18`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:14`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:26`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:38`
+Evidence: `docs/design/COLOR_PROFILE_GOVERNANCE.md`, section `Repo-grounded evidence`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`, section `Repo-grounded evidence`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`, section `Workflow definitions`
 Reason: Replaced brittle line-number evidence with section/symbol references and added explicit snapshot-vs-runtime workflow definitions mapped to concrete repo paths, matching the Sourcery review request.
 
 Disposition: FIXED

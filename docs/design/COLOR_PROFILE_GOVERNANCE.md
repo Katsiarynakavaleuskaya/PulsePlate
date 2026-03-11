@@ -18,7 +18,7 @@ Repo-grounded evidence:
   defines the web runtime token contract plus the generated and runtime iOS
   mirrors.
 - `ios/PulsePlate/Extensions/Color+Assets.swift`, initializer `Color.init(hex:)`,
-  currently bridges asset colors through `Color(..., colorSpace: .sRGB)`.
+  includes an `sRGB`-based helper via `self.init(.sRGB, ...)`.
 
 ## 2. Baseline policy
 
