@@ -3,11 +3,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from tests.helpers.module_resolve import resolve_module
 
 
 def test_ws_duplicate_registration_guard_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     """Duplicate /ws path must fail fast to prevent silent route shadowing."""
-    import app.main as main_module
+    main_module = resolve_module("app.main")
 
     fake_app = SimpleNamespace(
         routes=[
@@ -25,7 +26,7 @@ def test_ws_duplicate_registration_guard_raises(monkeypatch: pytest.MonkeyPatch)
 def test_ws_duplicate_registration_guard_passes_without_ws_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import app.main as main_module
+    main_module = resolve_module("app.main")
 
     fake_app = SimpleNamespace(
         routes=[

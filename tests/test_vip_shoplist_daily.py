@@ -17,6 +17,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from tests.conftest import _disable_vip, _enable_vip
+from tests.helpers.module_resolve import resolve_module
 
 
 def _payload_one_item() -> dict:
@@ -86,7 +87,7 @@ def test_daily_missing_api_key_returns_401_or_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing API key should return 401 or 403."""
-    import app.main as app_main_module
+    app_main_module = resolve_module("app.main")
 
     _enable_vip(monkeypatch)
 

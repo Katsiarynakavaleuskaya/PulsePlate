@@ -18,9 +18,9 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-import app.main as app_main_module
 from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
 from core.shoplist_engine.packager import PackagingResult
+from tests.helpers.module_resolve import resolve_module
 
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,6 +259,7 @@ def test_generate_missing_api_key_returns_401_or_403(
     Статус может быть 401 или 403 — не фиксируем жёстко.
     """
     _enable_vip(monkeypatch)
+    app_main_module = resolve_module("app.main")
 
     # Create client WITHOUT VIP access (no dependency override)
     client = TestClient(app_main_module.app)
@@ -286,6 +287,7 @@ def test_generate_invalid_api_key_tier_returns_403(
 ) -> None:
     """Invalid API key (insufficient tier) should return 403 Forbidden."""
     _enable_vip(monkeypatch)
+    app_main_module = resolve_module("app.main")
 
     # Create client WITHOUT VIP access override
     client = TestClient(app_main_module.app)

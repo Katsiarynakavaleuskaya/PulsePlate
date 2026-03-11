@@ -603,8 +603,9 @@ def test_duplicate_ws_route_detection_raises_runtime_error(
 ) -> None:
     """Test that duplicate WS route registration raises RuntimeError for both paths."""
     from app.main import _assert_no_duplicate_ws_route
+    from tests.helpers.module_resolve import resolve_module
 
-    import app.main as main_mod
+    main_mod = resolve_module("app.main")
 
     mock_routes = [type("Route", (), {"path": ws_path})()]
 
