@@ -260,13 +260,13 @@ def test_register_metrics_adds_route_after_stack_is_built() -> None:
 
     middleware_stack = getattr(app_instance, "middleware_stack", None)
     assert middleware_stack is not None
-    before_user_middleware = len(getattr(app_instance, "user_middleware", []) or [])
+    before_user_middleware = len(getattr(app_instance, "user_middleware", []))
 
     register_metrics(app_instance)
 
     assert getattr(app_instance, "middleware_stack", None) is middleware_stack
     assert len(_get_metrics_get_routes(app_instance)) == 1
-    assert len(getattr(app_instance, "user_middleware", []) or []) == before_user_middleware
+    assert len(getattr(app_instance, "user_middleware", [])) == before_user_middleware
 
     with TestClient(app_instance) as client:
         metrics_response = client.get("/metrics")
