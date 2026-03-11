@@ -16,4 +16,3 @@ Do not use this surface to authorize:
 - raw-image retention
 - autonomous model serving decisions
 - silent certainty or medical claims
-
