@@ -280,7 +280,8 @@ When given a design task:
 
 - Check existing design tokens (`frontend/src/styles/tokens.ts`, iOS color assets)
 - Resolve canonical component names in `docs/design/UI_COMPONENT_VOCABULARY.md`
-- Assemble the screen brief with `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+- Draft the screen brief with `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+- Assemble the final design spec with `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 - Review similar screens/components in codebase
 - Reference platform guidelines (Apple HIG, Material Design, Web standards)
 - Check brand assets (FitChef illustrations, logo variations)

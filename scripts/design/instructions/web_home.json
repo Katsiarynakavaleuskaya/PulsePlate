@@ -166,18 +166,73 @@
     {
       "type": "create_frame",
       "name": "WEB Home Screen",
-      "dimensions": {
-        "width": 1440,
-        "height": 900
-      },
-      "background": "--pp-navy",
       "canonical_component": "card",
       "section_id": "hero-band",
       "component_id": "web-home-shell",
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "order": 0
+      "order": 0,
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_frame",
+      "name": "web-home-hero",
+      "canonical_component": "hero",
+      "section_id": "hero-band",
+      "component_id": "web-home-hero",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "primary_message",
+      "order": 1
+    },
+    {
+      "type": "create_frame",
+      "name": "web-home-badge",
+      "canonical_component": "badge",
+      "section_id": "hero-band",
+      "component_id": "web-home-badge",
+      "parent_component_id": "web-home-hero",
+      "hierarchy_level": 2,
+      "semantic_role": "status_marker",
+      "order": 2
+    },
+    {
+      "type": "create_frame",
+      "name": "web-home-summary",
+      "canonical_component": "stats-card",
+      "section_id": "hero-band",
+      "component_id": "web-home-summary",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "summary_metrics",
+      "order": 3
+    },
+    {
+      "type": "create_frame",
+      "name": "web-home-actions",
+      "canonical_component": "card",
+      "section_id": "quick-actions",
+      "component_id": "web-home-actions",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "order": 4
+    },
+    {
+      "type": "create_frame",
+      "name": "web-home-nav",
+      "canonical_component": "navigation/tab-bar",
+      "section_id": "footer-nav",
+      "component_id": "web-home-nav",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "persistent_navigation",
+      "order": 5
     },
     {
       "type": "create_button",

@@ -153,6 +153,7 @@ This map reduces “missing context” failures by making required inputs explic
 - `ios/AGENTS.md` — iOS UI constraints
 - `AGENTS.md` (root) — accessibility + thin-client guardrails (where applicable)
 - `docs/design/UI_COMPONENT_VOCABULARY.md` — canonical component naming and normalization
+- `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` — canonical screen-brief drafting template
 - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` — code-first brief assembly contract
 
 ---

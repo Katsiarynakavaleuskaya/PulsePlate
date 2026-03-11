@@ -27,6 +27,7 @@ Every brief must include these fields:
 - `primary_components`
 - `supporting_components`
 - `states`
+- `layout_archetype`
 - `layout_pattern`
 - `interaction_model`
 - `visual_mood`
@@ -141,7 +142,8 @@ supporting_components:
   - <canonical component>
 states:
   - <state>
-layout_pattern: <one allowed archetype>
+layout_archetype: <one allowed archetype>
+layout_pattern: <layout variant inside the chosen archetype>
 interaction_model: <tap-first | form-first | browse-first | mixed>
 visual_mood: <luxury-clean | minimal-cozy | progress-focused>
 token_profile:
@@ -179,6 +181,7 @@ states:
   - default
   - loading
   - premium locked
+layout_archetype: hero-plus-sections
 layout_pattern: hero-plus-sections
 interaction_model: tap-first
 visual_mood: minimal-cozy
@@ -199,6 +202,13 @@ forbidden_generic_patterns:
 ```
 
 ### Output spec
+
+#### Layout Archetype
+
+`hero-plus-sections`
+
+Lock the screen into the correct structural family before naming the final
+pattern.
 
 #### Layout
 
@@ -253,7 +263,8 @@ Use:
 
 - primary: `hero`, `stats-card`, `progress`, `navigation/tab-bar`
 - supporting: `badge`, `segmented-control`, `empty-state`
-- layout: `stacked-dashboard`
+- layout archetype: `stacked-dashboard`
+- layout pattern: `stacked-dashboard`
 
 Do not collapse this into generic words like `top section`, `number tiles`, or
 `menu`.

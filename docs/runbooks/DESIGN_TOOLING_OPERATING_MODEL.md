@@ -30,9 +30,12 @@ The same rule applies to external ideation/reference tools.
 
 - Primary agent runtime: `Codex + GPT-5.4 Pro`
 - Primary design tool: `Figma MCP`
-- Default executable design adapter seam: `scripts/design/execution_adapters.py`
-  with `deterministic_stub` as the only active adapter in Phase 1
-- Subordinate Figma-lane token tool: `Tokens Studio`
+- Current executable design contract surface: `scripts/design/execution_adapters.py`
+  with `deterministic_stub` as the only implemented adapter on this branch
+  (`scripts/design/execution_adapters.py:5`, `scripts/design/execution_adapters.py:18`, `scripts/design/execute_design.py:72`; temporary seam governed by `docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md:1` and `docs/roadmap/BACKLOG_LEDGER.md:347`)
+- Subordinate Figma-lane token tool: `Tokens Studio` (documentation-only
+  activation remains governed by `docs/roadmap/BACKLOG_LEDGER.md:322` and
+  `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:120`)
 - Secondary knowledge tool: `Notion`
 - Research ingestion tool: `Airweave`
 - Secondary design workspace: `Penpot`
@@ -65,9 +68,11 @@ Every design-tooling task must define:
 - `source_url`
 - `file_key_or_workspace`
 - `node_id_or_frame_id`
-- `figma_lane_tool`
 - `target_surface`
 - `task_mode`
+
+Additionally, `figma_lane_tool` is required only when `design_source` is
+`figma_design` or `figma_make`.
 
 Allowed `design_source` values:
 
@@ -90,9 +95,10 @@ Allowed `task_mode` values:
 - `implement`
 - `sync`
 
-Rule: when `figma_lane_tool=tokens_studio`, `design_source` still remains
-`figma_design` or `figma_make`; Tokens Studio does not become a separate source
-lane.
+Rule: when `design_source` is non-Figma (`notion`, `airweave`, `penpot`,
+`stitch_reference`), `figma_lane_tool` must be omitted. When
+`figma_lane_tool=tokens_studio`, `design_source` still remains `figma_design`
+or `figma_make`; Tokens Studio does not become a separate source lane.
 
 ## 6. Lifecycle Model
 
@@ -101,9 +107,9 @@ lane.
 - instruction generation must emit explicit `sections`, `component_hierarchy`,
   and `layout_archetype`
 - execution must flow through the adapter seam, even when the adapter is
-  deterministic-only
+  deterministic-only (`docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md:1`)
 - live MCP adapters are future work and must preserve the same instruction and
-  manifest contract
+  manifest contract (`docs/roadmap/BACKLOG_LEDGER.md:347`)
 
 ### Design source records
 
@@ -129,8 +135,9 @@ lane.
 - `read_only`
 - `experimental`
 
-`Stitch` and similar AI layout generators remain `reference_only` unless a
-future reviewed promotion updates repo docs/code.
+`Stitch` and similar AI layout generators remain a reference-only lane, but the
+lifecycle status stays `read_only` until a reviewed promotion updates repo
+docs/code.
 
 ## 7. Evidence Contract
 
@@ -158,8 +165,8 @@ Use `docs/runbooks/FIGMA_MCP_SESSION_EVIDENCE_TEMPLATE.md`.
   contract only after promotion into `/tokens` and generation of runtime
   mirrors.
 - `Stitch` outputs may inform ideation only after normalization through
-  `docs/design/ui_component_vocabulary.json`; they remain `reference_only`
-  until promoted into repo docs/code.
+  `docs/design/ui_component_vocabulary.json`; they remain lifecycle
+  `read_only` until promoted into repo docs/code.
 
 ## 9. Security Rules
 

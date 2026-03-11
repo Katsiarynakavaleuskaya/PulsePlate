@@ -26,12 +26,19 @@ supporting_components:
   -
 states:
   -
+layout_archetype:
 layout_pattern:
 interaction_model:
 visual_mood:
 token_profile:
   -
+token_constraints:
+  -
+a11y_constraints:
+  -
 constraints:
+  -
+forbidden_generic_patterns:
   -
 ```
 
@@ -53,12 +60,23 @@ supporting_components:
 states:
   - default
   - loading
+layout_archetype: hero-plus-sections
 layout_pattern: hero-plus-sections
 interaction_model: tap-first
 visual_mood: minimal-cozy
 token_profile:
   - --pp-navy
   - --color-primary
+token_constraints:
+  - no raw hex
+a11y_constraints:
+  - main heading visible
+  - continue button keyboard reachable
+constraints:
+  - keep copy short
+forbidden_generic_patterns:
+  - menu
+  - nice card
 ```
 
 ### BMI result screen
@@ -76,6 +94,7 @@ supporting_components:
 states:
   - default
   - warning
+layout_archetype: split-summary-detail
 layout_pattern: split-summary-detail
 interaction_model: read-first
 visual_mood: progress-focused
@@ -83,6 +102,15 @@ token_profile:
   - --color-text
   - --color-success
   - --color-warning
+token_constraints:
+  - use semantic status tokens only
+a11y_constraints:
+  - result summary announced before CTA
+constraints:
+  - keep explanation concise
+forbidden_generic_patterns:
+  - result box
+  - popup
 ```
 
 ### Premium/paywall screen
@@ -102,6 +130,7 @@ supporting_components:
 states:
   - default
   - locked
+layout_archetype: hero-plus-sections
 layout_pattern: hero-plus-sections
 interaction_model: tap-first
 visual_mood: luxury-clean
@@ -109,6 +138,15 @@ token_profile:
   - --pp-navy
   - --pp-gold
   - --color-primary
+token_constraints:
+  - premium accents must still use repo tokens
+a11y_constraints:
+  - unlock CTA visible in focus order
+constraints:
+  - avoid generic SaaS pricing language
+forbidden_generic_patterns:
+  - pricing box
+  - popup
 ```
 
 ### Progress dashboard
@@ -129,6 +167,7 @@ states:
   - default
   - empty
   - loading
+layout_archetype: stacked-dashboard
 layout_pattern: stacked-dashboard
 interaction_model: browse-first
 visual_mood: progress-focused
@@ -136,6 +175,15 @@ token_profile:
   - --color-surface
   - --color-primary
   - --color-success
+token_constraints:
+  - no raw hex
+a11y_constraints:
+  - summary values exposed as text
+constraints:
+  - keep charts secondary to headline stats
+forbidden_generic_patterns:
+  - number tiles
+  - top section
 ```
 
 ### Setup form
@@ -156,6 +204,7 @@ states:
   - default
   - error
   - loading
+layout_archetype: form-stack
 layout_pattern: form-stack
 interaction_model: form-first
 visual_mood: minimal-cozy
@@ -163,6 +212,15 @@ token_profile:
   - --color-border
   - --color-text
   - --radius-md
+token_constraints:
+  - field chrome must use semantic border tokens
+a11y_constraints:
+  - labels persist above inputs
+constraints:
+  - one primary action per step
+forbidden_generic_patterns:
+  - form thing
+  - input box
 ```
 
 ### Empty state
@@ -180,12 +238,22 @@ supporting_components:
 states:
   - default
   - retry
+layout_archetype: empty-state-center
 layout_pattern: empty-state-center
 interaction_model: tap-first
 visual_mood: minimal-cozy
 token_profile:
   - --color-surface
   - --color-text-muted
+token_constraints:
+  - use muted semantic text tokens only
+a11y_constraints:
+  - empty-state message announced before CTA
+constraints:
+  - recovery CTA must stay explicit
+forbidden_generic_patterns:
+  - blank page
+  - empty box
 ```
 
 ### Mobile menu and navigation
@@ -204,12 +272,22 @@ states:
   - default
   - open
   - active
+layout_archetype: modal-overlay
 layout_pattern: modal-overlay
 interaction_model: tap-first
 visual_mood: minimal-cozy
 token_profile:
   - --color-surface
   - --color-text
+token_constraints:
+  - navigation surface uses shared semantic tokens
+a11y_constraints:
+  - active destination announced
+constraints:
+  - keep secondary nav compact
+forbidden_generic_patterns:
+  - menu
+  - nav popup
 ```
 
 ### Export success feedback
@@ -226,12 +304,22 @@ supporting_components:
   - button
 states:
   - success
+layout_archetype: stacked-dashboard
 layout_pattern: stacked-dashboard
 interaction_model: tap-first
 visual_mood: progress-focused
 token_profile:
   - --color-success
   - --color-surface
+token_constraints:
+  - success messaging must use semantic success tokens
+a11y_constraints:
+  - confirmation message announced before next action
+constraints:
+  - keep next step visible without scroll
+forbidden_generic_patterns:
+  - success popup
+  - alert box
 ```
 
 ## 4. Security Notes

@@ -91,7 +91,7 @@
       "section_id": "plate-actions",
       "parent_component_id": "ios-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "recovery_cta",
+      "semantic_role": "primary_cta",
       "source_ref": "cta:ios.plate.add_meal"
     },
     {
@@ -100,7 +100,7 @@
       "section_id": "plate-actions",
       "parent_component_id": "ios-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "recovery_cta",
+      "semantic_role": "secondary_cta",
       "source_ref": "cta:ios.plate.view_details"
     },
     {
@@ -149,18 +149,73 @@
     {
       "type": "create_frame",
       "name": "IOS Plate Screen",
-      "dimensions": {
-        "width": 390,
-        "height": 844
-      },
-      "background": "Color.navy",
       "canonical_component": "card",
       "section_id": "plate-summary",
       "component_id": "ios-plate-shell",
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "order": 0
+      "order": 0,
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "background": "Color.navy"
+    },
+    {
+      "type": "create_frame",
+      "name": "ios-plate-summary-card",
+      "canonical_component": "card",
+      "section_id": "plate-summary",
+      "component_id": "ios-plate-summary-card",
+      "parent_component_id": "ios-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "content_container",
+      "order": 1
+    },
+    {
+      "type": "create_frame",
+      "name": "ios-plate-badge",
+      "canonical_component": "badge",
+      "section_id": "plate-summary",
+      "component_id": "ios-plate-badge",
+      "parent_component_id": "ios-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "gate_state",
+      "order": 2
+    },
+    {
+      "type": "create_frame",
+      "name": "ios-plate-progress",
+      "canonical_component": "progress",
+      "section_id": "plate-summary",
+      "component_id": "ios-plate-progress",
+      "parent_component_id": "ios-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "completion_feedback",
+      "order": 3
+    },
+    {
+      "type": "create_frame",
+      "name": "ios-plate-action-panel",
+      "canonical_component": "card",
+      "section_id": "plate-actions",
+      "component_id": "ios-plate-action-panel",
+      "parent_component_id": "ios-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "order": 4
+    },
+    {
+      "type": "create_frame",
+      "name": "ios-plate-dialog",
+      "canonical_component": "dialog",
+      "section_id": "plate-actions",
+      "component_id": "ios-plate-dialog",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_details",
+      "order": 5
     },
     {
       "type": "create_button",
@@ -183,7 +238,7 @@
       "component_id": "node:ios.plate.add_meal",
       "parent_component_id": "ios-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "recovery_cta",
+      "semantic_role": "primary_cta",
       "order": 6
     },
     {
@@ -207,7 +262,7 @@
       "component_id": "node:ios.plate.view_details",
       "parent_component_id": "ios-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "recovery_cta",
+      "semantic_role": "secondary_cta",
       "order": 7
     },
     {

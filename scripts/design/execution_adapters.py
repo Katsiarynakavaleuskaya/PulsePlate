@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Protocol, cast
+
+DETERMINISTIC_EXECUTED_AT = "2026-01-01T00:00:00Z"
 
 
 class DesignExecutionAdapter(Protocol):
@@ -29,7 +30,7 @@ class DeterministicStubExecutionAdapter:
 
         results: dict[str, Any] = {
             "screen_id": screen_id,
-            "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "executed_at": DETERMINISTIC_EXECUTED_AT,
             "status": "simulated",
             "surface": instruction.get("surface"),
             "layout_archetype": instruction.get("layout_archetype"),

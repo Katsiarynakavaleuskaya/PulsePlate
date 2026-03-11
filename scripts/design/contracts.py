@@ -67,11 +67,22 @@ REQUIRED_COMPONENT_NODE_FIELDS = {
     "source_ref",
 }
 
-RAW_HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b")
+RAW_HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b")
 
 
 def load_vocabulary_components() -> list[dict[str, Any]]:
-    payload = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Vocabulary file not found: {VOCABULARY_PATH}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Vocabulary file is invalid JSON: {VOCABULARY_PATH}: {exc}") from exc
+
+    if not isinstance(payload, list):
+        raise RuntimeError(
+            f"Vocabulary payload must be a list: {VOCABULARY_PATH} (got {type(payload).__name__})"
+        )
+
     return cast(list[dict[str, Any]], payload)
 
 
@@ -110,6 +121,10 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         errors.append("Empty layout_archetype")
     elif layout_archetype not in SUPPORTED_LAYOUT_ARCHETYPES:
         errors.append(f"Unsupported layout_archetype: {layout_archetype}")
+
+    governance_checks = instruction.get("governance_checks")
+    if not isinstance(governance_checks, list) or not governance_checks:
+        errors.append("governance_checks must be a non-empty list")
 
     for field_name in (
         "primary_components",
@@ -293,6 +308,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         return errors
 
     frame_count = 0
+    frame_instruction_component_ids: set[str] = set()
+    root_frame_count = 0
     for index, item in enumerate(instructions_list):
         if not isinstance(item, dict):
             errors.append(f"instructions[{index}] must be an object")
@@ -340,12 +357,41 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                 f"{item_type} at instructions[{index}] references unknown parent_component_id"
             )
 
+        hierarchy_node = component_nodes.get(component_id)
+        if hierarchy_node is not None:
+            if item_section_id and hierarchy_node.get("section_id") != item_section_id:
+                errors.append(
+                    f"{item_type} at instructions[{index}] section_id does not match "
+                    f"component_hierarchy for {component_id}"
+                )
+            if hierarchy_level != hierarchy_node.get("hierarchy_level"):
+                errors.append(
+                    f"{item_type} at instructions[{index}] hierarchy_level does not match "
+                    f"component_hierarchy for {component_id}"
+                )
+
+            expected_parent_component_id = hierarchy_node.get("parent_component_id")
+            normalized_parent_component_id = (
+                None if parent_component_id in (None, "") else parent_component_id
+            )
+            if normalized_parent_component_id != expected_parent_component_id:
+                errors.append(
+                    f"{item_type} at instructions[{index}] parent_component_id does not match "
+                    f"component_hierarchy for {component_id}"
+                )
+
         if item_type == "create_frame":
             frame_count += 1
-            if "background" not in item:
-                errors.append("create_frame missing background")
-            if parent_component_id not in (None, ""):
-                errors.append("create_frame must not define parent_component_id")
+            if component_id:
+                frame_instruction_component_ids.add(component_id)
+            if parent_component_id in (None, ""):
+                root_frame_count += 1
+            if parent_component_id in (None, "") and "background" not in item:
+                errors.append("root create_frame missing background")
+            if hierarchy_node and hierarchy_node.get("canonical_component") == "button":
+                errors.append(
+                    f"create_frame at instructions[{index}] must not reference a button node"
+                )
 
         if item_type == "create_button":
             cta_key = str(item.get("cta_key", "")).strip()
@@ -365,8 +411,35 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"Button {item_name or index} must reference a button component_hierarchy node"
                 )
+            if (
+                hierarchy_node
+                and hierarchy_node.get("semantic_role") == "flagged_cta"
+                and isinstance(button_states, list)
+                and "feature-flagged" not in button_states
+            ):
+                errors.append(
+                    f"Button {item_name or index} missing feature-flagged state for flagged_cta"
+                )
 
-    if frame_count != 1:
-        errors.append(f"Instruction must contain exactly one create_frame, got {frame_count}")
+    if frame_count < 1:
+        errors.append("Instruction must contain at least one create_frame")
+    if root_frame_count != 1:
+        errors.append(
+            f"Instruction must contain exactly one root create_frame, got {root_frame_count}"
+        )
+
+    non_button_component_ids = {
+        component_id
+        for component_id, node in component_nodes.items()
+        if node.get("canonical_component") != "button"
+    }
+    missing_frame_component_ids = sorted(
+        non_button_component_ids.difference(frame_instruction_component_ids)
+    )
+    if missing_frame_component_ids:
+        errors.append(
+            "Missing create_frame instructions for component_hierarchy nodes: "
+            + ", ".join(missing_frame_component_ids)
+        )
 
     return errors

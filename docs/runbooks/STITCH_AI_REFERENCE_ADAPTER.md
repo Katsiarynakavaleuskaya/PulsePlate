@@ -48,6 +48,7 @@ Input:
 Output:
 
 - `normalized_components[]`
+- `layout_archetype`
 - `layout_pattern`
 - `states[]`
 - `hierarchy`
@@ -55,7 +56,7 @@ Output:
 - `repo_reuse_candidates[]`
 - `missing_primitives[]`
 - `drift_warnings[]`
-- `status: reference_only`
+- `lifecycle_status: read_only`
 
 All output components must be mapped into:
 

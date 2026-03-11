@@ -900,7 +900,7 @@ def build_component_tree(
         semantic_role = "primary_cta" if cta.variant == "V1" else "secondary_cta"
         if "blocked" in status_text or "flag" in status_text:
             semantic_role = "flagged_cta"
-        elif "partial" in status_text or "issue" in cta.cta_id:
+        elif "issue" in cta.cta_id or "RECOVERY" in cta.placement_zone:
             semantic_role = "recovery_cta"
         elif "export" in cta.cta_id:
             semantic_role = "utility_cta"
@@ -1013,20 +1013,93 @@ def build_sections_payload(instruction: ScreenInstruction) -> list[dict[str, Any
     ]
 
 
+def _frame_instruction_name(instruction: ScreenInstruction, node: ComponentNodeSpec) -> str:
+    """Return a stable frame name for one component-hierarchy node."""
+    if node.parent_component_id is None:
+        return f"{instruction.platform} {instruction.screen_id.split('.')[1].title()} Screen"
+    return node.component_id
+
+
+def _frame_instruction_payload(
+    instruction: ScreenInstruction,
+    node: ComponentNodeSpec,
+    order: int,
+) -> dict[str, Any]:
+    """Serialize one non-button hierarchy node into a create_frame instruction."""
+    payload: dict[str, Any] = {
+        "type": "create_frame",
+        "name": _frame_instruction_name(instruction, node),
+        "canonical_component": node.canonical_component,
+        "section_id": node.section_id,
+        "component_id": node.component_id,
+        "parent_component_id": node.parent_component_id,
+        "hierarchy_level": node.hierarchy_level,
+        "semantic_role": node.semantic_role,
+        "order": order,
+    }
+    if node.parent_component_id is None:
+        payload["dimensions"] = instruction.dimensions
+        payload["background"] = instruction.background_token
+    return payload
+
+
+def _button_states_for_node(cta: CTASpec, node: ComponentNodeSpec) -> list[str]:
+    """Return explicit button states for one CTA node."""
+    states = list(cta.states)
+    if node.semantic_role == "flagged_cta" and "feature-flagged" not in states:
+        states.append("feature-flagged")
+    return states
+
+
+def _button_instruction_payload(
+    cta: CTASpec,
+    node: ComponentNodeSpec,
+    order: int,
+) -> dict[str, Any]:
+    """Serialize one CTA-backed hierarchy node into a create_button instruction."""
+    return {
+        "type": "create_button",
+        "name": cta.ui_label,
+        "cta_key": cta.cta_id,
+        "style": "primary" if cta.variant == "V1" else "secondary",
+        "variant": cta.variant,
+        "placement_zone": cta.placement_zone,
+        "figma_node_id": cta.figma_node_id,
+        "prompt_stub": cta.prompt_stub,
+        "states": _button_states_for_node(cta, node),
+        "canonical_component": "button",
+        "section_id": node.section_id,
+        "component_id": node.component_id,
+        "parent_component_id": node.parent_component_id,
+        "hierarchy_level": node.hierarchy_level,
+        "semantic_role": node.semantic_role,
+        "order": order,
+    }
+
+
 def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
     """Convert instruction to JSON-serializable dict."""
-    root_node = next(
-        (node for node in instruction.component_hierarchy if node.parent_component_id is None),
-        None,
-    )
-    cta_tree_nodes = {
-        node.source_ref: node
-        for node in instruction.component_hierarchy
-        if node.source_ref.startswith("cta:")
-    }
     component_order = {
         node.component_id: index for index, node in enumerate(instruction.component_hierarchy)
     }
+    ctas_by_source_ref = {f"cta:{cta.cta_id}": cta for cta in instruction.ctas}
+
+    instruction_payload: list[dict[str, Any]] = []
+    for node in instruction.component_hierarchy:
+        order = component_order.get(node.component_id)
+        if order is None:
+            raise ValueError(f"Missing component order for {node.component_id}")
+
+        if node.canonical_component == "button":
+            cta = ctas_by_source_ref.get(node.source_ref)
+            if cta is None:
+                raise ValueError(
+                    f"CTA node {node.component_id} references unknown CTA source {node.source_ref}"
+                )
+            instruction_payload.append(_button_instruction_payload(cta, node, order))
+            continue
+
+        instruction_payload.append(_frame_instruction_payload(instruction, node, order))
 
     return {
         "screen_id": instruction.screen_id,
@@ -1056,42 +1129,7 @@ def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
         "token_constraints": instruction.token_constraints,
         "governance_checks": instruction.governance_checks,
         "context_version": instruction.context_version,
-        "instructions": [
-            {
-                "type": "create_frame",
-                "name": f"{instruction.platform} {instruction.screen_id.split('.')[1].title()} Screen",
-                "dimensions": instruction.dimensions,
-                "background": instruction.background_token,
-                "canonical_component": "card",
-                "section_id": root_node.section_id if root_node else "surface",
-                "component_id": root_node.component_id if root_node else "root_frame",
-                "parent_component_id": None,
-                "hierarchy_level": root_node.hierarchy_level if root_node else 0,
-                "semantic_role": root_node.semantic_role if root_node else "surface_shell",
-                "order": component_order.get(root_node.component_id, 0) if root_node else 0,
-            }
-        ]
-        + [
-            {
-                "type": "create_button",
-                "name": cta.ui_label,
-                "cta_key": cta.cta_id,
-                "style": "primary" if cta.variant == "V1" else "secondary",
-                "variant": cta.variant,
-                "placement_zone": cta.placement_zone,
-                "figma_node_id": cta.figma_node_id,
-                "prompt_stub": cta.prompt_stub,
-                "states": cta.states,
-                "canonical_component": "button",
-                "section_id": cta_tree_nodes[f"cta:{cta.cta_id}"].section_id,
-                "component_id": cta_tree_nodes[f"cta:{cta.cta_id}"].component_id,
-                "parent_component_id": cta_tree_nodes[f"cta:{cta.cta_id}"].parent_component_id,
-                "hierarchy_level": cta_tree_nodes[f"cta:{cta.cta_id}"].hierarchy_level,
-                "semantic_role": cta_tree_nodes[f"cta:{cta.cta_id}"].semantic_role,
-                "order": component_order[cta_tree_nodes[f"cta:{cta.cta_id}"].component_id],
-            }
-            for cta in instruction.ctas
-        ],
+        "instructions": instruction_payload,
     }
 
 
@@ -1163,7 +1201,7 @@ def main() -> int:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         instruction_dict = instruction_to_dict(instruction)
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(instruction_dict, f, indent=2)
 
         print(f"\nInstruction written to: {output_path}")

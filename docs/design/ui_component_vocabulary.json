@@ -135,8 +135,8 @@
       "status": "missing"
     },
     "swiftui_mapping": {
-      "component": "Toggle",
-      "notes": "For checklist patterns prefer custom row with selected state rather than standard switch."
+      "component": "CheckboxRow",
+      "notes": "Implement as a custom checkbox row with explicit checked and indeterminate visuals rather than Toggle switch semantics."
     },
     "existing_repo_component": null,
     "missing_status": "missing",

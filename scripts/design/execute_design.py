@@ -40,7 +40,7 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
     if not instruction_path.exists():
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
-    with open(instruction_path) as f:
+    with open(instruction_path, encoding="utf-8") as f:
         return cast(dict[str, Any], json.load(f))
 
 
@@ -67,6 +67,8 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     if "verify_cta_registry_match" in checks:
         instructions_list = instruction.get("instructions", [])
         for inst in instructions_list:
+            if not isinstance(inst, dict):
+                continue
             if inst.get("type") == "create_button":
                 cta_key = inst.get("cta_key", "")
                 if not cta_key:
@@ -90,7 +92,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         print(f"Warning: Manifest not found at {manifest_path}")
         return
 
-    with open(manifest_path) as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
     # Add execution results to exports
@@ -123,7 +125,7 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         # Add new entry
         manifest["exports"].append(export_entry)
 
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
 
     print(f"Updated manifest: {manifest_path}")
@@ -137,7 +139,7 @@ def log_execution(screen_id: str, results: dict[str, Any]) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     log_path = logs_dir / f"{timestamp}_{screen_id.replace('.', '_')}.json"
 
-    with open(log_path, "w") as f:
+    with open(log_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
     print(f"Execution log: {log_path}")

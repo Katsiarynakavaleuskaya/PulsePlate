@@ -344,6 +344,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-execution-adapter-seam"></a>
+- [ ] P1: Design execution adapter seam promotion beyond deterministic stub
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime governance)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-RUNTIME-ADAPTER
+  - Status: 📋 Deferred after PR #1117 contract hardening
+  - Area: scripts / design-runtime / docs
+  - Finding Type: temporary seam follow-up
+  - Reason: `scripts/design/execution_adapters.py` currently provides only the
+    deterministic `deterministic_stub` adapter for contract validation and
+    manifest verification. The seam is intentional, but it must remain
+    explicitly temporary until a reviewed non-stub adapter preserves the same
+    instruction and verification contract.
+  - Links:
+    - `docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md`
+    - `scripts/design/execution_adapters.py`
+    - `scripts/design/execute_design.py`
+    - `scripts/design/verify_design.py`
+  - DoD:
+    - A reviewed non-stub adapter exists for the chosen design runtime target
+    - The replacement preserves instruction, manifest, and verification
+      contracts already enforced in `scripts/design/contracts.py`
+    - Deterministic local tests cover the replacement path without depending on
+      a live external design tool
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` is updated so
+      `deterministic_stub` is no longer described as the only implemented
+      adapter
+
 <a id="ledger-p1-design-token-lock-ci"></a>
 - [ ] P1: Design-token lockfile and deterministic CI/build contract
   - Owner: @katsiaryna_kavaleuskaya

@@ -120,18 +120,62 @@
     {
       "type": "create_frame",
       "name": "WEB Progress Screen",
-      "dimensions": {
-        "width": 1440,
-        "height": 900
-      },
-      "background": "--pp-navy",
       "canonical_component": "card",
       "section_id": "progress-summary",
       "component_id": "web-progress-shell",
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "order": 0
+      "order": 0,
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_frame",
+      "name": "web-progress-stats",
+      "canonical_component": "stats-card",
+      "section_id": "progress-summary",
+      "component_id": "web-progress-stats",
+      "parent_component_id": "web-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "summary_metrics",
+      "order": 1
+    },
+    {
+      "type": "create_frame",
+      "name": "web-progress-chart",
+      "canonical_component": "progress",
+      "section_id": "progress-summary",
+      "component_id": "web-progress-chart",
+      "parent_component_id": "web-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "trend_visualization",
+      "order": 2
+    },
+    {
+      "type": "create_frame",
+      "name": "web-progress-tooltip",
+      "canonical_component": "tooltip",
+      "section_id": "progress-summary",
+      "component_id": "web-progress-tooltip",
+      "parent_component_id": "web-progress-chart",
+      "hierarchy_level": 2,
+      "semantic_role": "supporting_hint",
+      "order": 3
+    },
+    {
+      "type": "create_frame",
+      "name": "web-progress-recovery",
+      "canonical_component": "alert",
+      "section_id": "progress-recovery",
+      "component_id": "web-progress-recovery",
+      "parent_component_id": "web-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "recovery_message",
+      "order": 4
     },
     {
       "type": "create_button",

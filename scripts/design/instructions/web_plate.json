@@ -149,18 +149,73 @@
     {
       "type": "create_frame",
       "name": "WEB Plate Screen",
-      "dimensions": {
-        "width": 1440,
-        "height": 900
-      },
-      "background": "--pp-navy",
       "canonical_component": "card",
       "section_id": "plate-summary",
       "component_id": "web-plate-shell",
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "order": 0
+      "order": 0,
+      "dimensions": {
+        "width": 1440,
+        "height": 900
+      },
+      "background": "--pp-navy"
+    },
+    {
+      "type": "create_frame",
+      "name": "web-plate-summary-card",
+      "canonical_component": "card",
+      "section_id": "plate-summary",
+      "component_id": "web-plate-summary-card",
+      "parent_component_id": "web-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "content_container",
+      "order": 1
+    },
+    {
+      "type": "create_frame",
+      "name": "web-plate-badge",
+      "canonical_component": "badge",
+      "section_id": "plate-summary",
+      "component_id": "web-plate-badge",
+      "parent_component_id": "web-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "premium_state",
+      "order": 2
+    },
+    {
+      "type": "create_frame",
+      "name": "web-plate-progress",
+      "canonical_component": "progress",
+      "section_id": "plate-summary",
+      "component_id": "web-plate-progress",
+      "parent_component_id": "web-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "completion_feedback",
+      "order": 3
+    },
+    {
+      "type": "create_frame",
+      "name": "web-plate-action-panel",
+      "canonical_component": "card",
+      "section_id": "plate-actions",
+      "component_id": "web-plate-action-panel",
+      "parent_component_id": "web-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "order": 4
+    },
+    {
+      "type": "create_frame",
+      "name": "web-plate-dialog",
+      "canonical_component": "dialog",
+      "section_id": "plate-actions",
+      "component_id": "web-plate-dialog",
+      "parent_component_id": "web-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "upgrade_explainer",
+      "order": 5
     },
     {
       "type": "create_button",

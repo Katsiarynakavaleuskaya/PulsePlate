@@ -63,6 +63,9 @@ def test_ui_component_vocabulary_contract_is_valid() -> None:
     assert vocabulary
 
     canonical_names: set[str] = set()
+    all_canonical_names: set[str] = {
+        str(entry["canonical_name"]).strip().lower() for entry in vocabulary
+    }
     aliases: set[str] = set()
 
     for entry in vocabulary:
@@ -97,6 +100,7 @@ def test_ui_component_vocabulary_contract_is_valid() -> None:
             assert normalized_alias
             assert normalized_alias != normalized_canonical_name
             assert normalized_alias not in aliases
+            assert normalized_alias not in all_canonical_names
             aliases.add(normalized_alias)
 
         if existing_repo_component is not None:
@@ -156,6 +160,7 @@ def test_design_and_agent_docs_reference_the_vocabulary_layer() -> None:
         / "orchestration"
         / "AGENT_CONTEXT_MAP.md": [
             "UI_COMPONENT_VOCABULARY.md",
+            "UI_SCREEN_BRIEF_TEMPLATES.md",
             "CODE_FIRST_UI_PROMPT_COOKBOOK.md",
         ],
         REPO_ROOT
