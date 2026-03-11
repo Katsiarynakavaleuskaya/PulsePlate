@@ -5,7 +5,14 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 0259b23b
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:511`, `docs/roadmap/BACKLOG_LEDGER.md:577`, `docs/roadmap/BACKLOG_LEDGER.md:5464`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#pullrequestreview-3927936794 -> 0259b23b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2916860472 -> 0259b23b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2916871989 -> 0259b23b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2916871995 -> 0259b23b
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
