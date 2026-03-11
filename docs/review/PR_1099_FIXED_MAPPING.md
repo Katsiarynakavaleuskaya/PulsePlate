@@ -11,6 +11,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#pullrequestreview-3927648259 -> db9030ec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#pullrequestreview-3927806774 -> f7fe7c0d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#pullrequestreview-3927816456 -> f7fe7c0d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#pullrequestreview-3927954306 -> 406e8617
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#pullrequestreview-3927969151 -> b5fee3ed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2915833553 -> 572fe119
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2915833559 -> 572fe119
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2915840368 -> 572fe119
@@ -18,6 +20,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916602072 -> db9030ec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916602079 -> db9030ec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916602087 -> db9030ec
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916876464 -> 406e8617
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916890484 -> b5fee3ed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#issuecomment-4036286974 -> f7fe7c0d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#issuecomment-4036336843 -> f7fe7c0d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1099#discussion_r2916748086 -> f7fe7c0d
@@ -33,6 +37,16 @@ Disposition: FIXED
 Commit: f7fe7c0d
 Evidence: `app/services/search_meili.py:49`; `app/services/search_meili.py:52`; `app/services/search_meili.py:164`; `app/services/food_search_indexing.py:52`; `tests/test_food_search_foundation.py:105`; `tests/test_food_search_foundation.py:235`; `tests/test_food_search_foundation.py:255`; `tests/test_food_search_foundation.py:512`
 Reason: The latest search follow-up now falls back when `hits` is malformed, proves bounded shadow-dispatch capacity/release behavior, restores 100% diff coverage, and adds a clearer `id_field` validation error for indexing pipelines.
+
+Disposition: FIXED
+Commit: 406e8617
+Evidence: `app/services/search_meili.py:57`; `app/services/search_meili.py:68`; `tests/test_food_search_foundation.py:266`
+Reason: identified by cubic. The shadow runner now releases the semaphore permit when `thread.start()` fails, and the regression test proves capacity is restored instead of leaking.
+
+Disposition: FIXED
+Commit: b5fee3ed
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:4950`; `docs/roadmap/BACKLOG_LEDGER.md:4965`
+Reason: The deferred search scope is now fully tracked: PostgreSQL `pg_trgm` candidate generation and zero-downtime swap orchestration each have their own ledger entry with owner, priority, target PR, rationale, links, and DoD.
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-search-meili-transport-pooling`
