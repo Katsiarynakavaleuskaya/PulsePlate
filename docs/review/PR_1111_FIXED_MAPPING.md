@@ -16,6 +16,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929369091 -> d98e4aa9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918318192 -> 51a2a9d3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929544372 -> 51a2a9d3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918442376 -> effabc7c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929684925 -> effabc7c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918212346
 Disposition: FIXED
 Commit: 95f618c0
@@ -41,6 +43,11 @@ Disposition: FIXED
 Commit: 51a2a9d3
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:289`; `docs/roadmap/BACKLOG_LEDGER.md:343`
 Reason: Moved the two new governance follow-up entries into their theme-sorted positions inside the primary open `### P1` lane, placing the external food-source item next to backend/legal governance work and the color-profile item next to design-system governance work instead of appending both after the security tracker.
+
+Disposition: FIXED
+Commit: effabc7c
+Evidence: `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:76`
+Reason: Reworded the unlisted-source default so it now preserves the stricter provider-specific approval path defined in the same section instead of contradicting it with a blanket denial.
 
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918212346`
