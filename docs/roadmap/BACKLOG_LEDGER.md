@@ -1038,7 +1038,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1100 -> PR #1108
-  - Status: ✅ Closed in PR #1108 (`keep narrow`; review-cycle close-out only)
+  - Status: ✅ Closed after merged PR #1100; recorded in PR #1108 (`keep narrow`; review-cycle close-out only)
   - Area: docs / orchestration / dev-agent tooling
   - Finding Type: pilot lifecycle governance
   - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
