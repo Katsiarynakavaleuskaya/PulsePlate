@@ -5767,7 +5767,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`) with canonical ledger closeout normalized in PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`) with canonical ledger closeout normalized in PR `#1120`
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5918,14 +5918,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Target PR: PR `#1120`
   - Area: orchestration / ledger governance
   - Reason: `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md` requires a docs-only follow-up PR when a merged PR closes a ledger item. PR5 closeout was captured during the mixed-scope PR6 kickoff sequence, so it needs a narrow docs-only normalization PR instead of widening PR6 further.
   - Links:
     - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
     - `docs/roadmap/BACKLOG_LEDGER.md`
     - `docs/review/PR_1102_FIXED_MAPPING.md`
-  - Status: ✅ Closed by PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Status: ✅ Closed by PR `#1120`
   - DoD:
     - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
     - The follow-up PR references PR `#1102` and this deferred remediation item
