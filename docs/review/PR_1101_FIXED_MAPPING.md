@@ -3,35 +3,35 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#issuecomment-4037158758 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#issuecomment-4037158758 -> e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Disposition: FIXED
-Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
-Evidence: tests/test_metrics.py:286
+Commit: e31bbc9fc16b1d47c6179197396f6ced27d07a6c
+Evidence: tests/test_metrics.py:285
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927561503 -> 83131dd8f2caf2c7c4d8c657d032c6a1c1d7e444
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927561503 -> a864adf4e1d6d02383ca2f5c0f02441776c5bfef
 Disposition: FIXED
-Commit: 83131dd8f2caf2c7c4d8c657d032c6a1c1d7e444
+Commit: a864adf4e1d6d02383ca2f5c0f02441776c5bfef
 Evidence: tests/test_metrics.py:261
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916520874 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916520874 -> e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Disposition: FIXED
-Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
-Evidence: tests/test_metrics.py:286
+Commit: e31bbc9fc16b1d47c6179197396f6ced27d07a6c
+Evidence: tests/test_metrics.py:285
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916520896 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916520896 -> e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Disposition: FIXED
-Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+Commit: e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Evidence: tests/test_metrics.py:21
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927579898 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916538182 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927579898 -> e31bbc9fc16b1d47c6179197396f6ced27d07a6c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#discussion_r2916538182 -> e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Disposition: FIXED
-Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+Commit: e31bbc9fc16b1d47c6179197396f6ced27d07a6c
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:216
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927619630 -> 0fbf9cdc4c32007ae6ca1bb9d813afd9915ea1c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927619630 -> de6c2b3755dd1f230ad0fe14d5ffb198b60f6cab
 Disposition: FIXED
-Commit: 0fbf9cdc4c32007ae6ca1bb9d813afd9915ea1c7
+Commit: de6c2b3755dd1f230ad0fe14d5ffb198b60f6cab
 Evidence: tests/test_metrics.py:263
 
 ## Merge Readiness
