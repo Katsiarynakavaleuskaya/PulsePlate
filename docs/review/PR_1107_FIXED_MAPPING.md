@@ -28,7 +28,7 @@ Evidence: `cb4f5aba` removes `Any` from `core/rag/orchestration.py:72`, replaces
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `TBD_MAPPING_SHA` replaces machine-local absolute evidence links with portable repository-relative path anchors in `docs/review/PR_1107_FIXED_MAPPING.md:10`, satisfying the portability requirement for GitHub review evidence.
+Evidence: `6cca2117` replaces machine-local absolute evidence links with portable repository-relative path anchors in `docs/review/PR_1107_FIXED_MAPPING.md:10`, satisfying the portability requirement for GitHub review evidence.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#discussion_r2917434439 -> TBD_MAPPING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#pullrequestreview-3928579976 -> TBD_MAPPING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#discussion_r2917434439 -> 6cca2117
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#pullrequestreview-3928579976 -> 6cca2117
