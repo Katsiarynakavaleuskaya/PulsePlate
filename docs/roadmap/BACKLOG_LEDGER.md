@@ -5918,11 +5918,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The applied runtime change is validated by deterministic local oracles and merged through normal human-reviewed PR governance
 
 <a id="ledger-p1-creative-research-eval-lane"></a>
-- [ ] P1: Creative research eval lane under governed experimentation epic
+- [x] P1: Creative research eval lane under governed experimentation epic
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research moat, bounded discovery workflow)
-  - Target PR: PR `#1106` -> PR `#1112` -> PR_TBD_CREATIVE_RESEARCH_INTERNAL_PILOT
-  - Status: 🟡 In progress (PR `#1106` carries the docs-only protocol slice; PR `#1112` carries the offline eval harness/contract layer as a stacked offline-only follow-up)
+  - Target PR: PR `#1106` -> PR `#1112` -> PR `#1118` -> PR `#1124`
+  - Status: ✅ Completed in merged PRs `#1106`, `#1112`, `#1118`, and `#1124` on March 11, 2026
   - Dependencies:
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
@@ -5953,11 +5953,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
 
 <a id="ledger-p2-creative-research-domain-typing"></a>
-- [ ] P2: Tighten creative research core domain typing
+- [x] P2: Tighten creative research core domain typing
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1124`
-  - Status: 🟢 In progress in PR `#1124`
+  - Status: ✅ Completed in merged PR `#1124` on March 11, 2026
   - Reason (EN): `core/creative_research.py` is the shared SoT for the creative
     research lane, but it still exposes `Any` and `dict[str, Any]` at validated
     boundaries. Tighten the domain contract with explicit typed structures
