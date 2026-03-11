@@ -126,6 +126,7 @@ def downgrade() -> None:
         table_name="subscription_activation_audit",
     )
     op.drop_table("subscription_activation_audit")
+
     op.drop_index("ix_subscriptions_status", table_name="subscriptions")
     op.drop_index("ix_subscriptions_user_id", table_name="subscriptions")
     op.drop_table("subscriptions")
