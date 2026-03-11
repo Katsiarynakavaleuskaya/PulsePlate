@@ -17,9 +17,12 @@
 | 37 | 3d1e9f1f | deps(deps): bump fastapi from 0.116.1 to 0.117.1 |
 | 41 | 101d3833 | deps(deps): bump uvicorn from 0.35.0 to 0.36.0 |
 | 45 | a7c4c649 | ui: add Liquid Glass cards to weekly plan and shoplist |
-| 50 | 31b42d30 | (merged; SHA may not exist in current history) |
+| 47 | c2ce3543 | chore(frontend): add package.json for Vite + React + TS setup |
+| 48 | 28bbb85a | chore(frontend): add jsdom + testing-library and vitest config |
+| 49 | 6b23cccf | chore(frontend): add jsdom + testing-library and resolve package.json conflict |
+| 50 | 31b42d30 | chore(ci): add frontend vitest build job |
 
-**Note:** PRs 1–8, 10–12, 15–36, 38–40, 42–44, 46–49 are CLOSED (not merged). Only the above PRs were merged among 1–50.
+**Note:** PRs 1–8, 10–12, 15–36, 38–40, 42–44, and 46 are CLOSED (not merged). Only the above PRs were merged among 1–50.
 
 ---
 
@@ -183,8 +186,8 @@
 
 ### Short-term (P1)
 
-1. **VULN-003:** Add `# nosec B603` with justification to `run_coverage_tests.py` or use `shutil.which()` for interpreter path.
-2. Run `bandit -r app core` and `pip-audit` in CI; address any new findings.
+1. **VULN-003:** Prefer `shutil.which()` for the interpreter path in `run_coverage_tests.py`; only if a temporary suppression is unavoidable, use `# nosec B607` with the required justification, `remove-by`, and `ref`.
+2. Run `bandit -r app core scripts tests run_coverage_tests.py -f json` and `pip-audit` in CI; address any new findings.
 
 ### Long-term (P2)
 
@@ -202,7 +205,7 @@ gh pr view 13 --json state,mergedAt,mergeCommit,title
 # ... for 14, 37, 41, 45, 50
 
 # Security scans
-bandit -r app core -f json
+bandit -r app core scripts tests run_coverage_tests.py -f json
 pip-audit
 pytest -q tests/test_repo_policy_guards.py
 pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py

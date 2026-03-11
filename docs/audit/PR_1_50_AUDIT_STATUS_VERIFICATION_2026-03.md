@@ -42,7 +42,7 @@ tests/test_llm_extras.py:36-38  del sys.modules["llm"]
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'git grep -n "sys.modules" tests/test_llm_extras.py; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+git grep -n "sys.modules" tests/test_llm_extras.py
 ```
 Output:
 ```text
@@ -73,12 +73,11 @@ Exit code:
 **Verification triplets:**
 Command:
 ```bash
-sh -c 'rg -n "execute_query|get_db_connection" core/db.py; code=$?; if [ "$code" -eq 1 ]; then echo "no matches"; fi; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "execute_query|get_db_connection" core/db.py
 ```
 Output:
 ```text
 no matches
-EXIT_CODE=1
 ```
 Exit code:
 ```text
@@ -87,7 +86,7 @@ Exit code:
 
 Command:
 ```bash
-sh -c 'rg -n "execute_query|get_db_connection" tests/test_db_realistic_coverage.py | head -n 3; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "execute_query|get_db_connection" tests/test_db_realistic_coverage.py | head -n 3
 ```
 Output:
 ```text
@@ -117,7 +116,7 @@ rows = conn.execute(f"PRAGMA foreign_key_list('{table}');").fetchall()
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'rg -n "PRAGMA foreign_key_list" tests/core/catalog/test_sqlite_fk_integrity.py; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "PRAGMA foreign_key_list" tests/core/catalog/test_sqlite_fk_integrity.py
 ```
 Output:
 ```text
@@ -147,7 +146,7 @@ frontend/src/features/plan/WeeklyPlanViewer.tsx:204  } catch (error: any) {
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'rg -n "error: any" frontend/src/features/plan/WeeklyPlanViewer.tsx; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "error: any" frontend/src/features/plan/WeeklyPlanViewer.tsx
 ```
 Output:
 ```text
@@ -177,7 +176,7 @@ id: revokeTimeout as any,
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'rg -n "as any" frontend/src/features/shoplist/ShoplistPreview.tsx; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "as any" frontend/src/features/shoplist/ShoplistPreview.tsx
 ```
 Output:
 ```text
@@ -199,7 +198,7 @@ Exit code:
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'rg -n "def test_v1_health\\(client\\)|def test_.*\\(client\\):" tests/test_api.py; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "def test_v1_health\\(client\\)|def test_.*\\(client\\):" tests/test_api.py
 ```
 Output:
 ```text
@@ -229,7 +228,7 @@ No `# nosec B603`; `cmd` from hardcoded list with `sys.executable`. Dev-only scr
 **Verification triplet:**
 Command:
 ```bash
-sh -c 'rg -n "subprocess.run" run_coverage_tests.py; code=$?; printf "EXIT_CODE=%s\n" "$code"'
+rg -n "subprocess.run" run_coverage_tests.py
 ```
 Output:
 ```text
@@ -284,7 +283,7 @@ Exit code:
 1. **test_llm_extras.py:** Refactor to `monkeypatch` or add to sys.modules guard scope.
 2. **test_db_realistic_coverage.py:** Remove or refactor the `execute_query` block (dead code).
 3. **test_sqlite_fk_integrity.py:** Use parameterized PRAGMA or table allowlist.
-4. **run_coverage_tests.py:** Add `# nosec B603` with justification.
+4. **run_coverage_tests.py:** Prefer `shutil.which()`; only if unavoidable, add policy-compliant `# nosec B607`.
 
 ### Backlog (P2)
 

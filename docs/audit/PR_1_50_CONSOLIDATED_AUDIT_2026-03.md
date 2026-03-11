@@ -41,8 +41,8 @@
 
 | ID | Source | Location | Finding | Fix |
 |----|--------|----------|---------|-----|
-| **BH-P1-1** | bug-hunter | `WeeklyPlanViewer.tsx:171,182,203` | `catch (error: any)` — use `unknown` | Replace with `error: unknown` + type guard |
-| **BH-P1-2** | bug-hunter | `ShoplistPreview.tsx:127` | `id: revokeTimeout as any` weakens type safety | Use `ReturnType<typeof setTimeout>` |
+| **BH-P1-1** | bug-hunter | `frontend/src/features/plan/WeeklyPlanViewer.tsx:171,182,203` | `catch (error: any)` — use `unknown` | Replace with `error: unknown` + type guard |
+| **BH-P1-2** | bug-hunter | `frontend/src/features/shoplist/ShoplistPreview.tsx:127` | `id: revokeTimeout as any` weakens type safety | Use `ReturnType<typeof setTimeout>` |
 | **BH-P1-3** | bug-hunter | `tests/test_api.py` | Missing type hints on `client` | Add `client: TestClient` |
 | **SA-P1-1** | security-auditor | `run_coverage_tests.py:17` | Subprocess without nosec/absolute path | Add nosec or `shutil.which()` |
 | **SA-P1-2** | security-auditor | `agent_run_summary.py:48-50` | SHA256 truncation for run IDs | Document as non-crypto; no fix needed |
@@ -86,7 +86,7 @@
 1. **WeeklyPlanViewer:** `error: unknown` + type guard
 2. **ShoplistPreview:** Fix `revokeTimeout` typing
 3. **test_api.py:** Add type hints
-4. **run_coverage_tests.py:** Add nosec B603 or `shutil.which()`
+4. **run_coverage_tests.py:** Prefer `shutil.which()`; only if unavoidable, add policy-compliant `# nosec B607`
 
 ### Backlog (P2)
 
@@ -100,7 +100,7 @@
 ```bash
 pytest -q tests/test_repo_policy_guards.py
 pytest -q tests/test_repo_policy_sys_modules.py
-bandit -r app core -f json
+bandit -r app core scripts tests run_coverage_tests.py -f json
 ```
 
 ## 8. Current State Verification Snapshot
