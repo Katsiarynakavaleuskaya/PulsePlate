@@ -20,3 +20,10 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:4` and `docs/review/PR_1114_FIXED_MAPPING.md:5` already had the required artifact-level discussion-pass boxes checked on head `35e9b983`, so the later checkbox suggestion was stale rather than still actionable.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918260796
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `ee5aa57a` stores actual recursive-path execution in `core/rag/orchestration.py:49` and propagates it through `core/insight/philosophical_runtime.py:414` and `core/insight/philosophical_runtime.py:649`, while also tightening the NOT-A-BUG evidence wording in `docs/review/PR_1114_FIXED_MAPPING.md:20` so the later CodeRabbit follow-up is closed on the latest head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918352786 -> ee5aa57a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918352789 -> ee5aa57a
