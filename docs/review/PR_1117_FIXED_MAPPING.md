@@ -48,6 +48,27 @@ Evidence: `tests/test_design_generation_pipeline.py:11`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2920850462 -> 3db018a4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2920850465 -> 3db018a4
 
+Disposition: FIXED
+Commit: 3827b81b
+Evidence: `docs/design/UI_COMPONENT_VOCABULARY.md:53`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:375`
+Evidence: `scripts/design/contracts.py:179`
+Evidence: `scripts/design/contracts.py:249`
+Evidence: `scripts/design/contracts.py:330`
+Evidence: `scripts/design/generate_figma_instructions.py:133`
+Evidence: `scripts/design/generate_figma_instructions.py:557`
+Evidence: `scripts/design/generate_figma_instructions.py:880`
+Evidence: `tests/test_design_generation_pipeline.py:49`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921041219 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046582 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046586 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046590 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046598 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046602 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046604 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046609 -> 3827b81b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#discussion_r2921046621 -> 3827b81b
+
 Disposition: NOT-A-BUG
 Evidence: Individual actionable threads from the CodeRabbit review batch are mapped explicitly in this artifact.
 Evidence: `scripts/design/execute_design.py:67`
