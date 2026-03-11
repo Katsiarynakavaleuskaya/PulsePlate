@@ -1027,11 +1027,7 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 
 - If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
 - Workflow/guard PRs must also update agent-facing instructions when they change daily engineering behavior.
-  Current tooling-surface canon:
-  - GitHub Actions `uses:` entries must stay pinned to 40-char commit SHAs.
-  - Tracked `package.json` files must not define `preinstall`, `install`, or `postinstall`.
-  - VS Code recommendations must stay in tracked `.vscode/extensions.json` and inside `docs/security/vscode_extensions_allowlist.txt`.
-  - Verification commands for this surface are `python scripts/ci/guard_actions_pin.py --root .`, `python scripts/ci/guard_npm_install_scripts.py --root .`, and `python scripts/ci/guard_vscode_extensions.py --root .`.
+  The canonical tooling-surface policy and verification commands live in `docs/security/TOOLING_SURFACE_POLICY.md`.
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 
