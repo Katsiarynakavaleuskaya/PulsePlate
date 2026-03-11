@@ -38,6 +38,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#discussion_r2917620751 -> 095e4875
   Disposition: FIXED
   Commit: 095e4875
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3928781042 -> 095e4875
+  Disposition: FIXED
+  Commit: 095e4875
 
 ## Merge Readiness
 - [ ] Local `pre-commit run --all-files`
