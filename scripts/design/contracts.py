@@ -156,18 +156,18 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                 errors.append(f"Duplicate section_id: {section_id}")
                 continue
 
-            component_ids = section.get("component_ids")
-            if not isinstance(component_ids, list) or not component_ids:
+            section_component_ids = section.get("component_ids")
+            if not isinstance(section_component_ids, list) or not section_component_ids:
                 errors.append(f"sections[{index}] must define non-empty component_ids")
                 continue
 
             section_ids.add(section_id)
             section_component_map[section_id] = [
-                str(component_id) for component_id in component_ids
+                str(component_id) for component_id in section_component_ids
             ]
 
     hierarchy_value = instruction.get("component_hierarchy", [])
-    component_ids: set[str] = set()
+    hierarchy_component_ids: set[str] = set()
     component_nodes: dict[str, dict[str, Any]] = {}
     root_component_count = 0
     if not isinstance(hierarchy_value, list) or not hierarchy_value:
@@ -199,7 +199,7 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
             if not component_id:
                 errors.append(f"component_hierarchy[{index}] missing component_id")
                 continue
-            if component_id in component_ids:
+            if component_id in hierarchy_component_ids:
                 errors.append(f"Duplicate component_id: {component_id}")
                 continue
             if not semantic_role:
@@ -227,7 +227,7 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                     )
                 )
 
-            component_ids.add(component_id)
+            hierarchy_component_ids.add(component_id)
             component_nodes[component_id] = {
                 "canonical_component": canonical_component,
                 "section_id": node_section_id,
@@ -237,7 +237,10 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
 
         for component_id, node in component_nodes.items():
             parent_component_id = node.get("parent_component_id")
-            if isinstance(parent_component_id, str) and parent_component_id not in component_ids:
+            if (
+                isinstance(parent_component_id, str)
+                and parent_component_id not in hierarchy_component_ids
+            ):
                 errors.append(
                     "Unknown parent_component_id for component_hierarchy node "
                     f"{component_id}: {parent_component_id}"
@@ -266,7 +269,7 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
 
         for section_id, referenced_component_ids in section_component_map.items():
             for component_id in referenced_component_ids:
-                if component_id not in component_ids:
+                if component_id not in hierarchy_component_ids:
                     errors.append(
                         "sections reference unknown component_id: "
                         f"{section_id} -> {component_id}"
@@ -307,7 +310,7 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         component_id = str(item.get("component_id", "")).strip()
         if not component_id:
             errors.append(f"{item_type} at instructions[{index}] missing component_id")
-        elif component_ids and component_id not in component_ids:
+        elif hierarchy_component_ids and component_id not in hierarchy_component_ids:
             errors.append(
                 f"{item_type} at instructions[{index}] references unknown component_id: {component_id}"
             )
@@ -330,7 +333,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
 
         parent_component_id = item.get("parent_component_id")
         if parent_component_id not in (None, "") and (
-            not isinstance(parent_component_id, str) or parent_component_id not in component_ids
+            not isinstance(parent_component_id, str)
+            or parent_component_id not in hierarchy_component_ids
         ):
             errors.append(
                 f"{item_type} at instructions[{index}] references unknown parent_component_id"

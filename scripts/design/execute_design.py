@@ -79,7 +79,7 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     """Execute one instruction payload through the configured adapter seam."""
 
     adapter = resolve_execution_adapter(adapter_name)
-    return adapter.execute(instruction)
+    return cast(dict[str, Any], adapter.execute(instruction))
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:

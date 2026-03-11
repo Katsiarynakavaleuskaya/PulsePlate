@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 
 class DesignExecutionAdapter(Protocol):
@@ -75,7 +75,7 @@ class DeterministicStubExecutionAdapter:
         return results
 
 
-_ADAPTER_REGISTRY: dict[str, DesignExecutionAdapter] = {
+_ADAPTER_REGISTRY = {
     "deterministic_stub": DeterministicStubExecutionAdapter(),
 }
 
@@ -90,6 +90,6 @@ def resolve_execution_adapter(adapter_name: str) -> DesignExecutionAdapter:
     """Resolve one adapter by name and fail fast on unknown values."""
 
     try:
-        return _ADAPTER_REGISTRY[adapter_name]
+        return cast(DesignExecutionAdapter, _ADAPTER_REGISTRY[adapter_name])
     except KeyError as exc:
         raise ValueError(f"Unsupported execution adapter: {adapter_name}") from exc
