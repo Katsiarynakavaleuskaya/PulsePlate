@@ -28,6 +28,7 @@ Commit: b6fec9cc
 Evidence: `b6fec9cc` removes the dead `artifact_checked`-only success branch from `scripts/ci/check_pr_body_phase2_gates.py:227-232`, keeping the artifact-first success path reachable only through the enforced non-empty PR body mirror.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1123#pullrequestreview-3932719737 -> b6fec9cc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1123#discussion_r2921156745 -> b6fec9cc
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
