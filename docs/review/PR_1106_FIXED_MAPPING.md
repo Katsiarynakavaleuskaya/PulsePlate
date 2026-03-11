@@ -76,7 +76,7 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discuss
 Reason: this CodeRabbit review entry is a summary shell; each actionable child thread is dispositioned individually above.
 
 ## Merge Readiness
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
+- [x] Final post-bot wait cycle completed
