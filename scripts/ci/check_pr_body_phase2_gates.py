@@ -105,7 +105,7 @@ def _extract_mapping_section(text: str) -> str:
     return text[start:end]
 
 
-def check_pr_body_phase2_gates(body: str) -> list[str]:
+def check_pr_body_phase2_gates(body: str, *, require_mapping_details: bool = True) -> list[str]:
     errors: list[str] = []
     cleaned = _strip_fenced_code_blocks(body)
 
@@ -128,22 +128,23 @@ def check_pr_body_phase2_gates(body: str) -> list[str]:
             f"Checklist item must be checked: `{PHASE2_CONFIG['mapping_checkbox_label']}`."
         )
 
-    mapping_section = _extract_mapping_section(cleaned)
-    has_mapping_entries = bool(
-        MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
-    )
-    has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
-    if not has_mapping_entries and not has_na_mapping:
-        errors.append(
-            "Add at least one review-thread entry "
-            "(`- <review-comment-url>` or `- <review-comment-url> -> <commit-sha>`) "
-            "or `- No actionable review comments`."
+    if require_mapping_details:
+        mapping_section = _extract_mapping_section(cleaned)
+        has_mapping_entries = bool(
+            MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
         )
-    if has_mapping_entries and has_na_mapping:
-        errors.append(
-            "Invalid mixed mode: 'No actionable review comments' cannot appear "
-            "together with SHA mappings (use one or the other)."
-        )
+        has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
+        if not has_mapping_entries and not has_na_mapping:
+            errors.append(
+                "Add at least one review-thread entry "
+                "(`- <review-comment-url>` or `- <review-comment-url> -> <commit-sha>`) "
+                "or `- No actionable review comments`."
+            )
+        if has_mapping_entries and has_na_mapping:
+            errors.append(
+                "Invalid mixed mode: 'No actionable review comments' cannot appear "
+                "together with SHA mappings (use one or the other)."
+            )
 
     return errors
 
@@ -192,7 +193,12 @@ def main() -> int:
 
     if body.strip():
         body_checked = True
-        body_errors.extend(check_pr_body_phase2_gates(body=body))
+        body_errors.extend(
+            check_pr_body_phase2_gates(
+                body=body,
+                require_mapping_details=not artifact_checked,
+            )
+        )
     elif pr_number is None:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
@@ -209,7 +215,7 @@ def main() -> int:
         return 1
 
     if artifact_checked and body_checked:
-        print("phase2-pr-body-gates: canonical mapping artifact and PR body passed.")
+        print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")
         return 0
     if artifact_checked:
         print("phase2-pr-body-gates: canonical mapping artifact passed.")

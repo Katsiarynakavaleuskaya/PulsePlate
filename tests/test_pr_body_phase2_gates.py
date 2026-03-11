@@ -21,6 +21,17 @@ Phase2 PR body gate implementation.
 - https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4
 """
 
+VALID_BODY_MIRROR_ONLY = """## Summary
+Phase2 PR body gate implementation.
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`
+"""
+
 
 def test_phase2_guard_accepts_valid_mapping() -> None:
     errors = gates.check_pr_body_phase2_gates(body=VALID_BODY_WITH_MAPPING)
@@ -78,6 +89,14 @@ def test_phase2_guard_accepts_no_actionable_comments_marker() -> None:
         "- No actionable review comments",
     )
     errors = gates.check_pr_body_phase2_gates(body=body)
+    assert errors == []
+
+
+def test_phase2_guard_accepts_mirror_only_body_when_mapping_details_not_required() -> None:
+    errors = gates.check_pr_body_phase2_gates(
+        body=VALID_BODY_MIRROR_ONLY,
+        require_mapping_details=False,
+    )
     assert errors == []
 
 
@@ -217,8 +236,8 @@ def test_extract_pr_body_returns_empty_for_non_object_pull_request(tmp_path: Pat
 
 
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
-    """When event has pr_number, Phase2 validates artifact and mirrored PR body."""
-    event = {"pull_request": {"number": 998, "body": VALID_BODY_WITH_MAPPING}}
+    """When event has pr_number, Phase2 validates the artifact and body mirror."""
+    event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
 
@@ -247,11 +266,45 @@ Commit: abc1234
         env=env,
     )
     assert result.returncode == 0
-    assert "canonical mapping artifact and PR body passed" in result.stdout
+    assert "canonical mapping artifact and PR body mirror passed" in result.stdout
+
+
+def test_phase2_accepts_body_without_mapping_entries_when_artifact_is_valid(tmp_path: Path) -> None:
+    """Artifact-first mode should not require mirrored URL->SHA lines in the PR body."""
+    event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+    assert result.returncode == 0
+    assert "canonical mapping artifact and PR body mirror passed" in result.stdout
 
 
 def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
-    """Artifact success must not bypass PR body validation."""
+    """Artifact success must not bypass required body mirror sections."""
     event = {"pull_request": {"number": 998, "body": "minimal"}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
