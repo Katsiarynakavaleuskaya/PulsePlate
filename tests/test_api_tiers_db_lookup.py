@@ -170,6 +170,30 @@ def test_lookup_tier_from_db_returns_invalid_tier_for_malformed_status() -> None
     assert result.tier is None
 
 
+def test_lookup_tier_from_db_fails_closed_for_mixed_valid_and_malformed_rows() -> None:
+    """Mixed persisted rows must deny paid access when any row is malformed."""
+
+    future = datetime.now(timezone.utc) + timedelta(days=14)
+    _persist_subscription(
+        api_key="mixed-malformed-key",  # pragma: allowlist secret
+        source="ios_app_store",
+        tier="vip",
+        status="active",
+        expires_at=future,
+    )
+    _persist_subscription(
+        api_key="mixed-malformed-key",  # pragma: allowlist secret
+        source="swift_manual",
+        tier="enterprise",
+        status="active",
+        expires_at=future,
+    )
+
+    result = api_tiers_mod._lookup_tier_from_db("mixed-malformed-key")
+    assert result.status == DBLookupStatus.INVALID_TIER
+    assert result.tier is None
+
+
 def test_get_subscription_tier_is_fail_closed_on_db_miss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -39,7 +39,6 @@ from app.schemas.payments import (
     SubscriptionTier as PersistedSubscriptionTier,
 )
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
-from app.services import subscriptions as subscriptions_store
 
 from app.utils.feature_flags import is_vip_module_enabled
 from settings import (
@@ -185,6 +184,7 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
     """
     try:
+        from app.services import subscriptions as subscriptions_store
         from core.db import get_session_factory
 
         user_id = derive_subject_id_from_api_key(api_key)
@@ -231,15 +231,15 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         if _tier_rank(parsed_tier) > _tier_rank(effective_tier):
             effective_tier = parsed_tier
 
-    if saw_valid_state:
-        return DBLookupResult(status=DBLookupStatus.HIT, tier=effective_tier)
-
     if saw_invalid_state:
         logger.warning(
             "Subscription DB lookup returned invalid persisted entitlement state; denying access",
             extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
         )
         return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
+
+    if saw_valid_state:
+        return DBLookupResult(status=DBLookupStatus.HIT, tier=effective_tier)
 
     # RU: Защитный хвост для типизатора; неожиданный непустой, но нейтральный набор трактуем как MISS.
     # EN: Defensive tail for the type checker; treat any unexpected neutral non-empty set as MISS.

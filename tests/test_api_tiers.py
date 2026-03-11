@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 import app.middleware.api_tiers as api_tiers_mod
+from app.services import subscriptions as subscriptions_store
 from app.middleware.api_tiers import (
     AuthSource,
     DBLookupResult,
@@ -275,7 +276,7 @@ class TestDBLookupHelpers:
         session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
         monkeypatch.setattr(
-            api_tiers_mod.subscriptions_store,
+            subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: [],
         )
@@ -293,7 +294,7 @@ class TestDBLookupHelpers:
         session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
         monkeypatch.setattr(
-            api_tiers_mod.subscriptions_store,
+            subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: [_subscription_row(tier="not_a_tier", status="active")],
         )
@@ -309,7 +310,7 @@ class TestDBLookupHelpers:
         session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
         monkeypatch.setattr(
-            api_tiers_mod.subscriptions_store,
+            subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: [_subscription_row(tier="vip", status="active")],
         )
@@ -327,7 +328,7 @@ class TestDBLookupHelpers:
         session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
         monkeypatch.setattr(
-            api_tiers_mod.subscriptions_store,
+            subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: [
                 _subscription_row(tier="vip", status="expired"),
@@ -337,6 +338,27 @@ class TestDBLookupHelpers:
         result = api_tiers_mod._lookup_tier_from_db("key")
         assert result.status == DBLookupStatus.HIT
         assert result.tier == SubscriptionTier.FREE
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_fails_closed_when_rows_mix_valid_and_invalid_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Any malformed persisted row must force INVALID_TIER even if another row parses."""
+        import core.db as core_db
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [
+                _subscription_row(tier="vip", status="active"),
+                _subscription_row(tier="not_a_tier", status="active"),
+            ],
+        )
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.INVALID_TIER
+        assert result.tier is None
         assert session.closed is True
 
     def test_lookup_tier_from_db_defensive_tail_returns_miss(
@@ -355,7 +377,7 @@ class TestDBLookupHelpers:
         session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
         monkeypatch.setattr(
-            api_tiers_mod.subscriptions_store,
+            subscriptions_store,
             "list_subscriptions_for_user",
             lambda **_kwargs: _TruthyEmptySubscriptions(),
         )
