@@ -34,8 +34,9 @@ def evaluate_capture_detectors(context: DetectorContext) -> tuple[str, ...]:
             hits.append("low_confidence")
 
     expected_kind = (context.expected_response_kind or "").strip().lower()
-    content_type = (context.response_content_type or "").strip().lower()
-    if expected_kind == "json" and content_type and "application/json" not in content_type:
+    content_type = (context.response_content_type or "").split(";", 1)[0].strip().lower()
+    is_json_content_type = content_type == "application/json" or content_type.endswith("+json")
+    if expected_kind == "json" and content_type and not is_json_content_type:
         if "schema_mismatch" not in hits:
             hits.append("schema_mismatch")
 

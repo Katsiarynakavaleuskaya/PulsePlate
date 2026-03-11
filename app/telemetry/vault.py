@@ -59,13 +59,13 @@ def _minimize_scalar(value: Any, *, field_path: str) -> Any:
     """Return audit-safe scalar representation."""
 
     if isinstance(value, str):
-        redacted = redact_pii_from_text(value) or ""
         field_name = _resolve_field_name(field_path)
         policy = get_sensitive_field_taxonomy().get(field_name)
         if policy is not None and policy.persistence_rule == "hash_only":
-            audit_value = sanitize_audit_string(field_name, redacted)
+            audit_value = sanitize_audit_string(field_name, value)
             if isinstance(audit_value, dict):
                 return audit_value
+        redacted = redact_pii_from_text(value) or ""
         return minimize_free_text(redacted, field_name=field_name)
     return value
 

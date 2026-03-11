@@ -20,24 +20,6 @@ If it is not recorded here — it does not exist.
 4) Closing an item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
----
-
-- [ ] P1: Telemetry maturity follow-through for audited vault retrieval and budget dashboards
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (post-foundation observability maturity)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): The telemetry foundation PR intentionally stops at lightweight spans plus encrypted pointer storage. Audited decrypt workflow, detector budget dashboards, and retention/DSR operating hooks remain deferred so the first runtime slice stays additive and low-risk.
-  - Links:
-    - `docs/telemetry/TELEMETRY_POLICY.md`
-    - `docs/telemetry/LLM_DETECTORS.md`
-    - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
-    - `deploy/otelcol/collector.yaml`
-  - DoD:
-    - Audited decrypt workflow exists for approved vault retrieval
-    - Dashboards cover span volume, full-capture rate, and detector distribution
-    - Retention and deletion hooks for telemetry vault references are documented and test-covered
-
 ## Open Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
@@ -227,6 +209,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Internal helper functions expose an explicit deletion plan for the `users` row instead of silently widening into full account deletion
     - No public DSAR endpoint is introduced before an explicit auth/ownership contract exists
     - Deterministic tests cover export + delete paths for `users`, `rag_feedback`, and `user_knowledge`
+
+<a id="ledger-p1-telemetry-maturity-follow-through"></a>
+- [ ] P1: Telemetry maturity follow-through for audited vault retrieval and budget dashboards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (post-foundation observability maturity)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): The telemetry foundation PR intentionally stops at lightweight spans plus encrypted pointer storage. Audited decrypt workflow, detector budget dashboards, and retention/DSR operating hooks remain deferred so the first runtime slice stays additive and low-risk.
+  - Links:
+    - `docs/telemetry/TELEMETRY_POLICY.md`
+    - `docs/telemetry/LLM_DETECTORS.md`
+    - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
+    - `deploy/otelcol/collector.yaml`
+  - DoD:
+    - Audited decrypt workflow exists for approved vault retrieval
+    - Dashboards cover span volume, full-capture rate, and detector distribution
+    - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
 <a id="ledger-p1-token-expansion-activation"></a>
 - [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification

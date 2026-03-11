@@ -27,7 +27,7 @@ class HourlyReservoir:
 
         with self.lock:
             current_window = int(self._time_fn() // 3600)
-            if current_window != self.window:
+            if current_window > self.window:
                 self.window = current_window
                 self.left = self.n
             if self.left <= 0:

@@ -8,6 +8,7 @@ import anyio
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.testclient import TestClient
+import pytest
 from starlette.requests import Request as StarletteRequest
 
 from app.bootstrap.telemetry import register_request_telemetry
@@ -17,6 +18,7 @@ from app.middleware.request_telemetry import (
     _extract_tier,
     _feature_flags_from_request,
     _get_recorder,
+    _normalized_platform_label,
     build_request_fingerprint,
     request_telemetry_middleware,
 )
@@ -63,6 +65,19 @@ def test_request_fingerprint_is_stable_across_query_order() -> None:
     assert fingerprint_a == fingerprint_b
 
 
+def test_request_fingerprint_uses_safe_route_and_content_type_labels() -> None:
+    request_a = _make_request(b"a=1")
+    request_b = _make_request(b"a=1")
+    request_b.scope["path"] = "/customer/alice@example.com"
+    request_a.scope["headers"] = [(b"content-type", b"x-custom/alice@example.com")]
+    request_b.scope["headers"] = [(b"content-type", b"y-custom/bob@example.com")]
+
+    fingerprint_a = build_request_fingerprint(request_a, route_template=None)
+    fingerprint_b = build_request_fingerprint(request_b, route_template=None)
+
+    assert fingerprint_a == fingerprint_b
+
+
 def test_deterministic_sampler_is_consistent() -> None:
     sampler = DeterministicHashSampler(rate=0.5, salt="pp#test")
 
@@ -84,6 +99,15 @@ def test_hourly_reservoir_resets_on_next_window() -> None:
     assert reservoir.take() is True
 
 
+def test_hourly_reservoir_ignores_backward_clock_jump() -> None:
+    timeline = [7200.0]
+    reservoir = HourlyReservoir(n=1, time_fn=lambda: timeline[0])
+
+    assert reservoir.take() is True
+    timeline[0] = 3599.0
+    assert reservoir.take() is False
+
+
 def test_detector_normalizes_explicit_hits_and_schema_mismatch() -> None:
     hits = evaluate_capture_detectors(
         DetectorContext(
@@ -95,6 +119,18 @@ def test_detector_normalizes_explicit_hits_and_schema_mismatch() -> None:
     )
 
     assert hits == ("low_confidence", "safety_rule", "schema_mismatch")
+
+
+def test_detector_accepts_plus_json_media_types() -> None:
+    hits = evaluate_capture_detectors(
+        DetectorContext(
+            status_code=200,
+            response_content_type="application/problem+json; charset=utf-8",
+            expected_response_kind="json",
+        )
+    )
+
+    assert hits == ()
 
 
 def test_request_helper_paths_cover_flags_tier_and_cached_body() -> None:
@@ -111,6 +147,8 @@ def test_request_helper_paths_cover_flags_tier_and_cached_body() -> None:
 
     delattr(request.state, "current_user")
     assert _extract_tier(request) == "pro"
+    assert _normalized_platform_label("Desktop") == "unknown"
+    assert _extract_tier(_make_request(b"")) == "unknown"
 
     app = FastAPI()
     request.scope["app"] = app
@@ -177,7 +215,7 @@ def test_vault_key_rejects_invalid_length() -> None:
 
 def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
     register_request_telemetry(app)
@@ -229,7 +267,10 @@ def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
     assert "content_type" in decrypted["response"]
 
 
-def test_debug_full_capture_requires_non_prod_flag(tmp_path: Path, monkeypatch) -> None:
+def test_debug_full_capture_requires_non_prod_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = FastAPI()
     register_request_telemetry(app)
 
@@ -254,7 +295,10 @@ def test_debug_full_capture_requires_non_prod_flag(tmp_path: Path, monkeypatch) 
     assert "debug_header" in attrs["pp.full_capture_reasons"]
 
 
-def test_telemetry_fail_open_when_capture_storage_raises(tmp_path: Path, monkeypatch) -> None:
+def test_telemetry_fail_open_when_capture_storage_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = FastAPI()
     register_request_telemetry(app)
 
@@ -284,7 +328,9 @@ def test_telemetry_fail_open_when_capture_storage_raises(tmp_path: Path, monkeyp
     assert "vault_store_failed" in attrs["pp.full_capture_reasons"]
 
 
-def test_telemetry_fail_open_when_vault_config_is_invalid(monkeypatch) -> None:
+def test_telemetry_fail_open_when_vault_config_is_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = FastAPI()
     register_request_telemetry(app)
 
@@ -318,11 +364,12 @@ def test_telemetry_fail_open_when_vault_config_is_invalid(monkeypatch) -> None:
     assert attrs["pp.full_capture"] is False
     assert "debug_header" in attrs["pp.full_capture_reasons"]
     assert "vault_config_failed" in attrs["pp.full_capture_reasons"]
+    assert app.state.request_telemetry_reservoir.left == 1
 
 
 def test_middleware_keeps_bounded_preview_in_deferred_capture_path(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
     register_request_telemetry(app)
@@ -383,3 +430,12 @@ def test_middleware_keeps_bounded_preview_in_deferred_capture_path(
         encoded_key=encoded_key,
     )
     assert "request_body" not in decrypted["request"]
+
+
+def test_hash_only_fields_hash_original_value_not_redacted_marker() -> None:
+    left = _minimize_scalar("doctor alice@example.com", field_path="root.provider_trace")
+    right = _minimize_scalar("doctor bob@example.com", field_path="root.provider_trace")
+
+    assert isinstance(left, dict)
+    assert isinstance(right, dict)
+    assert left["sha256"] != right["sha256"]

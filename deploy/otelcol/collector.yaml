@@ -5,14 +5,16 @@ receivers:
       grpc: {}
 
 processors:
-  batch: {}
-  attributes:
-    actions:
-      - key: service.environment
+  resource/env:
+    attributes:
+      - key: deployment.environment.name
         action: upsert
-        value: prod
+        value: ${env:DEPLOYMENT_ENVIRONMENT_NAME}
+  batch: {}
 
 exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
   debug:
     verbosity: basic
 
@@ -20,5 +22,5 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [attributes, batch]
-      exporters: [debug]
+      processors: [resource/env, batch]
+      exporters: [otlphttp, debug]

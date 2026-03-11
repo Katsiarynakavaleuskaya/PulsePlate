@@ -36,6 +36,18 @@ from app.telemetry.vault import store_capture_artifact
 
 logger = logging.getLogger(__name__)
 MAX_CAPTURED_BODY_BYTES = 16_384
+UNMATCHED_ROUTE_LABEL = "<unmatched_route>"
+KNOWN_CLIENT_PLATFORMS = {"web", "ios", "android"}
+KNOWN_TIERS = {"free", "pro", "vip"}
+KNOWN_CONTENT_TYPES = {
+    "application/json",
+    "application/problem+json",
+    "application/vnd.api+json",
+    "application/octet-stream",
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain",
+}
 
 
 @dataclass(frozen=True)
@@ -97,14 +109,54 @@ def _get_recorder(request: Request) -> InMemorySpanRecorder:
     return recorder
 
 
+def _normalized_route_label(route_template: str | None) -> str:
+    """Return a safe low-cardinality route label."""
+
+    normalized = (route_template or "").strip()
+    return normalized or UNMATCHED_ROUTE_LABEL
+
+
+def _normalized_content_type(raw_content_type: str | None) -> str:
+    """Collapse client-controlled content-type values to a safe allowlist."""
+
+    normalized = (raw_content_type or "").split(";", 1)[0].strip().lower()
+    if normalized in KNOWN_CONTENT_TYPES:
+        return normalized
+    if normalized.endswith("+json"):
+        return "application/*+json"
+    if normalized.startswith("multipart/"):
+        return "multipart/other"
+    if normalized.startswith("text/"):
+        return "text/other"
+    return "other"
+
+
+def _normalized_platform_label(raw_platform: str | None) -> str:
+    """Whitelist client platform labels before persisting them in spans."""
+
+    normalized = (raw_platform or "").strip().lower()
+    if normalized in KNOWN_CLIENT_PLATFORMS:
+        return normalized
+    return "unknown"
+
+
+def _normalized_tier_label(raw_tier: str | None) -> str:
+    """Whitelist tier hints before persisting them in spans."""
+
+    normalized = (raw_tier or "").strip().lower()
+    if normalized in KNOWN_TIERS:
+        return normalized
+    return "unknown"
+
+
 def build_request_fingerprint(request: Request, route_template: str | None) -> str:
     """Build stable request fingerprint from low-cardinality request attributes."""
 
     fingerprint_payload = {
         "method": request.method.upper(),
-        "route": route_template or request.url.path,
+        "route": _normalized_route_label(route_template),
         "query_keys": sorted(request.query_params.keys()),
-        "content_type": request.headers.get("content-type", "").split(";")[0].strip().lower(),
+        "content_type": _normalized_content_type(request.headers.get("content-type")),
     }
     encoded = json.dumps(
         fingerprint_payload,
@@ -131,10 +183,10 @@ def _extract_tier(request: Request) -> str:
     current_user = getattr(request.state, "current_user", None)
     tier = getattr(current_user, "tier", None)
     if isinstance(tier, str) and tier.strip():
-        return tier.strip().lower()
+        return _normalized_tier_label(tier)
     header_tier = request.headers.get("X-Api-Tier")
     if isinstance(header_tier, str) and header_tier.strip():
-        return header_tier.strip().lower()
+        return _normalized_tier_label(header_tier)
     return "unknown"
 
 
@@ -214,6 +266,7 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
         try:
             route_template = getattr(request.scope.get("route"), "path", None)
             fingerprint = build_request_fingerprint(request, route_template=route_template)
+            route_label = _normalized_route_label(route_template)
             sampler = _get_sampler(request)
             reservoir = _get_reservoir(request)
             recorder = _get_recorder(request)
@@ -260,11 +313,9 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 capture_requested = True
                 capture_reasons.append("sampled")
 
-            should_capture_full = capture_requested and reservoir.take()
-
             attributes: dict[str, Any] = {
                 "http.method": request.method.upper(),
-                "http.route": route_template or request.url.path,
+                "http.route": route_label,
                 "http.status_code": status_code,
                 "duration.ms": round((time.perf_counter() - start) * 1000, 3),
                 "pp.req.fingerprint": fingerprint,
@@ -275,12 +326,17 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 "pp.flags": _feature_flags_from_request(request),
                 "pp.detectors": list(detector_hits),
                 "pp.full_capture_requested": capture_requested,
-                "pp.client.platform": request.headers.get("X-Client-Platform", "unknown"),
+                "pp.client.platform": _normalized_platform_label(
+                    request.headers.get("X-Client-Platform")
+                ),
             }
 
             vault_dir, vault_key = (None, None)
-            if should_capture_full:
+            should_capture_full = False
+            if capture_requested:
                 vault_dir, vault_key = _resolve_vault_capture_config()
+                if vault_dir and vault_key:
+                    should_capture_full = reservoir.take()
 
             if should_capture_full and vault_dir and vault_key:
                 response_body = getattr(response, "body", None)
@@ -288,12 +344,16 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 capture_payload = {
                     "request": {
                         "method": request.method.upper(),
-                        "route": route_template or request.url.path,
+                        "route": route_label,
                         "query_params": dict(request.query_params),
                         "headers": {
-                            "content-type": request.headers.get("content-type"),
-                            "x-client-platform": request.headers.get("X-Client-Platform"),
-                            "x-api-tier": request.headers.get("X-Api-Tier"),
+                            "content-type": _normalized_content_type(
+                                request.headers.get("content-type")
+                            ),
+                            "x-client-platform": _normalized_platform_label(
+                                request.headers.get("X-Client-Platform")
+                            ),
+                            "x-api-tier": _extract_tier(request),
                         },
                         "request_body": _body_preview(captured_request_body),
                     },
@@ -329,7 +389,7 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 attributes["pp.full_capture"] = False
                 if capture_reasons:
                     failure_reason = None
-                    if should_capture_full and (not vault_dir or not vault_key):
+                    if capture_requested and (not vault_dir or not vault_key):
                         failure_reason = "vault_config_failed"
                     attributes["pp.full_capture_reasons"] = [
                         *capture_reasons,
@@ -339,7 +399,7 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
             recorder.record(
                 RequestTelemetrySpan(
                     trace_id=uuid4().hex,
-                    name=route_template or request.url.path,
+                    name=route_label,
                     attributes=attributes,
                 )
             )
