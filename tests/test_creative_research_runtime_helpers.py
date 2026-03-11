@@ -76,7 +76,7 @@ def test_normalize_provider_bundle_supports_nested_candidates_dict() -> None:
         },
         prompt_seed="meal adherence",
         reference_corpus=["alpha", "beta", "gamma"],
-        candidate_count=3,
+        candidate_count=1,
         bundle_id="fallback-id",
     )
 
@@ -105,6 +105,32 @@ def test_normalize_provider_bundle_rejects_invalid_candidate_shapes() -> None:
             reference_corpus=[],
             candidate_count=2,
             bundle_id="bundle-2",
+        )
+
+
+def test_normalize_provider_bundle_rejects_underfilled_candidate_sets() -> None:
+    """Provider bundles must not silently accept fewer candidates than requested."""
+
+    with pytest.raises(ValueError, match="fewer valid candidates"):
+        _normalize_provider_bundle(
+            {
+                "candidates": [
+                    {
+                        "candidate_id": "only-one",
+                        "claim": "Fallback dinners reduce friction.",
+                        "mechanism": "A predefined fallback lowers decision fatigue.",
+                        "evidence_needed": "Track adherence before and after prompts.",
+                        "falsifier": "If adherence remains flat, reject the mechanism.",
+                        "confidence": "medium",
+                        "known_risks": ["self-report bias"],
+                        "wellness_boundary": "Wellness only; not diagnosis, treatment, or medical advice.",
+                    }
+                ]
+            },
+            prompt_seed="meal adherence",
+            reference_corpus=[],
+            candidate_count=2,
+            bundle_id="bundle-3",
         )
 
 

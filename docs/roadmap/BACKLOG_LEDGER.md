@@ -5846,6 +5846,47 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
 
+<a id="ledger-p2-creative-research-domain-typing"></a>
+- [ ] P2: Tighten creative research core domain typing
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CREATIVE_RESEARCH_TYPED_DOMAIN
+  - Status: 🟡 Deferred from PR `#1118`
+  - Reason (EN): `core/creative_research.py` is the shared SoT for the creative
+    research lane, but it still exposes `Any` and `dict[str, Any]` at validated
+    boundaries. Tighten the domain contract with explicit typed structures
+    without widening PR-C beyond the bounded internal pilot scope.
+  - Links:
+    - `core/creative_research.py`
+    - `app/schemas/creative_research.py`
+    - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
+    - `docs/review/PR_1118_FIXED_MAPPING.md`
+  - DoD:
+    - Replace `Any` at the public core creative-research validation boundary
+      with `object` plus explicit typed domain structures
+    - Keep app/schema adapters aligned with the typed core contract
+    - Preserve deterministic creative-research eval and pilot tests
+
+<a id="ledger-p2-pr1118-governance-closeout"></a>
+- [ ] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1118`
+  - Status: 🟡 Deferred until the current bot/review cycle settles
+  - Reason (EN): PR `#1118` intentionally postpones final artifact closeout until
+    the remaining review dispositions settle; the canonical mapping artifact,
+    discussion-thread pass markers, and final merge-readiness / wait-window
+    evidence still need one synchronized closeout pass.
+  - Links:
+    - `docs/review/PR_1118_FIXED_MAPPING.md`
+    - `scripts/orchestration/review_mapping_artifact.py`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - All remaining PR `#1118` review threads have explicit dispositions
+    - The two `Discussion Thread Pass` checkboxes are checked in the canonical
+      mapping artifact
+    - Final merge-readiness / wait-window evidence is recorded before merge
+
 <a id="ledger-p2-phase2-body-artifact-sync"></a>
 - [ ] P2: Eliminate PR body and mapping artifact phase2 drift
   - Owner: @katsiaryna_kavaleuskaya

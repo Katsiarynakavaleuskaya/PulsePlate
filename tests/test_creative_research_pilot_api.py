@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
-
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from httpx import Response
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 import pytest
 
-from app.main import app
+from app.middleware.api_tiers import SubscriptionTier, TEST_KEY_VIP
 from app.schemas.creative_research import (
+    CreativeResearchPilotInput,
     CreativeResearchPilotRequest,
     CreativeResearchPilotTaskEnvelope,
 )
 from app.telemetry.genai import OPENINFERENCE_KIND_LLM, OPENINFERENCE_SPAN_KIND
 from app.telemetry.setup import install_test_exporter, reset_tracing_for_tests
 
-API_KEY_HEADERS = {"X-API-Key": "test_vip_key"}
 ROUTE_PATH = "/api/v1/internal/creative-research/pilot"
 
 
@@ -36,8 +36,10 @@ class _StaticProvider:
         return self.payload
 
 
-def _json_body(response: object) -> dict[str, object]:
-    return json.loads(getattr(response, "text"))
+def _json_body(response: Response) -> dict[str, object]:
+    content_type = response.headers.get("content-type", "").lower()
+    assert content_type.startswith("application/json")
+    return dict(response.json())
 
 
 def _valid_provider_payload() -> str:
@@ -104,7 +106,7 @@ def _task_payload(
                 "prompt_seed": "Meal adherence under time scarcity",
                 "reference_corpus": reference_corpus or ["Missed dinners increase friction."],
                 "candidate_count": candidate_count,
-                "api_key": API_KEY_HEADERS["X-API-Key"],
+                "api_key": TEST_KEY_VIP,
                 "endpoint": ROUTE_PATH,
                 "method": "POST",
             },
@@ -112,13 +114,10 @@ def _task_payload(
     )
 
 
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
-
-
 def test_creative_research_route_is_hidden_from_openapi() -> None:
     """The pilot route must stay registered at runtime but hidden from public schema."""
+
+    from app.main import app
 
     runtime_routes = {
         str(getattr(route, "path", "")): getattr(route, "include_in_schema", True)
@@ -132,6 +131,7 @@ def test_creative_research_route_is_hidden_from_openapi() -> None:
 
 def test_creative_research_feature_flag_disabled_returns_503(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Disabled pilot must fail closed before runtime work."""
@@ -141,7 +141,7 @@ def test_creative_research_feature_flag_disabled_returns_503(
     response = client.post(
         ROUTE_PATH,
         json={"prompt_seed": "meal adherence", "candidate_count": 2},
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 503
@@ -150,6 +150,7 @@ def test_creative_research_feature_flag_disabled_returns_503(
 
 def test_creative_research_execution_mode_review_required_returns_503(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Review-required mode must block the internal pilot."""
@@ -160,7 +161,7 @@ def test_creative_research_execution_mode_review_required_returns_503(
     response = client.post(
         ROUTE_PATH,
         json={"prompt_seed": "meal adherence", "candidate_count": 2},
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 503
@@ -169,6 +170,7 @@ def test_creative_research_execution_mode_review_required_returns_503(
 
 def test_creative_research_execution_mode_invalid_returns_503(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid execution mode must surface a stable misconfiguration error."""
@@ -179,7 +181,7 @@ def test_creative_research_execution_mode_invalid_returns_503(
     response = client.post(
         ROUTE_PATH,
         json={"prompt_seed": "meal adherence", "candidate_count": 2},
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 503
@@ -210,8 +212,29 @@ def test_creative_research_request_schema_rejects_invalid_inputs(
         CreativeResearchPilotRequest.model_validate(payload)
 
 
+@pytest.mark.parametrize("field_name", ["api_key", "endpoint", "method"])
+def test_creative_research_internal_input_rejects_blank_transport_fields(
+    field_name: str,
+) -> None:
+    """Internal envelope fields must reject whitespace-only transport metadata."""
+
+    payload = {
+        "prompt_seed": "Meal adherence under time scarcity",
+        "reference_corpus": ["Missed dinners increase friction."],
+        "candidate_count": 2,
+        "api_key": TEST_KEY_VIP,
+        "endpoint": ROUTE_PATH,
+        "method": "POST",
+    }
+    payload[field_name] = "   "
+
+    with pytest.raises(ValueError, match="internal string fields must not be blank"):
+        CreativeResearchPilotInput.model_validate(payload)
+
+
 def test_creative_research_success_returns_evaluated_candidates(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Successful pilot should return evaluated candidates plus bounded budget state."""
@@ -236,7 +259,7 @@ def test_creative_research_success_returns_evaluated_candidates(
             "reference_corpus": ["Missed dinners increase friction."],
             "candidate_count": 2,
         },
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 200
@@ -261,6 +284,7 @@ def test_creative_research_success_returns_evaluated_candidates(
 
 def test_creative_research_quota_exceeded_blocks_provider_call(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Quota must hard-stop before any provider generation happens."""
@@ -283,7 +307,7 @@ def test_creative_research_quota_exceeded_blocks_provider_call(
     response = client.post(
         ROUTE_PATH,
         json={"prompt_seed": "Meal adherence under time scarcity", "candidate_count": 2},
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 429
@@ -292,6 +316,7 @@ def test_creative_research_quota_exceeded_blocks_provider_call(
 
 def test_creative_research_invalid_provider_payload_returns_503(
     client: TestClient,
+    vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Malformed provider output must fail closed with a stable detail string."""
@@ -312,7 +337,7 @@ def test_creative_research_invalid_provider_payload_returns_503(
     response = client.post(
         ROUTE_PATH,
         json={"prompt_seed": "Meal adherence under time scarcity", "candidate_count": 2},
-        headers=API_KEY_HEADERS,
+        headers=vip_headers,
     )
 
     assert response.status_code == 503
@@ -360,6 +385,64 @@ async def test_runtime_incomplete_transparency_registry_fails_closed(
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "transparency_registry_incomplete"
+
+
+@pytest.mark.asyncio
+async def test_runtime_non_auto_safe_mode_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The service must reject unsupported execution modes before provider use."""
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: pytest.fail("quota must not run"),
+    )
+
+    task = CreativeResearchPilotTaskEnvelope.model_validate(
+        {
+            "mode": "review-required",
+            "input": {
+                "prompt_seed": "Meal adherence under time scarcity",
+                "reference_corpus": ["Missed dinners increase friction."],
+                "candidate_count": 2,
+                "api_key": TEST_KEY_VIP,
+                "endpoint": ROUTE_PATH,
+                "method": "POST",
+            },
+        }
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(task)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "agent_execution_review_required"
+
+
+@pytest.mark.asyncio
+async def test_runtime_non_vip_api_key_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The service must reject non-VIP keys before quota or provider work."""
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: pytest.fail("quota must not run"),
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.get_subscription_tier",
+        lambda _api_key: SubscriptionTier.PRO,
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "creative_research_vip_required"
 
 
 @pytest.mark.asyncio
@@ -485,50 +568,37 @@ def test_creative_research_service_emits_minimized_llm_tracing(
     monkeypatch.setenv("PULSE_OBS_HMAC_KEY", "test-genai-hmac-key")
     install_test_exporter(exporter)
 
-    provider = _StaticProvider(_valid_provider_payload())
-    monkeypatch.setattr(
-        "app.services.creative_research_runtime._persist_privileged_action_audit",
-        lambda **_: None,
-    )
-    monkeypatch.setattr(
-        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
-        lambda *args, **kwargs: True,
-    )
-    monkeypatch.setattr("llm.get_provider", lambda: provider)
+    try:
+        provider = _StaticProvider(_valid_provider_payload())
+        monkeypatch.setattr(
+            "app.services.creative_research_runtime._persist_privileged_action_audit",
+            lambda **_: None,
+        )
+        monkeypatch.setattr(
+            "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        monkeypatch.setattr("llm.get_provider", lambda: provider)
 
-    task = CreativeResearchPilotTaskEnvelope.model_validate(
-        {
-            "mode": "auto-safe",
-            "input": {
-                "prompt_seed": "Meal adherence under time scarcity",
-                "reference_corpus": ["Missed dinners increase friction."],
-                "candidate_count": 2,
-                "api_key": API_KEY_HEADERS["X-API-Key"],
-                "endpoint": ROUTE_PATH,
-                "method": "POST",
-            },
-        }
-    )
+        from app.services.creative_research_runtime import run_creative_research_pilot_task
 
-    from app.services.creative_research_runtime import run_creative_research_pilot_task
+        result = asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
-    result = asyncio.run(run_creative_research_pilot_task(task))
+        spans = exporter.get_finished_spans()
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes.get(OPENINFERENCE_SPAN_KIND) == OPENINFERENCE_KIND_LLM
+        ]
+        assert result.summary.promote == 1
+        assert llm_spans, "Expected an LLM span for the creative research pilot"
 
-    spans = exporter.get_finished_spans()
-    llm_spans = [
-        span
-        for span in spans
-        if span.attributes.get(OPENINFERENCE_SPAN_KIND) == OPENINFERENCE_KIND_LLM
-    ]
-    assert result.summary.promote == 1
-    assert llm_spans, "Expected an LLM span for the creative research pilot"
-
-    llm_attrs = dict(llm_spans[-1].attributes)
-    assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
-    assert llm_attrs["pulseplate.route_type"] == "internal"
-    assert "Meal adherence under time scarcity" not in str(llm_attrs)
-
-    reset_tracing_for_tests()
+        llm_attrs = dict(llm_spans[-1].attributes)
+        assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
+        assert llm_attrs["pulseplate.route_type"] == "internal"
+        assert "Meal adherence under time scarcity" not in str(llm_attrs)
+    finally:
+        reset_tracing_for_tests()
 
 
 def test_creative_research_timeout_finalizes_llm_span(
@@ -542,54 +612,41 @@ def test_creative_research_timeout_finalizes_llm_span(
     monkeypatch.setenv("PULSE_OBS_HMAC_KEY", "test-genai-hmac-key")
     install_test_exporter(exporter)
 
-    provider = _StaticProvider(_valid_provider_payload())
-    monkeypatch.setattr(
-        "app.services.creative_research_runtime._persist_privileged_action_audit",
-        lambda **_: None,
-    )
-    monkeypatch.setattr(
-        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
-        lambda *args, **kwargs: True,
-    )
-    monkeypatch.setattr("llm.get_provider", lambda: provider)
+    try:
+        provider = _StaticProvider(_valid_provider_payload())
+        monkeypatch.setattr(
+            "app.services.creative_research_runtime._persist_privileged_action_audit",
+            lambda **_: None,
+        )
+        monkeypatch.setattr(
+            "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        monkeypatch.setattr("llm.get_provider", lambda: provider)
 
-    async def _timeout(_awaitable: object, *, timeout: float) -> object:
-        del timeout
-        raise asyncio.TimeoutError
+        async def _timeout(_awaitable: object, *, timeout: float) -> object:
+            del timeout
+            raise asyncio.TimeoutError
 
-    monkeypatch.setattr("app.services.creative_research_runtime.asyncio.wait_for", _timeout)
+        monkeypatch.setattr("app.services.creative_research_runtime.asyncio.wait_for", _timeout)
 
-    task = CreativeResearchPilotTaskEnvelope.model_validate(
-        {
-            "mode": "auto-safe",
-            "input": {
-                "prompt_seed": "Meal adherence under time scarcity",
-                "reference_corpus": ["Missed dinners increase friction."],
-                "candidate_count": 2,
-                "api_key": API_KEY_HEADERS["X-API-Key"],
-                "endpoint": ROUTE_PATH,
-                "method": "POST",
-            },
-        }
-    )
+        from app.services.creative_research_runtime import run_creative_research_pilot_task
 
-    from app.services.creative_research_runtime import run_creative_research_pilot_task
+        with pytest.raises(Exception) as exc_info:
+            asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
-    with pytest.raises(Exception) as exc_info:
-        asyncio.run(run_creative_research_pilot_task(task))
+        assert getattr(exc_info.value, "status_code", None) == 504
 
-    assert getattr(exc_info.value, "status_code", None) == 504
+        spans = exporter.get_finished_spans()
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes.get(OPENINFERENCE_SPAN_KIND) == OPENINFERENCE_KIND_LLM
+        ]
+        assert llm_spans, "Expected an LLM span even when the provider times out"
 
-    spans = exporter.get_finished_spans()
-    llm_spans = [
-        span
-        for span in spans
-        if span.attributes.get(OPENINFERENCE_SPAN_KIND) == OPENINFERENCE_KIND_LLM
-    ]
-    assert llm_spans, "Expected an LLM span even when the provider times out"
-
-    llm_attrs = dict(llm_spans[-1].attributes)
-    assert llm_attrs["gen_ai.usage.output_tokens"] == 0
-    assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
-
-    reset_tracing_for_tests()
+        llm_attrs = dict(llm_spans[-1].attributes)
+        assert llm_attrs["gen_ai.usage.output_tokens"] == 0
+        assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
+    finally:
+        reset_tracing_for_tests()

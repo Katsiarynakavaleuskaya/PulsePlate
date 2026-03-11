@@ -33,6 +33,8 @@ from app.utils.feature_flags import is_creative_research_pilot_enabled
 
 logger = logging.getLogger(__name__)
 
+# Sanctioned namespace exception: this pilot stays under /internal because it is
+# operator-only, hidden from public OpenAPI, and not part of the public VIP API surface.
 router = APIRouter(prefix="/api/v1/internal/creative-research", include_in_schema=False)
 
 CREATIVE_RESEARCH_EXECUTION_MODE_ENV = "CREATIVE_RESEARCH_EXECUTION_MODE"
@@ -70,8 +72,8 @@ def _creative_research_feature_flags() -> dict[str, bool]:
 )
 @limit_if_available(RATE_LIMIT_INSIGHT)
 async def creative_research_pilot(
-    payload: CreativeResearchPilotRequest,
-    raw_request: Request,
+    request_body: CreativeResearchPilotRequest,
+    request: Request,
     vip_key: str = Depends(require_vip_tier),
 ) -> CreativeResearchPilotResult:
     """Run the internal-only creative research pilot."""
@@ -98,25 +100,25 @@ async def creative_research_pilot(
         detail = f"agent_execution_{execution_mode.replace('-', '_')}"
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
 
-    safe_prompt_seed = require_safe_ai_agent_input(payload.prompt_seed)
+    safe_prompt_seed = require_safe_ai_agent_input(request_body.prompt_seed)
     safe_reference_corpus = [
-        require_safe_ai_agent_input(item) for item in payload.reference_corpus[:2]
+        require_safe_ai_agent_input(item) for item in request_body.reference_corpus
     ]
     task = CreativeResearchPilotTaskEnvelope(
         mode=execution_mode,
         input=CreativeResearchPilotInput(
             prompt_seed=safe_prompt_seed,
             reference_corpus=safe_reference_corpus,
-            candidate_count=payload.candidate_count,
+            candidate_count=request_body.candidate_count,
             api_key=vip_key,
-            endpoint=str(raw_request.url.path),
-            method=raw_request.method,
+            endpoint=str(request.url.path),
+            method=request.method,
         ),
     )
     with agent_span(
         "creative research pilot",
         user_tier="VIP",
-        route=str(raw_request.url.path),
+        route=str(request.url.path),
         feature_flags=_creative_research_feature_flags(),
     ):
         return await run_creative_research_pilot_task(task)

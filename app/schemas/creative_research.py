@@ -39,15 +39,20 @@ class CreativeResearchPilotRequest(BaseModel):
         return normalized
 
 
-class CreativeResearchPilotInput(BaseModel):
+class CreativeResearchPilotInput(CreativeResearchPilotRequest):
     """Internal task input for the creative research pilot runtime."""
 
-    prompt_seed: str = Field(..., min_length=1, max_length=500)
-    reference_corpus: list[str] = Field(default_factory=list, max_length=6)
-    candidate_count: int = Field(..., ge=1, le=6)
     api_key: str = Field(..., min_length=1)
     endpoint: str = Field(..., min_length=1)
     method: str = Field(..., min_length=1)
+
+    @field_validator("api_key", "endpoint", "method")
+    @classmethod
+    def _validate_internal_strings_not_blank(cls, value: str) -> str:
+        stripped_value = value.strip()
+        if not stripped_value:
+            raise ValueError("internal string fields must not be blank")
+        return stripped_value
 
 
 class CreativeResearchPilotTaskEnvelope(BaseModel):

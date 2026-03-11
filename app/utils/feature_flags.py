@@ -18,7 +18,7 @@ def _is_truthy(value: Optional[str]) -> bool:
     Returns True if value (after strip/lower) is in {"1", "true", "yes", "on"}.
     Preserves exact behavior from legacy_app.py.
     """
-    return str(value).strip().lower() in _TRUTHY
+    return (value or "").strip().lower() in _TRUTHY
 
 
 def is_vip_module_enabled() -> bool:

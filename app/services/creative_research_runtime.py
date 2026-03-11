@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 
+from app.middleware.api_tiers import SubscriptionTier, get_subscription_tier
 from app.schemas.creative_research import (
     CreativeResearchPilotBudgetState,
     CreativeResearchPilotCandidate,
@@ -46,6 +47,7 @@ MAX_RETRIEVAL_HOPS = 2
 ALLOWED_POLICY = {("llm.generate", "provider://default")}
 INVALID_PROVIDER_DETAIL = "creative_research_provider_invalid_response"
 UNAVAILABLE_DETAIL = "creative_research_generation_unavailable"
+REQUIRED_PILOT_TIER = SubscriptionTier.VIP
 
 
 def _sha256_hex(value: str) -> str:
@@ -184,6 +186,8 @@ def _normalize_provider_bundle(
     ]
     if not normalized_candidates:
         raise ValueError("Provider response candidates must be objects.")
+    if len(normalized_candidates) < candidate_count:
+        raise ValueError("Provider returned fewer valid candidates than requested.")
     return {
         "schema_version": SCHEMA_VERSION,
         "bundle_id": str(payload.get("bundle_id", "")).strip() or bundle_id,
@@ -250,7 +254,7 @@ async def _generate_provider_bundle(
         allowed = await run_in_threadpool(
             attempt_consume_llm_monthly_quota,
             task.input.api_key,
-            tier="VIP",
+            tier=REQUIRED_PILOT_TIER.value,
         )
         if not allowed:
             raise HTTPException(
@@ -267,6 +271,8 @@ async def _generate_provider_bundle(
                 detail="LLM provider not available",
             )
 
+        # Provider implementations must enforce their own inner request timeouts;
+        # this outer timeout is only the final fail-closed guard for the threadpool call.
         raw_payload: object | None = None
         with llm_span(
             provider_name=getattr(provider, "name", "unknown"),
@@ -336,6 +342,15 @@ async def run_creative_research_pilot_task(
     task: CreativeResearchPilotTaskEnvelope,
 ) -> CreativeResearchPilotResult:
     """Execute the internal creative research pilot with one bounded LLM call."""
+
+    if task.mode != "auto-safe":
+        detail = f"agent_execution_{task.mode.replace('-', '_')}"
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
+    if get_subscription_tier(task.input.api_key) is not REQUIRED_PILOT_TIER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="creative_research_vip_required",
+        )
 
     transparency_notice = get_transparency_registry().get("ai_generated_insight")
     if transparency_notice is None:

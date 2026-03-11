@@ -37,6 +37,8 @@ Rules:
 - `include_in_schema=False`
 - hidden from public OpenAPI
 - internal namespace only
+- sanctioned namespace exception: the pilot remains under `/api/v1/internal/*`
+  because it is operator-only and excluded from the public VIP API surface
 - no new `/api/v1/pro/*`, `/api/v1/vip/*`, or public `/api/v1/insight/*`
   product surface
 
