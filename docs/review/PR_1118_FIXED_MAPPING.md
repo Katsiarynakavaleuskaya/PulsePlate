@@ -30,6 +30,11 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2919128050; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2920323712
 Reason: this CodeRabbit follow-up review entry is the summary shell for the actionable SlowAPI request-argument child comments dispositioned below.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#pullrequestreview-3932267373
+Disposition: NOT-A-BUG
+Evidence: `app/services/creative_research_runtime.py:391`, `app/services/creative_research_runtime.py:419`
+Reason: this late CodeRabbit review contains an optional readability nitpick only; the current explicit candidate mapping remains functionally correct and intentionally defensive at the schema boundary.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2918957790 -> b98bd721
 Disposition: FIXED
 Commit: b98bd721
