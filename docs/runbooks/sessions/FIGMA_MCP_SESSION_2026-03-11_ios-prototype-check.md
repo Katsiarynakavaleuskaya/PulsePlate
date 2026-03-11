@@ -289,3 +289,13 @@
   - BMI
   - Profile
 - raw `ios prototype` remains `reference_only`.
+
+## Readiness Follow-up
+
+- A dedicated future-seat activation checklist now exists in:
+  `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+- Activation source stays pinned to:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - node IDs: `1:2`, `2:2`, `3:2`, `4:2`, `5:2`, `6:2`, `7:2`, `8:2`
+- Code Connect is still not active in this session because the workspace remains
+  blocked by seat/plan.

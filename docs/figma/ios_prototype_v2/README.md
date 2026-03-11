@@ -38,6 +38,12 @@ Current canonical screen map:
 - `iOS_Profile` -> `7:2`
 - `iOS_BMI` -> `8:2`
 
+Follow-up artifacts:
+
+- reconciliation: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+- Code Connect readiness:
+  `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+
 Note:
 
 - Figma MCP HTML capture auto-generated frame names as `Main Content (...)`.

@@ -90,5 +90,8 @@ Repo sources used:
 
 1. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
 2. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
-3. If Code Connect becomes available, map the reconciled frames rather than the
-   raw prototype file.
+3. If Code Connect becomes available, use
+   `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md` and map the
+   reconciled frames rather than the raw prototype file.
+4. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
+   refresh changes top-level frame IDs.
