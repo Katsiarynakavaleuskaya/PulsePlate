@@ -11,6 +11,7 @@ from app.services import food_store
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
 
 DEFAULT_MEILI_TIMEOUT_SECONDS = 2.0
+DEFAULT_MEILI_INDEX_NAME = "foods"
 
 
 def _safe_timeout_seconds(raw_value: str | None) -> float:
@@ -23,6 +24,13 @@ def _safe_timeout_seconds(raw_value: str | None) -> float:
     if parsed <= 0:
         return DEFAULT_MEILI_TIMEOUT_SECONDS
     return parsed
+
+
+def _safe_index_name(raw_value: str | None) -> str:
+    """Return validated Meili index name with deterministic fallback."""
+
+    normalized = (raw_value or "").strip()
+    return normalized or DEFAULT_MEILI_INDEX_NAME
 
 
 def register_food_search_backend(app: FastAPI) -> None:
@@ -42,7 +50,7 @@ def register_food_search_backend(app: FastAPI) -> None:
 
     meili_backend = MeiliSearchBackend(
         base_url=meili_url,
-        index_name=(os.getenv("MEILI_FOODS_INDEX") or "foods").strip(),
+        index_name=_safe_index_name(os.getenv("MEILI_FOODS_INDEX")),
         api_key=(os.getenv("MEILI_KEY") or "").strip() or None,
         timeout_seconds=_safe_timeout_seconds(os.getenv("MEILI_TIMEOUT_SECONDS")),
         fallback_backend=food_store.get_legacy_search_backend(),

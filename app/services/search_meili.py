@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 Transport = Callable[[str, dict[str, Any], Mapping[str, str], float], dict[str, Any]]
 
 
+def _numeric_field_or_default(hit: Mapping[str, Any], key: str) -> int | float:
+    """Normalize optional numeric nutrient fields to deterministic defaults."""
+
+    value = hit.get(key)
+    return value if isinstance(value, (int, float)) else 0
+
+
 def _default_transport(
     url: str,
     payload: dict[str, Any],
@@ -118,10 +125,10 @@ class MeiliSearchBackend:
                 {
                     "id": hit.get("id"),
                     "canonical_name": hit.get("canonical_name") or hit.get("name"),
-                    "kcal": hit.get("kcal"),
-                    "protein_g": hit.get("protein_g"),
-                    "fat_g": hit.get("fat_g"),
-                    "carbs_g": hit.get("carbs_g"),
+                    "kcal": _numeric_field_or_default(hit, "kcal"),
+                    "protein_g": _numeric_field_or_default(hit, "protein_g"),
+                    "fat_g": _numeric_field_or_default(hit, "fat_g"),
+                    "carbs_g": _numeric_field_or_default(hit, "carbs_g"),
                     "source": hit.get("source"),
                     "content_hash": hit.get("content_hash"),
                 }

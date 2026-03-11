@@ -12,6 +12,8 @@ def canonicalize_food_document(document: Mapping[str, Any]) -> dict[str, Any]:
 
     canonical: dict[str, Any] = {}
     for key in sorted(document):
+        if key == "content_hash":
+            continue
         value = document[key]
         if isinstance(value, list) and all(isinstance(item, str) for item in value):
             canonical[key] = sorted(value)
