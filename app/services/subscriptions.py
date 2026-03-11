@@ -30,6 +30,30 @@ def get_subscription_for_user_source(
     return subscription
 
 
+def list_subscriptions_for_user(
+    *,
+    session: Session,
+    user_id: int,
+) -> list[Subscription]:
+    """Return all persisted subscription rows for the given user.
+
+    RU: Возвращает все persisted subscriptions пользователя.
+    EN: Returns all persisted subscriptions for a user.
+    """
+
+    statement = (
+        select(Subscription)
+        .where(Subscription.user_id == user_id)
+        .order_by(
+            desc(Subscription.updated_at),
+            desc(Subscription.created_at),
+            desc(Subscription.id),
+        )
+    )
+    subscriptions = list(session.execute(statement).scalars().all())
+    return subscriptions
+
+
 def get_audit_by_user_key(
     *,
     session: Session,

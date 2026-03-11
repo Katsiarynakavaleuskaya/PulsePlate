@@ -4,11 +4,15 @@ RU: Тесты для промежуточного ПО проверки уро�
 EN: Tests for API tier validation middleware.
 """
 
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
 import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
 
 import app.middleware.api_tiers as api_tiers_mod
+from app.services import subscriptions as subscriptions_store
 from app.middleware.api_tiers import (
     AuthSource,
     DBLookupResult,
@@ -157,8 +161,10 @@ class TestValidateAPIKeyTier:
         )
         assert _validate_api_key_tier("env_key", SubscriptionTier.VIP) is False
 
-    def test_production_db_miss_falls_back_to_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test DB MISS allows env fallback (migration path)."""
+    def test_production_db_miss_does_not_fallback_to_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test DB MISS is fail-closed for canonical paid-route authz."""
         monkeypatch.setenv("APP_ENV", "production")
         monkeypatch.setenv("DEBUG", "false")
         monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
@@ -168,7 +174,7 @@ class TestValidateAPIKeyTier:
             "_lookup_tier_from_db",
             lambda _: DBLookupResult(status=DBLookupStatus.MISS),
         )
-        assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.PRO) is True
+        assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.PRO) is False
         assert _validate_api_key_tier("miss_then_env_key", SubscriptionTier.VIP) is False
 
     def test_environment_overrides_app_env_for_runtime_detection(
@@ -184,24 +190,23 @@ class TestValidateAPIKeyTier:
         assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
 
 
-class _FakeResult:
-    def __init__(self, value: object) -> None:
-        self._value = value
-
-    def scalar_one_or_none(self) -> object:
-        return self._value
-
-
 class _FakeSession:
-    def __init__(self, value: object) -> None:
-        self._value = value
+    def __init__(self) -> None:
         self.closed = False
-
-    def execute(self, _query: object, _params: dict[str, str]) -> _FakeResult:
-        return _FakeResult(self._value)
 
     def close(self) -> None:
         self.closed = True
+
+
+def _subscription_row(
+    *,
+    tier: str,
+    status: str,
+    expires_at: object = None,
+) -> SimpleNamespace:
+    """Build minimal persisted subscription row for api_tiers unit tests."""
+
+    return SimpleNamespace(tier=tier, status=status, expires_at=expires_at)
 
 
 def _request_with_cookie(token: str) -> Request:
@@ -224,6 +229,13 @@ def _request_with_cookie(token: str) -> Request:
 
 class TestDBLookupHelpers:
     """Test low-level DB tier lookup helpers."""
+
+    def test_normalize_utc_datetime_converts_aware_values(self) -> None:
+        """Aware datetimes must normalize to UTC instead of preserving source offset."""
+
+        aware_value = datetime(2026, 3, 11, 15, 30, tzinfo=timezone(timedelta(hours=3)))
+        normalized = api_tiers_mod._normalize_utc_datetime(aware_value)
+        assert normalized == datetime(2026, 3, 11, 12, 30, tzinfo=timezone.utc)
 
     def test_tier_allows_access_helper(self) -> None:
         """Test tier inclusion matrix helper."""
@@ -261,8 +273,13 @@ class TestDBLookupHelpers:
         """Test _lookup_tier_from_db returns DBLookupResult with status MISS when no record is found."""
         import core.db as core_db
 
-        session = _FakeSession(None)
+        session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [],
+        )
         result = api_tiers_mod._lookup_tier_from_db("key")
         assert result.status == DBLookupStatus.MISS
         assert result.tier is None
@@ -274,22 +291,99 @@ class TestDBLookupHelpers:
         """Test _lookup_tier_from_db returns DBLookupResult with status INVALID_TIER for unknown tier values."""
         import core.db as core_db
 
-        session = _FakeSession("not_a_tier")
+        session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [_subscription_row(tier="not_a_tier", status="active")],
+        )
         result = api_tiers_mod._lookup_tier_from_db("key")
         assert result.status == DBLookupStatus.INVALID_TIER
         assert result.tier is None
         assert session.closed is True
 
     def test_lookup_tier_from_db_returns_parsed_tier(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test DB lookup returns parsed tier for valid DB value."""
+        """Test DB lookup returns parsed tier for valid active subscription state."""
         import core.db as core_db
 
-        session = _FakeSession("VIP")
+        session = _FakeSession()
         monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [_subscription_row(tier="vip", status="active")],
+        )
         result = api_tiers_mod._lookup_tier_from_db("key")
         assert result.status == DBLookupStatus.HIT
         assert result.tier == SubscriptionTier.VIP
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_returns_free_for_non_active_states(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Persisted non-active subscription rows must deny paid access authoritatively."""
+        import core.db as core_db
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [
+                _subscription_row(tier="vip", status="expired"),
+                _subscription_row(tier="pro", status="cancelled"),
+            ],
+        )
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.HIT
+        assert result.tier == SubscriptionTier.FREE
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_fails_closed_when_rows_mix_valid_and_invalid_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Any malformed persisted row must force INVALID_TIER even if another row parses."""
+        import core.db as core_db
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: [
+                _subscription_row(tier="vip", status="active"),
+                _subscription_row(tier="not_a_tier", status="active"),
+            ],
+        )
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.INVALID_TIER
+        assert result.tier is None
+        assert session.closed is True
+
+    def test_lookup_tier_from_db_defensive_tail_returns_miss(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A truthy-but-empty iterable should hit the defensive MISS tail without crashing."""
+        import core.db as core_db
+
+        class _TruthyEmptySubscriptions:
+            def __bool__(self) -> bool:
+                return True
+
+            def __iter__(self):
+                return iter(())
+
+        session = _FakeSession()
+        monkeypatch.setattr(core_db, "get_session_factory", lambda: lambda: session)
+        monkeypatch.setattr(
+            subscriptions_store,
+            "list_subscriptions_for_user",
+            lambda **_kwargs: _TruthyEmptySubscriptions(),
+        )
+        result = api_tiers_mod._lookup_tier_from_db("key")
+        assert result.status == DBLookupStatus.MISS
+        assert result.tier is None
         assert session.closed is True
 
 
@@ -549,10 +643,10 @@ class TestGetSubscriptionTier:
         )
         assert get_subscription_tier("db_key") == SubscriptionTier.VIP
 
-    def test_production_db_enabled_falls_back_to_env_on_db_miss(
+    def test_production_db_enabled_returns_free_on_db_miss(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test get_subscription_tier falls back to env only when DB lookup misses."""
+        """Test get_subscription_tier is fail-closed on DB MISS in DB-backed mode."""
         monkeypatch.setenv("APP_ENV", "production")
         monkeypatch.setenv("DEBUG", "false")
         monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
@@ -562,7 +656,7 @@ class TestGetSubscriptionTier:
             "_lookup_tier_from_db",
             lambda _: DBLookupResult(status=DBLookupStatus.MISS),
         )
-        assert get_subscription_tier("env_key") == SubscriptionTier.VIP
+        assert get_subscription_tier("env_key") == SubscriptionTier.FREE
         assert get_subscription_tier("unknown_key") == SubscriptionTier.FREE
 
     def test_production_db_error_returns_free_without_env_fallback(
