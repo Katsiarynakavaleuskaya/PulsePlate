@@ -4947,6 +4947,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Search bootstrap owns transport configuration instead of hidden module-level state
     - Tests cover connection reuse and shutdown cleanup without changing `/api/v1/foods*` contracts
 
+<a id="ledger-p2-search-pgtrgm-candidate-generation"></a>
+- [ ] P2: Search PostgreSQL `pg_trgm` candidate generation lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-PGTRGM-CANDIDATES
+  - Area: backend / search
+  - Finding Type: deferred hybrid-search rollout
+  - Reason: This PR intentionally preserves SQLite/FTS as the live baseline and adds Meili shadow mode only. PostgreSQL `pg_trgm` candidate generation remains deferred until PostgreSQL is promoted to the canonical search-adjacent store.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/services/food_store.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - `pg_trgm` candidate generation exists behind additive strategy routing with deterministic fallback
+    - Relevance and latency tests cover candidate generation for representative food queries
+    - `/api/v1/foods*` contracts remain unchanged and shadow divergence is observable
+
+<a id="ledger-p2-search-zero-downtime-swap-orchestration"></a>
+- [ ] P2: Search zero-downtime swap orchestration lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-ZERO-DOWNTIME-SWAP
+  - Area: backend / search / ops
+  - Finding Type: deferred indexing-orchestration rollout
+  - Reason: This foundation PR adds deterministic indexing helpers only. The admin/orchestration surface for build-validate-warm-swap cleanup remains deferred until Meili shadow rollout is proven and operational safeguards are specified.
+  - Links:
+    - `app/services/food_search_indexing.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - Offline build-validate-warm-swap workflow is implemented with deterministic commands or admin surface
+    - Swap orchestration is tested against `*_v2` indexes without changing public food API contracts
+    - Grace-period cleanup and rollback-safe recovery are documented and covered by tests
+
 
 - [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya
