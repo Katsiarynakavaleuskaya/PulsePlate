@@ -167,6 +167,41 @@ This contract defines **what "success" means** for each agent task class. It ena
 
 ---
 
+### 2.6 Creative Research (`creative_research`)
+
+**Goal:** Run a governed creativity / discovery cycle inside the existing experimentation lane without creating runtime or governance drift.
+
+**Success Criteria:**
+
+| # | Criterion | Gate / Evidence |
+|---|-----------|-----------------|
+| 1 | Task uses the experimentation umbrella, not a competing framework | `AGENT_EXPERIMENTATION_PROTOCOL.md` + `CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md` linked |
+| 2 | Phase outputs are explicit | Divergence, convergence, and verification artifacts exist |
+| 3 | Hypothesis contract is complete for promoted candidates | `claim`, `mechanism`, `evidence_needed`, `falsifier`, `confidence`, `known_risks`, `wellness_boundary`, `promotion_decision` |
+| 4 | Scorecard contract is complete for verified candidates | Scorecard fields are present with explicit `promote` / `defer` / `discard` |
+| 5 | Missing discovery fields trigger downgrade | Candidate lacking `mechanism`, `falsifier`, or `evidence_needed` is labeled `creative_ideation` |
+| 6 | Next PR scope is explicit | Packet includes files, tests, docs, gates, and human review requirement |
+| 7 | Deferred work is ledgered immediately | `docs/roadmap/BACKLOG_LEDGER.md` updated when applicable |
+| 8 | PR wave boundaries are preserved | PR-A docs-only; PR-B offline eval only; PR-C internal-only pilot |
+
+**Recall Checklist (optional):**
+
+- [ ] Used coordinator-first routing and explicit sync points
+- [ ] Applied Diverger / Synthesizer / Skeptic / Verifier handoffs explicitly
+- [ ] Preserved human-gated chaining
+- [ ] Preserved no-hidden-memory and no-autonomous-merge boundaries
+- [ ] Preserved no new public heavy LLM endpoint on the core path
+
+**Failure modes to avoid:**
+
+- Rewriting experimentation rules in sub-lane docs
+- Treating ideation as discovery without falsifier/evidence plan
+- Expanding the lane into public runtime in PR-A or PR-B
+- Introducing orchestration telemetry sprawl during PR-C planning
+- Leaving deferred follow-ups outside the ledger
+
+---
+
 ## 3. Common Gates (All Task Classes)
 
 These gates apply to **all** agent tasks:

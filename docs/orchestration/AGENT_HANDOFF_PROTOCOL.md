@@ -195,6 +195,41 @@ See `PARALLEL_WORK_PROTOCOL.md` for parallel execution rules.
 
 ---
 
+## Creative Research Handoff Packet
+
+Use this extension when the task class is `creative_research`.
+
+```markdown
+## Handoff to [Agent B]
+
+**Creative Research Phase:**
+- Phase: `divergence` | `convergence` | `verification`
+- Current outcome target: `promote` | `defer` | `discard`
+
+**Hypothesis contract status:**
+- claim:
+- mechanism:
+- evidence_needed:
+- falsifier:
+- confidence:
+- known_risks:
+- wellness_boundary:
+- promotion_decision:
+
+**What Agent B must return:**
+- Updated hypothesis contract fields
+- Scorecard fields touched in this phase
+- Any downgrade to `creative_ideation`
+- Next PR packet inputs if this phase completes the cycle
+```
+
+Critical:
+
+- The receiving agent must not improvise new governance rules in the handoff.
+- If the phase discovers deferred work, it must be returned with a ledger-ready block.
+
+---
+
 ## Verification Checklist
 
 Before accepting a handoff, the receiving agent must verify:

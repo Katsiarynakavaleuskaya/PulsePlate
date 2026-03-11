@@ -5500,6 +5500,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
 
+<a id="ledger-p1-creative-research-eval-lane"></a>
+- [ ] P1: Creative research eval lane under governed experimentation epic
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (research moat, bounded discovery workflow)
+  - Target PR: PR_TBD_CREATIVE_RESEARCH_PROTOCOL -> PR_TBD_CREATIVE_RESEARCH_EVAL -> PR_TBD_CREATIVE_RESEARCH_INTERNAL_PILOT
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+  - Reason (EN): PulsePlate needs one governed `creative_research` sub-lane for divergence -> convergence -> verification -> promotion cycles, but it must remain inside the existing experimentation umbrella instead of becoming a second orchestration constitution. The lane should strengthen the Research / Differentiation contour, stay human-gated, and avoid public runtime exposure in wave 1.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+  - DoD:
+    - PR-A lands docs-only protocol and routing/evaluation/handoff visibility for `creative_research`
+    - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration
+    - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
+    - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
+
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
   - Owner: @katsiaryna_kavaleuskaya

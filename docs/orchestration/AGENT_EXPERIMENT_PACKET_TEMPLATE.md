@@ -92,3 +92,41 @@ Choose exactly one:
 - Relevant links:
 - Target PR:
 - DoD:
+
+---
+
+## Creative Research Extension (`task_class=creative_research`)
+
+- **Phase:** `divergence` | `convergence` | `verification`
+- **Valid output class:** `mechanistic_hypothesis` | `experimental_proposal` | `anomaly_explanation_candidate` | `creative_ideation`
+
+### Hypothesis Contract
+
+- `claim`:
+- `mechanism`:
+- `evidence_needed`:
+- `falsifier`:
+- `confidence`:
+- `known_risks`:
+- `wellness_boundary`:
+- `promotion_decision`:
+
+### Scorecard Contract
+
+- `originality`:
+- `flexibility`:
+- `mechanism_specificity`:
+- `groundedness`:
+- `falsifiability`:
+- `wellness_safety`:
+- `hallucination_risk`:
+- `promotion_decision`:
+
+### Next PR Packet
+
+- `next_pr_scope`:
+- `candidate_paths`:
+- `required_tests`:
+- `required_docs`:
+- `quality_gates`:
+- `human_review_required`:
