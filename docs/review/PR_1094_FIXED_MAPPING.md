@@ -17,6 +17,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#pullrequestreview-3926928761 -> cc855af7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#pullrequestreview-3926959978 -> cc855af7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#pullrequestreview-3927011461 -> cc855af7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#pullrequestreview-3927513945 -> 0db22951
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2915924073 -> cc855af7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2915924076 -> cc855af7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2915924080 -> cc855af7
@@ -38,6 +39,10 @@ Evidence: `app/middleware/request_telemetry.py:285`; `app/middleware/request_tel
 Disposition: FIXED
 Commit: cc855af7
 Evidence: `app/middleware/request_telemetry.py:39`; `app/middleware/request_telemetry.py:112`; `app/middleware/request_telemetry.py:152`; `app/middleware/request_telemetry.py:334`; `app/middleware/request_telemetry.py:399`; `app/telemetry/detectors.py:36`; `app/telemetry/reservoir.py:28`; `app/telemetry/vault.py:61`; `deploy/otelcol/collector.yaml:7`; `docs/roadmap/BACKLOG_LEDGER.md:213`; `tests/test_request_telemetry_foundation.py:68`; `tests/test_request_telemetry_foundation.py:102`; `tests/test_request_telemetry_foundation.py:124`; `tests/test_request_telemetry_foundation.py:216`; `tests/test_request_telemetry_foundation.py:331`; `tests/test_request_telemetry_foundation.py:370`
+
+Disposition: FIXED
+Commit: 0db22951
+Evidence: `app/telemetry/vault.py:57`; `tests/test_request_telemetry_foundation.py:206`; `tests/test_request_telemetry_foundation.py:231`; `tests/test_request_telemetry_foundation.py:287`
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
