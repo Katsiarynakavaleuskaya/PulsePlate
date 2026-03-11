@@ -516,6 +516,39 @@ class TestPhilosophicalRuntime:
             )
             is True
         )
+        assert (
+            runtime._should_rewrite(
+                decision=decision,
+                verification_report=VerificationReport(
+                    verification_rate=0.69, unverified_claims=[]
+                ),
+                falsification_report=FalsificationReport(
+                    falsifiability_rate=0.9,
+                    unfalsifiable_claims=[],
+                ),
+                contradiction_count=0,
+                answer="Answer without retrieved context.",
+                query="How much protein should I eat?",
+                pragmatic_enabled=False,
+                rag_used=False,
+            )
+            is False
+        )
+        assert (
+            runtime._should_use_conservative_fallback(
+                decision=decision,
+                verification_report=VerificationReport(
+                    verification_rate=0.95, unverified_claims=[]
+                ),
+                falsification_report=FalsificationReport(
+                    falsifiability_rate=0.69,
+                    unfalsifiable_claims=[],
+                ),
+                contradiction_count=0,
+                rag_used=True,
+            )
+            is True
+        )
         assert "medical diagnosis" in runtime._build_conservative_fallback(
             RouteDecision(
                 route_type=RouteType.SAFE_WELLNESS_DISCLAIMER,
@@ -579,6 +612,41 @@ class TestPhilosophicalRuntime:
         assert "rag_recursive_path" in result.metadata.reason_codes
         assert "verification_first_rewrite" not in result.metadata.reason_codes
         assert "verification_first_fallback" not in result.metadata.reason_codes
+
+    async def test_recursive_rag_reason_code_surfaces_without_phase12(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="Evidence-based recovery guidance.")
+
+        async def _rag_retriever(
+            *args: object, **kwargs: object
+        ) -> runtime_mod.rag_orchestration.RAGOrchestrationResult:
+            del args, kwargs
+            return runtime_mod.rag_orchestration.RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="Evidence-backed prompt",
+                rag_actually_used=True,
+                confidence=0.84,
+                hops=2,
+                latency_ms=41,
+            )
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            rag_retriever=_rag_retriever,
+        )
+
+        assert provider.calls == 1
+        assert "rag_recursive_path" in result.metadata.reason_codes
+        assert "verification_first_rewrite" not in result.metadata.reason_codes
 
     async def test_rag_backed_answer_rewrites_once_then_succeeds(self) -> None:
         runtime = PhilosophicalRuntime()

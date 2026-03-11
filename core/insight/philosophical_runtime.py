@@ -471,13 +471,13 @@ class PhilosophicalRuntime:
                     falsification_report = None
                     contradiction_count = 0
                     fallback_reason = "phase12_validation"
-            runtime_reason_codes = self._build_runtime_reason_codes(
-                decision=decision,
-                rag_used=rag_used,
-                recursive_rag_enabled=recursive_rag_enabled,
-                rewrite_count=rewrite_count,
-                fallback_reason=fallback_reason,
-            )
+        runtime_reason_codes = self._build_runtime_reason_codes(
+            decision=decision,
+            rag_used=rag_used,
+            recursive_rag_enabled=recursive_rag_enabled,
+            rewrite_count=rewrite_count,
+            fallback_reason=fallback_reason,
+        )
 
         tokens_saved_estimate = _estimate_tokens_saved(
             prompt_text=prompt_text,
@@ -605,11 +605,6 @@ class PhilosophicalRuntime:
             )
             if pragmatic.practically_useful and contradiction_count == 0:
                 return False
-        if decision.route_type in {RouteType.RAG_FACTUAL, RouteType.DEEP_REASONING}:
-            return bool(
-                verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
-                or falsification_report.falsifiability_rate < _VERIFICATION_FIRST_THRESHOLD
-            )
         return False
 
     def _should_use_conservative_fallback(
@@ -627,7 +622,10 @@ class PhilosophicalRuntime:
         if falsification_report.falsifiability_rate < _BASELINE_VALIDATION_THRESHOLD:
             return True
         if self._is_verification_first_path(decision=decision, rag_used=rag_used):
-            return verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
+            return bool(
+                verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
+                or falsification_report.falsifiability_rate < _VERIFICATION_FIRST_THRESHOLD
+            )
         return verification_report.verification_rate < _BASELINE_VALIDATION_THRESHOLD
 
     def _is_verification_first_path(self, *, decision: RouteDecision, rag_used: bool) -> bool:

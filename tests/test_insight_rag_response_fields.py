@@ -354,6 +354,7 @@ class TestInsightV1RAGFields:
         )
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert provider.calls == 2
         assert data["rag_used"] is True
