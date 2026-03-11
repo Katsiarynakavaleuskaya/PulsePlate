@@ -8,6 +8,15 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3927927758 -> 22389979
   Disposition: FIXED
   Commit: 22389979
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#discussion_r2916851304 -> 22389979
+  Disposition: FIXED
+  Commit: 22389979
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#discussion_r2916851307 -> 22389979
+  Disposition: FIXED
+  Commit: 22389979
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#discussion_r2916852142 -> 22389979
+  Disposition: FIXED
+  Commit: 22389979
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3927952972 -> 22389979
   Disposition: FIXED
   Commit: 22389979
@@ -26,6 +35,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3928509992 -> 1d3aee0d
   Disposition: FIXED
   Commit: 1d3aee0d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#discussion_r2917620751 -> 095e4875
+  Disposition: FIXED
+  Commit: 095e4875
 
 ## Merge Readiness
 - [ ] Local `pre-commit run --all-files`
