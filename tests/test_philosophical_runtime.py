@@ -44,6 +44,20 @@ class _StaticProvider:
         return self.response
 
 
+@dataclass
+class _SequenceProvider:
+    """Provider stub that returns a deterministic sequence of responses."""
+
+    responses: list[str]
+    name: str = "sequence"
+    calls: int = 0
+
+    async def generate(self, text: str) -> str:
+        index = min(self.calls, len(self.responses) - 1)
+        self.calls += 1
+        return self.responses[index]
+
+
 class TestPhilosophicalQueryRouter:
     """Router should select cheap deterministic routes when possible."""
 
@@ -426,6 +440,7 @@ class TestPhilosophicalRuntime:
             answer="Use 20-30 grams.",
             query="How much protein should I eat?",
             pragmatic_enabled=False,
+            rag_used=True,
         )
         assert runtime._should_rewrite(
             decision=decision,
@@ -438,6 +453,7 @@ class TestPhilosophicalRuntime:
             answer="Contradictory answer",
             query="How much protein should I eat?",
             pragmatic_enabled=False,
+            rag_used=True,
         )
         assert (
             runtime._should_rewrite(
@@ -451,8 +467,54 @@ class TestPhilosophicalRuntime:
                 answer="First, try a simple breakfast routine that matches your goal.",
                 query="What breakfast routine should I try?",
                 pragmatic_enabled=True,
+                rag_used=False,
             )
             is False
+        )
+        assert (
+            runtime._should_use_conservative_fallback(
+                decision=decision,
+                verification_report=VerificationReport(
+                    verification_rate=0.69, unverified_claims=[]
+                ),
+                falsification_report=FalsificationReport(
+                    falsifiability_rate=0.9,
+                    unfalsifiable_claims=[],
+                ),
+                contradiction_count=0,
+                rag_used=True,
+            )
+            is True
+        )
+        assert (
+            runtime._should_use_conservative_fallback(
+                decision=decision,
+                verification_report=VerificationReport(
+                    verification_rate=0.95, unverified_claims=[]
+                ),
+                falsification_report=FalsificationReport(
+                    falsifiability_rate=0.95,
+                    unfalsifiable_claims=[],
+                ),
+                contradiction_count=1,
+                rag_used=True,
+            )
+            is True
+        )
+        assert (
+            runtime._should_use_conservative_fallback(
+                decision=decision,
+                verification_report=VerificationReport(
+                    verification_rate=0.49, unverified_claims=[]
+                ),
+                falsification_report=FalsificationReport(
+                    falsifiability_rate=0.95,
+                    unfalsifiable_claims=[],
+                ),
+                contradiction_count=0,
+                rag_used=False,
+            )
+            is True
         )
         assert "medical diagnosis" in runtime._build_conservative_fallback(
             RouteDecision(
@@ -465,6 +527,179 @@ class TestPhilosophicalRuntime:
             ),
             lang="en",
         )
+
+    async def test_rag_backed_answer_with_sufficient_evidence_skips_rewrite(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="Evidence-based recovery guidance.")
+
+        async def _rag_retriever(
+            *args: object, **kwargs: object
+        ) -> runtime_mod.rag_orchestration.RAGOrchestrationResult:
+            del args, kwargs
+            return runtime_mod.rag_orchestration.RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="Evidence-backed prompt",
+                rag_actually_used=True,
+                confidence=0.84,
+                hops=2,
+                latency_ms=41,
+            )
+
+        runtime._verification = SimpleNamespace(
+            validate=lambda answer, citations: VerificationReport(
+                verification_rate=0.85,
+                unverified_claims=[],
+            )
+        )
+        runtime._falsification = SimpleNamespace(
+            validate=lambda answer: FalsificationReport(
+                falsifiability_rate=0.9,
+                unfalsifiable_claims=[],
+            )
+        )
+        runtime._contradictions = SimpleNamespace(count=lambda answer: 0)
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            rag_retriever=_rag_retriever,
+        )
+
+        assert provider.calls == 1
+        assert result.provider_name == "static"
+        assert result.metadata.verification_rate == 0.85
+        assert "rag_recursive_path" in result.metadata.reason_codes
+        assert "verification_first_rewrite" not in result.metadata.reason_codes
+        assert "verification_first_fallback" not in result.metadata.reason_codes
+
+    async def test_rag_backed_answer_rewrites_once_then_succeeds(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _SequenceProvider(
+            responses=[
+                "Draft answer with weak evidence.",
+                "Rewritten answer with clearer evidence.",
+            ]
+        )
+
+        async def _rag_retriever(
+            *args: object, **kwargs: object
+        ) -> runtime_mod.rag_orchestration.RAGOrchestrationResult:
+            del args, kwargs
+            return runtime_mod.rag_orchestration.RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="Evidence-backed prompt",
+                rag_actually_used=True,
+                confidence=0.78,
+                hops=2,
+                latency_ms=39,
+            )
+
+        verification_reports = iter(
+            [
+                VerificationReport(verification_rate=0.6, unverified_claims=[]),
+                VerificationReport(verification_rate=0.8, unverified_claims=[]),
+            ]
+        )
+        runtime._verification = SimpleNamespace(
+            validate=lambda answer, citations: next(verification_reports)
+        )
+        runtime._falsification = SimpleNamespace(
+            validate=lambda answer: FalsificationReport(
+                falsifiability_rate=0.9,
+                unfalsifiable_claims=[],
+            )
+        )
+        runtime._contradictions = SimpleNamespace(count=lambda answer: 0)
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            rag_retriever=_rag_retriever,
+        )
+
+        assert provider.calls == 2
+        assert result.provider_name == "sequence"
+        assert result.metadata.verification_rate == 0.8
+        assert "rag_recursive_path" in result.metadata.reason_codes
+        assert "verification_first_rewrite" in result.metadata.reason_codes
+        assert "verification_first_fallback" not in result.metadata.reason_codes
+
+    async def test_rag_backed_answer_falls_back_after_failed_rewrite(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _SequenceProvider(
+            responses=[
+                "Draft answer with weak evidence.",
+                "Still weak after rewrite.",
+            ]
+        )
+
+        async def _rag_retriever(
+            *args: object, **kwargs: object
+        ) -> runtime_mod.rag_orchestration.RAGOrchestrationResult:
+            del args, kwargs
+            return runtime_mod.rag_orchestration.RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="Evidence-backed prompt",
+                rag_actually_used=True,
+                confidence=0.71,
+                hops=2,
+                latency_ms=44,
+            )
+
+        verification_reports = iter(
+            [
+                VerificationReport(verification_rate=0.6, unverified_claims=[]),
+                VerificationReport(verification_rate=0.69, unverified_claims=[]),
+            ]
+        )
+        runtime._verification = SimpleNamespace(
+            validate=lambda answer, citations: next(verification_reports)
+        )
+        runtime._falsification = SimpleNamespace(
+            validate=lambda answer: FalsificationReport(
+                falsifiability_rate=0.9,
+                unfalsifiable_claims=[],
+            )
+        )
+        runtime._contradictions = SimpleNamespace(count=lambda answer: 0)
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=True,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            rag_retriever=_rag_retriever,
+        )
+
+        assert provider.calls == 2
+        assert result.provider_name == "philosophical_runtime"
+        assert "safest concise answer" in result.insight
+        assert result.metadata.verification_rate is None
+        assert "rag_recursive_path" in result.metadata.reason_codes
+        assert "verification_first_rewrite" in result.metadata.reason_codes
+        assert "verification_first_fallback" in result.metadata.reason_codes
 
     async def test_resolve_local_direct_answer_handles_missing_and_valid_bmi_inputs(self) -> None:
         runtime = PhilosophicalRuntime()

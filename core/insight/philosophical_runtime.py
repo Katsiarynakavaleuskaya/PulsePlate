@@ -38,6 +38,8 @@ from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
+_VERIFICATION_FIRST_THRESHOLD = 0.7
+_BASELINE_VALIDATION_THRESHOLD = 0.5
 _DEFINITION_TEMPLATES = {
     "en": {
         "bmi": "BMI stands for body mass index. It estimates body size by comparing weight to height.",
@@ -426,6 +428,7 @@ class PhilosophicalRuntime:
         verification_report: VerificationReport | None = None
         falsification_report: FalsificationReport | None = None
         contradiction_count = 0
+        runtime_reason_codes = list(decision.reason_codes)
 
         if philosophy_phase12_enabled:
             citations = [item["file"] for item in rag_source_dicts]
@@ -440,6 +443,7 @@ class PhilosophicalRuntime:
                 answer=answer,
                 query=text,
                 pragmatic_enabled=philosophy_pragmatic_enabled,
+                rag_used=rag_used,
             ):
                 rewrite_count = 1
                 rewrite_prompt = self._build_rewrite_prompt(
@@ -454,10 +458,12 @@ class PhilosophicalRuntime:
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
                 contradiction_count = self._contradictions.count(answer)
-                if (
-                    contradiction_count > 0
-                    or verification_report.verification_rate < 0.5
-                    or falsification_report.falsifiability_rate < 0.5
+                if self._should_use_conservative_fallback(
+                    decision=decision,
+                    verification_report=verification_report,
+                    falsification_report=falsification_report,
+                    contradiction_count=contradiction_count,
+                    rag_used=rag_used,
                 ):
                     answer = self._build_conservative_fallback(decision, lang=lang)
                     final_provider_name = "philosophical_runtime"
@@ -465,6 +471,13 @@ class PhilosophicalRuntime:
                     falsification_report = None
                     contradiction_count = 0
                     fallback_reason = "phase12_validation"
+            runtime_reason_codes = self._build_runtime_reason_codes(
+                decision=decision,
+                rag_used=rag_used,
+                recursive_rag_enabled=recursive_rag_enabled,
+                rewrite_count=rewrite_count,
+                fallback_reason=fallback_reason,
+            )
 
         tokens_saved_estimate = _estimate_tokens_saved(
             prompt_text=prompt_text,
@@ -501,7 +514,7 @@ class PhilosophicalRuntime:
                         else falsification_report.falsifiability_rate
                     ),
                     contradiction_count=contradiction_count,
-                    reason_codes=list(decision.reason_codes),
+                    reason_codes=runtime_reason_codes,
                     optimization_applied=decision.optimization_applied,
                 )
                 if public_metadata_enabled
@@ -570,14 +583,20 @@ class PhilosophicalRuntime:
         answer: str,
         query: str,
         pragmatic_enabled: bool,
+        rag_used: bool,
     ) -> bool:
         """Decide if one rewrite attempt is justified."""
         if contradiction_count > 0:
             return True
-        if verification_report.verification_rate < 0.5:
+        if verification_report.verification_rate < _BASELINE_VALIDATION_THRESHOLD:
             return True
-        if falsification_report.falsifiability_rate < 0.5:
+        if falsification_report.falsifiability_rate < _BASELINE_VALIDATION_THRESHOLD:
             return True
+        if self._is_verification_first_path(decision=decision, rag_used=rag_used):
+            return bool(
+                verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
+                or falsification_report.falsifiability_rate < _VERIFICATION_FIRST_THRESHOLD
+            )
         if pragmatic_enabled:
             pragmatic = self._pragmatic.assess(
                 answer,
@@ -588,10 +607,61 @@ class PhilosophicalRuntime:
                 return False
         if decision.route_type in {RouteType.RAG_FACTUAL, RouteType.DEEP_REASONING}:
             return bool(
-                verification_report.verification_rate < 0.7
-                or falsification_report.falsifiability_rate < 0.7
+                verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
+                or falsification_report.falsifiability_rate < _VERIFICATION_FIRST_THRESHOLD
             )
         return False
+
+    def _should_use_conservative_fallback(
+        self,
+        *,
+        decision: RouteDecision,
+        verification_report: VerificationReport,
+        falsification_report: FalsificationReport,
+        contradiction_count: int,
+        rag_used: bool,
+    ) -> bool:
+        """Return True when the repaired answer still fails the acceptance gate."""
+        if contradiction_count > 0:
+            return True
+        if falsification_report.falsifiability_rate < _BASELINE_VALIDATION_THRESHOLD:
+            return True
+        if self._is_verification_first_path(decision=decision, rag_used=rag_used):
+            return verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
+        return verification_report.verification_rate < _BASELINE_VALIDATION_THRESHOLD
+
+    def _is_verification_first_path(self, *, decision: RouteDecision, rag_used: bool) -> bool:
+        """Apply stricter verification only to RAG-backed factual/deep paths."""
+        return rag_used and decision.route_type in {
+            RouteType.RAG_FACTUAL,
+            RouteType.DEEP_REASONING,
+        }
+
+    def _build_runtime_reason_codes(
+        self,
+        *,
+        decision: RouteDecision,
+        rag_used: bool,
+        recursive_rag_enabled: bool,
+        rewrite_count: int,
+        fallback_reason: str,
+    ) -> list[str]:
+        """Build deterministic public reason codes for the executed runtime path."""
+        reason_codes = list(decision.reason_codes)
+        if rag_used and recursive_rag_enabled:
+            self._append_reason_code(reason_codes, "rag_recursive_path")
+        if self._is_verification_first_path(decision=decision, rag_used=rag_used):
+            if rewrite_count > 0:
+                self._append_reason_code(reason_codes, "verification_first_rewrite")
+            if fallback_reason == "phase12_validation":
+                self._append_reason_code(reason_codes, "verification_first_fallback")
+        return reason_codes
+
+    @staticmethod
+    def _append_reason_code(reason_codes: list[str], reason_code: str) -> None:
+        """Append a reason code once while preserving stable order."""
+        if reason_code not in reason_codes:
+            reason_codes.append(reason_code)
 
     def _build_conservative_fallback(self, decision: RouteDecision, *, lang: str | None) -> str:
         """Return a safe fallback when rewrite still fails."""

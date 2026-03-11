@@ -13,6 +13,8 @@ from typing import Any, Optional
 import pytest
 from fastapi.testclient import TestClient
 
+from core.insight import philosophical_runtime as runtime_mod
+
 
 @dataclass
 class _FakeRAGChunk:
@@ -130,6 +132,18 @@ class _EchoProvider:
 
     async def generate(self, text: str) -> str:
         return text
+
+
+@dataclass
+class _SequenceEchoProvider:
+    responses: list[str]
+    name: str = "echo-seq"
+    calls: int = 0
+
+    async def generate(self, text: str) -> str:
+        index = min(self.calls, len(self.responses) - 1)
+        self.calls += 1
+        return self.responses[index]
 
 
 class TestInsightV1RAGFields:
@@ -282,6 +296,71 @@ class TestInsightV1RAGFields:
         assert data["latency_ms"] == 55
         assert data["confidence"] == 0.82
         assert len(data["sources"]) == 1
+
+    def test_recursive_verification_reason_codes_surface_in_response(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        import llm
+
+        provider = _SequenceEchoProvider(
+            responses=[
+                "Draft answer with weak evidence.",
+                "Rewritten answer with stronger evidence.",
+            ]
+        )
+        verification_reports = iter([0.6, 0.8])
+
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_PHASE12", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
+        monkeypatch.setattr(llm, "get_provider", lambda: provider, raising=True)
+        monkeypatch.setattr(
+            "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
+            _make_fake_recursive_structured,
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.insight.philosophical_runtime.VerificationEnforcer.validate",
+            lambda self, answer, citations: runtime_mod.VerificationReport(
+                verification_rate=next(verification_reports),
+                unverified_claims=[],
+            ),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.insight.philosophical_runtime.FalsificationChecker.validate",
+            lambda self, answer: runtime_mod.FalsificationReport(
+                falsifiability_rate=0.9,
+                unfalsifiable_claims=[],
+            ),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            "core.insight.philosophical_runtime.NonContradictionChecker.count",
+            lambda self, answer: 0,
+            raising=True,
+        )
+
+        resp = client.post(
+            "/api/v1/insight",
+            json={"text": "How much protein should I eat for recovery?"},
+            headers=vip_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert provider.calls == 2
+        assert data["rag_used"] is True
+        assert data["verification_rate"] == 0.8
+        assert "rag_recursive_path" in data["reason_codes"]
+        assert "verification_first_rewrite" in data["reason_codes"]
+        assert "verification_first_fallback" not in data["reason_codes"]
 
     def test_insight_text_not_contaminated_by_source_headers(
         self,
