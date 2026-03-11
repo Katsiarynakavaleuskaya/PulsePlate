@@ -109,6 +109,17 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915185255; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915185258
 Reason: this CodeRabbit review entry is a summary shell for the child comments dispositioned above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915859928 -> 31ef7c86
+Disposition: FIXED
+Commit: 31ef7c86
+Evidence: app/telemetry/genai.py:195; app/telemetry/genai.py:204; app/telemetry/genai.py:213; app/telemetry/genai.py:248; app/telemetry/genai.py:269; tests/test_genai_tracing.py:217
+Reason: post-start span mutations now use best-effort wrappers for `set_attribute` and `add_event`, and the regression test proves a raising backend no longer breaks execution.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#pullrequestreview-3926888311
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915859928
+Reason: this CodeRabbit review entry is a summary shell for the actionable child thread dispositioned immediately above.
+
 ## Merge Readiness
 - [ ] Scope tied to PR objective
 - [ ] Docs/runtime changes applied
