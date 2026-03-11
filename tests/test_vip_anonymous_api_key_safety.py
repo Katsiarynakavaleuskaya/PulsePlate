@@ -16,6 +16,7 @@ def vip_anonymous_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
     for name in (
         "API_KEY",
         "APP_ENV",

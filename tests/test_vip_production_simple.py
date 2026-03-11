@@ -22,6 +22,7 @@ def vip_production_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep production-mode VIP tests isolated from ENVIRONMENT drift."""
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
