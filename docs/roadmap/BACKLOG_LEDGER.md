@@ -2151,6 +2151,60 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No performance regression: token issuing latency under 1 ms p99
   - Blockers: None (deferred by priority, not blocked)
 
+<a id="ledger-p1-external-food-source-policy-enforcement"></a>
+- [ ] P1: External food-source operating policy enforcement follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (data governance / legal-operating discipline)
+  - Target PR: PR-TBD-FOOD-SOURCE-POLICY-ENFORCEMENT
+  - Status: Not started
+  - Area: backend / legal-compliance / data platform
+  - Finding Type: provider operating-policy follow-up
+  - Reason: ODbL attribution is canonical for Open Food Facts and the food
+    platform strategy already names broader source tiers, but future ingestion
+    work still needs one explicit enforcement lane across USDA, Open Food Facts,
+    MenuStat-style datasets, and Nutritionix-style commercial providers so
+    technically reachable data is not treated as automatically safe to cache or
+    redistribute.
+  - Links:
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+    - `docs/legal/ODbL_COMPLIANCE.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `app/routers/pro_food_attribution.py`
+  - DoD:
+    - New provider onboarding checklist references the operating matrix before
+      runtime rollout
+    - Provider-specific docs exist whenever stricter rules are needed
+    - Attribution registry and docs stay aligned when new public-facing sources
+      are added
+    - No new external food/menu source ships without explicit cache and
+      redistribution decisions
+
+<a id="ledger-p1-color-profile-automation-parity"></a>
+- [ ] P1: Color-profile automation and parity evidence follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance)
+  - Target PR: PR-TBD-COLOR-PROFILE-AUTOMATION
+  - Status: Not started
+  - Area: frontend / ios / design-system / governance
+  - Finding Type: color-space policy follow-up
+  - Reason: Token governance and generated runtime mirrors are canonical, but
+    the repo still lacks deterministic automation for asset-profile checks and
+    screenshot parity evidence. This follow-through keeps the `sRGB` baseline
+    and optional `Display P3` asset lane from drifting into ad-hoc review
+    memory.
+  - Links:
+    - `docs/design/COLOR_PROFILE_GOVERNANCE.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `ios/PulsePlate/Extensions/Color+Assets.swift`
+  - DoD:
+    - Deterministic asset/profile audit lane exists
+    - Screenshot parity evidence contract is documented in an active design
+      review runbook
+    - `Display P3` exceptions require explicit fallback evidence
+    - No new runtime component-level color-space logic appears outside the
+      governed path
+
 
 ## Completed Items
 
@@ -2461,35 +2515,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Source attribution registry is centralized server-side (no client hardcoding)
     - Deterministic tests cover auth gate + contract payload
     - Compliance policy doc is merged and linked in backlog
-
-
-<a id="ledger-p1-external-food-source-policy-enforcement"></a>
-- [ ] P1: External food-source operating policy enforcement follow-through
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (data governance / legal-operating discipline)
-  - Target PR: PR-TBD-FOOD-SOURCE-POLICY-ENFORCEMENT
-  - Status: Not started
-  - Area: backend / legal-compliance / data platform
-  - Finding Type: provider operating-policy follow-up
-  - Reason: ODbL attribution is canonical for Open Food Facts and the food
-    platform strategy already names broader source tiers, but future ingestion
-    work still needs one explicit enforcement lane across USDA, Open Food Facts,
-    MenuStat-style datasets, and Nutritionix-style commercial providers so
-    technically reachable data is not treated as automatically safe to cache or
-    redistribute.
-  - Links:
-    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
-    - `docs/legal/ODbL_COMPLIANCE.md`
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-    - `app/routers/pro_food_attribution.py`
-  - DoD:
-    - New provider onboarding checklist references the operating matrix before
-      runtime rollout
-    - Provider-specific docs exist whenever stricter rules are needed
-    - Attribution registry and docs stay aligned when new public-facing sources
-      are added
-    - No new external food/menu source ships without explicit cache and
-      redistribution decisions
 
 
 - [x] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
@@ -3975,33 +4000,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Generated iOS mirror exists as `DesignTokens.generated.swift` behind the stable public facade
     - ✅ Parity and determinism checks cover `/tokens -> web/iOS mirrors`
     - ✅ CI token pipeline lane and merge-governance documentation are merged and review-mapped
-
-
-<a id="ledger-p1-color-profile-automation-parity"></a>
-- [ ] P1: Color-profile automation and parity evidence follow-through
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (design-system governance)
-  - Target PR: PR-TBD-COLOR-PROFILE-AUTOMATION
-  - Status: Not started
-  - Area: frontend / ios / design-system / governance
-  - Finding Type: color-space policy follow-up
-  - Reason: Token governance and generated runtime mirrors are canonical, but
-    the repo still lacks deterministic automation for asset-profile checks and
-    screenshot parity evidence. This follow-through keeps the `sRGB` baseline
-    and optional `Display P3` asset lane from drifting into ad-hoc review
-    memory.
-  - Links:
-    - `docs/design/COLOR_PROFILE_GOVERNANCE.md`
-    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
-    - `docs/design/TOKENS_SOT.md`
-    - `ios/PulsePlate/Extensions/Color+Assets.swift`
-  - DoD:
-    - Deterministic asset/profile audit lane exists
-    - Screenshot parity evidence contract is documented in an active design
-      review runbook
-    - `Display P3` exceptions require explicit fallback evidence
-    - No new runtime component-level color-space logic appears outside the
-      governed path
 
 
 - [x] P1: Weekly-plan VIP alias hygiene and schema visibility
