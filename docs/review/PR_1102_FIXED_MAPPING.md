@@ -8,4 +8,3 @@
 Disposition: FIXED
 Commit: pending review feedback
 Evidence: Initial PR opened with local gates passed on commit `cad04727`. Review-thread dispositions will be recorded here as actionable feedback arrives.
-
