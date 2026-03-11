@@ -32,3 +32,10 @@ Evidence: `6cca2117` replaces machine-local absolute evidence links with portabl
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#discussion_r2917434439 -> 6cca2117
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#pullrequestreview-3928579976 -> 6cca2117
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `40e7602a` reopens the PR5 ledger item pending its docs-only normalization in `docs/roadmap/BACKLOG_LEDGER.md:5421`, removes the unresolved `PR_TBD` audit placeholder while adding raw stdout evidence in `docs/audit/EXPERIMENT_EXP_84ECC3C1E995.md:26`, and simplifies the redundant `cast(float, float("nan"))` to `float("nan")` in `tests/test_rag_orchestration.py:473`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#discussion_r2917683730 -> 40e7602a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1107#pullrequestreview-3928850055 -> 40e7602a
