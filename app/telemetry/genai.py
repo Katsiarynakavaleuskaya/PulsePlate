@@ -192,11 +192,29 @@ def current_request_id() -> str:
     return _REQUEST_ID.get() or new_request_id()
 
 
+def _safe_set_attribute(span: Any, key: str, value: Any) -> None:
+    """Best-effort wrapper for span attribute writes."""
+
+    try:
+        span.set_attribute(key, value)
+    except Exception:
+        logger.debug("Span attribute application failed for key=%s", key, exc_info=True)
+
+
+def _safe_add_event(span: Any, name: str, attributes: dict[str, Any]) -> None:
+    """Best-effort wrapper for span event writes."""
+
+    try:
+        span.add_event(name, attributes)
+    except Exception:
+        logger.debug("Span event emission failed for name=%s", name, exc_info=True)
+
+
 def set_attributes(span: Any, **attrs: Any) -> None:
     """Apply only allowlisted attributes to a span."""
 
     for key, value in _sanitize_attrs(attrs).items():
-        span.set_attribute(key, value)
+        _safe_set_attribute(span, key, value)
 
 
 def set_prompt_fingerprint(span: Any, prompt_text: str) -> None:
@@ -235,7 +253,8 @@ def add_prompt_event(span: Any, prompt_text: str, *, role: str) -> None:
     name = "pulseplate.gen_ai.prompt"
     if name not in _ALLOWED_EVENT_NAMES:
         return
-    span.add_event(
+    _safe_add_event(
+        span,
         name,
         _sanitize_event_attrs(
             {
@@ -255,7 +274,8 @@ def add_completion_event(span: Any, completion_text: str) -> None:
     name = "pulseplate.gen_ai.completion"
     if name not in _ALLOWED_EVENT_NAMES:
         return
-    span.add_event(
+    _safe_add_event(
+        span,
         name,
         _sanitize_event_attrs(
             {

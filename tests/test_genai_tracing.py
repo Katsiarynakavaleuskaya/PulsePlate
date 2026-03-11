@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import logging
 from types import SimpleNamespace
 from typing import Any, Generator, Literal, Sequence
 
@@ -211,6 +212,32 @@ def test_prompt_and_completion_events_skip_when_not_allowlisted(
     add_completion_event(span, "hidden completion")
 
     assert span.events == []
+
+
+def test_span_mutation_helpers_swallow_post_start_backend_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Best-effort helper mutations must not break request execution."""
+
+    class _ExplodingSpan:
+        def set_attribute(self, _key: str, _value: Any) -> None:
+            raise RuntimeError("attr failed")
+
+        def add_event(self, _name: str, _attributes: dict[str, Any] | None = None) -> None:
+            raise RuntimeError("event failed")
+
+    monkeypatch.setattr("app.telemetry.genai.tracing_is_enabled", lambda: True, raising=True)
+    monkeypatch.setenv("PULSE_OBS_HMAC_KEY", "test-genai-hmac-key")
+
+    with caplog.at_level(logging.DEBUG, logger="app.telemetry.genai"):
+        span = _ExplodingSpan()
+        set_attributes(span, **{REQUEST_ID_ATTR: "req-3"})
+        add_prompt_event(span, "hidden prompt", role="user")
+        add_completion_event(span, "hidden completion")
+
+    assert "Span attribute application failed" in caplog.text
+    assert "Span event emission failed" in caplog.text
 
 
 def test_tracing_middleware_handles_init_and_error_path_failures(
