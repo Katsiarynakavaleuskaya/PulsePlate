@@ -27,3 +27,8 @@ Evidence: `ee5aa57a` stores actual recursive-path execution in `core/rag/orchest
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918352786 -> ee5aa57a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918352789 -> ee5aa57a
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:31` and `docs/review/PR_1114_FIXED_MAPPING.md:32` already map the second CodeRabbit wave's actionable inline comments to `ee5aa57a`, so the aggregate review-status URL below is a mirror of those same items rather than a separate unresolved change request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#pullrequestreview-3929582286
