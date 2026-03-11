@@ -14,6 +14,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929291677 -> b8b3d337
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918157010 -> d98e4aa9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929369091 -> d98e4aa9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918318192 -> 51a2a9d3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929544372 -> 51a2a9d3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918212346
 Disposition: FIXED
 Commit: 95f618c0
@@ -34,6 +36,11 @@ Disposition: FIXED
 Commit: d98e4aa9
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:193`; `docs/roadmap/BACKLOG_LEDGER.md:1069`; `docs/roadmap/BACKLOG_LEDGER.md:1072`
 Reason: Reordered the two new open P1 follow-up items so they live inside the open `### P1` lane and above the existing `### P2` bucket, restoring the ledger's declared priority sort order.
+
+Disposition: FIXED
+Commit: 51a2a9d3
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:289`; `docs/roadmap/BACKLOG_LEDGER.md:343`
+Reason: Moved the two new governance follow-up entries into their theme-sorted positions inside the primary open `### P1` lane, placing the external food-source item next to backend/legal governance work and the color-profile item next to design-system governance work instead of appending both after the security tracker.
 
 Disposition: NOT-A-BUG
 Evidence: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2918212346`
