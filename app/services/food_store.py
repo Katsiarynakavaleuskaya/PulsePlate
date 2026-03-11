@@ -43,6 +43,7 @@ MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 FEATURE_FOOD_SEARCH_COMPAT_ENABLED = "FEATURE_FOOD_SEARCH_COMPAT_ENABLED"
 FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED = "FEATURE_FOOD_SEARCH_SEMANTIC_ENABLED"
+FOOD_SEARCH_BACKEND_STRATEGY = "FOOD_SEARCH_BACKEND_STRATEGY"
 FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT = "FOOD_SEARCH_SEMANTIC_CANDIDATE_LIMIT"
 DEFAULT_SEMANTIC_CANDIDATE_LIMIT = 250
 BARCODE_MIN_LEN = 8
@@ -395,6 +396,7 @@ class _BootstrapSemanticSearchBackend:
 _LEGACY_SEARCH_BACKEND: FoodSearchBackend = _LegacyFoodSearchBackend()
 _COMPAT_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEMANTIC_SEARCH_BACKEND: FoodSearchBackend | None = None
+_STRATEGY_SEARCH_BACKEND: FoodSearchBackend | None = None
 _SEARCH_BACKEND_LOCK = threading.Lock()
 
 
@@ -469,6 +471,15 @@ def _semantic_candidate_limit() -> int:
     return min(parsed, 5000)
 
 
+def get_search_backend_strategy() -> str:
+    """Return normalized backend strategy for additive search adapters."""
+
+    strategy = (os.getenv(FOOD_SEARCH_BACKEND_STRATEGY) or "baseline_fts").strip().lower()
+    if strategy not in {"baseline_fts", "meili", "hybrid_shadow"}:
+        return "baseline_fts"
+    return strategy
+
+
 def _load_semantic_candidates(limit: int) -> List[Dict[str, Any]]:
     """
     Load semantic candidate rows directly from foods table.
@@ -518,9 +529,29 @@ def register_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
         _COMPAT_SEARCH_BACKEND = adapter
 
 
+def register_strategy_search_backend_adapter(adapter: FoodSearchBackend | None) -> None:
+    """Register additive strategy search backend adapter."""
+
+    global _STRATEGY_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        _STRATEGY_SEARCH_BACKEND = adapter
+
+
 def reset_search_backend_adapter() -> None:
     """Reset compatibility search backend adapter to legacy-only state."""
     register_search_backend_adapter(None)
+
+
+def reset_strategy_search_backend_adapter() -> None:
+    """Reset additive strategy backend adapter."""
+
+    register_strategy_search_backend_adapter(None)
+
+
+def get_legacy_search_backend() -> FoodSearchBackend:
+    """Expose legacy backend for additive wrappers."""
+
+    return _LEGACY_SEARCH_BACKEND
 
 
 def get_search_backend() -> FoodSearchBackend:
@@ -532,6 +563,9 @@ def get_search_backend() -> FoodSearchBackend:
     with _SEARCH_BACKEND_LOCK:
         compat_backend = _COMPAT_SEARCH_BACKEND
         semantic_backend = _SEMANTIC_SEARCH_BACKEND
+        strategy_backend = _STRATEGY_SEARCH_BACKEND
+    if get_search_backend_strategy() != "baseline_fts" and strategy_backend is not None:
+        return strategy_backend
     if _use_semantic_search_backend():
         return _resolve_semantic_backend(semantic_backend=semantic_backend)
     if _use_compat_search_backend() and compat_backend is not None:
@@ -723,7 +757,7 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
           WHERE """
             + " OR ".join(
                 ["ff.canonical_name MATCH ?"] * len(terms)
-            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders
+            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders (remove-by: 2026-05-15, ref: PR-search-shadow-foundation)
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]
