@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 VOCABULARY_PATH = PROJECT_ROOT / "docs" / "design" / "ui_component_vocabulary.json"
@@ -45,7 +45,8 @@ RAW_HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b")
 
 
 def load_vocabulary_components() -> list[dict[str, Any]]:
-    return json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
+    payload = json.loads(VOCABULARY_PATH.read_text(encoding="utf-8"))
+    return cast(list[dict[str, Any]], payload)
 
 
 def canonical_component_names() -> set[str]:
@@ -73,7 +74,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         errors.append(f"Unsupported screen_id: {screen_id}")
 
     for field_name in ("surface", "layout_pattern", "background_token", "context_version"):
-        value = str(instruction.get(field_name, "")).strip()
+        raw_value = instruction.get(field_name, "")
+        value = str(raw_value).strip()
         if not value:
             errors.append(f"Empty {field_name}")
 

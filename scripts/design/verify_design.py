@@ -15,7 +15,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -36,7 +36,7 @@ def load_manifest() -> dict[str, Any]:
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
     with open(manifest_path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def load_instruction(screen_id: str) -> dict[str, Any]:
@@ -49,12 +49,12 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
     with open(instruction_path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
     """Verify a screen's design against its instruction."""
-    result = {
+    result: dict[str, Any] = {
         "screen_id": screen_id,
         "status": "unknown",
         "checks": [],

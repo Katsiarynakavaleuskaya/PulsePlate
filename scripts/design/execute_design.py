@@ -16,7 +16,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -37,12 +37,12 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Instruction file not found: {instruction_path}")
 
     with open(instruction_path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def validate_governance(instruction: dict[str, Any]) -> list[str]:
     """Validate instruction against governance rules."""
-    errors = validate_instruction_contract(instruction)
+    errors: list[str] = list(validate_instruction_contract(instruction))
     checks = instruction.get("governance_checks", [])
 
     # Token usage check

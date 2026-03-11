@@ -17,7 +17,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -67,6 +67,15 @@ class ScreenInstruction:
     context_version: str = ""
 
 
+class ScreenContentModel(TypedDict):
+    surface: str
+    layout_pattern: str
+    primary_components: list[str]
+    supporting_components: list[str]
+    states: list[str]
+    token_constraints: list[str]
+
+
 # Screen dimension presets
 SCREEN_DIMENSIONS = {
     "ios": {"width": 390, "height": 844},  # iPhone 14 Pro
@@ -83,7 +92,7 @@ PAGE_MAPPING = {
     "web.progress": "20_Web_Parity",
 }
 
-SCREEN_CONTENT_MODEL = {
+SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
     "ios.home": {
         "surface": "ios_home_screen",
         "layout_pattern": "hero-plus-quick-actions",
