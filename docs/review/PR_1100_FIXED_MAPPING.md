@@ -25,6 +25,16 @@ Disposition: FIXED
 Commit: b5b94237
 Evidence: `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md:69`; `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md:130`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1100#pullrequestreview-3927434096 -> 308dc14c
+Disposition: FIXED
+Commit: 308dc14c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1022`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1100#discussion_r2916384480 -> 308dc14c
+Disposition: FIXED
+Commit: 308dc14c
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1022`
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
