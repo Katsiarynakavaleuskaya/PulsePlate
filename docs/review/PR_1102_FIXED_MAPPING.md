@@ -6,5 +6,21 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: pending review feedback
-Evidence: Initial PR opened with local gates passed on commit `cad04727`. Review-thread dispositions will be recorded here as actionable feedback arrives.
+Commit: see mapping entries below
+Evidence: `fcbe3cfb` renames the audit artifact from `PR_TBD` to `PR_1102` in `docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md:1` and updates the active PR5 ledger entry to point at `#1102` and the new audit path in `docs/roadmap/BACKLOG_LEDGER.md:5384`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916582520 -> fcbe3cfb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916582525 -> fcbe3cfb
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `b9be3da5` normalizes CV hint detection through `normalize_text()` in `scripts/orchestration/experiment_contract.py:268`, removes the unused `_is_cv_experiment` wrapper in `scripts/orchestration/experiment_bootstrap.py:236`, and adds separator-normalization regression coverage in `tests/test_experiment_bootstrap.py:110`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916582526 -> b9be3da5
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `e4026349` adds explicit rollout/rollback instruction sync for the governed CV lane in `.cursor/agents/agent-coordinator.md:351` and `.cursor/agents/cv-agent.md:21`, satisfying the requested `docs(agents): update instructions` follow-up for the new orchestration behavior.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#discussion_r2916582524 -> e4026349
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1102#pullrequestreview-3927626055 -> e4026349
