@@ -7,10 +7,14 @@ from pathlib import Path
 
 import pytest
 
+from core.creative_research import _max_similarity
 from scripts.orchestration.creative_research_eval_contract import (
     _count_hints,
+    build_scorecard,
     classify_output,
     evaluate_bundle,
+    normalize_creative_research_text,
+    select_promotion_decision,
     validate_bundle,
 )
 
@@ -92,3 +96,142 @@ def test_classify_output_does_not_promote_substring_false_positives() -> None:
 
     assert output_class == "mechanistic_hypothesis"
     assert controls == []
+
+
+def test_normalize_text_and_similarity_cover_empty_inputs() -> None:
+    """Normalization and similarity helpers must stay deterministic on edge inputs."""
+
+    assert normalize_creative_research_text("A/B-test:_cohort", " compare(measure).") == (
+        "a b test cohort compare measure"
+    )
+    assert _count_hints("Measure cohort outcomes.", (".", "cohort")) == 1
+    assert _max_similarity(set(), [set(), {"signal"}]) == 0.0
+    assert _max_similarity({"signal"}, [set()]) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("bundle_mutator", "message"),
+    [
+        (lambda bundle: bundle.update({"phase": "chaos"}), "phase must be one of"),
+        (
+            lambda bundle: bundle.update({"reference_corpus": "not-a-list"}),
+            "reference_corpus must be a list",
+        ),
+        (
+            lambda bundle: bundle.update({"candidates": []}),
+            "candidates must be a non-empty list",
+        ),
+        (
+            lambda bundle: bundle["candidates"].__setitem__(0, "bad-candidate"),
+            "candidate #1 must be an object",
+        ),
+        (
+            lambda bundle: bundle["candidates"][0].update({"candidate_id": ""}),
+            "candidate_id",
+        ),
+    ],
+)
+def test_validate_bundle_rejects_additional_invalid_shapes(
+    bundle_mutator: object,
+    message: str,
+) -> None:
+    """Validation must fail closed on malformed bundles and candidates."""
+
+    bundle = _load_fixture("bundle_valid.json")
+    bundle_mutator(bundle)
+
+    with pytest.raises(ValueError, match=message):
+        validate_bundle(bundle)
+
+
+def test_validate_bundle_rejects_non_object_payload() -> None:
+    """Top-level payload must stay a JSON object."""
+
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        validate_bundle(["not", "a", "dict"])
+
+
+def test_build_scorecard_covers_controls_and_midrange_branches() -> None:
+    """Scorecard logic must cover duplicate, overlap, weak falsifier, and boundary branches."""
+
+    candidate = {
+        "candidate_id": "dup-mid",
+        "claim": "Weekend depletion may shape adherence.",
+        "mechanism": "Friction cues shape adherence under shifting routines.",
+        "evidence_needed": "Collect weekly meal logs with cohort notes.",
+        "falsifier": "Track weekly logs carefully.",
+        "confidence": "medium",
+        "known_risks": [],
+        "wellness_boundary": "Wellness support only.",
+    }
+
+    scorecard, controls = build_scorecard(
+        candidate,
+        output_class="mechanistic_hypothesis",
+        reference_overlap=0.8,
+        peer_overlap=0.85,
+        duplicate_candidate=True,
+    )
+
+    assert "duplicate_candidate" in controls
+    assert "corpus_overlap_high" in controls
+    assert "weak_falsifier" in controls
+    assert scorecard["flexibility"] == 0
+    assert scorecard["mechanism_specificity"] == 2
+    assert scorecard["groundedness"] == 3
+    assert scorecard["falsifiability"] == 1
+    assert scorecard["wellness_safety"] == 4
+
+
+def test_build_scorecard_covers_high_specificity_and_non_wellness_boundary() -> None:
+    """High-information candidates should hit the strong scoring branches deterministically."""
+
+    candidate = {
+        "candidate_id": "strong-signal",
+        "claim": "A structured fallback meal may improve adherence under time scarcity.",
+        "mechanism": (
+            "Because a predefined fallback sequence reduces switching friction, preserves planning "
+            "momentum, sustains a feedback loop, clarifies the next action, anchors an observable "
+            "cue, and reduces overload during evening decisions."
+        ),
+        "evidence_needed": "Observe meal completion after repeated fallback prompts.",
+        "falsifier": "Compare repeated null results despite cohort replication.",
+        "confidence": "low",
+        "known_risks": ["confounding"],
+        "wellness_boundary": "General lifestyle support.",
+    }
+
+    scorecard, controls = build_scorecard(
+        candidate,
+        output_class="mechanistic_hypothesis",
+        reference_overlap=0.15,
+        peer_overlap=0.22,
+        duplicate_candidate=False,
+    )
+
+    assert controls == []
+    assert scorecard["mechanism_specificity"] == 5
+    assert scorecard["groundedness"] == 3
+    assert scorecard["falsifiability"] == 4
+    assert scorecard["wellness_safety"] == 3
+
+
+def test_select_promotion_decision_returns_defer_for_safe_but_non_promotable_scores() -> None:
+    """Safe candidates that miss promotion thresholds must degrade to defer."""
+
+    decision, label = select_promotion_decision(
+        output_class="mechanistic_hypothesis",
+        scorecard={
+            "originality": 3,
+            "flexibility": 2,
+            "mechanism_specificity": 3,
+            "groundedness": 3,
+            "falsifiability": 3,
+            "wellness_safety": 5,
+            "hallucination_risk": 2,
+        },
+        negative_controls=[],
+    )
+
+    assert decision == "defer"
+    assert label == "interesting but unverified hypothesis"

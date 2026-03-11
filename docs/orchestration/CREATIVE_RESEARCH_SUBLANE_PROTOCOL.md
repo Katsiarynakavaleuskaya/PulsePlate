@@ -42,6 +42,7 @@ When a rule conflicts, the umbrella experimentation protocol wins.
 - Experiment packet template: `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
 - Offline eval overlay: `docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
 - Offline eval contract: `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
+- Internal pilot contract: `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
 - Parallel work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Handoff format: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`
