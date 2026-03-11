@@ -372,6 +372,57 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `deterministic_stub` is no longer described as the only implemented
       adapter
 
+<a id="ledger-p1-design-runtime-screen-coverage"></a>
+- [ ] P1: Design runtime screen coverage beyond initial six parity screens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime expansion)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-RUNTIME-SCREEN-COVERAGE
+  - Status: 📋 Deferred after PR #1117 contract hardening
+  - Area: scripts / design-runtime / design-docs
+  - Finding Type: deferred scope follow-up
+  - Reason: PR #1117 intentionally hardens the code-first vocabulary and
+    instruction contract around the first six parity screens only
+    (`ios.home`, `ios.plate`, `ios.progress`, `web.home`, `web.plate`,
+    `web.progress`). Additional governed screens must be promoted under the same
+    contract instead of being inferred ad hoc.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/instructions/`
+    - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - New screens are added through the same code-first brief and vocabulary
+      contract
+    - Instruction generation, execution, and verification remain deterministic
+      for each added screen
+    - Manifest/verification docs explicitly list the expanded supported-screen
+      surface
+
+<a id="ledger-p1-design-layout-archetype-templates"></a>
+- [ ] P1: Reusable layout archetype templates beyond current shell families
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-LAYOUT-ARCHETYPE-TEMPLATES
+  - Status: 📋 Deferred after PR #1117 contract hardening
+  - Area: scripts / design-runtime / docs
+  - Finding Type: deferred semantics follow-up
+  - Reason: PR #1117 formalizes `layout_archetype`, `layout_pattern`, and
+    section/component hierarchy semantics, but it intentionally keeps the first
+    archetype set small (`hero_shell`, `content_shell`, `dashboard_shell`).
+    Richer reusable archetype families and template semantics should be promoted
+    in a dedicated follow-up instead of expanding the contract implicitly.
+  - Links:
+    - `scripts/design/contracts.py`
+    - `scripts/design/generate_figma_instructions.py`
+    - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - Additional archetype families are named and documented in the cookbook and
+      runtime contract
+    - Validation enforces the promoted archetype set deterministically
+    - Screen-generation templates reuse the promoted archetypes without hidden
+      per-screen exceptions
+
 <a id="ledger-p1-design-token-lock-ci"></a>
 - [ ] P1: Design-token lockfile and deterministic CI/build contract
   - Owner: @katsiaryna_kavaleuskaya

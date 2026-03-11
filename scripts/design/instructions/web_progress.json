@@ -7,6 +7,15 @@
   "layout_pattern": "dashboard-detail-stack",
   "sections": [
     {
+      "section_id": "progress-header",
+      "name": "Progress header",
+      "role": "utility_actions",
+      "component_ids": [
+        "web-progress-header-utilities",
+        "node:web.progress.export_pdf"
+      ]
+    },
+    {
       "section_id": "progress-summary",
       "name": "Progress summary",
       "role": "summary_metrics",
@@ -22,8 +31,7 @@
       "name": "Recovery lane",
       "role": "state_recovery",
       "component_ids": [
-        "web-progress-recovery",
-        "node:web.progress.export_pdf"
+        "web-progress-recovery"
       ]
     }
   ],
@@ -36,6 +44,15 @@
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
       "source_ref": "static:web-progress-shell"
+    },
+    {
+      "component_id": "web-progress-header-utilities",
+      "canonical_component": "card",
+      "section_id": "progress-header",
+      "parent_component_id": "web-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "utility_cluster",
+      "source_ref": "static:web-progress-header-utilities"
     },
     {
       "component_id": "web-progress-stats",
@@ -76,8 +93,8 @@
     {
       "component_id": "node:web.progress.export_pdf",
       "canonical_component": "button",
-      "section_id": "progress-recovery",
-      "parent_component_id": "web-progress-recovery",
+      "section_id": "progress-header",
+      "parent_component_id": "web-progress-header-utilities",
       "hierarchy_level": 2,
       "semantic_role": "utility_cta",
       "source_ref": "cta:web.progress.export_pdf"
@@ -119,7 +136,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "WEB Progress Screen",
+      "name": "Web Progress Screen",
       "canonical_component": "card",
       "section_id": "progress-summary",
       "component_id": "web-progress-shell",
@@ -135,6 +152,17 @@
     },
     {
       "type": "create_frame",
+      "name": "web-progress-header-utilities",
+      "canonical_component": "card",
+      "section_id": "progress-header",
+      "component_id": "web-progress-header-utilities",
+      "parent_component_id": "web-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "utility_cluster",
+      "order": 1
+    },
+    {
+      "type": "create_frame",
       "name": "web-progress-stats",
       "canonical_component": "stats-card",
       "section_id": "progress-summary",
@@ -142,7 +170,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "summary_metrics",
-      "order": 1
+      "order": 2
     },
     {
       "type": "create_frame",
@@ -153,7 +181,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "trend_visualization",
-      "order": 2
+      "order": 3
     },
     {
       "type": "create_frame",
@@ -164,7 +192,7 @@
       "parent_component_id": "web-progress-chart",
       "hierarchy_level": 2,
       "semantic_role": "supporting_hint",
-      "order": 3
+      "order": 4
     },
     {
       "type": "create_frame",
@@ -175,7 +203,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "recovery_message",
-      "order": 4
+      "order": 5
     },
     {
       "type": "create_button",
@@ -194,12 +222,12 @@
         "error"
       ],
       "canonical_component": "button",
-      "section_id": "progress-recovery",
+      "section_id": "progress-header",
       "component_id": "node:web.progress.export_pdf",
-      "parent_component_id": "web-progress-recovery",
+      "parent_component_id": "web-progress-header-utilities",
       "hierarchy_level": 2,
       "semantic_role": "utility_cta",
-      "order": 5
+      "order": 6
     }
   ]
 }

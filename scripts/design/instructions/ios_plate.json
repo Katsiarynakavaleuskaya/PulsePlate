@@ -148,7 +148,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "IOS Plate Screen",
+      "name": "iOS Plate Screen",
       "canonical_component": "card",
       "section_id": "plate-summary",
       "component_id": "ios-plate-shell",

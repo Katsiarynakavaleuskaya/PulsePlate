@@ -77,7 +77,7 @@ class LayoutSectionSpec:
     section_id: str
     name: str
     role: str
-    component_ids: list[str]
+    component_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -128,6 +128,11 @@ class ScreenContentModel(TypedDict):
 SCREEN_DIMENSIONS = {
     "ios": {"width": 390, "height": 844},  # iPhone 14 Pro
     "web": {"width": 1440, "height": 900},  # Desktop
+}
+
+PLATFORM_DISPLAY_NAMES = {
+    "IOS": "iOS",
+    "WEB": "Web",
 }
 
 # Page mapping from governance index
@@ -555,6 +560,12 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "layout_pattern": "dashboard-detail-stack",
         "layout_sections": [
             {
+                "id": "progress-header",
+                "name": "Progress header",
+                "role": "utility_actions",
+                "components": ["card", "button"],
+            },
+            {
                 "id": "progress-summary",
                 "name": "Progress summary",
                 "role": "summary_metrics",
@@ -576,6 +587,15 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
                 "hierarchy_level": 0,
                 "semantic_role": "surface_shell",
                 "source_ref": "static:web-progress-shell",
+            },
+            {
+                "id": "web-progress-header-utilities",
+                "canonical_component": "card",
+                "section_id": "progress-header",
+                "parent_id": "web-progress-shell",
+                "hierarchy_level": 1,
+                "semantic_role": "utility_cluster",
+                "source_ref": "static:web-progress-header-utilities",
             },
             {
                 "id": "web-progress-stats",
@@ -614,8 +634,8 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
                 "source_ref": "static:web-progress-recovery",
             },
         ],
-        "cta_section_id": "progress-recovery",
-        "cta_parent_id": "web-progress-recovery",
+        "cta_section_id": "progress-header",
+        "cta_parent_id": "web-progress-header-utilities",
         "primary_components": ["progress", "button"],
         "supporting_components": ["stats-card", "tooltip", "alert"],
         "states": ["default", "loading", "empty", "error", "export-success"],
@@ -857,17 +877,21 @@ def get_ctas_for_screen(screen_id: str) -> list[CTASpec]:
     return [cta for cta_id, cta in CTA_REGISTRY.items() if cta_id.startswith(prefix)]
 
 
-def build_layout_sections(content_model: ScreenContentModel) -> list[LayoutSectionSpec]:
+def build_layout_sections(
+    content_model: ScreenContentModel,
+    component_tree: list[ComponentNodeSpec],
+) -> list[LayoutSectionSpec]:
     """Materialize layout sections for the instruction payload."""
+    component_ids_by_section: dict[str, list[str]] = {}
+    for node in component_tree:
+        component_ids_by_section.setdefault(node.section_id, []).append(node.component_id)
+
     return [
         LayoutSectionSpec(
             section_id=section["id"],
             name=section["name"],
             role=section["role"],
-            component_ids=[
-                f"{section['id']}:{component_name.replace('/', '-').replace(' ', '-')}"
-                for component_name in section["components"]
-            ],
+            component_ids=component_ids_by_section.get(section["id"], []),
         )
         for section in content_model["layout_sections"]
     ]
@@ -940,8 +964,8 @@ def generate_screen_instruction(screen_id: str) -> ScreenInstruction:
     if content_model is None:
         raise ValueError(f"No content model found for screen: {screen_id}")
 
-    layout_sections = build_layout_sections(content_model)
     component_tree = build_component_tree(content_model, ctas)
+    layout_sections = build_layout_sections(content_model, component_tree)
 
     return ScreenInstruction(
         screen_id=screen_id,
@@ -1016,7 +1040,10 @@ def build_sections_payload(instruction: ScreenInstruction) -> list[dict[str, Any
 def _frame_instruction_name(instruction: ScreenInstruction, node: ComponentNodeSpec) -> str:
     """Return a stable frame name for one component-hierarchy node."""
     if node.parent_component_id is None:
-        return f"{instruction.platform} {instruction.screen_id.split('.')[1].title()} Screen"
+        platform_name = PLATFORM_DISPLAY_NAMES.get(
+            instruction.platform, instruction.platform.title()
+        )
+        return f"{platform_name} {instruction.screen_id.split('.')[1].title()} Screen"
     return node.component_id
 
 

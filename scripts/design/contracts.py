@@ -243,11 +243,15 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                 )
 
             hierarchy_component_ids.add(component_id)
+            normalized_parent_component_id = (
+                None if parent_component_id in (None, "") else parent_component_id
+            )
             component_nodes[component_id] = {
                 "canonical_component": canonical_component,
                 "section_id": node_section_id,
-                "parent_component_id": parent_component_id,
+                "parent_component_id": normalized_parent_component_id,
                 "hierarchy_level": hierarchy_level,
+                "semantic_role": semantic_role,
             }
 
         for component_id, node in component_nodes.items():
@@ -290,6 +294,22 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                         f"{section_id} -> {component_id}"
                     )
 
+        for component_id, node in component_nodes.items():
+            node_section_id = str(node.get("section_id", "")).strip()
+            if not node_section_id:
+                continue
+            if node_section_id not in section_component_map:
+                errors.append(
+                    "component_hierarchy node references section missing from sections payload: "
+                    f"{node_section_id} -> {component_id}"
+                )
+                continue
+            if component_id not in section_component_map[node_section_id]:
+                errors.append(
+                    "component_hierarchy node missing from sections.component_ids: "
+                    f"{node_section_id} -> {component_id}"
+                )
+
     background_token = str(instruction.get("background_token", ""))
     if has_raw_hex(background_token):
         errors.append(f"Raw hex color used in background_token: {background_token}")
@@ -309,6 +329,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
 
     frame_count = 0
     frame_instruction_component_ids: set[str] = set()
+    button_instruction_component_ids: set[str] = set()
+    seen_instruction_targets: set[tuple[str, str]] = set()
     root_frame_count = 0
     for index, item in enumerate(instructions_list):
         if not isinstance(item, dict):
@@ -331,6 +353,12 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
             errors.append(
                 f"{item_type} at instructions[{index}] references unknown component_id: {component_id}"
             )
+        else:
+            instruction_target = (item_type, component_id)
+            if instruction_target in seen_instruction_targets:
+                errors.append(f"Duplicate {item_type} instruction for component_id: {component_id}")
+            else:
+                seen_instruction_targets.add(instruction_target)
 
         item_section_id = str(item.get("section_id", "")).strip()
         if not item_section_id:
@@ -359,6 +387,20 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
 
         hierarchy_node = component_nodes.get(component_id)
         if hierarchy_node is not None:
+            item_canonical_component = str(item.get("canonical_component", "")).strip()
+            if item_canonical_component != hierarchy_node.get("canonical_component"):
+                errors.append(
+                    f"{item_type} at instructions[{index}] canonical_component does not match "
+                    f"component_hierarchy for {component_id}"
+                )
+
+            item_semantic_role = str(item.get("semantic_role", "")).strip()
+            if item_semantic_role != hierarchy_node.get("semantic_role"):
+                errors.append(
+                    f"{item_type} at instructions[{index}] semantic_role does not match "
+                    f"component_hierarchy for {component_id}"
+                )
+
             if item_section_id and hierarchy_node.get("section_id") != item_section_id:
                 errors.append(
                     f"{item_type} at instructions[{index}] section_id does not match "
@@ -374,6 +416,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
             normalized_parent_component_id = (
                 None if parent_component_id in (None, "") else parent_component_id
             )
+            if expected_parent_component_id in (None, ""):
+                expected_parent_component_id = None
             if normalized_parent_component_id != expected_parent_component_id:
                 errors.append(
                     f"{item_type} at instructions[{index}] parent_component_id does not match "
@@ -394,6 +438,8 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
                 )
 
         if item_type == "create_button":
+            if component_id:
+                button_instruction_component_ids.add(component_id)
             cta_key = str(item.get("cta_key", "")).strip()
             if not cta_key:
                 errors.append(f"Button {item_name or index} missing cta_key")
@@ -440,6 +486,20 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
         errors.append(
             "Missing create_frame instructions for component_hierarchy nodes: "
             + ", ".join(missing_frame_component_ids)
+        )
+
+    button_component_ids = {
+        component_id
+        for component_id, node in component_nodes.items()
+        if node.get("canonical_component") == "button"
+    }
+    missing_button_component_ids = sorted(
+        button_component_ids.difference(button_instruction_component_ids)
+    )
+    if missing_button_component_ids:
+        errors.append(
+            "Missing create_button instructions for component_hierarchy nodes: "
+            + ", ".join(missing_button_component_ids)
         )
 
     return errors

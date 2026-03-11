@@ -175,7 +175,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "IOS Home Screen",
+      "name": "iOS Home Screen",
       "canonical_component": "card",
       "section_id": "hero-band",
       "component_id": "ios-home-shell",

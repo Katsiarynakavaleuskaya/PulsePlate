@@ -70,6 +70,13 @@ Every component entry in `ui_component_vocabulary.json` includes:
 - `anti_generic_terms`
 - `stitch_normalization_hint`
 
+Naming convention:
+
+- `id` is the programmatic identifier and uses underscores, for example
+  `radio_group` or `form_field`
+- `canonical_name` is the human-facing normalized reference and uses hyphens,
+  for example `radio-group` or `form-field`
+
 ## 4. Status semantics
 
 Use these `missing_status` values exactly as written:

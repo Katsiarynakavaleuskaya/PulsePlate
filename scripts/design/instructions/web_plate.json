@@ -148,7 +148,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "WEB Plate Screen",
+      "name": "Web Plate Screen",
       "canonical_component": "card",
       "section_id": "plate-summary",
       "component_id": "web-plate-shell",

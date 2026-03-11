@@ -43,6 +43,26 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
         if item.get("component_id") == "node:ios.home.weekly_plan_reader"
     )
     assert "feature-flagged" in flagged_button["states"]
+    assert payload["instructions"][0]["name"] == "iOS Home Screen"
+
+
+def test_generated_web_progress_export_cta_uses_header_container() -> None:
+    instruction = generate_figma_instructions.generate_screen_instruction("web.progress")
+    payload = generate_figma_instructions.instruction_to_dict(instruction)
+
+    export_button = next(
+        item
+        for item in payload["instructions"]
+        if item.get("component_id") == "node:web.progress.export_pdf"
+    )
+
+    assert export_button["section_id"] == "progress-header"
+    assert export_button["parent_component_id"] == "web-progress-header-utilities"
+    assert any(
+        section["section_id"] == "progress-header"
+        and "node:web.progress.export_pdf" in section["component_ids"]
+        for section in payload["sections"]
+    )
 
 
 def test_validate_governance_rejects_missing_contract_fields() -> None:
@@ -217,3 +237,48 @@ def test_validate_governance_requires_frame_instruction_for_static_nodes() -> No
     errors = execute_design.validate_governance(payload)
 
     assert any("Missing create_frame instructions" in error for error in errors)
+
+
+def test_validate_governance_requires_button_instruction_for_button_nodes() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("ios.home")
+    )
+    payload["instructions"] = [
+        item
+        for item in payload["instructions"]
+        if item["component_id"] != "node:ios.home.bmi_calculator"
+    ]
+
+    errors = execute_design.validate_governance(payload)
+
+    assert any("Missing create_button instructions" in error for error in errors)
+
+
+def test_validate_governance_rejects_duplicate_and_mismatched_instruction_metadata() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    payload["sections"][0]["component_ids"] = [
+        component_id
+        for component_id in payload["sections"][0]["component_ids"]
+        if component_id != "web-progress-header-utilities"
+    ]
+    duplicated_frame = next(
+        item for item in payload["instructions"] if item["component_id"] == "web-progress-shell"
+    ).copy()
+    payload["instructions"].append(duplicated_frame)
+
+    target_index = next(
+        index
+        for index, item in enumerate(payload["instructions"])
+        if item["component_id"] == "web-progress-header-utilities"
+    )
+    payload["instructions"][target_index]["canonical_component"] = "alert"
+    payload["instructions"][target_index]["semantic_role"] = "recovery_message"
+
+    errors = execute_design.validate_governance(payload)
+
+    assert any("missing from sections.component_ids" in error for error in errors)
+    assert any("Duplicate create_frame instruction" in error for error in errors)
+    assert any("canonical_component does not match" in error for error in errors)
+    assert any("semantic_role does not match" in error for error in errors)

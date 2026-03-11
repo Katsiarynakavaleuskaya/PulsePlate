@@ -128,7 +128,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "IOS Progress Screen",
+      "name": "iOS Progress Screen",
       "canonical_component": "card",
       "section_id": "progress-summary",
       "component_id": "ios-progress-shell",

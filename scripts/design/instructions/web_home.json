@@ -165,7 +165,7 @@
   "instructions": [
     {
       "type": "create_frame",
-      "name": "WEB Home Screen",
+      "name": "Web Home Screen",
       "canonical_component": "card",
       "section_id": "hero-band",
       "component_id": "web-home-shell",
