@@ -354,6 +354,12 @@ as an advisory specialist. For CV experiment design, pair it with
 `ml` routing domain. Runtime client ownership for future CV UX is deferred and
 must be tracked explicitly before implementation.
 
+Rollout / rollback note:
+- Roll forward only when CV work stays docs/eval-only and uses the governed
+  packet path from `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`.
+- Roll back to the generic experimentation lane if CV packet fields, privacy
+  packet requirements, or cross-client degrade-state context drift out of sync.
+
 **Canonical doc:** `.cursor/agents/cv-agent.md`
 
 ---

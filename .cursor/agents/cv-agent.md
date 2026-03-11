@@ -24,6 +24,8 @@ Design a CV pipeline that is:
 - No runtime model integration unless coordinator requests it.
 - No medical claims based on images; wellness-only.
 - No silent defaults: missing recognition must degrade gracefully.
+- If the CV packet contract drifts from the orchestration SoT, stop and fall back
+  to the generic experimentation lane until the docs are re-aligned.
 
 ## When invoked
 
