@@ -971,6 +971,13 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 - AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
 - Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (the ADR now carries `file:line` evidence for current boundary claims; retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
 
+### Creative research lane
+
+- `creative_research` is a governed sub-lane inside the existing experimentation umbrella; it must not become a competing orchestration framework. Canonical sources: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`, `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
+- The lane follows `diverge -> cluster -> synthesize -> critique -> verify -> score -> promote/defer/discard`; coordinator-first routing and explicit handoff packets remain mandatory.
+- Wave boundaries are hard-gated: PR-A docs/protocol only, PR-B offline eval only, PR-C internal-only pilot. No public runtime exposure, no hidden memory, no autonomous merge, no immutable-oracle mutation.
+- Any future provider-backed pilot stays feature-flagged, quota-checked before calls, and human-gated through normal PR/backlog promotion.
+
 ## OpenAPI generation (determinism requirement)
 
 ### Canonical source
