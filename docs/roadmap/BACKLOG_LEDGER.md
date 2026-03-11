@@ -891,16 +891,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: `user_knowledge` DB-level RLS / policy hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / defense-in-depth)
-  - Target PR: PR-TBD-USER-KNOWLEDGE-RLS
-  - Status: 📋 Planned
-  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but `user_knowledge` still needs explicit DB-level RLS/policy enforcement as defense in depth.
+  - Target PR: PR #1089 (`feat/p1-user-knowledge-rls`)
+  - Status: 🟡 In progress (active PR `#1089`)
+  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but Postgres still needed explicit DB-level RLS/policy enforcement plus a canonical session-context bridge to make the policy enforceable in runtime paths.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (§7, §8)
     - `app/models/rag_feedback.py`
     - `core/rag/vector_rag.py`
-    - `alembic/versions/202602280001_add_rag_feedback_tables.py`
+    - `core/db_rls.py`
+    - `alembic/versions/202603100101_enable_rag_user_rls.py`
   - DoD:
-    - Postgres RLS policy exists for `user_knowledge` (and companion policy for `rag_feedback` if required)
+    - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
+    - User-bound rows use a bigint subject principal compatible with runtime-derived API-key subject isolation (no stale `users.id` FK contract)
+    - Canonical transaction-local session context is set before RAG retrieval, feedback writes, and DSAR helper queries
     - Migration + rollback path documented
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
     - Runtime app-layer filtering remains in place (no regression to code-level scoping)
@@ -2000,7 +2003,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
     (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
   - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (cv-contract-agent role; degrade-state expectations)
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (`cv-agent`; degrade-state expectations)
     - `app/schemas/` (canonical schema patterns)
     - `frontend/src/api/schema.ts` (OpenAPI consumer)
   - DoD:
@@ -5349,8 +5352,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1092
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry is executing in `#1092`; PR5-PR6 remain open)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane is executing in `#1102`; PR6 remains open)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5410,11 +5413,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
 <a id="ledger-p1-agent-experiment-promotion"></a>
-- [ ] P1: PR4 experiment promotion and telemetry integration
+- [x] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
   - Target PR: PR #1092
-  - Status: 🟡 In progress (`#1092`, based on `main` @ `00e8143a`)
+  - Status: ✅ Merged on 2026-03-11 (`e0771be5`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5434,17 +5437,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
-  - Status: 📋 Planned
+  - Target PR: #1102
+  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
   - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
     - `.cursor/agents/cv-agent.md`
     - `.cursor/agents/data-scientist-agent.md`
     - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
   - DoD:
     - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
     - CV lane remains docs/eval only with no image-retention runtime behavior
@@ -5474,6 +5481,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Candidate improvement is accepted by immutable oracles and documented with evidence
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
+
+- [ ] P2: First-class CV routing domain in orchestration graph
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_ROUTING_DOMAIN
+  - Area: orchestration / routing
+  - Reason: PR5 keeps `ml` as the graph-level domain for CV experiments. If future work needs `cv-agent` as graph-primary rather than advisory, `AGENT_ROUTING_GRAPH.md`, `AGENT_CAPABILITY_MATRIX.md`, `AGENT_CONTEXT_MAP.md`, and routing/tooling tests must be updated together.
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `.cursor/agents/cv-agent.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+  - DoD:
+    - Routing graph defines a canonical `cv` domain or explicit equivalent
+    - Capability/context docs match the graph
+    - Bootstrap/routing tests cover graph-primary CV routing deterministically
+
+- [ ] P2: Canonical client ownership for future CV degrade UX
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_DEGRADE_UX_OWNERSHIP
+  - Area: orchestration / ios / frontend
+  - Reason: PR5 documents degrade states for future runtime/client work, but it intentionally does not invent a new canonical iOS/web execution owner. That ownership must be made explicit before any client-visible CV UX is implemented.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `.cursor/agents/agent-coordinator.md`
+  - DoD:
+    - Future CV client work has an explicit canonical implementation owner
+    - Routing and context docs no longer imply conflicting iOS/frontend ownership
+    - Backlog item references the first runtime/client CV PR that consumes degrade states
 
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.utils.feature_flags import is_rag_vector_enabled
 from core.data_sanitizer import sanitize_rag_markdown
+from core.db_rls import apply_user_rls_context
 from core.rag.contracts import AGENT_CORPUS_MAP, RAGChunk, RAGContext
 from core.rag.rag_constants import (
     EMBEDDING_DIMENSIONS,
@@ -215,6 +216,7 @@ def _retrieve_vector_from_db(
     from core.db import session_scope
 
     with session_scope() as session:
+        apply_user_rls_context(session, user_id=subject_id)
         dialect = session.bind.dialect.name if session.bind else "sqlite"
         limit = max(1, min(max_chunks, MAX_SOURCES_IN_RESPONSE))
 

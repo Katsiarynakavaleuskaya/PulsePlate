@@ -5,8 +5,8 @@ user-contributed knowledge for VIP personalization.
 
 Migration from RAG_CONTRACT.md schema (§7):
 - Uses Integer PK (not UUID) to align with existing tables
-- Uses Integer user_id FK (users.id is Integer)
-- Application-layer RLS only (no DB policies yet)
+- Uses BigInteger subject principal for user-bound isolation
+- PostgreSQL RLS policies enabled via transaction-local session context
 - JSONB via JSONEncodedDict for SQLite compatibility
 
 See: docs/contracts/RAG_CONTRACT.md, docs/db/rag_feedback_schema.md
@@ -18,10 +18,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     Float,
-    ForeignKey,
     Index,
     Integer,
     SmallInteger,
@@ -42,7 +42,8 @@ class RAGFeedback(Base):
     to enable recursive learning and quality improvement.
 
     Security:
-    - All queries filtered by authenticated user_id (application-layer RLS)
+    - PostgreSQL RLS isolates rows by authenticated user_id
+    - Application-layer filtering remains as defense in depth
     - PII redacted before storage via core.pii_redaction.redact_pii_from_text()
 
     Fields:
@@ -69,12 +70,7 @@ class RAGFeedback(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     agent_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     query: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -109,7 +105,8 @@ class UserKnowledge(Base):
     On SQLite (tests), embeddings are stored as TEXT/JSON (not searchable).
 
     Security:
-    - All queries filtered by authenticated user_id (application-layer RLS)
+    - PostgreSQL RLS isolates rows by authenticated user_id
+    - Application-layer filtering remains as defense in depth
     - Content should not contain PII without user consent
 
     Future enhancements (tracked in BACKLOG_LEDGER):
@@ -126,12 +123,7 @@ class UserKnowledge(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Embedding vector for semantic search

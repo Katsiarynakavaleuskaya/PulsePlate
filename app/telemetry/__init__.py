@@ -1,12 +1,15 @@
-"""Request telemetry foundation configuration.
+"""PulsePlate telemetry configuration and tracing exports.
 
-RU: Конфигурация foundation-уровня для request telemetry.
-EN: Foundation-level configuration for request telemetry.
+RU: Пакет объединяет env-конфигурацию request telemetry и tracing exports.
+EN: Package combines request telemetry env configuration with tracing exports.
 """
 
 from __future__ import annotations
 
 import os
+
+from app.telemetry.genai import OPENINFERENCE_SPAN_KIND
+from app.telemetry.setup import tracing_is_enabled
 
 DEFAULT_FULL_CAPTURE_RATE = 0.015
 DEFAULT_FULL_CAPTURE_RESERVOIR_PER_HOUR = 60
@@ -122,3 +125,25 @@ def is_non_prod_environment() -> bool:
     """Return True for dev/test/staging-like environments."""
 
     return telemetry_environment() != "production"
+
+
+__all__ = [
+    "DEFAULT_FULL_CAPTURE_RATE",
+    "DEFAULT_FULL_CAPTURE_RESERVOIR_PER_HOUR",
+    "DEFAULT_TELEMETRY_RECORDER_MAXLEN",
+    "DEFAULT_TELEMETRY_TIMEOUT_SECONDS",
+    "DEFAULT_TELEMETRY_SALT",
+    "FEATURED_RUNTIME_FLAGS",
+    "OPENINFERENCE_SPAN_KIND",
+    "is_non_prod_environment",
+    "telemetry_client_debug_full_enabled",
+    "telemetry_detectors_enabled",
+    "telemetry_environment",
+    "telemetry_full_capture_rate",
+    "telemetry_recorder_maxlen",
+    "telemetry_reservoir_per_hour",
+    "telemetry_sampler_salt",
+    "telemetry_vault_dir",
+    "telemetry_vault_key",
+    "tracing_is_enabled",
+]

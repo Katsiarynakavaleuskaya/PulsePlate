@@ -18,6 +18,7 @@ from legacy_app import (
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.telemetry import register_request_telemetry
+from app.bootstrap.tracing import register_tracing
 import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
@@ -110,6 +111,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _install_openapi_builder(app)
     register_metrics(app)
     register_request_telemetry(app)
+    register_tracing(app)
     register_pro_contract_routes(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
