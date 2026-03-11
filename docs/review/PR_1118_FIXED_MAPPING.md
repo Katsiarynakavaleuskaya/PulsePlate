@@ -35,6 +35,11 @@ Disposition: NOT-A-BUG
 Evidence: `app/services/creative_research_runtime.py:391`, `app/services/creative_research_runtime.py:419`
 Reason: this late CodeRabbit review contains an optional readability nitpick only; the current explicit candidate mapping remains functionally correct and intentionally defensive at the schema boundary.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#pullrequestreview-3932342561
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2920811436
+Reason: this late CodeRabbit review shell summarizes the single governance nit dispositioned immediately below.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2918957790 -> b98bd721
 Disposition: FIXED
 Commit: b98bd721
@@ -94,6 +99,11 @@ Evidence: `app/routers/creative_research_internal.py:75`, `app/routers/creative_
 Disposition: FIXED
 Commit: b98bd721
 Evidence: `app/routers/creative_research_internal.py:75`, `app/routers/creative_research_internal.py:112`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2920811436
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1118_FIXED_MAPPING.md:110`
+Reason: the artifact already keeps `All required checks green` unchecked until the final merge cycle, exactly as requested by the late governance nit.
 
 ## Merge Readiness
 - [x] Local gates passed on current head
