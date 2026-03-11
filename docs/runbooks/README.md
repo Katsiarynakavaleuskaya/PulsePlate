@@ -37,6 +37,9 @@ operational tasks.
 
 - [`FIGMA_MCP_CODEX.md`](FIGMA_MCP_CODEX.md) — Figma MCP setup and
   code-to-canvas flow for Codex / GPT-5.4 Pro
+- [`OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`](OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md) —
+  local-only OpenAI docs freshness pilot for Codex / Cursor using official
+  OpenAI docs, Context7, and Context Hub
 - [`FIGMA_MCP_RUNTIME_MATRIX.md`](FIGMA_MCP_RUNTIME_MATRIX.md) — runtime
   capability matrix (`generate_figma_design` availability by client)
 - [`FIGMA_MCP_LIVE_ACTIVATION.md`](FIGMA_MCP_LIVE_ACTIVATION.md) —
