@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import shutil
 import subprocess
+import sys
 from typing import Any
 from datetime import datetime, timezone
 
@@ -1014,8 +1014,6 @@ def test_subscription_activation_migration_smoke(
 ) -> None:
     db_path = tmp_path / "billing-activation.sqlite3"
     database_url = f"sqlite:///{db_path}"
-    alembic_bin = shutil.which("alembic")
-    assert alembic_bin is not None
     repo_root = Path(__file__).resolve().parents[1]
     alembic_ini = repo_root / "alembic.ini"
     temp_alembic_ini = tmp_path / "alembic.ini"
@@ -1031,8 +1029,21 @@ def test_subscription_activation_migration_smoke(
 
     env = os.environ.copy()
     env["DATABASE_URL"] = database_url
+    env.pop("PYTHONPATH", None)
     completed = subprocess.run(
-        [alembic_bin, "-c", str(temp_alembic_ini), "upgrade", "head"],
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "config_path, repo_root = sys.argv[1], sys.argv[2]; "
+                "from alembic.config import main; "
+                "sys.path.append(repo_root); "
+                'main(argv=["-c", config_path, "upgrade", "head"], prog="alembic")'
+            ),
+            str(temp_alembic_ini),
+            str(repo_root),
+        ],
         check=False,
         capture_output=True,
         text=True,
