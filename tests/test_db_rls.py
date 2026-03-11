@@ -98,3 +98,9 @@ def test_subject_bigint_hardening_downgrade_restores_legacy_foreign_keys() -> No
     assert migration_text.count("REFERENCES users (id) ON DELETE CASCADE") == 2
     assert "DELETE FROM rag_feedback" in migration_text
     assert "DELETE FROM user_knowledge" in migration_text
+    assert migration_text.index("DELETE FROM rag_feedback") < migration_text.index(
+        "ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE INTEGER"
+    )
+    assert migration_text.index("DELETE FROM user_knowledge") < migration_text.index(
+        "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE INTEGER"
+    )

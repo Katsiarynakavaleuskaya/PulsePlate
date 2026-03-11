@@ -61,10 +61,6 @@ def downgrade() -> None:
     op.execute("DROP POLICY IF EXISTS user_knowledge_user_isolation ON user_knowledge")
     op.execute("DROP POLICY IF EXISTS rag_feedback_user_isolation ON rag_feedback")
 
-    op.execute(
-        "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE INTEGER USING user_id::integer"
-    )
-    op.execute("ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE INTEGER USING user_id::integer")
     # RU: При rollback удаляем subject-owned строки, которые не могут удовлетворить
     # старому FK-контракту на `users.id`.
     # EN: On rollback, delete subject-owned rows that cannot satisfy the legacy
@@ -81,6 +77,10 @@ def downgrade() -> None:
             SELECT 1 FROM users WHERE users.id = user_knowledge.user_id
         )
     """)
+    op.execute(
+        "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE INTEGER USING user_id::integer"
+    )
+    op.execute("ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE INTEGER USING user_id::integer")
     # RU: Восстанавливаем исходные FK при rollback к int4 users.id контракту.
     # EN: Restore the original FKs when rolling back to the int4 users.id contract.
     op.execute("""
