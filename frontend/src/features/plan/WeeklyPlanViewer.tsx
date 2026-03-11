@@ -1,14 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { components } from "../../api/schema";
-import { getWeeklyPlan } from "../../api/premium/weekly-plan";
+import type { ProWeekPlanRequest } from "../../api/premium/weekly-plan";
 import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
 import { getClientLocale } from "../../lib/i18n";
+import { useWeeklyPlan } from "../weekly-plan/hooks/useWeeklyPlan";
+import type { Meal } from "../weekly-plan/model/types";
 
 const DEFAULT_TTL_SECONDS = 900;
+const MONDAY_REFERENCE_UTC = Date.UTC(2024, 0, 1);
+const SUPPORTED_REQUEST_LANGS: ProWeekPlanRequest["lang"][] = ["en", "ru", "es"];
+
+function isSupportedRequestLang(locale: string): locale is ProWeekPlanRequest["lang"] {
+  return SUPPORTED_REQUEST_LANGS.some((supportedLocale) => supportedLocale === locale);
+}
+
+function getInitialRequest(): ProWeekPlanRequest {
+  const clientLocale = getClientLocale();
+  return {
+    ...DEFAULT_REQUEST,
+    lang: isSupportedRequestLang(clientLocale) ? clientLocale : "en",
+  };
+}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -54,11 +69,7 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
-type WeeklyMenuResponse = components["schemas"]["WeeklyMenuResponse"];
-type UnknownRecord = Record<string, unknown>;
-
-const DEFAULT_REQUEST: WeekPlanRequest = {
+const DEFAULT_REQUEST: ProWeekPlanRequest = {
   sex: "female",
   age: 30,
   height_cm: 168,
@@ -69,110 +80,66 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
-function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
-  return typeof day.date === "string"
-    ? day.date
-    : typeof day.day_label === "string"
-    ? day.day_label
-    : t("plan.day_fallback", { number: idx + 1 }); // e.g., "Day {number}"
+function getLocalizedWeekday(index: number, locale: string): string | null {
+  try {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      timeZone: "UTC",
+    });
+    return formatter.format(new Date(MONDAY_REFERENCE_UTC + index * 24 * 60 * 60 * 1000));
+  } catch {
+    return null;
+  }
 }
 
-function getDayEnergy(day: UnknownRecord): number | undefined {
-  return typeof day.energy_kcal === "number"
-    ? day.energy_kcal
-    : typeof day.kcal === "number"
-    ? day.kcal
-    : undefined;
+function getDayTitle(
+  index: number,
+  locale: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  normalizedDayName?: string
+): string {
+  const fallbackTitle = normalizedDayName || t("plan.day_fallback", { number: index + 1 });
+  if (locale === "en") {
+    return fallbackTitle;
+  }
+
+  return getLocalizedWeekday(index, locale) || fallbackTitle;
 }
 
-function getMealName(meal: UnknownRecord, mi: number, t: (key: string, options?: any) => string): string {
-  return typeof meal.name === "string"
-    ? meal.name
-    : typeof meal.meal === "string"
-    ? meal.meal
-    : t("plan.meal_fallback", { number: mi + 1 }); // e.g., "Meal {number}"
+function getMealName(meal: Meal): string {
+  return meal.title_translated || meal.title;
 }
 
-function getMealEnergy(meal: UnknownRecord): number | undefined {
-  return typeof meal.energy_kcal === "number"
-    ? meal.energy_kcal
-    : typeof meal.kcal === "number"
-    ? meal.kcal
-    : undefined;
+function formatMetricLabel(key: string): string {
+  return key.replace(/_/g, " ");
 }
 
-function getMealItems(meal: UnknownRecord): UnknownRecord[] {
-  const rawItems = Array.isArray(meal.items)
-    ? (meal.items as UnknownRecord[])
-    : [];
+function getMealDetails(meal: Meal): string[] {
+  const grams = Object.entries(meal.grams).slice(0, 2).map(
+    ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)} g`
+  );
 
-  const fallbackItem =
-    typeof meal.food_item === "string"
-      ? [
-          {
-            name: meal.food_item,
-            energy_kcal:
-              typeof meal.kcal === "number"
-                ? meal.kcal
-                : typeof meal.energy_kcal === "number"
-                ? meal.energy_kcal
-                : undefined,
-          },
-        ]
-      : [];
+  if (grams.length > 0) {
+    return grams;
+  }
 
-  return rawItems.length > 0 ? rawItems : fallbackItem;
-}
-
-function getItemName(item: UnknownRecord, ii: number, t: (key: string, options?: any) => string): string {
-  return typeof item.name === "string"
-    ? item.name
-    : typeof item.title === "string"
-    ? item.title
-    : typeof item.food_item === "string"
-    ? item.food_item
-    : t("plan.item_fallback", { number: ii + 1 }); // e.g., "Item {number}"
-}
-
-function getItemEnergy(item: UnknownRecord): number | undefined {
-  return typeof item.energy_kcal === "number"
-    ? item.energy_kcal
-    : typeof item.kcal === "number"
-    ? item.kcal
-    : undefined;
+  return Object.entries(meal.macros).slice(0, 2).map(
+    ([label, value]) => `${formatMetricLabel(label)}: ${Math.round(value)}`
+  );
 }
 
 export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [data, setData] = useState<WeeklyMenuResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
+  const [request] = useState<ProWeekPlanRequest>(getInitialRequest);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const locale = getClientLocale() as WeekPlanRequest["lang"];
-        const supportedLangs: WeekPlanRequest["lang"][] = ["en", "ru", "es"];
-        const payload: WeekPlanRequest = {
-          ...DEFAULT_REQUEST,
-          lang: supportedLangs.includes(locale) ? locale : "en",
-        };
+  const { data, loading, error: err } = useWeeklyPlan({
+    targets: request,
+  });
+  const isInitialLoad = data === null && err === null;
 
-        const week = await getWeeklyPlan(payload);
-        setData(week);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  if (loading) {
+  if (loading || isInitialLoad) {
     return <div className="max-w-3xl mx-auto p-6">{t('plan.loadingWeek')}</div>;
   }
 
@@ -184,9 +151,8 @@ export default function WeeklyPlanViewer() {
     );
   }
 
-  const dailyMenus = Array.isArray(data?.daily_menus)
-    ? (data!.daily_menus as UnknownRecord[])
-    : [];
+  const dailyMenus = data?.days ?? [];
+  const displayLocale = request.lang;
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -329,18 +295,15 @@ export default function WeeklyPlanViewer() {
           <div className="opacity-80">{t('plan.emptySummary')}</div>
         ) : (
           <ul className="space-y-4">
-            {dailyMenus.map((menu, idx) => {
-              const day = menu as UnknownRecord;
-              const dayTitle = getDayTitle(day, idx, t);
-              const dayEnergy = getDayEnergy(day);
-
-              const meals = Array.isArray(day.meals)
-                ? (day.meals as UnknownRecord[])
-                : [];
+            {dailyMenus.map((menu) => {
+              const dayIndex = Math.max(menu.day - 1, 0);
+              const dayTitle = getDayTitle(dayIndex, displayLocale, t, menu.dayName);
+              const dayEnergy = menu.kcal;
+              const meals = menu.meals;
 
               return (
                 <li
-                  key={`${dayTitle}-${idx}`}
+                  key={`day-${menu.day}`}
                   className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
                 >
                   <div className="flex items-center justify-between">
@@ -351,10 +314,8 @@ export default function WeeklyPlanViewer() {
                   </div>
                   <ul className="space-y-2">
                     {meals.map((meal, mi) => {
-                      const mealObj = meal as UnknownRecord;
-                      const mealName = getMealName(mealObj, mi, t);
-                      const mealEnergy = getMealEnergy(mealObj);
-                      const items = getMealItems(mealObj);
+                      const mealName = getMealName(meal);
+                      const items = getMealDetails(meal);
 
                       return (
                         <li
@@ -363,36 +324,26 @@ export default function WeeklyPlanViewer() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-medium">{mealName}</div>
-                            {typeof mealEnergy === "number" && (
-                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} {t('plan.kcal')}</div>
-                            )}
+                            <div className="text-sm opacity-70">{Math.round(meal.kcal)} {t('plan.kcal')}</div>
                           </div>
                           <ul className="mt-2 grid gap-1">
                             {items.length > 0 ? (
-                              items.map((item, ii) => {
-                                const itemObj = item as UnknownRecord;
-                                const itemName = getItemName(itemObj, ii, t);
-                                const itemEnergy = getItemEnergy(itemObj);
-                            return (
-                              <li key={`${itemName}-${ii}`} className="text-sm">
-                                • {itemName}
-                                {typeof itemEnergy === "number" && (
-                                  <span className="opacity-70"> — {Math.round(itemEnergy)} {t('plan.kcal')}</span>
-                                )}
-                              </li>
-                            );
-                          })
-                        ) : (
-                          <li className="text-sm opacity-60">{t('plan.noItems')}</li>
-                        )}
-                      </ul>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          );
-        })}
+                              items.map((item, ii) => (
+                                <li key={`${mealName}-${ii}`} className="text-sm">
+                                  • {item}
+                                </li>
+                              ))
+                            ) : (
+                              <li className="text-sm opacity-60">{t('plan.noItems')}</li>
+                            )}
+                          </ul>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
         )}
       </GlassCard>

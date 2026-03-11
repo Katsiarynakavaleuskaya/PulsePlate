@@ -11,6 +11,7 @@ import re
 import time
 from typing import Dict, Iterable, List
 
+from core.data_sanitizer import sanitize_rag_markdown
 from core.rag.contracts import RAGChunk, RAGContext
 from core.rag.rag_constants import (
     MAX_RAG_HOPS,
@@ -60,7 +61,7 @@ def _tokenize(text: str) -> List[str]:
 def _compute_confidence(chunks: List[RAGChunk]) -> float:
     if not chunks:
         return 0.0
-    return round(sum(chunk.score for chunk in chunks) / len(chunks), 4)
+    return float(round(sum(chunk.score for chunk in chunks) / len(chunks), 4))
 
 
 def _rank_chunks(chunks: Iterable[RAGChunk], limit: int) -> List[RAGChunk]:
@@ -74,7 +75,8 @@ def _refine_query(query: str, chunks: List[RAGChunk]) -> str:
     frequencies: Dict[str, int] = {}
 
     for chunk in chunks:
-        for token in _tokenize(chunk.content):
+        sanitized_content = sanitize_rag_markdown(chunk.content)
+        for token in _tokenize(sanitized_content):
             if len(token) < 4:
                 continue
             if token in query_tokens or token in _STOPWORDS:
@@ -101,14 +103,15 @@ def _apply_verification(
     """Apply deterministic chunk verification pipeline."""
     from core.rag.validation import validate_rag_chunks
 
-    validated = validate_rag_chunks(chunks, agent_id=agent_id).filtered_chunks
+    validated: List[RAGChunk] = validate_rag_chunks(chunks, agent_id=agent_id).filtered_chunks
 
     if not philo_validation_enabled or not validated:
         return validated
 
     from core.rag.philosophy_pipeline import run_pipeline
 
-    return run_pipeline(validated, query=query).filtered_chunks
+    filtered: List[RAGChunk] = run_pipeline(validated, query=query).filtered_chunks
+    return filtered
 
 
 def retrieve_recursive_context_structured(
@@ -116,6 +119,7 @@ def retrieve_recursive_context_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
     *,
     philo_validation_enabled: bool = False,
 ) -> RAGContext:
@@ -156,6 +160,7 @@ def retrieve_recursive_context_structured(
                 max_chunks=limit,
                 agent_id=agent_id,
                 user_tier=user_tier,
+                subject_id=subject_id,
             )
             if not hop_ctx.chunks:
                 break

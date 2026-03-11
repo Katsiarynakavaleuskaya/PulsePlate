@@ -142,10 +142,20 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
 os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
 os.environ.setdefault("VIP_MODULE_ENABLED", "true")
-os.environ.setdefault("SERVER_SALT", "test-server-salt")
+os.environ.setdefault("SERVER_SALT", "StrongServerSaltForTests123456789!")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def reset_payments_state() -> Generator[None, None, None]:
+    """Reset in-memory payment activation state for deterministic payment tests."""
+    from app.services import payments_activation
+
+    payments_activation.reset_state()
+    yield
+    payments_activation.reset_state()
 
 
 # ============================================================================
@@ -580,6 +590,7 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     # Set consistent environment for deterministic testing
     monkeypatch.setenv("TESTING", "true")
     monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
@@ -588,7 +599,11 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
-    monkeypatch.setenv("SERVER_SALT", os.environ.get("SERVER_SALT", "test-server-salt"))
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv(
+        "APPLE_SHARED_SECRET",
+        "StrongAppleSharedSecretForTests123456789!",  # pragma: allowlist secret
+    )
     yield
     # Cleanup is automatic with monkeypatch
 

@@ -19,6 +19,16 @@ This matrix describes **recommended** agent assignments based on:
 **Important:** This is a **routing guide**, not a **permission system**.
 Coordinator may assign agents outside their primary domain if justified.
 
+**Cluster-first contract:** Coordinator resolves the canonical cluster from
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:39` and applies the routing rule in
+`docs/orchestration/AGENT_ROUTING_GRAPH.md:85`; executable enforcement lives in
+`scripts/orchestration/routing_graph_loader.py:205` and
+`scripts/orchestration/route_with_telemetry.py:96`. These evidence anchors are
+part of the contract and should be updated whenever the enforcement entrypoint
+moves. This matrix remains an advisory guide for agent choice inside the routed
+domain and does not define cluster ownership, permissions, or authority
+boundaries.
+
 ---
 
 ## Agent Capabilities
@@ -162,11 +172,15 @@ Coordinator may assign agents outside primary domain if:
 This matrix does not grant “permission” or “rights” to agents.
 It exists to help the coordinator route work efficiently.
 
+Skill selection is a separate step and is governed by
+`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`.
+
 ---
 
 ## Related Documentation
 
 - **Routing Graph (SoT):** `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+- **Skill Routing Policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - Coordinator: `.cursor/agents/agent-coordinator.md`
 - Handoff Protocol: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - Context Map: `docs/orchestration/AGENT_CONTEXT_MAP.md`

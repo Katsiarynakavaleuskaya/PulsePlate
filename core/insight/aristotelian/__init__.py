@@ -12,7 +12,10 @@ from enum import Enum
 
 _RANGE_RE = re.compile(r"(\d+\.?\d*)\s*[-\u2013]\s*(\d+\.?\d*)")
 _SECTION_RE = re.compile(r"(?im)^\s*(major premise|minor premise|conclusion)\s*:\s*(.+?)\s*$")
-_NEGATION_RE = re.compile(r"\b(?:not|no|never|without|isn't|aren't|doesn't|don't)\b", re.IGNORECASE)
+_NEGATION_RE = re.compile(
+    r"\b(?:not|no|never|without|isn['’]t|aren['’]t|doesn['’]t|don['’]t)\b",
+    re.IGNORECASE,
+)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -26,6 +29,7 @@ def _normalize_claim(text: str) -> str:
     lowered = re.sub(
         r"\b(?:major premise|minor premise|conclusion)\b", "", text, flags=re.IGNORECASE
     )
+    lowered = re.sub(r"n['’]t\b", " not", lowered, flags=re.IGNORECASE)
     lowered = re.sub(r"[^a-z0-9\s]", " ", lowered.lower())
     lowered = re.sub(r"\b(?:all|some|no|not|therefore|thus|according|to|the|a|an)\b", " ", lowered)
     return re.sub(r"\s+", " ", lowered).strip()

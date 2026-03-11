@@ -21,7 +21,6 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 import { isLineInComment, stripInlineComments } from '../thinClientGuardUtils';
 
 // Directories to scan (relative to frontend/src)
@@ -118,7 +117,7 @@ function getSourceFilePaths(dir: string): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
+    const fullPath = `${dir}/${entry.name}`;
 
     // Skip excluded patterns
     if (EXCLUDE_PATTERNS.some((pattern) => fullPath.includes(pattern))) {
@@ -141,16 +140,20 @@ function getSourceFilePaths(dir: string): string[] {
  */
 function collectSourceFiles(srcDir: string, scanDirs: string[]): SourceFile[] {
   const sourceFiles: SourceFile[] = [];
+  const normalizedSrcDir = srcDir.replace(/\\/g, '/');
 
   for (const subDir of scanDirs) {
-    const dirPath = path.join(srcDir, subDir);
+    const dirPath = `${normalizedSrcDir}/${subDir}`;
     const filePaths = getSourceFilePaths(dirPath);
 
     for (const filePath of filePaths) {
       const content = fs.readFileSync(filePath, 'utf-8');
+      const normalizedFilePath = filePath.replace(/\\/g, '/');
       sourceFiles.push({
         path: filePath,
-        relativePath: path.relative(srcDir, filePath),
+        relativePath: normalizedFilePath.startsWith(`${normalizedSrcDir}/`)
+          ? normalizedFilePath.slice(normalizedSrcDir.length + 1)
+          : normalizedFilePath,
         content,
         lines: content.split('\n'),
       });
@@ -179,7 +182,7 @@ function isAllowedWebSocketFile(relativePath: string): boolean {
 }
 
 describe('ThinClientGuards', () => {
-  const srcDir = path.resolve(__dirname, '../..');
+  const srcDir = `${process.cwd().replace(/\\/g, '/')}/src`;
 
   // FIX B: Collect files once, share between tests
   let sourceFiles: SourceFile[];

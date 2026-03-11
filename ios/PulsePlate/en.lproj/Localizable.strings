@@ -59,7 +59,7 @@
 "plate_issue_title_decoding" = "Unexpected response";
 "plate_issue_title_unknown" = "Something went wrong";
 
-"plate_issue_message_missing_pro_key_debug" = "Configure PRO API key (PRO_API_KEY) in the Xcode scheme environment.";
+"plate_issue_message_missing_pro_key_debug" = "Load a PRO key in PRO Settings -> Debug Tools -> Keychain or use an explicitly injected test provider. Xcode environment variables are not used for runtime PRO access.";
 "plate_issue_message_missing_pro_key" = "PRO is not available on this device.";
 "plate_issue_message_missing_profile" = "Open Profile and enter sex, age, height, and weight.";
 "plate_issue_message_unauthorized" = "Your PRO key is missing or invalid.";
@@ -110,6 +110,8 @@
 "home.action.weekly_plan_reader.subtitle" = "Review canonical /api/v1/pro/meal/weekly output";
 "home.action.shopping_list.title" = "Shopping List Generator";
 "home.action.shopping_list.subtitle" = "Build list via /api/v1/pro/meal/shopping-list";
+"home.action.ai_insight.title" = "AI Insight";
+"home.action.ai_insight.subtitle" = "Ask one question via /api/v1/pro/cbt/insight";
 "home.navigation.title" = "Home";
 "home.accessibility.screen_label" = "Home Screen";
 "home.hero.title" = "PulsePlate";
@@ -117,3 +119,49 @@
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Generate a weekly plan first to build a shopping list.";
+
+/* AI Insight */
+"ai_insight.navigation.title" = "AI Insight";
+"ai_insight.hero.title" = "PRO AI Insight";
+"ai_insight.hero.subtitle" = "One-shot CBT-informed guidance powered by the canonical PRO endpoint.";
+"ai_insight.input.title" = "Your question";
+"ai_insight.input.placeholder" = "Describe a thought pattern, motivation block, or wellness challenge.";
+"ai_insight.input.counter_format" = "%d/%d";
+"ai_insight.submit" = "Generate insight";
+"ai_insight.submit.loading" = "Generating...";
+"ai_insight.loading.title" = "Generating AI insight";
+"ai_insight.result.title" = "Response";
+"ai_insight.metadata.title" = "Reliability metadata";
+"ai_insight.metadata.confidence" = "Confidence";
+"ai_insight.metadata.uncertainty" = "Uncertainty";
+"ai_insight.metadata.rag_used" = "RAG context";
+"ai_insight.metadata.mode" = "Execution mode";
+"ai_insight.metadata.quota_state" = "Quota state";
+"ai_insight.sources.title" = "Sources";
+"ai_insight.source.score_format" = "Source score: %.0f%%";
+"ai_insight.warnings.title" = "Warnings";
+"ai_insight.boolean.yes" = "Yes";
+"ai_insight.boolean.no" = "No";
+"ai_insight.mode.auto_safe" = "Auto-safe";
+"ai_insight.mode.review_required" = "Review required";
+"ai_insight.mode.blocked" = "Blocked";
+"ai_insight.quota_state.consumed" = "Consumed";
+"ai_insight.quota_state.not_consumed" = "Not consumed";
+"ai_insight.warning.rag_retrieval_failed" = "RAG retrieval failed, so the response may be less grounded.";
+"ai_insight.warning.source_content_redacted" = "Some source content was redacted for privacy.";
+"ai_insight.error.title" = "Unable to load AI insight";
+"ai_insight.error.empty_query" = "Enter a question before requesting an insight.";
+"ai_insight.error.query_too_long" = "Keep your question within %d characters.";
+"ai_insight.error.missing_key" = "PRO API key not configured. Add it in Debug Tools / Keychain.";
+"ai_insight.error.unauthorized" = "Unauthorized (HTTP 401). Check your PRO API key.";
+"ai_insight.error.forbidden" = "Forbidden (HTTP 403). Your account may not have PRO access.";
+"ai_insight.error.quota_exceeded" = "Monthly AI quota reached (HTTP 429). Try again later.";
+"ai_insight.error.validation_generic" = "We could not validate that question. Please rephrase it and try again.";
+"ai_insight.error.unavailable" = "AI insight is currently unavailable (HTTP 503).";
+"ai_insight.error.timeout" = "AI provider timed out (HTTP 504). Please try again.";
+"ai_insight.error.api_format" = "Server error (HTTP %d). Please try again later.";
+"ai_insight.error.transport_generic" = "We could not reach the server. Check your internet connection and try again.";
+"ai_insight.error.decoding_generic" = "We received an unexpected response from the server. Please try again.";
+"ai_insight.error.empty_response" = "The AI service returned an empty response. Please try again.";
+"ai_insight.error.unknown_generic" = "An unexpected error occurred. Please try again.";
+"ai_insight.retry" = "Retry";

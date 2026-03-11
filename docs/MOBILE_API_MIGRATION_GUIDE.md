@@ -71,6 +71,12 @@ let request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/foo
 **Canonical Endpoint**:
 
 ```
+POST /api/v1/pro/meal/weekly
+```
+
+Deprecated alias (hidden from public OpenAPI, do not use as source of truth):
+
+```
 POST /api/v1/premium/plan/week-flexible
 ```
 
@@ -131,42 +137,31 @@ Header: X-API-Key: <PRO_API_KEY>
 **Mobile Integration (Swift)**:
 
 ```swift
-func generateWeeklyPlan(apiKey: String, profile: UserProfile) async throws -> WeekPlan {
-    var request = URLRequest(url: URL(string: "https://api.pulseplate.com/api/v1/premium/plan/week-flexible")!)
-    request.httpMethod = "POST"
-    request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-    let payload: [String: Any] = [
-        "sex": profile.sex,
-        "age": profile.age,
-        "height_cm": profile.heightCm,
-        "weight_kg": profile.weightKg,
-        "activity": profile.activity,
-        "goal": profile.goal,
-        "diet_flags": profile.dietFlags,
-        "lang": profile.language
-    ]
-    request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-
-    guard let httpResponse = response as? HTTPURLResponse else {
-        throw APIError.invalidResponse
-    }
-
-    switch httpResponse.statusCode {
-    case 200:
-        return try JSONDecoder().decode(WeekPlan.self, from: data)
-    case 403:
+func generateWeeklyPlan(
+    apiClient: APIClientProtocol,
+    apiKeyProvider: () -> String?,
+    targets: JSONValue = .emptyObject()
+) async throws -> WeeklyPlanDTO {
+    guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
         throw APIError.invalidAPIKey
-    case 401:
-        throw APIError.insufficientTier // PRO tier required
-    default:
-        throw APIError.serverError(httpResponse.statusCode)
     }
+
+    let service = DefaultWeeklyPlanService(apiClient: apiClient)
+    let requestBody = try targets.encodeSorted()
+
+    return try await service.fetchWeeklyPlan(
+        request: WeeklyPlanRequest(
+            endpointPath: "/api/v1/pro/meal/weekly",
+            body: requestBody,
+            apiKey: apiKey
+        )
+    )
 }
 ```
+
+Use the existing `APIClient` / `HTTPClient` seam for iOS transport. Direct
+`URLSession` snippets are legacy examples only and are forbidden for new app
+runtime code.
 
 ---
 
@@ -252,12 +247,7 @@ Response:
 
 ### Development/Testing
 
-**Test API Keys** (only work in dev/test environments):
-
-- **PRO**: `test_pro_key`
-- **VIP**: `test_vip_key`
-
-**Environment Detection**:
+**Base URL Detection (Non-secret)**:
 
 ```swift
 struct APIConfig {
@@ -268,11 +258,13 @@ struct APIConfig {
         return "https://api.pulseplate.com"
         #endif
     }
-
-    static var testProKey: String { "test_pro_key" }
-    static var testVIPKey: String { "test_vip_key" }
 }
 ```
+
+**Runtime Secret Source**:
+
+- iOS runtime secrets come from Keychain only.
+- Tests and previews should inject explicit `apiKeyProvider` values instead of using hidden config or environment fallbacks.
 
 ### Production
 
@@ -297,7 +289,7 @@ class APIKeyManager {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "pulseplate_api_key_\(tier.rawValue)",
             kSecValueData as String: keyData,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
         SecItemDelete(query as CFDictionary)
@@ -474,7 +466,7 @@ Response:
 - [ ] Implement proper error handling (401 vs 403)
 - [ ] Add tier detection logic
 - [ ] Store API keys securely (Keychain on iOS with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
-- [ ] Test with test API keys from Config.plist in dev (never hardcode)
+- [ ] Use explicit injected test doubles for development and previews; do not rely on `Config.plist`, env, or DEBUG secret fallbacks
 - [ ] Implement IAP → API key flow
 - [ ] Add retry logic for 429/503 errors
 - [ ] Update Swagger/OpenAPI client if using code generation
@@ -489,7 +481,7 @@ Response:
 ### For New Mobile Apps
 
 - [ ] Review tier structure and choose appropriate endpoints
-- [ ] Use test API keys from Config.plist for development (add Config.plist to .gitignore)
+- [ ] Use explicit injected API key providers for development flows; keep runtime secrets in Keychain only
 - [ ] Implement subscription manager
 - [ ] Add proper analytics for tier usage
 - [ ] **Implement offline resilience**:
@@ -531,7 +523,7 @@ Response:
    → API returns 401 Unauthorized. App should prompt user to renew subscription
 
 4. **How do I test PRO/VIP features without paying?**
-   → Use test API keys in development mode
+   → Pass test/dev keys through explicit injected `apiKeyProvider` seams in previews, UI tests, or dedicated debug harnesses; iOS runtime no longer reads hidden env/config fallbacks for premium API secrets
 
 5. **What's the rate limit?**
    → FREE: 100 req/hour, PRO: 1000 req/hour, VIP: 5000 req/hour (subject to change)

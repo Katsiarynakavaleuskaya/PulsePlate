@@ -1,10 +1,11 @@
 # Privacy Policy
 
 **Status:** Canonical legal document
-**Last updated:** 2026-01-19
+**Last updated:** 2026-03-08
+**Policy version:** `2026-03-08.eu-first.v1`
 **Scope:** All product tiers (FREE / PRO / VIP)
 **Markets:** CIS / EU / US
-**GDPR Compliance:** Yes (Article 4(5) pseudonymous data)
+**Positioning:** Consumer wellness product, not a clinical system
 
 ---
 
@@ -12,78 +13,80 @@
 
 ### Какие данные мы собираем
 
-**Данные аккаунта:**
+**Данные аккаунта и доступа:**
 
-- Email-адрес (для регистрации и связи)
+- Email и связанные данные аккаунта, если функция аккаунтов включена
+- Технические идентификаторы доступа, связанные с API-ключами и entitlement-проверками
 
-**Псевдонимные идентификаторы:**
+**Псевдонимные идентификаторы безопасности:**
 
-- Хешированные и усечённые IP-адреса (для безопасности и аналитики)
-- Эти идентификаторы **не могут** напрямую идентифицировать пользователя
-- Классификация: псевдонимные данные (GDPR Article 4(5))
+- Хешированные и усечённые client fingerprints для rate limiting, abuse prevention и request correlation
+- Эти идентификаторы рассматриваются как псевдонимные данные и не используются как публичный user profile
 
-**Аналитика использования:**
+**Wellness и AI-артефакты:**
 
-- Агрегированные метрики использования (без персональной идентификации)
+- Wellness-профиль и вычисления могут обрабатываться в request scope
+- Некоторые прямые user-bound артефакты могут сохраняться в минимизированном виде:
+  - feedback on AI/RAG responses
+  - user knowledge/personalization artifacts
+  - signed audit metadata for privileged AI actions
 
-### Какие данные мы НЕ храним
+### Что мы не обещаем
 
-**Мы НЕ храним постоянно:**
+- Мы **не обещаем**, что весь продукт работает без хранения данных
+- Мы **не позиционируем** продукт как HIPAA-ready, clinical-grade или Part 2 compliant
+- Мы **не используем** текущий wellness runtime для клинических записей, crisis workflows или SUD records
 
-- Показатели здоровья (рост, вес, BMI и другие метрики)
-- Персональные медицинские данные
-- Платежные данные карт (обрабатываются сторонними провайдерами)
+### AI / Automated Analysis
 
-Расчёты выполняются локально и временно.
+Некоторые поверхности выполняют **automated wellness analysis**:
 
-### Обработка данных
+- BMI / body-fat / nutrition-target calculations
+- nutrition planning and weekly-plan generation
+- AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
 
-**Локальная обработка:**
+Для таких поверхностей действуют общие правила:
 
-- Большинство расчётов выполняются локально без передачи внешним сервисам
+- результат носит wellness / educational характер
+- не предназначен для emergency use
+- не должен использоваться как единственное основание для treatment decisions
+- при признаках клинического риска нужен переход к qualified professional support
+- backend tracing хранит только HMAC-отпечатки, длины и usage metadata; raw prompts/completions не экспортируются в v1
 
-**Обработка с использованием AI/LLM:**
+### Внешние и self-hosted processors
 
-- Некоторые эндпоинты (`/insight`, `/api/v1/insight`) могут передавать предоставленный пользователем текст внешним AI-провайдерам для генерации персонализированных рекомендаций
-- Текущие LLM-провайдеры включают Grok (xAI), Ollama (локальный/самостоятельный хостинг) и Pico
-- Обработка и хранение данных регулируются политиками каждого провайдера:
-  - Grok (xAI): согласно опубликованным условиям xAI
-  - Ollama: обрабатывается и хранится локально как часть самостоятельного развёртывания
-  - Pico: обрабатывается согласно применимой политике данных
-- **Отказ:** Не используйте эндпоинты `/insight` или `/api/v1/insight`, если не хотите, чтобы ваш текст обрабатывался внешними AI-провайдерами
+При включении AI-функций запрос может обрабатываться:
 
-**Рекомендация:** Избегайте отправки личной идентифицирующей информации (PII) или чувствительных медицинских данных в эндпоинты insight.
+- локальным/runtime processing PulsePlate
+- self-hosted provider (например, Ollama-compatible)
+- external provider family (например, xAI/Grok, OpenAI-compatible, Anthropic-compatible, Pico)
+- OTLP collector/vendor tracing processor, если задан `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
+
+Конкретный processor зависит от deployment configuration. OTLP collector или tracing vendor создаёт дополнительный путь обработки и retention для trace metadata, который регулируется конфигурацией collector/vendored deployment. Retention и downstream processing у внешних processors регулируются их собственными условиями и настройками развертывания.
 
 ### Хранение и удаление
 
-**Псевдонимные идентификаторы:**
+- Псевдонимные security identifiers удаляются по retention policy
+- Direct-user SQL artifacts могут быть экспортированы или удалены через внутренний support-led DSAR workflow
+- Audit envelopes и indirect security artifacts не считаются public self-service artifacts и живут по retention/security policy
 
-- Хранятся в течение установленного периода (настраивается администратором)
-- Автоматически удаляются по истечении периода хранения
+### Ваши права
 
-**Данные аккаунта:**
+Если на вас распространяется GDPR или аналогичные режимы, вы можете запросить:
 
-- Хранятся до удаления аккаунта
-- Могут быть удалены по запросу пользователя
+- доступ к direct-user artifacts
+- удаление direct-user artifacts, где это технически и юридически поддерживается
+- исправление неточных account records
+- прекращение использования AI surfaces для новых automated-analysis requests
 
-**Данные у внешних провайдеров:**
+### Связанные документы
 
-- Подчиняются политикам хранения соответствующих провайдеров
-
-### Ваши права (GDPR)
-
-Если вы находитесь в ЕС, вы имеете право:
-
-- Запросить доступ к вашим данным
-- Запросить исправление неточных данных
-- Запросить удаление ваших данных
-- Отозвать согласие на обработку
-
-### Контакты
-
-По вопросам конфиденциальности обращайтесь к администратору приложения.
-
-**API endpoint:** `GET /privacy` (JSON response с детальной информацией)
+- `GET /privacy` — runtime JSON contract
+- `GET /terms` — runtime legal publication for service scope and acceptable use
+- `docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md`
+- `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+- `docs/compliance/DSAR_AND_DELETION_MAP.md`
+- `docs/legal/Disclaimer.md`
 
 ---
 
@@ -91,78 +94,80 @@
 
 ### What Data We Collect
 
-**Account Data:**
+**Account and access data:**
 
-- Email address (for registration and communication)
+- Email and account-linked data when account functionality is enabled
+- Access-control and entitlement data associated with API keys and subscription checks
 
-**Pseudonymous Identifiers:**
+**Pseudonymous security identifiers:**
 
-- Hashed and truncated IP addresses (for security and analytics)
-- These identifiers **cannot** directly identify individual users
-- Classification: pseudonymous data (GDPR Article 4(5))
+- Hashed and truncated client fingerprints used for rate limiting, abuse prevention, and request correlation
+- These identifiers are treated as pseudonymous data and are not presented as a public user profile
 
-**Usage Analytics:**
+**Wellness and AI artifacts:**
 
-- Aggregated usage metrics (without personal identification)
+- Wellness-profile inputs may be processed within request scope
+- Some direct-user artifacts may be persisted in minimized form:
+  - feedback on AI/RAG responses
+  - user knowledge/personalization artifacts
+  - signed audit metadata for privileged AI actions
 
-### What Data We Do NOT Store
+### What We Do Not Promise
 
-**We do NOT store permanently:**
+- We do **not** promise that the entire product is zero-storage or purely local-only
+- We do **not** position the current product as HIPAA-ready, clinical-grade, or 42 CFR Part 2 compliant
+- We do **not** use the current wellness runtime for clinical records, crisis workflows, or substance-use-disorder records
 
-- Health metrics (height, weight, BMI, and other measurements)
-- Personal health information
-- Payment card data (handled by third-party providers)
+### AI / Automated Analysis
 
-Calculations are performed locally and temporarily.
+Some surfaces perform **automated wellness analysis**, including:
 
-### Data Processing
+- BMI, body-fat, and nutrition-target calculations
+- nutrition planning and weekly-plan generation
+- AI insight surfaces (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
 
-**Local Processing:**
+For these surfaces:
 
-- Most calculations are performed locally without external transmission
+- outputs are intended for wellness and educational use
+- they are not for emergency use
+- they must not be used as the sole basis for treatment decisions
+- signs of clinical risk require escalation to qualified professional support
+- backend tracing stores only HMAC fingerprints, lengths, and bounded usage metadata; raw prompts/completions are not exported in v1
 
-**AI/LLM Processing:**
+### External and Self-Hosted Processors
 
-- Certain endpoints (`/insight`, `/api/v1/insight`) may transmit user-provided text to external AI providers for generating personalized insights
-- Current LLM providers include Grok (xAI), Ollama (local/self-hosted), and Pico
-- Data processing and retention are governed by each provider's own policies:
-  - Grok (xAI): according to xAI's published terms
-  - Ollama: processed and stored locally as part of self-hosted deployment
-  - Pico: handled according to its applicable data policy
-- **Opt-out:** Do not use `/insight` or `/api/v1/insight` endpoints if you do not wish your text to be processed by external AI providers
+When AI features are enabled, requests may be processed by:
 
-**Recommendation:** Avoid submitting personally identifiable information (PII) or sensitive health data to insight endpoints.
+- PulsePlate local/runtime processing
+- a self-hosted provider family (for example, Ollama-compatible deployments)
+- an external provider family (for example, xAI/Grok, OpenAI-compatible, Anthropic-compatible, or Pico)
+- an OTLP collector or tracing vendor processor when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is configured
 
-### Retention & Deletion
+The active processor depends on deployment configuration. An OTLP collector or tracing vendor adds a separate processing and retention path for trace metadata, governed by the collector or vendor deployment configuration. Retention and downstream processing at external processors are governed by the selected provider or deployment terms.
 
-**Pseudonymous Identifiers:**
+### Retention and Deletion
 
-- Retained for a configured period (set by administrator)
-- Automatically deleted after retention period expires
+- Pseudonymous security identifiers are cleaned up through retention policy
+- Direct-user SQL artifacts can be exported or deleted through an internal support-led DSAR workflow
+- Audit envelopes and indirect security artifacts are retention-managed and are not treated as public self-service artifacts
 
-**Account Data:**
+### Your Rights
 
-- Retained until account deletion
-- Can be deleted upon user request
+Where GDPR or a similar regime applies, you may request:
 
-**Data at External Providers:**
+- access to direct-user artifacts
+- deletion of direct-user artifacts where technically and legally supported
+- correction of inaccurate account records
+- discontinuation of new automated-analysis requests by avoiding or disabling AI surfaces
 
-- Subject to the respective provider's retention policies
+### Related Documents
 
-### Your Rights (GDPR)
-
-If you are in the EU, you have the right to:
-
-- Request access to your data
-- Request correction of inaccurate data
-- Request deletion of your data
-- Withdraw consent for processing
-
-### Contact
-
-For privacy concerns, please contact the application administrator.
-
-**API endpoint:** `GET /privacy` (JSON response with detailed information)
+- `GET /privacy` runtime JSON contract
+- `GET /terms` runtime legal publication for service scope and acceptable use
+- `docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md`
+- `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+- `docs/compliance/DSAR_AND_DELETION_MAP.md`
+- `docs/legal/Disclaimer.md`
 
 ---
 
@@ -170,93 +175,57 @@ For privacy concerns, please contact the application administrator.
 
 ### Qué Datos Recopilamos
 
-**Datos de Cuenta:**
+- Datos de cuenta y acceso cuando la funcionalidad de cuenta está habilitada
+- Identificadores de seguridad seudónimos para rate limiting, prevención de abuso y correlación de solicitudes
+- Artefactos minimizados vinculados al usuario para feedback de AI/RAG, personalización y metadatos de auditoría firmada
 
-- Dirección de correo electrónico (para registro y comunicación)
+### Qué No Prometemos
 
-**Identificadores Seudónimos:**
+- No prometemos un producto completamente sin almacenamiento o solo local
+- No posicionamos el producto actual como HIPAA-ready, clinical-grade o 42 CFR Part 2 compliant
+- No usamos el runtime de wellness para registros clínicos, workflows de crisis o registros de trastorno por uso de sustancias
 
-- Direcciones IP hasheadas y truncadas (para seguridad y análisis)
-- Estos identificadores **no pueden** identificar directamente a usuarios individuales
-- Clasificación: datos seudónimos (GDPR Artículo 4(5))
+### AI / Análisis Automatizado
 
-**Análisis de Uso:**
+Algunas superficies realizan análisis automatizado de wellness:
 
-- Métricas de uso agregadas (sin identificación personal)
+- cálculos de BMI, body-fat y nutrition targets
+- planificación nutricional y weekly-plan generation
+- superficies AI insight (`/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`)
 
-### Qué Datos NO Almacenamos
+Estos resultados son para wellness y educación, no para emergencias ni decisiones de tratamiento.
+El tracing backend solo almacena huellas HMAC, longitudes y metadatos de uso limitados; no exporta prompts/completions en texto plano en v1.
 
-**NO almacenamos permanentemente:**
+### Procesadores Externos y Self-Hosted
 
-- Métricas de salud (altura, peso, BMI y otras mediciones)
-- Información de salud personal
-- Datos de tarjetas de pago (manejados por proveedores externos)
+Cuando las funciones de AI están habilitadas, las solicitudes pueden ser procesadas por:
 
-Los cálculos se realizan localmente y temporalmente.
+- PulsePlate runtime local
+- una familia self-hosted (por ejemplo, Ollama-compatible)
+- una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
+- un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado
 
-### Procesamiento de Datos
-
-**Procesamiento Local:**
-
-- La mayoría de los cálculos se realizan localmente sin transmisión externa
-
-**Procesamiento con AI/LLM:**
-
-- Ciertos endpoints (`/insight`, `/api/v1/insight`) pueden transmitir texto proporcionado por el usuario a proveedores de AI externos para generar recomendaciones personalizadas
-- Los proveedores actuales de LLM incluyen Grok (xAI), Ollama (local/autohospedado) y Pico
-- El tratamiento y la retención de datos dependen de las políticas de cada proveedor:
-  - Grok (xAI): según los términos publicados por xAI
-  - Ollama: procesamiento y almacenamiento local como parte de la implementación autohospedada
-  - Pico: conforme a su política de datos aplicable
-- **Opt-out:** No use los endpoints `/insight` o `/api/v1/insight` si no desea que su texto sea procesado por proveedores de AI externos
-
-**Recomendación:** Evite enviar información de identificación personal (PII) o datos de salud sensibles a los endpoints de insight.
+El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 
 ### Retención y Eliminación
 
-**Identificadores Seudónimos:**
-
-- Retenidos por un período configurado (establecido por el administrador)
-- Eliminados automáticamente después de que expire el período de retención
-
-**Datos de Cuenta:**
-
-- Retenidos hasta la eliminación de la cuenta
-- Pueden eliminarse a solicitud del usuario
-
-**Datos en Proveedores Externos:**
-
-- Sujetos a las políticas de retención del proveedor correspondiente
-
-### Sus Derechos (GDPR)
-
-Si está en la UE, tiene derecho a:
-
-- Solicitar acceso a sus datos
-- Solicitar corrección de datos inexactos
-- Solicitar eliminación de sus datos
-- Retirar el consentimiento para el procesamiento
-
-### Contacto
-
-Para consultas sobre privacidad, póngase en contacto con el administrador de la aplicación.
-
-**API endpoint:** `GET /privacy` (respuesta JSON con información detallada)
+- Los identificadores de seguridad seudónimos siguen la política de retención
+- Los artefactos SQL vinculados directamente al usuario pueden exportarse o eliminarse mediante un flujo interno DSAR
+- Los audit envelopes y artefactos indirectos de seguridad se gestionan por retención y no son artefactos públicos self-service
 
 ---
 
 ## 📍 Legal Compliance
 
-This privacy policy is designed to comply with:
+This privacy policy is designed to align with:
 
-- **GDPR (EU):** Pseudonymous data classification (Article 4(5)), data subject rights
-- **CIS markets:** Local data protection requirements
-- **US:** General privacy principles (no HIPAA triggers for wellness apps)
-
----
+- **EU / GDPR-style expectations:** transparency, minimization, retention, and data-subject request readiness
+- **CIS markets:** wellness positioning and baseline privacy governance
+- **US wellness posture:** general privacy principles without claiming clinical compliance
 
 **See also:**
 
-- `GET /privacy` API endpoint — Detailed JSON response with current data collection practices
-- `docs/legal/Disclaimer.md` — Medical and wellness disclaimers
-- `docs/legal/Terms.md` — Terms of Service
+- `GET /privacy` API endpoint — runtime JSON response with current processing disclosures
+- `GET /terms` API endpoint — runtime service-scope and acceptable-use disclosures
+- `docs/compliance/PROVIDER_INVENTORY.md`
+- `docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md`

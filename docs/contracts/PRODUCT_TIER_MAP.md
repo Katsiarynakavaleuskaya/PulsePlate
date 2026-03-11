@@ -39,7 +39,6 @@
 | -------------- | ----------------------- | ----------- | ------------------------------------------- |
 | BMI calculate  | `/api/v1/bmi/calculate` | ✅ canonical | `app/routers/bmi_pro.py` (но FREE, не PRO)  |
 | BMI legacy     | `/bmi`, `/api/v1/bmi`   | ⚠️ shim     | `legacy_app.py:2097, 2316`                  |
-| Insight (free) | `/api/v1/insight`       | ⚠️ flag     | `legacy_app.py:2443` (FEATURE_INSIGHT)      |
 | Foods          | `/api/v1/foods/*`       | ✅ canonical | `app/routers/foods.py`                      |
 | Recipes        | `/api/v1/recipes/*`     | ✅ canonical | `app/routers/recipes.py`                     |
 | Users          | `/api/v1/users/*`       | ✅ canonical | `app/routers/users.py`                      |
@@ -76,7 +75,7 @@
 | Функция             | Endpoint                      | Статус      | Требует tier | Код-доказательство                    |
 | -------------------- | ----------------------------- | ----------- | ------------ | ------------------------------------- |
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
-| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | 📋 planned   | PRO          | `app/routers/pro.py` (planned)        |
+| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `frontend/src/api/openapi.json:8158`  |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
 | Shoplist day        | `/api/v1/pro/shoplist/*`      | ✅ canonical | PRO          | `app/routers/shoplist_day.py:22`      |
@@ -134,6 +133,10 @@
 | -------------------- | ---------------------------------- | ----------- | ------------ | ----------------------------------------- |
 | Weekly plan          | `/api/v1/vip/menu/weekly/plan`     | ✅ canonical | VIP          | `app/routers/vip.py` (main endpoint)      |
 | Weekly plan (legacy) | `/api/v1/vip/weekly-plan`         | ⚠️ deprecated | VIP        | `app/routers/vip.py:733` (deprecated)     |
+| Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `legacy_app.py:2443` (`FEATURE_INSIGHT`, VIP guard) |
+| FitChef mascot insight | `/api/v1/insight/fitchef`       | ⚠️ flag     | VIP          | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
+| FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
+| FitChef slip support | `/api/v1/insight/fitchef/slip-support` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:364`          |
 | Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:299`          |
 | Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:402`          |
@@ -303,5 +306,5 @@ For action items, PR sequencing, and remediation steps, see:
 
 * `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
 * `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
-* `docs/contracts/API_CANONICAL_MAP.md` — текущий mapping (требует обновления)
+* `docs/contracts/API_CANONICAL_MAP.md` — текущий операторский mapping
 * `app/middleware/api_tiers.py` — source of truth для уровней подписки

@@ -141,8 +141,7 @@ class TestAppEndpointsCoverage:
         """Тест покрытия app.py users endpoint"""
         # Тестируем users endpoint
         response = client.get("/api/v1/users")
-        # 200: success, 404/405: endpoint not found, 500: DB not initialized
-        assert response.status_code in [200, 404, 405, 500]
+        assert response.status_code == 403
 
     def test_app_premium_week_endpoint_coverage(self, client):
         """Тест покрытия app.py premium week endpoint"""

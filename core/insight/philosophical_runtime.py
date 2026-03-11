@@ -7,10 +7,12 @@ EN: Runtime chooses a cheaper/faster/more reliable answer path before LLM calls.
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol
+from typing import Protocol, cast
 
+from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 from core.insight.analytical import (
     AnalyticalSyntheticClassifier,
     FalsificationChecker,
@@ -29,20 +31,65 @@ from core.insight.linguistic import (
 )
 from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticValidator
 from core.insight.telemetry import record_runtime_metrics
+from core.i18n import normalize_lang
+import core.rag.orchestration as rag_orchestration
+from core.rag.orchestration import RAGOrchestrationResult
+from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
 _DEFAULT_BASELINE_DEPTH = 3
 _DEFINITION_TEMPLATES = {
-    "bmi": "BMI stands for body mass index. It estimates body size by comparing weight to height.",
-    "bmr": "BMR stands for basal metabolic rate. It estimates how much energy your body uses at rest.",
-    "tdee": "TDEE stands for total daily energy expenditure. It estimates your daily calorie burn including activity.",
-    "protein": "Protein is a macronutrient that helps support muscles, recovery, and many body functions.",
-    "calorie": "A calorie is a unit of energy used to describe how much energy food provides and the body uses.",
+    "en": {
+        "bmi": "BMI stands for body mass index. It estimates body size by comparing weight to height.",
+        "bmr": "BMR stands for basal metabolic rate. It estimates how much energy your body uses at rest.",
+        "tdee": "TDEE stands for total daily energy expenditure. It estimates your daily calorie burn including activity.",
+        "protein": "Protein is a macronutrient that helps support muscles, recovery, and many body functions.",
+        "calorie": "A calorie is a unit of energy used to describe how much energy food provides and the body uses.",
+    },
+    "ru": {
+        "bmi": "BMI означает индекс массы тела. Он оценивает размер тела, сопоставляя вес и рост.",
+        "bmr": "BMR означает базовый обмен веществ. Он оценивает, сколько энергии тело тратит в покое.",
+        "tdee": "TDEE означает общий дневной расход энергии. Он оценивает суточный расход калорий с учётом активности.",
+        "protein": "Белок — это макронутриент, который помогает поддерживать мышцы, восстановление и многие функции организма.",
+        "calorie": "Калория — это единица энергии, которая показывает, сколько энергии даёт еда и использует организм.",
+    },
+    "es": {
+        "bmi": "BMI significa índice de masa corporal. Estima el tamaño corporal comparando el peso con la altura.",
+        "bmr": "BMR significa tasa metabólica basal. Estima cuánta energía usa tu cuerpo en reposo.",
+        "tdee": "TDEE significa gasto energético diario total. Estima tu gasto calórico diario incluyendo la actividad.",
+        "protein": "La proteína es un macronutriente que ayuda a sostener los músculos, la recuperación y muchas funciones del cuerpo.",
+        "calorie": "Una caloría es una unidad de energía que describe cuánta energía aporta la comida y usa el cuerpo.",
+    },
 }
-_SAFE_WELLNESS_DISCLAIMER = (
-    "I can provide general wellness information, but I can't give medical diagnosis or treatment advice. "
-    "If you have symptoms or concern about a condition, please speak with a licensed clinician."
-)
+_SAFE_WELLNESS_DISCLAIMER = {
+    "en": (
+        "I can provide general wellness information, but I can't give medical diagnosis or treatment advice. "
+        "If you have symptoms or concern about a condition, please speak with a licensed clinician."
+    ),
+    "ru": (
+        "Я могу дать общую wellness-информацию, но не могу ставить диагноз или назначать лечение. "
+        "Если у вас есть симптомы или беспокойство о состоянии, обратитесь к лицензированному врачу."
+    ),
+    "es": (
+        "Puedo ofrecer información general de bienestar, pero no puedo dar diagnósticos médicos ni consejos de tratamiento. "
+        "Si tienes síntomas o preocupación por alguna condición, consulta con un profesional sanitario autorizado."
+    ),
+}
+
+_CONSERVATIVE_FALLBACK_MESSAGES = {
+    "en": (
+        "Here is the safest concise answer I can provide: focus on general wellness habits, "
+        "use evidence-based sources when possible, and avoid treating this as medical advice."
+    ),
+    "ru": (
+        "Вот самый безопасный краткий ответ, который я могу дать: сосредоточьтесь на общих wellness-привычках, "
+        "по возможности опирайтесь на доказательные источники и не воспринимайте это как медицинский совет."
+    ),
+    "es": (
+        "Esta es la respuesta breve más segura que puedo dar: céntrate en hábitos generales de bienestar, "
+        "usa fuentes basadas en evidencia cuando sea posible y no tomes esto como consejo médico."
+    ),
+}
 
 
 class _Provider(Protocol):
@@ -51,6 +98,9 @@ class _Provider(Protocol):
     name: str
 
     async def generate(self, text: str) -> str: ...
+
+
+_RagRetriever = Callable[..., Awaitable[RAGOrchestrationResult]]
 
 
 class RouteType(str, Enum):
@@ -107,7 +157,7 @@ class RuntimeResult:
 
     insight: str
     provider_name: str
-    source_dicts: list[dict[str, Any]] = field(default_factory=list)
+    source_dicts: list[RAGSourceDict] = field(default_factory=list)
     confidence: float | None = None
     rag_used: bool = False
     hops: int = 0
@@ -239,13 +289,13 @@ class PhilosophicalQueryRouter:
         )
 
     def _known_definition_term(self, query: str) -> str | None:
-        for term in _DEFINITION_TEMPLATES:
-            if term in query.lower():
+        for term in _DEFINITION_TEMPLATES["en"]:
+            if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", query.lower()):
                 return term
         return None
 
     def _can_calculate_locally(self, query: str) -> bool:
-        return _extract_bmi_inputs(query) is not None
+        return extract_bmi_inputs(query) is not None
 
 
 class PhilosophicalRuntime:
@@ -259,6 +309,27 @@ class PhilosophicalRuntime:
         self._falsification = FalsificationChecker()
         self._pragmatic = PragmaticValidator()
 
+    def preview_route(
+        self,
+        *,
+        text: str,
+        lang: str | None,
+        router_enabled: bool,
+        use_rag: bool,
+    ) -> RouteDecision:
+        """Return the deterministic route decision without calling the provider."""
+        if router_enabled:
+            return self._router.route(text, lang=lang)
+        return RouteDecision(
+            route_type=RouteType.DEEP_REASONING,
+            target_depth=_DEFAULT_BASELINE_DEPTH,
+            needs_rag=use_rag,
+            needs_generation=True,
+            risk_level=RiskLevel.MEDIUM,
+            reason_codes=["legacy_path"],
+            simplified_query=text,
+        )
+
     async def generate_insight(
         self,
         *,
@@ -268,10 +339,12 @@ class PhilosophicalRuntime:
         use_rag: bool,
         philo_validation_enabled: bool,
         recursive_rag_enabled: bool,
+        subject_id: int | None = None,
         philosophy_router_enabled: bool,
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
         philosophy_pragmatic_enabled: bool,
+        rag_retriever: _RagRetriever | None = None,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
         public_metadata_enabled = any(
@@ -283,22 +356,16 @@ class PhilosophicalRuntime:
             )
         )
         router_enabled = philosophy_router_enabled or philosophy_linguistic_enabled
-        if router_enabled:
-            decision = self._router.route(text, lang=lang)
-        else:
-            decision = RouteDecision(
-                route_type=RouteType.DEEP_REASONING,
-                target_depth=_DEFAULT_BASELINE_DEPTH,
-                needs_rag=use_rag,
-                needs_generation=True,
-                risk_level=RiskLevel.MEDIUM,
-                reason_codes=["legacy_path"],
-                simplified_query=text,
-            )
+        decision = self.preview_route(
+            text=text,
+            lang=lang,
+            router_enabled=router_enabled,
+            use_rag=use_rag,
+        )
 
         if decision.route_type == RouteType.SAFE_WELLNESS_DISCLAIMER:
             return self._build_direct_result(
-                answer=_SAFE_WELLNESS_DISCLAIMER,
+                answer=_SAFE_WELLNESS_DISCLAIMER[_normalize_runtime_lang(lang)],
                 provider_name="philosophical_runtime",
                 decision=decision,
                 verification_report=None,
@@ -308,7 +375,7 @@ class PhilosophicalRuntime:
                 rewrite_count=0,
             )
 
-        local_direct = self._resolve_local_direct_answer(decision)
+        local_direct = self._resolve_local_direct_answer(decision, lang=lang)
         if local_direct is not None:
             return self._build_direct_result(
                 answer=local_direct,
@@ -321,7 +388,8 @@ class PhilosophicalRuntime:
                 rewrite_count=0,
             )
 
-        rag_source_dicts: list[Any] = []
+        rag_source_dicts: list[RAGSourceDict] = []
+        final_provider_name = provider.name
         confidence: float | None = None
         rag_used = False
         hops = 0
@@ -329,13 +397,13 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            from core.rag.orchestration import retrieve_and_validate_rag
-
-            rag_result = await retrieve_and_validate_rag(
+            retrieve_rag = rag_retriever or rag_orchestration.retrieve_and_validate_rag
+            rag_result = await retrieve_rag(
                 prompt_input,
                 max_chunks=3,
                 philo_validation_enabled=philo_validation_enabled,
                 recursive_rag_enabled=recursive_rag_enabled,
+                subject_id=subject_id,
             )
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence
@@ -343,8 +411,6 @@ class PhilosophicalRuntime:
             hops = rag_result.hops
             latency_ms = rag_result.latency_ms
             if rag_result.chunks:
-                from core.rag.formatting import build_rag_source_dicts
-
                 rag_source_dicts = build_rag_source_dicts(rag_result.chunks)
 
         prompt_text = self._build_prompt(
@@ -383,7 +449,8 @@ class PhilosophicalRuntime:
                     falsification_report=falsification_report,
                     contradiction_count=contradiction_count,
                 )
-                answer = await provider.generate(_trim_prompt(rewrite_prompt))
+                rewritten_prompt = _trim_prompt(rewrite_prompt)
+                answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
                 contradiction_count = self._contradictions.count(answer)
@@ -392,7 +459,11 @@ class PhilosophicalRuntime:
                     or verification_report.verification_rate < 0.5
                     or falsification_report.falsifiability_rate < 0.5
                 ):
-                    answer = self._build_conservative_fallback(decision)
+                    answer = self._build_conservative_fallback(decision, lang=lang)
+                    final_provider_name = "philosophical_runtime"
+                    verification_report = None
+                    falsification_report = None
+                    contradiction_count = 0
                     fallback_reason = "phase12_validation"
 
         tokens_saved_estimate = _estimate_tokens_saved(
@@ -409,7 +480,7 @@ class PhilosophicalRuntime:
         )
         return RuntimeResult(
             insight=answer,
-            provider_name=provider.name,
+            provider_name=final_provider_name,
             source_dicts=rag_source_dicts,
             confidence=confidence,
             rag_used=rag_used,
@@ -462,10 +533,11 @@ class PhilosophicalRuntime:
             RouteType.RAG_FACTUAL,
             RouteType.DEEP_REASONING,
         }:
-            return self._prompt_builder.build_prompt(
+            prompt_text: str = self._prompt_builder.build_prompt(
                 base_prompt,
                 domain=decision.language_game.value,
             )
+            return prompt_text
         return base_prompt
 
     def _build_rewrite_prompt(
@@ -500,6 +572,12 @@ class PhilosophicalRuntime:
         pragmatic_enabled: bool,
     ) -> bool:
         """Decide if one rewrite attempt is justified."""
+        if contradiction_count > 0:
+            return True
+        if verification_report.verification_rate < 0.5:
+            return True
+        if falsification_report.falsifiability_rate < 0.5:
+            return True
         if pragmatic_enabled:
             pragmatic = self._pragmatic.assess(
                 answer,
@@ -508,37 +586,35 @@ class PhilosophicalRuntime:
             )
             if pragmatic.practically_useful and contradiction_count == 0:
                 return False
-        if contradiction_count > 0:
-            return True
         if decision.route_type in {RouteType.RAG_FACTUAL, RouteType.DEEP_REASONING}:
-            return (
+            return bool(
                 verification_report.verification_rate < 0.7
                 or falsification_report.falsifiability_rate < 0.7
             )
         return False
 
-    def _build_conservative_fallback(self, decision: RouteDecision) -> str:
+    def _build_conservative_fallback(self, decision: RouteDecision, *, lang: str | None) -> str:
         """Return a safe fallback when rewrite still fails."""
+        lang_norm = _normalize_runtime_lang(lang)
         if decision.language_game == LanguageGameType.MEDICAL:
-            return _SAFE_WELLNESS_DISCLAIMER
-        return (
-            "Here is the safest concise answer I can provide: focus on general wellness habits, "
-            "use evidence-based sources when possible, and avoid treating this as medical advice."
-        )
+            return _SAFE_WELLNESS_DISCLAIMER[lang_norm]
+        return _CONSERVATIVE_FALLBACK_MESSAGES[lang_norm]
 
-    def _resolve_local_direct_answer(self, decision: RouteDecision) -> str | None:
+    def _resolve_local_direct_answer(
+        self,
+        decision: RouteDecision,
+        *,
+        lang: str | None,
+    ) -> str | None:
         """Return a local direct answer when it is safer and cheaper than generation."""
+        lang_norm = _normalize_runtime_lang(lang)
         if decision.route_type == RouteType.DIRECT_DEFINITION:
             term = self._router._known_definition_term(decision.simplified_query)
             if term is not None:
-                return _DEFINITION_TEMPLATES[term]
+                return _DEFINITION_TEMPLATES[lang_norm][term]
         if decision.route_type == RouteType.DIRECT_CALCULATION:
-            bmi_inputs = _extract_bmi_inputs(decision.simplified_query)
-            if bmi_inputs is None:
-                return "To calculate BMI, send both weight and height, for example: 70kg and 175cm."
-            weight_kg, height_m = bmi_inputs
-            bmi = round(weight_kg / (height_m * height_m), 1)
-            return f"Your estimated BMI is {bmi}. For interpretation, compare it with standard BMI ranges."
+            bmi_answer: str = render_bmi_query_answer(decision.simplified_query, lang=lang)
+            return bmi_answer
         return None
 
     def _build_direct_result(
@@ -605,22 +681,10 @@ def _estimate_tokens_saved(*, prompt_text: str, target_depth: int, skipped_gener
     return max(0, (_DEFAULT_BASELINE_DEPTH - target_depth) * base)
 
 
-def _extract_bmi_inputs(query: str) -> tuple[float, float] | None:
-    """Extract weight and height from a free-form BMI query."""
-    weight_match = re.search(r"(\d+\.?\d*)\s*kg\b", query, re.IGNORECASE)
-    height_cm_match = re.search(r"(\d+\.?\d*)\s*cm\b", query, re.IGNORECASE)
-    height_m_match = re.search(r"(\d+\.?\d*)\s*m\b", query, re.IGNORECASE)
-    if weight_match is None:
-        return None
-    weight_kg = float(weight_match.group(1))
-    height_m: float | None = None
-    if height_cm_match is not None:
-        height_m = float(height_cm_match.group(1)) / 100.0
-    elif height_m_match is not None:
-        height_m = float(height_m_match.group(1))
-    if height_m is None or height_m <= 0:
-        return None
-    return weight_kg, height_m
+def _normalize_runtime_lang(lang: str | None) -> str:
+    """Normalize runtime language to the supported local-answer locales."""
+
+    return cast(str, normalize_lang(lang))
 
 
 __all__ = [

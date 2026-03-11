@@ -1,12 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    window.localStorage.setItem('pulseplate_api_key', 'playwright_smoke_key_12345');
-  });
-});
-
 async function expectProtectedRouteOrAuthPrompt(routeHeading: Locator, authField: Locator) {
   try {
     await expect(routeHeading).toBeVisible({ timeout: 3_000 });

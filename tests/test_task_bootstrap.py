@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from scripts.orchestration.task_bootstrap import build_task_packet
+import json
+from pathlib import Path
+
+from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+from scripts.orchestration.task_bootstrap import (
+    _resolve_output_path,
+    build_task_packet,
+    main,
+)
 
 
 def test_task_bootstrap_resolves_orchestration_domain() -> None:
@@ -22,7 +30,12 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
     assert packet["cluster"] == "ops"
     assert packet["primary_agent"]
     assert "AGENTS.md" in packet["required_context"]
+    assert "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md" in packet["required_context"]
     assert "scripts/AGENTS.md" in packet["required_context"]
+    assert packet["skill_routing"]["selection_mode"] == "deterministic-weighted"
+    assert "pulseplate-workflow" in packet["recommended_skills"]
+    assert "docs-sync" in packet["recommended_skills"]
+    assert "agents-md" in packet["recommended_skills"]
 
 
 def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
@@ -40,3 +53,159 @@ def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
     required_context = packet["required_context"]
     assert required_context == sorted(required_context)
     assert required_context.count("frontend/AGENTS.md") == 1
+    assert packet["skill_routing"]["recommended"]
+    assert "pulseplate-workflow" in packet["recommended_skills"]
+    assert "pulseplate-frontend-ui" in packet["recommended_skills"]
+
+
+def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
+    """Leading './' removal must not strip the '.cursor' directory name."""
+
+    assert normalize_repo_path("./.cursor/agents/agent-coordinator.md") == (
+        ".cursor/agents/agent-coordinator.md"
+    )
+
+
+def test_normalize_repo_path_keeps_absolute_outside_repo() -> None:
+    """Absolute paths outside repo should not raise and stay absolute."""
+
+    outside = Path("/tmp/pulseplate-outside/task.json")
+    assert normalize_repo_path(outside) == outside.as_posix()
+
+
+def test_resolve_output_path_anchors_relative_paths_to_repo_root() -> None:
+    """Relative --output should resolve within the repository root."""
+
+    out_path = _resolve_output_path("tmp/task-packet.json", "ignored")
+    assert out_path == (REPO_ROOT / "tmp/task-packet.json").resolve()
+
+
+def test_main_rejects_output_outside_repo(tmp_path, capsys) -> None:
+    """CLI should fail cleanly when --output targets a path outside the repo."""
+
+    outside = tmp_path / "task-packet.json"
+    exit_code = main(
+        [
+            "--goal",
+            "Harden orchestration bootstrap",
+            "--task-class",
+            "Orchestration",
+            "--path",
+            "scripts/orchestration/task_bootstrap.py",
+            "--output",
+            str(outside),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "FAIL: --output must stay within the repository root" in captured.out
+
+
+def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) -> None:
+    """CLI should write relative --output under repo root and report repo-relative path."""
+
+    relative_output = Path("tmp/task-packet.json")
+    repo_output = (REPO_ROOT / relative_output).resolve()
+    if repo_output.exists():
+        repo_output.unlink()
+
+    packet = {
+        "schema_version": "2.0",
+        "task_packet_id": "abc123def456",
+        "goal": "Test bootstrap write",
+        "task_class": "Orchestration",
+        "domain": "orchestration",
+        "cluster": "ops",
+        "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+        "primary_agent": "agent-coordinator",
+        "secondary_agents": [],
+        "reviewer": "architecture-specialist",
+        "required_context": ["AGENTS.md"],
+        "recommended_skills": ["pulseplate-workflow"],
+        "skill_routing": {
+            "policy_version": "2026-03-08",
+            "selection_mode": "deterministic-weighted",
+            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "blocked": [],
+        },
+        "routing_rationale": {"source": "canonical_only"},
+    }
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        lambda **_: packet,
+    )
+
+    try:
+        exit_code = main(
+            [
+                "--goal",
+                "ignored",
+                "--task-class",
+                "ignored",
+                "--output",
+                str(relative_output),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        written = json.loads(repo_output.read_text(encoding="utf-8"))
+        assert written["task_packet_id"] == "abc123def456"
+        assert json.loads(captured.out)["output"] == relative_output.as_posix()
+    finally:
+        if repo_output.exists():
+            repo_output.unlink()
+
+
+def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> None:
+    """Direct children of the repo root should still be reported repo-relative."""
+
+    relative_output = Path("task-packet-root.json")
+    repo_output = (REPO_ROOT / relative_output).resolve()
+    if repo_output.exists():
+        repo_output.unlink()
+
+    packet = {
+        "schema_version": "2.0",
+        "task_packet_id": "rootpacket123",
+        "goal": "Test root output write",
+        "task_class": "Orchestration",
+        "domain": "orchestration",
+        "cluster": "ops",
+        "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+        "primary_agent": "agent-coordinator",
+        "secondary_agents": [],
+        "reviewer": "architecture-specialist",
+        "required_context": ["AGENTS.md"],
+        "recommended_skills": ["pulseplate-workflow"],
+        "skill_routing": {
+            "policy_version": "2026-03-08",
+            "selection_mode": "deterministic-weighted",
+            "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+            "blocked": [],
+        },
+        "routing_rationale": {"source": "canonical_only"},
+    }
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        lambda **_: packet,
+    )
+
+    try:
+        exit_code = main(
+            [
+                "--goal",
+                "ignored",
+                "--task-class",
+                "ignored",
+                "--output",
+                str(relative_output),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert repo_output.exists()
+        assert json.loads(captured.out)["output"] == relative_output.as_posix()
+    finally:
+        if repo_output.exists():
+            repo_output.unlink()

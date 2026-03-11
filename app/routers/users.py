@@ -6,20 +6,56 @@ import logging
 import time
 from typing import Callable, List, TypeVar, cast
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.routers.api_key import api_key_header
 from app.schemas.users import UserCreate, UserRead
 from core import db as db_module
 from core.models import User
+from core.utils import resolve_attr
 
-router = APIRouter(prefix="/api/v1/users", tags=["users"])
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+def _require_users_api_key(api_key: str = Depends(api_key_header)) -> str:
+    """Validate app-level API key access for the users CRUD surface."""
+
+    app_get_api_key = resolve_attr("get_api_key", None)
+    if not callable(app_get_api_key):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+    try:
+        result = app_get_api_key(api_key)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Users API key validation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        ) from exc
+    if not isinstance(result, str):
+        logger.error("Users API key guard returned non-string result")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key validation unavailable",
+        )
+    return result
+
+
+router = APIRouter(
+    prefix="/api/v1/users",
+    tags=["users"],
+    dependencies=[Depends(_require_users_api_key)],
+)
 
 
 def _to_user_read(model: User) -> UserRead:

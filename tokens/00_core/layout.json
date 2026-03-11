@@ -1,0 +1,24 @@
+{
+  "breakpoint": {
+    "sm": { "$type": "dimension", "$value": "640px" },
+    "md": { "$type": "dimension", "$value": "768px" },
+    "lg": { "$type": "dimension", "$value": "1024px" },
+    "xl": { "$type": "dimension", "$value": "1280px" },
+    "2xl": { "$type": "dimension", "$value": "1536px" }
+  },
+  "zIndex": {
+    "hide": { "$type": "number", "$value": -1 },
+    "auto": { "$type": "string", "$value": "auto" },
+    "base": { "$type": "number", "$value": 0 },
+    "docked": { "$type": "number", "$value": 10 },
+    "dropdown": { "$type": "number", "$value": 1000 },
+    "sticky": { "$type": "number", "$value": 1100 },
+    "banner": { "$type": "number", "$value": 1200 },
+    "overlay": { "$type": "number", "$value": 1300 },
+    "modal": { "$type": "number", "$value": 1400 },
+    "popover": { "$type": "number", "$value": 1500 },
+    "skipLink": { "$type": "number", "$value": 1600 },
+    "toast": { "$type": "number", "$value": 1700 },
+    "tooltip": { "$type": "number", "$value": 1800 }
+  }
+}

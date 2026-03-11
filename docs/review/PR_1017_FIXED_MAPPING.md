@@ -1,5 +1,8 @@
 # PR 1017 — Fixed in Commit Mapping
 
+This artifact remains scoped to PR `#1017` only. PR `#1024` uses
+`docs/review/PR_1024_FIXED_MAPPING.md` as its canonical merge-governance artifact.
+
 ## Discussion Thread Pass
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed

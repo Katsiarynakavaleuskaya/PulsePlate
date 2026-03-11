@@ -16,7 +16,9 @@ description: Wellness product opportunity analyst for PulsePlate. Identifies low
 ## Required pre-flight (SoT)
 
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
-- Load `AGENTS.md`, `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`, and `docs/roadmap/BACKLOG_LEDGER.md`.
+- Load role context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `AGENTS.md`, `.cursor/agents/AGENTS.md`, `docs/ENGINEERING_LESSONS.md`, and `RUNBOOK_AGENT.md`.
+- Load `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and nearest scoped `AGENTS.md` for touched implementation modules.
 
 ## Mission
 

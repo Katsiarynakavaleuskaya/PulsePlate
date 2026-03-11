@@ -18,7 +18,9 @@
 - **Message envelopes (multi-model robustness):** `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
 - **Research track (web/OSS intake):** `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - **Research brainstorming (brainstorm → research → decision → promotion):** `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+- **Experimentation loops (bounded optimization / eval):** `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - **Reflection / KPP promotion:** `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+- **Skill routing policy:** `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - **Merge readiness / zero-comments (coordinator and any agent):** `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md` — canonical verification script and rules; never report "0 comments" or "ready to merge" without running the script.
 
 ---
@@ -66,7 +68,7 @@ Task
 ### Pre-flight Checklist
 
 #### 0) Auto-verification (mandatory)
-- [ ] Run: `python3 scripts/orchestration/check_preflight.py` — must exit 0 (PASS). Failure = stop execution.
+- [ ] Run: `python3 -m scripts.orchestration.check_preflight` — must exit 0 (PASS). Failure = stop execution.
 - [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
 
 #### 1) Context loading
@@ -87,6 +89,7 @@ Task
 - [ ] Назначен primary agent
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
+- [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 
 **Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
 
@@ -110,6 +113,18 @@ For tasks that introduce or modify agent automation:
   - `review-required`
   - `blocked`
 - Audit evidence requirements must be documented before rollout.
+
+## Agent Experimentation (when applicable)
+
+For fixed-budget optimization or evaluation loops, use:
+
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+- `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+
+Rule:
+
+- This workflow remains the canonical task lifecycle.
+- Mutable-surface rules, inner-loop budgets, and experiment promotion rules live only in the experimentation protocol.
 
 ---
 
@@ -296,6 +311,17 @@ python scripts/orchestration/telemetry_rollup.py
 ```
 
 See: `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`
+
+### Experiment promotion (governed lane)
+
+```bash
+mkdir -p artifacts/orchestration/experiments/promotions
+python scripts/orchestration/experiment_promote.py \
+  --packet artifacts/orchestration/experiments/<experiment_id>.json \
+  --result artifacts/orchestration/experiments/results/<experiment_id>.json
+```
+
+Rule: promotion writes exactly one durable destination artifact plus one local promotion decision artifact.
 
 ---
 

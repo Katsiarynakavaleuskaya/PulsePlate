@@ -45,7 +45,26 @@ class TestPremiumWeekRouter:
 
         # Mock the build_week function
         mock_build_week.return_value = {
-            "daily_menus": [{"day": "Monday", "meals": []}],
+            "daily_menus": [
+                {
+                    "meals": [
+                        {
+                            "title": "chicken_rice",
+                            "title_translated": "Chicken rice",
+                            "grams": {"chicken": 140.0},
+                            "kcal": 510.0,
+                            "macros": {"protein_g": 40.0, "fat_g": 12.0, "carbs_g": 55.0},
+                            "micros": {"iron_mg": 4.5},
+                            "price_est": "6.75",
+                        }
+                    ],
+                    "kcal": 510.0,
+                    "macros": {"protein_g": 40.0, "fat_g": 12.0, "carbs_g": 55.0},
+                    "micros": {"iron_mg": 4.5},
+                    "coverage": {"iron_mg": 92.0},
+                    "tips": ["Pair with vegetables"],
+                }
+            ],
             "weekly_coverage": {"protein": 0.95},
             "shopping_list": {"chicken": 1.0},
             "total_cost": 25.50,
@@ -80,6 +99,8 @@ class TestPremiumWeekRouter:
         assert "shopping_list" in data
         assert "total_cost" in data
         assert "adherence_score" in data
+        assert data["daily_menus"][0]["meals"][0]["price_est"] == 6.75
+        assert data["daily_menus"][0]["total_cost"] == 6.75
 
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
@@ -112,7 +133,26 @@ class TestPremiumWeekRouter:
 
         # Mock the build_week function
         mock_build_week.return_value = {
-            "daily_menus": [{"day": "Monday", "meals": []}],
+            "daily_menus": [
+                {
+                    "meals": [
+                        {
+                            "title": "oatmeal",
+                            "title_translated": "Oatmeal",
+                            "grams": {"oats": 80.0},
+                            "kcal": 300.0,
+                            "macros": {"protein_g": 12.0, "fat_g": 6.0, "carbs_g": 50.0},
+                            "micros": {"fiber_g": 7.0},
+                        }
+                    ],
+                    "kcal": 300.0,
+                    "macros": {"protein_g": 12.0, "fat_g": 6.0, "carbs_g": 50.0},
+                    "micros": {"fiber_g": 7.0},
+                    "coverage": {"fiber_g": 80.0},
+                    "tips": [],
+                    "total_cost": 0.0,
+                }
+            ],
             "weekly_coverage": {"protein": 0.95},
             "shopping_list": {"chicken": 1.0},
             "total_cost": 25.50,
@@ -281,7 +321,27 @@ class TestPremiumWeekRouter:
     def test_week_plan_response_model(self) -> None:
         """Test WeekPlanResponse model."""
         response = PremiumWeekPlanResponse(
-            daily_menus=[{"day": "Monday", "meals": []}],
+            daily_menus=[
+                {
+                    "meals": [
+                        {
+                            "title": "salad",
+                            "title_translated": "Salad",
+                            "grams": {"lettuce": 100.0},
+                            "kcal": 120.0,
+                            "macros": {"protein_g": 2.0, "fat_g": 5.0, "carbs_g": 15.0},
+                            "micros": {"vitamin_c_mg": 18.0},
+                            "price_est": 2.5,
+                        }
+                    ],
+                    "kcal": 120.0,
+                    "macros": {"protein_g": 2.0, "fat_g": 5.0, "carbs_g": 15.0},
+                    "micros": {"vitamin_c_mg": 18.0},
+                    "coverage": {"vitamin_c_mg": 35.0},
+                    "tips": ["Add protein"],
+                    "total_cost": 2.5,
+                }
+            ],
             weekly_coverage={"protein": 0.95, "carbs": 0.90},
             shopping_list={"chicken": 1.0},
             total_cost=25.50,

@@ -1,0 +1,237 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import WeeklyPlanViewer from '../WeeklyPlanViewer';
+import type { WeekPlanVM } from '../../weekly-plan/model/types';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (key === 'plan.day_fallback' && options?.number) {
+        return `Day ${options.number}`;
+      }
+      return key;
+    },
+  }),
+}));
+
+vi.mock('../../../lib/i18n', () => ({
+  getClientLocale: vi.fn(() => 'en'),
+}));
+
+vi.mock('../../weekly-plan/hooks/useWeeklyPlan', () => ({
+  useWeeklyPlan: vi.fn(),
+}));
+
+import { useWeeklyPlan } from '../../weekly-plan/hooks/useWeeklyPlan';
+import { getClientLocale } from '../../../lib/i18n';
+
+const mockUseWeeklyPlan = vi.mocked(useWeeklyPlan);
+const mockGetClientLocale = vi.mocked(getClientLocale);
+
+const WEEK_PLAN_VM: WeekPlanVM = {
+  days: [
+    {
+      day: 1,
+      dayName: 'Monday',
+      kcal: 1800,
+      total_cost: 18.4,
+      coverage: { protein: 0.91 },
+      macros: { protein_g: 120 },
+      micros: { iron_mg: 12 },
+      tips: ['Hydrate'],
+      meals: [
+        {
+          title: 'Chicken bowl',
+          title_translated: 'Chicken bowl',
+          kcal: 620,
+          price_est: 7.2,
+          grams: { chicken: 180, rice: 150 },
+          macros: { protein_g: 42, carbs_g: 58 },
+          micros: { iron_mg: 3.4 },
+        },
+      ],
+    },
+  ],
+  weekly_coverage: { protein: 0.95 },
+  shopping_list: { chicken: 1200 },
+  metrics: {
+    total_cost: 72.4,
+    adherence_score: 0.88,
+  },
+  meta: {
+    total_days: 1,
+    has_incomplete_data: false,
+  },
+};
+
+const SPARSE_WEEK_PLAN_VM: WeekPlanVM = {
+  ...WEEK_PLAN_VM,
+  days: [
+    {
+      ...WEEK_PLAN_VM.days[0],
+      day: 3,
+      dayName: 'Wednesday',
+    },
+  ],
+  meta: {
+    total_days: 1,
+    has_incomplete_data: true,
+  },
+};
+
+describe('WeeklyPlanViewer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetClientLocale.mockReturnValue('en');
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+  });
+
+  it('renders loading state from the normalized weekly-plan hook', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: true,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('plan.loadingWeek')).toBeInTheDocument();
+  });
+
+  it('treats the initial empty hook state as loading instead of empty summary', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('plan.loadingWeek')).toBeInTheDocument();
+    expect(screen.queryByText('plan.emptySummary')).not.toBeInTheDocument();
+  });
+
+  it('renders the hook error state', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: null,
+      loading: false,
+      error: 'backend unavailable',
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('plan.loadError: backend unavailable')).toBeInTheDocument();
+  });
+
+  it('builds the locale-adjusted request on the first render', () => {
+    mockGetClientLocale.mockReturnValue('ru');
+
+    render(<WeeklyPlanViewer />);
+
+    expect(mockUseWeeklyPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: expect.objectContaining({
+          ...{
+            sex: 'female',
+            age: 30,
+            height_cm: 168,
+            weight_kg: 62,
+            activity: 'moderate',
+            goal: 'maintain',
+            diet_flags: [],
+          },
+          lang: 'ru',
+        }),
+      })
+    );
+  });
+
+  it('renders normalized week-plan view-model data', () => {
+    mockUseWeeklyPlan.mockReturnValue({
+      data: WEEK_PLAN_VM,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    expect(screen.getByText('Monday')).toBeInTheDocument();
+    expect(screen.getByText('Chicken bowl')).toBeInTheDocument();
+    expect(screen.getByText(/620 plan.kcal/)).toBeInTheDocument();
+    expect(screen.getByText(/chicken: 180 g/i)).toBeInTheDocument();
+    expect(screen.getByText(/rice: 150 g/i)).toBeInTheDocument();
+  });
+
+  it('preserves localized day labels for non-English users', async () => {
+    mockGetClientLocale.mockReturnValue('ru');
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+      () =>
+        ({
+          format: () => 'понедельник',
+        }) as Intl.DateTimeFormat
+    );
+    mockUseWeeklyPlan.mockReturnValue({
+      data: WEEK_PLAN_VM,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    await waitFor(() => {
+      expect(screen.getByText('понедельник')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Monday')).not.toBeInTheDocument();
+
+    dateTimeFormatSpy.mockRestore();
+  });
+
+  it('uses the normalized day number for sparse localized plans', async () => {
+    mockGetClientLocale.mockReturnValue('ru');
+    const dateTimeFormatSpy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+      () =>
+        ({
+          format: (date: Date) => {
+            const weekday = date.getUTCDay();
+            if (weekday === 3) {
+              return 'среда';
+            }
+            return 'понедельник';
+          },
+        }) as Intl.DateTimeFormat
+    );
+    mockUseWeeklyPlan.mockReturnValue({
+      data: SPARSE_WEEK_PLAN_VM,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearData: vi.fn(),
+    });
+
+    render(<WeeklyPlanViewer />);
+
+    await waitFor(() => {
+      expect(screen.getByText('среда')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('понедельник')).not.toBeInTheDocument();
+
+    dateTimeFormatSpy.mockRestore();
+  });
+});

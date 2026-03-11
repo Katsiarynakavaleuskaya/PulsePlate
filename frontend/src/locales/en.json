@@ -10,6 +10,7 @@
     "tryAgain": "Try again"
   },
   "auth": {
+    "requiresSecureSession": "Secure session required",
     "apiKey": {
       "tooShort": "API key must be at least 20 characters",
       "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."

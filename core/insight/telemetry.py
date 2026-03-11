@@ -97,7 +97,25 @@ def _build_metrics() -> (
     _REWRITE_TOTAL,
     _DEPTH_HISTOGRAM,
     _TOKEN_SAVINGS_HISTOGRAM,
-) = _build_metrics()
+) = (None, None, None, None)
+
+_METRICS_READY = False
+
+
+def _get_metrics() -> (
+    tuple[_Counter | None, _RewriteCounter | None, _Histogram | None, _Histogram | None]
+):
+    """Initialize metrics lazily so importing core has no registration side effects."""
+    global _RUNTIME_TOTAL, _REWRITE_TOTAL, _DEPTH_HISTOGRAM, _TOKEN_SAVINGS_HISTOGRAM, _METRICS_READY
+    if not _METRICS_READY:
+        (
+            _RUNTIME_TOTAL,
+            _REWRITE_TOTAL,
+            _DEPTH_HISTOGRAM,
+            _TOKEN_SAVINGS_HISTOGRAM,
+        ) = _build_metrics()
+        _METRICS_READY = True
+    return _RUNTIME_TOTAL, _REWRITE_TOTAL, _DEPTH_HISTOGRAM, _TOKEN_SAVINGS_HISTOGRAM
 
 
 def record_runtime_metrics(
@@ -110,16 +128,17 @@ def record_runtime_metrics(
 ) -> None:
     """Record low-cardinality runtime metrics."""
     try:
-        if _RUNTIME_TOTAL is not None:
-            _RUNTIME_TOTAL.labels(route_type=route_type, fallback_reason=fallback_reason).inc()
-        if _DEPTH_HISTOGRAM is not None:
-            _DEPTH_HISTOGRAM.labels(route_type=route_type).observe(float(depth_used))
-        if _TOKEN_SAVINGS_HISTOGRAM is not None:
-            _TOKEN_SAVINGS_HISTOGRAM.labels(route_type=route_type).observe(
+        runtime_total, rewrite_total, depth_histogram, token_savings_histogram = _get_metrics()
+        if runtime_total is not None:
+            runtime_total.labels(route_type=route_type, fallback_reason=fallback_reason).inc()
+        if depth_histogram is not None:
+            depth_histogram.labels(route_type=route_type).observe(float(depth_used))
+        if token_savings_histogram is not None:
+            token_savings_histogram.labels(route_type=route_type).observe(
                 float(max(tokens_saved_estimate, 0))
             )
-        if _REWRITE_TOTAL is not None and rewrite_count > 0:
-            _REWRITE_TOTAL.labels(route_type=route_type).inc(float(rewrite_count))
+        if rewrite_total is not None and rewrite_count > 0:
+            rewrite_total.labels(route_type=route_type).inc(float(rewrite_count))
     except (
         Exception
     ):  # nosec B110: telemetry must never affect request handling (remove-by: 2026-06-30, ref: PR-philosophical-runtime-foundation)

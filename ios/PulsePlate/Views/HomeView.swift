@@ -21,6 +21,10 @@ struct HomeView: View {
         profileProvider.proNutritionProfile() != nil
     }
 
+    private var hasProTools: Bool {
+        FeatureFlags.aiInsightEnabled || FeatureFlags.weeklyPlanReaderEnabled
+    }
+
     private func localized(_ key: String) -> String {
         NSLocalizedString(key, comment: "")
     }
@@ -86,31 +90,45 @@ struct HomeView: View {
                     }
                 }
 
-                if FeatureFlags.weeklyPlanReaderEnabled {
+                if hasProTools {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(localized("home.section.pro_tools"))
                                 .font(.headline)
                                 .foregroundStyle(Color.textPrimary)
 
-                            NavigationLink {
-                                makeWeeklyPlanReaderScreen()
-                            } label: {
-                                HomeActionRow(
-                                    title: localized("home.action.weekly_plan_reader.title"),
-                                    subtitle: localized("home.action.weekly_plan_reader.subtitle"),
-                                    icon: "calendar.badge.clock"
-                                )
+                            if FeatureFlags.aiInsightEnabled {
+                                NavigationLink {
+                                    makeAIInsightScreen()
+                                } label: {
+                                    HomeActionRow(
+                                        title: localized("home.action.ai_insight.title"),
+                                        subtitle: localized("home.action.ai_insight.subtitle"),
+                                        icon: "brain.head.profile"
+                                    )
+                                }
                             }
 
-                            NavigationLink {
-                                makeShoppingListScreen()
-                            } label: {
-                                HomeActionRow(
-                                    title: localized("home.action.shopping_list.title"),
-                                    subtitle: localized("home.action.shopping_list.subtitle"),
-                                    icon: "cart"
-                                )
+                            if FeatureFlags.weeklyPlanReaderEnabled {
+                                NavigationLink {
+                                    makeWeeklyPlanReaderScreen()
+                                } label: {
+                                    HomeActionRow(
+                                        title: localized("home.action.weekly_plan_reader.title"),
+                                        subtitle: localized("home.action.weekly_plan_reader.subtitle"),
+                                        icon: "calendar.badge.clock"
+                                    )
+                                }
+
+                                NavigationLink {
+                                    makeShoppingListScreen()
+                                } label: {
+                                    HomeActionRow(
+                                        title: localized("home.action.shopping_list.title"),
+                                        subtitle: localized("home.action.shopping_list.subtitle"),
+                                        icon: "cart"
+                                    )
+                                }
                             }
                         }
                     }
@@ -169,6 +187,15 @@ struct HomeView: View {
             apiKeyProvider: { ProKeyProvider.value() }
         )
         return WeeklyPlanReaderView(vm: weeklyPlanViewModel)
+    }
+
+    private func makeAIInsightScreen() -> some View {
+        let service = DefaultCBTInsightService(apiClient: apiClient)
+        let viewModel = AIInsightViewModel(
+            service: service,
+            apiKeyProvider: { ProKeyProvider.value() }
+        )
+        return AIInsightView(vm: viewModel)
     }
 }
 

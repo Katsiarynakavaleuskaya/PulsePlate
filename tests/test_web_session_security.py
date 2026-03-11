@@ -68,7 +68,7 @@ def test_require_web_session_ttl_seconds_rejects_invalid(monkeypatch: pytest.Mon
 def test_issue_and_verify_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Issued token should verify and keep core claims."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     issued = web_session.issue_web_session(
@@ -89,7 +89,7 @@ def test_issue_and_verify_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_issue_rejects_invalid_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     """Issue path must fail closed for malformed inputs."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
 
     with pytest.raises(ValueError):
         web_session.issue_web_session(api_key="", tier="PRO")
@@ -130,7 +130,7 @@ def test_issue_and_verify_with_explicit_secret() -> None:
 def test_verify_rejects_malformed_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     """Malformed token formats should return None."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     assert web_session.verify_web_session("") is None
     assert web_session.verify_web_session("abc") is None
     assert web_session.verify_web_session("a.b.c") is None
@@ -143,16 +143,16 @@ def test_verify_rejects_invalid_base64_payload_with_valid_signature(
 ) -> None:
     """Signed token with undecodable payload must fail closed."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     payload = "@@@"
-    sig = _sign_payload(payload, server_salt="session-secret")
+    sig = _sign_payload(payload, server_salt="StrongSessionSaltForTests123456789!")
     assert web_session.verify_web_session(f"{payload}.{sig}") is None
 
 
 def test_verify_rejects_bad_signature(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tampered signature must fail verification."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     issued = web_session.issue_web_session(api_key="k", tier="PRO", ttl_seconds=100)
     payload, _sig = issued.token.split(".", 1)
     assert web_session.verify_web_session(f"{payload}.deadbeef") is None
@@ -161,13 +161,16 @@ def test_verify_rejects_bad_signature(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_verify_rejects_wrong_version(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unsupported version must be rejected."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     issued = web_session.issue_web_session(api_key="k", tier="PRO", ttl_seconds=100)
     payload, _sig = issued.token.split(".", 1)
     payload_raw = _b64url_decode(payload)
     tampered = payload_raw.replace(b'"v":1', b'"v":2')
     tampered_payload = _b64url_encode(tampered)
-    tampered_sig = _sign_payload(tampered_payload, server_salt="session-secret")
+    tampered_sig = _sign_payload(
+        tampered_payload,
+        server_salt="StrongSessionSaltForTests123456789!",
+    )
     bad_token = f"{tampered_payload}.{tampered_sig}"
     assert web_session.verify_web_session(bad_token) is None
 
@@ -175,7 +178,7 @@ def test_verify_rejects_wrong_version(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_verify_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> None:
     """Expired token should be rejected deterministically."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     issued = web_session.issue_web_session(
         api_key="k",
@@ -189,7 +192,7 @@ def test_verify_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_verify_rejects_payload_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verification should reject non-object payload and invalid claims."""
 
-    monkeypatch.setenv("SERVER_SALT", "session-secret")
+    monkeypatch.setenv("SERVER_SALT", "StrongSessionSaltForTests123456789!")
     now_epoch = int(datetime.now(tz=timezone.utc).timestamp())
     expires_epoch = now_epoch + 100
 
@@ -210,7 +213,7 @@ def test_verify_rejects_payload_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
     for payload_raw in bad_payloads:
         payload = _b64url_encode(payload_raw)
-        sig = _sign_payload(payload, server_salt="session-secret")
+        sig = _sign_payload(payload, server_salt="StrongSessionSaltForTests123456789!")
         assert web_session.verify_web_session(f"{payload}.{sig}") is None
 
 

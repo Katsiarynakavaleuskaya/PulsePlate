@@ -100,7 +100,7 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
 3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence (no commit required); **DEFERRED** → Backlog link (no commit required).
+4. Every resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence with the thread listed as `- <url>` (no commit required); **DEFERRED** → Backlog link with the thread listed as `- <url>` (no commit required).
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 7. **FIXED proof quality (trigger-only ban):** A commit SHA used as FIXED proof (`- <thread_url> -> <commit_sha>`) MUST NOT be a trigger-only commit. **Trigger-only** means: (a) **empty commit** (no changed files), or (b) commit subject containing `trigger ci`, `rerun ci`, or `rerun checks` (case-insensitive). Such SHAs are invalid FIXED proof and fail the merge readiness gate. Exceptions only via allowlist with TTL (empty by default; P2 if needed).
@@ -117,7 +117,12 @@ This document is the canonical governance reference and must stay aligned with:
 - `scripts/ci/check_pr_merge_readiness.py`
 - `scripts/orchestration/check_review_threads_disposition.py`
 
-**CI / gh-based gates (canonical contract):** Any step that runs `gh api` or GraphQL **MUST** run with a token exported. The `gh` CLI accepts both `GH_TOKEN` and `GITHUB_TOKEN` (GH_TOKEN takes precedence). For this repo, CI and the disposition guard preflight **require `GH_TOKEN`** to be set (e.g. GitHub Actions: `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`; shell: `export GH_TOKEN="${GITHUB_TOKEN}"`) so behaviour is consistent and scripts need not probe both. Before any GraphQL call, the disposition guard runs a mandatory preflight: if `--require-auth` or `CI=true`, it requires `GH_TOKEN` and runs `gh auth status`; if either is missing or fails, the script exits 1 with env diagnostic and fix commands (no GraphQL, no mapping/resolve). This prevents agents from wasting iterations on mapping when auth is invalid.
+**CI / gh-based gates (canonical contract):** Any step that runs `gh api` or GraphQL **MUST** run with a token exported. The `gh` CLI accepts both `GH_TOKEN` and `GITHUB_TOKEN` (GH_TOKEN takes precedence). For this repo, auth semantics are mode-specific:
+- **Local default / advisory:** disposition guard may `SKIP` (exit 0) when no usable `gh` auth is available; this keeps local exploration non-blocking.
+- **Local strict parity:** when you pass `--require-auth`, export `GH_TOKEN` and require `gh auth status` to succeed before any GraphQL.
+- **CI strict:** when `CI=true`, disposition preflight requires `GH_TOKEN` (for example `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`) and `gh auth status` before any GraphQL.
+
+The merge-readiness gate remains separate and still requires `GITHUB_TOKEN` for PR API access. Before any GraphQL call, the disposition guard runs a mandatory preflight: if `--require-auth` or `CI=true`, it requires `GH_TOKEN` and runs `gh auth status`; if either is missing or fails, the script exits 1 with env diagnostic and fix commands (no GraphQL, no mapping/resolve). This prevents agents from wasting iterations on mapping when auth is invalid.
 
 **Bandit / nosec policy (no blind suppressions):** Adding `# nosec` to silence Bandit is **forbidden** when a simple fix exists (e.g. B607 → use `shutil.which()` for full path). `# nosec` is allowed **only** with: (1) rule code (e.g. B607), (2) one-line justification, (3) `(remove-by: YYYY-MM-DD, ref: issue/PR)` on the same comment line, and (4) only when there is no safe code fix. **remove-by and ref MUST NOT be 'N/A'** (policy enforcement). Any subprocess call to external tools (`gh`, `git`, `curl`, `wget`, `ssh`) MUST use an absolute path via `shutil.which()` or config. Enforced by `tests/guards/test_nosec_policy_guard.py` and `tests/guards/test_subprocess_uses_absolute_binaries.py`. Legacy suppressions are allowlisted in `tests/guards/fixtures/nosec_policy_allowlist.txt` (Phase 1); migrate to full format and remove from allowlist over time. **Allowlist entries MUST include remove-by/ref and MUST expire** (format: `path:line remove-by=YYYY-MM-DD ref=PR-XXX`; past date → guard FAIL). **Adding allowlist entries is treated as tech-debt and requires a ledger item.**
 
@@ -238,6 +243,15 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Feature flags MUST be checked **before** quota consumption (no charging when a feature is disabled).
 - CI container smoke-start MUST set `SERVER_SALT` (dummy value allowed) so app startup can pass fail-fast requirements.
 
+**AI agent input guard policy (Hard rule):**
+
+- AI-facing insight and MCP entrypoints MUST screen text with shared helpers in `app/security/agent_input_guard.py` before quota, RAG, provider calls, or tool execution.
+- Legacy compatibility routes MUST stay thin: use shared helpers such as `prepare_safe_ai_prompt_input(...)` instead of inlining guard enforcement inside `legacy_app.py`.
+- MCP tool-level blocking MUST preserve JSON-RPC contract: reject unsafe or malformed guarded fields with `-32602 Invalid params` from `_call_tool`.
+- Direct helper paths that bypass `_call_tool` MUST still fail closed before the provider call and return the stable local error shape already covered by tests.
+- Broad fallback regexes are intentionally scoped to AI-agent control surfaces; do not reuse them for general educational/free-form developer text without a separate contract review.
+- See: `app/security/agent_input_guard.py` (`prepare_safe_ai_prompt_input`, `scan_ai_agent_input`), `mcp_pulseplate_server.py` (`_call_tool`, `_find_blocked_tool_argument`), `legacy_app.py` (`/insight`, `/api/v1/insight`), `tests/test_agent_input_guard.py`, `tests/test_mcp_pulseplate_server_coverage.py`, `tests/test_insight_error_hygiene.py`.
+
 **Rationale:**
 
 - LLM endpoints: $72k/month abuse risk (documented in `BACKLOG_LEDGER.md`).
@@ -317,6 +331,8 @@ A **task** is any unit of work that:
 - Research track (web/OSS intake, bounded): `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Research brainstorming (brainstorm → optional web/OSS intake → decision → promotion): `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
 - Agent knowledge library worktree runbook (brainstorm → promotion → PR): `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+- Experimentation lane (bounded eval/optimization only; no hidden memory, mutation of immutable oracles, autonomous merge, or runtime autonomy): `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+- Experimentation rollout order: PR1 governance, PR2 deterministic tooling, PR3 runner MVP, PR4 promotion/telemetry, PR5 CV eval lane, PR6 first LLM/RAG reliability optimization.
 - Reflection (KPP-aligned promotion, dev-only): `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - Figma Make sync and blocker audit protocol: `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
 - Figma Code Connect activation and blocker protocol: `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
@@ -982,6 +998,30 @@ Source of truth:
 
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
 - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
+- `docs/contracts/API_CANONICAL_MAP.md` — operator-facing route map (current namespace and compatibility surface)
+- `docs/runbooks/ENGINEER_QUICKPATH.md` — short execution path for day-to-day engineering work
+
+## Canonical Maps And Quick Paths
+
+Use this section as a navigation index only.
+Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
+
+### API and OpenAPI workflow
+
+- Canonical API route map: `docs/contracts/API_CANONICAL_MAP.md`
+- `make openapi` remains the canonical combined OpenAPI command.
+- Backend/frontend OpenAPI split targets remain a temporary workflow seam tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split` and governed by `docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md` (retire the seam only when dedicated backend/frontend targets exist and docs/CI no longer need transitional wording).
+
+### Operator quick path
+
+- Daily operator runbook: `docs/runbooks/ENGINEER_QUICKPATH.md`
+- CI/debug triage: `RUNBOOK_AGENT.md`
+- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`, governed by `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md` (retire the seam only when Makefile/runbooks stop carrying `docker-compose` as active guidance).
+
+### AI bounded context
+
+- AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
+- Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (the ADR now carries `file:line` evidence for current boundary claims; retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
 
 ## OpenAPI generation (determinism requirement)
 
@@ -991,6 +1031,7 @@ Source of truth:
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
 - **OpenAPI generation policy**: OpenAPI must be generated via `make openapi` (never direct `python scripts/generate_openapi.py`). CI and local must use the same entrypoint.
+- Workflow follow-up: backend/frontend split OpenAPI targets remain tracked work until they are implemented in the canonical Make workflow (`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`).
 - `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)
@@ -1037,6 +1078,8 @@ Source of truth:
 ### Documentation requirement
 
 - If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
+- Workflow/guard PRs must also update agent-facing instructions when they change daily engineering behavior.
+  The canonical tooling-surface policy and verification commands live in `docs/security/TOOLING_SURFACE_POLICY.md`.
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 

@@ -6,7 +6,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Literal,
     Mapping,
     Optional,
     Type,
@@ -24,7 +23,9 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
+from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
+from app.services import fitchef_runtime
 from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
 from core.recipe_synth import RecipeSynthesizer
@@ -33,6 +34,12 @@ from app.utils.feature_flags import is_vip_module_enabled
 from app.routers.vip_shoplist import router as vip_shoplist_router
 from app.contracts.vip_contract import vip_error, vip_success
 from app.middleware.api_tiers import require_vip_tier
+from settings import (
+    get_runtime_env_name,
+    is_explicit_developer_env,
+    is_production_like_env,
+    is_truthy_env_var,
+)
 
 if TYPE_CHECKING:
     from core.targets import UserProfile
@@ -46,7 +53,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 """
 
 # Test key constant for development mode only
-TEST_KEY = "test_key"  # nosec B105  # Development mode only
+TEST_KEY = "test_key"  # nosec B105: development-only test fixture constant (remove-by: 2026-06-30, ref: PR-1056)
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = is_vip_module_enabled()
@@ -135,7 +142,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def _is_production() -> bool:
     """Single source of truth for tests & runtime (do NOT cache settings here)."""
-    return os.getenv("APP_ENV", "").lower() == "production"
+    return bool(is_production_like_env())
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -144,10 +151,8 @@ def _is_production_environment() -> tuple[bool, str]:
     Returns:
         tuple[bool, str]: (is_production, app_env)
     """
-    app_env = os.getenv("APP_ENV", "local").lower()
-    # Production detection: only APP_ENV, not DEBUG (for test compatibility)
-    is_production = app_env == "production"
-    return is_production, app_env
+    app_env = get_runtime_env_name()
+    return is_production_like_env(), app_env
 
 
 def _should_allow_anonymous_access(is_production: bool) -> bool:
@@ -161,11 +166,10 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     """
     # Default is strict.
     # In production-like environments, allow only if explicitly enabled.
-    flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in ("true", "1", "yes", "on")
+    flag = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
     if is_production:
-        # Default deny in production unless explicitly allowed
-        return flag
-    return flag
+        return False
+    return bool(flag)
 
 
 def _is_dev_mode(app_env: str) -> bool:
@@ -177,9 +181,8 @@ def _is_dev_mode(app_env: str) -> bool:
     Returns:
         bool: True if in development mode
     """
-    # ALLOW_DEV_API_KEY only has effect outside production/staging
-    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "false").lower() == "true"
-    return app_env in ("test", "testing", "dev", "development", "local") or allow_dev
+    allow_dev = is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
+    return bool(is_explicit_developer_env() and allow_dev)
 
 
 def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:
@@ -274,7 +277,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             )
             return "anonymous"
         # Dev/test fallback for unit scenarios (not used by strict route wrappers)
-        if not is_production and not _explicit_false:
+        if is_dev_mode and not _explicit_false:
             _log_api_key_event(
                 "VIP endpoint accessed without API key in development mode.", is_production, app_env
             )
@@ -405,61 +408,8 @@ def _extract_api_key(request: Request) -> Optional[str]:
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
     """Create UserProfile from dictionary data with validation."""
-    from core.targets import UserProfile
-
-    # Use default values for missing fields instead of validation
-    # Convert diet_flags to set if it's a list
-    diet_flags = profile_data.get("diet_flags", [])
-    if isinstance(diet_flags, list):
-        diet_flags = set(diet_flags)
-
-    # Convert medical_conditions to set if it's a list
-    medical_conditions = profile_data.get("medical_conditions", [])
-    if isinstance(medical_conditions, list):
-        medical_conditions = set(medical_conditions)
-
-    # Use explicit conversions with safe fallbacks so typing is precise
-    age_raw = profile_data.get("age")
-    try:
-        age_val: int = 30 if age_raw is None else int(age_raw)
-    except (TypeError, ValueError):
-        age_val = 30
-
-    height_raw = profile_data.get("height_cm")
-    try:
-        height_val: float = 175.0 if height_raw is None else float(height_raw)
-    except (TypeError, ValueError):
-        height_val = 175.0
-
-    weight_raw = profile_data.get("weight_kg")
-    try:
-        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
-    except (TypeError, ValueError):
-        weight_val = 70.0
-
-    # Use explicit None checks so that missing/None values fall back to defaults
-    return UserProfile(
-        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
-        age=age_val,
-        height_cm=height_val,
-        weight_kg=weight_val,
-        activity=cast(
-            Literal["sedentary", "light", "moderate", "active", "very_active"],
-            profile_data.get("activity") or "moderate",
-        ),
-        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
-        deficit_pct=profile_data.get("deficit_pct"),
-        surplus_pct=profile_data.get("surplus_pct"),
-        bodyfat=profile_data.get("bodyfat"),
-        region=profile_data.get("region") or "BY",
-        timezone=profile_data.get("timezone") or "UTC",
-        diet_flags=diet_flags,
-        life_stage=cast(
-            Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
-            profile_data.get("life_stage") or "adult",
-        ),
-        medical_conditions=medical_conditions,
-    )
+    profile = fitchef_runtime.build_weekly_user_profile(profile_data)
+    return cast("UserProfile", profile)
 
 
 def _adapter_make_weekly_menu(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
@@ -568,7 +518,7 @@ def vip_health() -> Dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(require_vip_tier)])
-def weekly_menu_plan(
+async def weekly_menu_plan(
     payload: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:
     """
@@ -584,6 +534,38 @@ def weekly_menu_plan(
     Note:
         We intentionally accept raw dict here so auth (403) wins over Pydantic 422.
         Then we validate via WeeklyPlanRequest inside the handler.
+    """
+    try:
+        _, echo_payload, menu_payload = await _execute_weekly_menu_plan_payload(payload)
+        return {
+            "status": "success",
+            "echo": echo_payload,
+            "menu": menu_payload,
+            "message": "Weekly menu plan generated (echo mode)",
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception("Exception in weekly_menu_plan")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Weekly menu generation failed"
+        return {
+            "status": "error",
+            "echo": payload,
+            "menu": {"mode": "echo"},
+            "message": msg,
+        }
+
+
+async def _execute_weekly_menu_plan_payload(
+    payload: Dict[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> tuple[WeeklyPlanRequest, Dict[str, Any], Dict[str, Any]]:
+    """Run canonical weekly-plan execution without HTTP-route wrapping.
+
+    RU: Выполнить canonical weekly-plan path без HTTP-обёртки.
+    EN: Execute the canonical weekly-plan path without the HTTP route envelope.
     """
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
     # JSONDecodeError is caught earlier in request.json() → 422
@@ -605,40 +587,46 @@ def weekly_menu_plan(
             continue
         original_data[key] = value
 
-    if make_weekly_menu is None:
-        return {
-            "status": "success",
-            "echo": original_data,
-            "menu": {"mode": "echo"},
-            "message": "Weekly menu plan generated (echo mode)",
-        }
+    resolved_menu_builder = make_weekly_menu if menu_builder is None else menu_builder
+    task = FitChefWeeklyPlanTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
+    )
+    result = await fitchef_runtime.run_weekly_plan_task(
+        task,
+        menu_builder=resolved_menu_builder,
+    )
+    echo_payload = original_data if resolved_menu_builder is None else request_obj.model_dump()
+    return request_obj, echo_payload, result.menu
 
-    try:
-        # Convert WeeklyPlanRequest to dict for the core function
-        request_dict = request_obj.model_dump()
-        plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
 
-        # Check if _safe_call_with_adapter returned an error
-        if isinstance(plan_candidate, dict) and plan_candidate.get("status") == "error":
-            return plan_candidate
+async def execute_legacy_premium_week_alias_payload(
+    payload: Mapping[str, Any],
+    *,
+    menu_builder: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    """Run the canonical VIP weekly-plan path for the legacy premium alias.
 
-        plan = plan_candidate
-        return {
-            "status": "success",
-            "echo": request_obj.model_dump(),
-            "menu": plan if plan is not None else {"mode": "echo"},
-            "message": "Weekly menu plan generated (echo mode)",
-        }
-    except Exception:
-        logging.exception("Exception in weekly_menu_plan")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Weekly menu generation failed"
-        return {
-            "status": "error",
-            "echo": request_obj.model_dump(),
-            "menu": {"mode": "echo"},
-            "message": msg,
-        }
+    RU: Выполнить canonical VIP weekly-plan path для legacy premium alias.
+    EN: Execute the canonical VIP weekly-plan path for the legacy premium alias.
+    """
+    has_targets_only_payload = payload.get("targets") is not None and not any(
+        payload.get(key) is not None for key in ("sex", "age", "height_cm", "weight_kg", "activity")
+    )
+    if has_targets_only_payload:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Targets-based weekly plans are not supported on this endpoint. "
+                "Provide full profile data or use /api/v1/premium/plan/week-flexible."
+            ),
+        )
+
+    _, _, menu_payload = await _execute_weekly_menu_plan_payload(
+        dict(payload),
+        menu_builder=menu_builder,
+    )
+    return menu_payload
 
 
 def _require_api_key_dev_legacy(request: Request) -> str:
@@ -650,26 +638,19 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
 
-    # Treat staging like production for VIP
-    is_strict_env = _is_production() or os.getenv("APP_ENV", "").lower() == "staging"
-    debug_false = os.getenv("DEBUG", "").lower() == "false"
-
     if api_key:
-        # In production validate strictly; in dev/test accept any provided key
-        if is_production:
-            try:
-                return _require_api_key(api_key)
-            except HTTPException as e:
-                if e.status_code == status.HTTP_401_UNAUTHORIZED:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Forbidden: VIP access required",
-                    ) from e
-                raise
-        return str(api_key)
+        try:
+            return _require_api_key(api_key)
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            raise
 
     # No API key provided
-    if is_strict_env or debug_false:
+    if is_production:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: VIP access required",
@@ -683,14 +664,17 @@ def _require_api_key_dev_legacy(request: Request) -> str:
         "no",
         "off",
     }
-    if not is_production and not _explicit_false:
+    if _is_dev_mode(app_env) and not _explicit_false:
         _log_api_key_event(
             "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,
             app_env,
         )
         return TEST_KEY
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden: VIP access required",
+    )
 
 
 @router.post(
@@ -779,7 +763,7 @@ async def weekly_menu_plan_alias(
             ]
         ):
             raise HTTPException(
-                status_code=422,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
             )
 

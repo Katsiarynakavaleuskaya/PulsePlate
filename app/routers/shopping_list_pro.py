@@ -9,7 +9,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.shopping_list.generator import generate_shopping_list_from_plan
+from app.services import fitchef_runtime
 from app.middleware.api_tiers import require_pro_tier
+from app.schemas.fitchef import (
+    FitChefShoppingFollowupInput,
+    FitChefShoppingFollowupTaskEnvelope,
+)
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListRequest
 
 router = APIRouter(prefix="/api/v1/pro/meal", tags=["pro", "shopping-list"])
@@ -70,21 +75,19 @@ async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDT
             detail="weekly_plan_id support not yet implemented",
         )
 
-    # Use inline plan_data (guaranteed non-None by Pydantic validator)
-    # Type narrowing: if we reach here, plan_data must be non-None
-    if request.plan_data is None:
-        # Should never happen due to XOR validation in model
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal error: plan_data is None",
-        )
-
-    # Generate shopping list using core logic
-    return generate_shopping_list_from_plan(
-        plan_data=request.plan_data,
-        preferences=request.preferences,
-        source="inline_plan",
+    task = FitChefShoppingFollowupTaskEnvelope(
+        mode="auto-safe",
+        input=FitChefShoppingFollowupInput(
+            weekly_plan_id=request.weekly_plan_id,
+            plan_data=request.plan_data,
+            preferences=request.preferences,
+        ),
     )
+    result = await fitchef_runtime.run_shopping_followup_task(
+        task,
+        shopping_list_builder=generate_shopping_list_from_plan,
+    )
+    return result.shopping_list
 
 
 __all__ = ["router"]

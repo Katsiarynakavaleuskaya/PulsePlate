@@ -29,8 +29,11 @@ This section defines the **design canon** for Web+iOS work. It is intentionally 
   - Web consumes `frontend/src/api/schema.ts` (generated; do not edit by hand) (`frontend/src/api/schema.ts:L1-L6`, `frontend/AGENTS.md:L17-L18`).
   - iOS consumes aligned DTOs (example: `ios/PulsePlate/Models/NutritionData.swift:L7-L28`; SoT pipeline note: `ios/AGENTS.md:L91-L94`).
 - **Thin-client policy**: no business logic duplication on clients (`AGENTS.md:L426-L457`, `ios/AGENTS.md:L34-L55`, `frontend/AGENTS.md:L23-L33`).
-- **Design tokens (Web)**: `frontend/src/styles/tokens.ts` (`frontend/src/styles/tokens.ts:L1-L120`).
-- **Design tokens (iOS mirror)**: `ios/PulsePlate/DesignSystem/DesignTokens.swift` (cross-platform token parity scaffold).
+- **Design tokens (Repo authoring source)**: `/tokens`.
+- **Design tokens (Web runtime SoT)**: `frontend/src/styles/tokens.css`.
+- **Design tokens (Web typed mirror)**: `frontend/src/styles/tokens.ts` (helper, not SoT).
+- **Design tokens (iOS runtime mirror)**: `ios/PulsePlate/DesignSystem/DesignTokens.swift` with asset-backed colors in `ios/PulsePlate/Assets.xcassets/` and `ios/PulsePlate/Extensions/Color+Assets.swift`.
+- **Design-token governance**: `docs/design/TOKENS_SOT.md`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 
 ### UI-only (allowed) mapping
 
@@ -68,7 +71,7 @@ This section defines the **design canon** for Web+iOS work. It is intentionally 
 These “agents” can be humans, AI subagents, or checklists. What matters is the **explicit I/O contract**.
 
 - **Design Token Sync (design-token-sync)**
-  - Input: token canon (starting point: `frontend/src/styles/tokens.ts`)
+  - Input: token canon (`/tokens` + `docs/design/TOKENS_SOT.md`) and any Figma/Tokens Studio authoring packet
   - Output: a single “token delta” note (what changed + why) + updated token mirrors (platform-specific), or a backlog entry if deferred
 - **Component Library Audit (component-library-audit)**
   - Input: changed UI files
@@ -120,6 +123,8 @@ This is how we keep Web+iOS visually consistent without blocking velocity.
   - Any new “style decision” must be either:
     - mapped to an existing token, or
     - proposed as a new token (and recorded in the ledger if deferred)
+  - Web token changes start from `/tokens`; `tokens.css` and `tokens.ts` are generated runtime mirrors
+  - Storybook may be used to review changed web primitives, but it does not define token canon
 - **Accessibility defaults**
   - iOS: VoiceOver labels + Dynamic Type sizing + 44×44pt tap targets
   - Web: semantic elements + keyboard focus states + 48×48px touch targets

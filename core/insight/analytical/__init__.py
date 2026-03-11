@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
-_CITATION_RE = re.compile(r"\b(?:who|usda|cdc|study|research|guideline|source)\b", re.IGNORECASE)
+_CITATION_RE = re.compile(r"\b(?:WHO|USDA|CDC)\b|\b(?i:study|research|guideline|source)\b")
 _VAGUE_RE = re.compile(
     r"\b(?:may help|might work|could be|some people|it depends|varies by individual)\b",
     re.IGNORECASE,
@@ -66,7 +66,7 @@ class AnalyticalSyntheticClassifier:
         ),
     )
     _SYNTHETIC_PATTERNS = (
-        re.compile(r"\b(?:according to|research|study|guideline|who|usda|cdc)\b", re.IGNORECASE),
+        re.compile(r"\b(?:according to|research|study|guideline)\b|\b(?:WHO|USDA|CDC)\b"),
         re.compile(r"\b\d+\.?\d*\b", re.IGNORECASE),
         re.compile(r"\b(?:overweight|underweight|calories|protein|fiber|sleep)\b", re.IGNORECASE),
     )

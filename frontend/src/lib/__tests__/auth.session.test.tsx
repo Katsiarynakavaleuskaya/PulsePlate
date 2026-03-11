@@ -28,6 +28,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 describe('AuthProvider session migration', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     legacyStoredKey = null;
     getStoredApiKeyMock.mockImplementation(() => legacyStoredKey);
@@ -89,5 +90,58 @@ describe('AuthProvider session migration', () => {
     expect(clearStoredApiKeyMock).toHaveBeenCalled();
     expect(legacyStoredKey).toBeNull();
     expect(result.current.isAuthenticated).toBe(true);
+  });
+
+  it('clearApiKey clears server session state and returns to unauthenticated flow', async () => {
+    checkProSessionMock.mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAuthenticated).toBe(true);
+
+    await act(async () => {
+      await result.current.clearApiKey();
+    });
+
+    expect(clearProSessionMock).toHaveBeenCalledTimes(1);
+    expect(clearStoredApiKeyMock).toHaveBeenCalled();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.apiKey).toBeNull();
+  });
+
+  it('fails closed when bootstrap session check stalls', async () => {
+    vi.useFakeTimers();
+    checkProSessionMock.mockImplementation(() => new Promise<boolean>(() => {}));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('fails closed when legacy key exchange stalls during bootstrap', async () => {
+    vi.useFakeTimers();
+    legacyStoredKey = 'legacy-session-key';
+    exchangeApiKeyForSessionMock.mockImplementation(() => new Promise<boolean>(() => {}));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(exchangeApiKeyForSessionMock).toHaveBeenCalledWith('legacy-session-key');
+    expect(clearStoredApiKeyMock).toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
+    vi.useRealTimers();
   });
 });

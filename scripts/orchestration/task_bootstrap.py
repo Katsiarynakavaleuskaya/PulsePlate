@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(BOOTSTRAP_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(BOOTSTRAP_REPO_ROOT))
 
 from scripts.orchestration.context_pack import (
     REPO_ROOT,
@@ -21,9 +26,10 @@ from scripts.orchestration.context_pack import (
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.skill_router import route_skills
 
 SCHEMA_VERSION = "2.0"
-TASK_PACKET_DIR = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
+TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -64,6 +70,12 @@ def build_task_packet(
         normalized_paths,
         include_orchestration=decision.cluster == "ops" or len(normalized_paths) != 1,
     )
+    skill_routing = route_skills(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+        domain=decision.domain,
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -77,8 +89,29 @@ def build_task_packet(
         "secondary_agents": [agent for agent in [decision.secondary] if agent],
         "reviewer": decision.reviewer,
         "required_context": context_pack,
+        "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
+        "skill_routing": skill_routing,
         "routing_rationale": decision.rationale,
     }
+
+
+def _resolve_output_path(raw_output: str | None, packet_id: str) -> Path:
+    """Resolve output path relative to repo root and reject out-of-repo writes."""
+
+    if not raw_output:
+        return (TASK_PACKET_DIR / f"{packet_id}.json").resolve()
+
+    candidate = Path(raw_output)
+    if not candidate.is_absolute():
+        candidate = (REPO_ROOT / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+
+    try:
+        candidate.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise ValueError("--output must stay within the repository root") from exc
+    return candidate
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -106,14 +139,20 @@ def main(argv: list[str] | None = None) -> int:
         candidate_paths=args.path,
         telemetry_path=Path(args.telemetry),
     )
-    out_path = (
-        Path(args.output) if args.output else TASK_PACKET_DIR / f"{packet['task_packet_id']}.json"
-    )
+    try:
+        out_path = _resolve_output_path(args.output, packet["task_packet_id"])
+    except ValueError as exc:
+        print(f"FAIL: {exc}")
+        return 1
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    try:
+        output_ref = str(out_path.relative_to(REPO_ROOT))
+    except ValueError:
+        output_ref = str(out_path)
     print(
         json.dumps(
             {
@@ -122,7 +161,8 @@ def main(argv: list[str] | None = None) -> int:
                 "cluster": packet["cluster"],
                 "primary_agent": packet["primary_agent"],
                 "reviewer": packet["reviewer"],
-                "output": str(out_path.relative_to(REPO_ROOT)),
+                "recommended_skills": packet["recommended_skills"],
+                "output": output_ref,
             },
             ensure_ascii=False,
             indent=2,

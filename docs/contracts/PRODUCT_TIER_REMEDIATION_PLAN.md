@@ -1,7 +1,7 @@
 # Product Tier Remediation Plan
 
-**Status:** Action plan (derived from `PRODUCT_TIER_MAP.md` audit)
-**Last updated:** 2026-01-11
+**Status:** Action plan with PR-C completed (derived from `PRODUCT_TIER_MAP.md` audit)
+**Last updated:** 2026-03-09
 **Purpose:** Sequence remediation PRs to fix tier/namespace confusion
 
 ---
@@ -17,8 +17,8 @@ This document outlines the remediation plan to fix architectural confusion betwe
 ## Priority 1: Documentation (✅ Done in PR-A)
 
 * [x] Зафиксировать в `AGENTS.md`: PRO и VIP — реальные уровни, premium — deprecated namespace
-* [ ] Обновить `API_CANONICAL_MAP.md` с этой таблицей
-* [ ] Добавить deprecation warnings в OpenAPI schema для `/premium/*`
+* [x] Обновить `API_CANONICAL_MAP.md` с этой таблицей
+* [x] Добавить deprecation warnings в OpenAPI schema для `/premium/*`
 
 ---
 
@@ -26,21 +26,29 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 ### PR-B: Schema Hygiene
 
-* [ ] Set `include_in_schema=False` on all `/premium/*` endpoints
-* [ ] Verify: `make openapi` → zero `/premium/*` paths in schema
-* [ ] Runtime: endpoints still work (backward compatible)
+* [ ] Keep `/premium/*` public-schema exposure limited to explicitly sanctioned compatibility paths only
+* [x] Verify: `make openapi` hides `/api/v1/premium/plan/week` and `/api/v1/premium/plan/week-flexible`
+* [x] Runtime: endpoints still work (backward compatible)
 
 ### PR-C: VIP Alignment
 
-* [ ] Fix `/api/v1/premium/plan/week` → delegate to `/api/v1/vip/menu/weekly/plan`
-* [ ] Remove VIP business logic from premium endpoint (delegation only)
-* [ ] Parity test: responses equivalent
+* [x] Fix `/api/v1/premium/plan/week` → delegate to `/api/v1/vip/menu/weekly/plan`
+* [x] Remove VIP business logic from premium endpoint (delegation only)
+* [x] Parity test: responses equivalent
+* [x] Hide `/api/v1/premium/plan/week` from public OpenAPI (`include_in_schema=False`)
+
+**Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061) on 2026-03-09
+
+**Canonical shipped behavior:** The legacy `/api/v1/premium/plan/week` route remains callable for backward compatibility, but it is now a thin compatibility alias over `/api/v1/vip/menu/weekly/plan`. VIP business logic stays in the canonical VIP route, the legacy shim preserves runtime compatibility for callers that have not migrated yet, and the broken-name compatibility path is hidden from the public OpenAPI surface.
 
 ### PR-D: PRO Canon Exposure
 
-* [ ] Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
-* [ ] Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
-* [ ] Ensure `/api/v1/pro/meal/weekly` exists and is in schema
+* [x] Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
+* [x] Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
+* [x] Ensure `/api/v1/pro/meal/weekly` exists and is in schema
+
+**Status:** ✅ Canonical PRO weekly/targets/daily routes are present in `frontend/src/api/openapi.json`
+and are the current generated-contract basis for thin clients.
 
 ### Future: Code Cleanup
 
@@ -75,7 +83,7 @@ This document outlines the remediation plan to fix architectural confusion betwe
 
 **Issue:** Requires VIP tier but lives under `/premium/*` namespace (deprecated PRO namespace).
 
-**Fix:** PR-C (delegation to `/api/v1/vip/menu/weekly/plan`).
+**Fix:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061). See the canonical shipped-behavior note in the completed PR-C section above.
 
 **Source:** `docs/contracts/PRODUCT_TIER_MAP.md` section "Deprecated aliases with wrong namespace"
 

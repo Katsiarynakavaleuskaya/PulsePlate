@@ -18,7 +18,7 @@ Use the existing networking implementation. Do **not** create a parallel transpo
 - **Base URL**
   - `ios/PulsePlate/Services/AppConfig.swift` → `AppConfig.baseURL()` (Info.plist → env → fallback)
 - **PRO key provider**
-  - `ios/PulsePlate/Services/ProKeyProvider.swift:3` (enum; Keychain + DEBUG env)
+  - `ios/PulsePlate/Services/ProKeyProvider.swift:3` (enum; Keychain-only runtime source)
   - `ios/PulsePlate/Services/KeychainStore.swift:8` (Keychain wrapper)
 - **Profile query params (PRO endpoints)**
   - `ios/PulsePlate/Services/ProfileProvider.swift:42-49` (protocol `ProfileProviding`)
@@ -85,8 +85,8 @@ Hard rule: avoid tests that call real endpoints; they are flaky and violate dete
 Document the current repo truth explicitly.
 
 - **PRO key**: `ios/PulsePlate/Services/ProKeyProvider.swift`
-  - **DEBUG (local dev / TestFlight internal workflows)**: may read `PRO_API_KEY` from Xcode Scheme → Run → Environment Variables (never commit it).
-  - **Release-safe storage**: Keychain (`ios/PulsePlate/Services/KeychainStore.swift`).
+  - **Runtime source**: Keychain only (`ios/PulsePlate/Services/KeychainStore.swift`).
+  - **Dev/test seam**: inject explicit `apiKeyProvider` closures in previews/tests; do not use hidden runtime env fallback.
   - **Hard rule**: no hardcoded keys / placeholder fallbacks in sources.
   - **Missing-key behavior**: must return `nil` (explicit + testable), not a silent fallback.
   - **Tests**: `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
@@ -99,7 +99,8 @@ If you need new key types (e.g., VIP), add providers deliberately and track secu
 
 Keep future work out of the canonical networking guide; track it as discrete backlog items:
 
-- Keychain-backed key storage for PRO/VIP
+- Onboarding/UX around existing Keychain-backed PRO flows
+- Additional Keychain-backed providers for future secret types (for example VIP)
 - Receipt validation / IAP orchestration
 - Deep-link allowlist and onboarding gates
 
@@ -112,15 +113,16 @@ Contract source:
 
 Thin-client rules for payments:
 1. iOS must use existing `APIClient`/`HTTPClient` seam only (evidence: `ios/PulsePlate/Networking/APIClient.swift:57`, `ios/PulsePlate/Networking/HTTPClient.swift:22`).
-2. Receipt/business decision logic stays server-side (`/api/v1/billing/*` contracts) and is tracked as runtime rollout, not client logic (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:49`, `docs/roadmap/BACKLOG_LEDGER.md:3297`).
+2. Receipt/business decision logic stays server-side; the additive Apple verify seam is `/api/v1/billing/apple/verify-receipt`, while RU/BY payment transport remains on `/api/v1/pro/payments/ru-by/*` until the runtime migration lands (evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:27`, `docs/contracts/API_CANONICAL_MAP.md:20`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`).
 3. Client may send transport payload and render server state, but must not infer activation logic locally (evidence: `ios/PulsePlate/Networking/APIClient.swift:84`, `ios/PulsePlate/Networking/HTTPClient.swift:13`).
 4. Key material/storage remains in Keychain-backed providers; no `UserDefaults` fallback for secrets (evidence: `ios/PulsePlate/Services/ProKeyProvider.swift:20`, `ios/PulsePlate/Services/KeychainStore.swift:8`).
+5. The iOS app must never call Apple `verifyReceipt` directly; server-side verification is production-first with a single sandbox fallback on `21007` and requires backend-held `APPLE_SHARED_SECRET`.
 
-Planned transport surfaces (runtime PRs):
-- `POST /api/v1/billing/apple/verify-receipt`
-- `POST /api/v1/billing/ru-by/manual-intent`
-- `POST /api/v1/billing/ru-by/reconcile`
-- `GET /api/v1/billing/ru-by/reconcile/{intent_id}`
+Current / planned transport surfaces:
+- `POST /api/v1/billing/apple/verify-receipt` (implemented additive billing seam for verify-only receipt validation)
+- `POST /api/v1/pro/payments/ru-by/manual-intent` (current runtime transport during the transition window)
+- `POST /api/v1/pro/payments/ru-by/reconcile` (current runtime transport during the transition window)
+- `GET /api/v1/pro/payments/ru-by/reconcile/{intent_id}` (current runtime transport during the transition window)
 
 Testing expectations (runtime PRs):
 - Deterministic service tests with URLProtocol stubs.

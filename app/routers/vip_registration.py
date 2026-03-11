@@ -12,7 +12,7 @@ VIP route registration explicit and testable.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -39,10 +39,20 @@ def register_vip_routes(app: FastAPI) -> None:
         This function has no side effects if VIP_MODULE_ENABLED is False.
         It can be called multiple times safely (idempotent).
     """
+    from app.routers.fitchef_insight import router as fitchef_insight_router
     from app.utils.feature_flags import is_vip_module_enabled
 
     if not is_vip_module_enabled():
         return
+
+    existing_paths = {getattr(route, "path", None) for route in app.routes}
+
+    if (
+        hasattr(fitchef_insight_router, "routes")
+        and "/api/v1/insight/fitchef" not in existing_paths
+    ):
+        app.include_router(fitchef_insight_router)
+        existing_paths = {getattr(route, "path", None) for route in app.routes}
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header
@@ -50,8 +60,19 @@ def register_vip_routes(app: FastAPI) -> None:
 
     # Register main VIP router (includes vip_shoplist and other VIP endpoints)
     # Route-level dependency: API key required for all VIP endpoints
-    if hasattr(vip_module, "router"):
+    vip_router = cast(Any, getattr(vip_module, "router", None))
+    vip_router_paths = (
+        {
+            getattr(route, "path", None)
+            for route in vip_router.routes
+            if getattr(route, "path", None) is not None
+        }
+        if vip_router is not None
+        else set()
+    )
+
+    if vip_router is not None and vip_router_paths.isdisjoint(existing_paths):
         app.include_router(
-            vip_module.router,
+            vip_router,
             dependencies=[Depends(api_key_header)],
         )

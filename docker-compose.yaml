@@ -16,9 +16,22 @@ services:
       - API_KEY=${API_KEY}
       - ENVIRONMENT=production
       - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
+      - APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET:?APPLE_SHARED_SECRET is required}
+      - EXPORT_TOKEN_SECRET=${EXPORT_TOKEN_SECRET:?EXPORT_TOKEN_SECRET is required}
+      - PRIVATE_EXPORTS_ENABLED=${PRIVATE_EXPORTS_ENABLED:-true}
+      - EXPORT_TOKEN_TTL_SECONDS=${EXPORT_TOKEN_TTL_SECONDS:-900}
       - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
+      - PRO_LLM_INSIGHT_REQUESTS_PER_MONTH=${PRO_LLM_INSIGHT_REQUESTS_PER_MONTH:-20}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
+      - OTEL_SDK_DISABLED=${OTEL_SDK_DISABLED:-true}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-pulseplate-api}
+      - PULSE_OBS_HMAC_KEY=${PULSE_OBS_HMAC_KEY:-}
+      - ALLOW_PROMPT_EVENTS=${ALLOW_PROMPT_EVENTS:-false}
+      - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
+      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
     volumes:
       - ./data:/app/data:ro
+      - artifacts-volume:/app/artifacts:rw
       - cache-volume:/app/cache:rw
       - logs-volume:/app/logs:rw
     restart: unless-stopped
@@ -46,7 +59,19 @@ services:
       - API_KEY=${API_KEY}
       - ENVIRONMENT=development
       - SERVER_SALT=${SERVER_SALT:?SERVER_SALT is required}
+      - APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET:-replace_me_with_apple_shared_secret}
+      - EXPORT_TOKEN_SECRET=${EXPORT_TOKEN_SECRET:-__set_me__}
+      - PRIVATE_EXPORTS_ENABLED=${PRIVATE_EXPORTS_ENABLED:-true}
+      - EXPORT_TOKEN_TTL_SECONDS=${EXPORT_TOKEN_TTL_SECONDS:-900}
       - VIP_LLM_INSIGHT_REQUESTS_PER_MONTH=${VIP_LLM_INSIGHT_REQUESTS_PER_MONTH:-30}
+      - PRO_LLM_INSIGHT_REQUESTS_PER_MONTH=${PRO_LLM_INSIGHT_REQUESTS_PER_MONTH:-20}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
+      - OTEL_SDK_DISABLED=${OTEL_SDK_DISABLED:-true}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-pulseplate-api}
+      - PULSE_OBS_HMAC_KEY=${PULSE_OBS_HMAC_KEY:-}
+      - ALLOW_PROMPT_EVENTS=${ALLOW_PROMPT_EVENTS:-false}
+      - CBT_AGENT_EXECUTION_MODE=${CBT_AGENT_EXECUTION_MODE:-auto-safe}
+      - AGENT_CONTROL_AUDIT_LOG_PATH=${AGENT_CONTROL_AUDIT_LOG_PATH:-/app/logs/agent_control_audit.jsonl}
     volumes:
       - .:/app:rw
       - /app/__pycache__
@@ -96,6 +121,8 @@ volumes:
   cache-volume:
     driver: local
   logs-volume:
+    driver: local
+  artifacts-volume:
     driver: local
 
 networks:

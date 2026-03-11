@@ -1,8 +1,13 @@
-# OpenAPI Paths Audit — Factual Endpoints (2026-01-11)
+# OpenAPI Paths Audit — Historical Endpoint Snapshot (2026-01-11)
 
 **Source:** `frontend/src/api/openapi.json`
 **Generated:** `make openapi`
-**Purpose:** Factual inventory of all `/premium/*`, `/pro/*`, `/vip/*` endpoints currently exposed in OpenAPI schema
+**Purpose:** Historical audit snapshot of `/premium/*`, `/pro/*`, `/vip/*` endpoint exposure on 2026-01-11
+
+> Current operator-facing route mapping now lives in `docs/contracts/API_CANONICAL_MAP.md`.
+> The canonical generated OpenAPI SoT for CI and thin clients is `frontend/src/api/openapi.json`,
+> produced by `scripts/generate_openapi.py`.
+> Treat this file as audit evidence and migration analysis, not as the current canonical route map.
 
 ---
 
@@ -47,7 +52,9 @@
 | `/api/v1/pro/nutrition/meal-log` | PRO | ✅ canonical | Meal logging |
 | `/api/v1/pro/shoplist/day` | PRO | ✅ canonical | Daily shoplist |
 
-**Note:** `/api/v1/pro/meal/weekly` and `/api/v1/pro/nutrition/targets` are **not in OpenAPI** (may be in code but not exposed, or require feature flags).
+**Current note:** This snapshot predates the current full-schema generator. In the current canonical
+generated OpenAPI (`frontend/src/api/openapi.json`), `/api/v1/pro/meal/weekly`,
+`/api/v1/pro/nutrition/targets`, and `/api/v1/pro/nutrition/daily` are all present.
 
 ---
 
@@ -127,34 +134,40 @@
 
 ### PR-C (VIP alignment): Fix broken naming `/premium/plan/week`
 
-**Goal:** `/api/v1/premium/plan/week` becomes clean alias to VIP canonical.
+**Status:** ✅ Completed in [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061)
 
-**Changes:**
-- Delegate `/premium/plan/week` → `/vip/menu/weekly/plan`
-- Remove VIP business logic from premium endpoint (delegation only)
-- Parity test: responses equivalent
+**Goal:** `/api/v1/premium/plan/week` becomes a clean compatibility alias to the VIP canonical route.
+
+**Canonical behavior reference:** `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` is the single narrative source for delegation, runtime compatibility, and schema-hiding behavior for completed PR-C work.
+
+**Shipped outcomes:**
+- `/premium/plan/week` delegates to `/vip/menu/weekly/plan`
+- VIP business logic no longer lives in the legacy premium shim
+- `/premium/plan/week` stays runtime-compatible for callers that still use it
+- `/premium/plan/week` is hidden from the public OpenAPI surface
 
 **DoD:**
-- Parity test passes
-- No VIP logic in premium endpoint
-- `pytest` + `diff-cover` ≥97%
-
-**Note:** PR-C description will be created in PR-C branch.
+- ✅ Parity test passes
+- ✅ No VIP logic in premium endpoint
+- ✅ `/api/v1/premium/plan/week` absent from generated public schema
+- ✅ Regression checks cover parity and public-schema absence for the legacy alias
 
 ---
 
 ### PR-D (PRO canon exposure): Expose canonical PRO endpoints
 
+**Status:** ✅ Completed as part of the current full-schema OpenAPI generation contract.
+
 **Goal:** PRO clients have canonical paths, not legacy `/premium/*`.
 
-**Changes:**
-- Ensure `/api/v1/pro/nutrition/targets` exists and is in schema
-- Ensure `/api/v1/pro/nutrition/daily` exists and is in schema
-- Ensure `/api/v1/pro/meal/weekly` exists and is in schema (if not, add)
+**Shipped outcomes:**
+- `/api/v1/pro/nutrition/targets` is present in the canonical generated OpenAPI
+- `/api/v1/pro/nutrition/daily` is present in the canonical generated OpenAPI
+- `/api/v1/pro/meal/weekly` is present in the canonical generated OpenAPI
 
 **DoD:**
-- PRO canonical endpoints appear in `openapi.json`
-- Frontend can migrate from `/premium/*` to `/pro/*`
+- ✅ PRO canonical endpoints appear in `frontend/src/api/openapi.json`
+- ✅ Frontend can target `/api/v1/pro/*` contracts from generated schema/types
 
 ---
 

@@ -16,7 +16,9 @@ description: Cursor/Codex workflow specialist for PulsePlate. Owns coordinator b
 ## Required pre-flight (SoT)
 
 - Follow `docs/orchestration/workflow.md` pre-flight checklist.
-- Load `AGENTS.md`, `.cursor/agents/AGENTS.md`, `scripts/AGENTS.md`, and `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load role context from `docs/orchestration/AGENT_CONTEXT_MAP.md`.
+- Load `AGENTS.md`, `.cursor/agents/AGENTS.md`, `docs/ENGINEERING_LESSONS.md`, and `RUNBOOK_AGENT.md`.
+- Load the nearest scoped `AGENTS.md` for each additional module touched by the workflow change.
 
 ## Mission
 

@@ -10,6 +10,7 @@
     "tryAgain": "Inténtalo de nuevo"
   },
   "auth": {
+    "requiresSecureSession": "Se requiere una sesión segura",
     "apiKey": {
       "tooShort": "La clave API debe tener al menos 20 caracteres",
       "invalidFormat": "Formato de clave API inválido. Solo se permiten caracteres alfanuméricos, guiones y guiones bajos."

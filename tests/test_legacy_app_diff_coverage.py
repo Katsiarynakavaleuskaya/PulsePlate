@@ -252,6 +252,7 @@ def test_insight_prompt_helpers_cover_limits() -> None:
     with pytest.raises(HTTPException) as exc:
         legacy_app._ensure_insight_text_length(too_long)
     assert exc.value.status_code == 413
+    assert legacy_app._ensure_insight_text_length("ok") == "ok"
 
     # Build prompt with context trimming
     text = "hello"
@@ -1041,6 +1042,7 @@ def test_exports_flag_warning_outside_tests_is_coverable(
     monkeypatch.delitem(sys.modules, "pytest", raising=False)
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
     try:
         importlib.reload(legacy_app)
@@ -1048,9 +1050,11 @@ def test_exports_flag_warning_outside_tests_is_coverable(
         assert any("Export endpoints enabled outside tests" in r.message for r in caplog.records)
     finally:
         if saved_pytest is not None:
-            sys.modules["pytest"] = saved_pytest
+            monkeypatch.setitem(sys.modules, "pytest", saved_pytest)
         # Restore a normal testing reload for other tests.
         monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
         importlib.reload(legacy_app)
 
 
@@ -1058,15 +1062,29 @@ def test_exports_testing_flag_is_set_for_ci_env(monkeypatch: pytest.MonkeyPatch)
     """Cover export testing flag detection for APP_ENV=ci (line ~4837)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "ci")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)
 
 
 def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover export testing flag detection via pytest heuristic (line ~4839)."""
     monkeypatch.setenv("FEATURE_EXPORTS", "true")
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "prod")
-    importlib.reload(legacy_app)
-    assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    try:
+        importlib.reload(legacy_app)
+        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
+    finally:
+        monkeypatch.setenv("TESTING", "true")
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        importlib.reload(legacy_app)

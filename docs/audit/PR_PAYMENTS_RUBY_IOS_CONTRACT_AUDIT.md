@@ -22,8 +22,8 @@
    - `docs/IOS_API_INTEGRATION.md:120`
    - `docs/IOS_API_INTEGRATION.md:124`
 5. Backlog SoT tracks the payment wave as active P0 with explicit DoD/test plan:
-   - `docs/roadmap/BACKLOG_LEDGER.md:3292`
-   - `docs/roadmap/BACKLOG_LEDGER.md:3308`
+   - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
+   - `docs/roadmap/BACKLOG_LEDGER.md:49`
 6. Temporary-seam governance is explicit via ADR + exit criteria:
    - `docs/architecture/ADR_PAYMENTS_RU_BY_IOS_BASELINE_2026-03-05.md:1`
    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md:125`

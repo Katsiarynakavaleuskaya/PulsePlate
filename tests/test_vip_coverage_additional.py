@@ -17,18 +17,24 @@ from app.middleware import api_tiers
 
 @pytest.fixture(autouse=True)
 def vip_auth_env(monkeypatch):
-    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("API_KEY", "test-key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv(
+        "PRO_API_KEYS",
+        "test_pro_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+    )
+    monkeypatch.setenv(
+        "VIP_API_KEYS",
+        "test_vip_key",  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)
+    )
 
 
 class TestVIPCoverageAdditional:
     """Additional test class to achieve 97% coverage for VIP router."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure we're testing in production mode
-        os.environ["APP_ENV"] = "production"
-        os.environ["API_KEY"] = "test-key"
 
     def test_vip_require_api_key_app_get_api_key_coverage_lines_92_104(self):
         """Test VIP _require_api_key with app_get_api_key coverage for lines 92-104."""
@@ -120,6 +126,23 @@ class TestVIPCoverageAdditional:
         assert response.status_code == 403
         data = response.json()
         assert "vip access" in data["detail"].lower()
+
+    def test_api_tier_resolution_rejects_preview_env_fallbacks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Preview-like envs must not inherit developer-only API tier fallbacks."""
+        monkeypatch.setenv("APP_ENV", "preview")
+        monkeypatch.setenv("DEBUG", "true")
+        monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+        monkeypatch.delenv("PRO_API_KEYS", raising=False)
+        monkeypatch.delenv("VIP_API_KEYS", raising=False)
+
+        resolved = api_tiers._resolve_authorized_api_key_tier(
+            api_tiers.TEST_KEY_VIP,
+            required_tier=api_tiers.SubscriptionTier.VIP,
+        )
+
+        assert resolved is None
 
     def test_vip_weekly_menu_plan_success_coverage_lines_172_178(self, vip_headers):
         """Test VIP weekly menu plan success coverage for lines 172-178."""

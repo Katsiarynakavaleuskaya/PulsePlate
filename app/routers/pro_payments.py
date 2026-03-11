@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
-"""PRO payments baseline endpoints (contract-first, additive, non-breaking).
+"""Billing activation endpoints for persisted subscription state.
 
-RU: Базовые PRO endpoints для активации подписки (контракт-first, без breaking changes).
-EN: Baseline PRO endpoints for subscription activation (contract-first, non-breaking).
+RU: Runtime endpoints для activation + persisted subscription state.
+EN: Runtime endpoints for activation + persisted subscription state.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, HTTPException, Response, Security, status
 from fastapi.responses import JSONResponse
 
-from core.fingerprint_security import compute_secret_marker
-
-from app.middleware.api_tiers import require_pro_tier
+from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
+from app.routers.api_key import api_key_header
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
     PaymentErrorResponse,
@@ -20,37 +19,63 @@ from app.schemas.payments import (
 )
 from app.services import payments_activation
 
+
+class ActivationTransportUnauthorizedError(PermissionError):
+    """Raised when transport auth is missing or blank."""
+
+
 router = APIRouter(
     prefix="/api/v1/pro/payments",
     tags=["pro", "payments"],
 )
 
 
-def _issuer_from_api_key(api_key: str) -> str:
-    """Return deterministic opaque issuer marker from API key."""
-    if not api_key:
-        return "api_key:anonymous"
-    # RU: Текущий activation store process-local/in-memory, поэтому cross-deploy
-    #     migration старых issuer marker-ов не требуется до появления durable storage.
-    # EN: The current activation store is process-local/in-memory, so cross-deploy
-    #     migration of historical issuer markers is not required until durable storage lands.
-    # RU: Используем PBKDF2-based marker без хранения raw API key в module state.
-    # EN: Use a PBKDF2-based marker and avoid storing raw API keys in module state.
-    marker = compute_secret_marker(api_key, truncate=32)
-    return f"api_key:{marker}"
+def _payment_error_response(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    detail: str,
+) -> JSONResponse:
+    """Return deterministic JSON error envelope."""
+
+    error = PaymentErrorResponse(
+        code=code,
+        message=message,
+        detail=detail,
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=error.model_dump(mode="json"),
+    )
+
+
+def _resolve_activation_user(x_api_key: str | None) -> CurrentUser:
+    """Resolve pre-entitlement transport identity from non-empty API key."""
+
+    if x_api_key is None:
+        raise ActivationTransportUnauthorizedError("X-API-Key header is required")
+
+    normalized_api_key = x_api_key.strip()
+    if not normalized_api_key:
+        raise ActivationTransportUnauthorizedError("X-API-Key header must not be blank")
+
+    return CurrentUser(
+        user_id=derive_subject_id_from_api_key(normalized_api_key),
+        api_key=normalized_api_key,
+    )
 
 
 @router.post(
     "/activate",
     response_model=SubscriptionActivationResponse,
-    status_code=status.HTTP_201_CREATED,
     responses={
-        status.HTTP_200_OK: {
-            "description": "Idempotent replay",
-            "model": SubscriptionActivationResponse,
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid transport protection",
+            "model": PaymentErrorResponse,
         },
         status.HTTP_409_CONFLICT: {
-            "description": "client_event_id conflict",
+            "description": "Deterministic activation conflict",
             "model": PaymentErrorResponse,
         },
     },
@@ -58,26 +83,37 @@ def _issuer_from_api_key(api_key: str) -> str:
 def activate_subscription(
     payload: ActivateSubscriptionRequest,
     response: Response,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Create activation or return idempotent replay."""
+    """Create or replay a deterministic subscription activation event."""
+
     try:
-        activation, is_new = payments_activation.activate_subscription(
-            issuer=_issuer_from_api_key(x_api_key),
+        current_user = _resolve_activation_user(x_api_key)
+        if not payload.uses_canonical_payload:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="canonical activation payload is required on this route",
+            )
+        activation = payments_activation.activate_subscription(
+            user_id=current_user.user_id,
             payload=payload,
         )
-    except payments_activation.IdempotencyConflictError as exc:
-        error = PaymentErrorResponse(
-            code="idempotency_conflict",
-            message="client_event_id conflict",
+    except ActivationTransportUnauthorizedError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="activation_transport_unauthorized",
+            message="Transport protection required",
             detail=str(exc),
         )
-        return JSONResponse(
+    except payments_activation.IdempotencyConflictError as exc:
+        return _payment_error_response(
             status_code=status.HTTP_409_CONFLICT,
-            content=error.model_dump(mode="json"),
+            code="idempotency_conflict",
+            message="Deterministic activation conflict",
+            detail=str(exc),
         )
-    if not is_new:
-        response.status_code = status.HTTP_200_OK
+
+    response.status_code = status.HTTP_200_OK
     return activation
 
 
@@ -85,6 +121,10 @@ def activate_subscription(
     "/activations/{activation_id}",
     response_model=SubscriptionActivationResponse,
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid transport protection",
+            "model": PaymentErrorResponse,
+        },
         status.HTTP_403_FORBIDDEN: {
             "description": "Activation access forbidden",
             "model": PaymentErrorResponse,
@@ -97,30 +137,37 @@ def activate_subscription(
 )
 def get_subscription_activation(
     activation_id: str,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str | None = Security(api_key_header),
 ) -> SubscriptionActivationResponse | JSONResponse:
-    """Get activation status by ID."""
-    issuer = _issuer_from_api_key(x_api_key)
+    """Get persisted activation event by ID."""
+
     try:
-        activation = payments_activation.get_activation(activation_id, issuer=issuer)
+        current_user = _resolve_activation_user(x_api_key)
+        activation = payments_activation.get_activation(
+            activation_id,
+            user_id=current_user.user_id,
+        )
+    except ActivationTransportUnauthorizedError as exc:
+        return _payment_error_response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="activation_transport_unauthorized",
+            message="Transport protection required",
+            detail=str(exc),
+        )
     except payments_activation.ActivationAccessForbiddenError as exc:
-        error = PaymentErrorResponse(
+        return _payment_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
             code="forbidden",
             message="Activation access forbidden",
             detail=str(exc),
         )
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content=error.model_dump(mode="json"),
-        )
+
     if activation is None:
-        error = PaymentErrorResponse(
+        return _payment_error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
             code="not_found",
             message="Activation not found",
             detail=activation_id,
         )
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content=error.model_dump(mode="json"),
-        )
+
     return activation

@@ -40,8 +40,10 @@ def _make_fake_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeRAGContext:
     """Fake retrieve_context_structured that returns two chunks."""
+    del subject_id
     chunks = [
         _FakeRAGChunk(
             chunk_id="readme.md:1",
@@ -75,8 +77,10 @@ def _make_empty_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
 ) -> _FakeRAGContext:
     """Fake retrieve_context_structured that returns zero chunks."""
+    del subject_id
     return _FakeRAGContext(
         query=query,
         refined_queries=[query],
@@ -94,11 +98,12 @@ def _make_fake_recursive_structured(
     max_chunks: int = 3,
     agent_id: str | None = None,
     user_tier: str | None = None,
+    subject_id: int | None = None,
     philo_validation_enabled: bool = False,
 ) -> _FakeRAGContext:
     """Fake recursive retriever with deeper hops and refined query chain."""
     # Intentionally unused: keep signature parity with real recursive retriever.
-    _ = philo_validation_enabled
+    _ = (philo_validation_enabled, subject_id)
     chunks = [
         _FakeRAGChunk(
             chunk_id="recursive.md:1",

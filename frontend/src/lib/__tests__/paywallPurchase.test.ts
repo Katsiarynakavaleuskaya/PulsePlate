@@ -3,6 +3,31 @@ import { purchasePremium } from "../paywallPurchase";
 
 const apiMock = vi.fn();
 const logMock = vi.fn();
+const premiumStorage = new Map<string, string>();
+const localStorageMock = {
+  getItem: vi.fn((key: string) => premiumStorage.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => {
+    premiumStorage.set(key, value);
+  }),
+  removeItem: vi.fn((key: string) => {
+    premiumStorage.delete(key);
+  }),
+  clear: vi.fn(() => {
+    premiumStorage.clear();
+  }),
+};
+
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: localStorageMock,
+});
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: localStorageMock,
+});
 
 vi.mock("../../api/client", () => ({
   api: (...args: unknown[]) => apiMock(...args),
@@ -20,7 +45,11 @@ describe("purchasePremium", () => {
   beforeEach(() => {
     apiMock.mockReset();
     logMock.mockReset();
-    localStorage.clear();
+    premiumStorage.clear();
+    localStorageMock.getItem.mockClear();
+    localStorageMock.setItem.mockClear();
+    localStorageMock.removeItem.mockClear();
+    localStorageMock.clear.mockClear();
   });
 
   it("stores premium flag and emits premium-change event on success", async () => {

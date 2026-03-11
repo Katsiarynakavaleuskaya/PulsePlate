@@ -109,10 +109,14 @@ class TestAppProductionCoverage:
         )
         assert response.status_code in [422, 401]
 
-    def test_app_production_metrics_coverage(self, client: TestClient, production_environment):
+    def test_app_production_metrics_coverage(self, production_environment):
         """Тест покрытия app.py production metrics"""
-        # Проверяем, что metrics работает в production режиме
-        response = client.get("/metrics")
+        # /metrics route registration is covered by canonical metrics tests.
+        # RU: Здесь проверяем exporter helper напрямую, чтобы не зависеть от singleton route state.
+        # EN: Exercise the exporter helper directly to avoid singleton route-registration drift.
+        from app.bootstrap.metrics import metrics_endpoint
+
+        response = metrics_endpoint()
         assert response.status_code == 200
 
     def test_app_production_health_check_coverage(self, client: TestClient, production_environment):
