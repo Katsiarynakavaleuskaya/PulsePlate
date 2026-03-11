@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, SupportsFloat, cast
 
 if TYPE_CHECKING:
     from core.rag.contracts import RAGChunk
@@ -66,6 +67,55 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
         chunks_retrieved=0,
         chunks_filtered=0,
     )
+
+
+def _normalize_confidence_value(value: object) -> float | None:
+    """Return a finite rounded confidence value or ``None`` for malformed input."""
+
+    if isinstance(value, (str, bytes, bytearray, int, float)):
+        candidate: SupportsFloat | str | bytes | bytearray = value
+    elif hasattr(value, "__float__"):
+        candidate = cast(SupportsFloat, value)
+    else:
+        return None
+
+    try:
+        numeric = float(candidate)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return round(numeric, 4)
+
+
+def _mean_chunk_score(chunks: list["RAGChunk"]) -> float | None:
+    """Return the mean of valid chunk scores, ignoring malformed values."""
+
+    normalized_scores = [
+        normalized
+        for chunk in chunks
+        if (normalized := _normalize_confidence_value(chunk.score)) is not None
+    ]
+    if not normalized_scores:
+        return None
+    return round(sum(normalized_scores) / len(normalized_scores), 4)
+
+
+def _resolve_confidence(
+    *,
+    rag_confidence: object,
+    chunks_to_use: list["RAGChunk"],
+    philo_enabled: bool,
+) -> float | None:
+    """Resolve confidence from chunks for philo mode, else prefer normalized RAG confidence."""
+
+    if philo_enabled:
+        return _mean_chunk_score(chunks_to_use)
+
+    normalized_confidence = _normalize_confidence_value(rag_confidence)
+    if normalized_confidence is not None:
+        return normalized_confidence
+    return _mean_chunk_score(chunks_to_use)
 
 
 async def retrieve_and_validate_rag(
@@ -201,14 +251,11 @@ async def _run_orchestration(
             chunks_filtered=chunks_filtered,
         )
 
-    # Calculate confidence
-    if philo_enabled:
-        confidence: Optional[float] = round(
-            sum(c.score for c in chunks_to_use) / len(chunks_to_use),
-            4,
-        )
-    else:
-        confidence = round(rag_ctx.confidence, 4)
+    confidence = _resolve_confidence(
+        rag_confidence=rag_ctx.confidence,
+        chunks_to_use=chunks_to_use,
+        philo_enabled=philo_enabled,
+    )
 
     # Build formatted prompt with RAG context
     from core.insight.safety import redact_rag_context_for_insight

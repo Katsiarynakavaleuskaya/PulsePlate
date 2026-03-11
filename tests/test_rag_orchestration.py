@@ -13,6 +13,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -23,6 +24,7 @@ from core.rag.orchestration import (
     RAGOrchestrationResult,
     _build_prompt_with_context,
     _empty_result,
+    _normalize_confidence_value,
     retrieve_and_validate_rag,
 )
 from core.rag.philosophy_pipeline import PipelineResult, StageResult
@@ -84,6 +86,26 @@ class TestBuildPromptWithContext:
         assert "Answer:" in result
 
 
+class _FloatLike:
+    """Helper object exposing ``__float__`` for branch coverage."""
+
+    def __float__(self) -> float:
+        return 0.875
+
+
+class TestNormalizeConfidenceValue:
+    """Tests for confidence normalization helper."""
+
+    def test_supports_float_protocol_value_is_normalized(self) -> None:
+        assert _normalize_confidence_value(_FloatLike()) == 0.875
+
+    def test_unsupported_object_returns_none(self) -> None:
+        assert _normalize_confidence_value(object()) is None
+
+    def test_non_finite_value_returns_none(self) -> None:
+        assert _normalize_confidence_value(float("inf")) is None
+
+
 class TestRetrieveAndValidateRag:
     """Tests for main orchestration function."""
 
@@ -137,6 +159,35 @@ class TestRetrieveAndValidateRag:
         assert result.confidence == 0.8  # Original confidence used
         assert result.chunks_filtered == 0
         assert "Context:" in result.formatted_prompt
+
+    @pytest.mark.asyncio
+    async def test_validation_disabled_falls_back_to_chunk_mean_when_confidence_invalid(
+        self,
+    ) -> None:
+        """Malformed retriever confidence should not drop an otherwise usable RAG result."""
+        chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=cast(float, "not-a-number"))
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.8
 
     @pytest.mark.asyncio
     async def test_recursive_enabled_uses_recursive_retriever(self) -> None:
@@ -373,6 +424,87 @@ class TestRetrieveAndValidateRag:
 
         # Mean of 0.9 and 0.8 = 0.85
         assert result.confidence == 0.85
+
+    @pytest.mark.asyncio
+    async def test_validation_enabled_ignores_malformed_chunk_scores(self) -> None:
+        """Validation path should derive confidence from valid filtered scores only."""
+        chunks = [
+            _make_chunk("c1", score=cast(float, "0.9")),
+            _make_chunk("c2", score=cast(float, "bad-score")),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+        pipeline_result = PipelineResult(
+            filtered_chunks=chunks,
+            stage_results=[],
+            warnings=[],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is True
+        assert result.confidence == 0.9
+
+    @pytest.mark.asyncio
+    async def test_validation_enabled_returns_none_confidence_when_all_scores_invalid(self) -> None:
+        """Malformed filtered scores should degrade confidence, not the full RAG result."""
+        chunks = [
+            _make_chunk("c1", score=cast(float, "bad-score")),
+            _make_chunk("c2", score=float("nan")),
+        ]
+        rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
+        pipeline_result = PipelineResult(
+            filtered_chunks=chunks,
+            stage_results=[],
+            warnings=["score_parse_warning"],
+            total_latency_ms=1.0,
+        )
+
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.vector_rag.retrieve_context_structured"),
+            patch(
+                "core.rag.philosophy_pipeline.run_pipeline",
+                return_value=pipeline_result,
+            ),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                return_value="Chunk1\nChunk2",
+            ),
+            patch(
+                "core.insight.safety.redact_rag_context_for_insight",
+                return_value="Chunk1\nChunk2",
+            ),
+        ):
+            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+
+        assert result.rag_actually_used is True
+        assert result.confidence is None
+        assert result.warnings == ["score_parse_warning"]
 
     @pytest.mark.asyncio
     async def test_warnings_propagated_from_pipeline(self) -> None:

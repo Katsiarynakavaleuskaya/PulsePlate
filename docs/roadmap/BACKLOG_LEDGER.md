@@ -5530,8 +5530,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane is executing in `#1102`; PR6 remains open)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102 -> PR #1107
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane merged in `#1102`; PR6 reliability optimization is active in PR `#1107` on `feat/agent-experiment-reliability-pr6`)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5616,7 +5616,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
+  - Status: 🟡 Delivered in PR `#1102` on 2026-03-11 (`55783414`; CV overlay + packet schema extension + orchestration drift audit shipped), but canonical ledger closeout remains pending the docs-only normalization follow-up tracked in [P2: Normalize PR5 ledger closeout via docs-only follow-up PR](#ledger-p2-pr5-ledger-closeout-docs-only)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5640,8 +5640,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (first practical output of the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
-  - Status: 📋 Planned
+  - Target PR: PR #1107
+  - Status: 🟡 In progress on 2026-03-11 (PR `#1107`; branch `feat/agent-experiment-reliability-pr6`; post-merge handoff after PR `#1102`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5659,6 +5659,70 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Candidate improvement is accepted by immutable oracles and documented with evidence
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
+
+<a id="ledger-p2-phase2-body-artifact-sync"></a>
+- [ ] P2: Eliminate PR body and mapping artifact phase2 drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PHASE2_BODY_ARTIFACT_SYNC
+  - Area: orchestration / CI governance
+  - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - Phase2 body mirror is generated or validated from a single canonical source
+    - Late review-cycle updates no longer require manual duplication of mapping lines
+    - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
+
+<a id="ledger-p2-clean-clone-dependency-parity"></a>
+- [ ] P2: Restore deterministic clean-clone dependency parity for local verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CLEAN_CLONE_DEPENDENCY_PARITY
+  - Area: tooling / developer-experience
+  - Reason: Final PR5 local `make verify` failed in the clean clone because `.venv` was missing locked `opentelemetry-*` packages required by `tests/test_genai_tracing.py`, even though `requirements.txt` already declared them. This is an environment parity gap, not a code regression, but it weakens merge confidence.
+  - Links:
+    - `Makefile`
+    - `requirements.txt`
+    - `tests/test_genai_tracing.py`
+    - `tests/test_genai_tracing_config.py`
+  - DoD:
+    - Fresh clean clones can run `make verify` after one documented bootstrap path with no missing locked dependencies
+    - Local setup docs mention the canonical venv refresh command when lockfile drift is suspected
+    - At least one deterministic check guards against silently incomplete clean-clone environments
+
+<a id="ledger-p2-gh-checks-current-head-filter"></a>
+- [ ] P2: Filter superseded GitHub check noise in merge triage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_GH_CHECKS_CURRENT_HEAD_FILTER
+  - Area: orchestration / GitHub governance
+  - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
+  - Links:
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
+    - Merge triage output clearly labels stale runs as non-blocking when canonical readiness already passed
+    - Final merge checklist references the filtered current-head view
+
+<a id="ledger-p2-pr5-ledger-closeout-docs-only"></a>
+- [ ] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Area: orchestration / ledger governance
+  - Reason: `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md` requires a docs-only follow-up PR when a merged PR closes a ledger item. PR5 closeout was captured during the mixed-scope PR6 kickoff sequence, so it needs a narrow docs-only normalization PR instead of widening PR6 further.
+  - Links:
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+  - DoD:
+    - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
+    - The follow-up PR references PR `#1102` and this deferred remediation item
+    - No runtime or tooling files are mixed into that normalization PR
 
 - [ ] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
