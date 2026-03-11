@@ -65,3 +65,5 @@ Reason: cubic identified this issue in the summary shell; the exact actionable c
 - [ ] Cubic PASS / no-actionables
 - [ ] No unresolved review threads or actionable bot comments remain
 - [ ] Review wait-window completed
+
+Current state note: unresolved GitHub review threads reached `0` on 2026-03-11; final readiness is still waiting on the latest bot sweep and required-check completion for head `cef6db64`.
