@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import sys
+from enum import Enum
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +48,13 @@ MAPPING_ENTRY_RE = re.compile(
 THREAD_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*$")
 _na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alternatives"])
 MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
+
+
+class BodyValidationMode(str, Enum):
+    """Explicit Phase2 body validation modes for artifact-first vs fallback checks."""
+
+    FULL_MAPPING = "full_mapping"
+    MIRROR_ONLY = "mirror_only"
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
@@ -105,7 +113,18 @@ def _extract_mapping_section(text: str) -> str:
     return text[start:end]
 
 
-def check_pr_body_phase2_gates(body: str) -> list[str]:
+def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
+    """Choose body validation mode from the canonical artifact/body contract."""
+    if artifact_checked:
+        return BodyValidationMode.MIRROR_ONLY
+    return BodyValidationMode.FULL_MAPPING
+
+
+def check_pr_body_phase2_gates(
+    body: str,
+    *,
+    mode: BodyValidationMode = BodyValidationMode.FULL_MAPPING,
+) -> list[str]:
     errors: list[str] = []
     cleaned = _strip_fenced_code_blocks(body)
 
@@ -128,22 +147,23 @@ def check_pr_body_phase2_gates(body: str) -> list[str]:
             f"Checklist item must be checked: `{PHASE2_CONFIG['mapping_checkbox_label']}`."
         )
 
-    mapping_section = _extract_mapping_section(cleaned)
-    has_mapping_entries = bool(
-        MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
-    )
-    has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
-    if not has_mapping_entries and not has_na_mapping:
-        errors.append(
-            "Add at least one review-thread entry "
-            "(`- <review-comment-url>` or `- <review-comment-url> -> <commit-sha>`) "
-            "or `- No actionable review comments`."
+    if mode is BodyValidationMode.FULL_MAPPING:
+        mapping_section = _extract_mapping_section(cleaned)
+        has_mapping_entries = bool(
+            MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
         )
-    if has_mapping_entries and has_na_mapping:
-        errors.append(
-            "Invalid mixed mode: 'No actionable review comments' cannot appear "
-            "together with SHA mappings (use one or the other)."
-        )
+        has_na_mapping = bool(MAPPING_NA_RE.search(mapping_section))
+        if not has_mapping_entries and not has_na_mapping:
+            errors.append(
+                "Add at least one review-thread entry "
+                "(`- <review-comment-url>` or `- <review-comment-url> -> <commit-sha>`) "
+                "or `- No actionable review comments`."
+            )
+        if has_mapping_entries and has_na_mapping:
+            errors.append(
+                "Invalid mixed mode: 'No actionable review comments' cannot appear "
+                "together with SHA mappings (use one or the other)."
+            )
 
     return errors
 
@@ -190,12 +210,16 @@ def main() -> int:
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
 
-    if body.strip():
-        body_checked = True
-        body_errors.extend(check_pr_body_phase2_gates(body=body))
-    elif pr_number is None:
+    if not body.strip():
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
+    body_checked = True
+    body_errors.extend(
+        check_pr_body_phase2_gates(
+            body=body,
+            mode=_select_body_validation_mode(artifact_checked=artifact_checked),
+        )
+    )
 
     errors = [*artifact_errors, *body_errors]
     if errors:
@@ -208,11 +232,8 @@ def main() -> int:
             print(f"- {item}")
         return 1
 
-    if artifact_checked and body_checked:
-        print("phase2-pr-body-gates: canonical mapping artifact and PR body passed.")
-        return 0
     if artifact_checked:
-        print("phase2-pr-body-gates: canonical mapping artifact passed.")
+        print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")
         return 0
 
     print("phase2-pr-body-gates: passed.")

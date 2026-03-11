@@ -8,8 +8,8 @@
 
 - [ ] Fetch and address all review comments (Codex, Sourcery, Cubic, CodeRabbit)
 - [ ] Resolve all review threads (`gh api graphql` resolveReviewThread)
-- [ ] Add Fixed in Commit Mapping: `- <review-url> -> <commit-sha>` for each actionable bot
-- [ ] PR body: Discussion Thread Pass checked, mapping section complete
+- [ ] Add Fixed in Commit Mapping: `- <review-url> -> <commit-sha>` for each actionable bot in `docs/review/PR_<N>_FIXED_MAPPING.md`
+- [ ] PR body: Discussion Thread Pass checked, mirror sections complete
 
 ---
 

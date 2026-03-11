@@ -231,7 +231,7 @@ Run before merge after latest commit and latest bot/review activity:
 
 1. `gh pr checks <PR_NUMBER>` -> no failed/pending required checks
 2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
-3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in PR body under `### Fixed in Commit Mapping`. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
+3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror-only when `pr_number` is available. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
 4. Confirm PR body sections are complete:
    - `## Discussion Thread Pass`
    - `### Fixed in Commit Mapping`
@@ -240,7 +240,8 @@ Run before merge after latest commit and latest bot/review activity:
 
 **Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
 - In PR description, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
-- Under **### Fixed in Commit Mapping**: either list each bot comment as `- <comment-url> -> <commit-sha>`, or use exactly (no extra text): `- No actionable review comments`.
+- In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
+- Under **### Fixed in Commit Mapping** in the PR body: keep the mirror section present; mapping-line duplication is optional once the artifact exists.
 - Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
 
 **Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the orchestration wrapper so Phase 2, merge-readiness, and disposition proof are checked together. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
@@ -275,14 +276,14 @@ query { repository(owner: "Katsiarynakavaleuskaya", name: "PulsePlate") {
 } }' --jq '.data.repository.pullRequest.reviewThreads | "total: \(.totalCount), unresolved: \([.nodes[] | select(.isResolved == false)] | length)"'
 ```
 
-Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments under **### Fixed in Commit Mapping** in the PR body.
+Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments in the canonical artifact.
 
 **Loop until zero comments (canonical cycle):** Repeat until merge-readiness script exits 0 and CI is green:
 
 1. **Commit** (fixes for code/docs); **push** to PR branch.
 2. **Watch CI:** `gh run list --branch "$(git branch --show-current)" --limit 3` then `gh run watch <RUN_ID> --exit-status` (or wait for run completion).
 3. **Check comments/governance:** `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`. If exit 1 → inspect the failing sub-gate output and fix before re-running.
-4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to PR body under `### Fixed in Commit Mapping` as `- <url> -> <commit-sha>`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping.
+4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to `docs/review/PR_<N>_FIXED_MAPPING.md`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping. Update the PR body mirror only after the canonical artifact is correct.
 5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.

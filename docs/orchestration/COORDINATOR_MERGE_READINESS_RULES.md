@@ -10,11 +10,11 @@
 
 - **Merge only when:**
   1. **Zero unresolved review threads** (every review thread on the PR is resolved in GitHub UI).
-  2. **Zero unmapped actionable bot comments** (every bot comment that contains actionable items is listed under `### Fixed in Commit Mapping` in the PR body as `- <comment-url> -> <commit-sha>`).
+  2. **Zero unmapped actionable bot comments** (every bot comment that contains actionable items is listed in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`).
 
 - **Do not merge when:**
   - Any review thread is unresolved.
-  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the `### Fixed in Commit Mapping` section with a commit that addresses it.
+  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with disposition proof that addresses it.
 
 ---
 
@@ -74,10 +74,10 @@ Underlying enforcement scripts remain canonical for their own domains:
 ## 5. PR body requirements (reminder)
 
 - `## Discussion Thread Pass` with checkboxes completed.
-- `### Fixed in Commit Mapping` with either:
-  - One line per actionable comment: `- <comment-url> -> <commit-sha>`, or
-  - Exactly: `- No actionable review comments` (when there are no actionable bot comments).
+- `### Fixed in Commit Mapping` present as a mirror section for human review.
 - `## Merge Readiness` section.
+
+Canonical review-thread mappings live in `docs/review/PR_<N>_FIXED_MAPPING.md`. The PR body no longer needs late-cycle URL→SHA duplication once the canonical artifact exists.
 
 See `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Phase2 PR body gates).
 

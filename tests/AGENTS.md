@@ -430,20 +430,21 @@ pytest -q tests/test_repo_policy_guards.py
   - **What it enforces**:
     - PR body contains `## Discussion Thread Pass` and `### Fixed in Commit Mapping`.
     - Checkboxes `Discussion-thread pass completed` and `Fixed in commit mapping completed` are checked.
-    - Mapping contains either comment-to-commit lines (`url -> sha`) or `No actionable review comments`.
+    - In body-only fallback mode, mapping contains either comment-to-commit lines (`url -> sha`) or `No actionable review comments`.
+    - When the canonical artifact exists, PR body is mirror-only and does not need duplicated URL→SHA lines.
   - **How to run**:
     ```bash
     pytest -q tests/test_pr_body_phase2_gates.py
-    python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
+    python scripts/ci/check_pr_body_phase2_gates.py --pr-number 999 --body "## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 ### Fixed in Commit Mapping
-- No actionable review comments"
+- canonical artifact: docs/review/PR_999_FIXED_MAPPING.md"
     ```
   - **How to fix failures**:
     - Update PR body using template sections exactly (headings + checkbox labels).
     - Mark both checkboxes as completed after discussion-thread pass.
-    - Add explicit mapping entries for each addressed bot review comment.
+    - Add explicit mapping entries for each addressed bot review comment in the canonical artifact.
 
 - **Wellness language BLOCKER guard**: `tests/guards/test_wellness_language_blockers_guard.py`
   - **What it enforces**:
