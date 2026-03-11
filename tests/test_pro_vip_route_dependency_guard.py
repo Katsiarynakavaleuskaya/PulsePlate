@@ -17,6 +17,10 @@ CANONICAL_PREFIX_GUARD = {
 LEGACY_HTTP_ALIAS_ALLOWLIST = {
     ("POST", "/api/v1/vip/weekly-plan"),
 }
+PRE_ENTITLEMENT_ROUTE_ALLOWLIST = {
+    ("POST", "/api/v1/pro/payments/activate"): api_key_header,
+    ("GET", "/api/v1/pro/payments/activations/{activation_id}"): api_key_header,
+}
 
 
 def _load_routes(app: FastAPI) -> list[APIRoute]:
@@ -63,6 +67,25 @@ def test_canonical_pro_vip_routes_require_expected_tier_dependency(app: FastAPI)
                 continue
             saw_prefixes[prefix] = True
             flattened_calls = _flatten_dependency_calls(route)
+            matching_allowlist = [
+                dependency
+                for method, path in PRE_ENTITLEMENT_ROUTE_ALLOWLIST
+                if path == route.path and method in (route.methods or set())
+                for dependency in [PRE_ENTITLEMENT_ROUTE_ALLOWLIST[(method, path)]]
+            ]
+            if matching_allowlist:
+                expected_dependency = matching_allowlist[0]
+                if expected_dependency not in flattened_calls:
+                    methods = ",".join(sorted(route.methods))
+                    names = ", ".join(
+                        getattr(call, "__name__", type(call).__name__) for call in flattened_calls
+                    )
+                    missing_guards.append(
+                        f"{methods} {route.path} missing "
+                        f"{getattr(expected_dependency, '__name__', type(expected_dependency).__name__)}; "
+                        f"got [{names}]"
+                    )
+                break
             if expected_guard not in flattened_calls:
                 methods = ",".join(sorted(route.methods))
                 names = ", ".join(
