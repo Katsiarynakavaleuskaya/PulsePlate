@@ -5336,8 +5336,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane is executing in `#1102`; PR6 remains open)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102 -> PR6 kickoff
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane merged in `#1102`; PR6 kickoff prepared on `feat/agent-experiment-reliability-pr6`)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5418,11 +5418,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No hidden-memory path bypasses KPP promotion
 
 <a id="ledger-p1-agent-experiment-cv-lane"></a>
-- [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+- [x] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
+  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`; CV overlay + packet schema extension + orchestration drift audit delivered)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5447,7 +5447,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (first practical output of the experimentation lane)
   - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
-  - Status: 📋 Planned
+  - Status: 🟡 Kickoff prepared on 2026-03-11 (`feat/agent-experiment-reliability-pr6`; post-merge handoff after PR `#1102`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
