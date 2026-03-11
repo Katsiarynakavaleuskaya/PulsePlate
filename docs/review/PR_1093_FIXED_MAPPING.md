@@ -120,6 +120,17 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915859928
 Reason: this CodeRabbit review entry is a summary shell for the actionable child thread dispositioned immediately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2916443979 -> fc1ba479
+Disposition: FIXED
+Commit: fc1ba479
+Evidence: app/telemetry/genai.py:290; app/telemetry/genai.py:307; app/telemetry/genai.py:320; tests/test_genai_tracing.py:142; tests/test_genai_tracing.py:162; tests/test_genai_tracing.py:188
+Reason: `safe_span()` now degrades cleanly when span context-manager enter/exit fails, and regression tests cover enter failure plus close failure on both success and caller-exception paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#pullrequestreview-3927480229
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2916443979
+Reason: this CodeRabbit review entry is a summary shell for the actionable child thread dispositioned immediately above.
+
 ## Merge Readiness
 - [ ] Scope tied to PR objective
 - [ ] Docs/runtime changes applied
