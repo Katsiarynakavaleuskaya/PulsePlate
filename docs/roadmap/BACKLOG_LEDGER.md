@@ -5678,11 +5678,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ReadLints` clean for all new docs
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
-- [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
+- [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
   - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102 -> PR #1107
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane merged in `#1102`; PR6 reliability optimization is active in PR `#1107` on `feat/agent-experiment-reliability-pr6`)
+  - Status: ✅ Completed on 2026-03-11 (`a00bba2f`; PR `#1107`) with the original PR1-PR6 chain fully merged; PR `#1114` then reused the same governed lane for the next applied verification-first reliability cycle without reopening the epic
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5788,11 +5788,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic acceptance criteria are documented
 
 <a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
-- [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
+- [x] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (first practical output of the experimentation lane)
   - Target PR: PR #1107
-  - Status: 🟡 In progress on 2026-03-11 (PR `#1107`; branch `feat/agent-experiment-reliability-pr6`; post-merge handoff after PR `#1102`)
+  - Status: ✅ Merged on 2026-03-11 (`a00bba2f`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5810,6 +5810,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Candidate improvement is accepted by immutable oracles and documented with evidence
     - Result is promoted through a normal human-reviewed PR
     - No storage-cost or CV scope is mixed into this first applied optimization
+
+<a id="ledger-p1-reliability-v2-verification-pr"></a>
+- [x] P1: PR7 verification-first Reliability V2 applied orchestration cycle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (factual trust uplift on the merged experimentation lane)
+  - Target PR: PR #1114
+  - Status: ✅ Merged on 2026-03-11 (`57770899`)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR6 first applied LLM/RAG reliability optimization via governed lane](#ledger-p1-agent-experiment-first-reliability-pr)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+  - Reason (EN): After the first applied reliability change proved the governed lane end to end, the next applied slice needed a verification-first runtime policy that raises factual trust for RAG-backed insight generation while preserving the public `InsightResponse` shape and bounded provider cost.
+  - Links:
+    - `core/insight/philosophical_runtime.py`
+    - `core/rag/orchestration.py`
+    - `tests/test_philosophical_runtime.py`
+    - `tests/test_rag_orchestration.py`
+    - `tests/test_recursive_rag.py`
+    - `tests/test_insight_rag_response_fields.py`
+    - `docs/review/PR_1114_FIXED_MAPPING.md`
+  - DoD:
+    - Verification-first gating prefers accepted RAG-backed answers with `verification_rate >= 0.7`
+    - Low-verification factual/deep outputs trigger at most one bounded rewrite before conservative fallback
+    - Recursive and non-recursive paths preserve the current response contract and deterministic reason codes
+    - The applied runtime change is validated by deterministic local oracles and merged through normal human-reviewed PR governance
 
 <a id="ledger-p1-creative-research-eval-lane"></a>
 - [ ] P1: Creative research eval lane under governed experimentation epic
