@@ -57,6 +57,7 @@ _ALLOWED_ATTRS: frozenset[str] = frozenset(
         COMPLETION_FINGERPRINT_ATTR,
         COMPLETION_LENGTH_ATTR,
         "pulseplate.feature_flags.cbt_agent",
+        "pulseplate.feature_flags.creative_research_pilot",
         "pulseplate.feature_flags.insight",
         "pulseplate.feature_flags.philosophy_linguistic",
         "pulseplate.feature_flags.philosophy_phase12",

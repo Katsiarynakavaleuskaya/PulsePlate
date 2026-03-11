@@ -5834,6 +5834,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_creative_research_eval_contract.py`
     - `docs/review/PR_1112_FIXED_MAPPING.md`
     - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
+    - `app/routers/creative_research_internal.py`
+    - `app/services/creative_research_runtime.py`
+    - `app/schemas/creative_research.py`
+    - `core/creative_research.py`
+    - `tests/test_creative_research_pilot_api.py`
   - DoD:
     - PR-A lands docs-only protocol and routing/evaluation/handoff visibility for `creative_research`
     - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration

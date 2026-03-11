@@ -20,6 +20,7 @@ from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
+from app.routers.creative_research_internal import router as creative_research_internal_router
 import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
 from app.routers.cbt_insight import router as cbt_insight_router
@@ -32,6 +33,7 @@ _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
 _TERMS_ROUTE_PATH: str = "/terms"
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
+_CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 
 
 def _has_route(
@@ -132,6 +134,9 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
         app.include_router(cbt_insight_router)
+
+    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+        app.include_router(creative_research_internal_router)
 
     return app
 

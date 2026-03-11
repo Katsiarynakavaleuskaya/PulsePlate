@@ -54,6 +54,12 @@ def is_recursive_rag_enabled() -> bool:
     return _is_truthy(os.getenv("FEATURE_RAG_RECURSIVE"))
 
 
+def is_creative_research_pilot_enabled() -> bool:
+    """Check if the internal creative research pilot is enabled."""
+
+    return _is_truthy(os.getenv("FEATURE_CREATIVE_RESEARCH_PILOT"))
+
+
 def is_philosophy_router_enabled() -> bool:
     """Check if pre-generation philosophical router is enabled."""
     return _is_truthy(os.getenv("FEATURE_PHILOSOPHY_ROUTER"))
@@ -75,6 +81,7 @@ def is_philosophy_pragmatic_enabled() -> bool:
 
 
 __all__ = [
+    "is_creative_research_pilot_enabled",
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
     "is_philosophy_validation_enabled",
