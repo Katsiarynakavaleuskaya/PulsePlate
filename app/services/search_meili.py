@@ -81,7 +81,9 @@ class MeiliSearchBackend:
         """Return the baseline fallback rows or an empty result set."""
 
         if self._fallback_backend is not None:
-            return self._fallback_backend.search_foods(query, limit=limit, offset=offset)
+            fallback_rows: Sequence[Mapping[str, Any]]
+            fallback_rows = self._fallback_backend.search_foods(query, limit=limit, offset=offset)
+            return fallback_rows
         return []
 
     def search_foods(
