@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_local_verify_environment as env_gate
 
 
-def test_collect_missing_modules_returns_only_failed_imports(monkeypatch) -> None:
+def test_collect_missing_modules_returns_only_failed_imports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fake_import(module_name: str) -> str | None:
         if module_name == "coverage":
             return "No module named 'coverage'"
@@ -42,7 +46,11 @@ def test_build_failure_output_includes_recovery_commands() -> None:
     assert any("make venv-sync" in line for line in lines)
 
 
-def test_main_fails_when_venv_is_missing(monkeypatch, capsys, tmp_path: Path) -> None:
+def test_main_fails_when_venv_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
     monkeypatch.setattr(env_gate, "VENV_PYTHON", tmp_path / ".venv" / "bin" / "python")
 
     result = env_gate.main()
@@ -53,8 +61,8 @@ def test_main_fails_when_venv_is_missing(monkeypatch, capsys, tmp_path: Path) ->
 
 
 def test_main_fails_when_running_outside_repo_venv(
-    monkeypatch,
-    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
     fake_python = tmp_path / ".venv" / "bin" / "python"
@@ -74,8 +82,8 @@ def test_main_fails_when_running_outside_repo_venv(
 
 
 def test_main_fails_when_verify_dependencies_are_missing(
-    monkeypatch,
-    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
     fake_python = tmp_path / ".venv" / "bin" / "python"
@@ -101,8 +109,8 @@ def test_main_fails_when_verify_dependencies_are_missing(
 
 
 def test_main_passes_when_venv_and_dependencies_are_ready(
-    monkeypatch,
-    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
     fake_python = tmp_path / ".venv" / "bin" / "python"
