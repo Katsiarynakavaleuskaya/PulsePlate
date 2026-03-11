@@ -76,6 +76,7 @@ Evidence: `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:74`
 Evidence: `scripts/design/generate_figma_instructions.py:1087`
 Reason: This review-level wrapper aggregates already-mapped inline findings; the remaining architectural notes in the wrapper are advisory and do not require a separate fix beyond the mapped thread dispositions on the current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932379652
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932586855
 
 Disposition: NOT-A-BUG
 Evidence: Individual actionable threads identified by cubic are mapped explicitly in this artifact.
@@ -84,6 +85,7 @@ Evidence: `docs/design/ui_component_vocabulary.json:137`
 Evidence: `scripts/design/generate_figma_instructions.py:898`
 Reason: This cubic aggregate review is a wrapper over the mapped inline findings; no separate unresolved change remains once the listed thread URLs are dispositioned.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932382558
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1117#pullrequestreview-3932581060
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
