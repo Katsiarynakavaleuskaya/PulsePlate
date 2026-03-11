@@ -121,6 +121,18 @@ def test_build_experiment_packet_does_not_match_cv_hint_on_substrings() -> None:
     assert "cv-agent" not in packet["recommended_agents"]
 
 
+def test_resolve_experiment_domain_avoids_ml_substring_false_positive() -> None:
+    """ML text hints should not trigger on larger words without token boundaries."""
+
+    domain = experiment_bootstrap._resolve_experiment_domain(
+        decision_question="Prepare prebenchmarking notes for docs",
+        task_class="Documentation",
+        mutable_paths=["docs/research/example.md"],
+    )
+
+    assert domain == "docs"
+
+
 def test_build_experiment_packet_detects_cv_hint_through_separator_normalization() -> None:
     """Separator-heavy CV terms should still trigger the governed CV lane."""
 

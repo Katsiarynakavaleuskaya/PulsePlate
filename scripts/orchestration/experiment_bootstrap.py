@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,15 @@ ML_TEXT_HINTS: tuple[str, ...] = (
 )
 
 
+def _contains_ml_hint(normalized_text: str) -> bool:
+    """RU: Ищет ML hints по границам токенов. EN: Match ML hints on token boundaries."""
+
+    return any(
+        re.search(rf"(?<!\w){re.escape(normalize_text(hint))}(?!\w)", normalized_text)
+        for hint in ML_TEXT_HINTS
+    )
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
@@ -85,7 +95,7 @@ def _resolve_experiment_domain(
         path.startswith(prefix) for path in mutable_paths for prefix in ALLOWED_MUTABLE_PREFIXES
     ):
         return "ml"
-    if any(hint in normalized_text for hint in ML_TEXT_HINTS):
+    if _contains_ml_hint(normalized_text):
         return "ml"
     resolved_domain = resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
     if not isinstance(resolved_domain, str):

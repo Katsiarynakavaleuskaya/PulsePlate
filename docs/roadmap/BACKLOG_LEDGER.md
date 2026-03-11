@@ -5402,6 +5402,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Coordinator routing for CV experiments is explicit and bounded
     - Deterministic acceptance criteria are documented
 
+<a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
+- [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (first practical output of the experimentation lane)
+  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
+  - Status: 📋 Planned
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+    - [P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)](#ledger-p1-recursive-methods)
+  - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
+  - DoD:
+    - One bounded reliability candidate is generated through the governed lane
+    - Candidate improvement is accepted by immutable oracles and documented with evidence
+    - Result is promoted through a normal human-reviewed PR
+    - No storage-cost or CV scope is mixed into this first applied optimization
+
 - [ ] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
@@ -5431,30 +5455,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Future CV client work has an explicit canonical implementation owner
     - Routing and context docs no longer imply conflicting iOS/frontend ownership
     - Backlog item references the first runtime/client CV PR that consumes degrade states
-
-<a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
-- [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (first practical output of the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
-  - Status: 📋 Planned
-  - Dependencies:
-    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
-    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
-    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
-    - [P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)](#ledger-p1-recursive-methods)
-  - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
-  - Links:
-    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `scripts/orchestration/experiment_bootstrap.py`
-    - `scripts/orchestration/experiment_runner.py`
-    - `tests/test_experiment_bootstrap.py`
-    - `tests/test_experiment_runner.py`
-  - DoD:
-    - One bounded reliability candidate is generated through the governed lane
-    - Candidate improvement is accepted by immutable oracles and documented with evidence
-    - Result is promoted through a normal human-reviewed PR
-    - No storage-cost or CV scope is mixed into this first applied optimization
 
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
