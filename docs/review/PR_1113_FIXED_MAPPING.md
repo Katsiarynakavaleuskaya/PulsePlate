@@ -16,6 +16,8 @@ Evidence: `frontend/src/features/plan/WeeklyPlanViewer.tsx:136`; `docs/roadmap/B
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1113#discussion_r2918155614 -> cb6a12fd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1113#discussion_r2918155619 -> cb6a12fd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1113#discussion_r2918155623 -> cb6a12fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1113#pullrequestreview-3929356696 -> cb6a12fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1113#pullrequestreview-3929367388 -> cb6a12fd
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
