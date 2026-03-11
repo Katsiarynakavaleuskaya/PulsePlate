@@ -167,7 +167,22 @@ def _score_from_thresholds(value: float, thresholds: tuple[float, ...]) -> int:
 
 def _count_hints(text: str, hints: tuple[str, ...]) -> int:
     normalized = normalize_text(text)
-    return sum(1 for hint in hints if hint in normalized)
+    text_tokens = [match.group(0) for match in _TOKEN_RE.finditer(normalized)]
+    if not text_tokens:
+        return 0
+
+    hint_hits = 0
+    for hint in hints:
+        hint_tokens = [match.group(0) for match in _TOKEN_RE.finditer(normalize_text(hint))]
+        if not hint_tokens:
+            continue
+        window = len(hint_tokens)
+        if any(
+            text_tokens[index : index + window] == hint_tokens
+            for index in range(len(text_tokens) - window + 1)
+        ):
+            hint_hits += 1
+    return hint_hits
 
 
 def _contains_any(text: str, hints: tuple[str, ...]) -> bool:
@@ -367,7 +382,7 @@ def build_scorecard(
     normalized_falsifier = normalize_text(candidate["falsifier"])
     if not candidate["falsifier"].strip():
         falsifiability = 0
-    elif ("if" in normalized_falsifier or "when" in normalized_falsifier) and falsifier_hits >= 2:
+    elif _contains_any(normalized_falsifier, ("if", "when")) and falsifier_hits >= 2:
         falsifiability = 5
     elif falsifier_hits >= 2:
         falsifiability = 4
