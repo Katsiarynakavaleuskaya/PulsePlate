@@ -871,7 +871,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `app/models/rag_feedback.py`
     - `core/rag/vector_rag.py`
     - `core/db_rls.py`
-    - `alembic/versions/202603100001_enable_rag_user_rls.py`
+    - `alembic/versions/202603100101_enable_rag_user_rls.py`
   - DoD:
     - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
     - User-bound rows use a bigint subject principal compatible with runtime-derived API-key subject isolation (no stale `users.id` FK contract)

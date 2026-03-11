@@ -58,7 +58,7 @@ def test_apply_user_rls_context_rejects_non_positive_user_id() -> None:
 def test_rls_migration_contains_enable_force_and_policy_contract() -> None:
     """The new migration must enable/force RLS for both user-bound tables."""
     repo_root = Path(__file__).resolve().parents[1]
-    migration_path = repo_root / "alembic/versions/202603100001_enable_rag_user_rls.py"
+    migration_path = repo_root / "alembic/versions/202603100101_enable_rag_user_rls.py"
     migration_text = migration_path.read_text(encoding="utf-8")
 
     assert "ALTER TABLE rag_feedback ENABLE ROW LEVEL SECURITY" in migration_text

@@ -1,7 +1,7 @@
 """harden RAG subject principal to bigint-owned rows
 
 Revision ID: 202603110001
-Revises: 202603100001
+Revises: 202603100101
 Create Date: 2026-03-11
 
 Hardens the user-bound RAG tables so PostgreSQL RLS uses a bigint subject
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "202603110001"
-down_revision = "202603100001"
+down_revision = "202603100101"
 branch_labels = None
 depends_on = None
 
