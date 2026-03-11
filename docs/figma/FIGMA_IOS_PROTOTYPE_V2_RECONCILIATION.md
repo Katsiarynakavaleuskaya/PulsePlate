@@ -31,6 +31,8 @@ Repo sources used:
 | `iOS_Home` | `4:2` | reconciled |
 | `iOS_ShoppingList` | `5:2` | reconciled |
 | `iOS_WeeklyPlan_Reader` | `6:2` | reconciled |
+| `iOS_Profile` | `7:2` | reconciled |
+| `iOS_BMI` | `8:2` | reconciled |
 
 ## Component-by-Component Gaps
 
@@ -58,6 +60,10 @@ Repo sources used:
   runtime view already exposes disabled VIP CTAs.
 - Shopping List now exists as a clean category-based surface instead of being
   implied only by a gated home row.
+- BMI now has a design-reference surface that preserves the runtime sequence:
+  input -> result -> optional soft paywall hook.
+- Profile now exists as a calm PRO-setup surface rather than remaining only a
+  technical form implementation.
 
 ### Remaining Gaps
 
@@ -69,6 +75,8 @@ Repo sources used:
   accurate.
 - Weekly Plan and Shopping List in v2 are design-reference screens, not direct
   mirrors of current runtime list/table anatomy.
+- BMI and Profile still simplify some runtime detail states to keep the design
+  reference focused on the main UX path.
 
 ## Decision Log
 
@@ -80,7 +88,7 @@ Repo sources used:
 
 ## Next Promotion Path
 
-1. Add `Profile` and `BMI` when the next slice moves from funnel to feature depth.
-2. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
+1. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
+2. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
 3. If Code Connect becomes available, map the reconciled frames rather than the
    raw prototype file.

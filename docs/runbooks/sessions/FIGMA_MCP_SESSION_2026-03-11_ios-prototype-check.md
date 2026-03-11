@@ -250,6 +250,8 @@
 | `iOS_Paywall_Pro_VIP` | `2:2` | `Main Content (iOS Paywall Pro VIP)` | Paywall tier reconciliation from repo SoT |
 | `iOS_ShoppingList` | `5:2` | `Main Content (iOS Shopping List)` | Shopping list runtime + weekly-plan continuity |
 | `iOS_WeeklyPlan_Reader` | `6:2` | `Main Content (iOS Weekly Plan Reader)` | Weekly plan runtime + VIP follow-up hooks |
+| `iOS_Profile` | `7:2` | `Main Content (iOS Profile)` | PRO profile runtime + legal/language layer |
+| `iOS_BMI` | `8:2` | `Main Content (iOS BMI)` | BMI runtime + result + soft paywall hook |
 
 ## Structural QA
 
@@ -266,6 +268,8 @@
 - FitChef support-brand label on home: pass
 - Weekly plan / diet menu surface present: pass
 - Shopping list surface present: pass
+- BMI surface present: pass
+- Profile surface present: pass
 - Duplicate long-scroll capture artifacts: not observed in v2 metadata/screenshot review
 
 ## Known Limits
@@ -281,4 +285,7 @@
 - `ios prototype v2` now includes the first feature-depth follow-up surfaces for:
   - weekly plan / diet menu
   - shopping list
+- `ios prototype v2` now also covers primary feature-entry surfaces:
+  - BMI
+  - Profile
 - raw `ios prototype` remains `reference_only`.

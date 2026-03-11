@@ -11,6 +11,8 @@ Screens:
 - `paywall-pro-vip.html` -> `iOS_Paywall_Pro_VIP`
 - `weekly-plan-reader.html` -> `iOS_WeeklyPlan_Reader`
 - `shopping-list.html` -> `iOS_ShoppingList`
+- `bmi.html` -> `iOS_BMI`
+- `profile.html` -> `iOS_Profile`
 
 Rules for capture:
 
@@ -33,6 +35,8 @@ Current canonical screen map:
 - `iOS_Paywall_Pro_VIP` -> `2:2`
 - `iOS_WeeklyPlan_Reader` -> `6:2`
 - `iOS_ShoppingList` -> `5:2`
+- `iOS_Profile` -> `7:2`
+- `iOS_BMI` -> `8:2`
 
 Note:
 
