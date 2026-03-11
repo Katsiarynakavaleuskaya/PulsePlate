@@ -130,6 +130,21 @@ Disposition: NOT-A-BUG
 Evidence: `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:68`; `tests/test_db_rls.py:96`
 Reason: This cubic summary review aggregates the two inline findings immediately above, and current head addresses both in `a9dae019`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2915862050 -> a2184599
+Disposition: FIXED
+Commit: `a2184599`
+Evidence: `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:64`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#discussion_r2915862053 -> a2184599
+Disposition: FIXED
+Commit: `a2184599`
+Evidence: `tests/test_db_rls.py:98`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1089#pullrequestreview-3926890760
+Disposition: NOT-A-BUG
+Evidence: `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:64`; `tests/test_db_rls.py:98`
+Reason: This cubic summary review aggregates the two inline findings immediately above, and current head addresses both in `a2184599`.
+
 ## Merge Readiness
 - [x] Local `pre-commit run --all-files`
 - [x] Local `make verify`
