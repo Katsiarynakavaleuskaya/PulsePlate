@@ -414,7 +414,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The repo has AI safety posture and tracing materials, but there is no canonical CI gate bundle for retrieval quality regressions, faithfulness checks, prompt-injection adversarial tests, and privacy-sensitive evaluation. Without that package, AI quality and safety can drift silently between releases.
   - Links:
     - `docs/security/SECURITY_POSTURE.md`
-    - `docs/observability/GENAI_TRACING_POLICY.md`
+    - `docs/analytics/README.md`
     - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
     - `core/insight/philosophy_validator.py`
     - `AGENTS.md`
