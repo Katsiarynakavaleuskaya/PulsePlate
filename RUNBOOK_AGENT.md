@@ -240,7 +240,7 @@ Run before merge after latest commit and latest bot/review activity:
 
 **Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
 - In PR description, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
-- In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or use exactly `- No actionable review comments`.
+- In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
 - Under **### Fixed in Commit Mapping** in the PR body: keep the mirror section present; mapping-line duplication is optional once the artifact exists.
 - Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
 

@@ -435,7 +435,7 @@ pytest -q tests/test_repo_policy_guards.py
   - **How to run**:
     ```bash
     pytest -q tests/test_pr_body_phase2_gates.py
-    python scripts/ci/check_pr_body_phase2_gates.py --body "## Discussion Thread Pass
+    python scripts/ci/check_pr_body_phase2_gates.py --pr-number 999 --body "## Discussion Thread Pass
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 ### Fixed in Commit Mapping

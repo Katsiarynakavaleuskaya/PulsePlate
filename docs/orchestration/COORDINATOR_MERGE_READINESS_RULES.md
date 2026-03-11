@@ -14,7 +14,7 @@
 
 - **Do not merge when:**
   - Any review thread is unresolved.
-  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the `### Fixed in Commit Mapping` section with a commit that addresses it.
+  - Any bot (CodeRabbit, Sourcery, Cubic, etc.) has posted a comment/review that is "actionable" (e.g. "Actionable comments posted", "Potential issue", "Prompt for AI Agents") and that comment URL is **not** present in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with disposition proof that addresses it.
 
 ---
 
