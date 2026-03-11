@@ -18,6 +18,17 @@ from app.bootstrap.metrics import register_metrics
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
 
+def _get_metrics_get_routes(app_instance: FastAPI) -> list[object]:
+    """Collect registered GET routes for the canonical /metrics endpoint."""
+
+    return [
+        route
+        for route in app_instance.routes
+        if getattr(route, "path", None) == "/metrics"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+
+
 def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
     """Extract metric value for specific labelset from Prometheus text format.
 
@@ -252,13 +263,7 @@ def test_register_metrics_adds_route_after_stack_is_built() -> None:
 
     register_metrics(app_instance)
 
-    metrics_routes = [
-        route
-        for route in app_instance.routes
-        if getattr(route, "path", None) == "/metrics"
-        and "GET" in (getattr(route, "methods", None) or set())
-    ]
-    assert len(metrics_routes) == 1
+    assert len(_get_metrics_get_routes(app_instance)) == 1
     assert len(getattr(app_instance, "user_middleware", []) or []) == before_user_middleware
 
     with TestClient(app_instance) as client:
@@ -275,13 +280,26 @@ def test_register_metrics_is_idempotent_for_route_registration() -> None:
     register_metrics(app_instance)
     register_metrics(app_instance)
 
-    metrics_routes = [
-        route
-        for route in app_instance.routes
-        if getattr(route, "path", None) == "/metrics"
-        and "GET" in (getattr(route, "methods", None) or set())
-    ]
-    assert len(metrics_routes) == 1
+    assert len(_get_metrics_get_routes(app_instance)) == 1
+
+
+def test_register_metrics_is_idempotent_after_stack_is_built() -> None:
+    """Repeated late bootstrap must not duplicate the /metrics route."""
+
+    app_instance = FastAPI()
+    register_metrics(app_instance)
+
+    with TestClient(app_instance) as client:
+        metrics_response = client.get("/metrics")
+        assert metrics_response.status_code == 200
+
+        register_metrics(app_instance)
+        register_metrics(app_instance)
+
+        assert len(_get_metrics_get_routes(app_instance)) == 1
+
+        metrics_response = client.get("/metrics")
+        assert metrics_response.status_code == 200
 
 
 def test_metrics_hidden_from_openapi(client: TestClient) -> None:

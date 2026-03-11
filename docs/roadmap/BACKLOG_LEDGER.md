@@ -213,11 +213,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical app bootstrap late-rehydration hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime reliability follow-up after `/metrics` hotfix)
-  - Target PR: PR-TBD-CANONICAL-BOOTSTRAP-LATE-REHYDRATION
+  - Target PR: PR #1101 (`fix(metrics): restore late bootstrap route on main`) -> PR-TBD-CANONICAL-BOOTSTRAP-LATE-REHYDRATION
   - Area: backend / bootstrap / observability
   - Finding Type: import-order follow-up
   - Reason: The `/metrics` hotfix restores late route registration on already-built apps, but it intentionally does not attempt full middleware rehydration after `middleware_stack` exists. A follow-up is needed to define and harden the canonical behavior for late bootstrap/import-order paths without reintroducing unsafe post-start middleware mutation.
   - Links:
+    - `docs/review/PR_1101_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101`
     - `app/main.py`
     - `app/bootstrap/metrics.py`
     - `tests/test_metrics.py`
