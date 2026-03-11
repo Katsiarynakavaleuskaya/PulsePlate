@@ -23,6 +23,12 @@ Evidence: `bf760c54` removes the remaining PR-body/artifact contradiction in `do
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1123#discussion_r2921106791 -> bf760c54
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1123#discussion_r2921106798 -> bf760c54
 
+Disposition: FIXED
+Commit: b6fec9cc
+Evidence: `b6fec9cc` removes the dead `artifact_checked`-only success branch from `scripts/ci/check_pr_body_phase2_gates.py:227-232`, keeping the artifact-first success path reachable only through the enforced non-empty PR body mirror.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1123#pullrequestreview-3932719737 -> b6fec9cc
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
