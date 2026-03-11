@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 import app
 import pytest
+from tests.helpers.module_resolve import resolve_module
 
 
 class TestAppImport:
@@ -64,9 +65,8 @@ class TestAppImport:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Facade access must reapply additive bootstrap when legacy_app.app changes."""
-        import app.main as main_module
-
-        legacy_module = importlib.import_module("legacy_app")
+        main_module = resolve_module("app.main")
+        legacy_module = resolve_module("legacy_app")
 
         original_main_app = main_module.app
         replacement_app = FastAPI()

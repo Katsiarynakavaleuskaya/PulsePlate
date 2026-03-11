@@ -602,9 +602,10 @@ def test_duplicate_ws_route_detection_raises_runtime_error(
     ws_path: str,
 ) -> None:
     """Test that duplicate WS route registration raises RuntimeError for both paths."""
-    from app.main import _assert_no_duplicate_ws_route
+    from tests.helpers.module_resolve import resolve_module
 
-    import app.main as main_mod
+    main_mod = resolve_module("app.main")
+    assert_no_duplicate_ws_route = main_mod._assert_no_duplicate_ws_route
 
     mock_routes = [type("Route", (), {"path": ws_path})()]
 
@@ -616,4 +617,4 @@ def test_duplicate_ws_route_detection_raises_runtime_error(
     monkeypatch.setattr(main_mod, "app", MockApp())
 
     with pytest.raises(RuntimeError, match="Duplicate"):
-        _assert_no_duplicate_ws_route()
+        assert_no_duplicate_ws_route()
