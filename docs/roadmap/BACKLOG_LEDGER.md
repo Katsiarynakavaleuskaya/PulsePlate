@@ -318,6 +318,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dashboards cover span volume, full-capture rate, and detector distribution
     - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
+<a id="ledger-p1-external-food-source-policy-enforcement"></a>
+- [ ] P1: External food-source operating policy enforcement follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (data governance / legal-operating discipline)
+  - Target PR: PR-TBD-FOOD-SOURCE-POLICY-ENFORCEMENT
+  - Status: Not started
+  - Area: backend / legal-compliance / data platform
+  - Finding Type: provider operating-policy follow-up
+  - Reason: ODbL attribution is canonical for Open Food Facts and the food
+    platform strategy already names broader source tiers, but future ingestion
+    work still needs one explicit enforcement lane across USDA, Open Food Facts,
+    MenuStat-style datasets, and Nutritionix-style commercial providers so
+    technically reachable data is not treated as automatically safe to cache or
+    redistribute.
+  - Links:
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+    - `docs/legal/ODbL_COMPLIANCE.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `app/routers/pro_food_attribution.py`
+  - DoD:
+    - New provider onboarding checklist references the operating matrix before
+      runtime rollout
+    - Provider-specific docs exist whenever stricter rules are needed
+    - Attribution registry and docs stay aligned when new public-facing sources
+      are added
+    - No new external food/menu source ships without explicit cache and
+      redistribution decisions
+
 <a id="ledger-p1-token-expansion-activation"></a>
 - [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
   - Owner: @katsiaryna_kavaleuskaya
@@ -362,6 +390,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical token pipeline defines lockfile ownership, artifact generation from lock only, and CI drift policy
     - Release/rollback runbook exists for token builds across web/iOS surfaces
     - Existing semantic/token-governance docs link to the same deterministic build contract
+
+<a id="ledger-p1-color-profile-automation-parity"></a>
+- [ ] P1: Color-profile automation and parity evidence follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance)
+  - Target PR: PR-TBD-COLOR-PROFILE-AUTOMATION
+  - Status: Not started
+  - Area: frontend / ios / design-system / governance
+  - Finding Type: color-space policy follow-up
+  - Reason: Token governance and generated runtime mirrors are canonical, but
+    the repo still lacks deterministic automation for asset-profile checks and
+    screenshot parity evidence. This follow-through keeps the `sRGB` baseline
+    and optional `Display P3` asset lane from drifting into ad-hoc review
+    memory.
+  - Links:
+    - `docs/design/COLOR_PROFILE_GOVERNANCE.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `ios/PulsePlate/Extensions/Color+Assets.swift`
+  - DoD:
+    - Deterministic asset/profile audit lane exists
+    - Screenshot parity evidence contract is documented in an active design
+      review runbook
+    - `Display P3` exceptions require explicit fallback evidence
+    - No new runtime component-level color-space logic appears outside the
+      governed path
 
 <a id="ledger-p1-ios-subscription-manager"></a>
 - [ ] P1: iOS SubscriptionManager backend-driven integration
@@ -2508,7 +2562,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests updated: same scope + timestamp produces distinct tokens
     - No performance regression: token issuing latency under 1 ms p99
   - Blockers: None (deferred by priority, not blocked)
-
 
 ## Completed Items
 
