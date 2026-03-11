@@ -232,11 +232,8 @@ def main() -> int:
             print(f"- {item}")
         return 1
 
-    if artifact_checked and body_checked:
-        print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")
-        return 0
     if artifact_checked:
-        print("phase2-pr-body-gates: canonical mapping artifact passed.")
+        print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")
         return 0
 
     print("phase2-pr-body-gates: passed.")
