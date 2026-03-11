@@ -105,11 +105,10 @@ class MeiliSearchBackend:
                 "Meilisearch request failed; falling back to baseline backend", exc_info=True
             )
             if self._fallback_backend is not None:
-                return self._fallback_backend.search_foods(
-                    query,
-                    limit=normalized_limit,
-                    offset=normalized_offset,
+                fallback_rows: Sequence[Mapping[str, Any]] = self._fallback_backend.search_foods(
+                    query, limit=normalized_limit, offset=normalized_offset
                 )
+                return fallback_rows
             return []
 
         hits = response.get("hits", [])
