@@ -284,6 +284,38 @@ def test_start_shadow_thread_releases_capacity_after_task(
     assert events == ["acquire", "start", "task", "release"]
 
 
+def test_start_shadow_thread_releases_capacity_when_thread_start_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _Slots:
+        def acquire(self, *, blocking: bool) -> bool:
+            assert blocking is False
+            events.append("acquire")
+            return True
+
+        def release(self) -> None:
+            events.append("release")
+
+    class _Thread:
+        def __init__(self, *, target: Callable[[], None], name: str, daemon: bool) -> None:
+            self._target = target
+            self.name = name
+            self.daemon = daemon
+
+        def start(self) -> None:
+            events.append("start")
+            raise RuntimeError("thread-start-failed")
+
+    monkeypatch.setattr(search_meili_module, "_shadow_task_slots", _Slots())
+    monkeypatch.setattr(search_meili_module.threading, "Thread", _Thread)
+
+    _start_shadow_thread(lambda: events.append("task"))
+
+    assert events == ["acquire", "start", "release"]
+
+
 def test_shadow_backend_returns_baseline_when_shadow_raises() -> None:
     class _Baseline:
         def search_foods(

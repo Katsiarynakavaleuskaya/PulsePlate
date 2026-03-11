@@ -59,12 +59,16 @@ def _start_shadow_thread(task: Callable[[], None]) -> None:
         finally:
             _shadow_task_slots.release()
 
-    thread = threading.Thread(
-        target=_run_shadow_task,
-        name="food-search-shadow",
-        daemon=True,
-    )
-    thread.start()
+    try:
+        thread = threading.Thread(
+            target=_run_shadow_task,
+            name="food-search-shadow",
+            daemon=True,
+        )
+        thread.start()
+    except RuntimeError:
+        _shadow_task_slots.release()
+        logger.debug("Food search shadow task skipped; failed to start thread", exc_info=True)
 
 
 class MeiliSearchBackend:
