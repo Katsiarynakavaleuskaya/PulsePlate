@@ -5877,8 +5877,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Tighten creative research core domain typing
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_CREATIVE_RESEARCH_TYPED_DOMAIN
-  - Status: 🟡 Deferred from PR `#1118`
+  - Target PR: PR `#1124`
+  - Status: 🟢 In progress in PR `#1124`
   - Reason (EN): `core/creative_research.py` is the shared SoT for the creative
     research lane, but it still exposes `Any` and `dict[str, Any]` at validated
     boundaries. Tighten the domain contract with explicit typed structures
@@ -5888,6 +5888,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `app/schemas/creative_research.py`
     - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
     - `docs/review/PR_1118_FIXED_MAPPING.md`
+    - `docs/review/PR_1124_FIXED_MAPPING.md`
   - DoD:
     - Replace `Any` at the public core creative-research validation boundary
       with `object` plus explicit typed domain structures
@@ -5895,11 +5896,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Preserve deterministic creative-research eval and pilot tests
 
 <a id="ledger-p2-pr1118-governance-closeout"></a>
-- [ ] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass
+- [x] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1118`
-  - Status: 🟡 Deferred until the current bot/review cycle settles
+  - Status: ✅ Completed in merged PR `#1118` on March 11, 2026
   - Reason (EN): PR `#1118` intentionally postpones final artifact closeout until
     the remaining review dispositions settle; the canonical mapping artifact,
     discussion-thread pass markers, and final merge-readiness / wait-window
