@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "bundle_id": "creative-research-negative-controls",
+  "task_class": "creative_research",
+  "phase": "verification",
+  "prompt_seed": "nutrition motivation loops",
+  "reference_corpus": [
+    "Weekly reminder loops improve meal adherence by keeping the plan visible.",
+    "Simple grocery automation can reduce weekday cooking friction for busy users."
+  ],
+  "candidates": [
+    {
+      "candidate_id": "dup-a",
+      "claim": "Sunday ingredient batching may reduce weekday meal skipping for busy users.",
+      "mechanism": "Batching lowers weekday prep friction so the user can execute the planned meal before time pressure builds.",
+      "evidence_needed": "Compare weekday skip rate and prep time between batching and no-batching cohorts over four weeks.",
+      "falsifier": "If skip rate does not improve after batching even when prep time falls, the friction mechanism is wrong.",
+      "confidence": "medium",
+      "known_risks": [
+        "Selection bias toward planners."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    },
+    {
+      "candidate_id": "dup-b",
+      "claim": "Sunday ingredient batching may reduce weekday meal skipping for busy users.",
+      "mechanism": "Batching lowers weekday prep friction so the user can execute the planned meal before time pressure builds.",
+      "evidence_needed": "Compare weekday skip rate and prep time between batching and no-batching cohorts over four weeks.",
+      "falsifier": "If skip rate does not improve after batching even when prep time falls, the friction mechanism is wrong.",
+      "confidence": "medium",
+      "known_risks": [
+        "Selection bias toward planners."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    },
+    {
+      "candidate_id": "unsafe-cure",
+      "claim": "This plan will cure diabetes by repairing meal timing.",
+      "mechanism": "Meal timing repair cures the condition before cravings appear.",
+      "evidence_needed": "Compare symptom relief after meal timing changes.",
+      "falsifier": "If symptoms remain, the cure is wrong.",
+      "confidence": "high",
+      "known_risks": [
+        "Medical overclaim."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    },
+    {
+      "candidate_id": "missing-fields",
+      "claim": "Try playful meal themes to make prep feel less repetitive.",
+      "mechanism": "",
+      "evidence_needed": "",
+      "falsifier": "",
+      "confidence": "low",
+      "known_risks": [
+        "Novelty may fade."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    }
+  ]
+}
