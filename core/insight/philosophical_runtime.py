@@ -7,6 +7,7 @@ EN: Runtime chooses a cheaper/faster/more reliable answer path before LLM calls.
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, cast
@@ -32,6 +33,7 @@ from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticVal
 from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
+from core.rag.orchestration import RAGOrchestrationResult
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
@@ -96,6 +98,9 @@ class _Provider(Protocol):
     name: str
 
     async def generate(self, text: str) -> str: ...
+
+
+_RagRetriever = Callable[..., Awaitable[RAGOrchestrationResult]]
 
 
 class RouteType(str, Enum):
@@ -339,6 +344,7 @@ class PhilosophicalRuntime:
         philosophy_phase12_enabled: bool,
         philosophy_linguistic_enabled: bool,
         philosophy_pragmatic_enabled: bool,
+        rag_retriever: _RagRetriever | None = None,
     ) -> RuntimeResult:
         """Generate an insight with deterministic routing and validation."""
         public_metadata_enabled = any(
@@ -391,7 +397,8 @@ class PhilosophicalRuntime:
         prompt_input = decision.simplified_query or text
 
         if use_rag and decision.needs_rag:
-            rag_result = await rag_orchestration.retrieve_and_validate_rag(
+            retrieve_rag = rag_retriever or rag_orchestration.retrieve_and_validate_rag
+            rag_result = await retrieve_rag(
                 prompt_input,
                 max_chunks=3,
                 philo_validation_enabled=philo_validation_enabled,
@@ -442,7 +449,8 @@ class PhilosophicalRuntime:
                     falsification_report=falsification_report,
                     contradiction_count=contradiction_count,
                 )
-                answer = await provider.generate(_trim_prompt(rewrite_prompt))
+                rewritten_prompt = _trim_prompt(rewrite_prompt)
+                answer = await provider.generate(rewritten_prompt)
                 verification_report = self._verification.validate(answer, citations=citations)
                 falsification_report = self._falsification.validate(answer)
                 contradiction_count = self._contradictions.count(answer)

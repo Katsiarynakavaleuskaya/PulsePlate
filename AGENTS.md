@@ -1026,6 +1026,8 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 ### Documentation requirement
 
 - If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
+- Workflow/guard PRs must also update agent-facing instructions when they change daily engineering behavior.
+  The canonical tooling-surface policy and verification commands live in `docs/security/TOOLING_SURFACE_POLICY.md`.
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 

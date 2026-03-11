@@ -361,7 +361,10 @@ def get_manual_payment_intent_status(
     """Fetch current status of manual payment reconciliation intent."""
     issuer = _issuer_from_api_key(x_api_key)
     try:
-        activation = payments_activation.get_activation(intent_id, issuer=issuer)
+        activation = payments_activation.get_reconcile_activation_status(
+            intent_id,
+            issuer=issuer,
+        )
     except payments_activation.ActivationAccessForbiddenError:
         return _payment_error_response(
             code="forbidden",
@@ -369,18 +372,18 @@ def get_manual_payment_intent_status(
             detail=_DETAIL_FORBIDDEN,
             status_code=status.HTTP_403_FORBIDDEN,
         )
+    except payments_activation.ActivationStateError as exc:
+        return _payment_error_response(
+            code="invalid_reconcile_state",
+            message="Reconcile state invalid",
+            detail=_activation_state_detail(exc),
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
     if activation is None:
         return _payment_error_response(
             code="not_found",
             message="Activation not found",
             detail=_DETAIL_NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
-        )
-    if activation.payment_source == "ios_app_store":
-        return _payment_error_response(
-            code="invalid_reconcile_state",
-            message="Reconcile state invalid",
-            detail=_DETAIL_MANUAL_STATUS_UNSUPPORTED,
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return activation

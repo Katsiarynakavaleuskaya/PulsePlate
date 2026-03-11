@@ -16,6 +16,7 @@ from legacy_app import (
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
 from app.bootstrap.metrics import register_metrics
+from app.bootstrap.tracing import register_tracing
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 import app.routers.realtime_ws as realtime_ws
 from app.routers.billing import register_billing_routes
@@ -108,6 +109,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _internalize_users_openapi_surface(app)
     _install_openapi_builder(app)
     register_metrics(app)
+    register_tracing(app)
     register_pro_contract_routes(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}

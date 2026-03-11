@@ -9,11 +9,11 @@ or privacy-relevant flows.
 | Provider family | Category | Role | Data scope | Activation |
 | --- | --- | --- | --- | --- |
 | PulsePlate local/runtime processing | First-party | Deterministic formulas, routing, local app logic | Wellness profile inputs and runtime processing | Always active |
-| xAI / Grok family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts | Conditional |
-| OpenAI-compatible family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts | Conditional |
-| Anthropic-compatible family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts | Conditional |
-| Ollama-compatible self-hosted family | Self-hosted processor | Local/self-hosted AI generation | User-submitted text and derived prompts | Conditional |
-| Pico family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts | Conditional |
+| xAI / Grok family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts; PulsePlate tracing stores HMAC fingerprints, lengths, and bounded usage metadata only | Conditional |
+| OpenAI-compatible family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts; PulsePlate tracing stores HMAC fingerprints, lengths, and bounded usage metadata only | Conditional |
+| Anthropic-compatible family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts; PulsePlate tracing stores HMAC fingerprints, lengths, and bounded usage metadata only | Conditional |
+| Ollama-compatible self-hosted family | Self-hosted processor | Local/self-hosted AI generation | User-submitted text and derived prompts; PulsePlate tracing stores HMAC fingerprints, lengths, and bounded usage metadata only | Conditional |
+| Pico family | External processor | Configured AI generation for selected insight surfaces | User-submitted text and derived prompts; PulsePlate tracing stores HMAC fingerprints, lengths, and bounded usage metadata only | Conditional |
 
 ## Rules
 

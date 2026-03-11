@@ -125,6 +125,7 @@ from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
 )
+from app.services.insight_runtime import generate_traced_insight
 from app.utils.nutrition_wrappers import (
     _calculate_all_bmr_wrapper,
     _calculate_all_tdee_wrapper,
@@ -2270,6 +2271,8 @@ class _DirectInsightProviderStub:
 async def _execute_insight_request(
     req: InsightRequest,
     *,
+    route_path: str,
+    user_tier: str,
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Shared /insight execution path with philosophical runtime support."""
@@ -2300,7 +2303,8 @@ async def _execute_insight_request(
     provider = (
         _load_insight_provider() if decision.needs_generation else _DirectInsightProviderStub()
     )
-    runtime_result = await runtime.generate_insight(
+    runtime_result = await generate_traced_insight(
+        runtime=runtime,
         text=prompt_input,
         lang=None,
         provider=provider,
@@ -2312,6 +2316,9 @@ async def _execute_insight_request(
         philosophy_phase12_enabled=is_philosophy_phase12_enabled(),
         philosophy_linguistic_enabled=philosophy_linguistic_enabled,
         philosophy_pragmatic_enabled=is_philosophy_pragmatic_enabled(),
+        route_path=route_path,
+        route_type=decision.route_type.value,
+        user_tier=user_tier,
     )
     insight_text = runtime_result.insight[:INSIGHT_TEXT_MAX_LENGTH]
     source_items = [RAGSourceItem(**item) for item in runtime_result.source_dicts]
@@ -2352,7 +2359,12 @@ async def insight_v1(
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req, subject_id=subject_id)
+        return await _execute_insight_request(
+            req,
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=subject_id,
+        )
     except HTTPException:
         raise
     except Exception:
@@ -2374,7 +2386,11 @@ async def insight(req: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
-        return await _execute_insight_request(req)
+        return await _execute_insight_request(
+            req,
+            route_path="/insight",
+            user_tier="VIP",
+        )
     except HTTPException:
         raise
     except Exception:

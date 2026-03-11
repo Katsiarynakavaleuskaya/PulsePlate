@@ -584,7 +584,7 @@ export interface paths {
         put?: never;
         /**
          * Activate Subscription
-         * @description Create activation or return idempotent replay.
+         * @description Create or replay a deterministic subscription activation event.
          */
         post: operations["activate_subscription_api_v1_pro_payments_activate_post"];
         delete?: never;
@@ -602,7 +602,7 @@ export interface paths {
         };
         /**
          * Get Subscription Activation
-         * @description Get activation status by ID.
+         * @description Get persisted activation event by ID.
          */
         get: operations["get_subscription_activation_api_v1_pro_payments_activations__activation_id__get"];
         put?: never;
@@ -1450,41 +1450,26 @@ export interface components {
     schemas: {
         /**
          * ActivateSubscriptionRequest
-         * @description Activation request payload (contract-first, deterministic).
+         * @description Activation request envelope supporting canonical and legacy contracts.
          */
         ActivateSubscriptionRequest: {
-            /**
-             * Client Event Id
-             * @description Client-generated idempotency event ID
-             */
-            client_event_id: string;
-            /**
-             * External Txn Id
-             * @description Provider-side transaction or intent ID
-             */
+            /** Client Event Id */
+            client_event_id?: string | null;
+            /** External Txn Id */
             external_txn_id?: string | null;
-            /** @description Canonical required plan code for activation intent */
-            plan: components["schemas"]["SubscriptionPlan"];
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            plan?: components["schemas"]["SubscriptionPlan"] | null;
             source: components["schemas"]["PaymentSource"];
-            /**
-             * Verification Ok
-             * @description Deterministic verification result for baseline R1 contract
-             */
+            /** Verification Ok */
             verification_ok?: boolean | null;
-            /**
-             * Verification Payload
-             * @description Opaque verification payload. Server remains source of truth.
-             */
+            /** Verification Payload */
             verification_payload?: {
                 [key: string]: unknown;
             };
         };
-        /**
-         * ActivationStatus
-         * @description Canonical activation state for subscription activation flow.
-         * @enum {string}
-         */
-        ActivationStatus: "pending_verification" | "active" | "rejected";
         /**
          * AdherenceResponse
          * @description Response schema for adherence endpoints.
@@ -1548,7 +1533,7 @@ export interface components {
          * @description Normalized Apple receipt verification result without activation side effects.
          */
         AppleReceiptVerificationResponse: {
-            /** @description Downstream activation-prep hint. The future activation service maps this hint into canonical source/plan fields. */
+            /** @description Downstream activation-prep hint. The activation service maps this hint into canonical source/tier fields. */
             activation_payload?: components["schemas"]["AppleActivationHint"] | null;
             environment?: components["schemas"]["AppleVerificationEnvironment"] | null;
             error?: components["schemas"]["AppleProviderError"] | null;
@@ -2664,7 +2649,7 @@ export interface components {
         };
         /**
          * ManualPaymentSource
-         * @description Manual payment sources allowed in RU/BY intent flow.
+         * @description Manual payment sources allowed on RU/BY billing surfaces.
          * @enum {string}
          */
         ManualPaymentSource: "erip_qr" | "swift_manual";
@@ -3320,8 +3305,14 @@ export interface components {
             status: string;
         };
         /**
+         * PaymentPlatform
+         * @description Platform surface for the payment state.
+         * @enum {string}
+         */
+        PaymentPlatform: "ios" | "web";
+        /**
          * PaymentSource
-         * @description Canonical payment sources (RU/BY + iOS baseline).
+         * @description Canonical payment sources for the current billing baseline.
          * @enum {string}
          */
         PaymentSource: "ios_app_store" | "erip_qr" | "swift_manual";
@@ -3566,7 +3557,7 @@ export interface components {
         ReconcileDecision: "verified" | "rejected";
         /**
          * ReconcileStatus
-         * @description Reconciliation status for financial audit trail.
+         * @description Reconciliation state used by legacy manual-rail routes.
          * @enum {string}
          */
         ReconcileStatus: "pending" | "verified" | "rejected" | "not_required";
@@ -4190,45 +4181,64 @@ export interface components {
         };
         /**
          * SubscriptionActivationResponse
-         * @description Canonical activation response for all payment sources.
+         * @description Canonical response with compatibility fields for legacy billing routes.
          */
         SubscriptionActivationResponse: {
+            /** Activated At */
+            activated_at?: string | null;
             /** Activation Id */
             activation_id: string;
             /** Audit Id */
-            audit_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
+            audit_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
             /** External Txn Id */
             external_txn_id?: string | null;
             /** Intent Id */
-            intent_id: string;
-            payment_source: components["schemas"]["PaymentSource"];
-            plan: components["schemas"]["SubscriptionPlan"];
-            reconcile_status: components["schemas"]["ReconcileStatus"];
-            status: components["schemas"]["ActivationStatus"];
-            /** @description Requested paid tier implied by the submitted plan. This is the target subscription tier for the activation, not a fallback access tier. */
-            subscription_tier: components["schemas"]["SubscriptionTierValue"];
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            intent_id?: string | null;
+            payment_source?: components["schemas"]["PaymentSource"] | null;
+            plan?: components["schemas"]["SubscriptionPlan"] | null;
+            platform?: components["schemas"]["PaymentPlatform"] | null;
+            /** Product Id */
+            product_id?: string | null;
+            reconcile_status?: components["schemas"]["ReconcileStatus"] | null;
+            source?: components["schemas"]["PaymentSource"] | null;
+            /** Source Reference */
+            source_reference?: string | null;
+            status: components["schemas"]["SubscriptionStatus"];
+            /** @description Requested paid tier implied by the billing intent or verified product mapping. This is the paid target tier, not a free-access fallback. */
+            subscription_tier?: components["schemas"]["SubscriptionTierValue"] | null;
+            tier?: components["schemas"]["SubscriptionTier"] | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** User Id */
+            user_id?: number | null;
             /** Verified At */
             verified_at?: string | null;
         };
         /**
          * SubscriptionPlan
-         * @description Canonical subscription plans for billing activation.
+         * @description Legacy plan contract kept for billing compatibility routes.
          * @enum {string}
          */
         SubscriptionPlan: "pro_monthly" | "vip_monthly";
         /**
+         * SubscriptionStatus
+         * @description Persisted subscription lifecycle values.
+         * @enum {string}
+         */
+        SubscriptionStatus: "pending_manual_review" | "pending_verification" | "active" | "expired" | "cancelled" | "rejected";
+        /**
+         * SubscriptionTier
+         * @description Canonical persisted subscription tiers.
+         * @enum {string}
+         */
+        SubscriptionTier: "free" | "pro" | "vip";
+        /**
          * SubscriptionTierValue
-         * @description Requested paid tier implied by the selected billing plan.
+         * @description Paid subscription tiers used by legacy billing responses.
          * @enum {string}
          */
         SubscriptionTierValue: "pro" | "vip";
@@ -5523,7 +5533,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Idempotent replay */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5532,16 +5542,16 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
                 };
             };
-            /** @description Successful Response */
-            201: {
+            /** @description Missing or invalid transport protection */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
-            /** @description client_event_id conflict */
+            /** @description Deterministic activation conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5579,6 +5589,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionActivationResponse"];
+                };
+            };
+            /** @description Missing or invalid transport protection */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentErrorResponse"];
                 };
             };
             /** @description Activation access forbidden */
