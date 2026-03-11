@@ -49,6 +49,8 @@ def diff_emit(
 
     changed: list[dict[str, Any]] = []
     for document in documents:
+        if id_field not in document:
+            raise ValueError(f"Document missing required field '{id_field}': {document}")
         doc_id = str(document[id_field])
         doc_hash = content_hash(document)
         if cache.get(doc_id) == doc_hash:

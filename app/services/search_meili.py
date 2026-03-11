@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 Transport = Callable[[str, dict[str, Any], Mapping[str, str], float], Any]
 ShadowTaskRunner = Callable[[Callable[[], None]], None]
+_MAX_CONCURRENT_SHADOW_TASKS = 4
+_shadow_task_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_SHADOW_TASKS)
 
 
 def _numeric_field_or_default(hit: Mapping[str, Any], key: str) -> int | float:
@@ -47,7 +49,21 @@ def _default_transport(
 def _start_shadow_thread(task: Callable[[], None]) -> None:
     """Run a best-effort shadow comparison off the request path."""
 
-    thread = threading.Thread(target=task, name="food-search-shadow", daemon=True)
+    if not _shadow_task_slots.acquire(blocking=False):
+        logger.debug("Food search shadow task skipped; concurrency limit reached")
+        return
+
+    def _run_shadow_task() -> None:
+        try:
+            task()
+        finally:
+            _shadow_task_slots.release()
+
+    thread = threading.Thread(
+        target=_run_shadow_task,
+        name="food-search-shadow",
+        daemon=True,
+    )
     thread.start()
 
 
@@ -148,7 +164,11 @@ class MeiliSearchBackend:
         hits = response.get("hits", [])
         if not isinstance(hits, list):
             logger.warning("Meilisearch response missing hits list")
-            return []
+            return self._fallback_search(
+                query=query,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
 
         normalized_hits: list[Mapping[str, Any]] = []
         for hit in hits:

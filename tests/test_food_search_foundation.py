@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from fastapi import FastAPI
 import httpx
 import pytest
@@ -11,7 +11,7 @@ from app.bootstrap.food_search import (
     _safe_timeout_seconds,
     register_food_search_backend,
 )
-from app.services import food_store
+from app.services import food_store, search_meili as search_meili_module
 from app.services.food_search_indexing import (
     build_swap_indexes_payload,
     canonicalize_food_document,
@@ -21,6 +21,7 @@ from app.services.food_search_indexing import (
 from app.services.search_meili import (
     _default_transport,
     _numeric_field_or_default,
+    _start_shadow_thread,
     MeiliSearchBackend,
     ShadowSearchBackend,
 )
@@ -50,6 +51,16 @@ def test_meili_backend_falls_back_to_legacy_on_transport_error() -> None:
     rows = backend.search_foods("apple", limit=3, offset=1)
 
     assert rows == [{"id": "legacy"}]
+
+
+def test_meili_backend_returns_empty_without_fallback_backend() -> None:
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        transport=lambda *_args: (_ for _ in ()).throw(TimeoutError("boom")),
+    )
+
+    assert backend.search_foods("apple") == []
 
 
 def test_meili_backend_validates_pagination_inputs() -> None:
@@ -91,14 +102,24 @@ def test_meili_backend_normalizes_missing_nutrient_fields() -> None:
     ]
 
 
-def test_meili_backend_returns_empty_when_hits_is_not_a_list() -> None:
+def test_meili_backend_falls_back_when_hits_is_not_a_list() -> None:
+    class _FallbackBackend:
+        def search_foods(
+            self,
+            query: str,
+            limit: int | str = 20,
+            offset: int | str = 0,
+        ) -> list[dict[str, str]]:
+            return [{"id": "legacy"}]
+
     backend = MeiliSearchBackend(
         base_url="https://meili.example",
         index_name="foods",
         transport=lambda *_args: {"hits": "not-a-list"},
+        fallback_backend=_FallbackBackend(),
     )
 
-    assert backend.search_foods("apple") == []
+    assert backend.search_foods("apple") == [{"id": "legacy"}]
 
 
 def test_meili_backend_falls_back_when_response_root_is_not_an_object() -> None:
@@ -119,6 +140,29 @@ def test_meili_backend_falls_back_when_response_root_is_not_an_object() -> None:
     )
 
     assert backend.search_foods("apple") == [{"id": "legacy"}]
+
+
+def test_meili_backend_passes_authorization_header_to_transport() -> None:
+    captured_headers: list[dict[str, str]] = []
+
+    def _transport(
+        url: str,
+        payload: dict[str, object | int | str],
+        headers: dict[str, str] | Mapping[str, str],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured_headers.append(dict(headers))
+        return {"hits": []}
+
+    backend = MeiliSearchBackend(
+        base_url="https://meili.example",
+        index_name="foods",
+        api_key="x",  # pragma: allowlist secret
+        transport=_transport,
+    )
+
+    assert backend.search_foods("apple") == []
+    assert captured_headers == [{"Authorization": "Bearer x"}]
 
 
 def test_shadow_backend_returns_baseline_when_shadow_diverges() -> None:
@@ -186,6 +230,58 @@ def test_shadow_backend_does_not_block_on_shadow_query() -> None:
 
     scheduled_tasks[0]()
     assert shadow_backend.called is True
+
+
+def test_start_shadow_thread_skips_when_capacity_is_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BusySlots:
+        def acquire(self, *, blocking: bool) -> bool:
+            assert blocking is False
+            return False
+
+        def release(self) -> None:
+            raise AssertionError("release must not run for skipped tasks")
+
+    def _unexpected_thread(**_kwargs: object) -> object:
+        raise AssertionError("thread must not start when all shadow slots are busy")
+
+    monkeypatch.setattr(search_meili_module, "_shadow_task_slots", _BusySlots())
+    monkeypatch.setattr(search_meili_module.threading, "Thread", _unexpected_thread)
+
+    _start_shadow_thread(lambda: None)
+
+
+def test_start_shadow_thread_releases_capacity_after_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _Slots:
+        def acquire(self, *, blocking: bool) -> bool:
+            assert blocking is False
+            events.append("acquire")
+            return True
+
+        def release(self) -> None:
+            events.append("release")
+
+    class _Thread:
+        def __init__(self, *, target: Callable[[], None], name: str, daemon: bool) -> None:
+            self._target = target
+            self.name = name
+            self.daemon = daemon
+
+        def start(self) -> None:
+            events.append("start")
+            self._target()
+
+    monkeypatch.setattr(search_meili_module, "_shadow_task_slots", _Slots())
+    monkeypatch.setattr(search_meili_module.threading, "Thread", _Thread)
+
+    _start_shadow_thread(lambda: events.append("task"))
+
+    assert events == ["acquire", "start", "task", "release"]
 
 
 def test_shadow_backend_returns_baseline_when_shadow_raises() -> None:
@@ -411,6 +507,11 @@ def test_diff_emit_ignores_existing_content_hash_in_hash_input() -> None:
     cache = {"1": content_hash(document)}
 
     assert diff_emit([document], cache) == []
+
+
+def test_diff_emit_raises_clear_error_when_id_field_is_missing() -> None:
+    with pytest.raises(ValueError, match="Document missing required field 'id'"):
+        diff_emit([{"canonical_name": "Apple"}], {})
 
 
 def test_build_swap_indexes_payload_is_atomic_pair_list() -> None:
