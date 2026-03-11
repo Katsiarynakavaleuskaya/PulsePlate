@@ -26,11 +26,12 @@ from app.telemetry.detectors import DetectorContext, evaluate_capture_detectors
 from app.telemetry.reservoir import HourlyReservoir
 from app.telemetry.sampler import DeterministicHashSampler
 from app.telemetry.vault import (
-    _minimize_scalar,
     _resolve_field_name,
+    _minimize_scalar,
     _load_vault_key,
     decrypt_capture_artifact,
 )
+from core.compliance.minimization import get_sensitive_field_taxonomy
 
 
 def _make_request(query_string: bytes) -> StarletteRequest:
@@ -202,15 +203,36 @@ def test_vault_field_resolution_and_hash_only_minimization() -> None:
     assert minimized["length"] > 0
 
 
+def test_non_hash_only_fields_delegate_original_value_to_minimizer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, str] = {}
+
+    def _capture(value: str | None, *, field_name: str) -> str | None:
+        seen["value"] = value or ""
+        seen["field_name"] = field_name
+        return "minimized"
+
+    monkeypatch.setattr("app.telemetry.vault.minimize_free_text", _capture)
+
+    assert (
+        _minimize_scalar(
+            "doctor alice@example.com",
+            field_path="root.request_body",
+        )
+        == "minimized"
+    )
+    assert seen == {
+        "value": "doctor alice@example.com",
+        "field_name": "query",
+    }
+
+
 def test_vault_key_rejects_invalid_length() -> None:
     encoded_key = base64.b64encode(b"short").decode("utf-8")
 
-    try:
+    with pytest.raises(ValueError, match="TELEMETRY_VAULT_KEY must decode"):
         _load_vault_key(encoded_key)
-    except ValueError as exc:
-        assert "TELEMETRY_VAULT_KEY must decode" in str(exc)
-    else:  # pragma: no cover - defensive assertion
-        raise AssertionError("expected invalid key length to fail")
 
 
 def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
@@ -262,6 +284,9 @@ def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
         artifact_path=str(artifacts[0]),
         encoded_key=encoded_key,
     )
+    taxonomy = get_sensitive_field_taxonomy()
+    assert _resolve_field_name("request_body") == "query"
+    assert taxonomy["query"].persistence_rule == "redact_and_truncate"
     assert "request_body" not in decrypted["request"]
     assert decrypted["response"]["status_code"] == 200
     assert "content_type" in decrypted["response"]

@@ -19,7 +19,6 @@ from core.compliance.minimization import (
     minimize_free_text,
     sanitize_audit_string,
 )
-from core.pii_redaction import redact_pii_from_text
 
 
 @dataclass(frozen=True)
@@ -65,8 +64,7 @@ def _minimize_scalar(value: Any, *, field_path: str) -> Any:
             audit_value = sanitize_audit_string(field_name, value)
             if isinstance(audit_value, dict):
                 return audit_value
-        redacted = redact_pii_from_text(value) or ""
-        return minimize_free_text(redacted, field_name=field_name)
+        return minimize_free_text(value, field_name=field_name)
     return value
 
 
