@@ -18,6 +18,7 @@ MIN_HONO_VERSION = Version("4.12.7")
 
 
 def _load_json(path: Path) -> dict:
+    """RU/EN: Read a UTF-8 JSON file and return the decoded object."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
