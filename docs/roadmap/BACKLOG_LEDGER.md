@@ -4931,6 +4931,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Rollback-safe deployment path is defined and validated
     - Non-semantic search path remains default and stable
 
+<a id="ledger-p2-search-meili-transport-pooling"></a>
+- [ ] P2: Search Meili transport pooling + lifecycle hook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-MEILI-TRANSPORT-POOLING
+  - Area: backend / search
+  - Finding Type: runtime hardening follow-up
+  - Reason: The search shadow foundation intentionally keeps an injected per-call `httpx.Client` transport because Meili remains optional and low-volume in this slice. If traffic expands, the backend should move to a shared pooled client with deterministic shutdown semantics instead of creating a fresh client per request.
+  - Links:
+    - `app/services/search_meili.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - Shared Meili transport/client is lifecycle-managed and explicitly closed on shutdown
+    - Search bootstrap owns transport configuration instead of hidden module-level state
+    - Tests cover connection reuse and shutdown cleanup without changing `/api/v1/foods*` contracts
+
 
 - [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya
