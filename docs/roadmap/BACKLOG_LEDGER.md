@@ -978,6 +978,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       web review workflow
 
 
+- [ ] P1: Normalize raw iOS prototype file before implementation mapping
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR-TBD-IOS-PROTOTYPE-NORMALIZATION
+  - Priority: P1
+  - Status: 📋 Planned
+  - Area: design / iOS / Figma intake
+  - Finding Type: prototype intake normalization
+  - Reason: Live MCP discovery on 2026-03-11 confirms an existing Figma file
+    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) with at least one imported
+    onboarding screen, but this file is still a raw prototype lane. Long-scroll
+    page capture may duplicate screens, and stable screen/frame node IDs are
+    not yet registered for implementation-safe mapping.
+  - Links:
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - `ios/PulsePlate/Screens/PaywallScreen.swift`
+  - DoD:
+    - Raw prototype file is treated as `reference_only` until normalization is complete
+    - Duplicated long-scroll captures are split into one stable frame per screen
+    - Current `fileKey` + `nodeId` pairs are recorded for the iOS onboarding/paywall flow
+    - At least onboarding entry and paywall/offer surfaces have implementation-safe frame references
+
+
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (contract-first unblocker)

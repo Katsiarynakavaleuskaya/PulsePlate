@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS Home</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_Home</span>
+        <span class="ghost-chip">PRO active</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">Calm control panel</p>
+        <h1 class="headline">PulsePlate</h1>
+        <p class="subheadline">
+          Домашний экран, где всё важное видно сразу: быстрые действия, вход в PRO-инструменты
+          и мягкий брендовый слой без визуального шума.
+        </p>
+
+        <div class="status-grid">
+          <div class="status-tile">
+            <p class="status-kicker">PRO key</p>
+            <p class="status-value"><span class="status-dot"></span>Подключён</p>
+          </div>
+          <div class="status-tile">
+            <p class="status-kicker">Profile</p>
+            <p class="status-value"><span class="status-dot warn"></span>Нужно уточнить</p>
+          </div>
+        </div>
+
+        <div class="fitchef-inline">
+          <div class="fitchef-mark small" aria-hidden="true">
+            <div class="fitchef-heart"></div>
+          </div>
+          <div>
+            <strong>FitChef</strong>
+            <span>Подсвечивает следующий шаг, но не спорит с главным контентом экрана.</span>
+          </div>
+        </div>
+      </section>
+
+      <p class="section-heading">Quick actions</p>
+      <section class="quick-list">
+        <div class="quick-row">
+          <div class="icon">◎</div>
+          <div>
+            <h4>BMI Calculator</h4>
+            <p>Обновите ключевые показатели и получите понятную отправную точку.</p>
+          </div>
+          <span class="trail">›</span>
+        </div>
+        <div class="quick-row">
+          <div class="icon">◌</div>
+          <div>
+            <h4>Profile Setup</h4>
+            <p>Настройте PRO-профиль, язык и персональные параметры.</p>
+          </div>
+          <span class="trail">›</span>
+        </div>
+        <div class="quick-row">
+          <div class="icon">◍</div>
+          <div>
+            <h4>Open Plate</h4>
+            <p>Проверьте дневной nutrition split и статус текущего дня.</p>
+          </div>
+          <span class="trail">›</span>
+        </div>
+      </section>
+
+      <p class="section-heading">PRO tools</p>
+      <section class="quick-list">
+        <div class="quick-row">
+          <div class="icon">▣</div>
+          <div>
+            <h4>Недельный план</h4>
+            <p>Читатель weekly menu с понятным переходом в VIP-расширения.</p>
+          </div>
+          <span class="row-badge blue">PRO</span>
+        </div>
+        <div class="quick-row">
+          <div class="icon">▤</div>
+          <div>
+            <h4>Список покупок</h4>
+            <p>Быстрый вход в shopping list без дублей и с чистой иерархией CTA.</p>
+          </div>
+          <span class="row-badge green">PRO</span>
+        </div>
+      </section>
+
+      <p class="screen-footer-note">
+        VIP не вынесен в отдельную home-кнопку: он появляется в paywall и в gated follow-up surfaces.
+      </p>
+    </main>
+  </body>
+</html>
