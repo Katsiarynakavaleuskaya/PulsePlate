@@ -75,7 +75,9 @@ Current repo examples:
   for Open Food Facts.
 - If a source has stricter obligations than this matrix, the provider-specific
   document wins.
-- If a source is not listed here, it is treated as not approved for rollout.
+- If a source is not listed here, it is not approved for rollout unless an
+  approved provider-specific policy or formal exception explicitly authorizes
+  it.
 
 ## 6. Operating requirements for rollout PRs
 
