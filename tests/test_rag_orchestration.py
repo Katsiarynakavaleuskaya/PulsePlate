@@ -69,6 +69,13 @@ class TestEmptyResult:
         assert result.confidence is None
         assert result.hops == 0
         assert result.latency_ms == 0
+        assert result.recursive_executed is False
+
+    def test_empty_result_preserves_recursive_execution_flag(self) -> None:
+        result = _empty_result("my prompt", recursive_executed=True)
+
+        assert result.formatted_prompt == "my prompt"
+        assert result.recursive_executed is True
 
 
 class TestBuildPromptWithContext:
@@ -561,6 +568,51 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is False
         assert result.formatted_prompt == "test prompt"
         assert result.chunks == []
+        assert result.recursive_executed is False
+
+    @pytest.mark.asyncio
+    async def test_recursive_failsafe_preserves_execution_metadata(self) -> None:
+        """Recursive fail-safe should preserve that the recursive path executed."""
+        rag_ctx = _make_rag_context(chunks=[_make_chunk("c1", score=0.9)], confidence=0.9, hops=2)
+        with (
+            patch(
+                "asyncio.to_thread",
+                new_callable=AsyncMock,
+                return_value=rag_ctx,
+            ),
+            patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+            patch(
+                "core.rag.formatting.format_rag_chunks_for_prompt",
+                side_effect=RuntimeError("formatting failed after retrieval"),
+            ),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+        assert result.recursive_executed is True
+
+    @pytest.mark.asyncio
+    async def test_recursive_failsafe_does_not_mark_execution_without_confirmation(self) -> None:
+        """Recursive fail-safe must keep execution false when retrieval never completes."""
+        with patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("RAG retrieval failed"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+        assert result.recursive_executed is False
 
     @pytest.mark.asyncio
     async def test_prompt_formatted_with_redacted_context(self) -> None:

@@ -53,8 +53,15 @@ class RAGOrchestrationResult:
     chunks_filtered: int = 0
     """Number of chunks removed by validation."""
 
+    recursive_executed: bool = False
+    """True when the recursive retrieval path actually executed."""
 
-def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
+
+def _empty_result(
+    prompt_input: str,
+    *,
+    recursive_executed: bool = False,
+) -> RAGOrchestrationResult:
     """Return empty orchestration result (fail-safe fallback)."""
     return RAGOrchestrationResult(
         chunks=[],
@@ -66,6 +73,7 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
         warnings=[],
         chunks_retrieved=0,
         chunks_filtered=0,
+        recursive_executed=recursive_executed,
     )
 
 
@@ -162,20 +170,13 @@ async def retrieve_and_validate_rag(
     - `recursive_rag_enabled` and `philo_validation_enabled` do not weaken
       tenant isolation; both paths propagate the same `subject_id`
     """
-    try:
-        return await _run_orchestration(
-            prompt_input,
-            max_chunks,
-            philo_validation_enabled,
-            recursive_rag_enabled,
-            subject_id,
-        )
-    except Exception:
-        logger.warning(
-            "RAG orchestration failed; returning empty result",
-            exc_info=True,
-        )
-        return _empty_result(prompt_input)
+    return await _run_orchestration(
+        prompt_input,
+        max_chunks,
+        philo_validation_enabled,
+        recursive_rag_enabled,
+        subject_id,
+    )
 
 
 async def _run_orchestration(
@@ -186,95 +187,110 @@ async def _run_orchestration(
     subject_id: int | None,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
-    # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
-    from core.rag.formatting import format_rag_chunks_for_prompt
+    recursive_executed = False
+    try:
+        # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
+        from core.rag.formatting import format_rag_chunks_for_prompt
 
-    if recursive_enabled:
-        from core.rag.recursive_retrieval import retrieve_recursive_context_structured
+        if recursive_enabled:
+            from core.rag.recursive_retrieval import retrieve_recursive_context_structured
 
-        rag_ctx = await asyncio.to_thread(
-            retrieve_recursive_context_structured,
-            prompt_input,
-            max_chunks=max_chunks,
-            subject_id=subject_id,
-            philo_validation_enabled=False,
+            rag_ctx = await asyncio.to_thread(
+                retrieve_recursive_context_structured,
+                prompt_input,
+                max_chunks=max_chunks,
+                subject_id=subject_id,
+                philo_validation_enabled=False,
+            )
+            recursive_executed = True
+        else:
+            from core.rag.vector_rag import retrieve_context_structured
+
+            rag_ctx = await asyncio.to_thread(
+                retrieve_context_structured,
+                prompt_input,
+                max_chunks=max_chunks,
+                subject_id=subject_id,
+            )
+
+        if not rag_ctx.chunks:
+            return RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt=prompt_input,
+                rag_actually_used=False,
+                confidence=None,
+                hops=rag_ctx.hops,
+                latency_ms=rag_ctx.latency_ms,
+                warnings=[],
+                chunks_retrieved=0,
+                chunks_filtered=0,
+                recursive_executed=recursive_executed,
+            )
+
+        warnings: list[str] = []
+        chunks_to_use = rag_ctx.chunks
+        chunks_filtered = 0
+
+        if philo_enabled:
+            from core.rag.philosophy_pipeline import run_pipeline
+
+            pipeline_result = run_pipeline(rag_ctx.chunks, query=prompt_input)
+            chunks_to_use = pipeline_result.filtered_chunks
+            chunks_filtered = len(rag_ctx.chunks) - len(pipeline_result.filtered_chunks)
+            warnings = pipeline_result.warnings
+
+            for w in warnings:
+                logger.debug("rag_pipeline: %s", w)
+
+        # If no chunks survived validation
+        if not chunks_to_use:
+            return RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt=prompt_input,
+                rag_actually_used=False,
+                confidence=None,
+                hops=rag_ctx.hops,
+                latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+            )
+
+        confidence = _resolve_confidence(
+            rag_confidence=rag_ctx.confidence,
+            chunks_to_use=chunks_to_use,
+            philo_enabled=philo_enabled,
         )
-    else:
-        from core.rag.vector_rag import retrieve_context_structured
 
-        rag_ctx = await asyncio.to_thread(
-            retrieve_context_structured,
-            prompt_input,
-            max_chunks=max_chunks,
-            subject_id=subject_id,
-        )
+        # Build formatted prompt with RAG context
+        from core.insight.safety import redact_rag_context_for_insight
 
-    if not rag_ctx.chunks:
+        raw_context = format_rag_chunks_for_prompt(chunks_to_use)
+        redacted_context = redact_rag_context_for_insight(raw_context)
+        formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
+
         return RAGOrchestrationResult(
-            chunks=[],
-            formatted_prompt=prompt_input,
-            rag_actually_used=False,
-            confidence=None,
-            hops=rag_ctx.hops,
-            latency_ms=rag_ctx.latency_ms,
-            warnings=[],
-            chunks_retrieved=0,
-            chunks_filtered=0,
-        )
-
-    warnings: list[str] = []
-    chunks_to_use = rag_ctx.chunks
-    chunks_filtered = 0
-
-    if philo_enabled:
-        from core.rag.philosophy_pipeline import run_pipeline
-
-        pipeline_result = run_pipeline(rag_ctx.chunks, query=prompt_input)
-        chunks_to_use = pipeline_result.filtered_chunks
-        chunks_filtered = len(rag_ctx.chunks) - len(pipeline_result.filtered_chunks)
-        warnings = pipeline_result.warnings
-
-        for w in warnings:
-            logger.debug("rag_pipeline: %s", w)
-
-    # If no chunks survived validation
-    if not chunks_to_use:
-        return RAGOrchestrationResult(
-            chunks=[],
-            formatted_prompt=prompt_input,
-            rag_actually_used=False,
-            confidence=None,
+            chunks=chunks_to_use,
+            formatted_prompt=formatted_prompt,
+            rag_actually_used=True,
+            confidence=confidence,
             hops=rag_ctx.hops,
             latency_ms=rag_ctx.latency_ms,
             warnings=warnings,
             chunks_retrieved=len(rag_ctx.chunks),
             chunks_filtered=chunks_filtered,
+            recursive_executed=recursive_executed,
         )
-
-    confidence = _resolve_confidence(
-        rag_confidence=rag_ctx.confidence,
-        chunks_to_use=chunks_to_use,
-        philo_enabled=philo_enabled,
-    )
-
-    # Build formatted prompt with RAG context
-    from core.insight.safety import redact_rag_context_for_insight
-
-    raw_context = format_rag_chunks_for_prompt(chunks_to_use)
-    redacted_context = redact_rag_context_for_insight(raw_context)
-    formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
-
-    return RAGOrchestrationResult(
-        chunks=chunks_to_use,
-        formatted_prompt=formatted_prompt,
-        rag_actually_used=True,
-        confidence=confidence,
-        hops=rag_ctx.hops,
-        latency_ms=rag_ctx.latency_ms,
-        warnings=warnings,
-        chunks_retrieved=len(rag_ctx.chunks),
-        chunks_filtered=chunks_filtered,
-    )
+    except Exception:
+        logger.warning(
+            "RAG orchestration failed; returning empty result",
+            exc_info=True,
+        )
+        return _empty_result(
+            prompt_input,
+            recursive_executed=recursive_executed,
+        )
 
 
 def _build_prompt_with_context(text: str, context: Optional[str]) -> str:
