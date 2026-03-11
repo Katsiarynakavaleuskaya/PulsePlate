@@ -53,6 +53,26 @@ pip install -r requirements-dev.txt -c constraints.txt
 
 **Note**: `pip install` adds packages but doesn't remove extras, which may lead to environment drift over time. For fully reproducible environments, prefer `pip-sync`.
 
+## Canonical Clean-Clone Bootstrap For Local Verify
+
+For this repo, the canonical local path is still the Makefile bootstrap:
+
+```bash
+make venv
+make verify
+```
+
+If an existing `.venv` looks stale or `make verify` fails early on a missing
+locked dependency such as `opentelemetry-*`, refresh the environment with:
+
+```bash
+make venv-sync
+make verify
+```
+
+`make verify` includes a non-mutating `verify-env` preflight so incomplete
+clean-clone environments fail fast before the longer lint/typecheck/test gates.
+
 ## Updating Dependencies
 
 ### Update all dependencies to latest compatible versions

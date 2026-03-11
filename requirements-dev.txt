@@ -64,6 +64,8 @@ filelock==3.24.3
     #   -c requirements.txt
     #   cachecontrol
     #   virtualenv
+flake8==7.3.0
+    # via -r requirements-dev.in
 hypothesis==6.151.9
     # via -r requirements-dev.in
 identify==2.6.15
@@ -92,6 +94,8 @@ markupsafe==3.0.3
     #   jinja2
 marshmallow==4.2.2
     # via -r requirements-dev.in
+mccabe==0.7.0
+    # via flake8
 mdurl==0.1.2
     # via
     #   -c requirements.txt
@@ -148,10 +152,14 @@ pre-commit==4.5.1
     # via -r requirements-dev.in
 py-serializable==2.1.0
     # via cyclonedx-python-lib
+pycodestyle==2.14.0
+    # via flake8
 pycparser==2.23
     # via
     #   -c requirements.txt
     #   cffi
+pyflakes==3.4.0
+    # via flake8
 pygments==2.19.2
     # via
     #   -c requirements.txt
@@ -195,6 +203,7 @@ pyyaml==6.0.3
     #   yamllint
 requests==2.32.5
     # via
+    #   -c requirements.txt
     #   cachecontrol
     #   detect-secrets
     #   pip-audit
@@ -222,7 +231,9 @@ typing-extensions==4.15.0
     #   -c requirements.txt
     #   mypy
 urllib3==2.6.3
-    # via requests
+    # via
+    #   -c requirements.txt
+    #   requests
 virtualenv==20.36.1
     # via pre-commit
 wheel==0.46.2

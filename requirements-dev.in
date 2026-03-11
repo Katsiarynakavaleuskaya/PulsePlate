@@ -13,6 +13,7 @@ faker~=40.8.0  # Test data generation
 coverage~=7.13.4
 diff-cover~=10.2.0
 # Code quality tools: use compatible release for stability
+flake8~=7.3.0
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 # safety removed: CVE-2025-14009 (nltk transitive), see docs/security/CVE-2025-14009-nltk.md
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
