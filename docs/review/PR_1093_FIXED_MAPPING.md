@@ -27,7 +27,7 @@ Reason: provider inventory wording now matches the privacy/legal contract and in
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2914981118 -> e3620198
 Disposition: FIXED
-Evidence: docs/review/PR_1093_FIXED_MAPPING.md:7; docs/review/PR_1093_FIXED_MAPPING.md:58; docs/review/PR_1093_FIXED_MAPPING.md:67
+Evidence: docs/review/PR_1093_FIXED_MAPPING.md:7; docs/review/PR_1093_FIXED_MAPPING.md:98; docs/review/PR_1093_FIXED_MAPPING.md:107
 Reason: the blanket `No actionable review comments` line was removed and replaced with concrete dispositions plus an explicit merge-readiness checklist.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2914981122 -> e52acb85
@@ -70,7 +70,7 @@ Disposition: FIXED
 Evidence: docs/legal/Privacy.md:208
 Reason: the Spanish privacy section now includes the external-provider retention/disclosure sentence already present in the RU and EN sections.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915174850
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915174850 -> 6f2e447a
 Disposition: FIXED
 Evidence: docs/review/PR_1093_FIXED_MAPPING.md:28; docs/review/PR_1093_FIXED_MAPPING.md:30
 Reason: the earlier mapping entry for `discussion_r2914981118` now cites the actual checklist anchors instead of stale line references.
@@ -80,9 +80,9 @@ Disposition: FIXED
 Evidence: app/telemetry/genai.py:295; tests/test_genai_tracing.py:259
 Reason: `request_span()` now binds and restores `pulseplate.request.id` context so nested spans inherit the same request correlation id.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915185258
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2915185258 -> 6f2e447a
 Disposition: FIXED
-Evidence: docs/review/PR_1093_FIXED_MAPPING.md:79; docs/review/PR_1093_FIXED_MAPPING.md:81
+Evidence: docs/review/PR_1093_FIXED_MAPPING.md:98; docs/review/PR_1093_FIXED_MAPPING.md:101
 Reason: the merge-readiness checklist stays unchecked until the actual final merge cycle, matching repository governance.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#pullrequestreview-3926167880
