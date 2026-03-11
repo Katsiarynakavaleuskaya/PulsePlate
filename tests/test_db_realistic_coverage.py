@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from faker import Faker
 from sqlalchemy.pool import NullPool
 
@@ -47,7 +48,7 @@ class TestDbRealisticCoverage:
 
     def test_get_sqlite_poolclass_returns_nullpool_for_test_sqlite(
         self,
-        monkeypatch,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("APP_ENV", "test")
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
@@ -58,7 +59,7 @@ class TestDbRealisticCoverage:
 
     def test_get_sqlite_poolclass_skips_non_test_runtime(
         self,
-        monkeypatch,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("APP_ENV", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
@@ -70,7 +71,7 @@ class TestDbRealisticCoverage:
 
     def test_build_engine_url_preserves_env_sqlite_url(
         self,
-        monkeypatch,
+        monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
         db_path = tmp_path / fake.file_name(extension="db")

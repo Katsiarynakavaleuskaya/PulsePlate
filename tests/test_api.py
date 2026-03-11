@@ -247,7 +247,7 @@ def test_metrics(client: TestClient) -> None:
     assert "python_info" in content or "error" in content
 
 
-def test_category_by_bmi_ru(client: TestClient) -> None:
+def test_category_by_bmi_ru() -> None:
     from core.bmi.engine import _bmi_category
     from core.i18n import t, normalize_lang
 
@@ -279,7 +279,7 @@ def test_category_by_bmi_ru(client: TestClient) -> None:
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception(client: TestClient) -> None:
+def test_compute_wht_ratio_round_exception() -> None:
     """
     Test that _compute_wht_ratio propagates round exceptions.
 

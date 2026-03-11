@@ -134,7 +134,7 @@ export default function WeeklyPlanViewer() {
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
   const [request] = useState<ProWeekPlanRequest>(getInitialRequest);
   const getErrorMessage = (error: unknown): string => {
-    return error instanceof Error ? error.message : t("plan.unknownError");
+    return error instanceof Error ? error.message || t("plan.unknownError") : t("plan.unknownError");
   };
 
   const { data, loading, error: err } = useWeeklyPlan({
