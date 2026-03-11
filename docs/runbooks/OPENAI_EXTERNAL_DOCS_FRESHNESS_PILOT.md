@@ -44,6 +44,14 @@ Canonical references:
 
 ## Recommendation
 
+Review-cycle status:
+
+- as of `11 March 2026`, the pilot is kept **narrow**, not promoted to default
+- official OpenAI docs remain the truth source for OpenAI behavior
+- external MCP/CLI lanes remain advisory only
+- provider auth/header examples below are operational and must be revalidated
+  against provider docs at use time
+
 ### Primary optional pilot: Context7
 
 Use `Context7` first when you want live MCP-backed docs in Codex/Cursor.
@@ -97,6 +105,8 @@ Notes:
 - do not commit API keys
 - prefer shell environment variables or hosted-header auth over CLI flags
 - replace `<context7-auth-header>` with the provider's documented auth header
+- treat auth header names and hosted auth shapes as provider-operational details,
+  not project policy
 - restart Codex after config changes
 - if `npx` startup times out, raise `startup_timeout_ms` before changing lanes
 
@@ -189,6 +199,11 @@ chub get openai/chat
 
 Use this lane as advisory tooling only. If it finds a useful workaround, move
 the durable conclusion into git through KPP.
+
+Operational note:
+
+- installation, auth, and invocation details in this section are examples, not
+  canonical project rules; revalidate them against provider docs before use
 
 ## OpenAI-First Prompt Pack
 
