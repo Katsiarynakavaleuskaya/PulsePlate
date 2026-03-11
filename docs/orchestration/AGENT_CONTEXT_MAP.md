@@ -384,11 +384,19 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root)
 - `core/AGENTS.md` (if proposing domain-facing uncertainty contracts)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when the task is offline
+  `photo -> food` evaluation
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining
+  confidence semantics or degrade behavior for CV outputs
 
 **Must know:**
 
 - Determinism and testability requirements (future PRs must have deterministic tests)
 - “High uncertainty → degrade” policy (safety-first)
+- When future CV degrade UX wording is being specified, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -437,11 +445,16 @@ This map reduces “missing context” failures by making required inputs explic
 - `AGENTS.md` (root) — privacy and safety boundaries
 - `core/AGENTS.md` (domain logic boundaries; no client-side business logic)
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` — when planning CV eval packets or bounded experiment lanes
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` — canonical CV packet fields, privacy packet, and degrade-state semantics
 
 **Must know:**
 
 - Uncertainty/confidence must be explicit for recognition outputs
 - Privacy/logging constraints for user images (policy-only here)
+- When specifying future degrade UX states, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 
@@ -466,11 +479,18 @@ This map reduces “missing context” failures by making required inputs explic
 - `AGENTS.md` (root)
 - `docs/roadmap/BACKLOG_LEDGER.md` (if proposing deferred experiment tracks)
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (for experiment charters, metrics, and negative controls)
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` when CV datasets, privacy packets, or degrade-state evaluation are in scope
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` when drafting CV packet fields
+- `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md` when defining CV eval outputs, uncertainty buckets, or negative controls
 
 **Must know:**
 
 - Metrics definitions must be testable/auditable (avoid vague claims)
 - Privacy: anonymization/retention policy must be explicit before telemetry work
+- When future degrade UX semantics are being defined, also load:
+  - `frontend/AGENTS.md`
+  - `ios/AGENTS.md`
+  - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 ---
 

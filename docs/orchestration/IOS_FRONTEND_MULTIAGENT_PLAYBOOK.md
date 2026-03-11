@@ -88,8 +88,14 @@ These “agents” can be humans, AI subagents, or checklists. What matters is t
 
 Optional (future features):
 
-- **CV Contract Agent (cv-contract-agent)**: schemas for photo → items → confidence → uncertainty, plus deterministic degrade states
+- **CV Agent (cv-agent)**: schemas for photo → items → confidence → uncertainty, plus deterministic degrade states
 - **Sensor Invariant Guard (sensor-invariant-guard)**: physically plausible bounds + calibration UX rules (no “magic sizing”)
+
+PR5 note:
+
+- CV degrade states are documented in the offline experimentation lane only.
+- Runtime client ownership for future CV UX remains deferred and must be tracked in
+  `docs/roadmap/BACKLOG_LEDGER.md` before implementation.
 
 ---
 

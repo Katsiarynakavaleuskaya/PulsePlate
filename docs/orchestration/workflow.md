@@ -120,6 +120,9 @@ For fixed-budget optimization or evaluation loops, use:
 
 - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md` for offline `photo -> food`
+  evaluation packets
+- `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md` for CV-specific packet fields
 
 Rule:
 
