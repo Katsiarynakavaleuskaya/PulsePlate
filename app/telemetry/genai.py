@@ -296,13 +296,17 @@ def safe_span(
 def request_span(method: str, request_id: str) -> Iterator[Any]:
     """Create a best-effort request/root span."""
 
-    with safe_span(
-        "http request",
-        tracer_name=HTTP_TRACER_NAME,
-        kind="SERVER",
-        attrs={REQUEST_ID_ATTR: request_id, "http.request.method": method},
-    ) as span:
-        yield span
+    token = bind_request_id(request_id)
+    try:
+        with safe_span(
+            "http request",
+            tracer_name=HTTP_TRACER_NAME,
+            kind="SERVER",
+            attrs={REQUEST_ID_ATTR: request_id, "http.request.method": method},
+        ) as span:
+            yield span
+    finally:
+        reset_request_id(token)
 
 
 @contextmanager

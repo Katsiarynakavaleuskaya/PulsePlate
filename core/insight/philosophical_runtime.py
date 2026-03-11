@@ -10,7 +10,7 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 from core.bmi.query import extract_bmi_inputs, render_bmi_query_answer
 from core.insight.analytical import (
@@ -33,6 +33,7 @@ from core.insight.post_analytical import HermeneuticDepthOptimizer, PragmaticVal
 from core.insight.telemetry import record_runtime_metrics
 from core.i18n import normalize_lang
 import core.rag.orchestration as rag_orchestration
+from core.rag.orchestration import RAGOrchestrationResult
 from core.rag.formatting import RAGSourceDict, build_rag_source_dicts
 
 _APPROX_CHARS_PER_TOKEN = 4
@@ -99,7 +100,7 @@ class _Provider(Protocol):
     async def generate(self, text: str) -> str: ...
 
 
-_RagRetriever = Callable[..., Awaitable[Any]]
+_RagRetriever = Callable[..., Awaitable[RAGOrchestrationResult]]
 
 
 class RouteType(str, Enum):

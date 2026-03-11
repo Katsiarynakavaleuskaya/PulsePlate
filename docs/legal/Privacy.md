@@ -205,7 +205,7 @@ Cuando las funciones de AI están habilitadas, las solicitudes pueden ser proces
 - una familia externa (por ejemplo, xAI/Grok, OpenAI-compatible, Anthropic-compatible o Pico)
 - un collector OTLP o processor de tracing vendor cuando `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` está configurado
 
-El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor.
+El processor activo depende de la configuración del deployment. Un collector OTLP o tracing vendor añade una ruta separada de procesamiento y retención para trace metadata, gobernada por la configuración del collector o vendor. La retención y el procesamiento downstream en processors externos se rigen por los términos del provider o deployment seleccionado.
 
 ### Retención y Eliminación
 

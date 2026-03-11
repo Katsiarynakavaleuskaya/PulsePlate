@@ -5,10 +5,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Generator, Literal, Sequence
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.routing import BaseRoute
 from fastapi.testclient import TestClient
@@ -30,6 +30,10 @@ from app.telemetry.genai import (
     _sanitize_event_attrs,
     add_completion_event,
     add_prompt_event,
+    bind_request_id,
+    current_request_id,
+    request_span,
+    reset_request_id,
     safe_span,
     set_attributes,
     set_prompt_fingerprint,
@@ -39,7 +43,9 @@ from app.telemetry.setup import install_test_exporter, reset_tracing_for_tests
 
 
 @pytest.fixture
-def tracing_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
+def tracing_exporter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[InMemorySpanExporter, None, None]:
     """Install in-memory tracing exporter for deterministic span assertions."""
 
     exporter = InMemorySpanExporter()
@@ -51,7 +57,7 @@ def tracing_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     reset_tracing_for_tests()
 
 
-def _span_by_kind(spans: list[Any], kind: str) -> Any:
+def _span_by_kind(spans: Sequence[Any], kind: str) -> Any:
     for span in spans:
         if span.attributes.get(OPENINFERENCE_SPAN_KIND) == kind:
             return span
@@ -114,7 +120,7 @@ def test_safe_span_ignores_attribute_application_failures(
         def __enter__(self) -> Any:
             return _FailingSpan()
 
-        def __exit__(self, *_args: object) -> bool:
+        def __exit__(self, *_args: object) -> Literal[False]:
             return False
 
     class _Tracer:
@@ -231,7 +237,7 @@ def test_tracing_middleware_handles_init_and_error_path_failures(
 
     @app.get("/boom")
     async def _boom() -> None:
-        raise HTTPException(status_code=500, detail="boom")
+        raise RuntimeError("boom")
 
     monkeypatch.setattr(
         "app.bootstrap.tracing.ensure_tracing_initialized",
@@ -248,6 +254,18 @@ def test_tracing_middleware_handles_init_and_error_path_failures(
     response = client.get("/boom")
 
     assert response.status_code == 500
+
+
+def test_request_span_binds_request_id_for_nested_helpers() -> None:
+    """request_span should own request-id context for nested tracing helpers."""
+
+    outer_token = bind_request_id("outer-request")
+    try:
+        with request_span("GET", "inner-request"):
+            assert current_request_id() == "inner-request"
+        assert current_request_id() == "outer-request"
+    finally:
+        reset_request_id(outer_token)
 
 
 def test_tracing_middleware_handles_response_finalization_failures(
