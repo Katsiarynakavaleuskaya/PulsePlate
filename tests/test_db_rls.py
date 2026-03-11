@@ -95,4 +95,6 @@ def test_subject_bigint_hardening_downgrade_restores_legacy_foreign_keys() -> No
 
     assert "ADD CONSTRAINT fk_rag_feedback_user" in migration_text
     assert "ADD CONSTRAINT fk_user_knowledge_user" in migration_text
-    assert "REFERENCES users (id) ON DELETE CASCADE" in migration_text
+    assert migration_text.count("REFERENCES users (id) ON DELETE CASCADE") == 2
+    assert "DELETE FROM rag_feedback" in migration_text
+    assert "DELETE FROM user_knowledge" in migration_text

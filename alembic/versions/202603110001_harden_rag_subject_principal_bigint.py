@@ -65,6 +65,22 @@ def downgrade() -> None:
         "ALTER TABLE user_knowledge ALTER COLUMN user_id TYPE INTEGER USING user_id::integer"
     )
     op.execute("ALTER TABLE rag_feedback ALTER COLUMN user_id TYPE INTEGER USING user_id::integer")
+    # RU: При rollback удаляем subject-owned строки, которые не могут удовлетворить
+    # старому FK-контракту на `users.id`.
+    # EN: On rollback, delete subject-owned rows that cannot satisfy the legacy
+    # `users.id` foreign-key contract.
+    op.execute("""
+        DELETE FROM rag_feedback
+        WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE users.id = rag_feedback.user_id
+        )
+    """)
+    op.execute("""
+        DELETE FROM user_knowledge
+        WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE users.id = user_knowledge.user_id
+        )
+    """)
     # RU: Восстанавливаем исходные FK при rollback к int4 users.id контракту.
     # EN: Restore the original FKs when rolling back to the int4 users.id contract.
     op.execute("""
