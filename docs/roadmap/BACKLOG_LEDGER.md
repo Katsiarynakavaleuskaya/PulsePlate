@@ -20,7 +20,6 @@ If it is not recorded here — it does not exist.
 4) Closing an item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
----
 
 ## Open Items
 
@@ -193,6 +192,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No duplicate or conflicting ownership across active worktrees
 
 ### P1
+
+<a id="backlog-restore-signed-build-provenance"></a>
+- [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): Workflow pinning and tooling-surface guards can be enforced immediately, but signed provenance and downstream verification remain intentionally deferred until the documented Docker/buildx cache seam is removed and attestation can be re-enabled without destabilizing the release path.
+  - Links:
+    - `.github/workflows/build.yml`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+  - DoD:
+    - Build provenance is enabled again in the canonical image workflow
+    - Signed provenance/SBOM verification is enforced before deploy
+    - Follow-up docs and CI checks explicitly cover the restored path
 
 <a id="ledger-p1-billing-activation-openapi-refinements"></a>
 - [ ] P1: Billing activation OpenAPI refinements after PR #1095

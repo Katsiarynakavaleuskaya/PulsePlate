@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -264,28 +264,28 @@ def _write_durable_artifacts(
     if target == "pr_packet":
         durable_path = artifact_paths[0]
         _stable_write(durable_path, _render_pr_packet(packet, result, disposition))
-        return normalize_repo_path(durable_path)
+        return cast(str, normalize_repo_path(durable_path))
     if target == "audit_artifact":
         durable_path = artifact_paths[0]
         _stable_write(durable_path, _render_audit_artifact(packet, result, disposition))
-        return normalize_repo_path(durable_path)
+        return cast(str, normalize_repo_path(durable_path))
     if target == "guard_test_proposal":
         durable_path = artifact_paths[0]
         _stable_write(durable_path, _render_guard_proposal(packet, result, disposition))
-        return normalize_repo_path(durable_path)
+        return cast(str, normalize_repo_path(durable_path))
     if target == "backlog_entry":
         durable_path = artifact_paths[0]
         _insert_once(
             durable_path, BACKLOG_MARKER, _render_backlog_entry(packet, result, disposition)
         )
-        return normalize_repo_path(durable_path)
+        return cast(str, normalize_repo_path(durable_path))
     if target == "memory_capsule":
         capsule_path, index_path = artifact_paths
         _stable_write(capsule_path, _render_memory_capsule(packet, result, disposition))
         _insert_once(
             index_path, MEMORY_INDEX_MARKER, _render_memory_index_line(packet["experiment_id"])
         )
-        return normalize_repo_path(capsule_path)
+        return cast(str, normalize_repo_path(capsule_path))
     raise ExperimentPromotionError(f"Unsupported promotion target: {target}")
 
 
