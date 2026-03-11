@@ -639,11 +639,24 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
 
+    def _require_vip_access(candidate_key: str) -> None:
+        try:
+            api_tiers_mod.require_vip_tier(x_api_key=candidate_key, request=request)
+        except HTTPException as exc:
+            if exc.status_code in {
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            }:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            raise
+
     if api_key:
         try:
             resolved_api_key = _require_api_key(api_key)
-            if api_tiers_mod._is_subscription_db_enabled():
-                api_tiers_mod.require_vip_tier(x_api_key=resolved_api_key, request=request)
+            _require_vip_access(resolved_api_key)
             return resolved_api_key
         except HTTPException as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
@@ -674,6 +687,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
         "off",
     }
     if _is_dev_mode(app_env) and not _explicit_false:
+        _require_vip_access(api_tiers_mod.TEST_KEY_VIP)
         _log_api_key_event(
             "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,

@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Any
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 import pytest
@@ -33,6 +33,19 @@ def _reset_payments_state() -> None:
     from app.services import payments_activation
 
     payments_activation.reset_state()
+
+
+@pytest.fixture
+def _db_backed_paid_authz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force production-like DB-backed authz for canonical paid-route checks."""
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("PRO_API_KEYS", "test_pro_key")  # pragma: allowlist secret
+    monkeypatch.setenv("VIP_API_KEYS", "test_vip_key")  # pragma: allowlist secret
 
 
 def _json(response: Any) -> dict[str, Any]:
@@ -68,6 +81,12 @@ def _ios_payload(
     if receipt_data is not None:
         payload["payload"]["receipt_data"] = receipt_data
     return payload
+
+
+def _relative_iso(*, days: int) -> str:
+    """Return a deterministic ISO timestamp relative to now for entitlement tests."""
+
+    return (datetime.now(timezone.utc) + timedelta(days=days)).replace(microsecond=0).isoformat()
 
 
 def _manual_payload(
@@ -123,6 +142,64 @@ def _load_audit(activation_id: str) -> SubscriptionActivationAudit:
         return audit
     finally:
         session.close()
+
+
+def _set_subscription_status_for_user_source(
+    *,
+    user_id: int,
+    source: str,
+    status: str,
+    expires_at: datetime | None = None,
+) -> None:
+    session_factory = core_db.get_session_factory()
+    session = session_factory()
+    try:
+        statement = select(Subscription).where(
+            Subscription.user_id == user_id,
+            Subscription.source == source,
+        )
+        subscription = session.execute(statement).scalar_one()
+        subscription.status = status
+        subscription.expires_at = expires_at
+        session.commit()
+    finally:
+        session.close()
+
+
+def _premium_week_payload() -> dict[str, Any]:
+    return {
+        "targets": {
+            "kcal": 2000,
+            "macros": {
+                "protein_g": 110.0,
+                "fat_g": 70.0,
+                "carbs_g": 220.0,
+                "fiber_g": 30.0,
+            },
+            "micro": {"vitamin_c_mg": 90.0, "iron_mg": 14.0},
+            "water_ml": 0,
+            "activity_week": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+        },
+        "diet_flags": [],
+        "lang": "en",
+    }
+
+
+def _vip_weekly_plan_payload() -> dict[str, Any]:
+    return {
+        "weight": 70.0,
+        "height": 170.0,
+        "age": 30,
+        "gender": "female",
+        "activity_level": "moderate",
+        "dietary_preferences": ["vegetarian"],
+        "target_calories": 1800,
+    }
 
 
 def test_activate_subscription_requires_transport_auth(client: TestClient) -> None:
@@ -241,6 +318,219 @@ def test_ios_expired_evidence_is_persisted_as_expired(
     payload = _json(response)
     assert payload["status"] == "expired"
     assert payload["activated_at"] is None
+
+
+def test_free_user_denied_on_canonical_pro_route(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    response = client.get("/api/v1/pro/session", headers=pro_headers)
+    assert response.status_code == 403, response.text
+
+
+def test_free_user_denied_on_canonical_vip_route(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    response = client.get("/api/v1/vip/health", headers=vip_headers)
+    assert response.status_code == 403, response.text
+
+
+def test_active_pro_allows_pro_but_not_vip(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-pro-route-1",
+            tier="pro",
+            status="active",
+            expires_at=_relative_iso(days=30),
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+
+    pro_response = client.get("/api/v1/pro/session", headers=pro_headers)
+    assert pro_response.status_code == 200, pro_response.text
+    assert _json(pro_response)["tier"] == "PRO"
+
+    vip_response = client.get("/api/v1/vip/health", headers=pro_headers)
+    assert vip_response.status_code == 403, vip_response.text
+
+
+def test_active_vip_allows_vip_and_pro(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=vip_headers,
+        json=_ios_payload(
+            transaction_id="txn-vip-route-1",
+            tier="vip",
+            status="active",
+            expires_at=_relative_iso(days=45),
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+
+    pro_response = client.get("/api/v1/pro/session", headers=vip_headers)
+    assert pro_response.status_code == 200, pro_response.text
+    assert _json(pro_response)["tier"] == "VIP"
+
+    vip_response = client.get("/api/v1/vip/health", headers=vip_headers)
+    assert vip_response.status_code == 200, vip_response.text
+
+
+def test_expired_entitlement_denied_everywhere(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=vip_headers,
+        json=_ios_payload(
+            transaction_id="txn-expired-route-1",
+            tier="vip",
+            status="expired",
+            expires_at=_relative_iso(days=-10),
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
+
+
+def test_cancelled_entitlement_denied_everywhere(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=vip_headers,
+        json=_ios_payload(
+            transaction_id="txn-cancelled-route-1",
+            tier="vip",
+            status="active",
+            expires_at=_relative_iso(days=60),
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+    user_id = _json(activation)["user_id"]
+
+    _set_subscription_status_for_user_source(
+        user_id=user_id,
+        source="ios_app_store",
+        status="cancelled",
+    )
+
+    assert client.get("/api/v1/pro/session", headers=vip_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=vip_headers).status_code == 403
+
+
+def test_pending_manual_review_does_not_unlock_paid_routes(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_manual_payload(
+            source="swift_manual",
+            source_reference="swift-manual-route-1",
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+    user_id = _json(activation)["user_id"]
+
+    subscription = _load_subscription_for_user_source(user_id, "swift_manual")
+    assert subscription.status == "pending_manual_review"
+
+    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
+    assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
+
+
+def test_pre_entitlement_billing_route_stays_accessible(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    response = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-pre-entitlement-1",
+            tier="pro",
+            status="active",
+            expires_at=_relative_iso(days=35),
+        ),
+    )
+    assert response.status_code == 200, response.text
+    assert _json(response)["status"] == "active"
+
+
+def test_deprecated_premium_alias_does_not_bypass_canonical_pro_authz(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    response = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        headers=pro_headers,
+        json=_premium_week_payload(),
+    )
+    assert response.status_code == 403, response.text
+
+
+def test_deprecated_vip_alias_does_not_bypass_backend_entitlement_truth(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    response = client.post(
+        "/api/v1/vip/weekly-plan",
+        headers=vip_headers,
+        json=_vip_weekly_plan_payload(),
+    )
+    assert response.status_code == 403, response.text
+
+
+def test_active_row_with_past_expiry_denies_paid_routes(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    _db_backed_paid_authz: None,
+) -> None:
+    activation = client.post(
+        "/api/v1/pro/payments/activate",
+        headers=pro_headers,
+        json=_ios_payload(
+            transaction_id="txn-expiry-check-1",
+            tier="pro",
+            status="active",
+            expires_at=_relative_iso(days=60),
+        ),
+    )
+    assert activation.status_code == 200, activation.text
+    user_id = _json(activation)["user_id"]
+
+    _set_subscription_status_for_user_source(
+        user_id=user_id,
+        source="ios_app_store",
+        status="active",
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+
+    assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 403
 
 
 def test_activate_subscription_unsupported_source_returns_422(

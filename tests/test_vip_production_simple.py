@@ -65,6 +65,7 @@ class TestVIPProductionMode:
     def test_vip_api_key_validation_correct_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test API key validation with correct key passes authentication."""
         monkeypatch.setenv("API_KEY", "secret-key")
+        monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
         import app
 
@@ -81,6 +82,7 @@ class TestVIPProductionMode:
     def test_weekly_menu_generation_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test weekly menu generation error handling (line 155)."""
         monkeypatch.setenv("API_KEY", "secret-key")
+        monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
         from fastapi.routing import APIRoute
 
@@ -153,6 +155,7 @@ class TestVIPProductionMode:
         - Line 663: Regional search error handling
         """
         monkeypatch.setenv("API_KEY", "secret-key")
+        monkeypatch.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
         import app
 
