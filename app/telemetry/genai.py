@@ -304,12 +304,32 @@ def safe_span(
         yield NULL_SPAN
         return
 
-    with span_cm as span:
+    try:
+        span = span_cm.__enter__()
+    except Exception:
+        logger.debug("Tracing backend failed while entering span=%s", name, exc_info=True)
+        yield NULL_SPAN
+        return
+
+    try:
         try:
             set_attributes(span, **(attrs or {}))
         except Exception:
             logger.debug("Span attribute application failed for span=%s", name, exc_info=True)
         yield span
+    except BaseException as exc:
+        try:
+            suppress = bool(span_cm.__exit__(type(exc), exc, exc.__traceback__))
+        except Exception:
+            logger.debug("Tracing backend failed while closing span=%s", name, exc_info=True)
+            suppress = False
+        if not suppress:
+            raise
+    else:
+        try:
+            span_cm.__exit__(None, None, None)
+        except Exception:
+            logger.debug("Tracing backend failed while closing span=%s", name, exc_info=True)
 
 
 @contextmanager

@@ -139,6 +139,79 @@ def test_safe_span_ignores_attribute_application_failures(
         assert span is not None
 
 
+def test_safe_span_degrades_when_enter_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """safe_span should yield a null span when context entry fails."""
+
+    class _SpanContextManager:
+        def __enter__(self) -> Any:
+            raise RuntimeError("enter failure")
+
+        def __exit__(self, *_args: object) -> Literal[False]:
+            return False
+
+    class _Tracer:
+        def start_as_current_span(self, *_args: object, **_kwargs: object) -> Any:
+            return _SpanContextManager()
+
+    monkeypatch.setattr("app.telemetry.genai.get_tracer", lambda _name: _Tracer(), raising=True)
+
+    with safe_span("enter-fail", tracer_name="test", kind="INTERNAL") as span:
+        assert span is NULL_SPAN
+
+
+def test_safe_span_ignores_exit_failures_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """safe_span should swallow backend failures while closing a successful span."""
+
+    class _SpanContextManager:
+        def __enter__(self) -> Any:
+            return SimpleNamespace(set_attribute=lambda *_args: None)
+
+        def __exit__(self, *_args: object) -> Literal[False]:
+            raise RuntimeError("exit failure")
+
+    class _Tracer:
+        def start_as_current_span(self, *_args: object, **_kwargs: object) -> Any:
+            return _SpanContextManager()
+
+    monkeypatch.setattr("app.telemetry.genai.get_tracer", lambda _name: _Tracer(), raising=True)
+
+    with caplog.at_level(logging.DEBUG, logger="app.telemetry.genai"):
+        with safe_span("exit-fail", tracer_name="test", kind="INTERNAL") as span:
+            assert span is not NULL_SPAN
+
+    assert "Tracing backend failed while closing span=exit-fail" in caplog.text
+
+
+def test_safe_span_preserves_caller_error_when_exit_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """safe_span should preserve caller exceptions even if backend close fails."""
+
+    class _SpanContextManager:
+        def __enter__(self) -> Any:
+            return SimpleNamespace(set_attribute=lambda *_args: None)
+
+        def __exit__(self, *_args: object) -> Literal[False]:
+            raise RuntimeError("exit failure")
+
+    class _Tracer:
+        def start_as_current_span(self, *_args: object, **_kwargs: object) -> Any:
+            return _SpanContextManager()
+
+    monkeypatch.setattr("app.telemetry.genai.get_tracer", lambda _name: _Tracer(), raising=True)
+
+    with caplog.at_level(logging.DEBUG, logger="app.telemetry.genai"):
+        with pytest.raises(RuntimeError, match="caller boom"):
+            with safe_span("exit-error", tracer_name="test", kind="INTERNAL"):
+                raise RuntimeError("caller boom")
+
+    assert "Tracing backend failed while closing span=exit-error" in caplog.text
+
+
 def test_null_span_and_attr_sanitizers_cover_noop_paths() -> None:
     """No-op span helpers and sanitizers should drop unsupported data."""
 
