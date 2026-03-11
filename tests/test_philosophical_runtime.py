@@ -576,6 +576,7 @@ class TestPhilosophicalRuntime:
                 confidence=0.84,
                 hops=2,
                 latency_ms=41,
+                recursive_executed=True,
             )
 
         runtime._verification = SimpleNamespace(
@@ -628,6 +629,7 @@ class TestPhilosophicalRuntime:
                 confidence=0.84,
                 hops=2,
                 latency_ms=41,
+                recursive_executed=True,
             )
 
         result = await runtime.generate_insight(
@@ -668,6 +670,7 @@ class TestPhilosophicalRuntime:
                 confidence=0.78,
                 hops=2,
                 latency_ms=39,
+                recursive_executed=True,
             )
 
         verification_reports = iter(
@@ -728,6 +731,7 @@ class TestPhilosophicalRuntime:
                 confidence=0.71,
                 hops=2,
                 latency_ms=44,
+                recursive_executed=True,
             )
 
         verification_reports = iter(

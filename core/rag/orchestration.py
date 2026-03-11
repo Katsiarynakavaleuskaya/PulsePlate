@@ -53,6 +53,9 @@ class RAGOrchestrationResult:
     chunks_filtered: int = 0
     """Number of chunks removed by validation."""
 
+    recursive_executed: bool = False
+    """True when the recursive retrieval path actually executed."""
+
 
 def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
     """Return empty orchestration result (fail-safe fallback)."""
@@ -66,6 +69,7 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
         warnings=[],
         chunks_retrieved=0,
         chunks_filtered=0,
+        recursive_executed=False,
     )
 
 
@@ -220,6 +224,7 @@ async def _run_orchestration(
             warnings=[],
             chunks_retrieved=0,
             chunks_filtered=0,
+            recursive_executed=recursive_enabled,
         )
 
     warnings: list[str] = []
@@ -249,6 +254,7 @@ async def _run_orchestration(
             warnings=warnings,
             chunks_retrieved=len(rag_ctx.chunks),
             chunks_filtered=chunks_filtered,
+            recursive_executed=recursive_enabled,
         )
 
     confidence = _resolve_confidence(
@@ -274,6 +280,7 @@ async def _run_orchestration(
         warnings=warnings,
         chunks_retrieved=len(rag_ctx.chunks),
         chunks_filtered=chunks_filtered,
+        recursive_executed=recursive_enabled,
     )
 
 

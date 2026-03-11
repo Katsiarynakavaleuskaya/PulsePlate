@@ -394,6 +394,7 @@ class PhilosophicalRuntime:
         final_provider_name = provider.name
         confidence: float | None = None
         rag_used = False
+        recursive_rag_executed = False
         hops = 0
         latency_ms = 0
         prompt_input = decision.simplified_query or text
@@ -410,6 +411,7 @@ class PhilosophicalRuntime:
             prompt_input = rag_result.formatted_prompt
             confidence = rag_result.confidence
             rag_used = rag_result.rag_actually_used
+            recursive_rag_executed = bool(getattr(rag_result, "recursive_executed", False))
             hops = rag_result.hops
             latency_ms = rag_result.latency_ms
             if rag_result.chunks:
@@ -474,7 +476,7 @@ class PhilosophicalRuntime:
         runtime_reason_codes = self._build_runtime_reason_codes(
             decision=decision,
             rag_used=rag_used,
-            recursive_rag_enabled=recursive_rag_enabled,
+            recursive_rag_executed=recursive_rag_executed,
             rewrite_count=rewrite_count,
             fallback_reason=fallback_reason,
         )
@@ -640,13 +642,13 @@ class PhilosophicalRuntime:
         *,
         decision: RouteDecision,
         rag_used: bool,
-        recursive_rag_enabled: bool,
+        recursive_rag_executed: bool,
         rewrite_count: int,
         fallback_reason: str,
     ) -> list[str]:
         """Build deterministic public reason codes for the executed runtime path."""
         reason_codes = list(decision.reason_codes)
-        if rag_used and recursive_rag_enabled:
+        if rag_used and recursive_rag_executed:
             self._append_reason_code(reason_codes, "rag_recursive_path")
         if self._is_verification_first_path(decision=decision, rag_used=rag_used):
             if rewrite_count > 0:

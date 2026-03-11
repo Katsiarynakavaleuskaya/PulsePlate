@@ -17,6 +17,6 @@ Evidence: `c97d0a16` moves runtime reason-code assembly outside the Phase 1/2 ga
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#pullrequestreview-3929480272 -> c97d0a16
 
 Disposition: NOT-A-BUG
-Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:4` and `docs/review/PR_1114_FIXED_MAPPING.md:5` already had the required checked artifact-level discussion-pass boxes on head `35e9b983`, so the later checkbox suggestion was stale rather than still actionable.
+Evidence: `docs/review/PR_1114_FIXED_MAPPING.md:4` and `docs/review/PR_1114_FIXED_MAPPING.md:5` already had the required artifact-level discussion-pass boxes checked on head `35e9b983`, so the later checkbox suggestion was stale rather than still actionable.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1114#discussion_r2918260796
