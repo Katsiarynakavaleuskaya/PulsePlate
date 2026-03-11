@@ -4,7 +4,7 @@
 **Scope:** PulsePlate PRs 1–50 (merged before modern gates)
 **Worktree:** `worktrees/audit_pr1_50` (branch `worktree/audit-pr1-50`)
 **Agents:** bug-hunter, security-auditor
-**Sources:** `docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md`, `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md`
+**Sources:** `docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md`, `docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md`, `docs/audit/PR_1_50_AUDIT_STATUS_VERIFICATION_2026-03.md`
 
 ---
 
@@ -102,6 +102,19 @@ pytest -q tests/test_repo_policy_guards.py
 pytest -q tests/test_repo_policy_sys_modules.py
 bandit -r app core -f json
 ```
+
+## 8. Current State Verification Snapshot
+
+- `docs/audit/PR_1_50_AUDIT_STATUS_VERIFICATION_2026-03.md` confirms the audit findings against the repository state as of `2026-03-11`.
+- Production-impact items still present:
+  - `frontend/src/features/plan/WeeklyPlanViewer.tsx:172`
+  - `frontend/src/features/shoplist/ShoplistPreview.tsx:124`
+- Test/dev-only items still present:
+  - `tests/test_llm_extras.py:17`
+  - `tests/core/catalog/test_sqlite_fk_integrity.py:27`
+  - `run_coverage_tests.py:17`
+- Mitigated / inactive path:
+  - `tests/test_db_realistic_coverage.py:48` imports `execute_query` / `get_db_connection`, but `core/db.py` does not export them, so the unsafe SQL branch is currently inactive.
 
 ---
 
