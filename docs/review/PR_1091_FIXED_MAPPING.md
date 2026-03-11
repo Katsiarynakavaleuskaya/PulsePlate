@@ -38,6 +38,12 @@ Disposition: FIXED
 Commit: 76be812c
 Evidence: `AGENTS.md:1028`; `docs/roadmap/BACKLOG_LEDGER.md:209`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1091#pullrequestreview-3926073680 -> 17e9b195
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1091#discussion_r2915090096 -> 17e9b195
+Disposition: FIXED
+Commit: 17e9b195
+Evidence: `AGENTS.md:1028`
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
