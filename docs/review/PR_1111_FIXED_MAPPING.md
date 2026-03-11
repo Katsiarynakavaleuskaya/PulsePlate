@@ -6,10 +6,18 @@
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929157106 -> 95f618c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2917980302 -> 64387d53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#discussion_r2917980308 -> 64387d53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1111#pullrequestreview-3929179703 -> 64387d53
 Disposition: FIXED
 Commit: 95f618c0
 Evidence: `docs/design/COLOR_PROFILE_GOVERNANCE.md:13`; `docs/design/COLOR_PROFILE_GOVERNANCE.md:18`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:14`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:26`; `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md:38`
 Reason: Replaced brittle line-number evidence with section/symbol references and added explicit snapshot-vs-runtime workflow definitions mapped to concrete repo paths, matching the Sourcery review request.
+
+Disposition: FIXED
+Commit: 64387d53
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2154`; `docs/roadmap/BACKLOG_LEDGER.md:2182`; `docs/roadmap/BACKLOG_LEDGER.md:2209`
+Reason: Moved both unchecked P1 follow-up trackers out of `## Completed Items` and into the open backlog, so the ledger once again keeps active work under the open-item lane instead of mixing it with merged entries.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
