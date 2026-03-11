@@ -5,6 +5,16 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124#pullrequestreview-3932672115 -> 8b7e8647
+Disposition: FIXED
+Commit: 8b7e8647
+Evidence: `core/creative_research.py:418`, `core/creative_research.py:425`, `app/services/creative_research_runtime.py:156`, `app/services/creative_research_runtime.py:157`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124#pullrequestreview-3932705104
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1124_FIXED_MAPPING.md:12`, `docs/review/PR_1124_FIXED_MAPPING.md:17`
+Reason: this CodeRabbit review entry is the summary shell for the two actionable child comments dispositioned individually immediately below.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124#discussion_r2921144714 -> ae40177f
 Disposition: FIXED
 Commit: ae40177f
