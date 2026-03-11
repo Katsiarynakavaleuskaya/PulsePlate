@@ -27,6 +27,12 @@ Evidence: `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md:125`, `docs/or
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2916934788 -> 6b5720e8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2916934797 -> 6b5720e8
 
+Disposition: FIXED
+Commit: 62e9d2e8
+Evidence: `AGENTS.md:974`, `AGENTS.md:976`, `AGENTS.md:978`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106#discussion_r2917385859 -> 62e9d2e8
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
