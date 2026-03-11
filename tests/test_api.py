@@ -11,13 +11,13 @@ from module_purge import purge_modules
 # client fixture is provided by conftest.py
 
 
-def test_v1_health(client):
+def test_v1_health(client: TestClient) -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
 
 
-def test_v1_bmi_happy(client):
+def test_v1_bmi_happy(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "general"},
@@ -30,7 +30,7 @@ def test_v1_bmi_happy(client):
     assert data["category"] == "Normal weight"
 
 
-def test_v1_bmi_invalid_height(client):
+def test_v1_bmi_invalid_height(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 0, "group": "general"},
@@ -42,7 +42,7 @@ def test_v1_bmi_invalid_height(client):
     assert "detail" in data
 
 
-def test_v1_bmi_invalid_weight(client):
+def test_v1_bmi_invalid_weight(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": -50, "height_cm": 170, "group": "general"},
@@ -54,7 +54,7 @@ def test_v1_bmi_invalid_weight(client):
     assert "detail" in data
 
 
-def test_v1_bmi_unrealistic_weight(client):
+def test_v1_bmi_unrealistic_weight(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 10, "height_cm": 170, "group": "general"},
@@ -66,7 +66,7 @@ def test_v1_bmi_unrealistic_weight(client):
     assert "detail" in data
 
 
-def test_v1_bmi_invalid_group(client):
+def test_v1_bmi_invalid_group(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "invalid"},
@@ -78,7 +78,7 @@ def test_v1_bmi_invalid_group(client):
     assert "bmi" in data
 
 
-def test_v1_bmi_underweight(client):
+def test_v1_bmi_underweight(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 45, "height_cm": 170, "group": "general"},
@@ -90,7 +90,7 @@ def test_v1_bmi_underweight(client):
     assert data["category"] == "Underweight"
 
 
-def test_v1_bmi_overweight(client):
+def test_v1_bmi_overweight(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 85, "height_cm": 170, "group": "general"},
@@ -102,7 +102,7 @@ def test_v1_bmi_overweight(client):
     assert data["category"] == "Overweight"
 
 
-def test_v1_bmi_obese(client):
+def test_v1_bmi_obese(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 100, "height_cm": 170, "group": "general"},
@@ -115,7 +115,7 @@ def test_v1_bmi_obese(client):
     assert data["category"] == "Obese Class I"
 
 
-def test_v1_bodyfat(client):
+def test_v1_bodyfat(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bodyfat",
         json={
@@ -136,7 +136,7 @@ def test_v1_bodyfat(client):
     assert "labels" in data
 
 
-def test_v1_bodyfat_missing_hip(client):
+def test_v1_bodyfat_missing_hip(client: TestClient) -> None:
     r = client.post(
         "/api/v1/bodyfat",
         json={
@@ -239,7 +239,7 @@ def test_api_insight_provider_none(
     assert "No LLM provider configured" in data["detail"]
 
 
-def test_metrics(client):
+def test_metrics(client: TestClient) -> None:
     response = client.get("/metrics")
     assert response.status_code == 200
     # Metrics endpoint returns Prometheus format, not JSON
@@ -247,7 +247,7 @@ def test_metrics(client):
     assert "python_info" in content or "error" in content
 
 
-def test_category_by_bmi_ru(client):
+def test_category_by_bmi_ru(client: TestClient) -> None:
     from core.bmi.engine import _bmi_category
     from core.i18n import t, normalize_lang
 
@@ -279,7 +279,7 @@ def test_category_by_bmi_ru(client):
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception(client) -> None:
+def test_compute_wht_ratio_round_exception(client: TestClient) -> None:
     """
     Test that _compute_wht_ratio propagates round exceptions.
 

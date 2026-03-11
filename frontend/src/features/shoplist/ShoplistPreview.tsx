@@ -50,6 +50,11 @@ type Shoplist = {
   items?: ShopItem[];
 };
 
+type CleanupEntry = {
+  id: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+};
+
 /**
  * Shopping list preview component that displays user's shopping list with export and share options
  *
@@ -71,7 +76,7 @@ export default function ShoplistPreview() {
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
+  const cleanupRef = useRef<CleanupEntry[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -126,7 +131,7 @@ export default function ShoplistPreview() {
     }, 1000);
 
     cleanupRef.current.push({
-      id: revokeTimeout as any,
+      id: revokeTimeout,
       cleanup: () => URL.revokeObjectURL(url)
     });
   }, []);

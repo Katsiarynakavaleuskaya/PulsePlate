@@ -192,6 +192,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-pr1-50-remediation-wave1"></a>
+- [ ] P1: PR 1-50 remediation follow-through after Wave 1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (audit debt / type-safety / test hygiene)
+  - Target PR: PR-TBD-PR1-50-REMEDIATION
+  - Status: 🟡 In progress
+  - Area: frontend / tests / dev-scripts / audit debt
+  - Finding Type: audit remediation carryover
+  - Reason (EN): PR 1-50 remediation Wave 1 is intentionally scoped to unresolved P0/P1 findings in production code, tests, and dev scripts. Lower-priority cleanup stays deferred so the fix PR remains narrow enough to reach green CI without mixing audit documentation work into the implementation branch.
+  - Links:
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `frontend/src/features/shoplist/ShoplistPreview.tsx`
+    - `tests/test_llm_extras.py`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/core/catalog/test_sqlite_fk_integrity.py`
+    - `tests/test_api.py`
+    - `run_coverage_tests.py`
+  - Deferred / P2 carryover:
+    - `frontend/src/lib/shareFile.ts` — add explicit `anchor.click()` fallback hardening and dead-code review
+    - `frontend/src/components/GlassCard.tsx` — remove redundant typed-union undefined checks
+    - `ollama_diagnostic.sh` — document or harden `jq` / `free` dependency handling
+    - `ollama_monitor.sh` — document or harden `bc` dependency handling
+  - DoD:
+    - Wave 1 fixes all unresolved P0/P1 findings from the PR 1-50 audit
+    - Deferred P2 items remain tracked here with explicit file targets
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+    - PR body includes Carryover note linking this ledger item
+
 <a id="backlog-restore-signed-build-provenance"></a>
 - [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
   - Owner: @katsiaryna_kavaleuskaya

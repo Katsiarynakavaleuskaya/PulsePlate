@@ -19,9 +19,9 @@ TESTS_DIR = Path(__file__).resolve().parent
 ENFORCED_GLOBS: tuple[str, ...] = (
     # VIP tests were explicitly stabilized for import hygiene in PR-8c/8b.
     # Keep these files free of sys.modules mutation to avoid regressions.
-    # NOTE: Scope is intentionally limited to `tests/vip/**` to avoid breaking legacy tests that
-    # still contain sys.modules mutations. Expand scope only as legacy tests are cleaned up.
+    # NOTE: Scope stays intentionally narrow while legacy tests are cleaned up incrementally.
     "vip/**/*.py",
+    "test_llm_extras.py",
 )
 
 
