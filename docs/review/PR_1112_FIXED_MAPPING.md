@@ -1,17 +1,15 @@
 # PR 1112 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-No actionable review threads yet.
+Disposition: FIXED
+Commit: d9387d55
+Evidence: scripts/orchestration/creative_research_eval_contract.py:168
 
-Populate this artifact after the first bot/review cycle with explicit dispositions:
-
-- `FIXED` with commit SHA and evidence
-- `NOT-A-BUG` with evidence and rationale
-- `DEFERRED` with backlog link
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112#discussion_r2918146080 -> d9387d55
 
 ## Merge Readiness
 - [x] Local gates passed on current head
