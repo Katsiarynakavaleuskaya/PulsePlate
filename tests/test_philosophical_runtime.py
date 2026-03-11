@@ -650,6 +650,44 @@ class TestPhilosophicalRuntime:
         assert "rag_recursive_path" in result.metadata.reason_codes
         assert "verification_first_rewrite" not in result.metadata.reason_codes
 
+    async def test_recursive_rag_reason_code_surfaces_without_usable_rag_chunks(self) -> None:
+        runtime = PhilosophicalRuntime()
+        provider = _StaticProvider(response="Answer without usable RAG chunks.")
+
+        async def _rag_retriever(
+            *args: object, **kwargs: object
+        ) -> runtime_mod.rag_orchestration.RAGOrchestrationResult:
+            del args, kwargs
+            return runtime_mod.rag_orchestration.RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="Prompt with no usable chunks",
+                rag_actually_used=False,
+                confidence=None,
+                hops=2,
+                latency_ms=41,
+                recursive_executed=True,
+            )
+
+        result = await runtime.generate_insight(
+            text="How much protein should I eat for recovery?",
+            lang="en",
+            provider=provider,
+            use_rag=True,
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            philosophy_router_enabled=True,
+            philosophy_phase12_enabled=False,
+            philosophy_linguistic_enabled=True,
+            philosophy_pragmatic_enabled=False,
+            rag_retriever=_rag_retriever,
+        )
+
+        assert provider.calls == 1
+        assert result.rag_used is False
+        assert "rag_recursive_path" in result.metadata.reason_codes
+        assert "verification_first_rewrite" not in result.metadata.reason_codes
+        assert "verification_first_fallback" not in result.metadata.reason_codes
+
     async def test_rag_backed_answer_rewrites_once_then_succeeds(self) -> None:
         runtime = PhilosophicalRuntime()
         provider = _SequenceProvider(

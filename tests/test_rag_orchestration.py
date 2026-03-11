@@ -69,6 +69,13 @@ class TestEmptyResult:
         assert result.confidence is None
         assert result.hops == 0
         assert result.latency_ms == 0
+        assert result.recursive_executed is False
+
+    def test_empty_result_preserves_recursive_execution_flag(self) -> None:
+        result = _empty_result("my prompt", recursive_executed=True)
+
+        assert result.formatted_prompt == "my prompt"
+        assert result.recursive_executed is True
 
 
 class TestBuildPromptWithContext:
@@ -561,6 +568,25 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is False
         assert result.formatted_prompt == "test prompt"
         assert result.chunks == []
+        assert result.recursive_executed is False
+
+    @pytest.mark.asyncio
+    async def test_recursive_failsafe_preserves_execution_metadata(self) -> None:
+        """Recursive fail-safe should preserve that the recursive path executed."""
+        with patch(
+            "asyncio.to_thread",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("RAG retrieval failed"),
+        ):
+            result = await retrieve_and_validate_rag(
+                "test prompt",
+                recursive_rag_enabled=True,
+            )
+
+        assert result.rag_actually_used is False
+        assert result.formatted_prompt == "test prompt"
+        assert result.chunks == []
+        assert result.recursive_executed is True
 
     @pytest.mark.asyncio
     async def test_prompt_formatted_with_redacted_context(self) -> None:

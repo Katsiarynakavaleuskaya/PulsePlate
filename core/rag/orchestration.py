@@ -57,7 +57,11 @@ class RAGOrchestrationResult:
     """True when the recursive retrieval path actually executed."""
 
 
-def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
+def _empty_result(
+    prompt_input: str,
+    *,
+    recursive_executed: bool = False,
+) -> RAGOrchestrationResult:
     """Return empty orchestration result (fail-safe fallback)."""
     return RAGOrchestrationResult(
         chunks=[],
@@ -69,7 +73,7 @@ def _empty_result(prompt_input: str) -> RAGOrchestrationResult:
         warnings=[],
         chunks_retrieved=0,
         chunks_filtered=0,
-        recursive_executed=False,
+        recursive_executed=recursive_executed,
     )
 
 
@@ -179,7 +183,10 @@ async def retrieve_and_validate_rag(
             "RAG orchestration failed; returning empty result",
             exc_info=True,
         )
-        return _empty_result(prompt_input)
+        return _empty_result(
+            prompt_input,
+            recursive_executed=recursive_rag_enabled,
+        )
 
 
 async def _run_orchestration(

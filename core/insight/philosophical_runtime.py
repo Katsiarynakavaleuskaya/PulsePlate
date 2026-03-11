@@ -648,7 +648,7 @@ class PhilosophicalRuntime:
     ) -> list[str]:
         """Build deterministic public reason codes for the executed runtime path."""
         reason_codes = list(decision.reason_codes)
-        if rag_used and recursive_rag_executed:
+        if recursive_rag_executed:
             self._append_reason_code(reason_codes, "rag_recursive_path")
         if self._is_verification_first_path(decision=decision, rag_used=rag_used):
             if rewrite_count > 0:
