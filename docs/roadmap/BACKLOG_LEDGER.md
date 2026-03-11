@@ -5763,11 +5763,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No hidden-memory path bypasses KPP promotion
 
 <a id="ledger-p1-agent-experiment-cv-lane"></a>
-- [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+- [x] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: 🟡 Delivered in PR `#1102` on 2026-03-11 (`55783414`; CV overlay + packet schema extension + orchestration drift audit shipped), but canonical ledger closeout remains pending the docs-only normalization follow-up tracked in [P2: Normalize PR5 ledger closeout via docs-only follow-up PR](#ledger-p2-pr5-ledger-closeout-docs-only)
+  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`) with canonical ledger closeout normalized in PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5915,7 +5915,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Final merge checklist references the filtered current-head view
 
 <a id="ledger-p2-pr5-ledger-closeout-docs-only"></a>
-- [ ] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
+- [x] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
@@ -5925,6 +5925,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
     - `docs/roadmap/BACKLOG_LEDGER.md`
     - `docs/review/PR_1102_FIXED_MAPPING.md`
+  - Status: ✅ Closed by PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
   - DoD:
     - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
     - The follow-up PR references PR `#1102` and this deferred remediation item
