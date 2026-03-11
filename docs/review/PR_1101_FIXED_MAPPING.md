@@ -3,6 +3,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#issuecomment-4037158758 -> 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+Disposition: FIXED
+Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
+Evidence: tests/test_metrics.py:286
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927561503 -> 83131dd8f2caf2c7c4d8c657d032c6a1c1d7e444
 Disposition: FIXED
 Commit: 83131dd8f2caf2c7c4d8c657d032c6a1c1d7e444
@@ -23,6 +28,11 @@ Evidence: tests/test_metrics.py:21
 Disposition: FIXED
 Commit: 4ff6f934aa121ce05aa1677b0d99d3f4f8a3a307
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:216
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101#pullrequestreview-3927619630 -> 0fbf9cdc4c32007ae6ca1bb9d813afd9915ea1c7
+Disposition: FIXED
+Commit: 0fbf9cdc4c32007ae6ca1bb9d813afd9915ea1c7
+Evidence: tests/test_metrics.py:263
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
