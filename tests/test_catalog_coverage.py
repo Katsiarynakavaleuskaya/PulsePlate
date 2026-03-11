@@ -377,12 +377,13 @@ class TestCatalogAdapterProviderSelection:
         """Test _get_provider with SQLite provider and relative path."""
         reset_catalog_provider_for_tests()
 
-        # Create catalog in data/ directory
-        data_dir = Path(__file__).parent.parent / "data" / "catalog" / "snapshots"
+        # Keep the relative-path contract while isolating the SQLite file per test run.
+        data_dir = tmp_path / "data" / "catalog" / "snapshots"
         data_dir.mkdir(parents=True, exist_ok=True)
         db_path = data_dir / "catalog_demo.sqlite"
         build_demo_catalog_sqlite(db_path, fixtures_dir=fixtures_dir)
 
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("CATALOG_PROVIDER", "sqlite")
         monkeypatch.setenv("CATALOG_SQLITE_PATH", "data/catalog/snapshots/catalog_demo.sqlite")
 

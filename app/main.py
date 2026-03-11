@@ -15,6 +15,7 @@ from legacy_app import (
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
+from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.tracing import register_tracing
 from app.bootstrap.pro_contracts import register_pro_contract_routes
@@ -108,6 +109,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     app = target_app
     _internalize_users_openapi_surface(app)
     _install_openapi_builder(app)
+    register_food_search_backend(app)
     register_metrics(app)
     register_tracing(app)
     register_pro_contract_routes(app)
