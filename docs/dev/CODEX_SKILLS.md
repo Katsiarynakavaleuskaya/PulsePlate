@@ -64,8 +64,22 @@ Recommended now for PulsePlate:
   structured memory and handoff pages
 - `openai-docs`, `playwright`, `linear` when the task explicitly matches
 
-For canonical design-tooling precedence, see
-`docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
+OpenAI-specific baseline:
+
+- `openai-docs` remains the canonical external-docs lane for OpenAI tasks
+- optional runtime pilot for live docs retrieval is documented in
+  `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
+- external MCP/CLI outputs remain advisory and must promote durable findings
+  through KPP before they become repo memory
+
+Design-tooling precedence for this repo:
+
+1. `Figma`
+2. `Notion`
+3. `Airweave`
+4. `Penpot`
+
+See `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`.
 
 Not approved as default:
 
