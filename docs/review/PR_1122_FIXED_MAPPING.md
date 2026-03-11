@@ -8,6 +8,8 @@
 Disposition: FIXED
 Commit: ac870e54
 Evidence: `tests/test_websocket_security_api.py:607`, `tests/test_websocket_security_api.py:608`, `tests/test_websocket_security_api.py:620` keep `_assert_no_duplicate_ws_route` bound to the runtime-resolved `app.main` module, so the patched `main_mod.app` and the asserted guard function stay synchronized in purge/reload-sensitive flows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1122#pullrequestreview-3932408563 -> ac870e54
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1122#pullrequestreview-3932431155 -> ac870e54
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1122#discussion_r2920875349 -> ac870e54
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1122#discussion_r2920896727 -> ac870e54
 
