@@ -25,8 +25,8 @@ Before doing any work:
 - Always include root `AGENTS.md` + nearest module `AGENTS.md` for any files you touch.
 - For code-first UI tasks, also load:
   - `docs/design/UI_COMPONENT_VOCABULARY.md`
-  - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
   - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+  - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 When applicable:
 
@@ -62,8 +62,9 @@ Before generating UI concepts, screen specs, or prompt packs:
    implementation.
 3. If the primitive is missing, keep the canonical name and mark it as a
    missing primitive instead of inventing a new synonym.
-4. Draft the screen brief with `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`.
-5. Assemble the final design spec with
+4. Draft the screen brief first with
+   `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`.
+5. Assemble the final design spec second with
    `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`.
 
 Hard rule:

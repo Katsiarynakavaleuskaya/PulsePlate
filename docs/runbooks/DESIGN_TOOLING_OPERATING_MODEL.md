@@ -20,7 +20,7 @@ without creating a second hidden source of truth.
 5. `Notion` is structured memory only (`docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:5`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:30`).
 6. `Airweave` is research ingestion only (`docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:5`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:9`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`).
 7. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
-8. `Stitch` and similar AI layout generators are read-only ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
+8. `Stitch` and similar AI layout generators are external ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation; their lifecycle state remains `read_only` until promotion (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
 
 Hard rule: tools `4-7` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:59`).
@@ -135,9 +135,9 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 - `read_only`
 - `experimental`
 
-`Stitch` and similar AI layout generators remain a reference-only lane, but the
-lifecycle status stays `read_only` until a reviewed promotion updates repo
-docs/code.
+`Stitch` and similar AI layout generators remain an external reference lane.
+Use lifecycle status `read_only` for those records until a reviewed promotion
+updates repo docs/code.
 
 ## 7. Evidence Contract
 

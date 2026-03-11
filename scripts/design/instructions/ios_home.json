@@ -1,7 +1,7 @@
 {
   "screen_id": "ios.home",
   "page": "10_iOS_Home",
-  "platform": "IOS",
+  "platform": "iOS",
   "surface": "ios_home_screen",
   "layout_archetype": "hero_shell",
   "layout_pattern": "hero-plus-quick-actions",
@@ -142,7 +142,8 @@
   ],
   "primary_components": [
     "hero",
-    "button"
+    "button",
+    "card"
   ],
   "supporting_components": [
     "stats-card",
@@ -255,7 +256,6 @@
       "prompt_stub": "stub://icon-nav/bmi",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -279,7 +279,6 @@
       "prompt_stub": "stub://icon-nav/profile-setup",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -303,7 +302,6 @@
       "prompt_stub": "stub://icon-nav/open-plate",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -327,7 +325,6 @@
       "prompt_stub": "stub://cta/pro-tool/weekly-plan",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error",
@@ -352,7 +349,6 @@
       "prompt_stub": "stub://cta/pro-tool/shopping-list",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error",

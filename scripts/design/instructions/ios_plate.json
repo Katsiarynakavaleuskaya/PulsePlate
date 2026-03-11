@@ -1,7 +1,7 @@
 {
   "screen_id": "ios.plate",
   "page": "11_iOS_Plate",
-  "platform": "IOS",
+  "platform": "iOS",
   "surface": "ios_plate_screen",
   "layout_archetype": "content_shell",
   "layout_pattern": "content-card-with-primary-actions",
@@ -228,7 +228,6 @@
       "prompt_stub": "stub://cta/primary/add-meal",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -252,7 +251,6 @@
       "prompt_stub": "stub://cta/secondary/view-details",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -276,7 +274,6 @@
       "prompt_stub": "stub://cta/error-state/dynamic-issue-action",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"

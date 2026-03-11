@@ -1,7 +1,7 @@
 {
   "screen_id": "ios.progress",
   "page": "12_iOS_Progress",
-  "platform": "IOS",
+  "platform": "iOS",
   "surface": "ios_progress_screen",
   "layout_archetype": "dashboard_shell",
   "layout_pattern": "dashboard-summary-stack",
@@ -197,7 +197,6 @@
       "prompt_stub": "stub://cta/loading-state/refresh",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"
@@ -221,7 +220,6 @@
       "prompt_stub": "stub://cta/error-state/dynamic-issue-action",
       "states": [
         "default",
-        "hover",
         "disabled",
         "loading",
         "error"

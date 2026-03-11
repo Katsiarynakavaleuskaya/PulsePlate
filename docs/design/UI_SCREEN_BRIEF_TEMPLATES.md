@@ -6,12 +6,17 @@ Scope: Canonical input briefs for code-first UI work
 
 ## 1. Purpose
 
-Use these templates before invoking:
+Use these templates first, before invoking:
 
 - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
-- `docs/design/UI_COMPONENT_VOCABULARY.md`
 
 Every new screen brief should start from this structure instead of raw prose.
+Canonical flow is:
+
+1. normalize component names with `docs/design/UI_COMPONENT_VOCABULARY.md`
+2. fill this screen brief template
+3. assemble the governed spec with
+   `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 
 ## 2. Base template
 

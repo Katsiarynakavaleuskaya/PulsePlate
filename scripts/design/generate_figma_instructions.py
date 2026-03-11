@@ -130,9 +130,9 @@ SCREEN_DIMENSIONS = {
     "web": {"width": 1440, "height": 900},  # Desktop
 }
 
-PLATFORM_DISPLAY_NAMES = {
-    "IOS": "iOS",
-    "WEB": "Web",
+PLATFORM_CANONICAL_NAMES = {
+    "ios": "iOS",
+    "web": "Web",
 }
 
 # Page mapping from governance index
@@ -228,7 +228,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         ],
         "cta_section_id": "quick-actions",
         "cta_parent_id": "ios-home-actions",
-        "primary_components": ["hero", "button"],
+        "primary_components": ["hero", "button", "card"],
         "supporting_components": ["stats-card", "navigation/tab-bar", "badge"],
         "states": ["default", "feature-flagged", "loading", "error"],
         "token_constraints": ["Color.navy", "Color.appPrimary", "Color.surface"],
@@ -970,7 +970,7 @@ def generate_screen_instruction(screen_id: str) -> ScreenInstruction:
     return ScreenInstruction(
         screen_id=screen_id,
         page=page,
-        platform=platform.upper(),
+        platform=PLATFORM_CANONICAL_NAMES.get(platform, platform.title()),
         surface=content_model["surface"],
         layout_archetype=content_model["layout_archetype"],
         layout_pattern=content_model["layout_pattern"],
@@ -1040,8 +1040,8 @@ def build_sections_payload(instruction: ScreenInstruction) -> list[dict[str, Any
 def _frame_instruction_name(instruction: ScreenInstruction, node: ComponentNodeSpec) -> str:
     """Return a stable frame name for one component-hierarchy node."""
     if node.parent_component_id is None:
-        platform_name = PLATFORM_DISPLAY_NAMES.get(
-            instruction.platform, instruction.platform.title()
+        platform_name = PLATFORM_CANONICAL_NAMES.get(
+            instruction.platform.lower(), instruction.platform.title()
         )
         return f"{platform_name} {instruction.screen_id.split('.')[1].title()} Screen"
     return node.component_id
@@ -1072,7 +1072,7 @@ def _frame_instruction_payload(
 
 def _button_states_for_node(cta: CTASpec, node: ComponentNodeSpec) -> list[str]:
     """Return explicit button states for one CTA node."""
-    states = list(cta.states)
+    states = [state for state in cta.states if not (cta.platform == "iOS" and state == "hover")]
     if node.semantic_role == "flagged_cta" and "feature-flagged" not in states:
         states.append("feature-flagged")
     return states
@@ -1106,17 +1106,10 @@ def _button_instruction_payload(
 
 def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
     """Convert instruction to JSON-serializable dict."""
-    component_order = {
-        node.component_id: index for index, node in enumerate(instruction.component_hierarchy)
-    }
     ctas_by_source_ref = {f"cta:{cta.cta_id}": cta for cta in instruction.ctas}
 
     instruction_payload: list[dict[str, Any]] = []
-    for node in instruction.component_hierarchy:
-        order = component_order.get(node.component_id)
-        if order is None:
-            raise ValueError(f"Missing component order for {node.component_id}")
-
+    for order, node in enumerate(instruction.component_hierarchy):
         if node.canonical_component == "button":
             cta = ctas_by_source_ref.get(node.source_ref)
             if cta is None:

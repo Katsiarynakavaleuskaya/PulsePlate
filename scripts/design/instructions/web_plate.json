@@ -1,7 +1,7 @@
 {
   "screen_id": "web.plate",
   "page": "20_Web_Parity",
-  "platform": "WEB",
+  "platform": "Web",
   "surface": "web_plate_screen",
   "layout_archetype": "content_shell",
   "layout_pattern": "content-card-with-upgrade-actions",

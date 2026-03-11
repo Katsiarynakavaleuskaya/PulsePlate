@@ -1,7 +1,7 @@
 {
   "screen_id": "web.progress",
   "page": "20_Web_Parity",
-  "platform": "WEB",
+  "platform": "Web",
   "surface": "web_progress_screen",
   "layout_archetype": "dashboard_shell",
   "layout_pattern": "dashboard-detail-stack",

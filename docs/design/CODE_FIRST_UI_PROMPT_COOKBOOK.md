@@ -8,10 +8,15 @@ Scope: Assemble deterministic UI specs from canonical vocabulary
 
 This cookbook converts a loose UI request into a governed screen specification.
 
-Use it after selecting canonical component names from:
+Use it after two prerequisite steps:
+
+1. resolve canonical component names from:
 
 - `docs/design/UI_COMPONENT_VOCABULARY.md`
 - `docs/design/ui_component_vocabulary.json`
+2. draft the brief with:
+
+- `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
 
 It is the default prompt assembly layer for code-first design work in
 PulsePlate.
@@ -37,7 +42,8 @@ Every brief must include these fields:
 - `constraints`
 - `forbidden_generic_patterns`
 
-Use `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` when drafting the brief.
+Hard rule: the screen brief template is filled first, then this cookbook is
+used to assemble the final governed spec.
 
 ## 3. Output contract
 
@@ -57,7 +63,7 @@ Every assembled spec must return these sections in this order:
 
 ### Step 1. Lock surface and goal
 
-Start with:
+Start from the completed screen brief template and then lock:
 
 - platform: `web-first, iOS-aware` by default
 - primary job to be done

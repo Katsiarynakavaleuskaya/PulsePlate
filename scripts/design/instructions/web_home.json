@@ -1,7 +1,7 @@
 {
   "screen_id": "web.home",
   "page": "20_Web_Parity",
-  "platform": "WEB",
+  "platform": "Web",
   "surface": "web_home_screen",
   "layout_archetype": "hero_shell",
   "layout_pattern": "hero-plus-status-grid",

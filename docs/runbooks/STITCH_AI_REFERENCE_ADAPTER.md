@@ -9,7 +9,7 @@ Scope: Optional intake of Stitch concepts into PulsePlate's code-first UI workfl
 Define how `Stitch` may inform PulsePlate UI work without becoming a source of
 truth.
 
-This adapter is reference-only. It does not authorize direct promotion of
+This adapter is a reference lane only. It does not authorize direct promotion of
 external outputs into runtime code, token contracts, or design governance.
 
 ## 2. Source precedence
@@ -105,6 +105,7 @@ A card with chips and a popup menu under a hero block.
 
 Normalized output:
 
+- `layout_archetype: hero-plus-sections`
 - `hero`
 - `card`
 - `badge`

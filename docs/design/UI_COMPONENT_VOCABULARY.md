@@ -74,8 +74,9 @@ Naming convention:
 
 - `id` is the programmatic identifier and uses underscores, for example
   `radio_group` or `form_field`
-- `canonical_name` is the human-facing normalized reference and uses hyphens,
-  for example `radio-group` or `form-field`
+- `canonical_name` is the human-facing normalized reference; use hyphens for
+  single primitives and `/` for hierarchical families, for example
+  `radio-group`, `form-field`, or `navigation/tab-bar`
 
 ## 4. Status semantics
 

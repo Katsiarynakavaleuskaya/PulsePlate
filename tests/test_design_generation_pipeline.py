@@ -12,10 +12,11 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
     instruction = generate_figma_instructions.generate_screen_instruction("ios.home")
     payload = generate_figma_instructions.instruction_to_dict(instruction)
 
+    assert payload["platform"] == "iOS"
     assert payload["surface"] == "ios_home_screen"
     assert payload["layout_archetype"] == "hero_shell"
     assert payload["layout_pattern"] == "hero-plus-quick-actions"
-    assert payload["primary_components"] == ["hero", "button"]
+    assert payload["primary_components"] == ["hero", "button", "card"]
     assert payload["supporting_components"] == [
         "stats-card",
         "navigation/tab-bar",
@@ -42,7 +43,13 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
         for item in payload["instructions"]
         if item.get("component_id") == "node:ios.home.weekly_plan_reader"
     )
+    primary_button = next(
+        item
+        for item in payload["instructions"]
+        if item.get("component_id") == "node:ios.home.bmi_calculator"
+    )
     assert "feature-flagged" in flagged_button["states"]
+    assert "hover" not in primary_button["states"]
     assert payload["instructions"][0]["name"] == "iOS Home Screen"
 
 
@@ -137,6 +144,27 @@ def test_execute_instruction_uses_deterministic_adapter_metadata() -> None:
     assert any(
         node["component_id"] == "node:web.progress.export_pdf" for node in result["created_nodes"]
     )
+
+
+def test_platform_specific_button_states_and_platform_labels() -> None:
+    ios_payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("ios.progress")
+    )
+    web_payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+
+    ios_button = next(
+        item for item in ios_payload["instructions"] if item["type"] == "create_button"
+    )
+    web_button = next(
+        item for item in web_payload["instructions"] if item["type"] == "create_button"
+    )
+
+    assert ios_payload["platform"] == "iOS"
+    assert web_payload["platform"] == "Web"
+    assert "hover" not in ios_button["states"]
+    assert "hover" in web_button["states"]
 
 
 def test_verify_screen_distinguishes_not_executed(
