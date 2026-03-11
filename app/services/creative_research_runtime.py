@@ -36,6 +36,7 @@ from app.security.server_salt import require_server_salt
 from app.telemetry.genai import finalize_llm_span, llm_span, set_attributes
 from core.compliance import get_transparency_registry
 from core.creative_research import (
+    CONFIDENCE_LEVELS,
     SCHEMA_VERSION,
     TASK_CLASS,
     CreativeResearchBundleRecord,
@@ -153,7 +154,7 @@ def _normalize_provider_candidate(
     """Normalize provider output into the creative-research contract."""
 
     confidence = str(candidate.get("confidence", "unknown")).strip().lower() or "unknown"
-    if confidence not in {"low", "medium", "high", "unknown"}:
+    if confidence not in CONFIDENCE_LEVELS:
         confidence = "unknown"
     normalized_confidence = cast(CreativeResearchConfidence, confidence)
     known_risks_raw = candidate.get("known_risks", [])

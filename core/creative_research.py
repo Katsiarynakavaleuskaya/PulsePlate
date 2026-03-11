@@ -415,14 +415,15 @@ def classify_output(
 ) -> tuple[CreativeResearchOutputClass, list[str]]:
     """Return the deterministic output class and triggered control labels."""
 
+    candidate_required_values = {
+        "mechanism": candidate["mechanism"],
+        "evidence_needed": candidate["evidence_needed"],
+        "falsifier": candidate["falsifier"],
+    }
     missing_required = [
         field_name
-        for field_name, value in (
-            ("mechanism", candidate["mechanism"]),
-            ("evidence_needed", candidate["evidence_needed"]),
-            ("falsifier", candidate["falsifier"]),
-        )
-        if not value.strip()
+        for field_name in DISCOVERY_REQUIRED_FIELDS
+        if not candidate_required_values[field_name].strip()
     ]
     controls: list[str] = []
     if missing_required:
