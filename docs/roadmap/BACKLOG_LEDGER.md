@@ -280,7 +280,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-DESIGN-TOKEN-LOCK-CI
   - Status: 📋 Planned
-  - Area: design-system / frontend / ios / CI
+  - Area: design-system / frontend / iOS / CI
   - Finding Type: deterministic build-governance gap
   - Reason (EN): The repo now has token-pipeline governance and generated runtime mirrors, but it still does not have a canonical build-from-lock contract. There is no enforced `tokens.lock.json`, no explicit artifact-from-lock-only rule, and no release/rollback playbook for token changes across web and iOS.
   - Links:
@@ -299,7 +299,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
   - Status: 📋 Planned
-  - Area: ios / payments / thin-client policy
+  - Area: iOS / payments / thin-client policy
   - Finding Type: monetization runtime follow-through
   - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
   - Links:
@@ -317,7 +317,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-IOS-SUBSCRIPTION-OFFERS-GOVERNANCE
   - Status: 📋 Planned
-  - Area: ios / billing / App Store / growth
+  - Area: iOS / billing / App Store / growth
   - Finding Type: release-governance gap
   - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
   - Links:
@@ -377,8 +377,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: observability foundation gap
   - Reason (EN): Search and retrieval performance are still hard to diagnose end-to-end. The repo has tracing policy/docs, but it does not yet define a canonical package for correlated HTTP/DB/search traces, daily synthetic probes, and SLOs split by query class.
   - Links:
-    - `docs/observability/GENAI_TRACING_POLICY.md`
     - `docs/analytics/README.md`
+    - `docs/analytics/METRICS_CATALOG.md`
     - `docs/plan/PR_WS_OBSERVABILITY_TASK_ANALYSIS.md`
   - DoD:
     - Canonical observability doc defines trace correlation, search/query-class tagging, and `X-Trace-Id` response contract if adopted
@@ -393,7 +393,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 📋 Planned
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
-  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestable records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
+  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestible records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
   - Links:
     - `scripts/build_food_db.py`
     - `docs/roadmap/GLOBAL_ROADMAP.md`
@@ -416,10 +416,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/observability/GENAI_TRACING_POLICY.md`
     - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
+    - `core/insight/philosophy_validator.py`
     - `AGENTS.md`
   - DoD:
     - Canonical evaluation package defines required retrieval/faithfulness/security/privacy checks and where they run
     - Prompt-injection and untrusted-context posture is covered by explicit CI or release-gate tests
+    - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
     - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
 
 <a id="ledger-p1-apple-server-api-migration"></a>
