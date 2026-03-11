@@ -17,18 +17,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Available screens
-AVAILABLE_SCREENS = [
-    "ios.home",
-    "ios.plate",
-    "ios.progress",
-    "web.home",
-    "web.plate",
-    "web.progress",
-]
+AVAILABLE_SCREENS = list(SUPPORTED_SCREENS)
 
 
 def load_manifest() -> dict[str, Any]:
@@ -73,6 +70,15 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
         result["errors"].append(f"Instruction not found: {e}")
         return result
 
+    contract_errors = validate_instruction_contract(instruction)
+    if contract_errors:
+        result["status"] = "error"
+        result["errors"].extend(contract_errors)
+        result["checks"].append({"check": "instruction_contract", "status": "fail"})
+        return result
+
+    result["checks"].append({"check": "instruction_contract", "status": "pass"})
+
     # Check if screen exists in manifest exports
     exports = manifest.get("exports", [])
     screen_export = next((e for e in exports if e.get("screen_id") == screen_id), None)
@@ -84,6 +90,24 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
         return result
 
     result["checks"].append({"check": "manifest_entry", "status": "present"})
+
+    if screen_export.get("surface") == instruction.get("surface"):
+        result["checks"].append({"check": "surface", "status": "pass"})
+    else:
+        result["checks"].append({"check": "surface", "status": "fail"})
+        result["errors"].append(
+            "Manifest surface mismatch: "
+            f"expected {instruction.get('surface')}, got {screen_export.get('surface')}"
+        )
+
+    if screen_export.get("layout_pattern") == instruction.get("layout_pattern"):
+        result["checks"].append({"check": "layout_pattern", "status": "pass"})
+    else:
+        result["checks"].append({"check": "layout_pattern", "status": "fail"})
+        result["errors"].append(
+            "Manifest layout_pattern mismatch: "
+            f"expected {instruction.get('layout_pattern')}, got {screen_export.get('layout_pattern')}"
+        )
 
     # Verify instruction count matches
     expected_count = len(instruction.get("instructions", []))

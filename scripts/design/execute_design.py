@@ -18,6 +18,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -37,7 +42,7 @@ def load_instruction(screen_id: str) -> dict[str, Any]:
 
 def validate_governance(instruction: dict[str, Any]) -> list[str]:
     """Validate instruction against governance rules."""
-    errors = []
+    errors = validate_instruction_contract(instruction)
     checks = instruction.get("governance_checks", [])
 
     # Token usage check
@@ -51,15 +56,7 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     # HPP compliance check
     if "verify_hpp_compliance" in checks:
         screen_id = instruction.get("screen_id", "")
-        valid_screens = [
-            "ios.home",
-            "ios.plate",
-            "ios.progress",
-            "web.home",
-            "web.plate",
-            "web.progress",
-        ]
-        if screen_id not in valid_screens:
+        if screen_id not in SUPPORTED_SCREENS:
             errors.append(f"Screen {screen_id} not in H+P+Pr scope")
 
     # CTA registry check
@@ -92,6 +89,9 @@ def simulate_mcp_execution(instruction: dict[str, Any]) -> dict[str, Any]:
         "screen_id": screen_id,
         "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "status": "simulated",
+        "surface": instruction.get("surface"),
+        "layout_pattern": instruction.get("layout_pattern"),
+        "simulation_mode": "deterministic_contract_stub",
         "created_nodes": [],
         "mcp_calls": [],
     }
@@ -112,6 +112,7 @@ def simulate_mcp_execution(instruction: dict[str, Any]) -> dict[str, Any]:
                 "name": inst_name,
                 "node_id": f"simulated:{screen_id}:{i}",
                 "status": "pending_real_execution",
+                "canonical_component": inst.get("canonical_component"),
             }
         )
 
@@ -140,6 +141,9 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "screen_id": screen_id,
         "executed_at": results.get("executed_at"),
         "status": results.get("status"),
+        "surface": results.get("surface"),
+        "layout_pattern": results.get("layout_pattern"),
+        "simulation_mode": results.get("simulation_mode"),
         "node_count": len(results.get("created_nodes", [])),
         "nodes": results.get("created_nodes", []),
     }

@@ -19,6 +19,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from scripts.design.contracts import validate_instruction_contract
+
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -49,8 +54,14 @@ class ScreenInstruction:
     screen_id: str
     page: str
     platform: str
+    surface: str
+    layout_pattern: str
+    primary_components: list[str]
+    supporting_components: list[str]
+    states: list[str]
     dimensions: dict[str, int]
     background_token: str
+    token_constraints: list[str]
     ctas: list[CTASpec]
     governance_checks: list[str]
     context_version: str = ""
@@ -70,6 +81,57 @@ PAGE_MAPPING = {
     "web.home": "20_Web_Parity",
     "web.plate": "20_Web_Parity",
     "web.progress": "20_Web_Parity",
+}
+
+SCREEN_CONTENT_MODEL = {
+    "ios.home": {
+        "surface": "ios_home_screen",
+        "layout_pattern": "hero-plus-quick-actions",
+        "primary_components": ["hero", "button"],
+        "supporting_components": ["stats-card", "navigation/tab-bar", "badge"],
+        "states": ["default", "feature-flagged", "loading", "error"],
+        "token_constraints": ["Color.navy", "Color.appPrimary", "Color.surface"],
+    },
+    "ios.plate": {
+        "surface": "ios_plate_screen",
+        "layout_pattern": "content-card-with-primary-actions",
+        "primary_components": ["card", "button"],
+        "supporting_components": ["badge", "dialog", "progress"],
+        "states": ["default", "issue-recovery", "loading", "error"],
+        "token_constraints": ["Color.navy", "Color.surface", "Color.appPrimary"],
+    },
+    "ios.progress": {
+        "surface": "ios_progress_screen",
+        "layout_pattern": "dashboard-summary-stack",
+        "primary_components": ["progress", "button"],
+        "supporting_components": ["stats-card", "empty-state", "alert"],
+        "states": ["default", "empty", "loading", "error"],
+        "token_constraints": ["Color.navy", "Color.surface", "Color.accentGreen"],
+    },
+    "web.home": {
+        "surface": "web_home_screen",
+        "layout_pattern": "hero-plus-status-grid",
+        "primary_components": ["hero", "button"],
+        "supporting_components": ["stats-card", "navigation/tab-bar", "badge"],
+        "states": ["default", "feature-flagged", "loading", "error"],
+        "token_constraints": ["--pp-navy", "--color-primary", "--color-surface"],
+    },
+    "web.plate": {
+        "surface": "web_plate_screen",
+        "layout_pattern": "content-card-with-upgrade-actions",
+        "primary_components": ["card", "button"],
+        "supporting_components": ["badge", "dialog", "progress"],
+        "states": ["default", "premium-gated", "loading", "error"],
+        "token_constraints": ["--pp-navy", "--color-primary", "--color-surface"],
+    },
+    "web.progress": {
+        "surface": "web_progress_screen",
+        "layout_pattern": "dashboard-detail-stack",
+        "primary_components": ["progress", "button"],
+        "supporting_components": ["stats-card", "tooltip", "alert"],
+        "states": ["default", "loading", "empty", "error", "export-success"],
+        "token_constraints": ["--pp-navy", "--color-success", "--color-surface"],
+    },
 }
 
 # CTA registry parsed from docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md
@@ -321,19 +383,31 @@ def generate_screen_instruction(screen_id: str) -> ScreenInstruction:
     dimensions = SCREEN_DIMENSIONS.get(platform, SCREEN_DIMENSIONS["web"])
     page = PAGE_MAPPING.get(screen_id, "20_Web_Parity")
     background_token = "--pp-navy" if platform == "web" else "Color.navy"
+    content_model = SCREEN_CONTENT_MODEL.get(screen_id)
+
+    if content_model is None:
+        raise ValueError(f"No content model found for screen: {screen_id}")
 
     return ScreenInstruction(
         screen_id=screen_id,
         page=page,
         platform=platform.upper(),
+        surface=content_model["surface"],
+        layout_pattern=content_model["layout_pattern"],
+        primary_components=content_model["primary_components"],
+        supporting_components=content_model["supporting_components"],
+        states=content_model["states"],
         dimensions=dimensions,
         background_token=background_token,
+        token_constraints=content_model["token_constraints"],
         ctas=ctas,
         governance_checks=[
             "verify_token_usage",
             "verify_hpp_compliance",
             "verify_cta_registry_match",
+            "verify_instruction_contract",
         ],
+        context_version="code-first-ui-v1",
     )
 
 
@@ -358,6 +432,9 @@ def validate_instruction(instruction: ScreenInstruction) -> list[str]:
     if instruction.dimensions["width"] <= 0 or instruction.dimensions["height"] <= 0:
         errors.append("Invalid screen dimensions")
 
+    instruction_dict = instruction_to_dict(instruction)
+    errors.extend(validate_instruction_contract(instruction_dict))
+
     return errors
 
 
@@ -367,8 +444,14 @@ def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
         "screen_id": instruction.screen_id,
         "page": instruction.page,
         "platform": instruction.platform,
+        "surface": instruction.surface,
+        "layout_pattern": instruction.layout_pattern,
+        "primary_components": instruction.primary_components,
+        "supporting_components": instruction.supporting_components,
+        "states": instruction.states,
         "dimensions": instruction.dimensions,
         "background_token": instruction.background_token,
+        "token_constraints": instruction.token_constraints,
         "governance_checks": instruction.governance_checks,
         "context_version": instruction.context_version,
         "instructions": [
@@ -377,6 +460,7 @@ def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
                 "name": f"{instruction.platform} {instruction.screen_id.split('.')[1].title()} Screen",
                 "dimensions": instruction.dimensions,
                 "background": instruction.background_token,
+                "canonical_component": "card",
             }
         ]
         + [
@@ -390,6 +474,7 @@ def instruction_to_dict(instruction: ScreenInstruction) -> dict[str, Any]:
                 "figma_node_id": cta.figma_node_id,
                 "prompt_stub": cta.prompt_stub,
                 "states": cta.states,
+                "canonical_component": "button",
             }
             for cta in instruction.ctas
         ],
