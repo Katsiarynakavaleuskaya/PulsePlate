@@ -5833,7 +5833,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_1114_FIXED_MAPPING.md`
   - DoD:
     - Verification-first gating prefers accepted RAG-backed answers with `verification_rate >= 0.7`
-    - Low-verification factual/deep outputs trigger at most one bounded rewrite before conservative fallback
+    - Low-verification factual/deep outputs trigger at most one bounded rewrite before a conservative fallback
     - Recursive and non-recursive paths preserve the current response contract and deterministic reason codes
     - The applied runtime change is validated by deterministic local oracles and merged through normal human-reviewed PR governance
 
