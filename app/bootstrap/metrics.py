@@ -94,8 +94,8 @@ def register_metrics(app: FastAPI) -> None:
         return
 
     # Starlette forbids adding middleware after the stack is built (first request).
-    # In that case, we must skip registration to avoid runtime errors in tests/teardown.
-    can_mutate = getattr(app, "middleware_stack", None) is None
+    # In that case, we must skip middleware registration to avoid runtime errors.
+    can_mutate_middleware = getattr(app, "middleware_stack", None) is None
 
     # Starlette does not expose a public middleware-registry API, so register_metrics()
     # still checks user_middleware/middleware_stack and keeps an app.state fallback
@@ -107,16 +107,17 @@ def register_metrics(app: FastAPI) -> None:
         is metrics_middleware
         for mw in getattr(app, "user_middleware", None) or []
     )
-    if not has_middleware and can_mutate:
+    if not has_middleware and can_mutate_middleware:
         app.middleware("http")(metrics_middleware)
         has_middleware = True
 
-    # Register /metrics endpoint (idempotent).
+    # Route registration remains safe after the stack is built, which is important
+    # for legacy import-order paths that bootstrap observability late.
     has_metrics_route = any(
         getattr(r, "path", None) == "/metrics" and "GET" in (getattr(r, "methods", None) or set())
         for r in getattr(app, "routes", None) or []
     )
-    if not has_metrics_route and can_mutate:
+    if not has_metrics_route:
         app.add_api_route("/metrics", metrics_endpoint, methods=["GET"], include_in_schema=False)
         has_metrics_route = True
 

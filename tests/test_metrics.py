@@ -9,9 +9,11 @@ from __future__ import annotations
 import re
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app
+from app.bootstrap.metrics import register_metrics
 
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
@@ -230,6 +232,56 @@ def test_metrics_json_fallback_when_exporter_raises(
     # RuntimeError during generate_latest() should return "Metrics export failed"
     assert data["error"] == "Metrics export failed"
     assert "detail" in data
+
+
+def test_register_metrics_adds_route_after_stack_is_built() -> None:
+    """Late bootstrap must still restore /metrics without mutating middleware."""
+
+    app_instance = FastAPI()
+
+    @app_instance.get("/")
+    def root() -> dict[str, str]:
+        return {"status": "ok"}
+
+    with TestClient(app_instance) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+
+    assert getattr(app_instance, "middleware_stack", None) is not None
+    before_user_middleware = len(getattr(app_instance, "user_middleware", []) or [])
+
+    register_metrics(app_instance)
+
+    metrics_routes = [
+        route
+        for route in app_instance.routes
+        if getattr(route, "path", None) == "/metrics"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+    assert len(metrics_routes) == 1
+    assert len(getattr(app_instance, "user_middleware", []) or []) == before_user_middleware
+
+    with TestClient(app_instance) as client:
+        metrics_response = client.get("/metrics")
+
+    assert metrics_response.status_code == 200
+
+
+def test_register_metrics_is_idempotent_for_route_registration() -> None:
+    """Repeated bootstrap calls must not duplicate the /metrics route."""
+
+    app_instance = FastAPI()
+
+    register_metrics(app_instance)
+    register_metrics(app_instance)
+
+    metrics_routes = [
+        route
+        for route in app_instance.routes
+        if getattr(route, "path", None) == "/metrics"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+    assert len(metrics_routes) == 1
 
 
 def test_metrics_hidden_from_openapi(client: TestClient) -> None:
