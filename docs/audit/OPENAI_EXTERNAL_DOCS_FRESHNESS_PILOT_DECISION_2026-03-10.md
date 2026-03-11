@@ -16,6 +16,14 @@ winner for live MCP integration in Codex/Cursor.
 not the first-choice pilot for this repo's OpenAI-first use case as of
 `10 March 2026`.
 
+Pilot owner and lifecycle:
+
+- Owner: `@katsiaryna_kavaleuskaya`
+- Timeline: one review cycle after PR `#1100`, then explicit keep/adjust/stop
+  decision
+- Ledger item:
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-openai-docs-freshness-pilot`
+
 Why:
 
 - PulsePlate already has deterministic repo context bootstrap and skill routing:
@@ -29,6 +37,18 @@ Why:
 - Official OpenAI guidance for new work points to the **Responses API**, which
   is the exact failure mode this pilot is trying to prevent:
   <https://platform.openai.com/docs/guides/responses-vs-chat-completions>.
+
+Exit criteria:
+
+- Success metric: on repeated OpenAI integration prompts, the chosen lane
+  produces Responses API-oriented, source-linked answers without invented
+  parameters.
+- Graduation criteria: the runbook stays accurate for one review cycle, at
+  least one durable insight is promoted through KPP, and the optional lane does
+  not require CI/runtime changes.
+- Rollback triggers: stale or unsafe auth guidance, repeated OpenAI lookup
+  misses versus official docs, or pressure to treat external caches/annotations
+  as repo canon.
 
 ---
 
@@ -52,7 +72,7 @@ Why:
 
 ---
 
-## 3. Pilot Inputs And Live Command Evidence
+## 3. Pilot Inputs And Spot-Check Evidence
 
 ### 3.1 Official OpenAI baseline
 
@@ -63,62 +83,41 @@ Why:
 
 ### 3.2 Context Hub CLI spot-check
 
-Command:
+Command: `npx -y @aisuite/chub --help`
 
-```bash
-npx -y @aisuite/chub --help
-```
-
-Observed output:
+Raw stdout:
 
 ```text
 Usage: chub [options] [command]
+
 Context Hub - search and retrieve LLM-optimized docs and skills
-Commands:
-  update
-  cache
-  search
-  get
-  build
-  feedback
-  annotate
 ```
 
-Command:
+Exit code: `0`
 
-```bash
-npx -y @aisuite/chub search openai --json
-```
+Command: `npx -y @aisuite/chub search openai --json`
 
-Observed output excerpt:
+Raw stdout:
 
-```json
+```text
 {
   "results": [
     {
-      "id": "openai/chat",
-      "name": "chat",
-      "description": "OpenAI API for text generation, chat completions, streaming, function calling, vision, embeddings, and assistants"
-    }
-  ]
-}
 ```
 
-Command:
+Exit code: `0`
 
-```bash
-npx -y @aisuite/chub search responses openai --json
-```
+Command: `npx -y @aisuite/chub search responses openai --json`
 
-Observed output:
+Raw stdout:
 
-```json
+```text
 {
   "results": [],
   "total": 0,
-  "query": "responses"
-}
 ```
+
+Exit code: `0`
 
 Interpretation:
 
@@ -128,21 +127,17 @@ Interpretation:
 
 ### 3.3 Context7 packaging spot-check
 
-Command:
+Command: `npx -y @upstash/context7-mcp --help`
 
-```bash
-npx -y @upstash/context7-mcp --help
-```
-
-Observed output:
+Raw stdout:
 
 ```text
 Usage: context7-mcp [options]
+
 Options:
-  --transport <stdio|http>
-  --port <number>
-  --api-key <key>
 ```
+
+Exit code: `0`
 
 Interpretation:
 
@@ -212,6 +207,8 @@ first local adoption target for this repo's OpenAI-first pilot.
    - `Context Hub` as the CLI/OSS comparator
 3. Reuse one OpenAI-first prompt pack for future spot-checks.
 4. Promote only durable findings through KPP.
+5. Track pilot graduation or rollback in
+   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-openai-docs-freshness-pilot`.
 
 ---
 

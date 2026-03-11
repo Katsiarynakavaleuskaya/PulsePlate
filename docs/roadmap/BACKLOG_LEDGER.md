@@ -1015,6 +1015,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P2
 
+<a id="ledger-p2-openai-docs-freshness-pilot"></a>
+- [ ] P2: Govern the OpenAI external docs freshness pilot lifecycle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1100
+  - Area: docs / orchestration / dev-agent tooling
+  - Finding Type: pilot lifecycle governance
+  - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
+    dev-agent work. The pilot must have explicit graduation and rollback gates
+    so it does not drift into hidden repo policy or CI/runtime scope.
+  - Links:
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md`
+    - `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/review/PR_1100_FIXED_MAPPING.md`
+  - Blockers:
+    - Need one full review cycle of real OpenAI-first usage evidence
+    - Need confirmation that external-docs guidance stays accurate without CI
+      coupling
+  - DoD:
+    - A follow-up decision records keep, adjust, or stop for the pilot after one
+      review cycle
+    - At least one durable workflow insight is either promoted through KPP or
+      explicitly marked as non-canonical
+    - The runbook stays aligned with the chosen auth model for Context7 and the
+      preferred invocation model for Context Hub
+    - No CI/runtime/production integration is introduced under this ledger item
+
 <a id="ledger-p2-dsar-transaction-neutral-helper"></a>
 - [ ] P2: Make internal DSAR delete helper transaction-neutral
   - Owner: @katsiaryna_kavaleuskaya

@@ -66,14 +66,23 @@ Do **not** treat `chub annotate` notes as canonical project memory.
 
 ## Codex Setup (Context7)
 
-Add this to your Codex MCP config:
+Preferred secure default:
+
+```bash
+export CONTEXT7_API_KEY="<set-in-your-shell>"
+```
+
+Then add this to your Codex MCP config:
 
 ```toml
 [mcp_servers.context7]
-args = ["-y", "@upstash/context7-mcp", "--api-key", "ctx7-demo-value"]
+args = ["-y", "@upstash/context7-mcp"]
 command = "npx"
 startup_timeout_ms = 20_000
 ```
+
+If your Codex client supports a hosted MCP flow, prefer a remote config so no
+CLI flag carries the secret.
 
 Remote alternative:
 
@@ -86,6 +95,7 @@ http_headers = { "<context7-auth-header>" = "ctx7-demo-value" }
 Notes:
 
 - do not commit API keys
+- prefer shell environment variables or hosted-header auth over CLI flags
 - replace `<context7-auth-header>` with the provider's documented auth header
 - restart Codex after config changes
 - if `npx` startup times out, raise `startup_timeout_ms` before changing lanes
@@ -93,6 +103,13 @@ Notes:
 ## Cursor Setup (Context7)
 
 Prefer a **project-scoped** config when testing inside this repo.
+
+If you run the local `npx` server, export the key in your shell before starting
+Cursor:
+
+```bash
+export CONTEXT7_API_KEY="<set-in-your-shell>"
+```
 
 Example `.cursor/mcp.json` shape:
 
@@ -104,13 +121,25 @@ Example `.cursor/mcp.json` shape:
     },
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp", "--api-key", "ctx7-demo-value"]
+      "args": ["-y", "@upstash/context7-mcp"]
     }
   }
 }
 ```
 
-Remote alternative:
+Hosted alternative:
+
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp/oauth"
+    }
+  }
+}
+```
+
+Header-based fallback:
 
 ```json
 {
@@ -132,6 +161,10 @@ Install:
 ```bash
 npm install -g @aisuite/chub
 ```
+
+Preferred invocation in this runbook: use the global `chub` binary after
+install. Use `npx -y @aisuite/chub ...` only for one-off checks on machines
+where you do not want a global install.
 
 CLI checks:
 
@@ -212,7 +245,7 @@ and do not use legacy Chat Completions.
 
 ```bash
 npx -y @upstash/context7-mcp --help
-npx -y @aisuite/chub --help
-npx -y @aisuite/chub search openai --json
-npx -y @aisuite/chub search responses openai --json
+chub --help
+chub search openai --json
+chub search responses openai --json
 ```
