@@ -8,7 +8,8 @@ non-mutating and points developers to the documented recovery path.
 
 from __future__ import annotations
 
-import subprocess
+import importlib
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -26,28 +27,22 @@ REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
 )
 
 
-def _import_module_with_python(python_executable: Path, module_name: str) -> str | None:
-    """Return stderr/stdout text when a module import fails, else None."""
-    completed = subprocess.run(
-        [str(python_executable), "-c", "import importlib, sys; importlib.import_module(sys.argv[1])", module_name],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode == 0:
+def _import_module(module_name: str) -> str | None:
+    """Return error text when a module import fails, else None."""
+    try:
+        importlib.import_module(module_name)
         return None
-    details = (completed.stderr or completed.stdout).strip()
-    return details or f"import failed with exit code {completed.returncode}"
+    except Exception as exc:  # pragma: no cover - exercised through public helpers
+        return str(exc)
 
 
 def collect_missing_modules(
-    python_executable: Path,
     required_modules: tuple[tuple[str, str], ...] = REQUIRED_MODULES,
 ) -> list[tuple[str, str, str]]:
     """Return missing module records as (module_name, verify_stage, error)."""
     missing: list[tuple[str, str, str]] = []
     for module_name, verify_stage in required_modules:
-        error = _import_module_with_python(python_executable, module_name)
+        error = _import_module(module_name)
         if error is not None:
             missing.append((module_name, verify_stage, error))
     return missing
@@ -82,10 +77,21 @@ def main() -> int:
         print("ERROR: .venv is missing. Run `make venv` before `make verify`.")
         return 1
 
-    missing_modules = collect_missing_modules(VENV_PYTHON)
+    current_python = Path(sys.executable).resolve()
+    if not current_python.samefile(VENV_PYTHON):
+        print("ERROR: verify-env must run inside the repo .venv interpreter.")
+        print(f"Expected venv interpreter: {VENV_PYTHON}")
+        print(f"Current interpreter: {current_python}")
+        print("Recovery:")
+        print("- Run `make verify` or `make verify-env` from repo root")
+        print("- If the venv is missing, run `make venv`")
+        print("- If the venv drifted, run `make venv-sync`")
+        return 1
+
+    missing_modules = collect_missing_modules()
     if missing_modules:
         for line in build_failure_output(
-            python_executable=VENV_PYTHON,
+            python_executable=current_python,
             missing_modules=missing_modules,
         ):
             print(line)

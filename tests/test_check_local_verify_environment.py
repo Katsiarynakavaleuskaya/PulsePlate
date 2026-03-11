@@ -8,15 +8,14 @@ import scripts.ci.check_local_verify_environment as env_gate
 
 
 def test_collect_missing_modules_returns_only_failed_imports(monkeypatch) -> None:
-    def fake_import(python_executable: Path, module_name: str) -> str | None:
+    def fake_import(module_name: str) -> str | None:
         if module_name == "coverage":
             return "No module named 'coverage'"
         return None
 
-    monkeypatch.setattr(env_gate, "_import_module_with_python", fake_import)
+    monkeypatch.setattr(env_gate, "_import_module", fake_import)
 
     missing = env_gate.collect_missing_modules(
-        Path("/tmp/fake-python"),
         (
             ("pytest", "test-fast"),
             ("coverage", "diff-cov"),
@@ -53,6 +52,27 @@ def test_main_fails_when_venv_is_missing(monkeypatch, capsys, tmp_path: Path) ->
     assert "Run `make venv` before `make verify`." in captured.out
 
 
+def test_main_fails_when_running_outside_repo_venv(
+    monkeypatch,
+    capsys,
+    tmp_path: Path,
+) -> None:
+    fake_python = tmp_path / ".venv" / "bin" / "python"
+    fake_python.parent.mkdir(parents=True)
+    fake_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
+    system_python = tmp_path / "system-python"
+    system_python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(env_gate.sys, "executable", str(system_python))
+
+    result = env_gate.main()
+
+    assert result == 1
+    captured = capsys.readouterr()
+    assert "verify-env must run inside the repo .venv interpreter." in captured.out
+
+
 def test_main_fails_when_verify_dependencies_are_missing(
     monkeypatch,
     capsys,
@@ -63,10 +83,11 @@ def test_main_fails_when_verify_dependencies_are_missing(
     fake_python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
+    monkeypatch.setattr(env_gate.sys, "executable", str(fake_python))
     monkeypatch.setattr(
         env_gate,
         "collect_missing_modules",
-        lambda python_executable: [
+        lambda: [
             ("diff_cover", "diff-cov", "No module named 'diff_cover'"),
         ],
     )
@@ -89,7 +110,8 @@ def test_main_passes_when_venv_and_dependencies_are_ready(
     fake_python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
-    monkeypatch.setattr(env_gate, "collect_missing_modules", lambda python_executable: [])
+    monkeypatch.setattr(env_gate.sys, "executable", str(fake_python))
+    monkeypatch.setattr(env_gate, "collect_missing_modules", lambda: [])
 
     result = env_gate.main()
 

@@ -138,7 +138,8 @@ typecheck: ## Run mypy typecheck on app and core
 ## Fail-fast local dependency parity check for make verify
 verify-env: ## Check .venv for verify-critical locked dependencies
 	@echo "$(YELLOW)🧰 Проверка parity локального verify-окружения...$(NC)"
-	python3 scripts/ci/check_local_verify_environment.py
+	@test -x .venv/bin/python || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	. .venv/bin/activate && python scripts/ci/check_local_verify_environment.py
 	@echo "$(GREEN)✅ Verify-окружение готово$(NC)"
 
 ## Full verification gate (all checks must pass before push)
