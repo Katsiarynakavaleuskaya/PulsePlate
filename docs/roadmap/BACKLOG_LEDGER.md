@@ -1072,10 +1072,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P2
 
 <a id="ledger-p2-openai-docs-freshness-pilot"></a>
-- [ ] P2: Govern the OpenAI external docs freshness pilot lifecycle
+- [x] P2: Govern the OpenAI external docs freshness pilot lifecycle
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1100 -> PR-TBD-OPENAI-DOCS-FRESHNESS-PILOT-FOLLOWUP
+  - Target PR: PR #1100 -> PR #1108
+  - Status: ✅ Closed after merged PR #1100; recorded in PR #1108 (`keep narrow`; review-cycle close-out only)
   - Area: docs / orchestration / dev-agent tooling
   - Finding Type: pilot lifecycle governance
   - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
@@ -1083,10 +1084,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     so it does not drift into hidden repo policy or CI/runtime scope.
   - Links:
     - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md`
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md`
     - `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
     - `docs/dev/CODEX_SKILLS.md`
     - `docs/memory/kpp_knowledge_promotion_pipeline.md`
     - `docs/review/PR_1100_FIXED_MAPPING.md`
+    - `docs/review/PR_1108_FIXED_MAPPING.md`
   - Blockers:
     - Need one full review cycle of real OpenAI-first usage evidence
     - Need confirmation that external-docs guidance stays accurate without CI
