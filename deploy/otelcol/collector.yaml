@@ -13,12 +13,12 @@ processors:
         value: prod
 
 exporters:
-  logging:
-    loglevel: warn
+  debug:
+    verbosity: basic
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [attributes, batch]
-      exporters: [logging]
+      exporters: [debug]

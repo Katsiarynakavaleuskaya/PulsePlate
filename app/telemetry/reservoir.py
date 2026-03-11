@@ -1,4 +1,4 @@
-"""Hourly reservoir for bounded full-payload capture."""
+"""Hourly quota for bounded full-payload capture."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Callable
 
 
 class HourlyReservoir:
-    """Fixed-size per-hour reservoir with deterministic reset boundaries."""
+    """Fixed-size per-hour capture quota with deterministic reset boundaries."""
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class HourlyReservoir:
         self.lock = threading.Lock()
 
     def take(self) -> bool:
-        """Consume one slot if available in the current hour."""
+        """Consume one quota slot if available in the current hour."""
 
         with self.lock:
             current_window = int(self._time_fn() // 3600)

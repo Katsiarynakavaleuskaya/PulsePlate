@@ -21,5 +21,6 @@
 ## Operating Rule
 
 - Detector hits can request full capture.
+- Detector-triggered requests still respect the hourly reservoir quota before vault storage.
 - Full capture still writes only encrypted artifacts to vault storage.
 - Spans retain detector names and pointer hashes only.

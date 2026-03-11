@@ -12,7 +12,7 @@
 - Bootstrap registration: `app/bootstrap/telemetry.py`
 - Sampling contract:
   - deterministic sampler: `app/telemetry/sampler.py`
-  - hourly reservoir: `app/telemetry/reservoir.py`
+  - hourly reservoir quota: `app/telemetry/reservoir.py`
   - detector escalation: `app/telemetry/detectors.py`
   - encrypted vault pointer storage: `app/telemetry/vault.py`
 - Existing Prometheus route metrics remain in place via `app/bootstrap/metrics.py`.
@@ -40,6 +40,12 @@
 - `TELEMETRY_CLIENT_DEBUG_FULL`
 - `TELEMETRY_VAULT_DIR`
 - `TELEMETRY_VAULT_KEY`
+
+## Capture Gating
+
+- Detector hits, QA debug capture, or deterministic sampler results may request full capture.
+- The hourly reservoir is a quota, not an automatic trigger. It limits how many already-requested full captures can reach encrypted vault storage in the current hour.
+- Request bodies are streamed to handlers normally. Telemetry only keeps a bounded preview while the body is being consumed, so routes that never read a body do not pay an eager buffering cost.
 
 ## Rollout Order
 

@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 from uuid import uuid4
 
 from fastapi import Request, Response
@@ -147,6 +147,32 @@ def _clone_request_with_body(request: Request, body: bytes) -> Request:
     return Request(request.scope, receive)
 
 
+def _clone_request_with_preview_buffer(
+    request: Request,
+    *,
+    preview_limit: int = MAX_CAPTURED_BODY_BYTES,
+) -> tuple[Request, bytearray]:
+    """Stream the request body downstream while caching a bounded preview.
+
+    RU: Телеметрия хранит только ограниченный preview и не буферизует весь body.
+    EN: Telemetry stores only a bounded preview and does not buffer the full body.
+    """
+
+    preview = bytearray()
+    upstream_receive = request.receive
+
+    async def receive() -> dict[str, Any]:
+        message = await upstream_receive()
+        if message.get("type") == "http.request":
+            chunk = message.get("body", b"")
+            if isinstance(chunk, bytes) and chunk and len(preview) < preview_limit:
+                remaining = preview_limit - len(preview)
+                preview.extend(chunk[:remaining])
+        return cast(dict[str, Any], message)
+
+    return Request(request.scope, receive), preview
+
+
 def _body_preview(value: bytes | None) -> str | None:
     """Return bounded text preview for encrypted artifact storage."""
 
@@ -156,12 +182,25 @@ def _body_preview(value: bytes | None) -> str | None:
     return preview.decode("utf-8", errors="replace")
 
 
+def _resolve_vault_capture_config() -> tuple[str | None, str | None]:
+    """Load vault capture config without dropping the lightweight span on failure."""
+
+    try:
+        vault_dir = telemetry_vault_dir()
+        vault_key = telemetry_vault_key()
+    except Exception:
+        logger.debug("Request telemetry vault configuration failed", exc_info=True)
+        return None, None
+    if not vault_dir or not vault_key:
+        return None, None
+    return str(vault_dir), str(vault_key)
+
+
 async def request_telemetry_middleware(request: Request, call_next: Any) -> Response:
     """Record lightweight request spans and rare encrypted capture pointers."""
 
     start = time.perf_counter()
-    body = await request.body()
-    cloned_request = _clone_request_with_body(request, body)
+    cloned_request, request_preview = _clone_request_with_preview_buffer(request)
     response: Response | None = None
     error: Exception | None = None
 
@@ -203,27 +242,25 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 )
 
             capture_reasons: list[str] = []
-            should_capture_full = False
+            capture_requested = False
             if detector_hits:
-                should_capture_full = True
+                capture_requested = True
                 capture_reasons.extend(f"detector:{hit}" for hit in detector_hits)
 
             if (
-                not should_capture_full
+                not capture_requested
                 and is_non_prod_environment()
                 and telemetry_client_debug_full_enabled()
                 and request.headers.get("X-Debug-Full") == "1"
             ):
-                should_capture_full = True
+                capture_requested = True
                 capture_reasons.append("debug_header")
 
-            if not should_capture_full and sample_decision.capture_full:
-                should_capture_full = True
+            if not capture_requested and sample_decision.capture_full:
+                capture_requested = True
                 capture_reasons.append("sampled")
 
-            if not should_capture_full and reservoir.take():
-                should_capture_full = True
-                capture_reasons.append("reservoir")
+            should_capture_full = capture_requested and reservoir.take()
 
             attributes: dict[str, Any] = {
                 "http.method": request.method.upper(),
@@ -237,12 +274,25 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                 "pp.tier": _extract_tier(request),
                 "pp.flags": _feature_flags_from_request(request),
                 "pp.detectors": list(detector_hits),
-                "pp.full_capture_requested": should_capture_full,
+                "pp.full_capture_requested": capture_requested,
                 "pp.client.platform": request.headers.get("X-Client-Platform", "unknown"),
             }
 
-            if should_capture_full and telemetry_vault_dir() and telemetry_vault_key():
+            vault_dir, vault_key = (None, None)
+            if should_capture_full:
+                vault_dir, vault_key = _resolve_vault_capture_config()
+
+            if should_capture_full and vault_dir and vault_key:
                 response_body = getattr(response, "body", None)
+                captured_request_body = bytes(request_preview)
+                if not captured_request_body:
+                    try:
+                        captured_request_body = await request.body()
+                    except Exception:
+                        logger.debug(
+                            "Request telemetry could not read deferred body", exc_info=True
+                        )
+                        captured_request_body = b""
                 capture_payload = {
                     "request": {
                         "method": request.method.upper(),
@@ -253,7 +303,7 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                             "x-client-platform": request.headers.get("X-Client-Platform"),
                             "x-api-tier": request.headers.get("X-Api-Tier"),
                         },
-                        "request_body": _body_preview(body),
+                        "request_body": _body_preview(captured_request_body),
                     },
                     "response": {
                         "status_code": status_code,
@@ -266,18 +316,33 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
                         "detector_hits": list(detector_hits),
                     },
                 }
-                pointer = store_capture_artifact(
-                    payload=capture_payload,
-                    vault_dir=str(telemetry_vault_dir()),
-                    encoded_key=str(telemetry_vault_key()),
-                )
-                attributes["pp.full_capture"] = True
-                attributes["pp.full_pointer_sha256"] = pointer.sha256
-                attributes["pp.full_capture_reasons"] = capture_reasons
+                try:
+                    pointer = store_capture_artifact(
+                        payload=capture_payload,
+                        vault_dir=vault_dir,
+                        encoded_key=vault_key,
+                    )
+                except Exception:
+                    logger.debug("Request telemetry vault storage failed", exc_info=True)
+                    attributes["pp.full_capture"] = False
+                    attributes["pp.full_capture_reasons"] = [
+                        *capture_reasons,
+                        "vault_store_failed",
+                    ]
+                else:
+                    attributes["pp.full_capture"] = True
+                    attributes["pp.full_pointer_sha256"] = pointer.sha256
+                    attributes["pp.full_capture_reasons"] = capture_reasons
             else:
                 attributes["pp.full_capture"] = False
                 if capture_reasons:
-                    attributes["pp.full_capture_reasons"] = capture_reasons
+                    failure_reason = None
+                    if should_capture_full and (not vault_dir or not vault_key):
+                        failure_reason = "vault_config_failed"
+                    attributes["pp.full_capture_reasons"] = [
+                        *capture_reasons,
+                        *([failure_reason] if failure_reason else []),
+                    ]
 
             recorder.record(
                 RequestTelemetrySpan(

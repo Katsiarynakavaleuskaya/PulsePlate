@@ -13,10 +13,12 @@ from starlette.requests import Request as StarletteRequest
 from app.bootstrap.telemetry import register_request_telemetry
 from app.middleware.request_telemetry import (
     _clone_request_with_body,
+    _clone_request_with_preview_buffer,
     _extract_tier,
     _feature_flags_from_request,
     _get_recorder,
     build_request_fingerprint,
+    request_telemetry_middleware,
 )
 from app.telemetry.detectors import DetectorContext, evaluate_capture_detectors
 from app.telemetry.reservoir import HourlyReservoir
@@ -120,6 +122,36 @@ def test_request_helper_paths_cover_flags_tier_and_cached_body() -> None:
     assert anyio.run(cloned_request.body) == b'{"ok":true}'
 
 
+def test_preview_buffer_streams_request_body_without_full_buffering() -> None:
+    messages = iter(
+        [
+            {"type": "http.request", "body": b"abcdef", "more_body": True},
+            {"type": "http.request", "body": b"ghijkl", "more_body": False},
+        ]
+    )
+
+    async def receive() -> dict[str, object]:
+        return next(messages)
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/preview-buffer",
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/json")],
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("testclient", 50000),
+        "root_path": "",
+    }
+    request = StarletteRequest(scope, receive)
+
+    cloned_request, preview = _clone_request_with_preview_buffer(request, preview_limit=5)
+
+    assert anyio.run(cloned_request.body) == b"abcdefghijkl"
+    assert bytes(preview) == b"abcde"
+
+
 def test_vault_field_resolution_and_hash_only_minimization() -> None:
     assert _resolve_field_name("root.provider_trace") == "provider_trace"
     assert _resolve_field_name("root.prompt") == "prompt"
@@ -177,6 +209,8 @@ def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
     attrs = spans[-1]["attributes"]
     assert attrs["pp.full_capture"] is True
     assert attrs["pp.full_pointer_sha256"]
+    assert "detector:low_confidence" in attrs["pp.full_capture_reasons"]
+    assert "detector:schema_mismatch" in attrs["pp.full_capture_reasons"]
     assert "provider@example.com" not in str(attrs)
     assert "migraine" not in str(attrs)
 
@@ -216,7 +250,9 @@ def test_debug_full_capture_requires_non_prod_flag(tmp_path: Path, monkeypatch) 
     response = client.get("/debug-capture", headers={"X-Debug-Full": "1"})
     assert response.status_code == 200
     spans = app.state.request_telemetry_recorder.snapshot()
-    assert spans[-1]["attributes"]["pp.full_capture"] is True
+    attrs = spans[-1]["attributes"]
+    assert attrs["pp.full_capture"] is True
+    assert "debug_header" in attrs["pp.full_capture_reasons"]
 
 
 def test_telemetry_fail_open_when_capture_storage_raises(tmp_path: Path, monkeypatch) -> None:
@@ -242,4 +278,94 @@ def test_telemetry_fail_open_when_capture_storage_raises(tmp_path: Path, monkeyp
 
     assert response.status_code == 200
     spans = app.state.request_telemetry_recorder.snapshot()
-    assert spans == []
+    assert len(spans) == 1
+    attrs = spans[-1]["attributes"]
+    assert attrs["pp.full_capture"] is False
+    assert "debug_header" in attrs["pp.full_capture_reasons"]
+    assert "vault_store_failed" in attrs["pp.full_capture_reasons"]
+
+
+def test_telemetry_fail_open_when_vault_config_is_invalid(monkeypatch) -> None:
+    app = FastAPI()
+    register_request_telemetry(app)
+
+    monkeypatch.setenv("TELEMETRY_VAULT_DIR", "/tmp/telemetry-invalid")
+    monkeypatch.setenv(
+        "TELEMETRY_VAULT_KEY",
+        base64.b64encode(b"0123456789abcdef0123456789abcdef").decode(  # pragma: allowlist secret
+            "utf-8"
+        ),
+    )
+    monkeypatch.setenv("TELEMETRY_CLIENT_DEBUG_FULL", "true")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RATE", "0")
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RESERVOIR_PER_HOUR", "1")
+    monkeypatch.setattr(
+        "app.middleware.request_telemetry.telemetry_vault_key",
+        lambda: (_ for _ in ()).throw(ValueError("invalid key")),
+    )
+
+    @app.get("/invalid-key")
+    async def invalid_key() -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    client = TestClient(app)
+    response = client.get("/invalid-key", headers={"X-Debug-Full": "1"})
+
+    assert response.status_code == 200
+    spans = app.state.request_telemetry_recorder.snapshot()
+    assert len(spans) == 1
+    attrs = spans[-1]["attributes"]
+    assert attrs["pp.full_capture"] is False
+    assert "debug_header" in attrs["pp.full_capture_reasons"]
+    assert "vault_config_failed" in attrs["pp.full_capture_reasons"]
+
+
+def test_middleware_handles_deferred_body_read_failure(tmp_path: Path, monkeypatch) -> None:
+    app = FastAPI()
+    register_request_telemetry(app)
+
+    encoded_key = base64.b64encode(b"0123456789abcdef0123456789abcdef").decode("utf-8")
+    monkeypatch.setenv("TELEMETRY_VAULT_DIR", str(tmp_path))
+    monkeypatch.setenv("TELEMETRY_VAULT_KEY", encoded_key)
+    monkeypatch.setenv("TELEMETRY_CLIENT_DEBUG_FULL", "true")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RATE", "0")
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RESERVOIR_PER_HOUR", "1")
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/deferred-body",
+        "query_string": b"",
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"x-debug-full", b"1"),
+        ],
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("testclient", 50000),
+        "root_path": "",
+        "app": app,
+    }
+    request = StarletteRequest(scope, receive)
+
+    async def broken_body() -> bytes:
+        raise RuntimeError("body stream unavailable")
+
+    object.__setattr__(request, "body", broken_body)
+
+    async def call_next(_: Request) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    response = anyio.run(request_telemetry_middleware, request, call_next)
+
+    assert response.status_code == 200
+    spans = app.state.request_telemetry_recorder.snapshot()
+    assert len(spans) == 1
+    attrs = spans[-1]["attributes"]
+    assert attrs["pp.full_capture"] is True
+    assert "debug_header" in attrs["pp.full_capture_reasons"]
