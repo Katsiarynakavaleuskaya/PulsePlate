@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Generator, Literal, Sequence
 
@@ -503,7 +504,7 @@ def test_cbt_tracing_emits_agent_retriever_and_llm_spans(
     monkeypatch: pytest.MonkeyPatch,
     tracing_exporter: InMemorySpanExporter,
     pro_headers: dict[str, str],
-    tmp_path: Any,
+    tmp_path: Path,
 ) -> None:
     """CBT route should emit AGENT, RETRIEVER, and LLM spans."""
 
