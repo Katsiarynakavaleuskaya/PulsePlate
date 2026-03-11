@@ -95,9 +95,20 @@ def test_phase2_guard_accepts_no_actionable_comments_marker() -> None:
 def test_phase2_guard_accepts_mirror_only_body_when_mapping_details_not_required() -> None:
     errors = gates.check_pr_body_phase2_gates(
         body=VALID_BODY_MIRROR_ONLY,
-        require_mapping_details=False,
+        mode=gates.BodyValidationMode.MIRROR_ONLY,
     )
     assert errors == []
+
+
+def test_select_body_validation_mode_prefers_mirror_when_artifact_exists() -> None:
+    assert (
+        gates._select_body_validation_mode(artifact_checked=True)
+        is gates.BodyValidationMode.MIRROR_ONLY
+    )
+    assert (
+        gates._select_body_validation_mode(artifact_checked=False)
+        is gates.BodyValidationMode.FULL_MAPPING
+    )
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:
@@ -269,9 +280,9 @@ Commit: abc1234
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
 
 
-def test_phase2_accepts_body_without_mapping_entries_when_artifact_is_valid(tmp_path: Path) -> None:
-    """Artifact-first mode should not require mirrored URL->SHA lines in the PR body."""
-    event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
+def test_phase2_rejects_empty_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
+    """Artifact-first mode still requires a non-empty body mirror."""
+    event = {"pull_request": {"number": 998, "body": ""}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
 
@@ -299,8 +310,8 @@ Commit: abc1234
         cwd=str(repo_root),
         env=env,
     )
-    assert result.returncode == 0
-    assert "canonical mapping artifact and PR body mirror passed" in result.stdout
+    assert result.returncode == 1
+    assert "ERROR: Empty PR body." in result.stdout
 
 
 def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
