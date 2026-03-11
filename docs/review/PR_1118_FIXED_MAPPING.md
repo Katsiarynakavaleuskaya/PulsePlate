@@ -50,6 +50,11 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-creative-research-domain-typing`
 Reason: tightening `core/creative_research.py` from `Any`/dict boundaries to explicit typed domain structures is valid follow-up work, but it would widen PR `#1118` beyond the bounded internal pilot scope.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2918957833 -> becd7897
+Disposition: FIXED
+Commit: becd7897
+Evidence: `docs/review/PR_1118_FIXED_MAPPING.md:4`, `docs/review/PR_1118_FIXED_MAPPING.md:5`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118#discussion_r2918957859
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1118-governance-closeout`
