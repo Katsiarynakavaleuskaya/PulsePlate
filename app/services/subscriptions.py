@@ -35,7 +35,11 @@ def list_subscriptions_for_user(
     session: Session,
     user_id: int,
 ) -> list[Subscription]:
-    """Return subscription rows for a user ordered by freshest persisted state."""
+    """Return all persisted subscription rows for the given user.
+
+    RU: Возвращает все persisted subscriptions пользователя.
+    EN: Returns all persisted subscriptions for a user.
+    """
 
     statement = (
         select(Subscription)
@@ -46,8 +50,8 @@ def list_subscriptions_for_user(
             desc(Subscription.id),
         )
     )
-    subscriptions = session.execute(statement).scalars().all()
-    return list(subscriptions)
+    subscriptions = list(session.execute(statement).scalars().all())
+    return subscriptions
 
 
 def get_audit_by_user_key(

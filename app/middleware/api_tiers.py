@@ -130,25 +130,27 @@ def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     return None
 
 
-def _parse_persisted_subscription_tier(raw_tier: object) -> SubscriptionTier | None:
-    """Convert persisted subscription tier values into authz tiers."""
+def _parse_persisted_subscription_tier(raw_tier: str) -> SubscriptionTier | None:
+    """Convert persisted billing tier string into authz tier enum."""
 
-    if not isinstance(raw_tier, str):
-        return None
     normalized = raw_tier.strip().lower()
-    mapping = {
-        PersistedSubscriptionTier.free.value: SubscriptionTier.FREE,
-        PersistedSubscriptionTier.pro.value: SubscriptionTier.PRO,
-        PersistedSubscriptionTier.vip.value: SubscriptionTier.VIP,
-    }
-    return mapping.get(normalized)
-
-
-def _parse_persisted_subscription_status(raw_status: object) -> PersistedSubscriptionStatus | None:
-    """Convert persisted subscription status values into enum members."""
-
-    if not isinstance(raw_status, str):
+    try:
+        persisted_tier = PersistedSubscriptionTier(normalized)
+    except ValueError:
         return None
+
+    return {
+        PersistedSubscriptionTier.free: SubscriptionTier.FREE,
+        PersistedSubscriptionTier.pro: SubscriptionTier.PRO,
+        PersistedSubscriptionTier.vip: SubscriptionTier.VIP,
+    }[persisted_tier]
+
+
+def _parse_persisted_subscription_status(
+    raw_status: str,
+) -> PersistedSubscriptionStatus | None:
+    """Convert persisted billing status string into canonical status enum."""
+
     normalized = raw_status.strip().lower()
     try:
         return PersistedSubscriptionStatus(normalized)
@@ -156,18 +158,18 @@ def _parse_persisted_subscription_status(raw_status: object) -> PersistedSubscri
         return None
 
 
-def _normalize_utc_datetime(raw_value: object) -> datetime | None:
-    """Normalize persisted datetimes to timezone-aware UTC values."""
+def _normalize_utc_datetime(value: datetime | None) -> datetime | None:
+    """Normalize naive/aware datetimes to UTC for deterministic expiry checks."""
 
-    if not isinstance(raw_value, datetime):
+    if value is None:
         return None
-    if raw_value.tzinfo is None:
-        return raw_value.replace(tzinfo=timezone.utc)
-    return raw_value.astimezone(timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _tier_rank(tier: SubscriptionTier) -> int:
-    """Return comparable rank for highest-entitlement selection."""
+    """Return deterministic rank for effective paid-tier resolution."""
 
     return {
         SubscriptionTier.FREE: 0,
@@ -177,12 +179,13 @@ def _tier_rank(tier: SubscriptionTier) -> int:
 
 
 def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
-    """Try to resolve API key tier from DB with explicit outcome.
+    """Try to resolve API key tier from persisted subscriptions with explicit outcome.
 
-    RU: Пытается определить tier из БД и возвращает статус lookup.
-    EN: Attempts to resolve tier from DB and returns structured status.
+    RU: Пытается определить entitlement из persisted subscriptions и возвращает статус lookup.
+    EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
     """
     try:
+        from app.services import subscriptions as subscriptions_store
         from core.db import get_session_factory
 
         user_id = derive_subject_id_from_api_key(api_key)
@@ -206,38 +209,42 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
     if not subscriptions:
         return DBLookupResult(status=DBLookupStatus.MISS)
 
-    active_tiers: list[SubscriptionTier] = []
-    saw_known_non_active_state = False
     now = datetime.now(timezone.utc)
+    saw_valid_state = False
+    saw_invalid_state = False
+    effective_tier = SubscriptionTier.FREE
 
     for subscription in subscriptions:
-        parsed_tier = _parse_persisted_subscription_tier(getattr(subscription, "tier", None))
-        parsed_status = _parse_persisted_subscription_status(getattr(subscription, "status", None))
+        parsed_tier = _parse_persisted_subscription_tier(subscription.tier)
+        parsed_status = _parse_persisted_subscription_status(subscription.status)
         if parsed_tier is None or parsed_status is None:
+            saw_invalid_state = True
             continue
 
-        if parsed_status is PersistedSubscriptionStatus.active:
-            expires_at = _normalize_utc_datetime(getattr(subscription, "expires_at", None))
-            if expires_at is not None and expires_at <= now:
-                saw_known_non_active_state = True
-                continue
-            active_tiers.append(parsed_tier)
+        saw_valid_state = True
+        if parsed_status is not PersistedSubscriptionStatus.active:
             continue
 
-        saw_known_non_active_state = True
+        expires_at = _normalize_utc_datetime(subscription.expires_at)
+        if expires_at is not None and expires_at <= now:
+            continue
 
-    if active_tiers:
-        highest_tier = max(active_tiers, key=_tier_rank)
-        return DBLookupResult(status=DBLookupStatus.HIT, tier=highest_tier)
+        if _tier_rank(parsed_tier) > _tier_rank(effective_tier):
+            effective_tier = parsed_tier
 
-    if saw_known_non_active_state:
-        return DBLookupResult(status=DBLookupStatus.HIT, tier=SubscriptionTier.FREE)
+    if saw_invalid_state:
+        logger.warning(
+            "Subscription DB lookup returned invalid persisted entitlement state; denying access",
+            extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
+        )
+        return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
 
-    logger.warning(
-        "Subscription DB lookup returned malformed persisted entitlement state",
-        extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
-    )
-    return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
+    if saw_valid_state:
+        return DBLookupResult(status=DBLookupStatus.HIT, tier=effective_tier)
+
+    # RU: Защитный хвост для типизатора; неожиданный непустой, но нейтральный набор трактуем как MISS.
+    # EN: Defensive tail for the type checker; treat any unexpected neutral non-empty set as MISS.
+    return DBLookupResult(status=DBLookupStatus.MISS)
 
 
 def _resolve_tier_from_env(

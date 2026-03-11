@@ -642,7 +642,8 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     if api_key:
         try:
             resolved_api_key = _require_api_key(api_key)
-            api_tiers_mod.require_vip_tier(x_api_key=resolved_api_key, request=request)
+            if api_tiers_mod._is_subscription_db_enabled():
+                api_tiers_mod.require_vip_tier(x_api_key=resolved_api_key, request=request)
             return resolved_api_key
         except HTTPException as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
