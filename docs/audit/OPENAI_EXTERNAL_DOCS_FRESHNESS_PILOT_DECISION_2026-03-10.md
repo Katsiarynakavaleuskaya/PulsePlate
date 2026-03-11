@@ -21,6 +21,8 @@ Pilot owner and lifecycle:
 - Owner: `@katsiaryna_kavaleuskaya`
 - Timeline: one review cycle after PR `#1100`, then explicit keep/adjust/stop
   decision
+- Review-cycle outcome on `11 March 2026`: **keep narrow**, recorded in
+  `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md`
 - Ledger item:
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-openai-docs-freshness-pilot`
 
@@ -49,6 +51,8 @@ Exit criteria:
 - Rollback triggers: stale or unsafe auth guidance, repeated OpenAI lookup
   misses versus official docs, or pressure to treat external caches/annotations
   as repo canon.
+- Follow-up closure record:
+  `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md`
 
 ---
 

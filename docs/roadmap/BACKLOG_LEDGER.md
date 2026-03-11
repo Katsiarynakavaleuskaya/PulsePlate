@@ -20,7 +20,6 @@ If it is not recorded here — it does not exist.
 4) Closing an item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
-
 ## Open Items
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
@@ -209,6 +208,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Signed provenance/SBOM verification is enforced before deploy
     - Follow-up docs and CI checks explicitly cover the restored path
 
+<a id="ledger-p1-canonical-bootstrap-late-rehydration"></a>
+- [ ] P1: Canonical app bootstrap late-rehydration hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime reliability follow-up after `/metrics` hotfix)
+  - Target PR: PR #1101 (`fix(metrics): restore late bootstrap route on main`) -> PR-TBD-CANONICAL-BOOTSTRAP-LATE-REHYDRATION
+  - Area: backend / bootstrap / observability
+  - Finding Type: import-order follow-up
+  - Reason: The `/metrics` hotfix restores late route registration on already-built apps, but it intentionally does not attempt full middleware rehydration after `middleware_stack` exists. A follow-up is needed to define and harden the canonical behavior for late bootstrap/import-order paths without reintroducing unsafe post-start middleware mutation.
+  - Links:
+    - `docs/review/PR_1101_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101`
+    - `app/main.py`
+    - `app/bootstrap/metrics.py`
+    - `tests/test_metrics.py`
+    - `tests/test_no_direct_testclient.py`
+  - DoD:
+    - Canonical late-bootstrap contract is documented for route vs middleware behavior
+    - Tests cover legacy/app-first import order for additive observability surfaces
+    - Direct TestClient bypass debt is reduced or explicitly re-audited against the canonical bootstrap contract
+
 <a id="ledger-p1-billing-activation-openapi-refinements"></a>
 - [ ] P1: Billing activation OpenAPI refinements after PR #1095
   - Owner: @katsiaryna_kavaleuskaya
@@ -247,6 +266,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Internal helper functions expose an explicit deletion plan for the `users` row instead of silently widening into full account deletion
     - No public DSAR endpoint is introduced before an explicit auth/ownership contract exists
     - Deterministic tests cover export + delete paths for `users`, `rag_feedback`, and `user_knowledge`
+
+<a id="ledger-p1-telemetry-maturity-follow-through"></a>
+- [ ] P1: Telemetry maturity follow-through for audited vault retrieval and budget dashboards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (post-foundation observability maturity)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): The telemetry foundation PR intentionally stops at lightweight spans plus encrypted pointer storage. Audited decrypt workflow, detector budget dashboards, and retention/DSR operating hooks remain deferred so the first runtime slice stays additive and low-risk.
+  - Links:
+    - `docs/telemetry/TELEMETRY_POLICY.md`
+    - `docs/telemetry/LLM_DETECTORS.md`
+    - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
+    - `deploy/otelcol/collector.yaml`
+  - DoD:
+    - Audited decrypt workflow exists for approved vault retrieval
+    - Dashboards cover span volume, full-capture rate, and detector distribution
+    - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
 <a id="ledger-p1-token-expansion-activation"></a>
 - [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
@@ -725,6 +763,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Allowlist reduced to 0 entries (or removed)
     - Each legacy `# nosec` either removed (fix) or converted to full format (Bxxx:, remove-by: date, ref:)
     - Guard no longer uses allowlist (or allowlist file removed)
+
+
 <a id="ledger-p1-compose-v2-migration"></a>
 - [ ] P1: Migrate command surface to `docker compose` v2 only
   - Owner: @katsiaryna_kavaleuskaya
@@ -735,7 +775,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: Repo command surfaces are mixed: some docs use `docker compose`, while `Makefile` and several runbooks still use `docker-compose`. This creates onboarding ambiguity and toolchain drift.
   - Links:
     - `Makefile`
-    - `deploy/WORKFLOW.md`
     - `docs/deploy/README.md`
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `AGENTS.md`
@@ -1031,6 +1070,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-openai-docs-freshness-pilot"></a>
+- [x] P2: Govern the OpenAI external docs freshness pilot lifecycle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1100 -> PR #1108
+  - Status: ✅ Closed after merged PR #1100; recorded in PR #1108 (`keep narrow`; review-cycle close-out only)
+  - Area: docs / orchestration / dev-agent tooling
+  - Finding Type: pilot lifecycle governance
+  - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
+    dev-agent work. The pilot must have explicit graduation and rollback gates
+    so it does not drift into hidden repo policy or CI/runtime scope.
+  - Links:
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md`
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md`
+    - `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/review/PR_1100_FIXED_MAPPING.md`
+    - `docs/review/PR_1108_FIXED_MAPPING.md`
+  - Blockers:
+    - Need one full review cycle of real OpenAI-first usage evidence
+    - Need confirmation that external-docs guidance stays accurate without CI
+      coupling
+  - DoD:
+    - A follow-up decision records keep, adjust, or stop for the pilot after one
+      review cycle
+    - At least one durable workflow insight is either promoted through KPP or
+      explicitly marked as non-canonical
+    - The runbook stays aligned with the chosen auth model for Context7 and the
+      preferred invocation model for Context Hub
+    - No CI/runtime/production integration is introduced under this ledger item
 
 <a id="ledger-p2-dsar-transaction-neutral-helper"></a>
 - [ ] P2: Make internal DSAR delete helper transaction-neutral
@@ -1986,7 +2057,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
     (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
   - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (cv-contract-agent role; degrade-state expectations)
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (`cv-agent`; degrade-state expectations)
     - `app/schemas/` (canonical schema patterns)
     - `frontend/src/api/schema.ts` (OpenAPI consumer)
   - DoD:
@@ -4969,6 +5040,55 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Rollback-safe deployment path is defined and validated
     - Non-semantic search path remains default and stable
 
+<a id="ledger-p2-search-meili-transport-pooling"></a>
+- [ ] P2: Search Meili transport pooling + lifecycle hook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-MEILI-TRANSPORT-POOLING
+  - Area: backend / search
+  - Finding Type: runtime hardening follow-up
+  - Reason: The search shadow foundation intentionally keeps an injected per-call `httpx.Client` transport because Meili remains optional and low-volume in this slice. If traffic expands, the backend should move to a shared pooled client with deterministic shutdown semantics instead of creating a fresh client per request.
+  - Links:
+    - `app/services/search_meili.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - Shared Meili transport/client is lifecycle-managed and explicitly closed on shutdown
+    - Search bootstrap owns transport configuration instead of hidden module-level state
+    - Tests cover connection reuse and shutdown cleanup without changing `/api/v1/foods*` contracts
+
+<a id="ledger-p2-search-pgtrgm-candidate-generation"></a>
+- [ ] P2: Search PostgreSQL `pg_trgm` candidate generation lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-PGTRGM-CANDIDATES
+  - Area: backend / search
+  - Finding Type: deferred hybrid-search rollout
+  - Reason: This PR intentionally preserves SQLite/FTS as the live baseline and adds Meili shadow mode only. PostgreSQL `pg_trgm` candidate generation remains deferred until PostgreSQL is promoted to the canonical search-adjacent store.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/services/food_store.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - `pg_trgm` candidate generation exists behind additive strategy routing with deterministic fallback
+    - Relevance and latency tests cover candidate generation for representative food queries
+    - `/api/v1/foods*` contracts remain unchanged and shadow divergence is observable
+
+<a id="ledger-p2-search-zero-downtime-swap-orchestration"></a>
+- [ ] P2: Search zero-downtime swap orchestration lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SEARCH-ZERO-DOWNTIME-SWAP
+  - Area: backend / search / ops
+  - Finding Type: deferred indexing-orchestration rollout
+  - Reason: This foundation PR adds deterministic indexing helpers only. The admin/orchestration surface for build-validate-warm-swap cleanup remains deferred until Meili shadow rollout is proven and operational safeguards are specified.
+  - Links:
+    - `app/services/food_search_indexing.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+  - DoD:
+    - Offline build-validate-warm-swap workflow is implemented with deterministic commands or admin surface
+    - Swap orchestration is tested against `*_v2` indexes without changing public food API contracts
+    - Grace-period cleanup and rollback-safe recovery are documented and covered by tests
+
 
 - [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
   - Owner: @katsiaryna_kavaleuskaya
@@ -5335,8 +5455,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1092
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry is executing in `#1092`; PR5-PR6 remain open)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane is executing in `#1102`; PR6 remains open)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5396,11 +5516,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
 <a id="ledger-p1-agent-experiment-promotion"></a>
-- [ ] P1: PR4 experiment promotion and telemetry integration
+- [x] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
   - Target PR: PR #1092
-  - Status: 🟡 In progress (`#1092`, based on `main` @ `00e8143a`)
+  - Status: ✅ Merged on 2026-03-11 (`e0771be5`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5420,17 +5540,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
-  - Status: 📋 Planned
+  - Target PR: #1102
+  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
   - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
     - `.cursor/agents/cv-agent.md`
     - `.cursor/agents/data-scientist-agent.md`
     - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
   - DoD:
     - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
     - CV lane remains docs/eval only with no image-retention runtime behavior
@@ -5482,6 +5606,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration
     - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
+
+- [ ] P2: First-class CV routing domain in orchestration graph
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_ROUTING_DOMAIN
+  - Area: orchestration / routing
+  - Reason: PR5 keeps `ml` as the graph-level domain for CV experiments. If future work needs `cv-agent` as graph-primary rather than advisory, `AGENT_ROUTING_GRAPH.md`, `AGENT_CAPABILITY_MATRIX.md`, `AGENT_CONTEXT_MAP.md`, and routing/tooling tests must be updated together.
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `.cursor/agents/cv-agent.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+  - DoD:
+    - Routing graph defines a canonical `cv` domain or explicit equivalent
+    - Capability/context docs match the graph
+    - Bootstrap/routing tests cover graph-primary CV routing deterministically
+
+- [ ] P2: Canonical client ownership for future CV degrade UX
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_DEGRADE_UX_OWNERSHIP
+  - Area: orchestration / ios / frontend
+  - Reason: PR5 documents degrade states for future runtime/client work, but it intentionally does not invent a new canonical iOS/web execution owner. That ownership must be made explicit before any client-visible CV UX is implemented.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `.cursor/agents/agent-coordinator.md`
+  - DoD:
+    - Future CV client work has an explicit canonical implementation owner
+    - Routing and context docs no longer imply conflicting iOS/frontend ownership
+    - Backlog item references the first runtime/client CV PR that consumes degrade states
 
 <a id="ledger-p1-design-tooling-phase2-env-api"></a>
 - [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
