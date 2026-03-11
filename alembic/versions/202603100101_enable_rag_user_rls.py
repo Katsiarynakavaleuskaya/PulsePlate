@@ -1,7 +1,7 @@
 """enable PostgreSQL RLS for rag_feedback and user_knowledge
 
 Revision ID: 202603100101
-Revises: 202602280003
+Revises: 202603100001
 Create Date: 2026-03-10
 
 Enables PostgreSQL row-level security for the user-bound RAG tables.
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "202603100101"
-down_revision = "202602280003"
+down_revision = "202603100001"
 branch_labels = None
 depends_on = None
 
