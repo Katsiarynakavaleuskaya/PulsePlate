@@ -46,7 +46,7 @@ make verify
 
 ## Notes
 
-- This remediation supersedes the raw dependabot PR `#1098` with a human-owned
+- This remediation supersedes the raw Dependabot PR `#1098` with a human-owned
   canonical PR so the repo-specific Phase 2 and merge-readiness contracts can be
   satisfied.
 - No runtime API, schema, or application code changes were required.
