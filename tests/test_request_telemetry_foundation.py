@@ -224,8 +224,7 @@ def test_detector_triggered_capture_encrypts_artifact_without_raw_span_leakage(
         artifact_path=str(artifacts[0]),
         encoded_key=encoded_key,
     )
-    request_body = decrypted["request"]["request_body"]
-    assert "[EMAIL_REDACTED]" in request_body
+    assert "request_body" not in decrypted["request"]
     assert decrypted["response"]["status_code"] == 200
     assert "content_type" in decrypted["response"]
 
@@ -321,7 +320,10 @@ def test_telemetry_fail_open_when_vault_config_is_invalid(monkeypatch) -> None:
     assert "vault_config_failed" in attrs["pp.full_capture_reasons"]
 
 
-def test_middleware_handles_deferred_body_read_failure(tmp_path: Path, monkeypatch) -> None:
+def test_middleware_keeps_bounded_preview_in_deferred_capture_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     app = FastAPI()
     register_request_telemetry(app)
 
@@ -352,9 +354,12 @@ def test_middleware_handles_deferred_body_read_failure(tmp_path: Path, monkeypat
         "app": app,
     }
     request = StarletteRequest(scope, receive)
+    body_called = False
 
     async def broken_body() -> bytes:
-        raise RuntimeError("body stream unavailable")
+        nonlocal body_called
+        body_called = True
+        raise RuntimeError("request.body should not be called")
 
     object.__setattr__(request, "body", broken_body)
 
@@ -369,3 +374,12 @@ def test_middleware_handles_deferred_body_read_failure(tmp_path: Path, monkeypat
     attrs = spans[-1]["attributes"]
     assert attrs["pp.full_capture"] is True
     assert "debug_header" in attrs["pp.full_capture_reasons"]
+    assert body_called is False
+
+    artifacts = list(tmp_path.glob("**/*.bin"))
+    assert len(artifacts) == 1
+    decrypted = decrypt_capture_artifact(
+        artifact_path=str(artifacts[0]),
+        encoded_key=encoded_key,
+    )
+    assert "request_body" not in decrypted["request"]

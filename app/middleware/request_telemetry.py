@@ -285,14 +285,6 @@ async def request_telemetry_middleware(request: Request, call_next: Any) -> Resp
             if should_capture_full and vault_dir and vault_key:
                 response_body = getattr(response, "body", None)
                 captured_request_body = bytes(request_preview)
-                if not captured_request_body:
-                    try:
-                        captured_request_body = await request.body()
-                    except Exception:
-                        logger.debug(
-                            "Request telemetry could not read deferred body", exc_info=True
-                        )
-                        captured_request_body = b""
                 capture_payload = {
                     "request": {
                         "method": request.method.upper(),
