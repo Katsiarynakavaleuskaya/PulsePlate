@@ -264,7 +264,28 @@ def _dashboard_recovery_template(screen_id: str) -> ReusableLayoutTemplate:
             }
         )
     else:
-        sections[0]["components"].append("tooltip")
+        sections.insert(
+            0,
+            {
+                "id": "progress-header",
+                "name": "Progress header",
+                "role": "utility_actions",
+                "components": ["card", "button"],
+            },
+        )
+        nodes.insert(
+            1,
+            {
+                "id": f"{prefix}-header-utilities",
+                "canonical_component": "card",
+                "section_id": "progress-header",
+                "parent_id": shell_id,
+                "hierarchy_level": 1,
+                "semantic_role": "utility_cluster",
+                "source_ref": f"template:{screen_id}:header-utilities",
+            },
+        )
+        sections[1]["components"].append("tooltip")
         nodes.append(
             {
                 "id": f"{prefix}-tooltip",

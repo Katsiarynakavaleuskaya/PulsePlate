@@ -104,7 +104,7 @@ class CodeNativeCanvasExecutionAdapter:
 
         return {
             "screen_id": screen_id,
-            "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "executed_at": DETERMINISTIC_EXECUTED_AT,
             "status": "simulated",
             "surface": instruction.get("surface"),
             "layout_archetype": instruction.get("layout_archetype"),
