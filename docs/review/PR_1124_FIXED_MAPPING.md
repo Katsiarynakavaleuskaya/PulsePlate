@@ -5,7 +5,15 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- None yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124#discussion_r2921144714 -> ae40177f
+Disposition: FIXED
+Commit: ae40177f
+Evidence: `docs/review/PR_1124_FIXED_MAPPING.md:4`, `docs/review/PR_1124_FIXED_MAPPING.md:5`, `scripts/orchestration/review_mapping_artifact.py:94`, `scripts/orchestration/review_mapping_artifact.py:97`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124#discussion_r2921144720
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1124_FIXED_MAPPING.md:19`, `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:89`
+Reason: `Local gates passed on current head` is already true for PR `#1124` because `pre-commit run --all-files` and `make verify` were re-run and passed on head `fbd8e08f`; the active merge-readiness conditions that remain intentionally unchecked are the external GitHub-cycle items below it.
 
 ## Merge Readiness
 - [x] Local gates passed on current head
