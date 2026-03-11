@@ -68,6 +68,80 @@ class TestPremiumWeekAppCoverage:
         assert "detail" in data
         assert "not available" in data["detail"].lower()
 
+    def test_resolver_falls_back_to_package_export_when_legacy_builder_is_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver uses app package export when legacy builder is patched to None.
+
+        RU: Если legacy_app.make_weekly_menu временно None, резолвер должен
+        использовать canonical export из пакета `app`, если package override не задан.
+        EN: If legacy_app.make_weekly_menu is temporarily None, the resolver must
+        use the canonical `app` package export when no explicit package override exists.
+        """
+        import app as app_package
+
+        monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert callable(builder)
+
+    def test_resolver_returns_none_when_package_export_is_not_callable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver returns None when neither legacy nor package export is callable.
+
+        RU: Явно покрываем отрицательный fallback путь без business-logic изменений.
+        EN: Explicitly cover the negative fallback path without changing business logic.
+        """
+        import app as app_package
+
+        original_getattr = getattr(app_package, "__getattr__")
+
+        monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        def _package_getattr(name: str):
+            if name == "make_weekly_menu":
+                return None
+            return original_getattr(name)
+
+        monkeypatch.setattr(app_package, "__getattr__", _package_getattr)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert builder is None
+
+    def test_resolver_returns_none_when_package_module_lookup_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver returns None when the package lookup helper yields no module."""
+        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert builder is None
+
+    def test_resolver_returns_none_when_package_export_raises_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver treats package-export ImportError as feature unavailable."""
+
+        class _ImportErrorPackage:
+            def __getattr__(self, name: str):
+                if name == "make_weekly_menu":
+                    raise ImportError("menu engine unavailable")
+                raise AttributeError(name)
+
+        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: _ImportErrorPackage())
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert builder is None
+
     def test_api_weekly_menu_success(self) -> None:
         """Test successful weekly menu generation."""
         # Mock make_weekly_menu to return a valid WeekMenu

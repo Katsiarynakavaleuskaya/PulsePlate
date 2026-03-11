@@ -16,6 +16,8 @@ Hard rule: capsules are **not** a second Source of Truth. They only point to can
 
 ## Capsules
 
+<!-- EXPERIMENT_MEMORY_CAPSULES:INSERT BELOW -->
+
 - `docs/memory/bmi_one_engine_invariant.md` — One BMI Engine invariant (canonical rule + enforcement pointers)
 - `docs/memory/openapi_determinism_and_side_effect_free_generation.md` — OpenAPI determinism + side‑effect‑free generation rules
 - `docs/memory/llm_cost_abuse_controls.md` — LLM cost‑abuse controls (rate limiting + monthly quota + budgets)

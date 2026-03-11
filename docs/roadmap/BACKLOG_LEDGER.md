@@ -23,6 +23,8 @@ If it is not recorded here — it does not exist.
 
 ## Open Items
 
+<!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
+
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
 ### P0
@@ -31,8 +33,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RU_BY-IOS-BASELINE-RUNTIME-W1
-  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
+  - Target PR: PR #983 (contract docs) -> PR #1095 (activation + persistence runtime) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: 🟡 In progress (PR #1095 owns runtime Wave R1 activation + persisted subscription state; entitlement routing remains tracked in `ledger-p0-billing-entitlement-routing`)
   - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
   - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
   - Links:
@@ -60,7 +62,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-ACTIVATION-SERVICE
+  - Target PR: PR #1095
   - Area: backend / payments / activation
   - Finding Type: monetization chain gap
   - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
@@ -78,7 +80,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: Subscription persistence for billing activation outcomes
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR-TBD-BILLING-SUBSCRIPTION-PERSISTENCE
+  - Target PR: PR #1095
   - Area: backend / payments / persistence
   - Finding Type: subscription state gap
   - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
@@ -206,6 +208,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Build provenance is enabled again in the canonical image workflow
     - Signed provenance/SBOM verification is enforced before deploy
     - Follow-up docs and CI checks explicitly cover the restored path
+
+<a id="ledger-p1-billing-activation-openapi-refinements"></a>
+- [ ] P1: Billing activation OpenAPI refinements after PR #1095
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first clarity)
+  - Target PR: PR-TBD-BILLING-ACTIVATION-OPENAPI-REFINEMENTS
+  - Area: backend / frontend / payments / OpenAPI
+  - Finding Type: contract refinement follow-up
+  - Reason: PR #1095 intentionally keeps the runtime scope narrow around activation + persistence. The follow-up OpenAPI work should explicitly model source-specific activation variants, reuse canonical enums in Apple verify hints, and mark compatibility aliases as deprecated without expanding the current backend runtime PR.
+  - Links:
+    - `app/schemas/payments.py`
+    - `frontend/src/api/openapi.json`
+    - `frontend/src/api/schema.ts`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
+  - DoD:
+    - `ActivateSubscriptionRequest` is expressed as a discriminated `oneOf` keyed by `source`
+    - Apple verify activation hints reuse canonical `PaymentPlatform`
+    - Compatibility aliases in `SubscriptionActivationResponse` are explicitly deprecated in OpenAPI
+    - `make openapi-check` passes with regenerated frontend artifacts
 
 <a id="ledger-p1-dsar-direct-user-helper-contract"></a>
 - [ ] P1: Internal DSAR direct-user helper contract
@@ -2818,7 +2839,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
-  - Status: ✅ Merged evidence (worker runtime on `main` is now bounded to first-party `/api/*` proxy use only)
+  - Related follow-up: PR #1087 (`fix/p0-app-package-bootstrap-alignment`)
+  - Related follow-up status: ✅ Merged (PR #1087, 2026-03-10)
+  - Related follow-up SHA: `4e5ce31a08ec03393f70b59d3c93b811edb43633`
+  - Status: ✅ Merged evidence (PR #1082 bounded the worker runtime to first-party `/api/*` proxy use only; PR #1087 then re-aligned the `app` package bootstrap on `main` so additive public runtime/OpenAPI surfaces stay visible through `import app`)
   - Area: edge / Cloudflare / security
   - Finding Type: proxy abuse prevention
   - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
@@ -2827,6 +2851,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/SECURITY_POSTURE.md`
     - `docs/deploy/PRODUCTION.md`
     - `tests/test_worker_proxy_contract.py`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087`
+    - `docs/review/PR_1087_FIXED_MAPPING.md`
   - DoD:
     - Worker path scope is allowlisted to `/api/*`
     - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
@@ -5307,8 +5333,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR_TBD_AGENT_EXPERIMENTATION_GOVERNANCE
-  - Status: 📋 Planned
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1092
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry is executing in `#1092`; PR5-PR6 remain open)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5323,18 +5349,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
 
 <a id="ledger-p1-agent-experiment-bootstrap"></a>
-- [ ] P1: PR2 deterministic experiment bootstrap tooling
+- [x] P1: PR2 deterministic experiment bootstrap tooling
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_BOOTSTRAP
-  - Status: 📋 Planned
+  - Target PR: PR #1081
+  - Status: ✅ Merged on 2026-03-10 (`fd7a1626`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
   - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
     - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
-    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_contract.py`
   - DoD:
     - Local experiment packet bootstrap tooling exists with deterministic JSON output
     - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
@@ -5342,19 +5369,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tooling does not mutate runtime code or public contracts
 
 <a id="ledger-p1-agent-experiment-runner"></a>
-- [ ] P1: PR3 experiment runner MVP for bounded candidate loops
+- [x] P1: PR3 experiment runner MVP for bounded candidate loops
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency for first applied optimization)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_RUNNER
-  - Status: 📋 Planned
+  - Target PR: PR #1088
+  - Related follow-up: PR #1096 (`fix(app): restore bootstrap patchability on main`)
+  - Related follow-up status: ✅ Merged (PR #1096, 2026-03-11)
+  - Related follow-up SHA: `ddfee576e0d2b53d3a24e08ee58080a6c73cb75d`
+  - Status: ✅ Merged with hotfix traceability (PR `#1088` delivered the bounded experiment runner MVP; PR `#1096` then remediated the post-merge `app` bootstrap/patchability regression on `main` without widening scope into FitChef, sandbox, or design lanes)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
   - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
-    - `scripts/orchestration/agent_run_summary.py`
+    - `scripts/orchestration/experiment_contract.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
   - DoD:
     - Runner uses isolated execution and never mutates a dirty shared worktree
     - Runner enforces budgets and failure classes from the experimentation protocol
@@ -5365,8 +5397,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_PROMOTION
-  - Status: 📋 Planned
+  - Target PR: PR #1092
+  - Status: 🟡 In progress (`#1092`, based on `main` @ `00e8143a`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5417,10 +5449,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `scripts/benchmarks/philosophical_runtime_benchmark.py`
-    - `docs/audit/PHILOSOPHICAL_RUNTIME_BENCHMARK_2026-03-08.md`
-    - `core/rag/`
-    - `core/insight/`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
   - DoD:
     - One bounded reliability candidate is generated through the governed lane
     - Candidate improvement is accepted by immutable oracles and documented with evidence
