@@ -1950,7 +1950,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
     (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
   - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (cv-contract-agent role; degrade-state expectations)
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (`cv-agent`; degrade-state expectations)
     - `app/schemas/` (canonical schema patterns)
     - `frontend/src/api/schema.ts` (OpenAPI consumer)
   - DoD:
@@ -5357,7 +5357,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
 <a id="ledger-p1-agent-experiment-promotion"></a>
-- [ ] P1: PR4 experiment promotion and telemetry integration
+- [x] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (governance closure for experiment outputs)
   - Target PR: PR #1092
@@ -5382,21 +5382,55 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
-  - Status: 🟡 Next up after PR4 merge (kickoff branch: `feat/agent-experiment-cv-lane-pr5`)
+  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; CV overlay + packet schema extension + orchestration drift audit)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
   - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
     - `.cursor/agents/cv-agent.md`
     - `.cursor/agents/data-scientist-agent.md`
     - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/audit/PR_TBD_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
   - DoD:
     - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
     - CV lane remains docs/eval only with no image-retention runtime behavior
     - Coordinator routing for CV experiments is explicit and bounded
     - Deterministic acceptance criteria are documented
+
+- [ ] P2: First-class CV routing domain in orchestration graph
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_ROUTING_DOMAIN
+  - Area: orchestration / routing
+  - Reason: PR5 keeps `ml` as the graph-level domain for CV experiments. If future work needs `cv-agent` as graph-primary rather than advisory, `AGENT_ROUTING_GRAPH.md`, `AGENT_CAPABILITY_MATRIX.md`, `AGENT_CONTEXT_MAP.md`, and routing/tooling tests must be updated together.
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `.cursor/agents/cv-agent.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+  - DoD:
+    - Routing graph defines a canonical `cv` domain or explicit equivalent
+    - Capability/context docs match the graph
+    - Bootstrap/routing tests cover graph-primary CV routing deterministically
+
+- [ ] P2: Canonical client ownership for future CV degrade UX
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_DEGRADE_UX_OWNERSHIP
+  - Area: orchestration / ios / frontend
+  - Reason: PR5 documents degrade states for future runtime/client work, but it intentionally does not invent a new canonical iOS/web execution owner. That ownership must be made explicit before any client-visible CV UX is implemented.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `.cursor/agents/agent-coordinator.md`
+  - DoD:
+    - Future CV client work has an explicit canonical implementation owner
+    - Routing and context docs no longer imply conflicting iOS/frontend ownership
+    - Backlog item references the first runtime/client CV PR that consumes degrade states
 
 <a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
 - [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane

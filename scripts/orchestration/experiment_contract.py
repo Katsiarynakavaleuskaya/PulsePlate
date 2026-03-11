@@ -11,7 +11,7 @@ import re
 import shlex
 from typing import Any
 
-from scripts.orchestration.context_pack import REPO_ROOT, repo_relative_paths
+from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
 
 SCHEMA_VERSION = "1.0"
 
@@ -77,6 +77,21 @@ ORACLE_BINARY_ALLOWLIST: tuple[str, ...] = (
     "ruff",
 )
 EXPERIMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+CV_EXPERIMENT_HINTS: tuple[str, ...] = (
+    "cv",
+    "image",
+    "multimodal",
+    "photo",
+    "vision",
+)
+CV_UNCERTAINTY_BANDS: tuple[str, ...] = ("high", "medium", "low", "unknown")
+CV_DEGRADE_STATES: tuple[str, ...] = (
+    "show_ranked_candidates",
+    "confirm_top_candidate",
+    "manual_entry_required",
+    "reject_unusable_image",
+    "privacy_blocked",
+)
 
 
 def _is_allowed_prompt_or_program_doc(path: str) -> bool:
@@ -85,6 +100,15 @@ def _is_allowed_prompt_or_program_doc(path: str) -> bool:
     if any(path.endswith(suffix) for suffix in ALLOWED_DOC_SUFFIXES):
         return True
     return any(segment in f"/{path}" for segment in ALLOWED_DOC_SEGMENTS)
+
+
+def _contains_hint(normalized_text: str, hints: tuple[str, ...]) -> bool:
+    """RU: Проверяет hint на границах токенов. EN: Match hints on token boundaries."""
+
+    return any(
+        re.search(rf"(?<!\w){re.escape(normalize_text(hint))}(?!\w)", normalized_text)
+        for hint in hints
+    )
 
 
 def _normalize_mutable_surface_path(raw_path: str) -> str:
@@ -240,6 +264,151 @@ def validate_experiment_id(value: Any, *, label: str) -> str:
     return experiment_id
 
 
+def is_cv_experiment(*parts: Any) -> bool:
+    """Return whether the experiment intent is CV-oriented and needs cv_context."""
+
+    normalized = " ".join(str(part).strip().lower() for part in parts if str(part).strip())
+    return bool(normalized) and _contains_hint(normalized, CV_EXPERIMENT_HINTS)
+
+
+def _require_non_empty_string(
+    payload: dict[str, Any],
+    *,
+    key: str,
+    label: str,
+) -> str:
+    """RU: Требует непустую строку. EN: Require a non-empty string field."""
+
+    value = str(payload.get(key, "")).strip()
+    if not value:
+        raise ValueError(f"{label} must include a non-empty {key}.")
+    return value
+
+
+def validate_cv_context(payload: Any) -> dict[str, Any]:
+    """RU: Нормализует CV packet fields. EN: Normalize fail-closed CV packet fields."""
+
+    if not isinstance(payload, dict):
+        raise ValueError("Experiment packet cv_context must be an object.")
+    dataset_raw = payload.get("dataset")
+    if not isinstance(dataset_raw, dict):
+        raise ValueError("Experiment packet cv_context.dataset must be an object.")
+    dataset = {
+        "id": _require_non_empty_string(
+            dataset_raw,
+            key="id",
+            label="Experiment packet cv_context.dataset",
+        ),
+        "version": _require_non_empty_string(
+            dataset_raw,
+            key="version",
+            label="Experiment packet cv_context.dataset",
+        ),
+        "source": _require_non_empty_string(
+            dataset_raw,
+            key="source",
+            label="Experiment packet cv_context.dataset",
+        ),
+        "license": _require_non_empty_string(
+            dataset_raw,
+            key="license",
+            label="Experiment packet cv_context.dataset",
+        ),
+        "split_strategy": _require_non_empty_string(
+            dataset_raw,
+            key="split_strategy",
+            label="Experiment packet cv_context.dataset",
+        ),
+        "label_provenance": _require_non_empty_string(
+            dataset_raw,
+            key="label_provenance",
+            label="Experiment packet cv_context.dataset",
+        ),
+    }
+
+    sensor_conditions_raw = payload.get("sensor_conditions")
+    if not isinstance(sensor_conditions_raw, list):
+        raise ValueError("Experiment packet cv_context.sensor_conditions must be a list.")
+    sensor_conditions = sorted(
+        {str(condition).strip() for condition in sensor_conditions_raw if str(condition).strip()}
+    )
+    if not sensor_conditions:
+        raise ValueError(
+            "Experiment packet cv_context.sensor_conditions must include at least one item."
+        )
+
+    uncertainty_raw = payload.get("uncertainty_band_policy")
+    if not isinstance(uncertainty_raw, dict):
+        raise ValueError("Experiment packet cv_context.uncertainty_band_policy must be an object.")
+    bands_raw = uncertainty_raw.get("bands")
+    if not isinstance(bands_raw, list):
+        raise ValueError(
+            "Experiment packet cv_context.uncertainty_band_policy.bands must be a list."
+        )
+    mode = _require_non_empty_string(
+        uncertainty_raw,
+        key="mode",
+        label="Experiment packet cv_context.uncertainty_band_policy",
+    )
+    bands = [str(band).strip().lower() for band in bands_raw if str(band).strip()]
+    if tuple(bands) != CV_UNCERTAINTY_BANDS:
+        allowed_bands = ", ".join(CV_UNCERTAINTY_BANDS)
+        raise ValueError(
+            "Experiment packet cv_context.uncertainty_band_policy.bands must equal: "
+            f"{allowed_bands}"
+        )
+
+    degrade_raw = payload.get("degrade_state_matrix")
+    if not isinstance(degrade_raw, dict):
+        raise ValueError("Experiment packet cv_context.degrade_state_matrix must be an object.")
+    degrade_state_matrix: dict[str, str] = {}
+    for band in CV_UNCERTAINTY_BANDS:
+        degrade_state = str(degrade_raw.get(band, "")).strip()
+        if degrade_state not in CV_DEGRADE_STATES:
+            allowed_states = ", ".join(CV_DEGRADE_STATES)
+            raise ValueError(
+                "Experiment packet cv_context.degrade_state_matrix entries must be one of: "
+                f"{allowed_states}"
+            )
+        degrade_state_matrix[band] = degrade_state
+
+    privacy_raw = payload.get("privacy_packet")
+    if not isinstance(privacy_raw, dict):
+        raise ValueError("Experiment packet cv_context.privacy_packet must be an object.")
+    privacy_packet = {
+        "raw_image_retention": _require_non_empty_string(
+            privacy_raw,
+            key="raw_image_retention",
+            label="Experiment packet cv_context.privacy_packet",
+        ),
+        "logging_policy": _require_non_empty_string(
+            privacy_raw,
+            key="logging_policy",
+            label="Experiment packet cv_context.privacy_packet",
+        ),
+        "consent_policy": _require_non_empty_string(
+            privacy_raw,
+            key="consent_policy",
+            label="Experiment packet cv_context.privacy_packet",
+        ),
+        "deletion_policy": _require_non_empty_string(
+            privacy_raw,
+            key="deletion_policy",
+            label="Experiment packet cv_context.privacy_packet",
+        ),
+    }
+    return {
+        "dataset": dataset,
+        "sensor_conditions": sensor_conditions,
+        "uncertainty_band_policy": {
+            "mode": mode,
+            "bands": list(CV_UNCERTAINTY_BANDS),
+        },
+        "degrade_state_matrix": degrade_state_matrix,
+        "privacy_packet": privacy_packet,
+    }
+
+
 def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     """Validate a PR2 experiment packet for deterministic PR3 consumption."""
 
@@ -319,6 +488,17 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     negative_controls = validate_negative_controls([str(item) for item in negative_controls_raw])
 
     promotion_target = validate_promotion_target(str(packet.get("promotion_target", "")))
+    cv_context_raw = packet.get("cv_context")
+    requires_cv_context = is_cv_experiment(decision_question, task_class, *mutable_surface)
+    if cv_context_raw is None:
+        if requires_cv_context:
+            raise ValueError(
+                "CV-oriented experiment packets must include cv_context "
+                "(dataset provenance, uncertainty bands, privacy packet, and degrade states)."
+            )
+        cv_context = None
+    else:
+        cv_context = validate_cv_context(cv_context_raw)
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
@@ -334,6 +514,8 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     normalized["metrics"] = metric_payload
     normalized["negative_controls"] = negative_controls
     normalized["promotion_target"] = promotion_target
+    if cv_context is not None:
+        normalized["cv_context"] = cv_context
     return normalized
 
 

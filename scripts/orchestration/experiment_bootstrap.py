@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -26,6 +25,7 @@ from scripts.orchestration.context_pack import (
 )
 from scripts.orchestration.experiment_contract import (
     ALLOWED_MUTABLE_PREFIXES,
+    CV_UNCERTAINTY_BANDS,
     DEFAULT_BUDGETS,
     DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
     DEFAULT_METRIC_BASELINE_REF,
@@ -33,7 +33,9 @@ from scripts.orchestration.experiment_contract import (
     PRIMARY_AGENT,
     REVIEWER,
     SCHEMA_VERSION,
+    is_cv_experiment,
     validate_budget_payload,
+    validate_cv_context,
     validate_immutable_oracles,
     validate_metrics,
     validate_mutable_candidate_surface,
@@ -56,22 +58,6 @@ ML_TEXT_HINTS: tuple[str, ...] = (
     "rag",
     "reliability",
 )
-CV_TEXT_HINTS: tuple[str, ...] = (
-    "cv",
-    "image",
-    "multimodal",
-    "photo",
-    "vision",
-)
-
-
-def _contains_hint(normalized_text: str, hints: tuple[str, ...]) -> bool:
-    """Match hints on token boundaries to avoid accidental substring hits."""
-
-    return any(
-        re.search(rf"(?<!\w){re.escape(normalize_text(hint))}(?!\w)", normalized_text)
-        for hint in hints
-    )
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -93,13 +79,13 @@ def _resolve_experiment_domain(
     """Resolve the dominant experiment domain without mutating shared routing helpers."""
 
     normalized_text = normalize_text(decision_question, task_class, *mutable_paths)
-    if _contains_hint(normalized_text, CV_TEXT_HINTS):
+    if is_cv_experiment(decision_question, task_class, *mutable_paths):
         return "ml"
     if any(
         path.startswith(prefix) for path in mutable_paths for prefix in ALLOWED_MUTABLE_PREFIXES
     ):
         return "ml"
-    if _contains_hint(normalized_text, ML_TEXT_HINTS):
+    if any(hint in normalized_text for hint in ML_TEXT_HINTS):
         return "ml"
     resolved_domain = resolve_domain(task_class=task_class, candidate_paths=mutable_paths)
     if not isinstance(resolved_domain, str):
@@ -114,13 +100,80 @@ def _recommend_advisory_agents(
 ) -> list[str]:
     """Return deterministic advisory agents for the experimentation lane."""
 
-    normalized_text = normalize_text(decision_question, *mutable_paths)
     advisory_agents = ["data-scientist-agent"]
-    if _contains_hint(normalized_text, CV_TEXT_HINTS):
+    if is_cv_experiment(decision_question, *mutable_paths):
         advisory_agents.extend(["cv-agent", "ml-engineer-agent"])
     else:
         advisory_agents.append("ml-engineer-agent")
     return advisory_agents
+
+
+def _is_cv_experiment(
+    *,
+    decision_question: str,
+    task_class: str,
+    mutable_paths: list[str],
+) -> bool:
+    """RU: Определяет CV lane. EN: Detect whether the packet targets the CV lane."""
+
+    return is_cv_experiment(decision_question, task_class, *mutable_paths)
+
+
+def _has_explicit_cv_metadata(args: argparse.Namespace) -> bool:
+    """Return whether CLI input includes any CV-specific packet metadata."""
+
+    values = (
+        args.cv_dataset_id,
+        args.cv_dataset_version,
+        args.cv_dataset_source,
+        args.cv_dataset_license,
+        args.cv_split_strategy,
+        args.cv_label_provenance,
+        args.cv_privacy_retention,
+        args.cv_privacy_logging,
+        args.cv_privacy_consent,
+        args.cv_privacy_deletion,
+        *args.cv_sensor_condition,
+        args.cv_degrade_high,
+        args.cv_degrade_medium,
+        args.cv_degrade_low,
+        args.cv_degrade_unknown,
+    )
+    return any(str(value).strip() for value in values)
+
+
+def _build_cv_context_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    """RU: Собирает CV CLI packet. EN: Build CV packet metadata from CLI args."""
+
+    if not args.cv_mode and not _has_explicit_cv_metadata(args):
+        return None
+    return {
+        "dataset": {
+            "id": args.cv_dataset_id,
+            "version": args.cv_dataset_version,
+            "source": args.cv_dataset_source,
+            "license": args.cv_dataset_license,
+            "split_strategy": args.cv_split_strategy,
+            "label_provenance": args.cv_label_provenance,
+        },
+        "sensor_conditions": args.cv_sensor_condition,
+        "uncertainty_band_policy": {
+            "mode": "qualitative_only",
+            "bands": list(CV_UNCERTAINTY_BANDS),
+        },
+        "degrade_state_matrix": {
+            "high": args.cv_degrade_high,
+            "medium": args.cv_degrade_medium,
+            "low": args.cv_degrade_low,
+            "unknown": args.cv_degrade_unknown,
+        },
+        "privacy_packet": {
+            "raw_image_retention": args.cv_privacy_retention,
+            "logging_policy": args.cv_privacy_logging,
+            "consent_policy": args.cv_privacy_consent,
+            "deletion_policy": args.cv_privacy_deletion,
+        },
+    }
 
 
 def compute_experiment_id(
@@ -134,21 +187,26 @@ def compute_experiment_id(
     promotion_target: str,
     budgets: dict[str, int],
     stop_condition: str,
+    cv_context: dict[str, Any] | None = None,
 ) -> str:
     """Return deterministic short experiment id."""
 
+    payload_data = {
+        "decision_question": decision_question.strip(),
+        "task_class": task_class.strip(),
+        "mutable_paths": mutable_paths,
+        "immutable_oracles": immutable_oracles,
+        "metrics": metrics,
+        "negative_controls": negative_controls,
+        "promotion_target": promotion_target,
+        "budgets": budgets,
+        "stop_condition": stop_condition.strip() or DEFAULT_STOP_CONDITION,
+    }
+    if cv_context is not None:
+        payload_data["cv_context"] = cv_context
+
     payload = json.dumps(
-        {
-            "decision_question": decision_question.strip(),
-            "task_class": task_class.strip(),
-            "mutable_paths": mutable_paths,
-            "immutable_oracles": immutable_oracles,
-            "metrics": metrics,
-            "negative_controls": negative_controls,
-            "promotion_target": promotion_target,
-            "budgets": budgets,
-            "stop_condition": stop_condition.strip() or DEFAULT_STOP_CONDITION,
-        },
+        payload_data,
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -169,6 +227,7 @@ def build_experiment_packet(
     stop_condition: str = DEFAULT_STOP_CONDITION,
     metric_baseline_reference: str = DEFAULT_METRIC_BASELINE_REF,
     metric_acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    cv_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic experiment packet for PR2 bootstrap tooling."""
 
@@ -182,6 +241,17 @@ def build_experiment_packet(
     validated_negative_controls = validate_negative_controls(negative_controls)
     validated_promotion_target = validate_promotion_target(promotion_target)
     budget_payload = validate_budget_payload(budgets)
+    cv_intent = _is_cv_experiment(
+        decision_question=decision_question,
+        task_class=task_class,
+        mutable_paths=validated_paths,
+    )
+    validated_cv_context = validate_cv_context(cv_context) if cv_context is not None else None
+    if cv_intent and validated_cv_context is None:
+        raise ValueError(
+            "CV-oriented experiment packets must include cv_context "
+            "(dataset provenance, uncertainty bands, privacy packet, and degrade states)."
+        )
 
     domain = _resolve_experiment_domain(
         decision_question=decision_question,
@@ -211,6 +281,7 @@ def build_experiment_packet(
         promotion_target=validated_promotion_target,
         budgets=budget_payload,
         stop_condition=stop_condition,
+        cv_context=validated_cv_context,
     )
 
     recommended_agents = [PRIMARY_AGENT, routing_decision.primary]
@@ -226,7 +297,7 @@ def build_experiment_packet(
 
     deduped_agents = list(dict.fromkeys(recommended_agents))
 
-    return {
+    packet = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": experiment_id,
         "decision_question": decision_question.strip(),
@@ -255,6 +326,9 @@ def build_experiment_packet(
             "reviewer": routing_decision.reviewer,
         },
     }
+    if validated_cv_context is not None:
+        packet["cv_context"] = validated_cv_context
+    return packet
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
@@ -312,6 +386,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--stop-condition", default=DEFAULT_STOP_CONDITION)
     parser.add_argument("--telemetry", default=str(TELEMETRY_PATH))
     parser.add_argument(
+        "--cv-mode",
+        action="store_true",
+        help="Require CV-specific packet fields for offline photo->food evaluation packets.",
+    )
+    parser.add_argument("--cv-dataset-id", default="")
+    parser.add_argument("--cv-dataset-version", default="")
+    parser.add_argument("--cv-dataset-source", default="")
+    parser.add_argument("--cv-dataset-license", default="")
+    parser.add_argument("--cv-split-strategy", default="")
+    parser.add_argument("--cv-label-provenance", default="")
+    parser.add_argument("--cv-sensor-condition", action="append", default=[])
+    parser.add_argument("--cv-privacy-retention", default="")
+    parser.add_argument("--cv-privacy-logging", default="")
+    parser.add_argument("--cv-privacy-consent", default="")
+    parser.add_argument("--cv-privacy-deletion", default="")
+    parser.add_argument("--cv-degrade-high", default="")
+    parser.add_argument("--cv-degrade-medium", default="")
+    parser.add_argument("--cv-degrade-low", default="")
+    parser.add_argument("--cv-degrade-unknown", default="")
+    parser.add_argument(
         "--output",
         default=None,
         help=(
@@ -345,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             stop_condition=args.stop_condition,
             metric_baseline_reference=args.metric_baseline_ref,
             metric_acceptance_threshold=args.metric_acceptance_threshold,
+            cv_context=_build_cv_context_from_args(args),
         )
         out_path = _resolve_output_path(args.output, packet["experiment_id"])
     except ValueError as exc:

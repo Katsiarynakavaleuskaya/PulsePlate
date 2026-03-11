@@ -15,6 +15,7 @@
 - Coordinator-first workflow: `docs/orchestration/workflow.md`
 - Context loading: `docs/orchestration/AGENT_CONTEXT_MAP.md`
 - Skill selection: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- CV-specific offline overlay: `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
 - Reflection and KPP promotion: `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - Canonical memory policy: `docs/memory/kpp_knowledge_promotion_pipeline.md`
 - Quality gates and repo hard rules: `AGENTS.md`
@@ -40,6 +41,8 @@ Other docs must link here instead of restating these rules.
 - Fixed-budget candidate runs against immutable evaluation oracles.
 - Experiment charters, result packets, and KPP-compliant promotion decisions.
 - First-wave experimentation for `LLM/RAG reliability`, then later `CV` evaluation and other approved research lanes.
+- CV-specific packet fields, privacy posture, and degrade semantics live in
+  `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`.
 
 ### Out of scope
 
