@@ -5,12 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 import pytest
 
 from app.main import app
-from app.schemas.creative_research import CreativeResearchPilotTaskEnvelope
+from app.schemas.creative_research import (
+    CreativeResearchPilotRequest,
+    CreativeResearchPilotTaskEnvelope,
+)
 from app.telemetry.genai import OPENINFERENCE_KIND_LLM, OPENINFERENCE_SPAN_KIND
 from app.telemetry.setup import install_test_exporter, reset_tracing_for_tests
 
@@ -86,6 +90,28 @@ def _valid_provider_payload() -> str:
     )
 
 
+def _task_payload(
+    *,
+    reference_corpus: list[str] | None = None,
+    candidate_count: int = 2,
+) -> CreativeResearchPilotTaskEnvelope:
+    """Build a deterministic creative-research task envelope for runtime tests."""
+
+    return CreativeResearchPilotTaskEnvelope.model_validate(
+        {
+            "mode": "auto-safe",
+            "input": {
+                "prompt_seed": "Meal adherence under time scarcity",
+                "reference_corpus": reference_corpus or ["Missed dinners increase friction."],
+                "candidate_count": candidate_count,
+                "api_key": API_KEY_HEADERS["X-API-Key"],
+                "endpoint": ROUTE_PATH,
+                "method": "POST",
+            },
+        }
+    )
+
+
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
@@ -139,6 +165,49 @@ def test_creative_research_execution_mode_review_required_returns_503(
 
     assert response.status_code == 503
     assert _json_body(response) == {"detail": "agent_execution_review_required"}
+
+
+def test_creative_research_execution_mode_invalid_returns_503(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid execution mode must surface a stable misconfiguration error."""
+
+    monkeypatch.setenv("FEATURE_CREATIVE_RESEARCH_PILOT", "true")
+    monkeypatch.setenv("CREATIVE_RESEARCH_EXECUTION_MODE", "definitely-invalid")
+
+    response = client.post(
+        ROUTE_PATH,
+        json={"prompt_seed": "meal adherence", "candidate_count": 2},
+        headers=API_KEY_HEADERS,
+    )
+
+    assert response.status_code == 503
+    assert _json_body(response) == {"detail": "agent_execution_mode_misconfigured"}
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"prompt_seed": "   ", "candidate_count": 2}, "prompt_seed must not be blank"),
+        (
+            {"prompt_seed": "meal adherence", "reference_corpus": ["valid", "   "]},
+            "reference_corpus items must not be blank",
+        ),
+        (
+            {"prompt_seed": "meal adherence", "reference_corpus": ["x" * 501]},
+            "reference_corpus items must be <= 500 chars",
+        ),
+    ],
+)
+def test_creative_research_request_schema_rejects_invalid_inputs(
+    payload: dict[str, object],
+    message: str,
+) -> None:
+    """Schema validators must fail closed on blank or oversized request inputs."""
+
+    with pytest.raises(ValueError, match=message):
+        CreativeResearchPilotRequest.model_validate(payload)
 
 
 def test_creative_research_success_returns_evaluated_candidates(
@@ -250,6 +319,161 @@ def test_creative_research_invalid_provider_payload_returns_503(
     assert _json_body(response) == {"detail": "creative_research_provider_invalid_response"}
 
 
+@pytest.mark.asyncio
+async def test_runtime_missing_transparency_registry_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing transparency metadata must stop the runtime before quota consumption."""
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.get_transparency_registry", lambda: {}
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: pytest.fail("quota must not run"),
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "transparency_registry_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_runtime_incomplete_transparency_registry_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Incomplete transparency metadata must fail closed before provider use."""
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.get_transparency_registry",
+        lambda: {"ai_generated_insight": {"surface_id": "ai_generated_insight"}},
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "transparency_registry_incomplete"
+
+
+@pytest.mark.asyncio
+async def test_runtime_llm_gate_failure_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Privileged-action audit failures must fail closed before quota/provider work."""
+
+    def _audit(**_: object) -> None:
+        raise RuntimeError("llm gate down")
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime._persist_privileged_action_audit",
+        _audit,
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "llm_generation_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_runtime_provider_none_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing provider instance must fail closed with stable detail."""
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime._persist_privileged_action_audit",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: None)
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "LLM provider not available"
+
+
+@pytest.mark.asyncio
+async def test_runtime_provider_exception_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unexpected provider failures must map to the stable unavailable detail."""
+
+    class _ExplodingProvider:
+        name = "broken"
+
+        def generate(self, prompt: str) -> str:
+            del prompt
+            raise RuntimeError("provider boom")
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime._persist_privileged_action_audit",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: _ExplodingProvider())
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "creative_research_generation_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_runtime_empty_provider_payload_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-string or empty provider payloads must fail closed."""
+
+    class _EmptyProvider:
+        name = "empty"
+
+        def generate(self, prompt: str) -> object:
+            del prompt
+            return {}
+
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime._persist_privileged_action_audit",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: _EmptyProvider())
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(HTTPException) as exc_info:
+        await run_creative_research_pilot_task(_task_payload())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "creative_research_provider_invalid_response"
+
+
 def test_creative_research_service_emits_minimized_llm_tracing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -303,5 +527,69 @@ def test_creative_research_service_emits_minimized_llm_tracing(
     assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
     assert llm_attrs["pulseplate.route_type"] == "internal"
     assert "Meal adherence under time scarcity" not in str(llm_attrs)
+
+    reset_tracing_for_tests()
+
+
+def test_creative_research_timeout_finalizes_llm_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Timeout path must still finalize the LLM span with bounded metadata."""
+
+    exporter = InMemorySpanExporter()
+    reset_tracing_for_tests()
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "false")
+    monkeypatch.setenv("PULSE_OBS_HMAC_KEY", "test-genai-hmac-key")
+    install_test_exporter(exporter)
+
+    provider = _StaticProvider(_valid_provider_payload())
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime._persist_privileged_action_audit",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        "app.services.creative_research_runtime.attempt_consume_llm_monthly_quota",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr("llm.get_provider", lambda: provider)
+
+    async def _timeout(_awaitable: object, *, timeout: float) -> object:
+        del timeout
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr("app.services.creative_research_runtime.asyncio.wait_for", _timeout)
+
+    task = CreativeResearchPilotTaskEnvelope.model_validate(
+        {
+            "mode": "auto-safe",
+            "input": {
+                "prompt_seed": "Meal adherence under time scarcity",
+                "reference_corpus": ["Missed dinners increase friction."],
+                "candidate_count": 2,
+                "api_key": API_KEY_HEADERS["X-API-Key"],
+                "endpoint": ROUTE_PATH,
+                "method": "POST",
+            },
+        }
+    )
+
+    from app.services.creative_research_runtime import run_creative_research_pilot_task
+
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(run_creative_research_pilot_task(task))
+
+    assert getattr(exc_info.value, "status_code", None) == 504
+
+    spans = exporter.get_finished_spans()
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes.get(OPENINFERENCE_SPAN_KIND) == OPENINFERENCE_KIND_LLM
+    ]
+    assert llm_spans, "Expected an LLM span even when the provider times out"
+
+    llm_attrs = dict(llm_spans[-1].attributes)
+    assert llm_attrs["gen_ai.usage.output_tokens"] == 0
+    assert llm_attrs["pulseplate.feature_flags.creative_research_pilot"] is True
 
     reset_tracing_for_tests()

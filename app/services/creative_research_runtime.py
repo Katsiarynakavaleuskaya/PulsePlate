@@ -267,6 +267,7 @@ async def _generate_provider_bundle(
                 detail="LLM provider not available",
             )
 
+        raw_payload: object | None = None
         with llm_span(
             provider_name=getattr(provider, "name", "unknown"),
             user_tier="VIP",
@@ -280,13 +281,15 @@ async def _generate_provider_bundle(
                     "pulseplate.feature_flags.creative_research_pilot": True,
                 },
             )
-            raw_payload = await asyncio.wait_for(
-                run_in_threadpool(provider.generate, prompt),
-                timeout=LLM_TIMEOUT_SECONDS,
-            )
-            if asyncio.iscoroutine(raw_payload):
-                raw_payload = await raw_payload
-            finalize_llm_span(span, str(raw_payload or ""))
+            try:
+                raw_payload = await asyncio.wait_for(
+                    run_in_threadpool(provider.generate, prompt),
+                    timeout=LLM_TIMEOUT_SECONDS,
+                )
+                if asyncio.iscoroutine(raw_payload):
+                    raw_payload = await raw_payload
+            finally:
+                finalize_llm_span(span, str(raw_payload or ""))
     except ImportError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

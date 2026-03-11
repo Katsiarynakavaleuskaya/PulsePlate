@@ -71,7 +71,7 @@ def _creative_research_feature_flags() -> dict[str, bool]:
 @limit_if_available(RATE_LIMIT_INSIGHT)
 async def creative_research_pilot(
     payload: CreativeResearchPilotRequest,
-    request: Request,
+    raw_request: Request,
     vip_key: str = Depends(require_vip_tier),
 ) -> CreativeResearchPilotResult:
     """Run the internal-only creative research pilot."""
@@ -109,14 +109,14 @@ async def creative_research_pilot(
             reference_corpus=safe_reference_corpus,
             candidate_count=payload.candidate_count,
             api_key=vip_key,
-            endpoint=str(request.url.path),
-            method=request.method,
+            endpoint=str(raw_request.url.path),
+            method=raw_request.method,
         ),
     )
     with agent_span(
         "creative research pilot",
         user_tier="VIP",
-        route=str(request.url.path),
+        route=str(raw_request.url.path),
         feature_flags=_creative_research_feature_flags(),
     ):
         return await run_creative_research_pilot_task(task)
