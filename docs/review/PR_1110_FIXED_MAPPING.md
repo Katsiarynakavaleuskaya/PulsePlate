@@ -33,6 +33,34 @@
   Disposition: FIXED
   Evidence: docs/review/PR_1110_FIXED_MAPPING.md:37
   Reason: Review summary covered the same merge-readiness checkbox issue and is fixed in the artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#pullrequestreview-3929270340 -> 439d41b8
+  Disposition: FIXED
+  Evidence: app/routers/vip.py:642
+  Reason: Legacy VIP alias now applies `require_vip_tier()` to explicit keys and dev/test fallback keys, removing the anonymous bypass outside the original diff.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#discussion_r2918122334 -> 439d41b8
+  Disposition: FIXED
+  Evidence: tests/test_vip_anonymous_api_key_safety.py:311
+  Reason: The anonymous-safety fixture no longer enables `VIP_API_KEYS` globally; the VIP env path is now opted into only by the test that exercises it.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#discussion_r2918122340 -> 439d41b8
+  Disposition: FIXED
+  Evidence: tests/test_vip_production_simple.py:68
+  Reason: Production VIP tests now set `VIP_API_KEYS` only in the cases that intentionally cover that auth path, keeping the source under test explicit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#pullrequestreview-3929330945 -> 439d41b8
+  Disposition: FIXED
+  Evidence: tests/test_vip_anonymous_api_key_safety.py:311; tests/test_vip_production_simple.py:68
+  Reason: Review summary covered the same two test-fixture ambiguity fixes and is resolved by the scoped `VIP_API_KEYS` setup.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#discussion_r2918222586 -> 9a46c760
+  Disposition: FIXED
+  Evidence: app/middleware/api_tiers.py:194
+  Reason: `subscriptions` is now imported inside `_lookup_tier_from_db()` so module import of `api_tiers.py` no longer pulls subscription models into OpenAPI-time import paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#discussion_r2918222595 -> 9a46c760
+  Disposition: FIXED
+  Evidence: app/middleware/api_tiers.py:233; tests/test_api_tiers.py:317
+  Reason: Invalid non-datetime `expires_at` values now fail closed through `INVALID_TIER`, with a targeted regression test covering the malformed persisted state.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1110#pullrequestreview-3929437556 -> 9a46c760
+  Disposition: FIXED
+  Evidence: app/middleware/api_tiers.py:194; app/middleware/api_tiers.py:233; tests/test_api_tiers.py:317
+  Reason: Review summary covered both api_tiers fixes: localizing the subscriptions import and denying malformed persisted expiry values.
 
 ## Merge Readiness
 - [ ] python3 scripts/orchestration/check_preflight.py
