@@ -25,6 +25,11 @@ Disposition: FIXED
 Evidence: docs/compliance/PROVIDER_INVENTORY.md:12
 Reason: provider inventory wording now matches the privacy/legal contract and includes bounded usage metadata.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2914981118 -> e3620198
+Disposition: FIXED
+Evidence: docs/review/PR_1093_FIXED_MAPPING.md:7; docs/review/PR_1093_FIXED_MAPPING.md:43; docs/review/PR_1093_FIXED_MAPPING.md:53
+Reason: the blanket `No actionable review comments` line was removed and replaced with concrete dispositions plus an explicit merge-readiness checklist.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discussion_r2914981122 -> e52acb85
 Disposition: FIXED
 Evidence: app/services/insight_runtime.py:142; legacy_app.py:2306
@@ -51,9 +56,9 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1093#discuss
 Reason: cubic identified this issue in the summary shell; the exact actionable child thread is dispositioned above.
 
 ## Merge Readiness
-- [ ] Scope tied to PR objective
-- [ ] Docs/runtime changes applied
-- [ ] Verification completed
+- [x] Scope tied to PR objective
+- [x] Docs/runtime changes applied
+- [x] Verification completed
 - [ ] Required GitHub checks PASS with no pending required jobs
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
