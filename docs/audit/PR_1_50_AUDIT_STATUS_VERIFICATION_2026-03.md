@@ -283,7 +283,7 @@ Exit code:
 1. **test_llm_extras.py:** Refactor to `monkeypatch` or add to sys.modules guard scope.
 2. **test_db_realistic_coverage.py:** Remove or refactor the `execute_query` block (dead code).
 3. **test_sqlite_fk_integrity.py:** Use parameterized PRAGMA or table allowlist.
-4. **run_coverage_tests.py:** Prefer `shutil.which()`; only if unavoidable, add policy-compliant `# nosec B607`.
+4. **run_coverage_tests.py:** Prefer `shutil.which()`; only if unavoidable, add policy-compliant `# nosec B603`.
 
 ### Backlog (P2)
 
