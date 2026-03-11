@@ -8,6 +8,16 @@ from __future__ import annotations
 
 from core.creative_research import (
     CONFIDENCE_LEVELS,
+    CreativeResearchBundleRecord,
+    CreativeResearchCandidateRecord,
+    CreativeResearchConfidence,
+    CreativeResearchEvaluatedCandidateRecord,
+    CreativeResearchEvaluationResultRecord,
+    CreativeResearchEvaluationSummaryRecord,
+    CreativeResearchOutputClass,
+    CreativeResearchPhase,
+    CreativeResearchPromotionDecision,
+    CreativeResearchScorecardRecord,
     DISCOVERY_REQUIRED_FIELDS,
     OUTPUT_CLASSES,
     PROMOTION_DECISIONS,
@@ -25,6 +35,16 @@ from core.creative_research import (
 
 __all__ = [
     "CONFIDENCE_LEVELS",
+    "CreativeResearchBundleRecord",
+    "CreativeResearchCandidateRecord",
+    "CreativeResearchConfidence",
+    "CreativeResearchEvaluatedCandidateRecord",
+    "CreativeResearchEvaluationResultRecord",
+    "CreativeResearchEvaluationSummaryRecord",
+    "CreativeResearchOutputClass",
+    "CreativeResearchPhase",
+    "CreativeResearchPromotionDecision",
+    "CreativeResearchScorecardRecord",
     "DISCOVERY_REQUIRED_FIELDS",
     "OUTPUT_CLASSES",
     "PROMOTION_DECISIONS",

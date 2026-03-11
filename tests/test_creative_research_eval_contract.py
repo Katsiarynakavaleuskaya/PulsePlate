@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -132,7 +133,7 @@ def test_normalize_text_and_similarity_cover_empty_inputs() -> None:
     ],
 )
 def test_validate_bundle_rejects_additional_invalid_shapes(
-    bundle_mutator: object,
+    bundle_mutator: Callable[[dict[str, object]], None],
     message: str,
 ) -> None:
     """Validation must fail closed on malformed bundles and candidates."""

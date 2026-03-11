@@ -11,7 +11,7 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any
+from typing import cast
 
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
@@ -35,7 +35,14 @@ from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.server_salt import require_server_salt
 from app.telemetry.genai import finalize_llm_span, llm_span, set_attributes
 from core.compliance import get_transparency_registry
-from core.creative_research import SCHEMA_VERSION, TASK_CLASS, evaluate_bundle
+from core.creative_research import (
+    SCHEMA_VERSION,
+    TASK_CLASS,
+    CreativeResearchBundleRecord,
+    CreativeResearchCandidateRecord,
+    CreativeResearchConfidence,
+    evaluate_bundle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +123,7 @@ Reference corpus:
 """.strip()
 
 
-def _extract_json_payload(raw_message: str) -> dict[str, Any]:
+def _extract_json_payload(raw_message: str) -> dict[str, object]:
     """Extract the first JSON object from provider text, tolerating fenced output."""
 
     stripped = raw_message.strip()
@@ -138,40 +145,46 @@ def _extract_json_payload(raw_message: str) -> dict[str, Any]:
     return loaded
 
 
-def _normalize_provider_candidate(candidate: dict[str, Any], *, index: int) -> dict[str, Any]:
+def _normalize_provider_candidate(
+    candidate: dict[str, object],
+    *,
+    index: int,
+) -> CreativeResearchCandidateRecord:
     """Normalize provider output into the creative-research contract."""
 
     confidence = str(candidate.get("confidence", "unknown")).strip().lower() or "unknown"
     if confidence not in {"low", "medium", "high", "unknown"}:
         confidence = "unknown"
+    normalized_confidence = cast(CreativeResearchConfidence, confidence)
     known_risks_raw = candidate.get("known_risks", [])
     if isinstance(known_risks_raw, list):
         known_risks = [str(item).strip() for item in known_risks_raw if str(item).strip()]
     else:
         known_risks = []
-    return {
+    candidate_record: CreativeResearchCandidateRecord = {
         "candidate_id": str(candidate.get("candidate_id", "")).strip() or f"candidate-{index}",
         "claim": str(candidate.get("claim", "")).strip(),
         "mechanism": str(candidate.get("mechanism", "")).strip(),
         "evidence_needed": str(candidate.get("evidence_needed", "")).strip(),
         "falsifier": str(candidate.get("falsifier", "")).strip(),
-        "confidence": confidence,
+        "confidence": normalized_confidence,
         "known_risks": known_risks,
         "wellness_boundary": (
             str(candidate.get("wellness_boundary", "")).strip()
             or "Wellness only; not diagnosis, treatment, or medical advice."
         ),
     }
+    return candidate_record
 
 
 def _normalize_provider_bundle(
-    payload: dict[str, Any],
+    payload: dict[str, object],
     *,
     prompt_seed: str,
     reference_corpus: list[str],
     candidate_count: int,
     bundle_id: str,
-) -> dict[str, Any]:
+) -> CreativeResearchBundleRecord:
     """Normalize provider JSON into the canonical evaluation bundle."""
 
     raw_candidates = payload.get("candidates", payload)
@@ -188,7 +201,7 @@ def _normalize_provider_bundle(
         raise ValueError("Provider response candidates must be objects.")
     if len(normalized_candidates) < candidate_count:
         raise ValueError("Provider returned fewer valid candidates than requested.")
-    return {
+    bundle_record: CreativeResearchBundleRecord = {
         "schema_version": SCHEMA_VERSION,
         "bundle_id": str(payload.get("bundle_id", "")).strip() or bundle_id,
         "task_class": TASK_CLASS,
@@ -197,6 +210,7 @@ def _normalize_provider_bundle(
         "reference_corpus": reference_corpus[:MAX_RETRIEVAL_HOPS],
         "candidates": normalized_candidates,
     }
+    return bundle_record
 
 
 def _persist_privileged_action_audit(
@@ -230,7 +244,7 @@ async def _generate_provider_bundle(
     *,
     prompt: str,
     bundle_id: str,
-) -> dict[str, Any]:
+) -> CreativeResearchBundleRecord:
     """Generate one bounded provider-backed creative-research bundle."""
 
     try:
