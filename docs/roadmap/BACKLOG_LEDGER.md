@@ -312,13 +312,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-token-lock-ci"></a>
+- [ ] P1: Design-token lockfile and deterministic CI/build contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-TOKEN-LOCK-CI
+  - Status: 📋 Planned
+  - Area: design-system / frontend / iOS / CI
+  - Finding Type: deterministic build-governance gap
+  - Reason (EN): The repo now has token-pipeline governance and generated runtime mirrors, but it still does not have a canonical build-from-lock contract. There is no enforced `tokens.lock.json`, no explicit artifact-from-lock-only rule, and no release/rollback playbook for token changes across web and iOS.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `frontend/src/styles/tokens.css`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+  - DoD:
+    - Canonical token pipeline defines lockfile ownership, artifact generation from lock only, and CI drift policy
+    - Release/rollback runbook exists for token builds across web/iOS surfaces
+    - Existing semantic/token-governance docs link to the same deterministic build contract
+
 <a id="ledger-p1-ios-subscription-manager"></a>
 - [ ] P1: iOS SubscriptionManager backend-driven integration
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
   - Status: 📋 Planned
-  - Area: ios / payments / thin-client policy
+  - Area: iOS / payments / thin-client policy
   - Finding Type: monetization runtime follow-through
   - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
   - Links:
@@ -329,6 +348,119 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS subscription orchestration remains thin and backend-driven
     - Product/state transitions are deterministic and test-covered
     - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-app-store-subscription-offers-governance"></a>
+- [ ] P1: App Store subscription offers governance and StoreKit-truth pricing contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-OFFERS-GOVERNANCE
+  - Status: 📋 Planned
+  - Area: iOS / billing / App Store / growth
+  - Finding Type: release-governance gap
+  - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
+    - `docs/MOBILE_API_MIGRATION_GUIDE.md`
+  - DoD:
+    - Canonical billing/release doc defines how introductory offers, offer codes, and promotional offers are configured and reviewed
+    - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
+    - App Store release-ops and compliance docs link back to the same monetization governance source
+
+<a id="ledger-p1-release-env-security-contract"></a>
+- [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RELEASE-ENV-SECURITY-CONTRACT
+  - Status: 📋 Planned
+  - Area: deploy / security / release operations
+  - Finding Type: runtime env contract gap
+  - Reason (EN): Repo docs describe `API_KEY_REQUIRED` and related auth/tier env flags, but there is no canonical release contract that makes staging/production values explicit and auditable. Without that contract, a release can drift into a weaker env posture than local docs imply.
+  - Links:
+    - `.env.example`
+    - `docker-compose.yaml`
+    - `README.md`
+    - `docs/deploy/OVERVIEW.md`
+  - DoD:
+    - Canonical release-env doc defines expected values for `API_KEY_REQUIRED` and other auth/tier-critical env flags across local, staging, and production
+    - Verification path for staging/prod env truth is documented and linked from release runbooks
+    - Security posture docs no longer rely on implied env defaults where release enforcement is required
+
+<a id="ledger-p1-fastapi-compatibility-gates"></a>
+- [ ] P1: FastAPI / Pydantic / Starlette compatibility gates for schema and TestClient drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FASTAPI-COMPAT-GATES
+  - Status: 📋 Planned
+  - Area: backend / CI / contracts
+  - Finding Type: dependency-compatibility gap
+  - Reason (EN): The repo already depends on FastAPI, Pydantic v2, and Starlette/httpx behavior, but it has no canonical CI bundle that explicitly guards strict JSON content-type handling, OpenAPI/root_path drift, nullable-required schema semantics, and TestClient behavior changes during dependency bumps.
+  - Links:
+    - `README.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `tests/test_openapi_determinism.py`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+  - DoD:
+    - Deterministic CI smoke/tests exist for strict content-type behavior, OpenAPI snapshot stability, and representative TestClient/runtime request paths
+    - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
+    - Dependency upgrade/runbook docs link to the same compatibility gate source
+
+<a id="ledger-p1-search-observability-foundation"></a>
+- [ ] P1: Search observability foundation with trace correlation, synthetic probes, and per-class SLOs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SEARCH-OBSERVABILITY-FOUNDATION
+  - Status: 📋 Planned
+  - Area: backend / observability / search
+  - Finding Type: observability foundation gap
+  - Reason (EN): Search and retrieval performance are still hard to diagnose end-to-end. The repo has tracing policy/docs, but it does not yet define a canonical package for correlated HTTP/DB/search traces, daily synthetic probes, and SLOs split by query class.
+  - Links:
+    - `docs/analytics/README.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_TASK_ANALYSIS.md`
+  - DoD:
+    - Canonical observability doc defines trace correlation, search/query-class tagging, and `X-Trace-Id` response contract if adopted
+    - Synthetic probe workflow and per-class latency/error objectives are documented before rollout
+    - Search performance debugging path is linked from ops/runbook docs
+
+<a id="ledger-p1-usda-foundation-foods-preflight"></a>
+- [ ] P1: USDA Foundation Foods update preflight and diff-based ingest guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-USDA-PREFLIGHT
+  - Status: 📋 Planned
+  - Area: data ingestion / food catalog / quality
+  - Finding Type: upstream data-change readiness gap
+  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestible records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
+  - Links:
+    - `scripts/build_food_db.py`
+    - `docs/roadmap/GLOBAL_ROADMAP.md`
+    - `app/services/food_store.py`
+  - DoD:
+    - Preflight workflow exists for diffing incoming USDA/Foundation Foods changes against the current catalog snapshot
+    - Dedupe/mapping collision checks are defined before snapshot promotion
+    - Data-ingest docs and runbooks point to the same preflight source of truth
+
+<a id="ledger-p1-llm-reliability-security-gates"></a>
+- [ ] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LLM-CI-GATES
+  - Status: 📋 Planned
+  - Area: AI runtime / security / evaluation
+  - Finding Type: model-evaluation gate gap
+  - Reason (EN): The repo has AI safety posture and tracing materials, but there is no canonical CI gate bundle for retrieval quality regressions, faithfulness checks, prompt-injection adversarial tests, and privacy-sensitive evaluation. Without that package, AI quality and safety can drift silently between releases.
+  - Links:
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/analytics/README.md`
+    - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
+    - `core/insight/philosophy_validator.py`
+    - `AGENTS.md`
+  - DoD:
+    - Canonical evaluation package defines required retrieval/faithfulness/security/privacy checks and where they run
+    - Prompt-injection and untrusted-context posture is covered by explicit CI or release-gate tests
+    - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
+    - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
@@ -1845,27 +1977,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: TBD (implementation after mini-PRD approval)
-  - Status: 📋 Planned
-  - Reason (EN): Adopt the strongest fit from modern interactive learning products without turning PulsePlate into an ML academy. The product fit is interactive explainers, learning-cycle progression, and science-backed clarity around existing wellness outputs. MVP must remain deterministic, wellness-safe, and grounded in existing BMI / risk / adherence / weekly-plan data. No new heavy LLM endpoint is allowed on the core path. (RU: Интегрировать понятные explainers и learning cycles поверх текущих wellness-сущностей; без копирования чужого контента, без ML-куррикулума внутри продукта и без нового дорогого AI-контура.)
-  - Links:
-    - docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md
-    - docs/audience_pack/FACTS_CANONICAL.md
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
-    - core/insight/philosophy_validator.py
-    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
-  - DoD:
-    - Backend contract for explainer payloads is documented and implemented using existing product entities only
-    - At least one FREE/PRO explainer surface ships without client-side business logic duplication
-    - Learning cycle unlock rules are deterministic and do not depend on streak-shame mechanics
-    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
-    - Product copy remains wellness-safe and evidence-aligned
-
-
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
 - [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (product differentiation + trust/retention)
@@ -1873,10 +1984,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 📋 Planned
   - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
   - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md`
     - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
     - `docs/product/FREE_PRO_CONTRACT.md`
     - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+    - `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md`
+    - `core/insight/philosophy_validator.py`
+    - `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`
     - `https://www.tensortonic.com/`
     - `https://www.tensortonic.com/ml-math`
     - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
@@ -1885,7 +2000,152 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
     - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
     - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
+    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
+    - Product copy remains wellness-safe and evidence-aligned
     - GTM framing stays clarity-first and wellness-safe
+
+- [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first unblocker)
+  - Target PR: PR-TBD-EXPLAINER-CONTRACT-PAYLOADS
+  - Status: 📋 Planned
+  - Reason (EN): The first implementation slice should lock backend-owned payload shapes before any UI work. PulsePlate needs canonical response shapes for explainer cards that reuse current BMI, interpretation, adherence, and weekly-plan entities instead of inventing client heuristics. (RU: Сначала нужен каноничный backend contract для explainer payloads; UI не должен сам собирать бизнес-логику.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `app/schemas/`
+    - `app/routers/`
+  - DoD:
+    - High-level contract documents backend-owned `explainer_card` fields for FREE / PRO / VIP
+    - Existing product entities are mapped to explainer payload sources without client-side business logic duplication
+    - No runtime implementation is required in the design PR
+
+- [ ] P2: Rules-first learning-cycle engine and unlock semantics
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product behavior foundation)
+  - Target PR: PR-TBD-LEARNING-CYCLE-ENGINE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate needs deterministic unlock rules based on current BMI, interpretation, adherence, and weekly-plan signals. The cycle model must reward understanding and adjustment, not streak preservation or social pressure. (RU: Нужны детерминированные unlock rules для learning cycles без streak-shame и без social ranking.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `core/`
+    - `app/routers/pro.py`
+    - `app/routers/vip.py`
+  - DoD:
+    - Canonical `learning_cycle_state` fields are documented
+    - Unlock rules use existing backend signals only
+    - Design explicitly bans public leaderboards, addictive streak loops, and ranking mechanics in MVP
+
+- [ ] P2: Frontend and iOS explainer surfaces on current journey pages
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (rendering follow-up)
+  - Target PR: PR-TBD-EXPLAINER-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): After the backend contract exists, explainers should be rendered on existing BMI, PRO interpretation, progress, and weekly-plan surfaces. Delivery must remain thin-client on web and iOS. (RU: После contract phase explainers нужно отрисовать на текущих user journey surfaces без дублирования бизнес-логики на клиентах.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/`
+    - `ios/`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+  - DoD:
+    - Surface map is defined for web and iOS on current FREE / PRO / VIP pages
+    - Rendering remains presentation-only; business logic stays on backend
+    - Copy stays wellness-safe and aligned with the trust-based funnel
+
+- [ ] P2: Explainer progress telemetry and experimentation package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (measurement follow-up)
+  - Target PR: PR-TBD-EXPLAINER-TELEMETRY
+  - Status: 📋 Planned
+  - Reason (EN): Explainers and learning cycles need completion and unlock telemetry so the product can measure trust, retention, and progression. This should reuse existing progress/live-indicator patterns instead of creating a parallel growth system. (RU: Для explainers и learning cycles нужна телеметрия completion/unlock, но она должна переиспользовать текущие progress patterns и оставаться privacy-safe.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/src/features/progress/`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical `explainer_progress_event` fields are documented
+    - Telemetry design is low-cardinality and privacy-safe
+    - Experimentation scope is additive and does not introduce a new gamification system in MVP
+
+- [ ] P2: Optional interactive simulator micro-surfaces for wellness understanding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional product clarity)
+  - Target PR: PR-TBD-WELLNESS-SIMULATOR-MICRO-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): TensorTonic's strongest reusable learning mechanic is the combination of explanation, scenario, pitfalls, and interactive simulation. PulsePlate can selectively adapt this for wellness-safe cases such as adherence confidence stability or interpretation confidence with more data, but only as deterministic micro-surfaces grounded in current product logic. (RU: Самая полезная механика для адаптации — explanation + scenario + pitfalls + simulator; у нас это допустимо только для wellness-safe и rules-first micro-surfaces.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`
+    - `core/`
+  - DoD:
+    - Candidate simulator cases are documented and validated as wellness-safe
+    - Simulator logic is deterministic and local to existing product rules
+    - No new heavy LLM endpoint or public gamification mechanics are introduced
+
+- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
+  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
+  - Status: 📋 Planned
+  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
+    - core/insight/creative_scientific_innovations.md (FitChef personalization)
+  - DoD:
+    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
+    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
+    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
+
+- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (when VIP weekly plan performance is in scope)
+  - Target PR: TBD (implementation after design)
+  - Status: 📋 Planned
+  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
+    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
+    - app/routers/vip.py (current weekly plan flow)
+  - DoD:
+    - Design: recursive week planning and/or lazy day generation documented
+    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
+    - No regression on constraint satisfaction or nutrition targets
+
+- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality assurance; prevent regressions)
+  - Target PR: TBD (tests only)
+  - Status: 📋 Planned
+  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
+    - tests/ (existing unit/integration structure)
+  - DoD:
+    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
+    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
+
+- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
+  - Target PR: N/A (decision + optional draft)
+  - Status: 📋 Planned
+  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
+  - DoD:
+    - Decision documented: pursue / defer / won't do for publication track
+    - If pursue: venue + outline for one paper; no mandatory timeline
 
 
 - [ ] P2: Add runbook or CLI helper for resolving review threads
@@ -5244,191 +5504,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
     - No mandatory code dependency; adopt via normal PR/backlog
 
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: PR-TBD-WELLNESS-EXPLAINERS-MVP
-  - Status: 📋 Planned
-  - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-    - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
-    - `https://www.tensortonic.com/`
-    - `https://www.tensortonic.com/ml-math`
-    - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
-  - DoD:
-    - Backend-owned explainer and learning-cycle direction is documented against existing FREE / PRO / VIP entities
-    - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
-    - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
-    - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
-    - GTM framing stays clarity-first and wellness-safe
-
-- [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (contract-first unblocker)
-  - Target PR: PR-TBD-EXPLAINER-CONTRACT-PAYLOADS
-  - Status: 📋 Planned
-  - Reason (EN): The first implementation slice should lock backend-owned payload shapes before any UI work. PulsePlate needs canonical response shapes for explainer cards that reuse current BMI, interpretation, adherence, and weekly-plan entities instead of inventing client heuristics. (RU: Сначала нужен каноничный backend contract для explainer payloads; UI не должен сам собирать бизнес-логику.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-    - `app/schemas/`
-    - `app/routers/`
-  - DoD:
-    - High-level contract documents backend-owned `explainer_card` fields for FREE / PRO / VIP
-    - Existing product entities are mapped to explainer payload sources without client-side business logic duplication
-    - No runtime implementation is required in the design PR
-
-- [ ] P2: Rules-first learning-cycle engine and unlock semantics
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product behavior foundation)
-  - Target PR: PR-TBD-LEARNING-CYCLE-ENGINE
-  - Status: 📋 Planned
-  - Reason (EN): PulsePlate needs deterministic unlock rules based on current BMI, interpretation, adherence, and weekly-plan signals. The cycle model must reward understanding and adjustment, not streak preservation or social pressure. (RU: Нужны детерминированные unlock rules для learning cycles без streak-shame и без social ranking.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-    - `core/`
-    - `app/routers/pro.py`
-    - `app/routers/vip.py`
-  - DoD:
-    - Canonical `learning_cycle_state` fields are documented
-    - Unlock rules use existing backend signals only
-    - Design explicitly bans public leaderboards, addictive streak loops, and ranking mechanics in MVP
-
-- [ ] P2: Frontend and iOS explainer surfaces on current journey pages
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (rendering follow-up)
-  - Target PR: PR-TBD-EXPLAINER-SURFACES
-  - Status: 📋 Planned
-  - Reason (EN): After the backend contract exists, explainers should be rendered on existing BMI, PRO interpretation, progress, and weekly-plan surfaces. Delivery must remain thin-client on web and iOS. (RU: После contract phase explainers нужно отрисовать на текущих user journey surfaces без дублирования бизнес-логики на клиентах.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `frontend/`
-    - `ios/`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-  - DoD:
-    - Surface map is defined for web and iOS on current FREE / PRO / VIP pages
-    - Rendering remains presentation-only; business logic stays on backend
-    - Copy stays wellness-safe and aligned with the trust-based funnel
-
-- [ ] P2: Explainer progress telemetry and experimentation package
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (measurement follow-up)
-  - Target PR: PR-TBD-EXPLAINER-TELEMETRY
-  - Status: 📋 Planned
-  - Reason (EN): Explainers and learning cycles need completion and unlock telemetry so the product can measure trust, retention, and progression. This should reuse existing progress/live-indicator patterns instead of creating a parallel growth system. (RU: Для explainers и learning cycles нужна телеметрия completion/unlock, но она должна переиспользовать текущие progress patterns и оставаться privacy-safe.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `frontend/src/features/progress/`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
-  - DoD:
-    - Canonical `explainer_progress_event` fields are documented
-    - Telemetry design is low-cardinality and privacy-safe
-    - Experimentation scope is additive and does not introduce a new gamification system in MVP
-
-- [ ] P2: Optional interactive simulator micro-surfaces for wellness understanding
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (optional product clarity)
-  - Target PR: PR-TBD-WELLNESS-SIMULATOR-MICRO-SURFACES
-  - Status: 📋 Planned
-  - Reason (EN): TensorTonic's strongest reusable learning mechanic is the combination of explanation, scenario, pitfalls, and interactive simulation. PulsePlate can selectively adapt this for wellness-safe cases such as adherence confidence stability or interpretation confidence with more data, but only as deterministic micro-surfaces grounded in current product logic. (RU: Самая полезная механика для адаптации — explanation + scenario + pitfalls + simulator; у нас это допустимо только для wellness-safe и rules-first micro-surfaces.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-    - `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`
-    - `core/`
-  - DoD:
-    - Candidate simulator cases are documented and validated as wellness-safe
-    - Simulator logic is deterministic and local to existing product rules
-    - No new heavy LLM endpoint or public gamification mechanics are introduced
-
-- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
-  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
-  - Status: 📋 Planned
-  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
-    - core/insight/creative_scientific_innovations.md (FitChef personalization)
-  - DoD:
-    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
-    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
-    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
-
-- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (when VIP weekly plan performance is in scope)
-  - Target PR: TBD (implementation after design)
-  - Status: 📋 Planned
-  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
-    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
-    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
-    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
-    - app/routers/vip.py (current weekly plan flow)
-  - DoD:
-    - Design: recursive week planning and/or lazy day generation documented
-    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
-    - No regression on constraint satisfaction or nutrition targets
-
-- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (quality assurance; prevent regressions)
-  - Target PR: TBD (tests only)
-  - Status: 📋 Planned
-  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
-    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
-    - tests/ (existing unit/integration structure)
-  - DoD:
-    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
-    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
-
-- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
-  - Target PR: N/A (decision + optional draft)
-  - Status: 📋 Planned
-  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
-    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
-  - DoD:
-    - Decision documented: pursue / defer / won't do for publication track
-    - If pursue: venue + outline for one paper; no mandatory timeline
-
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: TBD (implementation after mini-PRD approval)
-  - Status: 📋 Planned
-  - Reason (EN): Adopt the strongest fit from modern interactive learning products without turning PulsePlate into an ML academy. The product fit is interactive explainers, learning-cycle progression, and science-backed clarity around existing wellness outputs. MVP must remain deterministic, wellness-safe, and grounded in existing BMI / risk / adherence / weekly-plan data. No new heavy LLM endpoint is allowed on the core path. (RU: Интегрировать понятные explainers и learning cycles поверх текущих wellness-сущностей; без копирования чужого контента, без ML-куррикулума внутри продукта и без нового дорогого AI-контура.)
-  - Links:
-    - docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md
-    - docs/audience_pack/FACTS_CANONICAL.md
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
-    - core/insight/philosophy_validator.py
-    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
-  - DoD:
-    - Backend contract for explainer payloads is documented and implemented using existing product entities only
-    - At least one FREE/PRO explainer surface ships without client-side business logic duplication
-    - Learning cycle unlock rules are deterministic and do not depend on streak-shame mechanics
-    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
-    - Product copy remains wellness-safe and evidence-aligned
-
 - [ ] P1: Agent knowledge library template packs (domain-specific)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability)
@@ -5455,8 +5530,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability + bounded AI optimization)
-  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102
-  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane is executing in `#1102`; PR6 remains open)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102 -> PR #1107
+  - Status: 🟡 In progress (PR1 governance merged in `#1073`; PR2 bootstrap tooling merged in `#1081`; PR3 runner MVP merged in `#1088`; same-day main bootstrap remediation merged in `#1096`; PR4 promotion/telemetry merged in `#1092`; PR5 CV experimentation lane merged in `#1102`; PR6 reliability optimization is active in PR `#1107` on `feat/agent-experiment-reliability-pr6`)
   - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
@@ -5541,7 +5616,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
   - Target PR: #1102
-  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
+  - Status: 🟡 Delivered in PR `#1102` on 2026-03-11 (`55783414`; CV overlay + packet schema extension + orchestration drift audit shipped), but canonical ledger closeout remains pending the docs-only normalization follow-up tracked in [P2: Normalize PR5 ledger closeout via docs-only follow-up PR](#ledger-p2-pr5-ledger-closeout-docs-only)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5565,8 +5640,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (first practical output of the experimentation lane)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_FIRST_RELIABILITY_PR
-  - Status: 📋 Planned
+  - Target PR: PR #1107
+  - Status: 🟡 In progress on 2026-03-11 (PR `#1107`; branch `feat/agent-experiment-reliability-pr6`; post-merge handoff after PR `#1102`)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
@@ -5613,6 +5688,70 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration
     - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
     - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
+
+<a id="ledger-p2-phase2-body-artifact-sync"></a>
+- [ ] P2: Eliminate PR body and mapping artifact phase2 drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PHASE2_BODY_ARTIFACT_SYNC
+  - Area: orchestration / CI governance
+  - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - Phase2 body mirror is generated or validated from a single canonical source
+    - Late review-cycle updates no longer require manual duplication of mapping lines
+    - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
+
+<a id="ledger-p2-clean-clone-dependency-parity"></a>
+- [ ] P2: Restore deterministic clean-clone dependency parity for local verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CLEAN_CLONE_DEPENDENCY_PARITY
+  - Area: tooling / developer-experience
+  - Reason: Final PR5 local `make verify` failed in the clean clone because `.venv` was missing locked `opentelemetry-*` packages required by `tests/test_genai_tracing.py`, even though `requirements.txt` already declared them. This is an environment parity gap, not a code regression, but it weakens merge confidence.
+  - Links:
+    - `Makefile`
+    - `requirements.txt`
+    - `tests/test_genai_tracing.py`
+    - `tests/test_genai_tracing_config.py`
+  - DoD:
+    - Fresh clean clones can run `make verify` after one documented bootstrap path with no missing locked dependencies
+    - Local setup docs mention the canonical venv refresh command when lockfile drift is suspected
+    - At least one deterministic check guards against silently incomplete clean-clone environments
+
+<a id="ledger-p2-gh-checks-current-head-filter"></a>
+- [ ] P2: Filter superseded GitHub check noise in merge triage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_GH_CHECKS_CURRENT_HEAD_FILTER
+  - Area: orchestration / GitHub governance
+  - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
+  - Links:
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
+    - Merge triage output clearly labels stale runs as non-blocking when canonical readiness already passed
+    - Final merge checklist references the filtered current-head view
+
+<a id="ledger-p2-pr5-ledger-closeout-docs-only"></a>
+- [ ] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_PR5_LEDGER_CLOSEOUT_DOCS_ONLY
+  - Area: orchestration / ledger governance
+  - Reason: `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md` requires a docs-only follow-up PR when a merged PR closes a ledger item. PR5 closeout was captured during the mixed-scope PR6 kickoff sequence, so it needs a narrow docs-only normalization PR instead of widening PR6 further.
+  - Links:
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+  - DoD:
+    - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
+    - The follow-up PR references PR `#1102` and this deferred remediation item
+    - No runtime or tooling files are mixed into that normalization PR
 
 - [ ] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
@@ -5667,21 +5806,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add evidence requirements for write operations and promotions
     - Confirm no secondary tool bypasses git SoT or Figma canonical mappings
     - Update coordinator/runbook docs with approved automation paths only
-
-- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
-  - Status: 📋 Planned
-  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
-  - Links:
-    - `app/security/llm_monthly_quota.py` (VIP-only implementation)
-    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
-    - `app/routers/cbt_insight.py` (PRO endpoint without monthly quota)
-  - DoD:
-    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
-    - CBT insight endpoint calls quota check before provider.generate()
-    - Deterministic tests for PRO quota enforcement
 
 - [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
 - [x] PR-608 merged: audit post-merge evidence stamp (merged 2026-01-27)

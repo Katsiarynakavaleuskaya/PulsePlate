@@ -23,6 +23,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
+import app.middleware.api_tiers as api_tiers_mod
 from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from app.services import fitchef_runtime
@@ -640,9 +641,17 @@ def _require_api_key_dev_legacy(request: Request) -> str:
 
     if api_key:
         try:
-            return _require_api_key(api_key)
+            resolved_api_key = _require_api_key(api_key)
+            if api_tiers_mod._is_subscription_db_enabled():
+                api_tiers_mod.require_vip_tier(x_api_key=resolved_api_key, request=request)
+            return resolved_api_key
         except HTTPException as exc:
             if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: VIP access required",
+                ) from exc
+            if exc.status_code == status.HTTP_403_FORBIDDEN:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: VIP access required",

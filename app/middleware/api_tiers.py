@@ -27,13 +27,17 @@ import hashlib
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, Security, status
-from sqlalchemy import text
 
 from app.routers.api_key import api_key_header
+from app.schemas.payments import (
+    SubscriptionStatus as PersistedSubscriptionStatus,
+    SubscriptionTier as PersistedSubscriptionTier,
+)
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
@@ -125,21 +129,72 @@ def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     return None
 
 
-def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
-    """Try to resolve API key tier from DB with explicit outcome.
+def _parse_persisted_subscription_tier(raw_tier: str) -> SubscriptionTier | None:
+    """Convert persisted billing tier string into authz tier enum."""
 
-    RU: Пытается определить tier из БД и возвращает статус lookup.
-    EN: Attempts to resolve tier from DB and returns structured status.
-    """
-    query = text("SELECT tier FROM api_keys WHERE api_key = :api_key LIMIT 1")
-
+    normalized = raw_tier.strip().lower()
     try:
+        persisted_tier = PersistedSubscriptionTier(normalized)
+    except ValueError:
+        return None
+
+    return {
+        PersistedSubscriptionTier.free: SubscriptionTier.FREE,
+        PersistedSubscriptionTier.pro: SubscriptionTier.PRO,
+        PersistedSubscriptionTier.vip: SubscriptionTier.VIP,
+    }[persisted_tier]
+
+
+def _parse_persisted_subscription_status(
+    raw_status: str,
+) -> PersistedSubscriptionStatus | None:
+    """Convert persisted billing status string into canonical status enum."""
+
+    normalized = raw_status.strip().lower()
+    try:
+        return PersistedSubscriptionStatus(normalized)
+    except ValueError:
+        return None
+
+
+def _normalize_utc_datetime(value: datetime | None) -> datetime | None:
+    """Normalize naive/aware datetimes to UTC for deterministic expiry checks."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _tier_rank(tier: SubscriptionTier) -> int:
+    """Return deterministic rank for effective paid-tier resolution."""
+
+    return {
+        SubscriptionTier.FREE: 0,
+        SubscriptionTier.PRO: 1,
+        SubscriptionTier.VIP: 2,
+    }[tier]
+
+
+def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
+    """Try to resolve API key tier from persisted subscriptions with explicit outcome.
+
+    RU: Пытается определить entitlement из persisted subscriptions и возвращает статус lookup.
+    EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
+    """
+    try:
+        from app.services import subscriptions as subscriptions_store
         from core.db import get_session_factory
 
+        user_id = derive_subject_id_from_api_key(api_key)
         session_factory = get_session_factory()
         session = session_factory()
         try:
-            raw_tier = session.execute(query, {"api_key": api_key}).scalar_one_or_none()
+            subscriptions = subscriptions_store.list_subscriptions_for_user(
+                session=session,
+                user_id=user_id,
+            )
         finally:
             session.close()
     except Exception:
@@ -150,17 +205,45 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         )
         return DBLookupResult(status=DBLookupStatus.ERROR)
 
-    if raw_tier is None:
+    if not subscriptions:
         return DBLookupResult(status=DBLookupStatus.MISS)
 
-    parsed_tier = _parse_tier_value(str(raw_tier))
-    if parsed_tier is None:
+    now = datetime.now(timezone.utc)
+    saw_valid_state = False
+    saw_invalid_state = False
+    effective_tier = SubscriptionTier.FREE
+
+    for subscription in subscriptions:
+        parsed_tier = _parse_persisted_subscription_tier(subscription.tier)
+        parsed_status = _parse_persisted_subscription_status(subscription.status)
+        if parsed_tier is None or parsed_status is None:
+            saw_invalid_state = True
+            continue
+
+        saw_valid_state = True
+        if parsed_status is not PersistedSubscriptionStatus.active:
+            continue
+
+        expires_at = _normalize_utc_datetime(subscription.expires_at)
+        if expires_at is not None and expires_at <= now:
+            continue
+
+        if _tier_rank(parsed_tier) > _tier_rank(effective_tier):
+            effective_tier = parsed_tier
+
+    if saw_invalid_state:
         logger.warning(
-            "Subscription DB lookup returned unknown tier value; denying env fallback",
+            "Subscription DB lookup returned invalid persisted entitlement state; denying access",
             extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
         )
         return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
-    return DBLookupResult(status=DBLookupStatus.HIT, tier=parsed_tier)
+
+    if saw_valid_state:
+        return DBLookupResult(status=DBLookupStatus.HIT, tier=effective_tier)
+
+    # RU: Защитный хвост для типизатора; неожиданный непустой, но нейтральный набор трактуем как MISS.
+    # EN: Defensive tail for the type checker; treat any unexpected neutral non-empty set as MISS.
+    return DBLookupResult(status=DBLookupStatus.MISS)
 
 
 def _resolve_tier_from_env(
@@ -213,8 +296,7 @@ def _resolve_authorized_api_key_tier(
             if _tier_allows_access(db_lookup.tier, required_tier):
                 return db_lookup.tier
             return None
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return None
+        return None
 
     resolved_env_tier = _resolve_tier_from_env(
         api_key,
@@ -507,8 +589,7 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         db_lookup = _lookup_tier_from_db(api_key)
         if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
             return db_lookup.tier
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return SubscriptionTier.FREE
+        return SubscriptionTier.FREE
 
     env_tier = _resolve_tier_from_env(
         api_key,
