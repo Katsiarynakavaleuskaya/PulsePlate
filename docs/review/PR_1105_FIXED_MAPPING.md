@@ -14,6 +14,9 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3927938657 -> 497b5136
   Disposition: FIXED
   Commit: 497b5136
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1105#pullrequestreview-3928509992 -> 1d3aee0d
+  Disposition: FIXED
+  Commit: 1d3aee0d
 
 ## Merge Readiness
 - [ ] Local `pre-commit run --all-files`
