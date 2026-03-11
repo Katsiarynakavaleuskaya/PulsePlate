@@ -3,7 +3,143 @@
   "page": "10_iOS_Home",
   "platform": "IOS",
   "surface": "ios_home_screen",
+  "layout_archetype": "hero_shell",
   "layout_pattern": "hero-plus-quick-actions",
+  "sections": [
+    {
+      "section_id": "hero-band",
+      "name": "Hero band",
+      "role": "context_summary",
+      "component_ids": [
+        "ios-home-shell",
+        "ios-home-hero",
+        "ios-home-badge",
+        "ios-home-summary"
+      ]
+    },
+    {
+      "section_id": "quick-actions",
+      "name": "Quick actions",
+      "role": "primary_actions",
+      "component_ids": [
+        "ios-home-actions",
+        "node:ios.home.bmi_calculator",
+        "node:ios.home.profile_setup",
+        "node:ios.home.open_plate",
+        "node:ios.home.weekly_plan_reader",
+        "node:ios.home.shopping_list_generator"
+      ]
+    },
+    {
+      "section_id": "footer-nav",
+      "name": "Footer navigation",
+      "role": "persistent_navigation",
+      "component_ids": [
+        "ios-home-nav"
+      ]
+    }
+  ],
+  "component_hierarchy": [
+    {
+      "component_id": "ios-home-shell",
+      "canonical_component": "card",
+      "section_id": "hero-band",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "source_ref": "static:ios-home-shell"
+    },
+    {
+      "component_id": "ios-home-hero",
+      "canonical_component": "hero",
+      "section_id": "hero-band",
+      "parent_component_id": "ios-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "primary_message",
+      "source_ref": "static:ios-home-hero"
+    },
+    {
+      "component_id": "ios-home-badge",
+      "canonical_component": "badge",
+      "section_id": "hero-band",
+      "parent_component_id": "ios-home-hero",
+      "hierarchy_level": 2,
+      "semantic_role": "status_marker",
+      "source_ref": "static:ios-home-badge"
+    },
+    {
+      "component_id": "ios-home-summary",
+      "canonical_component": "stats-card",
+      "section_id": "hero-band",
+      "parent_component_id": "ios-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "summary_metrics",
+      "source_ref": "static:ios-home-summary"
+    },
+    {
+      "component_id": "ios-home-actions",
+      "canonical_component": "card",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "source_ref": "static:ios-home-actions"
+    },
+    {
+      "component_id": "ios-home-nav",
+      "canonical_component": "navigation/tab-bar",
+      "section_id": "footer-nav",
+      "parent_component_id": "ios-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "persistent_navigation",
+      "source_ref": "static:ios-home-nav"
+    },
+    {
+      "component_id": "node:ios.home.bmi_calculator",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "source_ref": "cta:ios.home.bmi_calculator"
+    },
+    {
+      "component_id": "node:ios.home.profile_setup",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "source_ref": "cta:ios.home.profile_setup"
+    },
+    {
+      "component_id": "node:ios.home.open_plate",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "source_ref": "cta:ios.home.open_plate"
+    },
+    {
+      "component_id": "node:ios.home.weekly_plan_reader",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "flagged_cta",
+      "source_ref": "cta:ios.home.weekly_plan_reader"
+    },
+    {
+      "component_id": "node:ios.home.shopping_list_generator",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "flagged_cta",
+      "source_ref": "cta:ios.home.shopping_list_generator"
+    }
+  ],
   "primary_components": [
     "hero",
     "button"
@@ -45,7 +181,13 @@
         "height": 844
       },
       "background": "Color.navy",
-      "canonical_component": "card"
+      "canonical_component": "card",
+      "section_id": "hero-band",
+      "component_id": "ios-home-shell",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "order": 0
     },
     {
       "type": "create_button",
@@ -63,7 +205,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:ios.home.bmi_calculator",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "order": 6
     },
     {
       "type": "create_button",
@@ -81,7 +229,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:ios.home.profile_setup",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "order": 7
     },
     {
       "type": "create_button",
@@ -99,7 +253,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:ios.home.open_plate",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "order": 8
     },
     {
       "type": "create_button",
@@ -117,7 +277,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:ios.home.weekly_plan_reader",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "flagged_cta",
+      "order": 9
     },
     {
       "type": "create_button",
@@ -135,7 +301,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:ios.home.shopping_list_generator",
+      "parent_component_id": "ios-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "flagged_cta",
+      "order": 10
     }
   ]
 }

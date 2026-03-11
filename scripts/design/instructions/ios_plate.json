@@ -3,7 +3,116 @@
   "page": "11_iOS_Plate",
   "platform": "IOS",
   "surface": "ios_plate_screen",
+  "layout_archetype": "content_shell",
   "layout_pattern": "content-card-with-primary-actions",
+  "sections": [
+    {
+      "section_id": "plate-summary",
+      "name": "Plate summary",
+      "role": "content_summary",
+      "component_ids": [
+        "ios-plate-shell",
+        "ios-plate-summary-card",
+        "ios-plate-badge",
+        "ios-plate-progress"
+      ]
+    },
+    {
+      "section_id": "plate-actions",
+      "name": "Plate actions",
+      "role": "primary_actions",
+      "component_ids": [
+        "ios-plate-action-panel",
+        "ios-plate-dialog",
+        "node:ios.plate.add_meal",
+        "node:ios.plate.view_details",
+        "node:ios.plate.issue_action_dynamic"
+      ]
+    }
+  ],
+  "component_hierarchy": [
+    {
+      "component_id": "ios-plate-shell",
+      "canonical_component": "card",
+      "section_id": "plate-summary",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "source_ref": "static:ios-plate-shell"
+    },
+    {
+      "component_id": "ios-plate-summary-card",
+      "canonical_component": "card",
+      "section_id": "plate-summary",
+      "parent_component_id": "ios-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "content_container",
+      "source_ref": "static:ios-plate-summary-card"
+    },
+    {
+      "component_id": "ios-plate-badge",
+      "canonical_component": "badge",
+      "section_id": "plate-summary",
+      "parent_component_id": "ios-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "gate_state",
+      "source_ref": "static:ios-plate-badge"
+    },
+    {
+      "component_id": "ios-plate-progress",
+      "canonical_component": "progress",
+      "section_id": "plate-summary",
+      "parent_component_id": "ios-plate-summary-card",
+      "hierarchy_level": 2,
+      "semantic_role": "completion_feedback",
+      "source_ref": "static:ios-plate-progress"
+    },
+    {
+      "component_id": "ios-plate-action-panel",
+      "canonical_component": "card",
+      "section_id": "plate-actions",
+      "parent_component_id": "ios-plate-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "source_ref": "static:ios-plate-action-panel"
+    },
+    {
+      "component_id": "ios-plate-dialog",
+      "canonical_component": "dialog",
+      "section_id": "plate-actions",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_details",
+      "source_ref": "static:ios-plate-dialog"
+    },
+    {
+      "component_id": "node:ios.plate.add_meal",
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "source_ref": "cta:ios.plate.add_meal"
+    },
+    {
+      "component_id": "node:ios.plate.view_details",
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "source_ref": "cta:ios.plate.view_details"
+    },
+    {
+      "component_id": "node:ios.plate.issue_action_dynamic",
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "source_ref": "cta:ios.plate.issue_action_dynamic"
+    }
+  ],
   "primary_components": [
     "card",
     "button"
@@ -45,7 +154,13 @@
         "height": 844
       },
       "background": "Color.navy",
-      "canonical_component": "card"
+      "canonical_component": "card",
+      "section_id": "plate-summary",
+      "component_id": "ios-plate-shell",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "order": 0
     },
     {
       "type": "create_button",
@@ -63,7 +178,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "component_id": "node:ios.plate.add_meal",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "order": 6
     },
     {
       "type": "create_button",
@@ -81,7 +202,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "component_id": "node:ios.plate.view_details",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "order": 7
     },
     {
       "type": "create_button",
@@ -99,7 +226,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "plate-actions",
+      "component_id": "node:ios.plate.issue_action_dynamic",
+      "parent_component_id": "ios-plate-action-panel",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "order": 8
     }
   ]
 }

@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from scripts.design import execute_design, generate_figma_instructions, verify_design
 
 
@@ -13,6 +11,7 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
     payload = generate_figma_instructions.instruction_to_dict(instruction)
 
     assert payload["surface"] == "ios_home_screen"
+    assert payload["layout_archetype"] == "hero_shell"
     assert payload["layout_pattern"] == "hero-plus-quick-actions"
     assert payload["primary_components"] == ["hero", "button"]
     assert payload["supporting_components"] == [
@@ -20,10 +19,15 @@ def test_generated_instruction_includes_code_first_contract_fields() -> None:
         "navigation/tab-bar",
         "badge",
     ]
+    assert payload["sections"][0]["section_id"] == "hero-band"
+    assert payload["component_hierarchy"][0]["component_id"] == "ios-home-shell"
+    assert payload["component_hierarchy"][0]["hierarchy_level"] == 0
     assert "token_constraints" in payload
     assert payload["context_version"] == "code-first-ui-v1"
     assert payload["instructions"][0]["type"] == "create_frame"
     assert payload["instructions"][1]["canonical_component"] == "button"
+    assert payload["instructions"][1]["component_id"].startswith("node:ios.home.")
+    assert payload["instructions"][1]["hierarchy_level"] == 2
 
 
 def test_validate_governance_rejects_missing_contract_fields() -> None:
@@ -61,7 +65,11 @@ def test_update_manifest_records_surface_and_layout_pattern(tmp_path: Path) -> N
                 "executed_at": "2026-03-11T00:00:00Z",
                 "status": "simulated",
                 "surface": "ios_home_screen",
+                "layout_archetype": "hero_shell",
                 "layout_pattern": "hero-plus-quick-actions",
+                "section_count": 3,
+                "adapter_name": "deterministic_stub",
+                "adapter_mode": "simulated",
                 "simulation_mode": "deterministic_contract_stub",
                 "created_nodes": [{"name": "Node", "type": "create_button"}],
             },
@@ -72,8 +80,28 @@ def test_update_manifest_records_surface_and_layout_pattern(tmp_path: Path) -> N
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     export = manifest["exports"][0]
     assert export["surface"] == "ios_home_screen"
+    assert export["layout_archetype"] == "hero_shell"
     assert export["layout_pattern"] == "hero-plus-quick-actions"
+    assert export["section_count"] == 3
+    assert export["adapter_name"] == "deterministic_stub"
+    assert export["adapter_mode"] == "simulated"
     assert export["simulation_mode"] == "deterministic_contract_stub"
+
+
+def test_execute_instruction_uses_deterministic_adapter_metadata() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+
+    result = execute_design.execute_instruction(payload, "deterministic_stub")
+
+    assert result["status"] == "simulated"
+    assert result["adapter_name"] == "deterministic_stub"
+    assert result["adapter_mode"] == "simulated"
+    assert result["layout_archetype"] == "dashboard_shell"
+    assert any(
+        node["component_id"] == "node:web.progress.export_pdf" for node in result["created_nodes"]
+    )
 
 
 def test_verify_screen_distinguishes_not_executed(tmp_path: Path) -> None:
@@ -112,7 +140,10 @@ def test_verify_screen_detects_manifest_mismatch(tmp_path: Path) -> None:
                 "screen_id": "ios.home",
                 "status": "simulated",
                 "surface": "wrong_surface",
+                "layout_archetype": "wrong_archetype",
                 "layout_pattern": "wrong_layout",
+                "adapter_name": "deterministic_stub",
+                "adapter_mode": "simulated",
                 "node_count": len(payload["instructions"]) - 1,
                 "nodes": [],
             }
@@ -128,5 +159,19 @@ def test_verify_screen_detects_manifest_mismatch(tmp_path: Path) -> None:
 
     assert result["status"] == "fail"
     assert any("surface mismatch" in error.lower() for error in result["errors"])
+    assert any("layout_archetype mismatch" in error.lower() for error in result["errors"])
     assert any("layout_pattern mismatch" in error.lower() for error in result["errors"])
     assert any("Node count mismatch" in error for error in result["errors"])
+
+
+def test_validate_governance_rejects_invalid_hierarchy_payload() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("ios.home")
+    )
+    payload["component_hierarchy"][1]["parent_component_id"] = "missing-parent"
+    payload["instructions"][1]["hierarchy_level"] = -1
+
+    errors = execute_design.validate_governance(payload)
+
+    assert any("Unknown parent_component_id" in error for error in errors)
+    assert any("must define hierarchy_level >= 0" in error for error in errors)

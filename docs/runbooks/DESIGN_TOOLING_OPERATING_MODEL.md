@@ -30,6 +30,8 @@ The same rule applies to external ideation/reference tools.
 
 - Primary agent runtime: `Codex + GPT-5.4 Pro`
 - Primary design tool: `Figma MCP`
+- Default executable design adapter seam: `scripts/design/execution_adapters.py`
+  with `deterministic_stub` as the only active adapter in Phase 1
 - Subordinate Figma-lane token tool: `Tokens Studio`
 - Secondary knowledge tool: `Notion`
 - Research ingestion tool: `Airweave`
@@ -93,6 +95,15 @@ Rule: when `figma_lane_tool=tokens_studio`, `design_source` still remains
 lane.
 
 ## 6. Lifecycle Model
+
+### Executable design runtime
+
+- instruction generation must emit explicit `sections`, `component_hierarchy`,
+  and `layout_archetype`
+- execution must flow through the adapter seam, even when the adapter is
+  deterministic-only
+- live MCP adapters are future work and must preserve the same instruction and
+  manifest contract
 
 ### Design source records
 

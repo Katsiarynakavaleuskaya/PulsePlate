@@ -22,6 +22,10 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+from scripts.design.execution_adapters import (
+    available_adapter_names,
+    resolve_execution_adapter,
+)
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -71,52 +75,11 @@ def validate_governance(instruction: dict[str, Any]) -> list[str]:
     return errors
 
 
-def simulate_mcp_execution(instruction: dict[str, Any]) -> dict[str, Any]:
-    """Simulate MCP execution (placeholder for actual MCP calls).
+def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[str, Any]:
+    """Execute one instruction payload through the configured adapter seam."""
 
-    In production, this would invoke actual Figma MCP tools:
-    - figma.create_frame
-    - figma.create_components
-    - figma.apply_styles
-
-    For now, it returns a simulated result structure.
-    """
-    screen_id = instruction.get("screen_id", "unknown")
-    instructions_list = instruction.get("instructions", [])
-
-    # Simulate node ID generation
-    results = {
-        "screen_id": screen_id,
-        "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "status": "simulated",
-        "surface": instruction.get("surface"),
-        "layout_pattern": instruction.get("layout_pattern"),
-        "simulation_mode": "deterministic_contract_stub",
-        "created_nodes": [],
-        "mcp_calls": [],
-    }
-
-    for i, inst in enumerate(instructions_list):
-        inst_type = inst.get("type", "unknown")
-        inst_name = inst.get("name", f"Node_{i}")
-
-        # Simulate MCP call
-        results["mcp_calls"].append(
-            {"tool": f"figma.{inst_type}", "params": {"name": inst_name}, "status": "simulated"}
-        )
-
-        # Simulate created node
-        results["created_nodes"].append(
-            {
-                "type": inst_type,
-                "name": inst_name,
-                "node_id": f"simulated:{screen_id}:{i}",
-                "status": "pending_real_execution",
-                "canonical_component": inst.get("canonical_component"),
-            }
-        )
-
-    return results
+    adapter = resolve_execution_adapter(adapter_name)
+    return adapter.execute(instruction)
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
@@ -142,7 +105,11 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "executed_at": results.get("executed_at"),
         "status": results.get("status"),
         "surface": results.get("surface"),
+        "layout_archetype": results.get("layout_archetype"),
         "layout_pattern": results.get("layout_pattern"),
+        "section_count": results.get("section_count"),
+        "adapter_name": results.get("adapter_name"),
+        "adapter_mode": results.get("adapter_mode"),
         "simulation_mode": results.get("simulation_mode"),
         "node_count": len(results.get("created_nodes", [])),
         "nodes": results.get("created_nodes", []),
@@ -195,6 +162,12 @@ def main() -> int:
         help="Execute instruction via MCP (currently simulated)",
     )
     parser.add_argument(
+        "--adapter",
+        choices=available_adapter_names(),
+        default="deterministic_stub",
+        help="Execution adapter seam to use",
+    )
+    parser.add_argument(
         "--update-manifest",
         action="store_true",
         default=True,
@@ -234,10 +207,11 @@ def main() -> int:
 
     # Execute (currently simulated)
     print("\nExecuting design instructions...")
-    results = simulate_mcp_execution(instruction)
+    results = execute_instruction(instruction, args.adapter)
 
     print("\nExecution results:")
     print(f"  Status: {results.get('status')}")
+    print(f"  Adapter: {results.get('adapter_name')} ({results.get('adapter_mode')})")
     print(f"  Nodes created: {len(results.get('created_nodes', []))}")
     print(f"  MCP calls: {len(results.get('mcp_calls', []))}")
 
@@ -248,8 +222,8 @@ def main() -> int:
     if args.update_manifest:
         update_manifest(args.screen, results)
 
-    print("\nNote: Actual MCP execution requires Figma MCP connection.")
-    print("Current execution is simulated. Connect MCP to create real designs.")
+    print("\nNote: Live MCP-backed execution is intentionally deferred.")
+    print("Current execution uses the deterministic adapter seam.")
 
     return 0
 

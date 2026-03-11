@@ -42,13 +42,15 @@ Use `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md` when drafting the brief.
 
 Every assembled spec must return these sections in this order:
 
-1. `Layout`
-2. `Component Tree`
-3. `State List`
-4. `Token Usage`
-5. `Interaction Notes`
-6. `Accessibility Notes`
-7. `Implementation Handoff`
+1. `Layout Archetype`
+2. `Layout`
+3. `Layout Sections`
+4. `Component Tree`
+5. `State List`
+6. `Token Usage`
+7. `Interaction Notes`
+8. `Accessibility Notes`
+9. `Implementation Handoff`
 
 ## 4. Assembly procedure
 
@@ -81,6 +83,14 @@ Allowed default archetypes for v1:
 - `empty-state-center`
 - `modal-overlay`
 - `split-summary-detail`
+
+Then derive a more specific `layout_pattern` for the actual screen, for example:
+
+- archetype: `hero-plus-sections`
+- pattern: `hero-plus-quick-actions`
+
+Executable instruction payloads may normalize the archetype into a stable
+runtime family such as `hero_shell`, `content_shell`, or `dashboard_shell`.
 
 ### Step 4. Bind states
 
@@ -191,6 +201,16 @@ forbidden_generic_patterns:
 ### Output spec
 
 #### Layout
+
+`hero-plus-sections`
+
+Top-level archetype keeps the screen in the right family before visual detail
+is added.
+
+#### Layout Sections
+
+- `hero-band`: hero, trust framing, visible progress context
+- `quick-actions`: dominant next step and one supporting action
 
 Top hero block, trust summary beneath it, discrete progress rail, primary
 button pinned within comfortable thumb reach.

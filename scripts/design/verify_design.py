@@ -109,6 +109,40 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
             f"expected {instruction.get('layout_pattern')}, got {screen_export.get('layout_pattern')}"
         )
 
+    if screen_export.get("layout_archetype") == instruction.get("layout_archetype"):
+        result["checks"].append({"check": "layout_archetype", "status": "pass"})
+    else:
+        result["checks"].append({"check": "layout_archetype", "status": "fail"})
+        result["errors"].append(
+            "Manifest layout_archetype mismatch: "
+            f"expected {instruction.get('layout_archetype')}, got {screen_export.get('layout_archetype')}"
+        )
+
+    expected_section_count = len(instruction.get("sections", []))
+    actual_section_count = screen_export.get("section_count")
+    if expected_section_count == actual_section_count:
+        result["checks"].append(
+            {
+                "check": "section_count",
+                "status": "pass",
+                "expected": expected_section_count,
+                "actual": actual_section_count,
+            }
+        )
+    else:
+        result["checks"].append(
+            {
+                "check": "section_count",
+                "status": "fail",
+                "expected": expected_section_count,
+                "actual": actual_section_count,
+            }
+        )
+        result["errors"].append(
+            "Manifest section_count mismatch: "
+            f"expected {expected_section_count}, got {actual_section_count}"
+        )
+
     # Verify instruction count matches
     expected_count = len(instruction.get("instructions", []))
     actual_count = screen_export.get("node_count", 0)
@@ -137,9 +171,25 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
 
     # Check execution status
     exec_status = screen_export.get("status", "unknown")
+    adapter_name = screen_export.get("adapter_name")
+    adapter_mode = screen_export.get("adapter_mode")
+    if adapter_name:
+        result["checks"].append(
+            {"check": "execution_adapter", "status": "pass", "value": adapter_name}
+        )
+    else:
+        result["warnings"].append("Execution adapter metadata missing in manifest export")
+        result["checks"].append({"check": "execution_adapter", "status": "missing"})
+
     if exec_status == "simulated":
         result["warnings"].append("Design was simulated, not actually created in Figma")
-        result["checks"].append({"check": "execution_status", "status": "simulated"})
+        result["checks"].append(
+            {
+                "check": "execution_status",
+                "status": "simulated",
+                "adapter_mode": adapter_mode,
+            }
+        )
     elif exec_status == "completed":
         result["checks"].append({"check": "execution_status", "status": "pass"})
     else:

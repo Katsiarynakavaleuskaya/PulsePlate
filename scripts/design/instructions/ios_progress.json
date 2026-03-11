@@ -3,7 +3,96 @@
   "page": "12_iOS_Progress",
   "platform": "IOS",
   "surface": "ios_progress_screen",
+  "layout_archetype": "dashboard_shell",
   "layout_pattern": "dashboard-summary-stack",
+  "sections": [
+    {
+      "section_id": "progress-summary",
+      "name": "Progress summary",
+      "role": "summary_metrics",
+      "component_ids": [
+        "ios-progress-shell",
+        "ios-progress-stats",
+        "ios-progress-chart"
+      ]
+    },
+    {
+      "section_id": "progress-recovery",
+      "name": "Recovery lane",
+      "role": "state_recovery",
+      "component_ids": [
+        "ios-progress-recovery",
+        "ios-progress-empty",
+        "node:ios.progress.refresh",
+        "node:ios.progress.issue_action_dynamic"
+      ]
+    }
+  ],
+  "component_hierarchy": [
+    {
+      "component_id": "ios-progress-shell",
+      "canonical_component": "card",
+      "section_id": "progress-summary",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "source_ref": "static:ios-progress-shell"
+    },
+    {
+      "component_id": "ios-progress-stats",
+      "canonical_component": "stats-card",
+      "section_id": "progress-summary",
+      "parent_component_id": "ios-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "summary_metrics",
+      "source_ref": "static:ios-progress-stats"
+    },
+    {
+      "component_id": "ios-progress-chart",
+      "canonical_component": "progress",
+      "section_id": "progress-summary",
+      "parent_component_id": "ios-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "trend_visualization",
+      "source_ref": "static:ios-progress-chart"
+    },
+    {
+      "component_id": "ios-progress-recovery",
+      "canonical_component": "alert",
+      "section_id": "progress-recovery",
+      "parent_component_id": "ios-progress-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "recovery_message",
+      "source_ref": "static:ios-progress-recovery"
+    },
+    {
+      "component_id": "ios-progress-empty",
+      "canonical_component": "empty-state",
+      "section_id": "progress-recovery",
+      "parent_component_id": "ios-progress-recovery",
+      "hierarchy_level": 2,
+      "semantic_role": "no_data_fallback",
+      "source_ref": "static:ios-progress-empty"
+    },
+    {
+      "component_id": "node:ios.progress.refresh",
+      "canonical_component": "button",
+      "section_id": "progress-recovery",
+      "parent_component_id": "ios-progress-recovery",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "source_ref": "cta:ios.progress.refresh"
+    },
+    {
+      "component_id": "node:ios.progress.issue_action_dynamic",
+      "canonical_component": "button",
+      "section_id": "progress-recovery",
+      "parent_component_id": "ios-progress-recovery",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "source_ref": "cta:ios.progress.issue_action_dynamic"
+    }
+  ],
   "primary_components": [
     "progress",
     "button"
@@ -45,7 +134,13 @@
         "height": 844
       },
       "background": "Color.navy",
-      "canonical_component": "card"
+      "canonical_component": "card",
+      "section_id": "progress-summary",
+      "component_id": "ios-progress-shell",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "order": 0
     },
     {
       "type": "create_button",
@@ -63,7 +158,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "progress-recovery",
+      "component_id": "node:ios.progress.refresh",
+      "parent_component_id": "ios-progress-recovery",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "order": 5
     },
     {
       "type": "create_button",
@@ -81,7 +182,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "progress-recovery",
+      "component_id": "node:ios.progress.issue_action_dynamic",
+      "parent_component_id": "ios-progress-recovery",
+      "hierarchy_level": 2,
+      "semantic_role": "recovery_cta",
+      "order": 6
     }
   ]
 }

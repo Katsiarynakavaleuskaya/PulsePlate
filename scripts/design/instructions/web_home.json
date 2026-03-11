@@ -3,7 +3,133 @@
   "page": "20_Web_Parity",
   "platform": "WEB",
   "surface": "web_home_screen",
+  "layout_archetype": "hero_shell",
   "layout_pattern": "hero-plus-status-grid",
+  "sections": [
+    {
+      "section_id": "hero-band",
+      "name": "Hero band",
+      "role": "context_summary",
+      "component_ids": [
+        "web-home-shell",
+        "web-home-hero",
+        "web-home-badge",
+        "web-home-summary"
+      ]
+    },
+    {
+      "section_id": "quick-actions",
+      "name": "Quick actions",
+      "role": "primary_actions",
+      "component_ids": [
+        "web-home-actions",
+        "node:web.home.open_setup",
+        "node:web.home.open_plate",
+        "node:web.home.open_progress",
+        "node:web.home.open_pro"
+      ]
+    },
+    {
+      "section_id": "footer-nav",
+      "name": "Footer navigation",
+      "role": "persistent_navigation",
+      "component_ids": [
+        "web-home-nav"
+      ]
+    }
+  ],
+  "component_hierarchy": [
+    {
+      "component_id": "web-home-shell",
+      "canonical_component": "card",
+      "section_id": "hero-band",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "source_ref": "static:web-home-shell"
+    },
+    {
+      "component_id": "web-home-hero",
+      "canonical_component": "hero",
+      "section_id": "hero-band",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "primary_message",
+      "source_ref": "static:web-home-hero"
+    },
+    {
+      "component_id": "web-home-badge",
+      "canonical_component": "badge",
+      "section_id": "hero-band",
+      "parent_component_id": "web-home-hero",
+      "hierarchy_level": 2,
+      "semantic_role": "status_marker",
+      "source_ref": "static:web-home-badge"
+    },
+    {
+      "component_id": "web-home-summary",
+      "canonical_component": "stats-card",
+      "section_id": "hero-band",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "summary_metrics",
+      "source_ref": "static:web-home-summary"
+    },
+    {
+      "component_id": "web-home-actions",
+      "canonical_component": "card",
+      "section_id": "quick-actions",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "action_cluster",
+      "source_ref": "static:web-home-actions"
+    },
+    {
+      "component_id": "web-home-nav",
+      "canonical_component": "navigation/tab-bar",
+      "section_id": "footer-nav",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "persistent_navigation",
+      "source_ref": "static:web-home-nav"
+    },
+    {
+      "component_id": "node:web.home.open_setup",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "source_ref": "cta:web.home.open_setup"
+    },
+    {
+      "component_id": "node:web.home.open_plate",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "source_ref": "cta:web.home.open_plate"
+    },
+    {
+      "component_id": "node:web.home.open_progress",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "source_ref": "cta:web.home.open_progress"
+    },
+    {
+      "component_id": "node:web.home.open_pro",
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "source_ref": "cta:web.home.open_pro"
+    }
+  ],
   "primary_components": [
     "hero",
     "button"
@@ -45,7 +171,13 @@
         "height": 900
       },
       "background": "--pp-navy",
-      "canonical_component": "card"
+      "canonical_component": "card",
+      "section_id": "hero-band",
+      "component_id": "web-home-shell",
+      "parent_component_id": null,
+      "hierarchy_level": 0,
+      "semantic_role": "surface_shell",
+      "order": 0
     },
     {
       "type": "create_button",
@@ -63,7 +195,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:web.home.open_setup",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "primary_cta",
+      "order": 6
     },
     {
       "type": "create_button",
@@ -81,7 +219,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:web.home.open_plate",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "order": 7
     },
     {
       "type": "create_button",
@@ -99,7 +243,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:web.home.open_progress",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "order": 8
     },
     {
       "type": "create_button",
@@ -117,7 +267,13 @@
         "loading",
         "error"
       ],
-      "canonical_component": "button"
+      "canonical_component": "button",
+      "section_id": "quick-actions",
+      "component_id": "node:web.home.open_pro",
+      "parent_component_id": "web-home-actions",
+      "hierarchy_level": 2,
+      "semantic_role": "secondary_cta",
+      "order": 9
     }
   ]
 }
