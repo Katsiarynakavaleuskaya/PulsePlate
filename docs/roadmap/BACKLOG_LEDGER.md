@@ -1907,27 +1907,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: TBD (implementation after mini-PRD approval)
-  - Status: 📋 Planned
-  - Reason (EN): Adopt the strongest fit from modern interactive learning products without turning PulsePlate into an ML academy. The product fit is interactive explainers, learning-cycle progression, and science-backed clarity around existing wellness outputs. MVP must remain deterministic, wellness-safe, and grounded in existing BMI / risk / adherence / weekly-plan data. No new heavy LLM endpoint is allowed on the core path. (RU: Интегрировать понятные explainers и learning cycles поверх текущих wellness-сущностей; без копирования чужого контента, без ML-куррикулума внутри продукта и без нового дорогого AI-контура.)
-  - Links:
-    - docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md
-    - docs/audience_pack/FACTS_CANONICAL.md
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
-    - core/insight/philosophy_validator.py
-    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
-  - DoD:
-    - Backend contract for explainer payloads is documented and implemented using existing product entities only
-    - At least one FREE/PRO explainer surface ships without client-side business logic duplication
-    - Learning cycle unlock rules are deterministic and do not depend on streak-shame mechanics
-    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
-    - Product copy remains wellness-safe and evidence-aligned
-
-
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
 - [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (product differentiation + trust/retention)
@@ -1935,10 +1914,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 📋 Planned
   - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
   - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md`
     - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
     - `docs/product/FREE_PRO_CONTRACT.md`
     - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+    - `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md`
+    - `core/insight/philosophy_validator.py`
+    - `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`
     - `https://www.tensortonic.com/`
     - `https://www.tensortonic.com/ml-math`
     - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
@@ -1947,6 +1930,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
     - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
     - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
+    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
+    - Product copy remains wellness-safe and evidence-aligned
     - GTM framing stays clarity-first and wellness-safe
 
 
@@ -5257,27 +5242,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
     - No mandatory code dependency; adopt via normal PR/backlog
 
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: PR-TBD-WELLNESS-EXPLAINERS-MVP
-  - Status: 📋 Planned
-  - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
-  - Links:
-    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
-    - `docs/product/FREE_PRO_CONTRACT.md`
-    - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
-    - `https://www.tensortonic.com/`
-    - `https://www.tensortonic.com/ml-math`
-    - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
-  - DoD:
-    - Backend-owned explainer and learning-cycle direction is documented against existing FREE / PRO / VIP entities
-    - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
-    - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
-    - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
-    - GTM framing stays clarity-first and wellness-safe
+- Follow-up execution slices for [P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)](#ledger-p2-wellness-explainers-learning-cycles)
 
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
   - Owner: @katsiaryna_kavaleuskaya
@@ -5421,26 +5386,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Decision documented: pursue / defer / won't do for publication track
     - If pursue: venue + outline for one paper; no mandatory timeline
-
-<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
-- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (product differentiation + trust/retention)
-  - Target PR: TBD (implementation after mini-PRD approval)
-  - Status: 📋 Planned
-  - Reason (EN): Adopt the strongest fit from modern interactive learning products without turning PulsePlate into an ML academy. The product fit is interactive explainers, learning-cycle progression, and science-backed clarity around existing wellness outputs. MVP must remain deterministic, wellness-safe, and grounded in existing BMI / risk / adherence / weekly-plan data. No new heavy LLM endpoint is allowed on the core path. (RU: Интегрировать понятные explainers и learning cycles поверх текущих wellness-сущностей; без копирования чужого контента, без ML-куррикулума внутри продукта и без нового дорогого AI-контура.)
-  - Links:
-    - docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md
-    - docs/audience_pack/FACTS_CANONICAL.md
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
-    - core/insight/philosophy_validator.py
-    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
-  - DoD:
-    - Backend contract for explainer payloads is documented and implemented using existing product entities only
-    - At least one FREE/PRO explainer surface ships without client-side business logic duplication
-    - Learning cycle unlock rules are deterministic and do not depend on streak-shame mechanics
-    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
-    - Product copy remains wellness-safe and evidence-aligned
 
 - [ ] P1: Agent knowledge library template packs (domain-specific)
   - Owner: @katsiaryna_kavaleuskaya
@@ -5617,21 +5562,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add evidence requirements for write operations and promotions
     - Confirm no secondary tool bypasses git SoT or Figma canonical mappings
     - Update coordinator/runbook docs with approved automation paths only
-
-- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
-  - Status: 📋 Planned
-  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
-  - Links:
-    - `app/security/llm_monthly_quota.py` (VIP-only implementation)
-    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
-    - `app/routers/cbt_insight.py` (PRO endpoint without monthly quota)
-  - DoD:
-    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
-    - CBT insight endpoint calls quota check before provider.generate()
-    - Deterministic tests for PRO quota enforcement
 
 - [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
 - [x] PR-608 merged: audit post-merge evidence stamp (merged 2026-01-27)
