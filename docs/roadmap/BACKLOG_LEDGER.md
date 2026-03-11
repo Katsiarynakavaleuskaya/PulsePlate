@@ -192,6 +192,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-pr1-50-remediation-wave1"></a>
+- [ ] P1: PR 1-50 remediation follow-through after Wave 1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (audit debt / type-safety / test hygiene)
+  - Target PR: PR-TBD-PR1-50-REMEDIATION
+  - Status: 🟡 In progress
+  - Area: frontend / tests / dev-scripts / audit debt
+  - Finding Type: audit remediation carryover
+  - Reason (EN): PR 1-50 remediation Wave 1 is intentionally scoped to unresolved P0/P1 findings in production code, tests, and dev scripts. Lower-priority cleanup stays deferred so the fix PR remains narrow enough to reach green CI without mixing audit documentation work into the implementation branch.
+  - Links:
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `frontend/src/features/shoplist/ShoplistPreview.tsx`
+    - `tests/test_llm_extras.py`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/core/catalog/test_sqlite_fk_integrity.py`
+    - `tests/test_api.py`
+    - `run_coverage_tests.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-sharefile-hardening`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-glasscard-cleanup`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-diagnostic-deps`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-monitor-deps`
+  - Deferred / P2 carryover:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-sharefile-hardening`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-glasscard-cleanup`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-diagnostic-deps`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-monitor-deps`
+  - DoD:
+    - Wave 1 fixes all unresolved P0/P1 findings from the PR 1-50 audit
+    - Deferred P2 items remain tracked here with explicit file targets
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+    - PR body includes a `Deferred / Follow-ups` section with ledger links to this ledger item
+
 <a id="backlog-restore-signed-build-provenance"></a>
 - [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
   - Owner: @katsiaryna_kavaleuskaya
@@ -1202,6 +1234,72 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-pr1-50-sharefile-hardening"></a>
+- [ ] P2: PR 1-50 follow-up for shareFile browser hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-SHAREFILE-HARDENING
+  - Area: frontend / export UX
+  - Finding Type: deferred browser fallback hardening
+  - Reason: `frontend/src/lib/shareFile.ts` still needs explicit `anchor.click()` fallback hardening and a targeted dead-code review, but that cleanup is intentionally deferred out of Wave 1 to keep the remediation PR focused on unresolved P0/P1 findings.
+  - Links:
+    - `frontend/src/lib/shareFile.ts`
+    - `frontend/src/lib/shareFile.test.ts`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - `anchor.click()` fallback behavior is hardened or explicitly justified with tests
+    - Dead-code review for non-browser fallback paths is completed
+    - Any behavior changes are covered by focused frontend tests
+
+<a id="ledger-p2-pr1-50-glasscard-cleanup"></a>
+- [ ] P2: PR 1-50 follow-up for GlassCard redundant guard cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-GLASSCARD-CLEANUP
+  - Area: frontend / component hygiene
+  - Finding Type: deferred type-driven cleanup
+  - Reason: `frontend/src/components/GlassCard.tsx` still contains redundant typed-union undefined checks that are low-risk cleanup only and therefore intentionally excluded from Wave 1 remediation scope.
+  - Links:
+    - `frontend/src/components/GlassCard.tsx`
+    - `frontend/src/components/__tests__/GlassCard.test.tsx`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Redundant undefined checks are removed or justified against a concrete runtime contract
+    - Component tests stay green after cleanup
+    - No visual or accessibility regressions are introduced
+
+<a id="ledger-p2-pr1-50-ollama-diagnostic-deps"></a>
+- [ ] P2: PR 1-50 follow-up for ollama_diagnostic dependency handling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-OLLAMA-DIAGNOSTIC-DEPS
+  - Area: scripts / diagnostics
+  - Finding Type: deferred script portability
+  - Reason: `ollama_diagnostic.sh` still assumes `jq` and `free` are present. The script needs explicit dependency handling or documentation, but this is intentionally deferred because it does not block Wave 1 P0/P1 remediation.
+  - Links:
+    - `ollama_diagnostic.sh`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Script checks for required external tools or documents prerequisites clearly
+    - Failure mode is deterministic when dependencies are missing
+    - Any documentation updates stay aligned with actual script behavior
+
+<a id="ledger-p2-pr1-50-ollama-monitor-deps"></a>
+- [ ] P2: PR 1-50 follow-up for ollama_monitor dependency handling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-OLLAMA-MONITOR-DEPS
+  - Area: scripts / diagnostics
+  - Finding Type: deferred script portability
+  - Reason: `ollama_monitor.sh` still assumes `bc` is available. This portability/documentation cleanup remains deferred so Wave 1 stays limited to unresolved P0/P1 findings.
+  - Links:
+    - `ollama_monitor.sh`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Script checks for `bc` or documents the dependency explicitly
+    - Missing-dependency behavior is deterministic and user-readable
+    - Follow-up changes preserve current monitoring semantics
 
 <a id="ledger-p2-openai-docs-freshness-pilot"></a>
 - [x] P2: Govern the OpenAI external docs freshness pilot lifecycle

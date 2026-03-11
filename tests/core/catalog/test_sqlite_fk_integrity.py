@@ -18,13 +18,18 @@ import pytest
 from core.catalog.provider import CatalogRegion, CatalogSKU, CatalogSnapshot, CatalogStore
 from core.catalog.storage.sqlite_writer import write_snapshot
 
+ALLOWED_PRAGMA_TABLES = frozenset({"sku_aliases"})
+
 
 def _fk_targets(conn: sqlite3.Connection, table: str) -> set[tuple[str, str, str]]:
     """
     RU: Возвращает набор FK (from_col, ref_table, ref_col) для таблицы.
     EN: Return FK set (from_col, ref_table, ref_col) for a table.
     """
-    rows = conn.execute(f"PRAGMA foreign_key_list('{table}');").fetchall()
+    if table not in ALLOWED_PRAGMA_TABLES:
+        raise ValueError(f"Unsupported table for FK inspection: {table}")
+
+    rows = conn.execute(f"PRAGMA foreign_key_list({table});").fetchall()
     return {(r[3], r[2], r[4]) for r in rows}
 
 
