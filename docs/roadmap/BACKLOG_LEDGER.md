@@ -274,6 +274,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-token-lock-ci"></a>
+- [ ] P1: Design-token lockfile and deterministic CI/build contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-TOKEN-LOCK-CI
+  - Status: 📋 Planned
+  - Area: design-system / frontend / ios / CI
+  - Finding Type: deterministic build-governance gap
+  - Reason (EN): The repo now has token-pipeline governance and generated runtime mirrors, but it still does not have a canonical build-from-lock contract. There is no enforced `tokens.lock.json`, no explicit artifact-from-lock-only rule, and no release/rollback playbook for token changes across web and iOS.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `frontend/src/styles/tokens.css`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+  - DoD:
+    - Canonical token pipeline defines lockfile ownership, artifact generation from lock only, and CI drift policy
+    - Release/rollback runbook exists for token builds across web/iOS surfaces
+    - Existing semantic/token-governance docs link to the same deterministic build contract
+
 <a id="ledger-p1-ios-subscription-manager"></a>
 - [ ] P1: iOS SubscriptionManager backend-driven integration
   - Owner: @katsiaryna_kavaleuskaya
@@ -291,6 +310,117 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS subscription orchestration remains thin and backend-driven
     - Product/state transitions are deterministic and test-covered
     - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-app-store-subscription-offers-governance"></a>
+- [ ] P1: App Store subscription offers governance and StoreKit-truth pricing contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-OFFERS-GOVERNANCE
+  - Status: 📋 Planned
+  - Area: ios / billing / App Store / growth
+  - Finding Type: release-governance gap
+  - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
+    - `docs/MOBILE_API_MIGRATION_GUIDE.md`
+  - DoD:
+    - Canonical billing/release doc defines how introductory offers, offer codes, and promotional offers are configured and reviewed
+    - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
+    - App Store release-ops and compliance docs link back to the same monetization governance source
+
+<a id="ledger-p1-release-env-security-contract"></a>
+- [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RELEASE-ENV-SECURITY-CONTRACT
+  - Status: 📋 Planned
+  - Area: deploy / security / release operations
+  - Finding Type: runtime env contract gap
+  - Reason (EN): Repo docs describe `API_KEY_REQUIRED` and related auth/tier env flags, but there is no canonical release contract that makes staging/production values explicit and auditable. Without that contract, a release can drift into a weaker env posture than local docs imply.
+  - Links:
+    - `.env.example`
+    - `docker-compose.yaml`
+    - `README.md`
+    - `docs/deploy/OVERVIEW.md`
+  - DoD:
+    - Canonical release-env doc defines expected values for `API_KEY_REQUIRED` and other auth/tier-critical env flags across local, staging, and production
+    - Verification path for staging/prod env truth is documented and linked from release runbooks
+    - Security posture docs no longer rely on implied env defaults where release enforcement is required
+
+<a id="ledger-p1-fastapi-compatibility-gates"></a>
+- [ ] P1: FastAPI / Pydantic / Starlette compatibility gates for schema and TestClient drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FASTAPI-COMPAT-GATES
+  - Status: 📋 Planned
+  - Area: backend / CI / contracts
+  - Finding Type: dependency-compatibility gap
+  - Reason (EN): The repo already depends on FastAPI, Pydantic v2, and Starlette/httpx behavior, but it has no canonical CI bundle that explicitly guards strict JSON content-type handling, OpenAPI/root_path drift, nullable-required schema semantics, and TestClient behavior changes during dependency bumps.
+  - Links:
+    - `README.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `tests/test_openapi_determinism.py`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+  - DoD:
+    - Deterministic CI smoke/tests exist for strict content-type behavior, OpenAPI snapshot stability, and representative TestClient/runtime request paths
+    - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
+    - Dependency upgrade/runbook docs link to the same compatibility gate source
+
+<a id="ledger-p1-search-observability-foundation"></a>
+- [ ] P1: Search observability foundation with trace correlation, synthetic probes, and per-class SLOs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SEARCH-OBSERVABILITY-FOUNDATION
+  - Status: 📋 Planned
+  - Area: backend / observability / search
+  - Finding Type: observability foundation gap
+  - Reason (EN): Search and retrieval performance are still hard to diagnose end-to-end. The repo has tracing policy/docs, but it does not yet define a canonical package for correlated HTTP/DB/search traces, daily synthetic probes, and SLOs split by query class.
+  - Links:
+    - `docs/observability/GENAI_TRACING_POLICY.md`
+    - `docs/analytics/README.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_TASK_ANALYSIS.md`
+  - DoD:
+    - Canonical observability doc defines trace correlation, search/query-class tagging, and `X-Trace-Id` response contract if adopted
+    - Synthetic probe workflow and per-class latency/error objectives are documented before rollout
+    - Search performance debugging path is linked from ops/runbook docs
+
+<a id="ledger-p1-usda-foundation-foods-preflight"></a>
+- [ ] P1: USDA Foundation Foods update preflight and diff-based ingest guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-USDA-PREFLIGHT
+  - Status: 📋 Planned
+  - Area: data ingestion / food catalog / quality
+  - Finding Type: upstream data-change readiness gap
+  - Reason (EN): USDA Foundation Foods and related FoodData updates can change the shape and volume of ingestable records, but the repo does not yet have a canonical preflight contract for diffing new snapshots, catching dedupe/mapping collisions, and validating filter/key assumptions before updating the unified food catalog.
+  - Links:
+    - `scripts/build_food_db.py`
+    - `docs/roadmap/GLOBAL_ROADMAP.md`
+    - `app/services/food_store.py`
+  - DoD:
+    - Preflight workflow exists for diffing incoming USDA/Foundation Foods changes against the current catalog snapshot
+    - Dedupe/mapping collision checks are defined before snapshot promotion
+    - Data-ingest docs and runbooks point to the same preflight source of truth
+
+<a id="ledger-p1-llm-reliability-security-gates"></a>
+- [ ] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LLM-CI-GATES
+  - Status: 📋 Planned
+  - Area: AI runtime / security / evaluation
+  - Finding Type: model-evaluation gate gap
+  - Reason (EN): The repo has AI safety posture and tracing materials, but there is no canonical CI gate bundle for retrieval quality regressions, faithfulness checks, prompt-injection adversarial tests, and privacy-sensitive evaluation. Without that package, AI quality and safety can drift silently between releases.
+  - Links:
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/observability/GENAI_TRACING_POLICY.md`
+    - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
+    - `AGENTS.md`
+  - DoD:
+    - Canonical evaluation package defines required retrieval/faithfulness/security/privacy checks and where they run
+    - Prompt-injection and untrusted-context posture is covered by explicit CI or release-gate tests
+    - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
