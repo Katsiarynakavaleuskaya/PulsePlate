@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "bundle_id": "creative-research-valid",
+  "task_class": "creative_research",
+  "phase": "verification",
+  "prompt_seed": "meal adherence under time scarcity",
+  "reference_corpus": [
+    "Weekly reminder loops improve meal adherence by keeping the plan visible.",
+    "Simple grocery automation can reduce weekday cooking friction for busy users.",
+    "Nutrition motivation loops often fail when the user runs out of time on weekdays."
+  ],
+  "candidates": [
+    {
+      "candidate_id": "hyp-batch",
+      "claim": "Pre-committed Sunday ingredient batching may reduce weekday meal skipping for time-scarce users.",
+      "mechanism": "Batching lowers weekday prep friction and preserves a visible cue, so the user reaches for the prepared option before time pressure breaks adherence.",
+      "evidence_needed": "Compare weekday skip rate, prep time, and completion rate between a batching cohort and a no-batching cohort across four weeks.",
+      "falsifier": "If skip rate does not improve after batching even when prep time falls, the friction mechanism is wrong.",
+      "confidence": "medium",
+      "known_risks": [
+        "Selection bias toward users who already like planning.",
+        "Weekend batching may itself become a burden for some users."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    },
+    {
+      "candidate_id": "hyp-template",
+      "claim": "Run a crossover experiment that alternates lunch templates versus open-ended meal choice during workdays.",
+      "mechanism": "Fixed templates reduce choice overload, which should free attention for execution rather than daily planning.",
+      "evidence_needed": "Measure adherence, decision time, and perceived friction in an A/B crossover design over two two-week periods.",
+      "falsifier": "If adherence stays flat during template weeks despite lower decision time, the choice-overload explanation fails.",
+      "confidence": "medium",
+      "known_risks": [
+        "Novelty effects may decay after the first week."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    },
+    {
+      "candidate_id": "hyp-weekend",
+      "claim": "Unexpected weekend adherence drops may come from grocery depletion rather than motivation loss.",
+      "mechanism": "The pantry is progressively depleted by Friday, so weekend adherence drops because the easiest planned foods are no longer available.",
+      "evidence_needed": "Track pantry completeness, grocery restock timing, and weekend adherence across several weeks to test the depletion signal.",
+      "falsifier": "If weekend drops persist when pantry completeness stays high, grocery depletion is not the main explanation.",
+      "confidence": "low",
+      "known_risks": [
+        "Self-reported pantry data may be noisy."
+      ],
+      "wellness_boundary": "Wellness coaching only. Not diagnosis or treatment."
+    }
+  ]
+}

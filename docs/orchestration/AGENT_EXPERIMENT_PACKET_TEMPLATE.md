@@ -125,6 +125,17 @@ Choose exactly one:
 - `hallucination_risk`:
 - `promotion_decision`:
 
+### Offline Eval Evidence (`PR-B`)
+
+- `bundle_id`:
+- `reference_corpus_size`:
+- `fixture_set`:
+- `judge_mode`: `deterministic_rule_based`
+- `normalization_method`: `lexical_similarity`
+- `distance_heuristic`: `reference_overlap` | `peer_overlap`
+- `negative_controls`:
+- `presentation_label`:
+
 ### Next PR Packet
 
 - `next_pr_scope`:

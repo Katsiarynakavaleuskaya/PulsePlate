@@ -5590,7 +5590,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research moat, bounded discovery workflow)
   - Target PR: PR `#1106` -> PR_TBD_CREATIVE_RESEARCH_EVAL -> PR_TBD_CREATIVE_RESEARCH_INTERNAL_PILOT
-  - Status: 🟡 In progress (PR `#1106` carries the docs-only protocol/routing/evaluation visibility slice)
+  - Status: 🟡 In progress (PR `#1106` carries the docs-only protocol slice; PR-B now adds the offline eval harness/contract layer on a stacked worktree)
   - Dependencies:
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
@@ -5598,8 +5598,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
     - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
+    - `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
     - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
     - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `scripts/orchestration/creative_research_eval.py`
+    - `scripts/orchestration/creative_research_eval_contract.py`
+    - `tests/test_creative_research_eval.py`
+    - `tests/test_creative_research_eval_contract.py`
     - `docs/memory/kpp_knowledge_promotion_pipeline.md`
   - DoD:
     - PR-A lands docs-only protocol and routing/evaluation/handoff visibility for `creative_research`

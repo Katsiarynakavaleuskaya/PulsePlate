@@ -40,6 +40,8 @@ When a rule conflicts, the umbrella experimentation protocol wins.
 - Research track: `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
 - Experimentation umbrella: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
 - Experiment packet template: `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- Offline eval overlay: `docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
+- Offline eval contract: `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
 - Parallel work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Handoff format: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`
@@ -239,6 +241,7 @@ Degrade behavior:
 - score normalization
 - corpus-distance heuristic
 - negative controls
+- canonical offline protocol + contract
 - no runtime integration
 
 ### PR-C — internal-only pilot
