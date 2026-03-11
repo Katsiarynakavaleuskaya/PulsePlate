@@ -32,6 +32,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2917425126 -> 3e71d015
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2917425130 -> 3e71d015
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#discussion_r2917425136 -> 3e71d015
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1094#pullrequestreview-3928570374 -> 3e71d015
 Disposition: FIXED
 Commit: bedcc76c
 Evidence: `app/middleware/request_telemetry.py:150`; `app/middleware/request_telemetry.py:185`; `app/middleware/request_telemetry.py:244`; `app/middleware/request_telemetry.py:319`; `app/middleware/request_telemetry.py:337`; `deploy/otelcol/collector.yaml:15`; `tests/test_request_telemetry_foundation.py:178`; `tests/test_request_telemetry_foundation.py:233`; `tests/test_request_telemetry_foundation.py:258`; `tests/test_request_telemetry_foundation.py:288`; `tests/test_request_telemetry_foundation.py:324`; `docs/telemetry/TELEMETRY_POLICY.md:44`; `docs/telemetry/LLM_DETECTORS.md:23`; `app/telemetry/reservoir.py:1`
