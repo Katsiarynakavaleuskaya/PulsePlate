@@ -38,7 +38,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:web-plate-shell"
+      "source_ref": "template:web.plate:shell"
     },
     {
       "component_id": "web-plate-summary-card",
@@ -47,7 +47,7 @@
       "parent_component_id": "web-plate-shell",
       "hierarchy_level": 1,
       "semantic_role": "content_container",
-      "source_ref": "static:web-plate-summary-card"
+      "source_ref": "template:web.plate:summary-card"
     },
     {
       "component_id": "web-plate-badge",
@@ -55,8 +55,8 @@
       "section_id": "plate-summary",
       "parent_component_id": "web-plate-summary-card",
       "hierarchy_level": 2,
-      "semantic_role": "premium_state",
-      "source_ref": "static:web-plate-badge"
+      "semantic_role": "gate_state",
+      "source_ref": "template:web.plate:badge"
     },
     {
       "component_id": "web-plate-progress",
@@ -65,7 +65,7 @@
       "parent_component_id": "web-plate-summary-card",
       "hierarchy_level": 2,
       "semantic_role": "completion_feedback",
-      "source_ref": "static:web-plate-progress"
+      "source_ref": "template:web.plate:progress"
     },
     {
       "component_id": "web-plate-action-panel",
@@ -74,7 +74,7 @@
       "parent_component_id": "web-plate-shell",
       "hierarchy_level": 1,
       "semantic_role": "action_cluster",
-      "source_ref": "static:web-plate-action-panel"
+      "source_ref": "template:web.plate:action-panel"
     },
     {
       "component_id": "web-plate-dialog",
@@ -82,8 +82,8 @@
       "section_id": "plate-actions",
       "parent_component_id": "web-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "upgrade_explainer",
-      "source_ref": "static:web-plate-dialog"
+      "semantic_role": "secondary_details",
+      "source_ref": "template:web.plate:dialog"
     },
     {
       "component_id": "node:web.plate.open_setup",

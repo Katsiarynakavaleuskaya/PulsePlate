@@ -36,7 +36,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:ios-progress-shell"
+      "source_ref": "template:ios.progress:shell"
     },
     {
       "component_id": "ios-progress-stats",
@@ -45,7 +45,7 @@
       "parent_component_id": "ios-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "summary_metrics",
-      "source_ref": "static:ios-progress-stats"
+      "source_ref": "template:ios.progress:stats"
     },
     {
       "component_id": "ios-progress-chart",
@@ -54,7 +54,7 @@
       "parent_component_id": "ios-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "trend_visualization",
-      "source_ref": "static:ios-progress-chart"
+      "source_ref": "template:ios.progress:chart"
     },
     {
       "component_id": "ios-progress-recovery",
@@ -63,7 +63,7 @@
       "parent_component_id": "ios-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "recovery_message",
-      "source_ref": "static:ios-progress-recovery"
+      "source_ref": "template:ios.progress:recovery"
     },
     {
       "component_id": "ios-progress-empty",
@@ -72,7 +72,7 @@
       "parent_component_id": "ios-progress-recovery",
       "hierarchy_level": 2,
       "semantic_role": "no_data_fallback",
-      "source_ref": "static:ios-progress-empty"
+      "source_ref": "template:ios.progress:empty"
     },
     {
       "component_id": "node:ios.progress.refresh",

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Figma Design Execution Pipeline for PulsePlate.
+Design Execution Pipeline for PulsePlate.
 
-Executes Figma design instructions via MCP and tracks results.
+Executes code-first design instructions through runtime adapters and tracks results.
 
 Usage:
     python scripts/design/execute_design.py --screen ios.home --validate-only
-    python scripts/design/execute_design.py --screen ios.home --execute
+    python scripts/design/execute_design.py --screen ios.home --execute --adapter code_native_canvas
 """
 
 from __future__ import annotations
@@ -147,7 +147,7 @@ def log_execution(screen_id: str, results: dict[str, Any]) -> None:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Execute Figma design instructions via MCP")
+    parser = argparse.ArgumentParser(description="Execute design instructions via runtime adapters")
     parser.add_argument(
         "--screen",
         required=True,
@@ -161,7 +161,7 @@ def main() -> int:
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Execute instruction via MCP (currently simulated)",
+        help="Execute instruction via the selected adapter (currently simulated)",
     )
     parser.add_argument(
         "--adapter",
@@ -224,8 +224,8 @@ def main() -> int:
     if args.update_manifest:
         update_manifest(args.screen, results)
 
-    print("\nNote: Live MCP-backed execution is intentionally deferred.")
-    print("Current execution uses the deterministic adapter seam.")
+    print("\nNote: live external design tools are intentionally optional.")
+    print("Current execution uses local runtime adapter seams.")
 
     return 0
 

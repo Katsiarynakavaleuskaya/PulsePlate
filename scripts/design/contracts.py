@@ -27,7 +27,9 @@ SUPPORTED_INSTRUCTION_TYPES = {
 SUPPORTED_LAYOUT_ARCHETYPES = {
     "content_shell",
     "dashboard_shell",
+    "form_shell",
     "hero_shell",
+    "navigation_shell",
 }
 
 REQUIRED_INSTRUCTION_FIELDS = {

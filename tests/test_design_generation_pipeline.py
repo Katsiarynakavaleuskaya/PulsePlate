@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from scripts.design import execute_design, generate_figma_instructions, verify_design
+from scripts.design.layout_templates import build_reusable_layout_template
 
 
 def test_generated_instruction_includes_code_first_contract_fields() -> None:
@@ -165,6 +166,29 @@ def test_platform_specific_button_states_and_platform_labels() -> None:
     assert web_payload["platform"] == "Web"
     assert "hover" not in ios_button["states"]
     assert "hover" in web_button["states"]
+
+
+def test_execute_instruction_supports_code_native_canvas_adapter() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.home")
+    )
+
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+
+    assert result["status"] == "simulated"
+    assert result["adapter_name"] == "code_native_canvas"
+    assert result["adapter_mode"] == "render_plan"
+    assert result["simulation_mode"] == "code_native_render_plan_stub"
+    assert result["mcp_calls"][0]["tool"] == "code_native.render_plan"
+    assert len(result["render_plan"]) == len(payload["instructions"])
+
+
+def test_reusable_layout_template_registry_reuses_hero_shell() -> None:
+    template = build_reusable_layout_template("hero_actions", "ios.home")
+
+    assert template["layout_sections"][0]["id"] == "hero-band"
+    assert template["static_component_tree"][0]["id"] == "ios-home-shell"
+    assert template["static_component_tree"][1]["canonical_component"] == "hero"
 
 
 def test_verify_screen_distinguishes_not_executed(

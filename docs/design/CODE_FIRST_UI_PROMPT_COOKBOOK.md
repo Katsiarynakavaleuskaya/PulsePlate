@@ -21,6 +21,9 @@ Use it after two prerequisite steps:
 It is the default prompt assembly layer for code-first design work in
 PulsePlate.
 
+Primary target: design should be drawable by agent-owned code/runtime from the
+design system and prompt, without requiring Figma or similar tools.
+
 ## 2. Required input contract
 
 Every brief must include these fields:
