@@ -30,6 +30,26 @@ def get_subscription_for_user_source(
     return subscription
 
 
+def list_subscriptions_for_user(
+    *,
+    session: Session,
+    user_id: int,
+) -> list[Subscription]:
+    """Return subscription rows for a user ordered by freshest persisted state."""
+
+    statement = (
+        select(Subscription)
+        .where(Subscription.user_id == user_id)
+        .order_by(
+            desc(Subscription.updated_at),
+            desc(Subscription.created_at),
+            desc(Subscription.id),
+        )
+    )
+    subscriptions = session.execute(statement).scalars().all()
+    return list(subscriptions)
+
+
 def get_audit_by_user_key(
     *,
     session: Session,
