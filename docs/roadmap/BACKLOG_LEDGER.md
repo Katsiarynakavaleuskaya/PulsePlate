@@ -5381,8 +5381,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (future multimodal track, no runtime integration yet)
-  - Target PR: PR_TBD_AGENT_EXPERIMENT_CV_LANE
-  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; CV overlay + packet schema extension + orchestration drift audit)
+  - Target PR: #1102
+  - Status: 🟡 In progress (`feat/agent-experiment-cv-lane-pr5`; PR #1102; CV overlay + packet schema extension + orchestration drift audit)
   - Dependencies:
     - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
     - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
@@ -5395,7 +5395,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.cursor/agents/cv-agent.md`
     - `.cursor/agents/data-scientist-agent.md`
     - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
-    - `docs/audit/PR_TBD_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
+    - `docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
   - DoD:
     - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
     - CV lane remains docs/eval only with no image-retention runtime behavior

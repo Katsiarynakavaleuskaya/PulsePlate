@@ -1,5 +1,6 @@
 # CV Experimentation Lane Audit
 
+**PR:** #1102
 **Date:** 2026-03-11
 
 **Scope:** PR1-PR5 experimentation-lane cohesion, CV packetization drift, and local orchestration weak points.
@@ -41,4 +42,3 @@ PR5 closes the missing CV-specific layer for the governed experimentation lane, 
 - generic CV draft before PR5: `docs/orchestration/contracts/AI_OUTPUT_CONTRACTS.md:106`
 - runtime privacy/degrade pointer: `docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md:81`
 - playbook alias drift before PR5: `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md:91`
-
