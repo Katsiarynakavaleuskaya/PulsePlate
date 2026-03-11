@@ -405,6 +405,12 @@ class TestRetrieveVectorFromDb:
             yield fake_session
 
         monkeypatch.setattr("core.db.session_scope", _fake_session_scope)
+        rls_calls: list[int] = []
+        monkeypatch.setattr(
+            vector_rag,
+            "apply_user_rls_context",
+            lambda session, *, user_id: rls_calls.append(user_id),
+        )
 
         ctx = vector_rag._retrieve_vector_from_db("test", 3, "agent-1", "PRO", 21)
         assert isinstance(ctx, RAGContext)
@@ -413,6 +419,7 @@ class TestRetrieveVectorFromDb:
         assert ctx.chunks[0].score > 0
         assert ctx.agent_id == "agent-1"
         assert ctx.user_tier == "PRO"
+        assert rls_calls == [21]
 
         # Cleanup
         vector_rag._embedding_provider = None

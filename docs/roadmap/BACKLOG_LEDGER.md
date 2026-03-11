@@ -875,16 +875,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: `user_knowledge` DB-level RLS / policy hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / defense-in-depth)
-  - Target PR: PR-TBD-USER-KNOWLEDGE-RLS
-  - Status: 📋 Planned
-  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but `user_knowledge` still needs explicit DB-level RLS/policy enforcement as defense in depth.
+  - Target PR: PR #1089 (`feat/p1-user-knowledge-rls`)
+  - Status: 🟡 In progress (active PR `#1089`)
+  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but Postgres still needed explicit DB-level RLS/policy enforcement plus a canonical session-context bridge to make the policy enforceable in runtime paths.
   - Links:
     - `docs/contracts/RAG_CONTRACT.md` (§7, §8)
     - `app/models/rag_feedback.py`
     - `core/rag/vector_rag.py`
-    - `alembic/versions/202602280001_add_rag_feedback_tables.py`
+    - `core/db_rls.py`
+    - `alembic/versions/202603100101_enable_rag_user_rls.py`
   - DoD:
-    - Postgres RLS policy exists for `user_knowledge` (and companion policy for `rag_feedback` if required)
+    - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
+    - User-bound rows use a bigint subject principal compatible with runtime-derived API-key subject isolation (no stale `users.id` FK contract)
+    - Canonical transaction-local session context is set before RAG retrieval, feedback writes, and DSAR helper queries
     - Migration + rollback path documented
     - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
     - Runtime app-layer filtering remains in place (no regression to code-level scoping)
