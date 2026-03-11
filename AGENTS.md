@@ -954,22 +954,60 @@ Source of truth:
 Use this section as a navigation index only.
 Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 
+### Root hygiene
+
+- Local-only artifact and root-scope guardrails: see `AGENTS.md` sections `Local-only artifacts (hard rule)` and `Docs-only PR Rule (Mandatory)`.
+- Process and behavior changes that alter workflow expectations must update root or scoped `AGENTS.md` in the same PR.
+- New runtime files at repo root require explicit architectural justification and should default to scoped homes under `app/`, `core/`, `scripts/`, `deploy/`, or `docs/`.
+
 ### API and OpenAPI workflow
 
 - Canonical API route map: `docs/contracts/API_CANONICAL_MAP.md`
+- System overview and runtime topology: `docs/architecture/system_overview.md`
+- Backend routing inventory: `docs/architecture/backend_routing_map.md`
 - `make openapi` remains the canonical combined OpenAPI command.
+- OpenAPI determinism and artifact sync: see `AGENTS.md` section `OpenAPI generation (determinism requirement)`.
 - Backend/frontend OpenAPI split targets remain a temporary workflow seam tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split` and governed by `docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md` (retire the seam only when dedicated backend/frontend targets exist and docs/CI no longer need transitional wording).
 
 ### Operator quick path
 
 - Daily operator runbook: `docs/runbooks/ENGINEER_QUICKPATH.md`
 - CI/debug triage: `RUNBOOK_AGENT.md`
+- Deployment navigation: `docs/deploy/README.md`
+- Terminal diagnostics: `scripts/QUICK_DIAGNOSTIC.md`
 - Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`, governed by `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md` (retire the seam only when Makefile/runbooks stop carrying `docker-compose` as active guidance).
 
 ### AI bounded context
 
 - AI/insight/provider runtime boundary: `docs/architecture/providers_implementation.md`
+- LLM rate-limit and monthly quota rules: see `AGENTS.md` sections `Rate Limiting Policy` and `LLM Monthly Quota Policy`.
+- Privacy and PII handling for AI-adjacent endpoints: `core/pii_redaction.py`, `docs/security/SECURITY_POSTURE.md`
 - Target-state extraction of AI runtime into a dedicated bounded context is tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction` and governed by `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md` (the ADR now carries `file:line` evidence for current boundary claims; retire the seam only when canonical AI package boundaries and ownership are documented without transitional wording).
+
+### Creative research lane
+
+- `creative_research` is a governed sub-lane inside the existing experimentation umbrella; it must not become a competing orchestration framework. Canonical sources: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`, `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`.
+- The lane follows `diverge -> cluster -> synthesize -> critique -> verify -> score -> promote/defer/discard`; coordinator-first routing and explicit handoff packets remain mandatory.
+- Wave boundaries are hard-gated: PR-A docs/protocol only, PR-B offline eval only, PR-C internal-only pilot. No public runtime exposure, no hidden memory, no autonomous merge, no immutable-oracle mutation.
+- Any future provider-backed pilot stays feature-flagged, quota-checked before calls, and human-gated through normal PR/backlog promotion.
+
+### Data provenance
+
+- Food platform and product-data provenance: `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+- Distinguish product/catalog provenance from Docker/build provenance: `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+- Any new catalog, food, or restaurant integration must update provenance/source-of-truth docs or record a deferred follow-up in `docs/roadmap/BACKLOG_LEDGER.md`.
+
+### Endpoint map updates
+
+- If a route, namespace, tier surface, or feature-flagged public contract changes, update `docs/contracts/API_CANONICAL_MAP.md` or document why no map change is required.
+- If entrypoint behavior, routing topology, or OpenAPI mode changes, update `docs/architecture/system_overview.md` and related routing docs in the same PR.
+
+### Design no-drift
+
+- Visual governance policy: see `AGENTS.md` section `Visual Governance Policy (Hard Rule)`.
+- Figma execution and implementation runbooks: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`, `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md`
+- UI review standards: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
+- Any change to `make design-*` behavior must update the canonical design docs/runbooks in the same PR.
 
 ## OpenAPI generation (determinism requirement)
 

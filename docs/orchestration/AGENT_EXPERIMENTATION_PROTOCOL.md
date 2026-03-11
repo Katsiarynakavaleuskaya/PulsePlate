@@ -31,6 +31,28 @@ This file is the single source of truth for:
 
 Other docs must link here instead of restating these rules.
 
+### Governed sub-lanes
+
+This protocol may be extended by task-specific governed sub-lane docs.
+
+Allowed:
+
+- sub-lane semantics
+- task-class-specific contracts
+- role mapping
+- recommended phase defaults that stay within umbrella caps
+
+Forbidden in sub-lane docs:
+
+- redefining mutable vs immutable surfaces
+- weakening autonomy bans
+- changing hard caps or quality gates
+- creating an alternate promotion or merge-readiness constitution
+
+Current governed sub-lane:
+
+- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+
 ---
 
 ## 1. Scope and non-goals

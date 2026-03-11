@@ -27,6 +27,7 @@
 | Design         | design   |
 | Documentation  | docs     |
 | Research       | research |
+| Creative Research | research |
 | Safety / Philosophy / Logic | safety  |
 | QA             | qa       |
 | Release        | release  |
@@ -86,6 +87,7 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 9. **Independent reviewer invariant:** reviewer must never equal the selected primary agent after telemetry/advisory overrides.
 10. **Cluster-first routing:** coordinator resolves `cluster` first for metrics and packaging, then selects domain-level primary/secondary/reviewer.
 11. **Skills after routing:** once primary domain is resolved, coordinator selects `recommended_skills` via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and task bootstrap artifacts.
+12. **`creative_research` sub-lane:** route through `research` first, then apply phase-specific role mapping from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`. The sub-lane refines execution inside the experimentation umbrella; it does not replace this routing graph.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.
 
