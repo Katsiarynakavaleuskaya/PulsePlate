@@ -21,7 +21,11 @@ from typing import Any, cast
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+from scripts.design.contracts import (
+    SUPPORTED_SCREENS,
+    validate_canvas_artifact_contract,
+    validate_instruction_contract,
+)
 from scripts.design.execution_adapters import (
     available_adapter_names,
     resolve_execution_adapter,
@@ -81,7 +85,16 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     """Execute one instruction payload through the configured adapter seam."""
 
     adapter = resolve_execution_adapter(adapter_name)
-    return cast(dict[str, Any], adapter.execute(instruction))
+    results = cast(dict[str, Any], adapter.execute(instruction))
+
+    canvas_artifact = results.get("canvas_artifact")
+    if isinstance(canvas_artifact, dict):
+        canvas_errors = validate_canvas_artifact_contract(canvas_artifact, instruction)
+        if canvas_errors:
+            joined_errors = "; ".join(canvas_errors)
+            raise ValueError(f"Invalid canvas artifact emitted by {adapter_name}: {joined_errors}")
+
+    return results
 
 
 def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
@@ -113,8 +126,12 @@ def update_manifest(screen_id: str, results: dict[str, Any]) -> None:
         "adapter_name": results.get("adapter_name"),
         "adapter_mode": results.get("adapter_mode"),
         "simulation_mode": results.get("simulation_mode"),
+        "artifact_type": results.get("artifact_type"),
+        "artifact_version": results.get("artifact_version"),
         "node_count": len(results.get("created_nodes", [])),
+        "component_count": results.get("component_count"),
         "nodes": results.get("created_nodes", []),
+        "canvas_artifact": results.get("canvas_artifact"),
     }
 
     if existing:

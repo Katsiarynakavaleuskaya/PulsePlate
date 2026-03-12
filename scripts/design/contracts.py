@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
+from scripts.design.canvas_artifact import CANVAS_ARTIFACT_VERSION
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 VOCABULARY_PATH = PROJECT_ROOT / "docs" / "design" / "ui_component_vocabulary.json"
 INSTRUCTION_DIR = PROJECT_ROOT / "scripts" / "design" / "instructions"
@@ -67,6 +69,38 @@ REQUIRED_COMPONENT_NODE_FIELDS = {
     "hierarchy_level",
     "semantic_role",
     "source_ref",
+}
+
+REQUIRED_CANVAS_FIELDS = {
+    "canvas_version",
+    "screen_id",
+    "platform",
+    "surface",
+    "layout_archetype",
+    "layout_pattern",
+    "dimensions",
+    "background_token",
+    "token_constraints",
+    "sections",
+    "nodes",
+    "render_ops",
+}
+
+REQUIRED_CANVAS_RENDER_OP_FIELDS = {
+    "op",
+    "instruction_type",
+    "component_id",
+    "canonical_component",
+    "section_id",
+    "parent_component_id",
+    "hierarchy_level",
+    "semantic_role",
+    "order",
+}
+
+EXPECTED_RENDER_OP_BY_INSTRUCTION_TYPE = {
+    "create_frame": "materialize_frame",
+    "create_button": "materialize_button",
 }
 
 RAW_HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b")
@@ -503,5 +537,248 @@ def validate_instruction_contract(instruction: dict[str, Any]) -> list[str]:
             "Missing create_button instructions for component_hierarchy nodes: "
             + ", ".join(missing_button_component_ids)
         )
+
+    return errors
+
+
+def validate_canvas_artifact_contract(
+    canvas_artifact: dict[str, Any],
+    instruction: dict[str, Any] | None = None,
+) -> list[str]:
+    """Validate pulseplate_canvas_v1 shape and its alignment to one instruction payload."""
+
+    errors: list[str] = []
+
+    missing_fields = REQUIRED_CANVAS_FIELDS.difference(canvas_artifact)
+    if missing_fields:
+        errors.append("Missing required canvas field(s): " + ", ".join(sorted(missing_fields)))
+        return errors
+
+    canvas_version = str(canvas_artifact.get("canvas_version", "")).strip()
+    if canvas_version != CANVAS_ARTIFACT_VERSION:
+        errors.append(
+            f"Unsupported canvas_version: {canvas_version or '<empty>'} "
+            f"(expected {CANVAS_ARTIFACT_VERSION})"
+        )
+
+    sections = canvas_artifact.get("sections", [])
+    nodes = canvas_artifact.get("nodes", [])
+    render_ops = canvas_artifact.get("render_ops", [])
+
+    if not isinstance(sections, list) or not sections:
+        errors.append("canvas sections must be a non-empty list")
+    if not isinstance(nodes, list) or not nodes:
+        errors.append("canvas nodes must be a non-empty list")
+    if not isinstance(render_ops, list) or not render_ops:
+        errors.append("canvas render_ops must be a non-empty list")
+    if errors:
+        return errors
+
+    section_ids: set[str] = set()
+    for index, section in enumerate(sections):
+        if not isinstance(section, dict):
+            errors.append(f"canvas sections[{index}] must be an object")
+            continue
+        missing_section_fields = REQUIRED_SECTION_FIELDS.difference(section)
+        if missing_section_fields:
+            errors.append(
+                "canvas sections[{index}] missing field(s): {fields}".format(
+                    index=index,
+                    fields=", ".join(sorted(missing_section_fields)),
+                )
+            )
+            continue
+        section_id = str(section.get("section_id", "")).strip()
+        if not section_id:
+            errors.append(f"canvas sections[{index}] missing section_id")
+            continue
+        if section_id in section_ids:
+            errors.append(f"Duplicate canvas section_id: {section_id}")
+            continue
+        component_ids = section.get("component_ids")
+        if not isinstance(component_ids, list) or not component_ids:
+            errors.append(f"canvas sections[{index}] must define non-empty component_ids")
+            continue
+        section_ids.add(section_id)
+
+    valid_components = canonical_component_names()
+    node_ids: set[str] = set()
+    canvas_nodes_by_id: dict[str, dict[str, Any]] = {}
+    for index, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            errors.append(f"canvas nodes[{index}] must be an object")
+            continue
+        missing_node_fields = REQUIRED_COMPONENT_NODE_FIELDS.difference(node)
+        if missing_node_fields:
+            errors.append(
+                "canvas nodes[{index}] missing field(s): {fields}".format(
+                    index=index,
+                    fields=", ".join(sorted(missing_node_fields)),
+                )
+            )
+            continue
+
+        component_id = str(node.get("component_id", "")).strip()
+        canonical_component = str(node.get("canonical_component", "")).strip()
+        section_id = str(node.get("section_id", "")).strip()
+        if not component_id:
+            errors.append(f"canvas nodes[{index}] missing component_id")
+            continue
+        if component_id in node_ids:
+            errors.append(f"Duplicate canvas node component_id: {component_id}")
+            continue
+        if canonical_component not in valid_components:
+            errors.append(f"Unknown canonical component in canvas nodes: {canonical_component}")
+        if section_id not in section_ids:
+            errors.append(
+                f"Unknown section_id for canvas node {component_id}: {section_id or '<empty>'}"
+            )
+        hierarchy_level = node.get("hierarchy_level")
+        if not isinstance(hierarchy_level, int) or hierarchy_level < 0:
+            errors.append(f"canvas node {component_id} hierarchy_level must be integer >= 0")
+        node_ids.add(component_id)
+        canvas_nodes_by_id[component_id] = node
+
+    for index, render_op in enumerate(render_ops):
+        if not isinstance(render_op, dict):
+            errors.append(f"canvas render_ops[{index}] must be an object")
+            continue
+        missing_render_op_fields = REQUIRED_CANVAS_RENDER_OP_FIELDS.difference(render_op)
+        if missing_render_op_fields:
+            errors.append(
+                "canvas render_ops[{index}] missing field(s): {fields}".format(
+                    index=index,
+                    fields=", ".join(sorted(missing_render_op_fields)),
+                )
+            )
+            continue
+
+        component_id = str(render_op.get("component_id", "")).strip()
+        canonical_component = str(render_op.get("canonical_component", "")).strip()
+        instruction_type = str(render_op.get("instruction_type", "")).strip()
+        order = render_op.get("order")
+
+        if instruction_type not in SUPPORTED_INSTRUCTION_TYPES:
+            errors.append(
+                f"canvas render_ops[{index}] references unsupported instruction_type: "
+                f"{instruction_type or '<empty>'}"
+            )
+        else:
+            expected_render_op = EXPECTED_RENDER_OP_BY_INSTRUCTION_TYPE[instruction_type]
+            actual_render_op = str(render_op.get("op", "")).strip()
+            if actual_render_op != expected_render_op:
+                errors.append(
+                    "canvas render_ops[{index}] must set op={expected}".format(
+                        index=index,
+                        expected=expected_render_op,
+                    )
+                )
+        if component_id not in node_ids:
+            errors.append(
+                f"canvas render_ops[{index}] references unknown component_id: "
+                f"{component_id or '<empty>'}"
+            )
+        if canonical_component not in valid_components:
+            errors.append(
+                f"Unknown canonical component in canvas render_ops: {canonical_component}"
+            )
+        if not isinstance(order, int) or order < 0:
+            errors.append(f"canvas render_ops[{index}] order must be integer >= 0")
+
+    if instruction is None:
+        return errors
+
+    if validate_instruction_contract(instruction):
+        errors.append("Instruction payload failed validation before canvas alignment checks")
+        return errors
+
+    for field_name in (
+        "screen_id",
+        "platform",
+        "surface",
+        "layout_archetype",
+        "layout_pattern",
+        "dimensions",
+        "background_token",
+        "token_constraints",
+    ):
+        if canvas_artifact.get(field_name) != instruction.get(field_name):
+            errors.append(
+                f"canvas {field_name} mismatch: "
+                f"expected {instruction.get(field_name)!r}, got {canvas_artifact.get(field_name)!r}"
+            )
+
+    instruction_sections = {
+        str(section["section_id"]): sorted(
+            str(component_id) for component_id in section["component_ids"]
+        )
+        for section in instruction.get("sections", [])
+        if isinstance(section, dict)
+    }
+    canvas_sections = {
+        str(section["section_id"]): sorted(
+            str(component_id) for component_id in section["component_ids"]
+        )
+        for section in sections
+        if isinstance(section, dict)
+    }
+    if instruction_sections != canvas_sections:
+        errors.append("canvas sections do not match instruction sections")
+
+    instruction_nodes = {
+        str(node["component_id"]): {
+            "canonical_component": node["canonical_component"],
+            "section_id": node["section_id"],
+            "parent_component_id": node["parent_component_id"],
+            "hierarchy_level": node["hierarchy_level"],
+            "semantic_role": node["semantic_role"],
+            "source_ref": node["source_ref"],
+        }
+        for node in instruction.get("component_hierarchy", [])
+        if isinstance(node, dict)
+    }
+    canvas_nodes = {
+        str(node["component_id"]): {
+            "canonical_component": node["canonical_component"],
+            "section_id": node["section_id"],
+            "parent_component_id": node["parent_component_id"],
+            "hierarchy_level": node["hierarchy_level"],
+            "semantic_role": node["semantic_role"],
+            "source_ref": node["source_ref"],
+        }
+        for node in nodes
+        if isinstance(node, dict)
+    }
+    if instruction_nodes != canvas_nodes:
+        errors.append("canvas nodes do not match instruction component_hierarchy")
+
+    instruction_ops = {
+        str(item["component_id"]): {
+            "instruction_type": item["type"],
+            "canonical_component": item["canonical_component"],
+            "section_id": item["section_id"],
+            "parent_component_id": item["parent_component_id"],
+            "hierarchy_level": item["hierarchy_level"],
+            "semantic_role": item["semantic_role"],
+            "order": item["order"],
+        }
+        for item in instruction.get("instructions", [])
+        if isinstance(item, dict)
+    }
+    canvas_ops = {
+        str(render_op["component_id"]): {
+            "instruction_type": render_op["instruction_type"],
+            "canonical_component": render_op["canonical_component"],
+            "section_id": render_op["section_id"],
+            "parent_component_id": render_op["parent_component_id"],
+            "hierarchy_level": render_op["hierarchy_level"],
+            "semantic_role": render_op["semantic_role"],
+            "order": render_op["order"],
+        }
+        for render_op in render_ops
+        if isinstance(render_op, dict)
+    }
+    if instruction_ops != canvas_ops:
+        errors.append("canvas render_ops do not match instruction operations")
 
     return errors

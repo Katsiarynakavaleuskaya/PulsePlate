@@ -21,7 +21,11 @@ similar tools as the primary runtime dependency.
 - `/tokens` remains the token source of truth
 - `docs/design/ui_component_vocabulary.json` remains the naming source of truth
 - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` remains the brief assembly contract
+- reusable layout templates are the canonical topology source for sections and
+  static component hierarchy
 - generated instruction JSON remains the executable machine contract
+- `pulseplate_canvas_v1` is the canonical internal runtime artifact emitted from
+  the governed instruction contract
 
 ## 3. Runtime model
 
@@ -29,6 +33,7 @@ Primary execution lane:
 
 - `scripts/design/generate_figma_instructions.py:875`
 - `scripts/design/layout_templates.py:383`
+- `scripts/design/canvas_artifact.py:1`
 - `scripts/design/execution_adapters.py:79`
 
 Preferred adapter for local design runtime:
@@ -46,8 +51,30 @@ The runtime should be able to materialize:
 - `layout_archetype`
 - `sections`
 - `component_hierarchy`
-- stable render operations grouped by semantic role
-- a deterministic local render artifact such as `pulseplate_canvas_v1`
+- deterministic `render_ops` derived from the instruction contract
+- canonical JSON artifact `pulseplate_canvas_v1`
+
+Required artifact fields:
+
+- `canvas_version`
+- `screen_id`
+- `platform`
+- `surface`
+- `layout_archetype`
+- `layout_pattern`
+- `dimensions`
+- `background_token`
+- `token_constraints`
+- `sections`
+- `nodes`
+- `render_ops`
+
+Manifest-safe metadata for `code_native_canvas` must also record:
+
+- `artifact_type`
+- `artifact_version`
+- `section_count`
+- `component_count`
 
 ## 5. Non-goals for current phase
 

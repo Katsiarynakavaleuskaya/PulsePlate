@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.design.canvas_artifact import CANVAS_ARTIFACT_VERSION, build_canvas_artifact
+from scripts.design.contracts import validate_canvas_artifact_contract
 from scripts.design import execute_design, generate_figma_instructions, verify_design
 from scripts.design.layout_templates import build_reusable_layout_template
 
@@ -194,11 +196,15 @@ def test_execute_instruction_supports_code_native_canvas_adapter() -> None:
 
     assert result["status"] == "simulated"
     assert result["adapter_name"] == "code_native_canvas"
-    assert result["adapter_mode"] == "render_plan"
-    assert result["simulation_mode"] == "code_native_render_plan_stub"
+    assert result["adapter_mode"] == "artifact_emit"
+    assert result["simulation_mode"] == "code_native_canvas_artifact"
+    assert result["artifact_type"] == CANVAS_ARTIFACT_VERSION
+    assert result["artifact_version"] == CANVAS_ARTIFACT_VERSION
     assert result["component_count"] == len(result["render_plan"])
-    assert result["mcp_calls"][0]["tool"] == "code_native.render_plan"
+    assert result["component_count"] == len(result["canvas_artifact"]["nodes"])
+    assert result["mcp_calls"][0]["tool"] == "code_native.emit_canvas_artifact"
     assert len(result["render_plan"]) == len(payload["instructions"])
+    assert len(result["canvas_artifact"]["render_ops"]) == len(payload["instructions"])
 
 
 def test_reusable_layout_template_registry_reuses_hero_shell() -> None:
@@ -219,6 +225,29 @@ def test_reusable_layout_template_registry_rejects_unknown_key() -> None:
         match="Supported templates: content_actions, dashboard_recovery, form_stack, hero_actions, navigation_overlay",
     ):
         build_reusable_layout_template("unknown_template", "web.home")
+
+
+def test_screen_content_model_keeps_metadata_only_authoring_path() -> None:
+    content_model = generate_figma_instructions.SCREEN_CONTENT_MODEL["web.progress"]
+
+    assert "layout_sections" not in content_model
+    assert "static_component_tree" not in content_model
+    assert content_model["layout_template_key"] == "dashboard_recovery"
+    assert content_model["cta_parent_id"] == "web-progress-header-utilities"
+
+
+def test_canvas_artifact_matches_instruction_contract() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.plate")
+    )
+
+    canvas_artifact = build_canvas_artifact(payload)
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert canvas_artifact["canvas_version"] == CANVAS_ARTIFACT_VERSION
+    assert len(canvas_artifact["nodes"]) == len(payload["component_hierarchy"])
+    assert len(canvas_artifact["render_ops"]) == len(payload["instructions"])
+    assert not errors
 
 
 def test_verify_screen_distinguishes_not_executed(
@@ -277,6 +306,76 @@ def test_verify_screen_detects_manifest_mismatch(
     assert any("layout_archetype mismatch" in error.lower() for error in result["errors"])
     assert any("layout_pattern mismatch" in error.lower() for error in result["errors"])
     assert any("Node count mismatch" in error for error in result["errors"])
+
+
+def test_update_manifest_records_canvas_artifact_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "docs" / "design" / "figma-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps({"manifest_version": "1.0", "exports": []}),
+        encoding="utf-8",
+    )
+
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+
+    monkeypatch.setattr(execute_design, "PROJECT_ROOT", tmp_path)
+    execute_design.update_manifest("web.progress", result)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    export = manifest["exports"][0]
+    assert export["artifact_type"] == CANVAS_ARTIFACT_VERSION
+    assert export["artifact_version"] == CANVAS_ARTIFACT_VERSION
+    assert export["component_count"] == len(payload["component_hierarchy"])
+    assert export["canvas_artifact"]["canvas_version"] == CANVAS_ARTIFACT_VERSION
+
+
+def test_verify_screen_accepts_code_native_canvas_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instruction_path = tmp_path / "scripts" / "design" / "instructions" / "web_progress.json"
+    instruction_path.parent.mkdir(parents=True)
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    instruction_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+    manifest = {
+        "exports": [
+            {
+                "screen_id": "web.progress",
+                "status": result["status"],
+                "surface": result["surface"],
+                "layout_archetype": result["layout_archetype"],
+                "layout_pattern": result["layout_pattern"],
+                "section_count": result["section_count"],
+                "adapter_name": result["adapter_name"],
+                "adapter_mode": result["adapter_mode"],
+                "artifact_type": result["artifact_type"],
+                "artifact_version": result["artifact_version"],
+                "node_count": len(result["created_nodes"]),
+                "component_count": result["component_count"],
+                "nodes": result["created_nodes"],
+                "canvas_artifact": result["canvas_artifact"],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(verify_design, "PROJECT_ROOT", tmp_path)
+    verification = verify_design.verify_screen("web.progress", manifest)
+
+    assert verification["status"] == "warn"
+    assert any(
+        check["check"] == "canvas_artifact" and check["status"] == "pass"
+        for check in verification["checks"]
+    )
 
 
 def test_validate_governance_rejects_invalid_hierarchy_payload() -> None:

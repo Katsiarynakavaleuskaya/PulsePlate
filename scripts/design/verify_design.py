@@ -20,7 +20,11 @@ from typing import Any, cast
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.design.contracts import SUPPORTED_SCREENS, validate_instruction_contract
+from scripts.design.contracts import (
+    SUPPORTED_SCREENS,
+    validate_canvas_artifact_contract,
+    validate_instruction_contract,
+)
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -201,18 +205,85 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    if adapter_name == "code_native_canvas":
+        expected_component_count = len(instruction.get("component_hierarchy", []))
+        actual_component_count = screen_export.get("component_count")
+        if expected_component_count == actual_component_count:
+            result["checks"].append(
+                {
+                    "check": "component_count",
+                    "status": "pass",
+                    "expected": expected_component_count,
+                    "actual": actual_component_count,
+                }
+            )
+        else:
+            result["checks"].append(
+                {
+                    "check": "component_count",
+                    "status": "fail",
+                    "expected": expected_component_count,
+                    "actual": actual_component_count,
+                }
+            )
+            result["errors"].append(
+                "Component count mismatch: "
+                f"expected {expected_component_count}, got {actual_component_count}"
+            )
+
+        artifact_type = screen_export.get("artifact_type")
+        artifact_version = screen_export.get("artifact_version")
+        if artifact_type == "pulseplate_canvas_v1":
+            result["checks"].append({"check": "artifact_type", "status": "pass"})
+        else:
+            result["checks"].append({"check": "artifact_type", "status": "fail"})
+            result["errors"].append(
+                "Manifest artifact_type mismatch: "
+                f"expected pulseplate_canvas_v1, got {artifact_type}"
+            )
+
+        if artifact_version == "pulseplate_canvas_v1":
+            result["checks"].append({"check": "artifact_version", "status": "pass"})
+        else:
+            result["checks"].append({"check": "artifact_version", "status": "fail"})
+            result["errors"].append(
+                "Manifest artifact_version mismatch: "
+                f"expected pulseplate_canvas_v1, got {artifact_version}"
+            )
+
+        canvas_artifact = screen_export.get("canvas_artifact")
+        if isinstance(canvas_artifact, dict):
+            canvas_errors = validate_canvas_artifact_contract(canvas_artifact, instruction)
+            if canvas_errors:
+                result["checks"].append({"check": "canvas_artifact", "status": "fail"})
+                result["errors"].extend(canvas_errors)
+            else:
+                result["checks"].append({"check": "canvas_artifact", "status": "pass"})
+        else:
+            result["checks"].append({"check": "canvas_artifact", "status": "missing"})
+            result["errors"].append("code_native_canvas export missing canvas_artifact payload")
+
     # Verify each CTA exists
     instruction_ctas = [
         inst for inst in instruction.get("instructions", []) if inst.get("type") == "create_button"
     ]
     export_nodes = screen_export.get("nodes", [])
+    canvas_payload = screen_export.get("canvas_artifact")
+    canvas_render_ops = (
+        canvas_payload.get("render_ops", []) if isinstance(canvas_payload, dict) else []
+    )
 
     for cta in instruction_ctas:
         cta_name = cta.get("name", "Unknown")
         cta_key = cta.get("cta_key", "")
+        cta_component_id = cta.get("component_id", "")
 
         # Check if CTA exists in export nodes
         matching_node = next((n for n in export_nodes if n.get("name") == cta_name), None)
+        matching_render_op = next(
+            (item for item in canvas_render_ops if item.get("component_id") == cta_component_id),
+            None,
+        )
 
         if matching_node:
             result["checks"].append(
@@ -231,6 +302,27 @@ def verify_screen(screen_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
                 }
             )
             result["errors"].append(f"CTA not found in export: {cta_name} ({cta_key})")
+
+        if adapter_name == "code_native_canvas":
+            if matching_render_op:
+                result["checks"].append(
+                    {
+                        "check": f"canvas_cta:{cta_key}",
+                        "status": "present",
+                        "component_id": cta_component_id,
+                    }
+                )
+            else:
+                result["checks"].append(
+                    {
+                        "check": f"canvas_cta:{cta_key}",
+                        "status": "missing",
+                        "component_id": cta_component_id,
+                    }
+                )
+                result["errors"].append(
+                    f"CTA render op not found in canvas artifact: {cta_name} ({cta_key})"
+                )
 
     # Determine overall status
     if result["errors"]:

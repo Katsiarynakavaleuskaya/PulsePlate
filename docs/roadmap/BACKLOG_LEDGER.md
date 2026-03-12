@@ -455,32 +455,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Screen content model, reusable template registry, and `pulseplate_canvas_v1` convergence after PR #1121
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design runtime semantics)
-  - Target PR: PR-TBD-SCREEN-CONTENT-TEMPLATE-CONVERGENCE
-  - Status: 📋 Deferred after PR #1121
+  - Target PR: PR-TBD-DESIGN-CANVAS-PR3
+  - Status: 🚧 In progress in PR3 design canvas artifact contract
   - Area: scripts / design-runtime / docs
   - Finding Type: deferred model-governance cleanup
-  - Reason: PR #1121 intentionally keeps `SCREEN_CONTENT_MODEL.layout_sections`
-    and `SCREEN_CONTENT_MODEL.static_component_tree` explicit while the runtime
-    template registry settles, and it stops before materializing the deferred
-    `pulseplate_canvas_v1` artifact contract. A dedicated follow-up should
-    either remove those inline structures or generate them from the reusable
-    layout templates, while also defining how `pulseplate_canvas_v1` is emitted
-    from the same governed source so the repo has one authoritative path for
-    screen topology and render-artifact output.
+  - Reason: PR3 promotes reusable layout templates to the canonical topology
+    source, removes duplicated inline `SCREEN_CONTENT_MODEL` structure, and
+    introduces the governed `pulseplate_canvas_v1` artifact contract so screen
+    topology and code-native runtime output are emitted from the same source.
   - Links:
     - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
     - `scripts/design/layout_templates.py`
-    - `docs/review/PR_1121_FIXED_MAPPING.md`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
   - DoD:
-    - The repo chooses one canonical authoring path for screen topology
-      (`SCREEN_CONTENT_MODEL` vs reusable layout templates)
-    - Redundant inline `layout_sections` / `static_component_tree` data is
-      removed or generated deterministically from the chosen source
+    - Reusable layout templates are the canonical authoring path for screen
+      topology
+    - `SCREEN_CONTENT_MODEL` stays metadata-only
     - `pulseplate_canvas_v1` has an explicit schema or artifact contract tied to
-      the same chosen source of truth instead of an ad hoc side channel
-    - Tests prove screen topology cannot drift between content models and
-      template registry, and that any emitted `pulseplate_canvas_v1` artifact
-      stays structurally aligned with that topology
+      that same source of truth
+    - Tests prove instruction topology and emitted `pulseplate_canvas_v1`
+      stay structurally aligned
     - Design-runtime docs describe the chosen source-of-truth contract
 
 <a id="ledger-p1-design-token-lock-ci"></a>
