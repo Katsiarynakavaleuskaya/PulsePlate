@@ -72,7 +72,7 @@ Forbidden:
 
 - overwrite a locked variant in place without version bump
 - use generic names like `Image.imageset` for mascot variants
-- use filenames with Finder collision suffixes like ` 1.png`
+- use filenames with Finder collision suffixes like `image 1.png`
 - treat Figma export/import as the mascot source of truth
 
 ## Figma Policy
