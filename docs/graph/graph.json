@@ -1467,9 +1467,9 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
-      "label": "docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
-      "path": "docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "id": "doc:docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "label": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "path": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
       "tags": [
         "architecture"
       ],

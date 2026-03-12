@@ -1,17 +1,17 @@
-# PR-TBD: Universal Agent Orchestration Layer (Custom, no SkillKit) — Audit
+# Universal Agent Orchestration Layer — Audit
 
-**Topic PR:** PR-TBD (Docs-only)
-**Branch:** `docs/universal-orchestration-audit`
-**Scope:** orchestration-layer only (docs / dev-process), **no runtime impact**
-**Date:** 8 February 2026
+**Status:** Canonical orchestration rationale artifact aligned to the current workflow and experimentation SoTs
+**Topic PR:** PR #1137 (audit canonicalization)
+**Branch:** `docs/universal-orchestration-audit-canonicalization`
+**Scope:** orchestration rationale only (docs / dev-process), **no runtime impact**
+**Date:** 12 March 2026
 
 ---
 
 ## Executive summary (RU)
 
-Цель этого аудита — зафиксировать **канонический, воспроизводимый, evidence-driven** “Universal Agent Orchestration Layer”
-для PulsePlate (nutrition/fitness/CBT + Bayesian/UQ + RAG/recursive + CV), **без SkillKit**, совместимый с уже принятым
-каркасом оркестрации: **Coordinator → routing → handoff → review → synthesis → DoD**.
+Цель этого аудита — зафиксировать **канонический, воспроизводимый, evidence-driven** audit-слой для universal orchestration
+контекста PulsePlate, совместимый с уже принятым каркасом: **Coordinator → routing → handoff → review → synthesis → DoD**.
 
 Ключевые решения:
 
@@ -27,7 +27,7 @@
 
 ## Executive summary (EN)
 
-This audit defines a **reproducible, evidence-driven** Universal Agent Orchestration Layer for PulsePlate **without SkillKit**,
+This audit defines a **reproducible, evidence-driven** rationale layer for PulsePlate's universal orchestration context,
 compatible with the canonical workflow: **Coordinator → routing → handoff → review → synthesis → DoD**.
 
 Key decisions:
@@ -37,7 +37,7 @@ Key decisions:
 - Evidence contract: claims must be backed by `file:line` and/or reproducible commands with raw output + exit code when “Verified”.
 - Safety-first: wellness-only language, required disclaimers, and “high uncertainty → degrade” behavior.
 
-This PR is **docs-only**: contracts and audit questions now; runtime implementation later.
+This audit is a rationale artifact only. Runtime behavior remains governed by the workflow, experimentation, and repo hard gates.
 
 ---
 
@@ -55,6 +55,14 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 - `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md` (formal handoffs)
 - `docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md` (dialogue hard limit + coordinator intervention rule)
 - `docs/orchestration/PARALLEL_WORK_PROTOCOL.md` (parallel tracks + sync points)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (governed experimentation umbrella)
+
+### Governance alignment
+
+- This audit is a rationale layer, not a second orchestration constitution.
+- Canonical workflow authority remains `docs/orchestration/workflow.md`.
+- Experiment-loop authority remains `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
+- Hidden memory, autonomous merge, and runtime autonomy remain prohibited by repo-level policy.
 
 ### Repo-wide hard rules
 
@@ -417,8 +425,8 @@ This audit explicitly aligns with the repo’s “insight” research corpus:
 
 **Forbidden (examples):**
 
-- “I diagnose you…”
-- “This will treat/cure…”
+- direct diagnosis language
+- treatment-or-cure claims
 - Crisis/clinical instructions without escalation policy (future PR).
 
 **Required:**
