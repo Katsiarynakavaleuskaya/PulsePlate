@@ -5,14 +5,14 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039874 -> f1608f12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039874 -> 2202c980
 Disposition: FIXED
-Commit: f1608f12
+Commit: 2202c980
 Evidence: docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md:4
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039906 -> f1608f12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039906 -> 2202c980
 Disposition: FIXED
-Commit: f1608f12
+Commit: 2202c980
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:5981
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039869 -> 2202c980
