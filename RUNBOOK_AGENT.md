@@ -251,7 +251,7 @@ Run from repo root before any push/PR:
 
 Run before merge after latest commit and latest bot/review activity:
 
-1. `gh pr checks <PR_NUMBER>` -> no failed/pending required checks
+1. `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
 2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
 3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror-only when `pr_number` is available. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
 4. Confirm PR body sections are complete:
@@ -286,6 +286,10 @@ python scripts/orchestration/check_merge_ready.py \
   --require-auth
 ```
 Exit 0 = Phase 2 + merge-readiness + disposition proof all pass. Exit 1 = do not merge; fix and re-run.
+
+Raw `gh pr checks <PR_NUMBER>` remains diagnostic only. It can include superseded
+historical failures from older runs, so final merge triage must rely on the
+filtered current-head view emitted by `check_merge_ready.py`.
 
 **Optional: unresolved thread count only** (not sufficient alone):
 

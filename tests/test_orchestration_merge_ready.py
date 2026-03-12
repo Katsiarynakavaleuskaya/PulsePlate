@@ -47,6 +47,10 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
             "merge-readiness-gate",
             ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
         ),
+        (
+            "current-head-checks",
+            ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
+        ),
         ("review-threads-disposition", ["--pr-number", "1005"]),
     ]
 
@@ -76,6 +80,7 @@ def test_event_mode_passes_require_auth_only_to_disposition(
     assert calls == [
         ("phase2-pr-body-gates", ["--event-path", str(event_path)]),
         ("merge-readiness-gate", ["--event-path", str(event_path)]),
+        ("current-head-checks", ["--event-path", str(event_path)]),
         ("review-threads-disposition", ["--pr-number", "1007", "--require-auth"]),
     ]
 
@@ -117,6 +122,13 @@ def test_wrapper_surfaces_failing_gate_names(
             argv=[],
             returncode=0,
             stdout="disposition ok",
+            stderr="",
+        ),
+        "current-head-checks": merge_ready.GateResult(
+            name="current-head-checks",
+            argv=[],
+            returncode=0,
+            stdout="current head ok",
             stderr="",
         ),
     }
@@ -161,6 +173,13 @@ def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
             argv=[],
             returncode=0,
             stdout="SKIP: no usable gh auth for advisory local run.",
+            stderr="",
+        ),
+        "current-head-checks": merge_ready.GateResult(
+            name="current-head-checks",
+            argv=[],
+            returncode=0,
+            stdout="current head ok",
             stderr="",
         ),
     }

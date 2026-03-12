@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 PHASE2_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_body_phase2_gates.py"
 MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
+CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr_checks.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
 
@@ -93,6 +94,12 @@ def _phase2_args(args: argparse.Namespace) -> list[str]:
 
 
 def _merge_gate_args(args: argparse.Namespace) -> list[str]:
+    if args.event_path:
+        return ["--event-path", args.event_path]
+    return ["--pr-number", str(args.pr_number), "--repo", args.repo]
+
+
+def _current_head_checks_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
     return ["--pr-number", str(args.pr_number), "--repo", args.repo]
@@ -191,6 +198,11 @@ def main(argv: list[str] | None = None) -> int:
     gate_results = [
         _run_gate("phase2-pr-body-gates", PHASE2_GATE, _phase2_args(parsed)),
         _run_gate("merge-readiness-gate", MERGE_GATE, _merge_gate_args(parsed)),
+        _run_gate(
+            "current-head-checks",
+            CURRENT_HEAD_CHECKS_GATE,
+            _current_head_checks_args(parsed),
+        ),
         _run_gate(
             "review-threads-disposition",
             DISPOSITION_GATE,
