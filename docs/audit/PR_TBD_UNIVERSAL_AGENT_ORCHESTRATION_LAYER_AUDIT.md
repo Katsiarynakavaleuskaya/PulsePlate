@@ -44,8 +44,8 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 ## Canonical references (single source of truth)
 
 **Evidence anchors:**
-- `docs/orchestration/workflow.md:1`
-- `docs/orchestration/AGENT_CONTEXT_MAP.md:1`
+- `docs/orchestration/workflow.md:61-72`
+- `docs/orchestration/AGENT_CONTEXT_MAP.md:22-45`
 
 ### Orchestration canon
 

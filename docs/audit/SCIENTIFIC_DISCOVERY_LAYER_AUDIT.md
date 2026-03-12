@@ -38,8 +38,9 @@ SDL is a conceptual framing layer. It supports `creative_research` but does not 
 ## Canonical references (single source of truth)
 
 **Evidence anchors:**
-- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:1`
-- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:1`
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:5-9`
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:34-54`
+- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:13-32`
 
 ### Orchestration canon
 
@@ -135,6 +136,8 @@ diverge
  -> score
  -> promote/defer/discard
 ```
+
+Evidence: `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:62-72`
 
 ### 3.2 Stop conditions
 

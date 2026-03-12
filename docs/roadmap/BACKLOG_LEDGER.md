@@ -5989,12 +5989,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
     - `docs/orchestration/AGENT_CONTEXT_MAP.md`
     - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
-    - `docs/graph/graph.json`
   - DoD:
     - The SDL audit no longer uses `PR_TBD` or stale branch lineage in its document metadata
     - The SDL audit is explicitly framed as a dev-only rationale artifact subordinate to the experimentation umbrella
     - All canonical references point to the non-placeholder SDL audit path
     - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
+  - Deferred:
+    - `docs/graph/graph.json` path rename is intentionally excluded from PR `#1131` because this lane stays inside the docs-only allowlist; if still needed, it must land in a separate graph-refresh PR.
 
 <a id="ledger-p2-pr1118-governance-closeout"></a>
 - [x] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass

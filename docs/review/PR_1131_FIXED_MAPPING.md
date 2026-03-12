@@ -5,7 +5,15 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039874 -> f1608f12
+Disposition: FIXED
+Commit: f1608f12
+Evidence: docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md:4
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039906 -> f1608f12
+Disposition: FIXED
+Commit: f1608f12
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:5981
 
 ## Merge Readiness
 - [ ] Local gates passed on current head
