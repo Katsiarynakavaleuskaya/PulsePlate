@@ -21,6 +21,9 @@
 - **Prefer `monkeypatch.setattr()` over `@patch` decorator** — `@patch` on `@contextmanager` targets
   fails silently under Python 3.12 + xdist (see `docs/ENGINEERING_LESSONS.md` lesson 11).
   Use autouse `monkeypatch.setenv()` fixtures instead of `os.environ` mutation in `setup_method()`.
+- For background update / lifespan tests, patch both `app` facade and `legacy_app` / `app_module`
+  alias surfaces when replacing `start_background_updates` or `stop_background_updates`.
+  Patching only one side is forbidden because production resolvers read multiple module aliases.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

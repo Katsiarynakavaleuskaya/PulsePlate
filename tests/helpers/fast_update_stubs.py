@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import sys
 from typing import Any, Protocol
 
 
@@ -41,6 +42,64 @@ def patch_app_get_update_scheduler(monkeypatch: Any, app_module: Any, scheduler:
     monkeypatch.setattr(
         legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler, raising=False
     )
+
+
+def patch_background_update_callables(
+    monkeypatch: Any,
+    *,
+    start: object | None = None,
+    stop: object | None = None,
+) -> None:
+    """
+    Patch background update callables across facade and legacy aliases.
+    Applies the same callable to `app`, `legacy_app`, and `app_module`.
+    """
+
+    import app as app_module
+    import legacy_app as legacy_app_mod
+
+    modules: list[Any] = [app_module, legacy_app_mod, sys.modules.get("app_module")]
+    seen: set[int] = set()
+    for module in modules:
+        if module is None:
+            continue
+        module_id = id(module)
+        if module_id in seen:
+            continue
+        seen.add(module_id)
+        if start is not None:
+            monkeypatch.setattr(module, "start_background_updates", start, raising=False)
+        if stop is not None:
+            monkeypatch.setattr(module, "stop_background_updates", stop, raising=False)
+
+
+def patch_background_update_scheduler_targets(
+    monkeypatch: Any,
+    *,
+    start: object | None = None,
+    stop: object | None = None,
+) -> None:
+    """
+    Patch scheduler backend targets across facade and legacy aliases.
+    Keeps wrapper tests stable when resolver precedence changes between aliases.
+    """
+
+    import app as app_module
+    import legacy_app as legacy_app_mod
+
+    modules: list[Any] = [app_module, legacy_app_mod, sys.modules.get("app_module")]
+    seen: set[int] = set()
+    for module in modules:
+        if module is None:
+            continue
+        module_id = id(module)
+        if module_id in seen:
+            continue
+        seen.add(module_id)
+        if start is not None:
+            monkeypatch.setattr(module, "_scheduler_start_background_updates", start, raising=False)
+        if stop is not None:
+            monkeypatch.setattr(module, "_scheduler_stop_background_updates", stop, raising=False)
 
 
 def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
