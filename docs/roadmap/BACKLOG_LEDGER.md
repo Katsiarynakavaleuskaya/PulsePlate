@@ -3607,6 +3607,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
   - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
+<a id="ledger-p1-fitchef-web-brand-rollout"></a>
+- [ ] P1: FitChef website brand rollout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: design / frontend / marketing
+  - Finding Type: brand rollout
+  - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
+    Figma reference handoff. Website hero composition, React variant adoption,
+    and marketing surfaces must be promoted in a dedicated follow-up PR to avoid
+    mixing brand-asset canon with website implementation.
+  - Links:
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `frontend/src/assets/brand/`
+  - DoD:
+    - Website hero and onboarding sections use named FitChef mascot variants
+    - Current `FitChefMascot` consumers migrate from legacy alias-only usage
+      where appropriate
+    - Marketing/storybook guidance reflects the same variant contract
+    - `make verify` passes with updated web tests if consumers change
+  - Blockers: Depends on repo mascot canon landing first
+
+<a id="ledger-p1-fitchef-figma-production-sync"></a>
+- [ ] P1: FitChef Figma production sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: design / Figma / governance
+  - Finding Type: reference-lane promotion
+  - Reason: PR4 keeps Figma as `reference_only` for mascot placement. A later
+    PR may promote a governed sync flow once the repo mascot canon and web/iOS
+    consumers stabilize.
+  - Links:
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+  - DoD:
+    - Figma files reference the named mascot variant pack without hidden source
+      drift
+    - Repo-to-Figma import/export policy is documented with explicit approvals
+    - Any automated sync path remains bounded and reviewable
+  - Blockers: Depends on repo mascot canon landing first
+
 <a id="ledger-p1-users-surface-hardening"></a>
 - [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
