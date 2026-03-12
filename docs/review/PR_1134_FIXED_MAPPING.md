@@ -21,6 +21,13 @@ Evidence: `scripts/design/canvas_artifact.py:56`, `scripts/design/canvas_artifac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248774 -> 510fb934
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248783 -> 510fb934
 
+Disposition: FIXED
+Commit: 75d4b6aa
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:24`, `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:60`, `docs/roadmap/BACKLOG_LEDGER.md:481`, `docs/roadmap/BACKLOG_LEDGER.md:504`, `docs/roadmap/BACKLOG_LEDGER.md:528`, `docs/review/PR_1134_FIXED_MAPPING.md:25`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248747 -> 75d4b6aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248751 -> 75d4b6aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248755 -> 75d4b6aa
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
