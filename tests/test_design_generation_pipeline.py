@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -248,6 +249,98 @@ def test_canvas_artifact_matches_instruction_contract() -> None:
     assert len(canvas_artifact["nodes"]) == len(payload["component_hierarchy"])
     assert len(canvas_artifact["render_ops"]) == len(payload["instructions"])
     assert not errors
+
+
+def test_build_canvas_artifact_does_not_split_string_token_constraints() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.plate")
+    )
+    payload["token_constraints"] = "Color.surface.canvas"
+
+    canvas_artifact = build_canvas_artifact(payload)
+
+    assert canvas_artifact["token_constraints"] == []
+
+
+def test_execute_instruction_rejects_non_object_canvas_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class InvalidCanvasAdapter:
+        adapter_name = "code_native_canvas"
+        adapter_mode = "artifact_emit"
+
+        def execute(self, instruction: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "screen_id": instruction["screen_id"],
+                "status": "simulated",
+                "canvas_artifact": [],
+            }
+
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.home")
+    )
+
+    monkeypatch.setattr(
+        execute_design, "resolve_execution_adapter", lambda _: InvalidCanvasAdapter()
+    )
+
+    with pytest.raises(ValueError, match="expected object, got list"):
+        execute_design.execute_instruction(payload, "code_native_canvas")
+
+
+def test_code_native_canvas_created_nodes_preserve_hierarchy_metadata() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+
+    result = execute_design.execute_instruction(payload, "code_native_canvas")
+    export_node = next(
+        node
+        for node in result["created_nodes"]
+        if node["component_id"] == "node:web.progress.export_pdf"
+    )
+
+    assert export_node["type"] == "create_button"
+    assert export_node["parent_component_id"] == "web-progress-header-utilities"
+    assert export_node["hierarchy_level"] == 2
+
+
+def test_validate_canvas_artifact_requires_render_op_name() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.plate")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+    del canvas_artifact["render_ops"][0]["name"]
+
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert any("missing field(s): name" in error for error in errors)
+
+
+def test_validate_canvas_artifact_returns_structural_errors_before_alignment_crash() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+    del canvas_artifact["nodes"][0]["source_ref"]
+
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert any("canvas nodes[0] missing field(s): source_ref" in error for error in errors)
+
+
+def test_validate_canvas_artifact_rejects_duplicate_render_op_component_ids() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.home")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+    canvas_artifact["render_ops"][1]["component_id"] = canvas_artifact["render_ops"][0][
+        "component_id"
+    ]
+
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert any("Duplicate canvas render_op component_id" in error for error in errors)
 
 
 def test_verify_screen_distinguishes_not_executed(

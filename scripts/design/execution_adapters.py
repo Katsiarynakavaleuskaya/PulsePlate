@@ -112,7 +112,7 @@ class CodeNativeCanvasExecutionAdapter:
             "artifact_version": CANVAS_ARTIFACT_VERSION,
             "created_nodes": [
                 {
-                    "type": "render_component",
+                    "type": str(item.get("instruction_type", "render_component")),
                     "name": str(item.get("name", item.get("canonical_component", "component"))),
                     "node_id": f"canvas:{screen_id}:{index}",
                     "status": "planned",

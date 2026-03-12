@@ -89,6 +89,7 @@ REQUIRED_CANVAS_FIELDS = {
 REQUIRED_CANVAS_RENDER_OP_FIELDS = {
     "op",
     "instruction_type",
+    "name",
     "component_id",
     "canonical_component",
     "section_id",
@@ -603,7 +604,6 @@ def validate_canvas_artifact_contract(
 
     valid_components = canonical_component_names()
     node_ids: set[str] = set()
-    canvas_nodes_by_id: dict[str, dict[str, Any]] = {}
     for index, node in enumerate(nodes):
         if not isinstance(node, dict):
             errors.append(f"canvas nodes[{index}] must be an object")
@@ -637,8 +637,8 @@ def validate_canvas_artifact_contract(
         if not isinstance(hierarchy_level, int) or hierarchy_level < 0:
             errors.append(f"canvas node {component_id} hierarchy_level must be integer >= 0")
         node_ids.add(component_id)
-        canvas_nodes_by_id[component_id] = node
 
+    render_op_component_ids: set[str] = set()
     for index, render_op in enumerate(render_ops):
         if not isinstance(render_op, dict):
             errors.append(f"canvas render_ops[{index}] must be an object")
@@ -656,6 +656,7 @@ def validate_canvas_artifact_contract(
         component_id = str(render_op.get("component_id", "")).strip()
         canonical_component = str(render_op.get("canonical_component", "")).strip()
         instruction_type = str(render_op.get("instruction_type", "")).strip()
+        render_op_name = str(render_op.get("name", "")).strip()
         order = render_op.get("order")
 
         if instruction_type not in SUPPORTED_INSTRUCTION_TYPES:
@@ -682,8 +683,17 @@ def validate_canvas_artifact_contract(
             errors.append(
                 f"Unknown canonical component in canvas render_ops: {canonical_component}"
             )
+        if not render_op_name:
+            errors.append(f"canvas render_ops[{index}] name must be non-empty")
         if not isinstance(order, int) or order < 0:
             errors.append(f"canvas render_ops[{index}] order must be integer >= 0")
+        if component_id in render_op_component_ids:
+            errors.append(f"Duplicate canvas render_op component_id: {component_id or '<empty>'}")
+            continue
+        render_op_component_ids.add(component_id)
+
+    if errors:
+        return errors
 
     if instruction is None:
         return errors

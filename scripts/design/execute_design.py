@@ -88,6 +88,15 @@ def execute_instruction(instruction: dict[str, Any], adapter_name: str) -> dict[
     results = cast(dict[str, Any], adapter.execute(instruction))
 
     canvas_artifact = results.get("canvas_artifact")
+    if canvas_artifact is not None and not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            f"Invalid canvas artifact emitted by {adapter_name}: expected object, "
+            f"got {type(canvas_artifact).__name__}"
+        )
+    if adapter_name == "code_native_canvas" and not isinstance(canvas_artifact, dict):
+        raise ValueError(
+            f"Invalid canvas artifact emitted by {adapter_name}: missing artifact payload"
+        )
     if isinstance(canvas_artifact, dict):
         canvas_errors = validate_canvas_artifact_contract(canvas_artifact, instruction)
         if canvas_errors:

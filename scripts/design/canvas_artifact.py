@@ -53,6 +53,15 @@ class PulsePlateCanvasArtifact(TypedDict):
     render_ops: list[CanvasRenderOp]
 
 
+def _normalize_token_constraints(raw_value: Any) -> list[str]:
+    """Normalize token constraints without turning malformed strings into char arrays."""
+
+    if not isinstance(raw_value, list):
+        return []
+
+    return [str(token) for token in raw_value]
+
+
 def _build_sections(instruction: dict[str, Any]) -> list[CanvasSection]:
     sections = instruction.get("sections", [])
     return [
@@ -125,7 +134,7 @@ def build_canvas_artifact(instruction: dict[str, Any]) -> PulsePlateCanvasArtifa
         "layout_pattern": str(instruction["layout_pattern"]),
         "dimensions": cast(dict[str, int], instruction["dimensions"]),
         "background_token": str(instruction["background_token"]),
-        "token_constraints": [str(token) for token in instruction.get("token_constraints", [])],
+        "token_constraints": _normalize_token_constraints(instruction.get("token_constraints", [])),
         "sections": _build_sections(instruction),
         "nodes": _build_nodes(instruction),
         "render_ops": _build_render_ops(instruction),
@@ -138,12 +147,16 @@ def derive_render_plan(canvas_artifact: PulsePlateCanvasArtifact) -> list[dict[s
     return [
         {
             "op": render_op["op"],
+            "instruction_type": render_op["instruction_type"],
             "name": render_op["name"],
             "component_id": render_op["component_id"],
             "canonical_component": render_op["canonical_component"],
             "section_id": render_op["section_id"],
+            "parent_component_id": render_op["parent_component_id"],
+            "hierarchy_level": render_op["hierarchy_level"],
             "semantic_role": render_op["semantic_role"],
             "order": render_op["order"],
+            "states": list(render_op["states"]),
         }
         for render_op in canvas_artifact["render_ops"]
     ]
