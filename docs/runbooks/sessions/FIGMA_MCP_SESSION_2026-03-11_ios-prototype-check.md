@@ -338,30 +338,14 @@
   - success
   - visual sanity-check passed for the refreshed slice
 
-## Refreshed Canonical Node Map
-
-- `iOS_Onboarding_01_Welcome` -> `25:2`
-- `iOS_Onboarding_02_Value_Usage` -> `20:2`
-- `iOS_BMI` -> `24:2`
-
 ## Notes
 
 - Previous node IDs for the same three screens (`1:2`, `3:2`, `8:2`,
   `23:2`, `22:2`, `21:2`) remain historical evidence only.
 - Shared capture script remains in HTML per MCP guidance for re-capture safety.
-
-## Stable Screen Map
-
-| Canonical screen ID | Figma nodeId | Imported frame name | Source basis |
-| --- | --- | --- | --- |
-| `iOS_Onboarding_01_Welcome` | `25:2` | `iOS Onboarding Welcome` | iOS prototype mood + Design System typography |
-| `iOS_Onboarding_02_Value_Usage` | `20:2` | `iOS Onboarding Value Usage` | web onboarding structure + iOS-native rewrite |
-| `iOS_Home` | `11:2` | `iOS Home` | Design System + iOS Home CTA matrix |
-| `iOS_Paywall_Pro_VIP` | `17:2` | `iOS Paywall Pro VIP` | Paywall tier reconciliation from repo SoT |
-| `iOS_ShoppingList` | `18:2` | `iOS Shopping List` | Shopping list runtime + weekly-plan continuity |
-| `iOS_WeeklyPlan_Reader` | `15:2` | `iOS Weekly Plan Reader` | Weekly plan runtime + VIP follow-up hooks |
-| `iOS_Profile` | `13:2` | `iOS Profile` | PRO profile runtime + legal/language layer |
-| `iOS_BMI` | `24:2` | `iOS BMI` | BMI runtime + result + soft paywall hook |
+- The current canonical `screen ID -> nodeId` map lives in:
+  - `docs/figma/ios_prototype_v2/README.md`
+  - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
 
 ## Structural QA
 

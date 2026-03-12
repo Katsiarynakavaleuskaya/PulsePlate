@@ -108,8 +108,8 @@ Repo sources used:
 
 ## Next Promotion Path
 
-1. Re-capture `BMI` and `Onboarding` after the polish pass and refresh the
-   canonical `screen ID -> nodeId` map if MCP changes top-level frame IDs.
+1. If a future MCP refresh changes top-level frame IDs again, re-capture `BMI`
+   and `Onboarding` and refresh the canonical `screen ID -> nodeId` map.
 2. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
 3. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
 4. If Code Connect becomes available, use

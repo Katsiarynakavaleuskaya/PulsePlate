@@ -7,10 +7,8 @@
 ### Fixed in Commit Mapping
 No resolved review threads yet.
 
-Add each actionable review item here with one of the required dispositions:
-- `Disposition: FIXED`
-- `Disposition: NOT-A-BUG`
-- `Disposition: DEFERRED`
+Record each actionable review item here with one of the required disposition
+keywords: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Merge Readiness
 - [x] Local gates passed on current head
