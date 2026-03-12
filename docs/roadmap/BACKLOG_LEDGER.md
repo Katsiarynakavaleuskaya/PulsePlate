@@ -1309,6 +1309,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `app/routers/fitchef_insight.py`
