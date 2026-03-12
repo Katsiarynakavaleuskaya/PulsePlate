@@ -48,6 +48,23 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1148_FIXED_MAPPING.md:37
 Reason: This aggregate CodeRabbit review shell is satisfied by the concrete late follow-up disposition recorded immediately above; no additional unresolved action remains at the review-shell level.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1148#discussion_r2927506367 -> 7d8e7825
+Disposition: FIXED
+Commit: 7d8e7825
+Evidence: docs/review/PR_1148_FIXED_MAPPING.md:16
+Evidence: docs/review/PR_1148_FIXED_MAPPING.md:17
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1148#discussion_r2927506362 -> 7d8e7825
+Disposition: FIXED
+Commit: 7d8e7825
+Evidence: docs/review/PR_1148_FIXED_MAPPING.md:29
+Evidence: docs/review/PR_1148_FIXED_MAPPING.md:30
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1148#pullrequestreview-3939875475
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1148_FIXED_MAPPING.md:51
+Reason: This aggregate cubic review shell is satisfied by the two concrete proof-quality fixes recorded immediately above; no additional unresolved action remains at the review-shell level.
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
