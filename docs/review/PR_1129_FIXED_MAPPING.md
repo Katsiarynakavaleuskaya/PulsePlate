@@ -46,9 +46,21 @@ Evidence: `ce5a5e69` narrows `mergeStateStatus` blocking to the metadata-unavail
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690699 -> ce5a5e69
 
 Disposition: FIXED
+Commit: 1a7a0fc3
+Evidence: `1a7a0fc3` records the late timeout-fix review wave after the underlying deterministic pre-gate timeout handling was already landed in `scripts/orchestration/check_merge_ready.py:144-166` and covered in `tests/test_orchestration_merge_ready.py:128-160`; this satisfies the post-comment mapping requirement for the resolved timeout threads identified by cubic and CodeRabbit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934395461 -> 1a7a0fc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922687341 -> 1a7a0fc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690706 -> 1a7a0fc3
+
+Disposition: FIXED
 Commit: 42a914b9
 Evidence: `42a914b9` keeps the merge-readiness checkbox `Local hard gate passed (\`make verify\`)` unchecked in `docs/review/PR_1129_FIXED_MAPPING.md:49-52` until the actual final merge cycle, which matches the review-governance contract and prevents premature readiness claims inside the canonical artifact.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690697 -> 42a914b9
+
+Disposition: FIXED
+Commit: 1b4effa1
+Evidence: `1b4effa1` closes the final CodeRabbit review wave in the canonical artifact after the merge-state fallback fix (`ce5a5e69`) and readiness-checkbox correction (`42a914b9`) were both pushed, so the review-level mapping now reflects the complete late-wave disposition set in one post-comment commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934399077 -> 1b4effa1
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
