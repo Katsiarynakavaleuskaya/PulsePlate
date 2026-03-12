@@ -26,12 +26,12 @@ Evidence:
 
 ## 3. Governance Phases
 
-| Phase   | Gate              | Artifact                                | Blocks Merge |
-| ------- | ----------------- | --------------------------------------- | ------------ |
-| Phase 1 | CI hygiene        | workflows/checks                        | yes          |
-| Phase 2 | PR body mirror contract | canonical artifact + PR body mirror | yes          |
-| Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
-| Phase 4 | Disposition proof | script semantics                        | yes          |
+| Phase   | Gate                    | Artifact                                                         | Blocks Merge |
+| ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
+| Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
+| Phase 2 | artifact-first contract | canonical artifact (authoritative) + optional PR body mirror     | yes          |
+| Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
+| Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
 Canonical operator entrypoint:
 

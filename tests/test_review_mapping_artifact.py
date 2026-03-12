@@ -27,7 +27,11 @@ def test_mapping_artifact_path() -> None:
     assert "docs" in str(p998) and "review" in str(p998)
 
 
-def test_render_phase2_body_mirror_is_stable() -> None:
+def test_render_phase2_body_mirror_is_stable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
     body = artifact.render_phase2_body_mirror(998)
     assert body == (
         "## Discussion Thread Pass\n"
@@ -36,6 +40,19 @@ def test_render_phase2_body_mirror_is_stable() -> None:
         "### Fixed in Commit Mapping\n"
         "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`"
     )
+
+
+def test_render_phase2_body_mirror_fails_for_invalid_artifact(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(
+        "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+
+    with pytest.raises(RuntimeError, match="Cannot render PR body mirror for PR #998"):
+        artifact.render_phase2_body_mirror(998)
 
 
 def test_read_mapping_artifact_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

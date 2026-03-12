@@ -208,6 +208,12 @@ def has_no_actionable_marker(section: str) -> bool:
 def render_phase2_body_mirror(pr_number: int) -> str:
     """Render the canonical PR-body mirror block from the artifact source of truth."""
 
+    artifact_text = read_mapping_artifact(pr_number)
+    errors = validate_mapping_artifact_text(artifact_text)
+    if errors:
+        joined_errors = "; ".join(errors)
+        raise RuntimeError(f"Cannot render PR body mirror for PR #{pr_number}: {joined_errors}")
+
     artifact_ref = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     return "\n".join(
         [
