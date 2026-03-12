@@ -2,11 +2,13 @@
 
 ## Discussion Thread Pass
 - [x] Initial PR body aligned to project canon
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-No review threads yet. Add every resolved actionable here with one of:
+- No actionable review comments
+
+When review starts, add every resolved actionable here with one of:
 
 - `Disposition: FIXED`
 - `Disposition: NOT-A-BUG`
