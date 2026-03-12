@@ -12,7 +12,17 @@ Disposition: FIXED
 Commit: 16d17426
 Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:10`, `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:214`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#discussion_r2921430267 -> 2e2ae11f
+Disposition: FIXED
+Commit: 2e2ae11f
+Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:10`, `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:157`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#pullrequestreview-3933030530 -> 16d17426
+Disposition: FIXED
+Commit: 16d17426
+Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:3`, `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:214`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#discussion_r2921438428 -> 16d17426
 Disposition: FIXED
 Commit: 16d17426
 Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:3`, `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:214`
