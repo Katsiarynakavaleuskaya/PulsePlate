@@ -26,6 +26,15 @@ Commit: cddf61b4
 Evidence: `tests/helpers/fast_update_stubs.py:56`; `tests/helpers/fast_update_stubs.py:62`; `tests/helpers/test_fast_update_stubs.py:49`; `tests/helpers/test_fast_update_stubs.py:72`
 Reason: `_iter_background_modules()` now tolerates missing `legacy_app` imports, and the focused helper regression test proves the fallback path without cached legacy aliases.
 
+Disposition: FIXED
+Commit: 3c211f94
+Evidence: `tests/helpers/fast_update_stubs.py:59`; `tests/helpers/fast_update_stubs.py:62`; `tests/helpers/test_fast_update_stubs.py:48`; `tests/helpers/test_fast_update_stubs.py:59`
+Reason: The helper now resolves aliases through the patchable `importlib.import_module` seam, re-raises transitive `ModuleNotFoundError` values, and the regression test no longer patches `builtins.__import__`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#discussion_r2923057163 -> 3c211f94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#discussion_r2923057169 -> 3c211f94
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#discussion_r2923058913 -> 3c211f94
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
