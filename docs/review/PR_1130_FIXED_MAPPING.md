@@ -19,13 +19,12 @@ Evidence: `docs/review/PR_1130_FIXED_MAPPING.md:17`
 Reason: Reset the local hard-gate checkbox to unchecked so the merge-readiness checklist stays forward-looking until the final post-bot cycle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#pullrequestreview-3934409028 -> b03e5655
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#discussion_r2922699350 -> cddf61b4
 
 Disposition: FIXED
 Commit: cddf61b4
 Evidence: `tests/helpers/fast_update_stubs.py:56`; `tests/helpers/fast_update_stubs.py:62`; `tests/helpers/test_fast_update_stubs.py:49`; `tests/helpers/test_fast_update_stubs.py:72`
 Reason: `_iter_background_modules()` now tolerates missing `legacy_app` imports, and the focused helper regression test proves the fallback path without cached legacy aliases.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1130#discussion_r2922699350 -> cddf61b4
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
