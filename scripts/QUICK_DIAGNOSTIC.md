@@ -1,8 +1,22 @@
 # Quick Diagnostic for Cloudflare 521 Error
 
+## Вариант 0: публичная проверка из локального repo
+
+Сначала подтвердите, что проблема действительно находится в публичной DNS/TLS топологии:
+
+```bash
+python3 scripts/check_domain_tls.py --domain pulseplate.app
+```
+
+Ожидаемое healthy-состояние:
+- apex отвечает приложением
+- `www` отдаёт `301/302/307/308` на `https://pulseplate.app`
+
+Если script показывает `www ... 525`, переходите к origin-side диагностике ниже.
+
 ## Выполнить на Droplet (SSH)
 
-### Вариант 1: Использовать скрипт (рекомендуется)
+### Вариант 1: Использовать server-side скрипт (рекомендуется)
 
 ```bash
 # Скопировать скрипт на сервер
@@ -14,7 +28,7 @@ chmod +x /tmp/diagnose_production.sh
 /tmp/diagnose_production.sh
 ```
 
-### Вариант 2: Выполнить команды вручную
+### Вариант 2: Выполнить server-side команды вручную
 
 ```bash
 # На Droplet (SSH)

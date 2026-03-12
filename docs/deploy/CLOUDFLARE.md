@@ -149,6 +149,23 @@
 
 **Важно для Figma custom domains:** если нужен Figma-hosted preview, вынесите его на отдельный preview subdomain. Не смешивайте root-domain ownership между Cloudflare/Caddy production и Figma Sites.
 
+### 6a. Канонический порядок remediation для `www -> 525`
+
+Если `https://pulseplate.app` открывается, а `https://www.pulseplate.app` возвращает `525`, действуйте только в этом порядке:
+
+1. Из репозитория запустите `python3 scripts/check_domain_tls.py --domain pulseplate.app`.
+   - При включённом Cloudflare proxy diagnostic может показывать `www CNAME: (none)`; это не drift само по себе, если `www` всё ещё резолвится через `A` и отдаёт healthy redirect на apex.
+2. Если diagnostic подтверждает `www 525`, проверьте DNS ownership:
+   - `@` остаётся repo-owned production root
+   - `www` остаётся **Proxied** repo-owned record (`CNAME www -> pulseplate.app` предпочтительно)
+   - `www` не должен указывать на Figma Sites
+3. Проверьте SSL/TLS mode в Cloudflare: только **Full (strict)**.
+4. На origin выполните `bash scripts/diagnose_production.sh`, чтобы проверить Caddy, контейнеры и сертификат для apex + `www`.
+5. Только после live-подтверждения healthy redirect обновляйте evidence в repo и закрывайте remediation PR.
+
+**Запрещено:** маскировать `525` через `Flexible` или другой downgrade SSL mode.
+**Запрещено:** подключать `pulseplate.app` или `www.pulseplate.app` к Figma Sites, пока live app/API обслуживаются текущим production stack.
+
 ### 7. API Tokens (для автоматизации)
 
 **My Profile** → **API Tokens** → **Create Token**:
@@ -174,6 +191,7 @@
 - [ ] Bot Fight Mode включён (soft)
 - [ ] DNS записи с **Proxied** (оранжевое облако)
 - [ ] Нет конфликтующего apex `AAAA` record для active production ownership
+- [ ] `python3 scripts/check_domain_tls.py --domain pulseplate.app` показывает healthy apex + `www -> apex` redirect
 - [ ] API Token создан (scope: только DNS для вашей зоны)
 
 ## 🔍 Проверка

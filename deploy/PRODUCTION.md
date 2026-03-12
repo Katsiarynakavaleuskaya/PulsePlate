@@ -147,9 +147,24 @@ Do **not** hand the root production host to Figma Sites while the live app/API s
 
 If `https://pulseplate.app` works but `https://www.pulseplate.app` returns `525`, verify all of the following together:
 
-1. Cloudflare DNS for `www` points to the repo-owned production origin and not to a Figma Sites flow.
-2. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
-3. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
+1. Run `python3 scripts/check_domain_tls.py --domain pulseplate.app` from the repo root.
+   - Expected healthy result: apex returns an app-owned success status (currently `405` is acceptable) and `www` returns `301/302/307/308` with `Location: https://pulseplate.app...`.
+   - Under Cloudflare proxy mode it is acceptable for the diagnostic to show `www CNAME: (none)` as long as `www` still resolves via `A` and redirects cleanly to the apex host.
+   - If the script reports `www ... 525`, treat it as public-side topology drift, not as a missing redirect in the repo.
+2. Cloudflare DNS for `www` points to the repo-owned production origin and not to a Figma Sites flow.
+3. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
+4. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
+5. Only after the public-side check confirms drift, run `bash scripts/diagnose_production.sh` on the origin server to inspect Caddy/container/certificate state.
+
+#### Remediation Matrix
+
+| Public symptom | Meaning | Required action |
+| --- | --- | --- |
+| `apex OK`, `www 525` | DNS / TLS ownership drift between Cloudflare and origin | Keep `www` repo-owned, keep `Full (strict)`, ensure origin cert covers apex + `www`, and verify Figma is detached from production root |
+| apex has `AAAA` | Conflicting root ownership or stale hoster residue | Remove the conflicting apex `AAAA`; do not repoint apex to Figma Sites |
+| `www` redirects to non-apex host | Ownership drift or stale preview binding | Repoint `www` to the repo-owned production flow; preview must use a dedicated subdomain |
+
+Do not "fix" `525` by downgrading Cloudflare SSL mode. The canonical path is DNS/origin certificate alignment under `Full (strict)`.
 
 ## Required Environment Variables
 
