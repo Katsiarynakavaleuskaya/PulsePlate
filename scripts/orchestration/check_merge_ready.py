@@ -156,7 +156,7 @@ def _phase2_args(args: argparse.Namespace) -> list[str] | PreGateFailure:
         return ["--event-path", args.event_path]
     try:
         body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
-    except RuntimeError as exc:
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
         return PreGateFailure(str(exc))
     phase2_args = ["--pr-number", str(args.pr_number)]
     phase2_args.extend(["--body", body])

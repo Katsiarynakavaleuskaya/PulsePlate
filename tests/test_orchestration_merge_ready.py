@@ -146,6 +146,39 @@ def test_local_mode_turns_fetch_pr_body_failure_into_gate_failure(
     assert "Failing gates: phase2-pr-body-gates" in captured.out
 
 
+def test_local_mode_turns_fetch_pr_body_timeout_into_gate_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = {
+        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
+        "current-head-checks": _ok_result("current-head-checks", []),
+        "review-threads-disposition": _ok_result("review-threads-disposition", []),
+    }
+
+    monkeypatch.setattr(
+        merge_ready,
+        "_run_gate",
+        lambda name, script_path, extra_args: results[name],
+    )
+
+    def raise_timeout(pr_number: int, repo: str) -> str:
+        raise merge_ready.subprocess.TimeoutExpired(
+            cmd=["gh", "pr", "view", str(pr_number)],
+            timeout=merge_ready.RUN_TIMEOUT_SEC,
+        )
+
+    monkeypatch.setattr(merge_ready, "_fetch_pr_body", raise_timeout)
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "[FAIL] phase2-pr-body-gates" in captured.out
+    assert "Command '['gh', 'pr', 'view', '1005']' timed out" in captured.out
+
+
 def test_event_mode_passes_require_auth_only_to_disposition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
