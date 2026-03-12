@@ -5974,6 +5974,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Keep app/schema adapters aligned with the typed core contract
     - Preserve deterministic creative-research eval and pilot tests
 
+<a id="ledger-p2-sdl-audit-canonicalization-cleanup"></a>
+- [ ] P2: Canonicalize SDL audit artifact and reference path
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SDL-CLEANUP
+  - Status: 🟡 In progress
+  - Reason (EN): the governed creative-research lane is already merged, but the SDL rationale artifact still uses
+    `PR_TBD` identity and stale branch metadata while live orchestration docs reference it as a canonical rationale source.
+    The placeholder artifact must be converted into a stable docs-only audit and all references must be repaired without
+    widening scope into unrelated orchestration cleanup.
+  - Links:
+    - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/graph/graph.json`
+  - DoD:
+    - The SDL audit no longer uses `PR_TBD` or stale branch lineage in its document metadata
+    - The SDL audit is explicitly framed as a dev-only rationale artifact subordinate to the experimentation umbrella
+    - All canonical references point to the non-placeholder SDL audit path
+    - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
+
 <a id="ledger-p2-pr1118-governance-closeout"></a>
 - [x] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass
   - Owner: @katsiaryna_kavaleuskaya

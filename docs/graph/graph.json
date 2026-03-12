@@ -1458,9 +1458,9 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
-      "label": "docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
-      "path": "docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "id": "doc:docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "label": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "path": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
       "tags": [
         "architecture"
       ],

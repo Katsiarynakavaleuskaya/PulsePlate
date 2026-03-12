@@ -43,6 +43,10 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 
 ## Canonical references (single source of truth)
 
+**Evidence anchors:**
+- `docs/orchestration/workflow.md:1`
+- `docs/orchestration/AGENT_CONTEXT_MAP.md:1`
+
 ### Orchestration canon
 
 - `docs/orchestration/workflow.md` (canonical workflow + **Pre-flight Checklist (SoT)**)
@@ -60,7 +64,7 @@ This PR is **docs-only**: contracts and audit questions now; runtime implementat
 
 ### Discovery / research-to-PR (dev-only)
 
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` (Scientific Discovery Layer; dev-only discovery loop + new agents)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` (Scientific Discovery Layer; dev-only discovery loop + new agents)
 
 ### Insight / scientific R&D corpus (non-canonical inputs)
 

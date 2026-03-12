@@ -46,7 +46,7 @@ When a rule conflicts, the umbrella experimentation protocol wins.
 - Parallel work: `docs/orchestration/PARALLEL_WORK_PROTOCOL.md`
 - Handoff format: `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md`
 - KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`
-- SDL rationale only: `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
+- SDL rationale only: `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
 
 ---
 
