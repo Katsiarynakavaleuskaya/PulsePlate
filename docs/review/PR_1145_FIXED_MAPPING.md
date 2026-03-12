@@ -8,12 +8,6 @@
 ### Fixed in Commit Mapping
 - No actionable review comments
 
-When review starts, add every resolved actionable here with one of:
-
-- `Disposition: FIXED`
-- `Disposition: NOT-A-BUG`
-- `Disposition: DEFERRED`
-
 ## Merge Readiness
 - [x] Local gates passed on current head
 - [ ] All required checks green
