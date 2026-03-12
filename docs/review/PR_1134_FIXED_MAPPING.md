@@ -28,6 +28,11 @@ Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:24`, `docs/design/CODE_NATI
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248751 -> 75d4b6aa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248755 -> 75d4b6aa
 
+Disposition: FIXED
+Commit: 34c0db48
+Evidence: `scripts/design/contracts.py:768`, `scripts/design/contracts.py:782`, `tests/test_design_generation_pipeline.py:346`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#pullrequestreview-3936248789 -> 34c0db48
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
