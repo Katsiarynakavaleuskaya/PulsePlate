@@ -1201,7 +1201,19 @@ body {
   gap: 12px;
 }
 
+.single-action-row {
+  display: flex;
+}
+
+.single-action-row > * {
+  width: 100%;
+}
+
 .dual-action-row.compact-actions {
+  margin-top: 12px;
+}
+
+.single-action-row.compact-actions {
   margin-top: 12px;
 }
 
