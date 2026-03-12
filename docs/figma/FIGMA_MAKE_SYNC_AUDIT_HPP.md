@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Make Sync Audit (H+P+Pr)
 
-**Date:** February 18, 2026
+**Date:** March 12, 2026
 **Scope:** Home + Plate + Progress (Web + iOS) and linked CTA flows
 **Source mode:** Make-only (`<FIGMA_MAKE_FILE_ID>`) until Design URL is provided
 **Context version:** 2026-02-18 / commit `162ad6ef`
@@ -29,6 +29,11 @@ Primary SoT references:
 - Make-only sync loop explicitly requires `get_design_context(fileKey=<FIGMA_MAKE_FILE_ID>, nodeId=0:1)` before reconciliation.
   Evidence: `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md:139`
 - Project CTA behavior SoT remains matrix-driven: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`.
+- Production-domain baseline re-check on March 12, 2026 shows repo-backed
+  runtime still serving `pulseplate.app`, `www.pulseplate.app` returning `525`,
+  and the Figma custom-domain attempt warning about a conflicting apex `AAAA`
+  record. Evidence:
+  `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md:6`
 
 ## 3) Aligned
 
@@ -67,6 +72,22 @@ Evidence: `frontend/src/App.tsx:1`, `frontend/src/config/routes.ts:23`, `fronten
 
 Risk: generated components map to non-canonical entry points.
 
+### 4.4 Production Domain Ownership Conflict
+
+- The repo-backed production contract still owns `pulseplate.app` and `www.pulseplate.app`.
+- The current Figma custom-domain setup attempts to attach `pulseplate.app`
+  while warning about a conflicting apex `AAAA` record.
+- `www.pulseplate.app` currently fails TLS (`525`), which is consistent with
+  mixed or incomplete ownership between Cloudflare/app runtime and the Figma
+  custom-domain attempt.
+Evidence:
+`docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md:5`,
+`deploy/Caddyfile.production:1`,
+`deploy/docker-compose.production.yaml:1`
+
+Risk: production traffic can drift between incompatible ownership models and
+break TLS or redirect behavior before any design sync work even starts.
+
 ## 5) Missing for Implementation
 
 1. No Design file URL or node IDs for node-level Code Connect.
@@ -84,6 +105,7 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
 | P0 | Introduce Code Connect bridge runbook with blocker protocol for missing Design URL | Coordinator + FE | `FIGMA_CODE_CONNECT_BRIDGE_HPP.md` merged and linked from runbook/governance | Docs PR (this stream) |
 | P1 | Create 23-CTA mapping candidate registry for existing site surfaces | FE + iOS + Design | Every CTA row has surface path, status, and gap note | Docs PR (this stream) |
 | P1 | Add Code Connect map status requirement into handoff checklist | Coordinator | Checklist includes mapping status verification gates | Docs PR (this stream) |
+| P0 | Canonicalize production-domain ownership to the repo-backed runtime and move any Figma-hosted preview to a dedicated subdomain | Coordinator + FE + Deploy | `pulseplate.app` + `www` remain app-owned, TLS is healthy for both names, and Figma preview no longer competes for root ownership | Domain + Infra PR |
 | P2 | Activate node-level mappings after Design URL available | Design + FE + iOS | P0 CTA nodes mapped and verified with `get_code_connect_map` | Follow-up mapping PR |
 
 ## 7) Blockers
@@ -94,9 +116,20 @@ Evidence: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:59`
 - Tracking: add backlog dependency item in `docs/roadmap/BACKLOG_LEDGER.md`.
 - Temporary mode: Make-only reconciliation + candidate mapping only.
 
+### Blocker B2 — Production-domain ownership drift
+
+- Description: `pulseplate.app` is the repo-canonical production host, but the
+  current Figma custom-domain attempt still competes for root-domain setup and
+  `www` TLS is currently unhealthy.
+- Tracking: keep production-domain ownership remediation separate from Code
+  Connect activation and complete it first.
+- Temporary mode: use Figma as source/reconciliation only; if a public Figma
+  preview is needed, move it to a dedicated non-production subdomain.
+
 ## 8) Decision Log
 
 - 2026-02-18: Locked source mode to Make-only until Design URL is provided.
 - 2026-02-18: Locked integration direction to Code Connect bridge (not embed).
 - 2026-02-18: Locked requirement that all 23 CTA IDs must be represented in mapping candidates.
+- 2026-03-12: Locked `pulseplate.app` and `www.pulseplate.app` to repo-canonical production ownership; Figma remains a design/source lane, not the production host.
 <!-- markdownlint-enable MD013 -->
