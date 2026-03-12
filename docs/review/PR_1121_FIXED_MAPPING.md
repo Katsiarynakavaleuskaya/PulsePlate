@@ -58,10 +58,10 @@ Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:31` now points the layout t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922605576 -> f3ab3667
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
-- [ ] All required checks green
-- [ ] No unresolved review threads remain
-- [ ] CodeRabbit PASS / no-actionables
-- [ ] Sourcery PASS / no-actionables
-- [ ] Cubic PASS / no-actionables
-- [ ] Wait-window after latest bot/review activity observed
+- [x] Local gates passed on current head
+- [x] All required checks green
+- [x] No unresolved review threads remain
+- [x] CodeRabbit PASS / no-actionables
+- [x] Sourcery PASS / no-actionables
+- [x] Cubic PASS / no-actionables
+- [x] Wait-window after latest bot/review activity observed
