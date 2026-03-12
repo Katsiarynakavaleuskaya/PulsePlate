@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS Plate</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_Plate</span>
+        <span class="status-summary-label">Daily loop</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">My Plate</p>
+        <h1 class="headline">Plate</h1>
+        <p class="subheadline">
+          Главный дневной экран с nutrition split, общим прогрессом и мягким
+          переходом к следующему действию без разрыва потока.
+        </p>
+        <div class="summary-strip">
+          <span class="summary-pill success">Profile ready</span>
+          <span class="summary-pill success">PRO key active</span>
+          <span class="summary-pill">Daily nutrition</span>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Plate overview</h2>
+          <span class="row-badge blue">Main state</span>
+        </div>
+        <div class="plate-overview">
+          <div class="plate-composition">
+            <div class="plate-wheel" aria-label="Plate segments preview">
+              <span class="plate-slice vegetables" aria-hidden="true"></span>
+              <span class="plate-slice protein" aria-hidden="true"></span>
+              <span class="plate-slice carbs" aria-hidden="true"></span>
+              <span class="plate-slice fats" aria-hidden="true"></span>
+              <div class="plate-center">
+                <strong>Today</strong>
+                <span>4 segments</span>
+              </div>
+            </div>
+            <div class="plate-breakdown" aria-label="Plate segment breakdown">
+              <div class="plate-breakdown-row">
+                <span class="metric-dot vegetables"></span>
+                <strong>Vegetables</strong>
+                <span>40%</span>
+              </div>
+              <div class="plate-breakdown-row">
+                <span class="metric-dot protein"></span>
+                <strong>Protein</strong>
+                <span>25%</span>
+              </div>
+              <div class="plate-breakdown-row">
+                <span class="metric-dot carbs"></span>
+                <strong>Carbs</strong>
+                <span>25%</span>
+              </div>
+              <div class="plate-breakdown-row">
+                <span class="metric-dot fats"></span>
+                <strong>Fats</strong>
+                <span>10%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="progress-stat-card">
+            <span class="metric-label">Daily completion</span>
+            <strong class="metric-hero">68%</strong>
+            <div class="summary-progress-track">
+              <span class="summary-progress-fill"></span>
+            </div>
+            <p class="orbit-note">
+              Общий прогресс остаётся рядом с plate visualization, а не уходит
+              в отдельный служебный блок.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Segment detail</h2>
+          <span class="row-badge green">Tap detail</span>
+        </div>
+        <div class="segment-detail-card">
+          <div class="segment-detail-head">
+            <div class="segment-chip success">Protein</div>
+            <div>
+              <strong>25% of your plate</strong>
+              <span>Tap-driven detail stays embedded in the main surface.</span>
+            </div>
+          </div>
+
+          <div class="metric-pair-grid">
+            <div class="metric-pair">
+              <span class="metric-label">Current</span>
+              <strong>1.8 servings</strong>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">Target</span>
+              <strong>2.0 servings</strong>
+            </div>
+          </div>
+
+          <div class="inline-progress">
+            <div class="inline-progress-track">
+              <span class="inline-progress-fill protein"></span>
+            </div>
+            <div class="inline-progress-meta">
+              <span>Progress</span>
+              <span>90%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card muted-card">
+        <h2>Calm recovery guidance</h2>
+        <p class="section-copy">
+          Если нет ключа, профиля или backend-ответа, recovery action остаётся
+          внутри main screen как спокойный issue card, а не как отдельный
+          fail-state artboard.
+        </p>
+        <div class="summary-strip">
+          <span class="summary-pill warn">Retry</span>
+          <span class="summary-pill">Open profile</span>
+          <span class="summary-pill">PRO settings</span>
+        </div>
+      </section>
+
+      <section class="floating-action-bar">
+        <div class="fitchef-inline">
+          <div class="fitchef-mark small" aria-hidden="true">
+            <div class="fitchef-heart"></div>
+          </div>
+          <div>
+            <strong>FitChef</strong>
+            <span>Нажмите, чтобы настроить цели питания.</span>
+          </div>
+        </div>
+
+        <div class="dual-action-row">
+          <button class="secondary-button" type="button">Add Meal</button>
+          <button class="primary-button" type="button">View Details</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
