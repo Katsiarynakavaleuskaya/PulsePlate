@@ -62,6 +62,12 @@ Commit: 1b4effa1
 Evidence: `1b4effa1` closes the final CodeRabbit review wave in the canonical artifact after the merge-state fallback fix (`ce5a5e69`) and readiness-checkbox correction (`42a914b9`) were both pushed, so the review-level mapping now reflects the complete late-wave disposition set in one post-comment commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934399077 -> 1b4effa1
 
+Disposition: FIXED
+Commit: 2ae1a8d3
+Evidence: `2ae1a8d3` removes `details_url` from same-workflow recency ordering in `scripts/ci/check_current_head_pr_checks.py:279-337`, so equal-timestamp entries are no longer misclassified as newer solely because of URL ordering, and adds regression coverage for the equal-timestamp edge case in `tests/test_current_head_pr_checks.py:55-110`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934961598 -> 2ae1a8d3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2923212464 -> 2ae1a8d3
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
