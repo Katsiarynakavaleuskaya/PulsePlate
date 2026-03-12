@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import importlib
 import sys
 from types import ModuleType
 from typing import Any, Protocol
@@ -55,8 +56,10 @@ def _iter_background_modules() -> tuple[ModuleType, ...]:
 
     modules: list[ModuleType] = [app_module]
     try:
-        import legacy_app as legacy_app_mod
-    except ModuleNotFoundError:
+        legacy_app_mod = importlib.import_module("legacy_app")
+    except ModuleNotFoundError as exc:
+        if exc.name != "legacy_app":
+            raise
         legacy_app_mod = None
     if isinstance(legacy_app_mod, ModuleType):
         modules.append(legacy_app_mod)

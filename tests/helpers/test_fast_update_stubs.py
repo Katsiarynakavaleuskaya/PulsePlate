@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 import sys
 
 import pytest
@@ -46,22 +45,18 @@ def test_iter_background_modules_skips_missing_legacy_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Helper should tolerate missing legacy alias modules during import."""
-    original_import = builtins.__import__
+    original_import_module = fast_update_stubs.importlib.import_module
 
-    def _guarded_import(
-        name: str,
-        globals_: dict[str, object] | None = None,
-        locals_: dict[str, object] | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
+    def _guarded_import_module(name: str):
         if name == "legacy_app":
-            raise ModuleNotFoundError("legacy_app unavailable in helper test")
-        return original_import(name, globals_, locals_, fromlist, level)
+            exc = ModuleNotFoundError("legacy_app unavailable in helper test")
+            exc.name = "legacy_app"
+            raise exc
+        return original_import_module(name)
 
     monkeypatch.delitem(sys.modules, "legacy_app", raising=False)
     monkeypatch.delitem(sys.modules, "app_module", raising=False)
-    monkeypatch.setattr(builtins, "__import__", _guarded_import)
+    monkeypatch.setattr(fast_update_stubs.importlib, "import_module", _guarded_import_module)
 
     modules = fast_update_stubs._iter_background_modules()
 
