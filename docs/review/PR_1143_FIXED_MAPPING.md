@@ -5,7 +5,10 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Disposition: FIXED
+- Evidence: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:254`
+- Thread:
+  - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1143#discussion_r2927029800` -> `21919b78`
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
