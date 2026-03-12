@@ -5,6 +5,26 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#pullrequestreview-3934760941
+Disposition: NOT-A-BUG
+Evidence: Sourcery review status `pass`
+Reason: The Sourcery review shell does not carry an unresolved actionable thread on the current head; the review is green and needs no separate code change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#pullrequestreview-3934775156
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:13
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:18
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:23
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:29
+Reason: The aggregate CodeRabbit review shell is satisfied by the individually mapped thread dispositions recorded below; no separate unresolved action remains at the review-shell level.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#pullrequestreview-3934814455
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:35
+Evidence: docs/review/PR_1131_FIXED_MAPPING.md:41
+Evidence: PR body section `Deferred / Follow-ups`
+Reason: The later CodeRabbit review shell is satisfied by the resolved docs-only scope correction, ledger defer note, and PR-body follow-up link already captured in the mapped thread dispositions.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039874 -> 2202c980
 Disposition: FIXED
 Commit: 2202c980
