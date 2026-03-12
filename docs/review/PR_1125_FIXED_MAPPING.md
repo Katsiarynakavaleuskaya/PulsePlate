@@ -82,6 +82,22 @@ Commit: ce3b7c24
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:62`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:77`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:105`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:91`
 Reason: This CodeRabbit summary review aggregates the new dated-session evidence fix, the explicit Phase 2 checkbox requirements, and the clarified primary/supporting runtime-path policy for multi-file onboarding screens.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#discussion_r2922622496 -> 3ab40ca4
+Disposition: FIXED
+Commit: 3ab40ca4
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:87`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:93`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:90`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#discussion_r2922622509 -> 3ab40ca4
+Disposition: FIXED
+Commit: 3ab40ca4
+Evidence: `AGENTS.md:31`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:92`; `docs/review/PR_1125_FIXED_MAPPING.md:86`; `docs/review/PR_1125_FIXED_MAPPING.md:88`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#pullrequestreview-3934324788 -> 3ab40ca4
+Disposition: FIXED
+Commit: 3ab40ca4
+Evidence: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:90`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:92`; `AGENTS.md:31`
+Reason: This CodeRabbit summary review aggregates the artifact-only evidence-hygiene fix and the forward-looking merge-readiness checkbox rule above.
+
 ## Merge Readiness
 - Keep every checkbox in this section unchecked until the final merge cycle on
   the latest commit.
