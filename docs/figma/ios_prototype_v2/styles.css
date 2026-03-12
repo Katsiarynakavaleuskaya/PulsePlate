@@ -1042,6 +1042,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .plate-breakdown-row {
@@ -1324,15 +1327,6 @@ body {
 }
 
 @media (max-width: 760px) {
-  body {
-    padding: 12px 0;
-  }
-
-  .screen {
-    border-radius: 34px;
-    padding: 24px 20px 24px;
-  }
-
   .plate-overview,
   .metric-pair-grid,
   .dual-action-row,
