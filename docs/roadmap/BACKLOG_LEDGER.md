@@ -6101,11 +6101,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p2-uol-audit-canonicalization-cleanup"></a>
-- [ ] P2: Canonicalize universal orchestration audit artifact and reference path
+- [x] P2: Canonicalize universal orchestration audit artifact and reference path
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1137`
-  - Status: 🟡 In progress
+  - Status: ✅ Completed in merged PR `#1137` on March 12, 2026
   - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
     and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale
     layer aligned to current workflow and experimentation authorities.
