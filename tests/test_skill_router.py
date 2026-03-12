@@ -250,3 +250,21 @@ def test_skill_router_selects_experimentation_lane_skills_for_cv_eval() -> None:
     assert "pulseplate-workflow" in skills
     assert "pulseplate-gates" in skills
     assert "docs-sync" in skills
+
+
+def test_skill_router_selects_default_cv_routing_stack() -> None:
+    """First-class CV domain should still receive the default orchestration stack."""
+
+    skills = select_recommended_skills(
+        goal="Review CV food image confidence drift for governed offline eval",
+        task_class="AI / ML",
+        candidate_paths=[
+            ".cursor/agents/cv-agent.md",
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+        ],
+        domain="cv",
+    )
+
+    assert "pulseplate-workflow" in skills
+    assert "pulseplate-gates" in skills
+    assert "docs-sync" in skills

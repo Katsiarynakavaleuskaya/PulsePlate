@@ -59,8 +59,10 @@ For experimentation tasks, the bootstrap packet should also reference:
 
 CV routing note:
 
-- PR5 keeps graph-level routing under `ml`.
-- `cv-agent` remains an advisory specialist for experimentation packets; this policy does not create a first-class `cv` routing domain.
+- PR13 promotes `cv` to a first-class coordinator routing domain inside cluster `ml`.
+- Generic coordinator task packets should emit `domain: "cv"` for CV-first work.
+- Governed experimentation packets remain backward-compatible under `domain: "ml"` until the experiment packet contract is migrated explicitly.
+- `cv-agent` is graph-primary for routed CV tasks; runtime/client ownership still stays out of scope here and is tracked separately.
 
 ---
 

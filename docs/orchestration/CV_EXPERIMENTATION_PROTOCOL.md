@@ -40,7 +40,6 @@ feature activation.
 - Storage or retention of raw user images.
 - Client-side CV UX implementation in `frontend/` or `ios/`.
 - Model-hosting decisions, inference budgets, or serving providers.
-- First-class `cv` routing domain changes in `AGENT_ROUTING_GRAPH.md`.
 
 ---
 
@@ -151,11 +150,13 @@ Default posture for PR5:
 
 ## 6. Routing and ownership
 
-For PR5:
+For PR13 and later:
 
-- graph-level routing remains `ml`
-- `cv-agent` stays advisory, not the graph-primary owner
-- `data-scientist-agent` and `bayesian-uq-agent` are expected secondary/advisory tracks
+- generic coordinator routing resolves CV-first work through `domain=cv`,
+  `cluster=ml`
+- governed experimentation packets remain `ml`-scoped for backward compatibility
+- `cv-agent` is graph-primary for routed CV tasks
+- `data-scientist-agent` and `bayesian-uq-agent` remain expected secondary/advisory tracks
 
 When defining future degrade UX states, required context expands to:
 
@@ -164,4 +165,4 @@ When defining future degrade UX states, required context expands to:
 - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 This is a documentation requirement only. It does not assign runtime implementation
-ownership in PR5.
+ownership in PR13.
