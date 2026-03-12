@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-06-30, ref: PR-1005)
 import sys
 from dataclasses import dataclass
@@ -84,12 +86,56 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     )
 
 
+def _github_cli_path() -> str:
+    """Resolve gh binary path for read-only PR metadata access."""
+
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        raise RuntimeError("GitHub CLI `gh` is required to fetch PR body in local mode.")
+    return gh_path
+
+
+def _fetch_pr_body(pr_number: int, repo: str) -> str:
+    """Fetch live PR body so Phase2 mirror checks work in local wrapper mode."""
+
+    env = os.environ.copy()
+    if not (env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")):
+        raise RuntimeError(
+            "GH_TOKEN or GITHUB_TOKEN is required to fetch PR body for local merge checks."
+        )
+    argv = [
+        _github_cli_path(),
+        "pr",
+        "view",
+        str(pr_number),
+        "--repo",
+        repo,
+        "--json",
+        "body",
+        "--jq",
+        ".body",
+    ]
+    result = subprocess.run(  # nosec B603: absolute gh path with fixed read-only argv (remove-by: 2026-06-30, ref: PR-1129)
+        argv,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=RUN_TIMEOUT_SEC,
+        env=env,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "unknown gh error"
+        raise RuntimeError(f"Failed to fetch PR body for #{pr_number}: {stderr}")
+    return result.stdout
+
+
 def _phase2_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
+    body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
     phase2_args = ["--pr-number", str(args.pr_number)]
-    if args.body:
-        phase2_args.extend(["--body", args.body])
+    phase2_args.extend(["--body", body])
     return phase2_args
 
 

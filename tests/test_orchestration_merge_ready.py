@@ -55,6 +55,38 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
     ]
 
 
+def test_local_mode_fetches_pr_body_when_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
+    )
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    assert exit_code == 0
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        [
+            "--pr-number",
+            "1005",
+            "--body",
+            "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
+        ],
+    )
+
+
 def test_event_mode_passes_require_auth_only_to_disposition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -138,6 +170,11 @@ def test_wrapper_surfaces_failing_gate_names(
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
     )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
+    )
 
     exit_code = merge_ready.main(
         ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -188,6 +225,11 @@ def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
         merge_ready,
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
     )
 
     exit_code = merge_ready.main(

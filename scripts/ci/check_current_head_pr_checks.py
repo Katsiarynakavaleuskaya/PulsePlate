@@ -27,6 +27,7 @@ class CheckEntry:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 
 
 def _github_token() -> str:
@@ -155,7 +156,7 @@ def _fetch_pr_metadata(
         is_draft = bool(pr.get("isDraft", False))
         merge_state = str(pr.get("mergeStateStatus") or "")
         base_ref = str(pr.get("baseRefName") or "")
-        contexts = ((pr.get("statusCheckRollup") or {}).get("contexts") or {})
+        contexts = (pr.get("statusCheckRollup") or {}).get("contexts") or {}
         nodes.extend(contexts.get("nodes") or [])
         page_info = contexts.get("pageInfo") or {}
         if not page_info.get("hasNextPage", False):
@@ -231,7 +232,12 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
 
     name = str(node.get("context") or "").strip()
     raw_state = str(node.get("state") or "").strip().upper()
-    state = "passed" if raw_state == "SUCCESS" else "pending" if raw_state == "PENDING" else "failed"
+    if raw_state == "SUCCESS":
+        state = "passed"
+    elif raw_state in PENDING_STATUS_CONTEXT_STATES:
+        state = "pending"
+    else:
+        state = "failed"
     return CheckEntry(
         name=name,
         source_kind="status_context",
@@ -346,9 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         for entry in sorted(noisy_superseded, key=lambda item: (item.name, item.timestamp)):
             print(_format_entry(entry))
 
-    blocking_entries = [
-        entry for entry in current_required if entry.state in {"pending", "failed"}
-    ]
+    blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
     if merge_state != "CLEAN" or blocking_entries:
         print("ERROR: current-head check filter failed.")
         print(f"- GitHub mergeStateStatus={merge_state or 'UNKNOWN'}")

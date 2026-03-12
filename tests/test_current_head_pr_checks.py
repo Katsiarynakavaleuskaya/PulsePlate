@@ -82,9 +82,7 @@ def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_supers
             ],
         ),
     )
-    monkeypatch.setattr(
-        current_head_checks, "_fetch_required_check_names", lambda *args: {"build"}
-    )
+    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -122,9 +120,7 @@ def test_main_fails_when_latest_required_check_is_pending(
             ],
         ),
     )
-    monkeypatch.setattr(
-        current_head_checks, "_fetch_required_check_names", lambda *args: {"build"}
-    )
+    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -161,9 +157,7 @@ def test_main_fails_when_merge_state_is_not_clean_even_if_latest_snapshot_passes
             ],
         ),
     )
-    monkeypatch.setattr(
-        current_head_checks, "_fetch_required_check_names", lambda *args: {"build"}
-    )
+    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -205,3 +199,17 @@ def test_main_uses_all_latest_checks_when_required_set_is_unavailable(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "- CodeRabbit: passed" in captured.out
+
+
+def test_status_context_expected_is_treated_as_pending() -> None:
+    entry = current_head_checks._normalize_node(
+        {
+            "__typename": "StatusContext",
+            "context": "CodeRabbit",
+            "state": "EXPECTED",
+            "createdAt": "2026-03-12T05:02:15Z",
+            "targetUrl": "https://example.invalid/pending",
+        }
+    )
+
+    assert entry.state == "pending"
