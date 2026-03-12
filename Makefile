@@ -51,7 +51,8 @@ health-check:
 unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
-PIP ?= . .venv/bin/activate && pip
+VENV_PYTHON ?= .venv/bin/python
+PIP ?= $(VENV_PYTHON) -m pip
 
 # Цвета для вывода
 GREEN := \033[0;32m
@@ -68,6 +69,7 @@ help:
 
 ## Create & install venv deps + setup automation
 venv: ## Create venv, install requirements & setup git hooks
+	@test -x $(VENV_PYTHON) || python3 -m venv .venv
 	$(PIP) install -U pip
 	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
 	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
@@ -80,7 +82,7 @@ venv: ## Create venv, install requirements & setup git hooks
 
 ## Refresh locked dependencies inside the existing .venv
 venv-sync: ## Refresh .venv from locked requirements without recreating it
-	@test -x .venv/bin/python || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
 	$(PIP) install -U pip
 	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
 	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
@@ -138,8 +140,8 @@ typecheck: ## Run mypy typecheck on app and core
 ## Fail-fast local dependency parity check for make verify
 verify-env: ## Check .venv for verify-critical locked dependencies
 	@echo "$(YELLOW)🧰 Проверка parity локального verify-окружения...$(NC)"
-	@test -x .venv/bin/python || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
-	. .venv/bin/activate && python scripts/ci/check_local_verify_environment.py
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	$(VENV_PYTHON) scripts/ci/check_local_verify_environment.py
 	@echo "$(GREEN)✅ Verify-окружение готово$(NC)"
 
 ## Full verification gate (all checks must pass before push)

@@ -9,10 +9,13 @@ non-mutating and points developers to the documented recovery path.
 from __future__ import annotations
 
 import importlib
+import shutil
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+VENV_DIR = REPO_ROOT / ".venv"
+VENV_BIN_DIR = VENV_DIR / "bin"
 VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("flake8", "lint"),
@@ -24,6 +27,13 @@ REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
         "opentelemetry.sdk.trace.export.in_memory_span_exporter",
         "tests/test_genai_tracing.py",
     ),
+)
+REQUIRED_EXECUTABLES: tuple[tuple[str, str], ...] = (
+    ("flake8", "lint"),
+    ("mypy", "typecheck"),
+    ("pytest", "test-fast"),
+    ("coverage", "diff-cov"),
+    ("diff-cover", "diff-cov"),
 )
 
 
@@ -48,19 +58,41 @@ def collect_missing_modules(
     return missing
 
 
+def collect_missing_executables(
+    venv_bin_dir: Path,
+    required_executables: tuple[tuple[str, str], ...] = REQUIRED_EXECUTABLES,
+) -> list[tuple[str, str, str]]:
+    """Return missing executable records as (executable_name, verify_stage, error)."""
+    missing: list[tuple[str, str, str]] = []
+    for executable_name, verify_stage in required_executables:
+        resolved = shutil.which(executable_name, path=str(venv_bin_dir))
+        if resolved is None:
+            missing.append(
+                (
+                    executable_name,
+                    verify_stage,
+                    f"console entrypoint missing in {venv_bin_dir}",
+                )
+            )
+    return missing
+
+
 def build_failure_output(
     *,
     python_executable: Path,
     missing_modules: list[tuple[str, str, str]],
+    missing_executables: list[tuple[str, str, str]] | None = None,
 ) -> list[str]:
     """Build deterministic failure lines for terminal output."""
     lines = [
         "ERROR: local verify environment is incomplete.",
         f"Expected venv interpreter: {python_executable}",
-        "Missing verify-critical modules:",
+        "Missing verify-critical modules or entrypoints:",
     ]
     for module_name, verify_stage, error in missing_modules:
         lines.append(f"- {module_name} [{verify_stage}] :: {error}")
+    for executable_name, verify_stage, error in missing_executables or []:
+        lines.append(f"- {executable_name} [{verify_stage}] :: {error}")
     lines.extend(
         (
             "Recovery:",
@@ -77,11 +109,12 @@ def main() -> int:
         print("ERROR: .venv is missing. Run `make venv` before `make verify`.")
         return 1
 
-    current_python = Path(sys.executable).resolve()
-    if not current_python.samefile(VENV_PYTHON):
+    current_prefix = Path(sys.prefix).resolve()
+    if current_prefix != VENV_DIR.resolve():
         print("ERROR: verify-env must run inside the repo .venv interpreter.")
         print(f"Expected venv interpreter: {VENV_PYTHON}")
-        print(f"Current interpreter: {current_python}")
+        print(f"Current interpreter: {Path(sys.executable).resolve()}")
+        print(f"Current prefix: {current_prefix}")
         print("Recovery:")
         print("- Run `make verify` or `make verify-env` from repo root")
         print("- If the venv is missing, run `make venv`")
@@ -89,10 +122,12 @@ def main() -> int:
         return 1
 
     missing_modules = collect_missing_modules()
-    if missing_modules:
+    missing_executables = collect_missing_executables(VENV_BIN_DIR)
+    if missing_modules or missing_executables:
         for line in build_failure_output(
-            python_executable=current_python,
+            python_executable=Path(sys.executable).resolve(),
             missing_modules=missing_modules,
+            missing_executables=missing_executables,
         ):
             print(line)
         return 1

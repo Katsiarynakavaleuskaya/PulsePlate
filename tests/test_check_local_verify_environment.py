@@ -39,11 +39,32 @@ def test_build_failure_output_includes_recovery_commands() -> None:
                 "No module named 'opentelemetry'",
             )
         ],
+        missing_executables=[("flake8", "lint", "console entrypoint missing")],
     )
 
     assert "ERROR: local verify environment is incomplete." in lines
     assert any("make venv" in line for line in lines)
     assert any("make venv-sync" in line for line in lines)
+    assert any("console entrypoint missing" in line for line in lines)
+
+
+def test_collect_missing_executables_returns_missing_tools(monkeypatch) -> None:
+    def fake_which(executable_name: str, path: str | None = None) -> str | None:
+        if executable_name == "pytest":
+            return None
+        return f"/tmp/{executable_name}"
+
+    monkeypatch.setattr(env_gate.shutil, "which", fake_which)
+
+    missing = env_gate.collect_missing_executables(
+        Path("/tmp/.venv/bin"),
+        (
+            ("flake8", "lint"),
+            ("pytest", "test-fast"),
+        ),
+    )
+
+    assert missing == [("pytest", "test-fast", "console entrypoint missing in /tmp/.venv/bin")]
 
 
 def test_main_fails_when_venv_is_missing(
@@ -70,9 +91,11 @@ def test_main_fails_when_running_outside_repo_venv(
     fake_python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
+    monkeypatch.setattr(env_gate, "VENV_DIR", fake_python.parent.parent)
     system_python = tmp_path / "system-python"
     system_python.write_text("", encoding="utf-8")
     monkeypatch.setattr(env_gate.sys, "executable", str(system_python))
+    monkeypatch.setattr(env_gate.sys, "prefix", str(tmp_path / "system-prefix"))
 
     result = env_gate.main()
 
@@ -91,7 +114,10 @@ def test_main_fails_when_verify_dependencies_are_missing(
     fake_python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
+    monkeypatch.setattr(env_gate, "VENV_DIR", fake_python.parent.parent)
+    monkeypatch.setattr(env_gate, "VENV_BIN_DIR", fake_python.parent)
     monkeypatch.setattr(env_gate.sys, "executable", str(fake_python))
+    monkeypatch.setattr(env_gate.sys, "prefix", str(fake_python.parent.parent))
     monkeypatch.setattr(
         env_gate,
         "collect_missing_modules",
@@ -99,12 +125,13 @@ def test_main_fails_when_verify_dependencies_are_missing(
             ("diff_cover", "diff-cov", "No module named 'diff_cover'"),
         ],
     )
+    monkeypatch.setattr(env_gate, "collect_missing_executables", lambda venv_bin_dir: [])
 
     result = env_gate.main()
 
     assert result == 1
     captured = capsys.readouterr()
-    assert "Missing verify-critical modules:" in captured.out
+    assert "Missing verify-critical modules or entrypoints:" in captured.out
     assert "diff_cover [diff-cov]" in captured.out
 
 
@@ -118,8 +145,12 @@ def test_main_passes_when_venv_and_dependencies_are_ready(
     fake_python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(env_gate, "VENV_PYTHON", fake_python)
+    monkeypatch.setattr(env_gate, "VENV_DIR", fake_python.parent.parent)
+    monkeypatch.setattr(env_gate, "VENV_BIN_DIR", fake_python.parent)
     monkeypatch.setattr(env_gate.sys, "executable", str(fake_python))
+    monkeypatch.setattr(env_gate.sys, "prefix", str(fake_python.parent.parent))
     monkeypatch.setattr(env_gate, "collect_missing_modules", lambda: [])
+    monkeypatch.setattr(env_gate, "collect_missing_executables", lambda venv_bin_dir: [])
 
     result = env_gate.main()
 
