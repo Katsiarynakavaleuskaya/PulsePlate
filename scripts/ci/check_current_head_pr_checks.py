@@ -377,9 +377,11 @@ def main(argv: list[str] | None = None) -> int:
             print(_format_entry(entry))
 
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
-    if merge_state != "CLEAN" or blocking_entries:
+    fallback_merge_blocked = not required_metadata_available and merge_state != "CLEAN"
+    if fallback_merge_blocked or blocking_entries:
         print("ERROR: current-head check filter failed.")
-        print(f"- GitHub mergeStateStatus={merge_state or 'UNKNOWN'}")
+        if fallback_merge_blocked:
+            print(f"- GitHub mergeStateStatus={merge_state or 'UNKNOWN'}")
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         return 1
