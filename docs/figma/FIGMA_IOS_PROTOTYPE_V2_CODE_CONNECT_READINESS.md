@@ -59,14 +59,15 @@ Current workspace blocker:
 3. Generate Code Connect suggestions for each screen:
    - `mcp__figma__get_code_connect_suggestions(fileKey, nodeId, clientFrameworks="swiftui", clientLanguages="swift")`
 4. Review suggestion quality against runtime source-of-truth:
-   - `Onboarding 01 Welcome` -> `WelcomeGateView.swift`; `WelcomeFlowView.swift`
-   - `Onboarding 02 Value / Usage` -> `WelcomeFlowView.swift`
-   - `Home` -> `HomeView.swift`
-   - `Paywall` -> `PaywallScreen.swift`
-   - `Weekly Plan` -> `WeeklyPlanReaderView.swift`
-   - `Shopping List` -> `ShoppingListReaderScreen.swift`
-   - `Profile` -> `ProfileView.swift`
-   - `BMI` -> `BMICalculatorView.swift`
+   - `Onboarding 01 Welcome` -> primary `WelcomeFlowView.swift`; supporting
+     `WelcomeGateView.swift`
+   - `Onboarding 02 Value / Usage` -> primary `WelcomeFlowView.swift`
+   - `Home` -> primary `HomeView.swift`
+   - `Paywall` -> primary `PaywallScreen.swift`
+   - `Weekly Plan` -> primary `WeeklyPlanReaderView.swift`
+   - `Shopping List` -> primary `ShoppingListReaderScreen.swift`
+   - `Profile` -> primary `ProfileView.swift`
+   - `BMI` -> primary `BMICalculatorView.swift`
 5. Persist approved mappings:
    - use `mcp__figma__send_code_connect_mappings(...)` for batched saves
    - use `mcp__figma__add_code_connect_map(...)` only if an explicit manual map
@@ -74,14 +75,23 @@ Current workspace blocker:
 6. Verify persisted mappings:
    - run `mcp__figma__get_code_connect_map(fileKey, nodeId, codeConnectLabel="SwiftUI")`
 7. Record evidence:
-   - update `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
-   - update `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+   - create a new dated session log under `docs/runbooks/sessions/`, for
+     example `FIGMA_MCP_SESSION_<YYYY-MM-DD>_ios-prototype-check.md`
+   - keep `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+     as the blocker-era baseline reference
+   - update `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md` with a
+     cross-link to both the new activation log and the March 11 blocker-era
+     evidence
    - if mappings are activated in a PR, mirror results in
      `docs/review/PR_<N>_FIXED_MAPPING.md`
    - update the PR body mirror with:
-     - `## Discussion Thread Pass`
-     - `### Fixed in Commit Mapping`
-     - `## Merge Readiness`
+      - `## Discussion Thread Pass`
+      - `- [x] Discussion-thread pass completed`
+      - `- [x] Fixed in commit mapping completed`
+      - `### Fixed in Commit Mapping`
+      - `## Merge Readiness`
+   - ensure the canonical artifact keeps the same two `## Discussion Thread Pass`
+     checkboxes checked as `[x]`
    - keep the artifact and PR body mirror aligned before claiming merge
      checklist completion
 
@@ -92,8 +102,8 @@ Current workspace blocker:
 - `get_code_connect_suggestions(...)` returns suggestions for all intended
   screens instead of a workspace-plan block.
 - Saved mappings can be verified with `get_code_connect_map(...)`.
-- Mapping evidence includes `fileKey`, `nodeId`, `label`, runtime source path,
-  and timestamp.
+- Mapping evidence includes `fileKey`, `nodeId`, `label`, `primary runtime
+  source path`, optional `supporting runtime paths[]`, and timestamp.
 
 ## Decision log
 

@@ -85,6 +85,9 @@ Repo sources used:
   captures.
 - Keep VIP entry inside paywall and weekly-plan follow-up surfaces.
 - Do not introduce a standalone `VIP` shortcut on `Home`.
+- Keep the March 11, 2026 MCP session log as blocker-era evidence; future Code
+  Connect activation runs must create a new dated session log instead of
+  mutating the original baseline.
 
 ## Next Promotion Path
 
@@ -92,6 +95,8 @@ Repo sources used:
 2. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
 3. If Code Connect becomes available, use
    `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md` and map the
-   reconciled frames rather than the raw prototype file.
+   reconciled frames rather than the raw prototype file, while linking the new
+   activation session log back to
+   `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`.
 4. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
    refresh changes top-level frame IDs.
