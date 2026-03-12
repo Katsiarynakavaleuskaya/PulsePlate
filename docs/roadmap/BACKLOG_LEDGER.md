@@ -451,6 +451,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Screen-generation templates reuse the promoted archetypes without hidden
       per-screen exceptions
 
+<a id="ledger-p1-screen-content-template-convergence"></a>
+- [ ] P1: Screen content model and reusable template registry convergence after PR #1121
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR-TBD-SCREEN-CONTENT-TEMPLATE-CONVERGENCE
+  - Status: 📋 Deferred after PR #1121
+  - Area: scripts / design-runtime / docs
+  - Finding Type: deferred model-governance cleanup
+  - Reason: PR #1121 intentionally keeps `SCREEN_CONTENT_MODEL.layout_sections`
+    and `SCREEN_CONTENT_MODEL.static_component_tree` explicit while the runtime
+    template registry settles. A dedicated follow-up should either remove those
+    inline structures or generate them from the reusable layout templates so the
+    repo has one authoritative source for screen topology.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/layout_templates.py`
+    - `docs/review/PR_1121_FIXED_MAPPING.md`
+  - DoD:
+    - The repo chooses one canonical authoring path for screen topology
+      (`SCREEN_CONTENT_MODEL` vs reusable layout templates)
+    - Redundant inline `layout_sections` / `static_component_tree` data is
+      removed or generated deterministically from the chosen source
+    - Tests prove screen topology cannot drift between content models and
+      template registry
+    - Design-runtime docs describe the chosen source-of-truth contract
+
 <a id="ledger-p1-design-token-lock-ci"></a>
 - [ ] P1: Design-token lockfile and deterministic CI/build contract
   - Owner: @katsiaryna_kavaleuskaya
@@ -6381,6 +6407,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 
-**Last updated:** 2026-03-08 (ledger reorder + truth audit)
+**Last updated:** 2026-03-12 (PR #1121 deferred runtime-governance follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
