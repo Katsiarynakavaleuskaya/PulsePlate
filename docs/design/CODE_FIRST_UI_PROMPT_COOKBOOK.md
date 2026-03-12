@@ -14,7 +14,7 @@ Use it after two prerequisite steps:
 
 - `docs/design/UI_COMPONENT_VOCABULARY.md`
 - `docs/design/ui_component_vocabulary.json`
-2. draft the brief with:
+1. draft the brief with:
 
 - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
 

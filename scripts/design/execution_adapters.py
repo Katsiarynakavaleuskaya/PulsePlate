@@ -86,6 +86,8 @@ class CodeNativeCanvasExecutionAdapter:
     def execute(self, instruction: dict[str, Any]) -> dict[str, Any]:
         screen_id = instruction.get("screen_id", "unknown")
         sections = instruction.get("sections", [])
+        # Render operations are instruction-driven by design; hierarchy stays as a
+        # metric/control surface so counts never under-report sparse payloads.
         hierarchy = instruction.get("component_hierarchy", [])
         instructions_list = instruction.get("instructions", [])
 

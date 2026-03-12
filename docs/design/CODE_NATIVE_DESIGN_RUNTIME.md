@@ -27,17 +27,17 @@ similar tools as the primary runtime dependency.
 
 Primary execution lane:
 
-- `scripts/design/generate_figma_instructions.py`
-- `scripts/design/layout_templates.py`
-- `scripts/design/execution_adapters.py`
+- `scripts/design/generate_figma_instructions.py:875`
+- `scripts/design/layout_templates.py:388`
+- `scripts/design/execution_adapters.py:79`
 
 Preferred adapter for local design runtime:
 
-- `code_native_canvas`
+- `code_native_canvas` via `scripts/design/execution_adapters.py:79`
 
 Compatibility adapter:
 
-- `deterministic_stub`
+- `deterministic_stub` via `scripts/design/execution_adapters.py:25`
 
 ## 4. Output contract
 

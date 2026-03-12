@@ -181,7 +181,7 @@
       "component_id": "web-plate-badge",
       "parent_component_id": "web-plate-summary-card",
       "hierarchy_level": 2,
-      "semantic_role": "premium_state",
+      "semantic_role": "gate_state",
       "order": 2
     },
     {
@@ -214,7 +214,7 @@
       "component_id": "web-plate-dialog",
       "parent_component_id": "web-plate-action-panel",
       "hierarchy_level": 2,
-      "semantic_role": "upgrade_explainer",
+      "semantic_role": "secondary_details",
       "order": 5
     },
     {

@@ -24,7 +24,7 @@ without creating a second hidden source of truth.
 8. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
 9. `Stitch` and similar AI layout generators are external ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation; their lifecycle state remains `read_only` until promotion (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
 
-Hard rule: tools `4-7` may inform work, but they do not override runtime
+Hard rule: tools `5-8` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:59`).
 The same rule applies to external ideation/reference tools.
 

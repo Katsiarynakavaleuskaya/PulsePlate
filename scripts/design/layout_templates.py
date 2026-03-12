@@ -388,5 +388,9 @@ def build_reusable_layout_template(
 
     template_builder = REUSABLE_LAYOUT_TEMPLATE_REGISTRY.get(template_key)
     if template_builder is None:
-        raise ValueError(f"Unsupported layout template '{template_key}' for screen '{screen_id}'")
+        supported_templates = ", ".join(sorted(REUSABLE_LAYOUT_TEMPLATE_REGISTRY))
+        raise ValueError(
+            f"Unsupported layout template '{template_key}' for screen '{screen_id}'. "
+            f"Supported templates: {supported_templates}"
+        )
     return template_builder(screen_id)

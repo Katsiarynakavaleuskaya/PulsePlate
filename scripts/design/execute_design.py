@@ -204,7 +204,7 @@ def main() -> int:
         return 0
 
     if not args.execute:
-        print("\nUse --execute to run MCP execution (currently simulated)")
+        print("\nUse --execute to run via the selected adapter (currently simulated)")
         return 0
 
     # Execute (currently simulated)

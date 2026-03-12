@@ -73,6 +73,23 @@ def test_generated_web_progress_export_cta_uses_header_container() -> None:
     )
 
 
+def test_generated_web_plate_semantic_roles_match_hierarchy() -> None:
+    instruction = generate_figma_instructions.generate_screen_instruction("web.plate")
+    payload = generate_figma_instructions.instruction_to_dict(instruction)
+
+    hierarchy_roles = {
+        item["component_id"]: item["semantic_role"] for item in payload["component_hierarchy"]
+    }
+    instruction_roles = {
+        item["component_id"]: item["semantic_role"]
+        for item in payload["instructions"]
+        if item["component_id"] in {"web-plate-badge", "web-plate-dialog"}
+    }
+
+    assert instruction_roles["web-plate-badge"] == hierarchy_roles["web-plate-badge"]
+    assert instruction_roles["web-plate-dialog"] == hierarchy_roles["web-plate-dialog"]
+
+
 def test_validate_governance_rejects_missing_contract_fields() -> None:
     instruction = {
         "screen_id": "ios.home",
@@ -185,15 +202,22 @@ def test_execute_instruction_supports_code_native_canvas_adapter() -> None:
 
 
 def test_reusable_layout_template_registry_reuses_hero_shell() -> None:
-    template = build_reusable_layout_template("hero_actions", "ios.home")
+    ios_template = build_reusable_layout_template("hero_actions", "ios.home")
+    web_template = build_reusable_layout_template("hero_actions", "web.home")
 
-    assert template["layout_sections"][0]["id"] == "hero-band"
-    assert template["static_component_tree"][0]["id"] == "ios-home-shell"
-    assert template["static_component_tree"][1]["canonical_component"] == "hero"
+    assert ios_template["layout_sections"][0]["id"] == "hero-band"
+    assert web_template["layout_sections"][0]["id"] == "hero-band"
+    assert ios_template["static_component_tree"][0]["id"] == "ios-home-shell"
+    assert web_template["static_component_tree"][0]["id"] == "web-home-shell"
+    assert ios_template["static_component_tree"][1]["canonical_component"] == "hero"
+    assert web_template["static_component_tree"][1]["canonical_component"] == "hero"
 
 
 def test_reusable_layout_template_registry_rejects_unknown_key() -> None:
-    with pytest.raises(ValueError, match="Unsupported layout template"):
+    with pytest.raises(
+        ValueError,
+        match="Supported templates: content_actions, dashboard_recovery, form_stack, hero_actions, navigation_overlay",
+    ):
         build_reusable_layout_template("unknown_template", "web.home")
 
 
