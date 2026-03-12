@@ -55,7 +55,7 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
     ]
 
 
-def test_local_mode_fetches_pr_body_when_not_provided(
+def test_local_mode_uses_artifact_first_phase2_args_when_body_not_provided(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
@@ -65,26 +65,13 @@ def test_local_mode_fetches_pr_body_when_not_provided(
         return _ok_result(name, [str(script_path), *extra_args])
 
     monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
-    monkeypatch.setattr(
-        merge_ready,
-        "_fetch_pr_body",
-        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
-    )
 
     exit_code = merge_ready.main(
         ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
     )
 
     assert exit_code == 0
-    assert calls[0] == (
-        "phase2-pr-body-gates",
-        [
-            "--pr-number",
-            "1005",
-            "--body",
-            "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
-        ],
-    )
+    assert calls[0] == ("phase2-pr-body-gates", ["--pr-number", "1005"])
 
 
 def test_fetch_pr_body_uses_gh_auth_status_when_env_token_is_missing(
@@ -115,68 +102,28 @@ def test_fetch_pr_body_uses_gh_auth_status_when_env_token_is_missing(
     assert run_calls[1][:4] == ["/usr/local/bin/gh", "pr", "view", "1129"]
 
 
-def test_local_mode_turns_fetch_pr_body_failure_into_gate_failure(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_local_mode_does_not_fetch_pr_body_when_body_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    results = {
-        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
-        "current-head-checks": _ok_result("current-head-checks", []),
-        "review-threads-disposition": _ok_result("review-threads-disposition", []),
-    }
+    calls: list[tuple[str, list[str]]] = []
 
-    monkeypatch.setattr(
-        merge_ready,
-        "_run_gate",
-        lambda name, script_path, extra_args: results[name],
-    )
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
     monkeypatch.setattr(
         merge_ready,
         "_fetch_pr_body",
-        lambda pr_number, repo: (_ for _ in ()).throw(RuntimeError("gh auth failed")),
+        lambda pr_number, repo: (_ for _ in ()).throw(RuntimeError("should not be called")),
     )
 
     exit_code = merge_ready.main(
         ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
     )
 
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "[FAIL] phase2-pr-body-gates" in captured.out
-    assert "gh auth failed" in captured.out
-    assert "Failing gates: phase2-pr-body-gates" in captured.out
-
-
-def test_local_mode_turns_fetch_pr_body_timeout_into_gate_failure(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    results = {
-        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
-        "current-head-checks": _ok_result("current-head-checks", []),
-        "review-threads-disposition": _ok_result("review-threads-disposition", []),
-    }
-
-    monkeypatch.setattr(
-        merge_ready,
-        "_run_gate",
-        lambda name, script_path, extra_args: results[name],
-    )
-
-    def raise_timeout(pr_number: int, repo: str) -> str:
-        raise merge_ready.subprocess.TimeoutExpired(
-            cmd=["gh", "pr", "view", str(pr_number)],
-            timeout=merge_ready.RUN_TIMEOUT_SEC,
-        )
-
-    monkeypatch.setattr(merge_ready, "_fetch_pr_body", raise_timeout)
-
-    exit_code = merge_ready.main(
-        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
-    )
-
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "[FAIL] phase2-pr-body-gates" in captured.out
-    assert "Command '['gh', 'pr', 'view', '1005']' timed out" in captured.out
+    assert exit_code == 0
+    assert calls[0] == ("phase2-pr-body-gates", ["--pr-number", "1005"])
 
 
 def test_event_mode_passes_require_auth_only_to_disposition(
@@ -262,12 +209,6 @@ def test_wrapper_surfaces_failing_gate_names(
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
     )
-    monkeypatch.setattr(
-        merge_ready,
-        "_fetch_pr_body",
-        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
-    )
-
     exit_code = merge_ready.main(
         ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
     )
@@ -318,12 +259,6 @@ def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
     )
-    monkeypatch.setattr(
-        merge_ready,
-        "_fetch_pr_body",
-        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
-    )
-
     exit_code = merge_ready.main(
         ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
     )

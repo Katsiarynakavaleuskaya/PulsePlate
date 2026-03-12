@@ -34,13 +34,6 @@ class GateResult:
     stderr: str
 
 
-@dataclass(frozen=True)
-class PreGateFailure:
-    """Deterministic pre-execution gate failure before a subprocess can run."""
-
-    message: str
-
-
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Enforce CI vs local mode contract for the wrapper CLI."""
 
@@ -151,15 +144,12 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
     return result.stdout
 
 
-def _phase2_args(args: argparse.Namespace) -> list[str] | PreGateFailure:
+def _phase2_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
-    try:
-        body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
-    except (RuntimeError, subprocess.TimeoutExpired) as exc:
-        return PreGateFailure(str(exc))
     phase2_args = ["--pr-number", str(args.pr_number)]
-    phase2_args.extend(["--body", body])
+    if args.body:
+        phase2_args.extend(["--body", args.body])
     return phase2_args
 
 
@@ -233,18 +223,6 @@ def _print_gate_output(result: GateResult) -> None:
         print(result.stderr)
 
 
-def _pre_gate_failure_result(name: str, argv: list[str], failure: PreGateFailure) -> GateResult:
-    """Convert local preparation failure into normal gate output."""
-
-    return GateResult(
-        name=name,
-        argv=argv,
-        returncode=1,
-        stdout="",
-        stderr=failure.message,
-    )
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run canonical PR governance gates and emit a single merge verdict."
@@ -278,15 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     _validate_args(parsed, parser)
 
     phase2_args = _phase2_args(parsed)
-    phase2_result = (
-        _pre_gate_failure_result(
-            "phase2-pr-body-gates",
-            [sys.executable, str(PHASE2_GATE)],
-            phase2_args,
-        )
-        if isinstance(phase2_args, PreGateFailure)
-        else _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)
-    )
+    phase2_result = _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)
 
     gate_results = [
         phase2_result,

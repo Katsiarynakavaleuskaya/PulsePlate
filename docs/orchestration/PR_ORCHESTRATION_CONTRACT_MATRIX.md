@@ -26,12 +26,12 @@ Evidence:
 
 ## 3. Governance Phases
 
-| Phase   | Gate              | Artifact                                | Blocks Merge |
-| ------- | ----------------- | --------------------------------------- | ------------ |
-| Phase 1 | CI hygiene        | workflows/checks                        | yes          |
-| Phase 2 | PR body mirror contract | canonical artifact + PR body mirror | yes          |
-| Phase 3 | Merge readiness   | unresolved threads + actionable mapping | yes          |
-| Phase 4 | Disposition proof | script semantics                        | yes          |
+| Phase   | Gate                    | Artifact                                                         | Blocks Merge |
+| ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
+| Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
+| Phase 2 | artifact-first contract | canonical artifact (authoritative) + optional PR body mirror     | yes          |
+| Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
+| Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
 Canonical operator entrypoint:
 
@@ -42,7 +42,7 @@ Canonical operator entrypoint:
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
 
-PR body **must mirror** the same review-governance sections for human review and fallback runs:
+PR body **may mirror** the same review-governance sections for human review and fallback runs:
 
 - `## Discussion Thread Pass`
 - `### Fixed in Commit Mapping`
@@ -50,7 +50,7 @@ PR body **must mirror** the same review-governance sections for human review and
 - full URL→SHA mapping lines are required only in the canonical artifact when `pr_number` is available
 
 Canonical runtime behavior is artifact-first when `pr_number` is available.
-PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and validates the PR body as a mirror-only contract.
+PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and the PR body as an optional mirror-only surface.
 
 Temporary seam tracking:
 
@@ -63,11 +63,12 @@ Exit criteria for removing PR-body fallback:
 2. Local tooling supports deterministic artifact lookup without PR-body parsing.
 3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
 
-Required sections (artifact and PR-body mirror):
+Required sections:
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
-- `## Fixed in Commit Mapping`
+- `## Fixed in Commit Mapping` in the canonical artifact
+- `### Fixed in Commit Mapping` in the optional PR-body mirror
 
 Valid mapping forms in the canonical artifact:
 
@@ -75,7 +76,7 @@ Valid mapping forms in the canonical artifact:
 - `- <url>`
 - `- No actionable review comments`
 
-PR body mirror requires the section headings and completed checkboxes. Mapping-line duplication in the body is optional once the canonical artifact exists.
+PR body mirror requires the section headings and completed checkboxes only when the mirror is present. Mapping-line duplication in the body is optional once the canonical artifact exists. Use `render_phase2_body_mirror()` to generate the mirror block from the canonical artifact path.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`
