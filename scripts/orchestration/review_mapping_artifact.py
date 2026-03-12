@@ -203,3 +203,19 @@ def parse_fixed_mapping_entries(section: str) -> dict[str, str]:
 def has_no_actionable_marker(section: str) -> bool:
     """True if section contains 'No actionable review comments'."""
     return NO_ACTIONABLE_LINE in section
+
+
+def render_phase2_body_mirror(pr_number: int) -> str:
+    """Render the canonical PR-body mirror block from the artifact source of truth."""
+
+    artifact_ref = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    return "\n".join(
+        [
+            DISCUSSION_THREAD_PASS_HEADING,
+            CHECKBOX_DISCUSSION_PASS,
+            CHECKBOX_FIXED_MAPPING,
+            "",
+            "### Fixed in Commit Mapping",
+            f"- canonical artifact: `{artifact_ref}`",
+        ]
+    )

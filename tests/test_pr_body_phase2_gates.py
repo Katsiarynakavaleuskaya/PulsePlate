@@ -280,8 +280,8 @@ Commit: abc1234
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
 
 
-def test_phase2_rejects_empty_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
-    """Artifact-first mode still requires a non-empty body mirror."""
+def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> None:
+    """Artifact-first mode does not fail solely because the body mirror is omitted."""
     event = {"pull_request": {"number": 998, "body": ""}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
@@ -310,8 +310,8 @@ Commit: abc1234
         cwd=str(repo_root),
         env=env,
     )
-    assert result.returncode == 1
-    assert "ERROR: Empty PR body." in result.stdout
+    assert result.returncode == 0
+    assert "canonical mapping artifact passed" in result.stdout
 
 
 def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
@@ -347,6 +347,39 @@ Commit: abc1234
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
     assert "Missing required section" in result.stdout
+
+
+def test_phase2_accepts_pr_number_without_explicit_body_when_artifact_is_valid(
+    tmp_path: Path,
+) -> None:
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--pr-number",
+            "998",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+    assert result.returncode == 0
+    assert "canonical mapping artifact passed" in result.stdout
 
 
 def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> None:

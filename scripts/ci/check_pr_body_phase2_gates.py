@@ -210,16 +210,17 @@ def main() -> int:
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
 
-    if not body.strip():
+    if body.strip():
+        body_checked = True
+        body_errors.extend(
+            check_pr_body_phase2_gates(
+                body=body,
+                mode=_select_body_validation_mode(artifact_checked=artifact_checked),
+            )
+        )
+    elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
-    body_checked = True
-    body_errors.extend(
-        check_pr_body_phase2_gates(
-            body=body,
-            mode=_select_body_validation_mode(artifact_checked=artifact_checked),
-        )
-    )
 
     errors = [*artifact_errors, *body_errors]
     if errors:
@@ -232,8 +233,14 @@ def main() -> int:
             print(f"- {item}")
         return 1
 
-    if artifact_checked:
+    if artifact_checked and body_checked:
         print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")
+        return 0
+    if artifact_checked:
+        print(
+            "phase2-pr-body-gates: canonical mapping artifact passed "
+            "(PR body mirror optional in artifact-first mode)."
+        )
         return 0
 
     print("phase2-pr-body-gates: passed.")

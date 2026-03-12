@@ -27,6 +27,17 @@ def test_mapping_artifact_path() -> None:
     assert "docs" in str(p998) and "review" in str(p998)
 
 
+def test_render_phase2_body_mirror_is_stable() -> None:
+    body = artifact.render_phase2_body_mirror(998)
+    assert body == (
+        "## Discussion Thread Pass\n"
+        "- [x] Discussion-thread pass completed\n"
+        "- [x] Fixed in commit mapping completed\n\n"
+        "### Fixed in Commit Mapping\n"
+        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`"
+    )
+
+
 def test_read_mapping_artifact_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Read artifact from temp dir to avoid coupling to real repo file."""
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
