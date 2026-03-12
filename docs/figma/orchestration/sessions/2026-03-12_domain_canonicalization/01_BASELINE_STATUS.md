@@ -23,7 +23,7 @@
    - Requested Figma records shown in UI: apex `A`, `_figma_sites_verify` TXT, `www` CNAME to `sites.figma.net`
 5. Figma MCP baseline on March 12, 2026:
    - `whoami` reported `Full` seat on `pro`
-   - `get_design_context(fileKey="MrztJU3CQtxhADBbtAsWJ6", nodeId="0:1")` succeeded for the Make file
+   - `get_design_context(fileKey="<redacted-make-file-key>", nodeId="0:1")` succeeded for the Make file referenced by the task context
    - Code Connect remains blocked by seat/plan requirements tracked in `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:20`
 
 ## Decision

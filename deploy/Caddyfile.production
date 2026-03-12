@@ -1,7 +1,7 @@
 www.{$PRODUCTION_DOMAIN} {
-    # RU: `www` должен выпускать сертификат и всегда редиректить на apex.
-    # EN: `www` must terminate TLS and permanently redirect to apex.
-    redir https://{$PRODUCTION_DOMAIN}{uri} permanent
+    # RU: `www` должен выпускать сертификат и редиректить на apex без потери метода/body.
+    # EN: `www` must terminate TLS and redirect to apex without losing method/body.
+    redir https://{$PRODUCTION_DOMAIN}{uri} 308
 }
 
 {$PRODUCTION_DOMAIN} {
@@ -28,6 +28,12 @@ www.{$PRODUCTION_DOMAIN} {
 
 # RU: Fallback staging hostname для build-only режима, когда staging deploy отключён
 # EN: Fallback staging hostname for build-only mode when staging deploy is disabled
+www.{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
+    # RU: Сохраняем ту же canonical redirect-схему и для fallback staging host.
+    # EN: Keep the same canonical redirect behavior for the fallback staging host.
+    redir https://{$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org}{uri} 308
+}
+
 {$STAGING_FALLBACK_DOMAIN:pulseplate-staging.duckdns.org} {
     encode gzip
     reverse_proxy app:8000

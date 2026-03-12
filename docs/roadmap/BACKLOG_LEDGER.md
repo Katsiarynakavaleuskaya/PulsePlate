@@ -949,6 +949,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Production Caddy fallback vhost for `STAGING_FALLBACK_DOMAIN` is removed
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
+<a id="ledger-p1-domain-ownership-canonicalization"></a>
+- [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR/Figma-Domain-Infra-First
+  - Priority: P1
+  - Status: External DNS + follow-up implementation required
+  - Area: deploy / figma / frontend
+  - Finding Type: production ownership drift
+  - Reason: On March 12, 2026 the repo-backed runtime still answered on
+    `pulseplate.app`, `www.pulseplate.app` returned `525`, and the Figma custom-domain
+    attempt for `pulseplate.app` reported a conflicting apex `AAAA` record. Root-domain
+    ownership must be canonicalized before any repo-backed Figma web sync PR proceeds.
+  - Links:
+    - `deploy/Caddyfile.production`
+    - `deploy/PRODUCTION.md`
+    - `docs/deploy/CLOUDFLARE.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`
+  - DoD:
+    - External DNS removes the conflicting apex `AAAA` record from the production zone
+    - `www.pulseplate.app` no longer returns `525` and redirects cleanly to apex
+    - `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime
+    - Any Figma-hosted preview is moved to a dedicated non-production subdomain
+    - PR-2 web sync/import work starts only after this ownership baseline is stable
+
 
 - [ ] Design file URL + node IDs required for Code Connect activation (H+P+Pr)
   - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
@@ -976,32 +1002,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Matrix optional design review references are updated for activated rows
     - Optional activation path does not redefine the canonical Storybook-first
       web review workflow
-
-
-- [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR/Figma-Domain-Infra-First
-  - Priority: P1
-  - Status: External DNS + follow-up implementation required
-  - Area: deploy / figma / frontend
-  - Finding Type: production ownership drift
-  - Reason: On March 12, 2026 the repo-backed runtime still answered on
-    `pulseplate.app`, `www.pulseplate.app` returned `525`, and the Figma custom-domain
-    attempt for `pulseplate.app` reported a conflicting apex `AAAA` record. Root-domain
-    ownership must be canonicalized before any repo-backed Figma web sync PR proceeds.
-  - Links:
-    - `deploy/Caddyfile.production`
-    - `deploy/PRODUCTION.md`
-    - `docs/deploy/CLOUDFLARE.md`
-    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-    - `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`
-  - DoD:
-    - External DNS removes the conflicting apex `AAAA` record from the production zone
-    - `www.pulseplate.app` no longer returns `525` and redirects cleanly to apex
-    - `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime
-    - Any Figma-hosted preview is moved to a dedicated non-production subdomain
-    - PR-2 web sync/import work starts only after this ownership baseline is stable
 
 
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP

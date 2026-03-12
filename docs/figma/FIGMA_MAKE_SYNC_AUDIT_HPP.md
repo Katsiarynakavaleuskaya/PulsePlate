@@ -33,7 +33,7 @@ Primary SoT references:
   runtime still serving `pulseplate.app`, `www.pulseplate.app` returning `525`,
   and the Figma custom-domain attempt warning about a conflicting apex `AAAA`
   record. Evidence:
-  `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md:5`
+  `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md:6`
 
 ## 3) Aligned
 
