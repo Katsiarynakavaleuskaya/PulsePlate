@@ -34,6 +34,12 @@ Evidence: `53a0f896` lets local wrapper auth fall back to `gh auth status` befor
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934316276 -> 53a0f896
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922616515 -> 53a0f896
 
+Disposition: FIXED
+Commit: d755d262
+Evidence: `d755d262` extends the local pre-gate failure seam so `_phase2_args()` collapses `subprocess.TimeoutExpired` into `PreGateFailure` instead of leaking a traceback in `scripts/orchestration/check_merge_ready.py:144-166`, and adds an explicit timeout regression test in `tests/test_orchestration_merge_ready.py:128-160`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934386867 -> d755d262
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922679718 -> d755d262
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
