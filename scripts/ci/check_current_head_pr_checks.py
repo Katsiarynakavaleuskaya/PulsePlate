@@ -315,22 +315,21 @@ def _suppress_stale_latest_entries_with_newer_workflow_activity(
     emitted that exact job name yet.
     """
 
-    newest_workflow_marker: dict[str, tuple[str, str]] = {}
+    newest_workflow_timestamp: dict[str, str] = {}
     for entry in entries:
         if not entry.workflow_name:
             continue
-        marker = (entry.timestamp, entry.details_url)
-        previous = newest_workflow_marker.get(entry.workflow_name)
-        if previous is None or marker >= previous:
-            newest_workflow_marker[entry.workflow_name] = marker
+        previous = newest_workflow_timestamp.get(entry.workflow_name)
+        if previous is None or entry.timestamp >= previous:
+            newest_workflow_timestamp[entry.workflow_name] = entry.timestamp
 
     filtered_latest = dict(latest)
     updated_superseded = list(superseded)
     for name, entry in list(filtered_latest.items()):
         if not entry.workflow_name:
             continue
-        latest_workflow_marker = newest_workflow_marker.get(entry.workflow_name)
-        if latest_workflow_marker and latest_workflow_marker > (entry.timestamp, entry.details_url):
+        latest_workflow_timestamp = newest_workflow_timestamp.get(entry.workflow_name)
+        if latest_workflow_timestamp and latest_workflow_timestamp > entry.timestamp:
             updated_superseded.append(entry)
             del filtered_latest[name]
     return filtered_latest, updated_superseded

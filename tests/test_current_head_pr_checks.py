@@ -85,6 +85,41 @@ def test_stale_latest_entry_is_demoted_when_same_workflow_has_newer_activity() -
     assert stale_latest in updated_superseded
 
 
+def test_same_timestamp_does_not_demote_latest_entry_on_details_url_only() -> None:
+    candidate_latest = current_head_checks.CheckEntry(
+        name="coverage-pr",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-03-12T08:36:42Z",
+        details_url="https://example.invalid/current-candidate",
+        workflow_name="CI",
+        conclusion="FAILURE",
+    )
+    same_timestamp_other_job = current_head_checks.CheckEntry(
+        name="Docs Phase1 gates",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-03-12T08:36:42Z",
+        details_url="https://example.invalid/other-job",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+    )
+
+    latest, superseded = current_head_checks._latest_entries(
+        [candidate_latest, same_timestamp_other_job]
+    )
+    filtered_latest, updated_superseded = (
+        current_head_checks._suppress_stale_latest_entries_with_newer_workflow_activity(
+            [candidate_latest, same_timestamp_other_job],
+            latest,
+            superseded,
+        )
+    )
+
+    assert filtered_latest["coverage-pr"] == candidate_latest
+    assert candidate_latest not in updated_superseded
+
+
 def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_superseded(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
