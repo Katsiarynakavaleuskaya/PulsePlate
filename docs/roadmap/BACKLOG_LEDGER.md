@@ -1257,7 +1257,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR-TBD-FITCHEF-UMBRELLA-FOUNDATION -> PR-TBD-FITCHEF-VISUAL-CONTRACT -> PR-TBD-FITCHEF-ASSET-TAXONOMY -> PR-TBD-FITCHEF-APP-STORE-PACK -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
+  - Target PR: PR-TBD-FITCHEF-UMBRELLA-FOUNDATION -> PR-TBD-FITCHEF-VISUAL-CONTRACT -> PR-TBD-FITCHEF-ASSET-TAXONOMY -> PR-TBD-FITCHEF-APP-STORE-PACK-EN -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
   - Status: 📋 Planned
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
@@ -1279,8 +1279,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Umbrella initiative contract exists and explicitly preserves the live `/api/v1/insight/fitchef*` canon
     - Root and scoped `AGENTS.md` files encode FitChef invariants: no duplicate nutrition math, no LLM source-of-truth, no FREE open-ended coach runtime, structured DTO rendering, routed actions only, mandatory fallback templates
     - Follow-up PR chain is explicit for visual/App Store and structured-coach/runtime lanes
-    - First App Store localization wave is fixed as `EN` only, with `RU` and `ES` tracked as follow-ups
+    - First App Store localization wave is fixed as `EN` only
+    - `RU` and `ES` localization follow-ups are anchored as separate backlog items with their own target PR placeholders
     - Foundation/docs PRs remain docs-only and do not carry mascot or App Icon binary asset promotion
+
+
+- [ ] P2: FitChef App Store localization RU
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (ASO / localization)
+  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-RU
+  - Status: 📋 Planned
+  - Reason (EN): The first FitChef App Store wave is intentionally `EN` only. Russian localization must remain deferred until the `EN` visual contract and production pack are frozen so copy, screenshot ordering, and safe-area rules do not drift.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
+  - DoD:
+    - `RU` screenshot headlines and subtext are derived from the approved `EN` App Store contract
+    - `RU` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
+    - Any `RU` asset/export work remains separated from governance-only PRs
+
+
+- [ ] P2: FitChef App Store localization ES
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (ASO / localization)
+  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Status: 📋 Planned
+  - Reason (EN): Spanish localization is a follow-up wave after the `EN` contract/pack. It must stay explicitly deferred so future ASO copy, screenshot exports, and review metadata remain traceable in the canonical backlog.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
+  - DoD:
+    - `ES` screenshot headlines and subtext are derived from the approved `EN` App Store contract
+    - `ES` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
+    - Any `ES` asset/export work remains separated from governance-only PRs
 
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)

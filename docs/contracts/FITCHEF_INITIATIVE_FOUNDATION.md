@@ -106,7 +106,7 @@ This phase is contract-only and must not migrate the live mascot routes.
 ## Localization policy
 
 - First App Store wave: `EN`
-- Follow-up localization waves: `RU`, `ES`
+- Follow-up localization waves: `RU` (`PR-TBD-FITCHEF-LOCALIZATION-RU`), `ES` (`PR-TBD-FITCHEF-LOCALIZATION-ES`)
 
 `RU` and `ES` stay in backlog until the `EN` visual contract and production pack
 are governed.

@@ -19,7 +19,7 @@
 
 - Current live FitChef public routes remain `/api/v1/insight/fitchef*`; new FitChef work must preserve these routes and add future structured-coach surfaces additively.
 - Foundation or visual-lane PRs must not migrate FitChef traffic to `/api/v1/pro/fitchef/*` or `/api/v1/vip/fitchef/*` until a dedicated contract PR freezes those paths.
-- Keep FitChef guard order deterministic: input guard -> feature/tier guard -> quota -> provider/tool execution.
+- Keep FitChef guard order aligned with the live mascot routers: tier/feature gate -> execution-mode gate -> input guard -> provider/tool execution. Do not change this precedence in docs-only PRs.
 - FREE tier must not receive open-ended FitChef runtime; bounded or static guidance only.
 - Route handlers must return structured response models or frozen response envelopes; UI clients must not depend on parsing raw model prose.
 
