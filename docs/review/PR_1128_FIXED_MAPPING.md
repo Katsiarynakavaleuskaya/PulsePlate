@@ -27,6 +27,11 @@ Disposition: FIXED
 Commit: 16d17426
 Evidence: `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:3`, `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md:214`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#pullrequestreview-3934264752
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#discussion_r2921430267; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1128#discussion_r2921438428
+Reason: this late CodeRabbit review is a summary shell over two already-dispositioned review concerns. Shared evidence is intentional here because both comments point at the same metadata/backfill correction commit, while the `#1112` wording fix remains separately anchored to `2e2ae11f`.
+
 ## Merge Readiness
 
 - [ ] Local gates passed on current head
