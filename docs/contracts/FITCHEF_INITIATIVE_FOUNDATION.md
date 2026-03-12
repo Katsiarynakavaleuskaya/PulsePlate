@@ -70,6 +70,8 @@ live in `app/services/fitchef_runtime.py:127` through
 - portrait and emotion variants
 - App Icon relation rules
 - screenshot-safe asset usage rules
+- selective promotion only from cleanly normalizable local source assets
+- contract artifact: `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
 
 ### PR-3 App Store production pack
 
@@ -103,6 +105,10 @@ This phase is contract-only and must not migrate the live mascot routes.
   PRs.
 - Local or dirty asset diffs must not be bundled into governance or contract
   branches.
+- PR-2 may selectively promote mascot or icon binaries only after filename and
+  catalog normalization inside the dedicated asset worktree.
+- Non-canonical icon source files with spaces or duplicate filename families
+  remain deferred to the App Store production lane.
 
 ## Localization policy
 
@@ -131,3 +137,4 @@ are governed.
 - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md:16`
 - `docs/contracts/API_CANONICAL_MAP.md:46`
 - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:1`
+- `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md:1`

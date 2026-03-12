@@ -53,30 +53,30 @@ def generate_all_icons_from_source(source_path: str) -> bool:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 
-    # Размеры для iOS (в пикселях) - соответствует Contents.json
-    icon_sizes: dict[str, int] = {
+    # Размеры для iOS (в пикселях) - соответствует каноническому AppIcon- семейству
+    icon_sizes = [
         # iPhone
-        "icon_iphone_20pt@2x.png": 40,  # 20x20 @2x
-        "icon_iphone_20pt@3x.png": 60,  # 20x20 @3x
-        "icon_iphone_29pt@2x.png": 58,  # 29x29 @2x
-        "icon_iphone_29pt@3x.png": 87,  # 29x29 @3x
-        "icon_iphone_40pt@2x.png": 80,  # 40x40 @2x
-        "icon_iphone_40pt@3x.png": 120,  # 40x40 @3x
-        "icon_iphone_60pt@2x.png": 120,  # 60x60 @2x
-        "icon_iphone_60pt@3x.png": 180,  # 60x60 @3x
+        ("AppIcon-20@2x.png", 40),  # 20x20 @2x
+        ("AppIcon-20@3x.png", 60),  # 20x20 @3x
+        ("AppIcon-29@2x.png", 58),  # 29x29 @2x
+        ("AppIcon-29@3x.png", 87),  # 29x29 @3x
+        ("AppIcon-40@2x.png", 80),  # 40x40 @2x
+        ("AppIcon-40@3x.png", 120),  # 40x40 @3x
+        ("AppIcon-60@2x.png", 120),  # 60x60 @2x
+        ("AppIcon-60@3x.png", 180),  # 60x60 @3x
         # iPad
-        "icon_ipad_20pt.png": 20,  # 20x20 @1x
-        "icon_ipad_20pt@2x.png": 40,  # 20x20 @2x
-        "icon_ipad_29pt.png": 29,  # 29x29 @1x
-        "icon_ipad_29pt@2x.png": 58,  # 29x29 @2x
-        "icon_ipad_40pt.png": 40,  # 40x40 @1x
-        "icon_ipad_40pt@2x.png": 80,  # 40x40 @2x
-        "icon_ipad_76pt.png": 76,  # 76x76 @1x
-        "icon_ipad_76pt@2x.png": 152,  # 76x76 @2x
-        "icon_ipad_83_5pt@2x.png": 167,  # 83.5x83.5 @2x
+        ("AppIcon-20@1x.png", 20),  # 20x20 @1x
+        ("AppIcon-20@2x.png", 40),  # 20x20 @2x
+        ("AppIcon-29@1x.png", 29),  # 29x29 @1x
+        ("AppIcon-29@2x.png", 58),  # 29x29 @2x
+        ("AppIcon-40@1x.png", 40),  # 40x40 @1x
+        ("AppIcon-40@2x.png", 80),  # 40x40 @2x
+        ("AppIcon-76@1x.png", 76),  # 76x76 @1x
+        ("AppIcon-76@2x.png", 152),  # 76x76 @2x
+        ("AppIcon-83.5@2x.png", 167),  # 83.5x83.5 @2x
         # App Store
-        "icon_marketing_1024.png": 1024,  # 1024x1024
-    }
+        ("AppIcon-1024.png", 1024),  # 1024x1024
+    ]
 
     # Путь к папке с иконками (относительно расположения скрипта)
     script_dir: str = os.path.dirname(os.path.abspath(__file__))
@@ -98,7 +98,7 @@ def generate_all_icons_from_source(source_path: str) -> bool:
 
     total_count = len(icon_sizes)
     success_count = sum(
-        resize_icon(source_path, icons_dir, filename, size) for filename, size in icon_sizes.items()
+        resize_icon(source_path, icons_dir, filename, size) for filename, size in icon_sizes
     )
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")
