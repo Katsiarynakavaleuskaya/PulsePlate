@@ -50,6 +50,13 @@ Reason: `_prefix()` currently derives ids only from governed screen identifiers,
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922272565
 
+Disposition: FIXED
+Commit: f3ab3667
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:31` now points the layout template reference at `scripts/design/layout_templates.py:383`, and `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:40` points the deterministic adapter reference at `scripts/design/execution_adapters.py:20`, so both anchors land on live definitions instead of blank lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922605569 -> f3ab3667
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922605576 -> f3ab3667
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
