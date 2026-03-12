@@ -67,11 +67,17 @@ Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:31` now points the layout t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922605569 -> f3ab3667
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2922605576 -> f3ab3667
 
+Disposition: FIXED
+Commit: 530b6d75
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:455`, `docs/roadmap/BACKLOG_LEDGER.md:462`, and `docs/roadmap/BACKLOG_LEDGER.md:479` now explicitly fold deferred `pulseplate_canvas_v1` work into the existing `ledger-p1-screen-content-template-convergence` item, so the postponed runtime artifact scope is recorded with owner, reason, links, and DoD.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#pullrequestreview-3934763535 -> 530b6d75
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2923028556 -> 530b6d75
+
 ## Merge Readiness
-- [x] Local gates passed on current head
-- [x] All required checks green
-- [x] No unresolved review threads remain
-- [x] CodeRabbit PASS / no-actionables
-- [x] Sourcery PASS / no-actionables
-- [x] Cubic PASS / no-actionables
-- [x] Wait-window after latest bot/review activity observed
+- [ ] Local gates passed on current head
+- [ ] All required checks green
+- [ ] No unresolved review threads remain
+- [ ] CodeRabbit PASS / no-actionables
+- [ ] Sourcery PASS / no-actionables
+- [ ] Cubic PASS / no-actionables
+- [ ] Wait-window after latest bot/review activity observed
