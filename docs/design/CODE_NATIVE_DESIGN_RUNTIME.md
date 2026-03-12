@@ -22,10 +22,16 @@ similar tools as the primary runtime dependency.
 - `docs/design/ui_component_vocabulary.json` remains the naming source of truth
 - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` remains the brief assembly contract
 - reusable layout templates are the canonical topology source for sections and
-  static component hierarchy
-- generated instruction JSON remains the executable machine contract
+  static component hierarchy. Evidence:
+  `scripts/design/layout_templates.py:383`,
+  `scripts/design/generate_figma_instructions.py:878`
+- generated instruction JSON remains the executable machine contract. Evidence:
+  `scripts/design/generate_figma_instructions.py:1047`,
+  `scripts/design/contracts.py:138`
 - `pulseplate_canvas_v1` is the canonical internal runtime artifact emitted from
-  the governed instruction contract
+  the governed instruction contract. Evidence:
+  `scripts/design/canvas_artifact.py:125`,
+  `scripts/design/execution_adapters.py:92`
 
 ## 3. Runtime model
 
@@ -51,8 +57,12 @@ The runtime should be able to materialize:
 - `layout_archetype`
 - `sections`
 - `component_hierarchy`
-- deterministic `render_ops` derived from the instruction contract
-- canonical JSON artifact `pulseplate_canvas_v1`
+- deterministic `render_ops` derived from the instruction contract. Evidence:
+  `scripts/design/canvas_artifact.py:96`,
+  `scripts/design/contracts.py:642`
+- canonical JSON artifact `pulseplate_canvas_v1`. Evidence:
+  `scripts/design/canvas_artifact.py:125`,
+  `scripts/design/execution_adapters.py:141`
 
 Required artifact fields:
 
@@ -71,10 +81,14 @@ Required artifact fields:
 
 Manifest-safe metadata for `code_native_canvas` must also record:
 
-- `artifact_type`
-- `artifact_version`
-- `section_count`
-- `component_count`
+- `artifact_type`. Evidence: `scripts/design/execution_adapters.py:111`,
+  `scripts/design/execute_design.py:136`
+- `artifact_version`. Evidence: `scripts/design/execution_adapters.py:112`,
+  `scripts/design/execute_design.py:137`
+- `section_count`. Evidence: `scripts/design/execution_adapters.py:106`,
+  `scripts/design/execute_design.py:130`
+- `component_count`. Evidence: `scripts/design/execution_adapters.py:107`,
+  `scripts/design/execute_design.py:132`
 
 ## 5. Non-goals for current phase
 

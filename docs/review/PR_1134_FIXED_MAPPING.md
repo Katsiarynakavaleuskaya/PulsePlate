@@ -16,9 +16,13 @@ Evidence: `scripts/design/canvas_artifact.py:56`, `scripts/design/canvas_artifac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924221521 -> 510fb934
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924221524 -> 510fb934
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924221548 -> 510fb934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248760 -> 510fb934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248769 -> 510fb934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248774 -> 510fb934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924248783 -> 510fb934
 
 ## Merge Readiness
-- [x] Local gates passed on current head
+- [ ] Local gates passed on current head
 - [ ] All required checks green
 - [ ] No unresolved review threads remain
 - [ ] CodeRabbit PASS / no-actionables

@@ -478,6 +478,76 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       stay structurally aligned
     - Design-runtime docs describe the chosen source-of-truth contract
 
+- [ ] P1: HTML preview and browser renderer on top of `pulseplate_canvas_v1`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime productization)
+  - Target PR: PR #1134 -> PR-TBD-DESIGN-HTML-PREVIEW
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / frontend / design-runtime / docs
+  - Finding Type: deferred renderer follow-up
+  - Reason: PR #1134 intentionally stops at the governed artifact boundary so
+    reusable layout templates, metadata-only `SCREEN_CONTENT_MODEL`, and
+    `pulseplate_canvas_v1` can stabilize before any browser rendering surface is
+    added.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
+    - `scripts/design/layout_templates.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - A deterministic HTML preview consumes `pulseplate_canvas_v1` without
+      introducing a second topology source
+    - Renderer output is validated against canvas sections and nodes
+    - Tests cover representative screens such as `ios.home`, `web.plate`, and
+      `web.progress`
+
+- [ ] P1: Live external design-tool bridge after local artifact lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (integration governance)
+  - Target PR: PR #1134 -> PR-TBD-DESIGN-EXTERNAL-BRIDGE
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / integrations / design-runtime / docs
+  - Finding Type: deferred external execution follow-up
+  - Reason: PR #1134 keeps Figma and similar tools as optional reference lanes
+    only, so any live bridge must come later and consume the stabilized
+    `pulseplate_canvas_v1` contract instead of becoming a hidden source of
+    truth.
+  - Links:
+    - `scripts/design/execute_design.py`
+    - `scripts/design/execution_adapters.py`
+    - `scripts/design/canvas_artifact.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - External execution consumes `pulseplate_canvas_v1` or governed instruction
+      payloads without bypassing contract validation
+    - Manifest and verification flows distinguish local artifact emit from live
+      bridge execution
+    - Tests prove fail-closed behavior for missing auth, unsupported adapters,
+      and contract drift
+
+- [ ] P1: Prompt-to-canvas compiler expansion beyond artifact-contract PR3
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR #1134 -> PR-TBD-DESIGN-PROMPT-CANVAS-COMPILER
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / orchestration / design-runtime / docs
+  - Finding Type: deferred compiler follow-up
+  - Reason: PR #1134 establishes the first canonical artifact, but it does not
+    yet expand prompt-to-canvas compilation beyond the current topology and
+    instruction contract boundary.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
+    - `scripts/design/contracts.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - Prompt packets compile deterministically into governed screen instructions
+      and `pulseplate_canvas_v1`
+    - Compiler stages expose explicit topology, token, and state decisions for
+      review
+    - Tests prove topology alignment and stable output for representative screen
+      prompts
+
 <a id="ledger-p1-design-token-lock-ci"></a>
 - [ ] P1: Design-token lockfile and deterministic CI/build contract
   - Owner: @katsiaryna_kavaleuskaya
