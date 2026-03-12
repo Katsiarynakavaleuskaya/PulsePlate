@@ -34,6 +34,12 @@ Evidence: `8977d3e6` makes `make venv` create `.venv` before pip usage and route
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921417522 -> 8977d3e6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921417524 -> 8977d3e6
 
+Disposition: FIXED
+Commit: edb07c47
+Evidence: `edb07c47` reuses `VENV_BIN_DIR` for `VENV_PYTHON` in `scripts/ci/check_local_verify_environment.py:16-19` and restores the merge-readiness checklist to an unchecked pre-final-review state in `docs/review/PR_1127_FIXED_MAPPING.md:37-41`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#pullrequestreview-3933861078 -> edb07c47
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
