@@ -11,6 +11,12 @@ existing FitChef Phase 1 backend runtime. This wave adds text-only mascot
 coaching surfaces under the canonical insight namespace and keeps all broader
 automation work explicitly deferred.
 
+## Relationship to the umbrella initiative
+
+- The broader FitChef umbrella initiative must preserve this live mascot canon during foundation and visual/App Store waves.
+- Future structured-coach surfaces are additive follow-up work and do not change the status of `/api/v1/insight/fitchef*` in this contract.
+- Canonical initiative reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
+
 ## Canonical namespace and policy
 
 - Canonical route family: `/api/v1/insight/fitchef*`

@@ -26,6 +26,8 @@
   `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`.
 - For button-level visual execution and prompt references, use the canonical root section in
   `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
+- App Store and mascot packaging for FitChef follows the initiative foundation contract:
+  `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 
 ## CI: Greenlight iOS preflight (P0 report-only)
 
@@ -70,6 +72,14 @@
 - ✅ Map backend token to UI label (e.g., `category` → "Normal" for display), **without computing from bmi**
 
 **Contract note:** `category` is treated as display string (may be localized or token). iOS does not infer thresholds.
+
+## FitChef thin client policy
+
+- iOS must treat FitChef as a thin presentation layer over backend contracts; no local coaching logic, nutrition math, or entitlement inference in Swift.
+- Current live FitChef mascot routes remain `/api/v1/insight/fitchef*`; future structured-coach routes must be additive and schema-driven.
+- FitChef screens/cards must render structured DTO fields or approved response envelopes; do not parse raw prose to decide navigation, state transitions, or action visibility.
+- FREE-tier iOS surfaces may show bounded/static FitChef guidance, but must not expose open-ended coach runtime.
+- Mascot or App Store asset changes must land through dedicated asset-focused PRs; docs/policy PRs must not mix in binary asset promotion.
 
 ## Enforced CI Rules (Anti-Duplication)
 
