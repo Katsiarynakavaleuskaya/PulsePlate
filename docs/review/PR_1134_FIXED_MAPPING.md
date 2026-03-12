@@ -40,6 +40,13 @@ Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:69`, `docs/roadmap/BACKLOG_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924396028 -> 6968236e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924396035 -> 6968236e
 
+Disposition: NOT-A-BUG
+Reason: These review-level bot comments are aggregate summaries of inline findings that were already mapped and resolved as individual actionable threads above. They do not add separate unfixed obligations beyond the referenced thread set.
+Evidence: `docs/review/PR_1134_FIXED_MAPPING.md:8`, `docs/review/PR_1134_FIXED_MAPPING.md:22`, `docs/review/PR_1134_FIXED_MAPPING.md:35`, `docs/review/PR_1134_FIXED_MAPPING.md:40`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#pullrequestreview-3936108469
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#pullrequestreview-3936139841
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#pullrequestreview-3936313553
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
