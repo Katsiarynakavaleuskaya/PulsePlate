@@ -278,100 +278,6 @@
 ### Request 15 (existing-file recapture: BMI)
 
 - Tool: `mcp__figma__generate_figma_design`
-
----
-
-# Follow-up Execution: Plate + Progress Parity
-
-## Session Metadata
-
-- Date: 2026-03-12
-- Operator: Codex agent + user session
-- Branch: `worktree/figma-ios-plate-progress-parity`
-- Local capture source root:
-  - `docs/figma/ios_prototype_v2/`
-- Existing Figma file:
-  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
-  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
-
-## Scope
-
-- add `iOS_Plate`
-- add `iOS_Progress`
-- keep the slice main-state only
-
-## Execution
-
-### Request 16 (local capture sources)
-
-- Local source updates:
-  - `docs/figma/ios_prototype_v2/plate.html`
-  - `docs/figma/ios_prototype_v2/progress.html`
-  - `docs/figma/ios_prototype_v2/styles.css`
-  - `docs/figma/ios_prototype_v2/index.html`
-- Result:
-  - added Plate and Progress capture sources in the shared iOS v2 lane
-  - kept `Add Meal` and `View Details` inside the main Plate surface only
-  - kept Progress recovery inside the main screen instead of creating extra
-    empty / issue artboards
-
-### Request 17 (existing-file capture: Plate)
-
-- Tool: `mcp__figma__generate_figma_design`
-- Arguments:
-  - `outputMode=existingFile`
-  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
-  - source URL `http://127.0.0.1:4175/plate.html`
-- Result:
-  - initial capture succeeded into exploratory node `26:2`
-  - screenshot validation showed MCP flattening of gradient-heavy primitives
-
-### Request 18 (existing-file capture: Progress)
-
-- Tool: `mcp__figma__generate_figma_design`
-- Arguments:
-  - `outputMode=existingFile`
-  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
-  - source URL `http://127.0.0.1:4175/progress.html`
-- Result:
-  - success
-  - canonical top-level frame `29:2`
-
-### Request 19 (Plate recapture pass)
-
-- Tool: `mcp__figma__generate_figma_design`
-- Arguments:
-  - `outputMode=existingFile`
-  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
-  - source URL `http://127.0.0.1:4175/plate.html`
-- Result:
-  - recaptured Plate after replacing unsupported gradient-heavy orbit primitives
-  - intermediate node `30:2` remained evidence-only
-
-### Request 20 (Plate final recapture)
-
-- Tool: `mcp__figma__generate_figma_design`
-- Arguments:
-  - `outputMode=existingFile`
-  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
-  - source URL `http://127.0.0.1:4175/plate.html`
-- Result:
-  - final canonical Plate node `31:2`
-  - heading/badge typography aligned to capture-safe width on the final pass
-
-### Request 21 (metadata and screenshot verification)
-
-- Tools:
-  - `mcp__figma__get_metadata(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="0:1")`
-  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="31:2")`
-  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="29:2")`
-- Result:
-  - success
-  - canonical mapping confirmed:
-    - `iOS_Plate -> 31:2`
-    - `iOS_Progress -> 29:2`
-  - screenshots confirm both screens now preserve the intended main-state layout
-    without duplicated scroll artifacts
 - Arguments:
   - `outputMode=existingFile`
   - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
@@ -549,3 +455,97 @@
 - Result:
   - success
   - visual sanity-check passed for the current refreshed slice
+
+---
+
+# Follow-up Execution: Plate + Progress Parity
+
+## Session Metadata
+
+- Date: 2026-03-12
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-plate-progress-parity`
+- Local capture source root:
+  - `docs/figma/ios_prototype_v2/`
+- Existing Figma file:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
+
+## Scope
+
+- add `iOS_Plate`
+- add `iOS_Progress`
+- keep the slice main-state only
+
+## Execution
+
+### Request 25 (local capture sources)
+
+- Local source updates:
+  - `docs/figma/ios_prototype_v2/plate.html`
+  - `docs/figma/ios_prototype_v2/progress.html`
+  - `docs/figma/ios_prototype_v2/styles.css`
+  - `docs/figma/ios_prototype_v2/index.html`
+- Result:
+  - added Plate and Progress capture sources in the shared iOS v2 lane
+  - kept `Add Meal` and `View Details` inside the main Plate surface only
+  - kept Progress recovery inside the main screen instead of creating extra
+    empty / issue artboards
+
+### Request 26 (existing-file capture: Plate)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - initial capture succeeded into exploratory node `26:2`
+  - screenshot validation showed MCP flattening of gradient-heavy primitives
+
+### Request 27 (existing-file capture: Progress)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/progress.html`
+- Result:
+  - success
+  - canonical top-level frame `29:2`
+
+### Request 28 (Plate recapture pass)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - recaptured Plate after replacing unsupported gradient-heavy orbit primitives
+  - intermediate node `30:2` remained evidence-only
+
+### Request 29 (Plate final recapture)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - final canonical Plate node `31:2`
+  - heading/badge typography aligned to capture-safe width on the final pass
+
+### Request 30 (metadata and screenshot verification)
+
+- Tools:
+  - `mcp__figma__get_metadata(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="0:1")`
+  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="31:2")`
+  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="29:2")`
+- Result:
+  - success
+  - canonical mapping confirmed:
+    - `iOS_Plate -> 31:2`
+    - `iOS_Progress -> 29:2`
+  - screenshots confirm both screens now preserve the intended main-state layout
+    without duplicated scroll artifacts
