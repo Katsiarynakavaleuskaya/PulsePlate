@@ -4,7 +4,7 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 Disposition: FIXED
 Commit: 30349022
 Evidence: `scripts/design/execution_adapters.py:106` and `scripts/design/execution_adapters.py:118` now derive `component_count` from the materialized render plan with a hierarchy-aware fallback, while `tests/test_design_generation_pipeline.py:199` locks the behavior.
