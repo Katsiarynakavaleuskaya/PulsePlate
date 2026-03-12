@@ -2,11 +2,14 @@
 
 ## Discussion Thread Pass
 - [x] Initial PR body aligned to project canon
-- [ ] Review-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Review-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-- No actionable review threads yet.
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1134_FIXED_MAPPING.md:3` records that PR #1134 is in its initial draft bootstrap state with no review threads yet, so the canonical mapping contains the required explicit no-actionable marker instead of unresolved placeholders.
+Reason: No actionable review comments exist yet on PR #1134.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Local gates passed on current head
