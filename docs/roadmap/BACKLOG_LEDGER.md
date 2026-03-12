@@ -866,7 +866,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: We have a docs-level orchestration baseline and role contracts, but runtime implementation must enforce
     bounded recursion (cost control), grounding/citations, uncertainty reporting, and wellness-safe language.
   - Links:
-    - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
     - `docs/orchestration/workflow.md` (canonical workflow; dev-only)
   - DoD:
     - RAG endpoints (if any) are tier-gated, rate-limited, and enforce monthly quota before provider calls
@@ -6007,11 +6007,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Preserve deterministic creative-research eval and pilot tests
 
 <a id="ledger-p2-sdl-audit-canonicalization-cleanup"></a>
-- [ ] P2: Canonicalize SDL audit artifact and reference path
+- [x] P2: Canonicalize SDL audit artifact and reference path
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1131`
-  - Status: 🟡 In progress
+  - Status: ✅ Completed in merged PR `#1131` on March 12, 2026
   - Reason (EN): the governed creative-research lane is already merged, but the SDL rationale artifact still uses
     `PR_TBD` identity and stale branch metadata while live orchestration docs reference it as a canonical rationale source.
     The placeholder artifact must be converted into a stable docs-only audit and all references must be repaired without
@@ -6020,14 +6020,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
     - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
     - `docs/orchestration/AGENT_CONTEXT_MAP.md`
-    - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
   - DoD:
     - The SDL audit no longer uses `PR_TBD` or stale branch lineage in its document metadata
     - The SDL audit is explicitly framed as a dev-only rationale artifact subordinate to the experimentation umbrella
     - All canonical references point to the non-placeholder SDL audit path
     - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
-  - Deferred:
-    - `docs/graph/graph.json` path rename is intentionally excluded from PR `#1131` because this lane stays inside the docs-only allowlist; if still needed, it must land in a separate graph-refresh PR.
+
+<a id="ledger-p2-uol-audit-canonicalization-cleanup"></a>
+- [ ] P2: Canonicalize universal orchestration audit artifact and reference path
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: branch `docs/universal-orchestration-audit-canonicalization`
+  - Status: 🟡 In progress
+  - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
+    and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale
+    layer aligned to current workflow and experimentation authorities.
+  - Links:
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `docs/graph/graph.json`
+  - DoD:
+    - The universal orchestration audit no longer uses `PR_TBD` identity or stale branch metadata
+    - Live docs and graph references point to the non-placeholder audit path
+    - The audit is explicitly framed as a rationale artifact subordinate to the workflow and experimentation SoTs
+    - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p2-pr1118-governance-closeout"></a>
 - [x] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass

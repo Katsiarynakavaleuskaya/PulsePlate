@@ -59,7 +59,7 @@ SDL is a conceptual framing layer. It supports `creative_research` but does not 
 
 ### Related audit (orchestration baseline)
 
-- `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md` (universal orchestration layer audit)
+- `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md` (universal orchestration layer audit)
 
 ---
 
