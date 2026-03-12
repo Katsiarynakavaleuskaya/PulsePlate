@@ -54,7 +54,7 @@ jobs:
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.1"
           bundler-cache: true
           working-directory: ios
 
@@ -111,7 +111,7 @@ jobs:
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.1"
           bundler-cache: true
           working-directory: ios
 
@@ -150,7 +150,7 @@ jobs:
 
       - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.1"
           bundler-cache: true
           working-directory: ios
 
