@@ -1117,6 +1117,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       backlog item, not this normalization/promotion item
 
 
+<a id="ledger-p1-ios-prototype-v2-bmi-onboarding-polish"></a>
+- [ ] P1: Polish `ios prototype v2` BMI + onboarding slice in a separate MCP lane
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR-TBD-FIGMA-IOS-BMI-ONBOARDING-POLISH
+  - Priority: P1
+  - Status: 📋 Planned
+  - Area: design / iOS / Figma polish
+  - Finding Type: runtime-aligned follow-up
+  - Reason: PR #1132 intentionally scopes the polish pass to `Home`, `Paywall`,
+    `Profile`, `Weekly Plan`, and `Shopping List`. `BMI` plus the two onboarding
+    screens must continue in a separate worktree/PR lane so the first polish PR
+    stays narrow and reviewable.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - PR #1132
+  - DoD:
+    - Dedicated worktree/branch exists for `BMI + Onboarding`
+    - MCP-only capture sources are refreshed for `iOS_BMI`,
+      `iOS_Onboarding_01_Welcome`, and `iOS_Onboarding_02_Value_Usage`
+    - Figma node map is updated only for those screens in the follow-up PR
+    - Follow-up PR includes its own `docs/review/PR_<N>_FIXED_MAPPING.md`
+      artifact and canonical PR-body mirror
+    - `pre-commit run --all-files` and `make verify` pass on the follow-up PR
+
+
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (contract-first unblocker)
