@@ -1,13 +1,20 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Code Connect Bridge Runbook (H+P+Pr)
 
-**Date:** March 7, 2026
+**Date:** March 12, 2026
 **Scope:** Bridge Figma to existing PulsePlate site for H+P+Pr CTA surfaces
-**Mode:** Make-first reconciliation + Design-file activation when URL is available
+**Mode:** Make-first reconciliation + Design-file activation when URL is available + repo-canonical production ownership
 
 ## 1) Purpose
 
 Define a deterministic, secure, and conflict-safe flow for connecting Figma components to real frontend/iOS code via Code Connect.
+
+## 1.1 Production ownership boundary
+
+- `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime (`deploy/docker-compose.production.yaml`, `deploy/Caddyfile.production`, `app.main:app`), not by Figma Sites.
+- GitHub connection inside Figma is allowed only as read-only code context or component discovery input.
+- Direct write/publish from Figma must not bypass the required worktree -> PR -> review -> deploy flow.
+- The current domain-first stream is web-first for `pulseplate.app`; iOS rows remain part of the shared mapping registry but do not drive production-domain ownership decisions.
 
 ## 2) Preconditions
 
@@ -26,6 +33,8 @@ Define a deterministic, secure, and conflict-safe flow for connecting Figma comp
    on Organization or Enterprise** per
    <https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect> and
    <https://developers.figma.com/docs/figma-mcp-server/skill-code-connect-components/>.
+   MCP `whoami` was re-checked on March 12, 2026 and still reports a `Full`
+   seat on `pro`, so activation remains plan-blocked.
    Internal blocker tracking remains in
    `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:20`.
 6. Activation prerequisites remain true:
@@ -42,6 +51,7 @@ Define a deterministic, secure, and conflict-safe flow for connecting Figma comp
 - Build mapping candidates only (status `blocked_by_design_url`).
 - Do not attempt final Code Connect submission.
 - Do not use Make file key as Design key surrogate.
+- Do not treat Figma Make or Figma Sites as the deployment owner of `pulseplate.app`.
 
 ### 3.2 Activation stage (Design URL available)
 
@@ -87,6 +97,7 @@ If unresolved, record decision in:
 - No medical claims/diagnostic framing in prompts attached to mapping records.
 - Keep anti-copycat and anti-drift constraints active.
 - Do not map to experimental non-canonical components that bypass existing route/auth contracts.
+- Do not use Figma GitHub integration as a write path or publish bypass for production runtime changes.
 
 ## 8) Blocker Protocol
 

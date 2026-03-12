@@ -140,9 +140,14 @@
 **DNS** → **Records**:
 
 - Добавьте A-запись: `@` → `your-server-ip` → **Proxied** (оранжевое облако) ✅
-- Добавьте A-запись: `www` → `your-server-ip` → **Proxied** ✅
+- Предпочтительно добавьте `CNAME`: `www` → `pulseplate.app` → **Proxied** ✅
+  Если CNAME недоступен в вашей схеме, используйте отдельную A-запись `www` → `your-server-ip`.
+- Удалите конфликтующие apex `AAAA` записи, если production root остаётся на текущем repo-backed runtime.
+- Не подключайте `pulseplate.app` или `www.pulseplate.app` к Figma Sites, пока live app/API обслуживаются текущим production stack.
 
 **Важно:** Проксирование (Proxied) включает DDoS защиту и кеширование.
+
+**Важно для Figma custom domains:** если нужен Figma-hosted preview, вынесите его на отдельный preview subdomain. Не смешивайте root-domain ownership между Cloudflare/Caddy production и Figma Sites.
 
 ### 7. API Tokens (для автоматизации)
 
@@ -168,6 +173,7 @@
 - [ ] Rate limiting на admin endpoints (10 req/min)
 - [ ] Bot Fight Mode включён (soft)
 - [ ] DNS записи с **Proxied** (оранжевое облако)
+- [ ] Нет конфликтующего apex `AAAA` record для active production ownership
 - [ ] API Token создан (scope: только DNS для вашей зоны)
 
 ## 🔍 Проверка

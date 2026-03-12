@@ -100,6 +100,7 @@ The production Caddy configuration is located at:
 
 It already contains a complete and secure reverse proxy setup using the `{$PRODUCTION_DOMAIN}` environment variable and does not need to be created manually.
 It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (default: `pulseplate-staging.duckdns.org`) used during build-only phases.
+It now also terminates `www.<domain>` and permanently redirects it to the apex production host so Cloudflare can issue/validate TLS consistently for both names.
 
 **To use it on the production server:**
 
@@ -121,6 +122,35 @@ It also contains a staging TLS fallback vhost for `STAGING_FALLBACK_DOMAIN` (def
 
 **Note:** The Caddyfile uses `{$PRODUCTION_DOMAIN}` which must be set in your `.env` file or exported as an environment variable when starting the compose stack.
 
+## Canonical Production Domain Ownership
+
+`pulseplate.app` and `www.pulseplate.app` are owned by the repo-backed production runtime:
+
+- `deploy/docker-compose.production.yaml`
+- `deploy/Caddyfile.production`
+- `app.main:app`
+
+Do **not** hand the root production host to Figma Sites while the live app/API still runs on this stack.
+
+- Allowed: Figma Make / Design as source material, design review, mapping prep, and optional read-only GitHub context.
+- Forbidden: direct Figma publish/write path that bypasses worktree isolation, PR review, GHCR image build, or the server deploy contract.
+- If a public Figma-hosted preview is still needed, use a dedicated preview subdomain instead of `pulseplate.app` or `www.pulseplate.app`.
+
+### DNS Contract for Repo-Canonical Production
+
+- Apex record: `A @ -> <production-origin-ip>` through Cloudflare proxy.
+- `www` record: prefer `CNAME www -> pulseplate.app` through Cloudflare proxy.
+- Remove conflicting apex `AAAA` records left by other hosters or abandoned custom-domain attempts before validating the active production topology.
+- Do not mix apex/root ownership between the repo runtime and Figma Sites.
+
+### Troubleshooting `www` TLS Drift
+
+If `https://pulseplate.app` works but `https://www.pulseplate.app` returns `525`, verify all of the following together:
+
+1. Cloudflare DNS for `www` points to the repo-owned production origin and not to a Figma Sites flow.
+2. `deploy/Caddyfile.production` contains a dedicated `www` vhost that can issue a certificate and redirect to apex.
+3. Cloudflare SSL mode remains `Full (strict)` and the origin is serving a valid certificate for both apex and `www`.
+
 ## Required Environment Variables
 
 The following environment variables must be set in your `.env` file or exported in the shell:
@@ -132,7 +162,7 @@ The following environment variables must be set in your `.env` file or exported 
 Example `.env` file:
 
 ```bash
-PRODUCTION_DOMAIN=api.pulseplate.com
+PRODUCTION_DOMAIN=pulseplate.app
 STAGING_FALLBACK_DOMAIN=pulseplate-staging.duckdns.org
 IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
 # Add other application-specific variables here

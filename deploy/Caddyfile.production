@@ -1,3 +1,9 @@
+www.{$PRODUCTION_DOMAIN} {
+    # RU: `www` должен выпускать сертификат и всегда редиректить на apex.
+    # EN: `www` must terminate TLS and permanently redirect to apex.
+    redir https://{$PRODUCTION_DOMAIN}{uri} permanent
+}
+
 {$PRODUCTION_DOMAIN} {
     encode gzip
     reverse_proxy app:8000
