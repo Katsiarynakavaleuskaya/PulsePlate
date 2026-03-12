@@ -300,19 +300,19 @@ def _required_snapshot(
     return snapshot
 
 
-def _suppress_cancelled_latest_entries_with_newer_workflow_activity(
+def _suppress_stale_latest_entries_with_newer_workflow_activity(
     entries: list[CheckEntry],
     latest: dict[str, CheckEntry],
     superseded: list[CheckEntry],
 ) -> tuple[dict[str, CheckEntry], list[CheckEntry]]:
-    """Demote cancelled latest entries when a newer run from the same workflow exists.
+    """Demote stale latest entries when a newer run from the same workflow exists.
 
-    RU: Если job из текущего head был отменен из-за concurrency, но тот же workflow
-    уже успел выпустить более новый activity на этом же SHA, cancelled status не
-    должен считаться latest signal для merge triage.
-    EN: If a current-head job was cancelled by workflow concurrency, but the same
-    workflow has already emitted newer activity on the same SHA, that cancelled
-    status is stale noise and should move to the superseded bucket.
+    RU: Если у того же workflow на этом же SHA уже есть более новый activity,
+    older status из предыдущего workflow run не должен считаться latest signal
+    даже если новое выполнение ещё не выпустило тот же job name.
+    EN: If the same workflow has newer activity on the same SHA, an older status
+    from a previous workflow run is stale noise even when the newer run has not
+    emitted that exact job name yet.
     """
 
     newest_workflow_marker: dict[str, tuple[str, str]] = {}
@@ -327,7 +327,7 @@ def _suppress_cancelled_latest_entries_with_newer_workflow_activity(
     filtered_latest = dict(latest)
     updated_superseded = list(superseded)
     for name, entry in list(filtered_latest.items()):
-        if entry.conclusion != "CANCELLED" or not entry.workflow_name:
+        if not entry.workflow_name:
             continue
         latest_workflow_marker = newest_workflow_marker.get(entry.workflow_name)
         if latest_workflow_marker and latest_workflow_marker > (entry.timestamp, entry.details_url):
@@ -399,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
 
     normalized_entries = [_normalize_node(node) for node in nodes if node]
     latest, superseded = _latest_entries(normalized_entries)
-    latest, superseded = _suppress_cancelled_latest_entries_with_newer_workflow_activity(
+    latest, superseded = _suppress_stale_latest_entries_with_newer_workflow_activity(
         normalized_entries,
         latest,
         superseded,

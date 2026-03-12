@@ -50,15 +50,15 @@ def test_required_snapshot_adds_pending_placeholder_for_missing_required_check()
     ]
 
 
-def test_cancelled_latest_is_demoted_when_same_workflow_has_newer_activity() -> None:
-    cancelled_latest = current_head_checks.CheckEntry(
+def test_stale_latest_entry_is_demoted_when_same_workflow_has_newer_activity() -> None:
+    stale_latest = current_head_checks.CheckEntry(
         name="coverage-pr",
         source_kind="check_run",
         state="failed",
         timestamp="2026-03-12T08:36:42Z",
         details_url="https://example.invalid/cancelled",
         workflow_name="CI",
-        conclusion="CANCELLED",
+        conclusion="FAILURE",
     )
     newer_workflow_activity = current_head_checks.CheckEntry(
         name="Docs Phase1 gates",
@@ -71,18 +71,18 @@ def test_cancelled_latest_is_demoted_when_same_workflow_has_newer_activity() -> 
     )
 
     latest, superseded = current_head_checks._latest_entries(
-        [cancelled_latest, newer_workflow_activity]
+        [stale_latest, newer_workflow_activity]
     )
     filtered_latest, updated_superseded = (
-        current_head_checks._suppress_cancelled_latest_entries_with_newer_workflow_activity(
-            [cancelled_latest, newer_workflow_activity],
+        current_head_checks._suppress_stale_latest_entries_with_newer_workflow_activity(
+            [stale_latest, newer_workflow_activity],
             latest,
             superseded,
         )
     )
 
     assert "coverage-pr" not in filtered_latest
-    assert cancelled_latest in updated_superseded
+    assert stale_latest in updated_superseded
 
 
 def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_superseded(
