@@ -1,12 +1,13 @@
 # Monthly PR Analysis for PulsePlate (February–March 2026)
 
-**Snapshot date:** 9 March 2026
+**Snapshot date:** 11 March 2026
 **Window covered:** 4 February 2026 to 9 March 2026 (inclusive)
 **Method:** agent-orchestrated repo review + merged PR scan + backlog/top-20 cross-check
 **Primary sources:** `gh pr list`, `git log`, `docs/roadmap/BACKLOG_LEDGER.md`, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`, `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
 **Backfill note:** PR `#1063` merged on `10 March 2026`, one day after the fixed snapshot window. It is referenced below only as a post-window closure backfill for the session-cookie lane, not as a change to the 4 February 2026 through 9 March 2026 review window.
+**Backfill note:** [#1106](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106), [#1112](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112), [#1118](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118), [#1124](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124), and [#1126](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1126) completed the governed creative-research lane after the fixed snapshot window. [#1112](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112) merged into the PR-A branch on `11 March 2026` and entered `main` through [#1106](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106); the remaining lane PRs merged directly on `11 March 2026`. They are summarized below as a post-window closure backfill and do not change the original 4 February 2026 to 9 March 2026 review scope.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
@@ -146,6 +147,20 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 3. **Governance overhead was intentional:** merge-readiness, disposition discipline, and ledger sync consumed real throughput, but they also reduced long-term PR entropy.
 4. **Thin-scope discipline:** several larger ideas were kept split into baseline vs runtime vs follow-up, which lowered immediate risk at the cost of more docs/ledger work.
 
+### 2.4 Post-Window Backfill: Creative Research Lane
+
+The governed creative-research lane closed immediately after the fixed snapshot window and is now fully merged in `main`.
+
+| PR | Wave | Backfill status |
+|----|------|-----------------|
+| `#1106` | PR-A docs/protocol | merged on `11 March 2026`; established the governed sub-lane inside the existing experimentation contour |
+| `#1112` | PR-B offline eval | merged into the PR-A branch on `11 March 2026`; entered `main` through `#1106` while adding deterministic offline scoring, contracts, and negative controls |
+| `#1118` | PR-C internal pilot | merged on `11 March 2026`; added the internal-only, feature-flagged pilot surface hidden from public OpenAPI |
+| `#1124` | hardening follow-up | merged on `11 March 2026`; tightened typed core domain contracts without widening runtime scope |
+| `#1126` | ledger closeout | merged on `11 March 2026`; closed the remaining creative-research ledger follow-through and synced the canonical docs trail |
+
+**Why this matters:** this lane landed as a research/moat capability, not as a release-blocker runtime track. It followed the repo's governed experimentation pattern end-to-end: docs/protocol first, offline eval second, internal-only pilot third, then a narrow type-hardening and closeout pass.
+
 ## 3. Planning Signals From the Window
 
 ### 3.1 Now Bucket
@@ -196,4 +211,4 @@ This section reflects the queue state from `docs/orchestration/TOP20_PR_RECOVERY
 
 ---
 
-*Generated on 9 March 2026 from repo-local sources and merged PR history. This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*
+*Generated on 11 March 2026 from repo-local sources and merged PR history. This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*
