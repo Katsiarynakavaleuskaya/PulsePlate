@@ -87,6 +87,65 @@ def test_local_mode_fetches_pr_body_when_not_provided(
     )
 
 
+def test_fetch_pr_body_uses_gh_auth_status_when_env_token_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        run_calls.append(argv)
+        if argv[-2:] == ["auth", "status"]:
+            return merge_ready.subprocess.CompletedProcess(argv, 0, stdout="logged in", stderr="")
+        return merge_ready.subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(merge_ready, "_github_cli_path", lambda: "/usr/local/bin/gh")
+    monkeypatch.setattr(merge_ready.subprocess, "run", fake_run)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    body = merge_ready._fetch_pr_body(1129, "Katsiarynakavaleuskaya/PulsePlate")
+
+    assert body.startswith("## Discussion Thread Pass")
+    assert run_calls[0] == ["/usr/local/bin/gh", "auth", "status"]
+    assert run_calls[1][:4] == ["/usr/local/bin/gh", "pr", "view", "1129"]
+
+
+def test_local_mode_turns_fetch_pr_body_failure_into_gate_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = {
+        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
+        "current-head-checks": _ok_result("current-head-checks", []),
+        "review-threads-disposition": _ok_result("review-threads-disposition", []),
+    }
+
+    monkeypatch.setattr(
+        merge_ready,
+        "_run_gate",
+        lambda name, script_path, extra_args: results[name],
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: (_ for _ in ()).throw(RuntimeError("gh auth failed")),
+    )
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "[FAIL] phase2-pr-body-gates" in captured.out
+    assert "gh auth failed" in captured.out
+    assert "Failing gates: phase2-pr-body-gates" in captured.out
+
+
 def test_event_mode_passes_require_auth_only_to_disposition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

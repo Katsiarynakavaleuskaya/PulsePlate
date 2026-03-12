@@ -34,6 +34,13 @@ class GateResult:
     stderr: str
 
 
+@dataclass(frozen=True)
+class PreGateFailure:
+    """Deterministic pre-execution gate failure before a subprocess can run."""
+
+    message: str
+
+
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Enforce CI vs local mode contract for the wrapper CLI."""
 
@@ -100,9 +107,23 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
 
     env = os.environ.copy()
     if not (env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")):
-        raise RuntimeError(
-            "GH_TOKEN or GITHUB_TOKEN is required to fetch PR body for local merge checks."
+        auth_status = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-06-30, ref: PR-1129)
+            [_github_cli_path(), "auth", "status"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=RUN_TIMEOUT_SEC,
+            env=env,
         )
+        if auth_status.returncode != 0:
+            stderr = (
+                auth_status.stderr.strip() or auth_status.stdout.strip() or "unknown gh auth error"
+            )
+            raise RuntimeError(
+                "GH_TOKEN/GITHUB_TOKEN is unset and gh auth status failed; "
+                f"run `gh auth login` or export GH_TOKEN. Details: {stderr}"
+            )
     argv = [
         _github_cli_path(),
         "pr",
@@ -130,10 +151,13 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
     return result.stdout
 
 
-def _phase2_args(args: argparse.Namespace) -> list[str]:
+def _phase2_args(args: argparse.Namespace) -> list[str] | PreGateFailure:
     if args.event_path:
         return ["--event-path", args.event_path]
-    body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
+    try:
+        body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
+    except RuntimeError as exc:
+        return PreGateFailure(str(exc))
     phase2_args = ["--pr-number", str(args.pr_number)]
     phase2_args.extend(["--body", body])
     return phase2_args
@@ -209,6 +233,18 @@ def _print_gate_output(result: GateResult) -> None:
         print(result.stderr)
 
 
+def _pre_gate_failure_result(name: str, argv: list[str], failure: PreGateFailure) -> GateResult:
+    """Convert local preparation failure into normal gate output."""
+
+    return GateResult(
+        name=name,
+        argv=argv,
+        returncode=1,
+        stdout="",
+        stderr=failure.message,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run canonical PR governance gates and emit a single merge verdict."
@@ -241,8 +277,19 @@ def main(argv: list[str] | None = None) -> int:
     parsed = parser.parse_args(argv)
     _validate_args(parsed, parser)
 
+    phase2_args = _phase2_args(parsed)
+    phase2_result = (
+        _pre_gate_failure_result(
+            "phase2-pr-body-gates",
+            [sys.executable, str(PHASE2_GATE)],
+            phase2_args,
+        )
+        if isinstance(phase2_args, PreGateFailure)
+        else _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)
+    )
+
     gate_results = [
-        _run_gate("phase2-pr-body-gates", PHASE2_GATE, _phase2_args(parsed)),
+        phase2_result,
         _run_gate("merge-readiness-gate", MERGE_GATE, _merge_gate_args(parsed)),
         _run_gate(
             "current-head-checks",
