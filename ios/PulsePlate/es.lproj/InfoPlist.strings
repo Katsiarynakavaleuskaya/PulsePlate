@@ -1,6 +1,6 @@
 /* Spanish Info.plist Localization */
-"NSHealthShareUsageDescription" = "PulsePlate necesita acceso a los datos de salud para mostrar tu progreso nutricional y calcular tu IMC.";
-"NSHealthUpdateUsageDescription" = "PulsePlate necesita acceso para actualizar tus datos de salud con información nutricional.";
+"NSHealthShareUsageDescription" = "PulsePlate lee nutrición y peso corporal de Health para mostrar progreso y planificación wellness con tu consentimiento.";
+"NSHealthUpdateUsageDescription" = "PulsePlate lee nutrición y peso corporal de Health para mostrar progreso y planificación wellness con tu consentimiento.";
 "NSCameraUsageDescription" = "PulsePlate necesita acceso a la cámara para escanear códigos de barras de productos alimenticios.";
 "NSLocationWhenInUseUsageDescription" = "PulsePlate necesita acceso a la ubicación para encontrar tiendas cercanas y productos locales.";
 "NSPhotoLibraryUsageDescription" = "PulsePlate necesita acceso a la biblioteca de fotos para guardar y compartir tus planes de comidas.";

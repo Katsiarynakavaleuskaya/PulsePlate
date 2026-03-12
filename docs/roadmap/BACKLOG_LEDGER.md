@@ -611,6 +611,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
     - App Store release-ops and compliance docs link back to the same monetization governance source
 
+<a id="ledger-p1-ios-appstore-assets-rollout"></a>
+- [ ] P1: iOS App Store assets rollout and protected ASC environment activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSETS-ROLLOUT
+  - Status: 📋 Planned
+  - Area: iOS / release-ops / App Store Connect / compliance
+  - Finding Type: release-ops activation follow-up
+  - Reason (EN): Fastlane lanes, localized metadata, screenshot validators, and manual GitHub Actions workflows can now be versioned and validated in-repo, but the protected App Store Connect rollout remains intentionally deferred until environment secrets, Apple session auth, and the first draft upload/review cycle are exercised in a controlled release-ops PR.
+  - Links:
+    - `ios/fastlane/Fastfile`
+    - `ios/fastlane/app_privacy_details.json`
+    - `ios/fastlane/metadata/review_information/notes.txt`
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-app-store-subscription-offers-governance`
+  - DoD:
+    - Protected GitHub environments contain the required ASC API key, bundle identifier, and Apple session secrets
+    - `workflow_dispatch` upload of localized metadata and screenshots completes against App Store Connect draft state
+    - App Privacy upload succeeds through the protected Apple session lane
+    - First release-ops runbook captures the reviewer-notes and rollback procedure for future asset refreshes
+
 <a id="ledger-p1-release-env-security-contract"></a>
 - [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
   - Owner: @katsiaryna_kavaleuskaya

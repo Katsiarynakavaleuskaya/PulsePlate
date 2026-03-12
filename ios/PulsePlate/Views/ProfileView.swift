@@ -14,6 +14,10 @@ struct ProfileView: View {
     @AppStorage("pro_profile_activity") private var proActivity: String = ProProfileActivity.moderate.rawValue
     @AppStorage("pro_profile_goal") private var proGoal: String = ProProfileGoal.maintain.rawValue
 
+    private var isAppStoreScreenshotMode: Bool {
+        AppStoreScreenshotContext.isEnabled
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -57,15 +61,17 @@ struct ProfileView: View {
                 Section(header: Text(localization.localized("profile_language_section"))) {
                     Text(localization.localized("profile_language_value"))
                 }
-                Section(header: Text("Animation Test")) {
-                    Button("Test MP4 Animation") {
-                        showAnimationTest = true
-                    }
-                    Button("Test Bundle Files") {
-                        showBundleTest = true
-                    }
-                    Button("Test Lottie Animation") {
-                        // TODO: Add Lottie test
+                if !isAppStoreScreenshotMode {
+                    Section(header: Text("Animation Test")) {
+                        Button("Test MP4 Animation") {
+                            showAnimationTest = true
+                        }
+                        Button("Test Bundle Files") {
+                            showBundleTest = true
+                        }
+                        Button("Test Lottie Animation") {
+                            // TODO: Add Lottie test
+                        }
                     }
                 }
                 Section(header: Text(localization.localized("profile_legal_section"))) {
@@ -85,6 +91,7 @@ struct ProfileView: View {
                 BundleTestView()
             }
             .accessibilityLabel(localization.localized("profile_screen_accessibility_label"))
+            .appStoreScreenshotRoot("appstore.profile.screen")
         }
     }
 }

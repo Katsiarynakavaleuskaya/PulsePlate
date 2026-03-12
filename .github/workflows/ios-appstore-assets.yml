@@ -1,0 +1,173 @@
+name: ios-appstore-assets
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-appstore-assets.yml"
+      - "Makefile"
+      - ".gitignore"
+      - "tests/test_ios_appstore_asset_validators.py"
+  workflow_dispatch:
+    inputs:
+      upload_to_asc:
+        description: "Upload metadata and screenshots to App Store Connect draft"
+        required: false
+        default: false
+        type: boolean
+      upload_app_privacy:
+        description: "Upload App Privacy answers with Apple ID session auth"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  validate-assets:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          CANDIDATES=(
+            "/Applications/Xcode_16.4.app/Contents/Developer"
+            "/Applications/Xcode_16.4.0.app/Contents/Developer"
+            "/Applications/Xcode_16.3.app/Contents/Developer"
+            "/Applications/Xcode_16.3.0.app/Contents/Developer"
+            "/Applications/Xcode_16.2.app/Contents/Developer"
+            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer"
+          )
+
+          for candidate in "${CANDIDATES[@]}"; do
+            if [ -d "$candidate" ]; then
+              echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              echo "Using Xcode at $candidate"
+              exit 0
+            fi
+          done
+
+          echo "::error::No supported Xcode installation found"
+          exit 1
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Capture screenshots
+        working-directory: ios
+        env:
+          LC_ALL: en_US.UTF-8
+          LANG: en_US.UTF-8
+        run: bundle exec fastlane ios snapshot_all
+
+      - name: Validate assets
+        working-directory: ios
+        run: bundle exec fastlane ios validate_assets
+
+      - name: Upload screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-appstore-screenshots
+          path: ios/fastlane/screenshots
+          if-no-files-found: warn
+
+  upload-assets:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_to_asc
+    needs: validate-assets
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: appstore-assets
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          for candidate in \
+            /Applications/Xcode_16.4.app/Contents/Developer \
+            /Applications/Xcode_16.4.0.app/Contents/Developer \
+            /Applications/Xcode_16.3.app/Contents/Developer \
+            /Applications/Xcode_16.3.0.app/Contents/Developer \
+            /Applications/Xcode_16.2.app/Contents/Developer \
+            /Applications/Xcode_16.2.0.app/Contents/Developer \
+            /Applications/Xcode.app/Contents/Developer; do
+            if [ -d "$candidate" ]; then
+              echo "DEVELOPER_DIR=$candidate" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "::error::No supported Xcode installation found"
+          exit 1
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Capture screenshots
+        working-directory: ios
+        env:
+          LC_ALL: en_US.UTF-8
+          LANG: en_US.UTF-8
+        run: bundle exec fastlane ios snapshot_all
+
+      - name: Validate assets
+        working-directory: ios
+        run: bundle exec fastlane ios validate_assets
+
+      - name: Upload metadata and screenshots
+        working-directory: ios
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: bundle exec fastlane ios upload_metadata_and_screenshots
+
+  upload-app-privacy:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_app_privacy
+    needs: validate-assets
+    runs-on: macos-15
+    timeout-minutes: 30
+    environment: appstore-privacy
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install gems
+        working-directory: ios
+        run: bundle install
+
+      - name: Validate metadata and privacy package
+        working-directory: ios
+        run: bundle exec fastlane ios validate_assets
+
+      - name: Upload App Privacy
+        working-directory: ios
+        env:
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+          FASTLANE_TEAM_NAME: ${{ secrets.FASTLANE_TEAM_NAME }}
+          APP_STORE_BUNDLE_IDENTIFIER: ${{ secrets.APP_STORE_BUNDLE_IDENTIFIER }}
+        run: bundle exec fastlane ios upload_app_privacy

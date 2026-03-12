@@ -1,0 +1,1 @@
+This release refreshes localized App Store assets, screenshots, and review guidance for PulsePlate.

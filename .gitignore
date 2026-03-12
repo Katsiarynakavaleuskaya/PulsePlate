@@ -388,3 +388,10 @@ docs/audit/_local/**
 docs/audit/*.tmp.md
 docs/audit/*.draft.md
 .derivedData/
+ios/.derivedDataSnapshot/
+ios/.bundle/
+ios/fastlane/screenshots/
+ios/fastlane/report.xml
+ios/fastlane/Preview.html
+ios/fastlane/test_output/
+ios/vendor/bundle/
