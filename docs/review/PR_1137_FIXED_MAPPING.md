@@ -10,11 +10,11 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1137_FIXED_MAPPING.md:13
 Reason: The aggregate CodeRabbit review shell is satisfied by the concrete mapped thread disposition recorded below; no additional unresolved action remains at the review-shell level.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137#discussion_r2924907968 -> 97aeb3c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137#discussion_r2924907968 -> c8cd0a4e
 Disposition: FIXED
-Commit: 97aeb3c9
+Commit: c8cd0a4e
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:6035
-Evidence: docs/roadmap/BACKLOG_LEDGER.md:6036
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:6038
 
 ## Merge Readiness
 - [ ] Local gates passed on current head
