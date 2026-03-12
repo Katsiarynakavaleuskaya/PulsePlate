@@ -343,6 +343,18 @@ def test_validate_canvas_artifact_rejects_duplicate_render_op_component_ids() ->
     assert any("Duplicate canvas render_op component_id" in error for error in errors)
 
 
+def test_validate_canvas_artifact_rejects_render_op_name_drift() -> None:
+    payload = generate_figma_instructions.instruction_to_dict(
+        generate_figma_instructions.generate_screen_instruction("web.progress")
+    )
+    canvas_artifact = build_canvas_artifact(payload)
+    canvas_artifact["render_ops"][0]["name"] = "Drifted Name"
+
+    errors = validate_canvas_artifact_contract(canvas_artifact, payload)
+
+    assert "canvas render_ops do not match instruction operations" in errors
+
+
 def test_verify_screen_distinguishes_not_executed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

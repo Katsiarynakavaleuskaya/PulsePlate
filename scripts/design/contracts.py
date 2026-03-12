@@ -765,6 +765,7 @@ def validate_canvas_artifact_contract(
     instruction_ops = {
         str(item["component_id"]): {
             "instruction_type": item["type"],
+            "name": item["name"],
             "canonical_component": item["canonical_component"],
             "section_id": item["section_id"],
             "parent_component_id": item["parent_component_id"],
@@ -778,6 +779,7 @@ def validate_canvas_artifact_contract(
     canvas_ops = {
         str(render_op["component_id"]): {
             "instruction_type": render_op["instruction_type"],
+            "name": render_op["name"],
             "canonical_component": render_op["canonical_component"],
             "section_id": render_op["section_id"],
             "parent_component_id": render_op["parent_component_id"],
