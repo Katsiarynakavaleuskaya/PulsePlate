@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import importlib
+import sys
+from types import ModuleType
 from typing import Any, Protocol
 
 
 class SchedulerLike(Protocol):
     async def force_update(self, source: str | None = None) -> dict[str, Any]: ...
+
+
+BackgroundUpdateCallable = Callable[..., Any]
 
 
 def make_scheduler_stub(usda_result: Any = None) -> SchedulerLike:
@@ -41,6 +47,87 @@ def patch_app_get_update_scheduler(monkeypatch: Any, app_module: Any, scheduler:
     monkeypatch.setattr(
         legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler, raising=False
     )
+
+
+def _iter_background_modules() -> tuple[ModuleType, ...]:
+    """Return unique module aliases consulted by background update resolvers."""
+
+    import app as app_module
+
+    modules: list[ModuleType] = [app_module]
+    try:
+        legacy_app_mod = importlib.import_module("legacy_app")
+    except ModuleNotFoundError as exc:
+        if exc.name != "legacy_app":
+            raise
+        legacy_app_mod = None
+    if isinstance(legacy_app_mod, ModuleType):
+        modules.append(legacy_app_mod)
+    app_module_alias = sys.modules.get("app_module")
+    if isinstance(app_module_alias, ModuleType):
+        modules.append(app_module_alias)
+
+    unique_modules: list[ModuleType] = []
+    seen: set[int] = set()
+    for module in modules:
+        module_id = id(module)
+        if module_id in seen:
+            continue
+        seen.add(module_id)
+        unique_modules.append(module)
+    return tuple(unique_modules)
+
+
+def _patch_background_module_attr(
+    monkeypatch: Any,
+    module: ModuleType,
+    attr_name: str,
+    value: BackgroundUpdateCallable,
+) -> None:
+    """Patch app facade via module dict and legacy aliases via setattr cleanup."""
+
+    if module.__name__ == "app":
+        monkeypatch.setitem(module.__dict__, attr_name, value)
+        return
+    monkeypatch.setattr(module, attr_name, value, raising=False)
+
+
+def patch_background_update_callables(
+    monkeypatch: Any,
+    *,
+    start: BackgroundUpdateCallable | None = None,
+    stop: BackgroundUpdateCallable | None = None,
+) -> None:
+    """
+    Patch background update callables across facade and legacy aliases.
+    Applies the same callable to `app`, `legacy_app`, and `app_module`.
+    """
+    for module in _iter_background_modules():
+        if start is not None:
+            _patch_background_module_attr(monkeypatch, module, "start_background_updates", start)
+        if stop is not None:
+            _patch_background_module_attr(monkeypatch, module, "stop_background_updates", stop)
+
+
+def patch_background_update_scheduler_targets(
+    monkeypatch: Any,
+    *,
+    start: BackgroundUpdateCallable | None = None,
+    stop: BackgroundUpdateCallable | None = None,
+) -> None:
+    """
+    Patch scheduler backend targets across facade and legacy aliases.
+    Keeps wrapper tests stable when resolver precedence changes between aliases.
+    """
+    for module in _iter_background_modules():
+        if start is not None:
+            _patch_background_module_attr(
+                monkeypatch, module, "_scheduler_start_background_updates", start
+            )
+        if stop is not None:
+            _patch_background_module_attr(
+                monkeypatch, module, "_scheduler_stop_background_updates", stop
+            )
 
 
 def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:

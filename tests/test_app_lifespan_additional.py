@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import AsyncMock, patch
 
 import app
 from app.bootstrap import startup_guards as bootstrap_guards
+from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
 @pytest.mark.asyncio
@@ -38,36 +40,25 @@ async def test_lifespan_validate_template_generic_error(monkeypatch: pytest.Monk
 
 @pytest.mark.asyncio
 async def test_lifespan_background_update_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
-    monkeypatch.setitem(lifespan_globals, "validate_template_dir", lambda: None)
+    import legacy_app
 
-    async def failing_start(*args, **kwargs):
-        raise RuntimeError("failure")
+    failing_start = AsyncMock(side_effect=RuntimeError("failure"))
+    noop_stop = AsyncMock(return_value=None)
 
-    async def noop_stop():
-        return None
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    monkeypatch.delenv("DISABLE_BACKGROUND_UPDATES", raising=False)
 
-    monkeypatch.setitem(lifespan_globals, "start_background_updates", failing_start)
-    monkeypatch.setitem(lifespan_globals, "stop_background_updates", noop_stop)
+    patch_background_update_callables(monkeypatch, start=failing_start, stop=noop_stop)
 
-    # Ensure module attribute on sys.modules["app"] matches using safe monkeypatching
-    import sys
+    with (
+        patch.object(legacy_app, "init_db", return_value=None),
+        patch.object(legacy_app, "validate_template_dir", return_value=None),
+    ):
+        # Should suppress the failing start call and still enter context
+        async with app.lifespan(app.app):
+            pass
 
-    app_mod = sys.modules.get("app")
-    if app_mod is not None:
-        monkeypatch.setattr(app_mod, "start_background_updates", failing_start, raising=False)
-        monkeypatch.setattr(app_mod, "stop_background_updates", noop_stop, raising=False)
-    app_module_mod = sys.modules.get("app_module")
-    if app_module_mod is not None:
-        monkeypatch.setattr(
-            app_module_mod, "start_background_updates", failing_start, raising=False
-        )
-        monkeypatch.setattr(app_module_mod, "stop_background_updates", noop_stop, raising=False)
-
-    # Should suppress the failing start call and still enter context
-    async with app.lifespan(app.app):
-        pass
+    failing_start.assert_awaited_once_with(update_interval_hours=24)
 
 
 @pytest.mark.asyncio

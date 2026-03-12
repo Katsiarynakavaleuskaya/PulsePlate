@@ -15,6 +15,7 @@ from starlette.types import ASGIApp
 # Import the canonical FastAPI app (registers metrics, etc.)
 from app.main import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
 @pytest.mark.slow
@@ -30,13 +31,17 @@ class TestLifespanEvents:
     async def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan startup."""
         from app import lifespan
+        import legacy_app
 
         mock_app = MagicMock()
         monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+        mock_start = Mock(return_value=AsyncMock())
+        patch_background_update_callables(monkeypatch, start=mock_start)
 
-        with patch("legacy_app.start_background_updates") as mock_start:
-            mock_start.return_value = AsyncMock()
-
+        with (
+            patch.object(legacy_app, "init_db", return_value=None),
+            patch.object(legacy_app, "validate_template_dir", return_value=None),
+        ):
             async with lifespan(mock_app):
                 # Verify startup was called
                 mock_start.assert_called_once_with(update_interval_hours=24)
@@ -45,13 +50,17 @@ class TestLifespanEvents:
     async def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan startup with failure."""
         from app import lifespan
+        import legacy_app
 
         mock_app = MagicMock()
         monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+        mock_start = Mock(side_effect=Exception("Startup failed"))
+        patch_background_update_callables(monkeypatch, start=mock_start)
 
-        with patch("legacy_app.start_background_updates") as mock_start:
-            mock_start.side_effect = Exception("Startup failed")
-
+        with (
+            patch.object(legacy_app, "init_db", return_value=None),
+            patch.object(legacy_app, "validate_template_dir", return_value=None),
+        ):
             # Should not raise exception, just log error
             async with lifespan(mock_app):
                 mock_start.assert_called_once_with(update_interval_hours=24)
@@ -60,17 +69,18 @@ class TestLifespanEvents:
     async def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan shutdown."""
         from app import lifespan
+        import legacy_app
 
         mock_app = MagicMock()
         monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+        mock_start = Mock(return_value=AsyncMock())
+        mock_stop = Mock(return_value=AsyncMock())
+        patch_background_update_callables(monkeypatch, start=mock_start, stop=mock_stop)
 
         with (
-            patch("legacy_app.start_background_updates") as mock_start,
-            patch("legacy_app.stop_background_updates") as mock_stop,
+            patch.object(legacy_app, "init_db", return_value=None),
+            patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            mock_start.return_value = AsyncMock()
-            mock_stop.return_value = AsyncMock()
-
             async with lifespan(mock_app):
                 pass
 
@@ -81,17 +91,18 @@ class TestLifespanEvents:
     async def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan shutdown with failure."""
         from app import lifespan
+        import legacy_app
 
         mock_app = MagicMock()
         monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+        mock_start = Mock(return_value=AsyncMock())
+        mock_stop = Mock(side_effect=Exception("Shutdown failed"))
+        patch_background_update_callables(monkeypatch, start=mock_start, stop=mock_stop)
 
         with (
-            patch("legacy_app.start_background_updates") as mock_start,
-            patch("legacy_app.stop_background_updates") as mock_stop,
+            patch.object(legacy_app, "init_db", return_value=None),
+            patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            mock_start.return_value = AsyncMock()
-            mock_stop.side_effect = Exception("Shutdown failed")
-
             # Should not raise exception, just log error
             async with lifespan(mock_app):
                 pass

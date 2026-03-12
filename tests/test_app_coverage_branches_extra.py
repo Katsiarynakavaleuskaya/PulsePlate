@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 import app
+from tests.helpers.fast_update_stubs import patch_background_update_scheduler_targets
 from app.utils import nutrition_wrappers as nw
 
 
@@ -26,9 +27,7 @@ def test_background_updates_wrappers_force_sync_under_pytest(
     # Instead of patching global asyncio.get_running_loop, we'll simulate the condition
     # by temporarily setting an environment variable that forces sync mode
     with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "1"}):
-        # Use monkeypatch to safely set and automatically restore the functions
-        monkeypatch.setitem(app.__dict__, "_scheduler_start_background_updates", fake_start)
-        monkeypatch.setitem(app.__dict__, "_scheduler_stop_background_updates", fake_stop)
+        patch_background_update_scheduler_targets(monkeypatch, start=fake_start, stop=fake_stop)
 
         app.start_background_updates(update_interval_hours=12)
         app.stop_background_updates()
