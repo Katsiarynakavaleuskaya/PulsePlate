@@ -51,7 +51,8 @@ health-check:
 unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
-PIP ?= . .venv/bin/activate && pip
+VENV_PYTHON ?= .venv/bin/python
+PIP ?= $(VENV_PYTHON) -m pip
 
 # Цвета для вывода
 GREEN := \033[0;32m
@@ -68,6 +69,7 @@ help:
 
 ## Create & install venv deps + setup automation
 venv: ## Create venv, install requirements & setup git hooks
+	@test -x $(VENV_PYTHON) || python3 -m venv .venv
 	$(PIP) install -U pip
 	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
 	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
@@ -77,6 +79,14 @@ venv: ## Create venv, install requirements & setup git hooks
 	chmod +x scripts/*.sh
 	./scripts/setup_git_aliases.sh
 	@echo "$(GREEN)✅ Окружение готово!$(NC)"
+
+## Refresh locked dependencies inside the existing .venv
+venv-sync: ## Refresh .venv from locked requirements without recreating it
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	$(PIP) install -U pip
+	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
+	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
+	@echo "$(GREEN)✅ .venv refreshed from locked requirements$(NC)"
 
 ## Setup automation only (git hooks & aliases)
 setup-automation: ## Setup pre-commit hooks and git aliases
@@ -118,7 +128,7 @@ cov-check: ## Check coverage >= 97%
 diff-cov: ## Check diff coverage >= 97% against origin/main
 	@echo "$(YELLOW)📊 Проверка diff-coverage >=97%...$(NC)"
 	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
-	diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
+	. .venv/bin/activate && diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
 	@echo "$(GREEN)✅ Diff-coverage соответствует требованиям$(NC)"
 
 ## Typecheck with mypy (no cache for clean runs)
@@ -127,11 +137,18 @@ typecheck: ## Run mypy typecheck on app and core
 	. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null app core
 	@echo "$(GREEN)✅ Типы корректны$(NC)"
 
+## Fail-fast local dependency parity check for make verify
+verify-env: ## Check .venv for verify-critical locked dependencies
+	@echo "$(YELLOW)🧰 Проверка parity локального verify-окружения...$(NC)"
+	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)" && exit 1)
+	$(VENV_PYTHON) scripts/ci/check_local_verify_environment.py
+	@echo "$(GREEN)✅ Verify-окружение готово$(NC)"
+
 ## Full verification gate (all checks must pass before push)
 ## NOTE: Currently runs pytest twice (test-fast + diff-cov). Optimization possible via
 ## single coverage run + diff-cover on existing XML. Keeping as-is for simplicity;
 ## can be optimized in a follow-up PR if runtime becomes a bottleneck.
-verify: lint typecheck test-fast diff-cov ## Run all gates: lint + typecheck + tests + diff-coverage
+verify: verify-env lint typecheck test-fast diff-cov ## Run all gates: env + lint + typecheck + tests + diff-coverage
 	@echo "$(GREEN)🎉 Все проверки пройдены! Ready for push.$(NC)"
 
 # --- App Icon L4 silhouette control ------------------------------------------
@@ -250,7 +267,7 @@ cov-html: ## Generate HTML coverage and open in browser
 ## Lint (flake8)
 lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	flake8 .
+	. .venv/bin/activate && flake8 .
 
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort
@@ -460,4 +477,4 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
+.PHONY: all help venv venv-sync setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list

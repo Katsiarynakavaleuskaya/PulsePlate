@@ -217,6 +217,28 @@ This metrics section provides **quantitative targets**; the evaluation contract 
 
 ## Pre-push hygiene checklist (mandatory)
 
+## Clean-Clone Verify Parity
+
+If `make verify` fails before the real code gates because the clean-clone `.venv`
+is incomplete, use the canonical repo recovery path:
+
+```bash
+make venv
+make verify
+```
+
+If `.venv` already exists but drift is suspected, refresh it from the locked
+requirements before retrying:
+
+```bash
+make venv-sync
+make verify
+```
+
+`make verify` now starts with `verify-env`, a non-mutating preflight that fails
+fast when verify-critical modules such as `opentelemetry-*`, `flake8`,
+`diff-cover`, `coverage`, `pytest`, or `mypy` are missing from `.venv`.
+
 Run from repo root before any push/PR:
 
 1. `git status --porcelain` → must be empty (or only intentional expected files)
