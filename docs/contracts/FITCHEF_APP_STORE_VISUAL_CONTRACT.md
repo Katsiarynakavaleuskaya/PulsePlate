@@ -251,7 +251,7 @@ Rules:
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:59`
 - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:108`
 - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`
-- `docs/design/TOKENS_SOT.md:13`
+- `docs/design/TOKENS_SOT.md:18`
 - `docs/design/TOKENS_SOT.md:28`
 - `ios/PulsePlate/Assets.xcassets/FitChef.imageset/Contents.json:1`
 - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json:1`
