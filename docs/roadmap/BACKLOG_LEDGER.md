@@ -6142,19 +6142,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Final merge-readiness / wait-window evidence is recorded before merge
 
 <a id="ledger-p2-phase2-body-artifact-sync"></a>
-- [ ] P2: Eliminate PR body and mapping artifact phase2 drift
+- [x] P2: Eliminate PR body and mapping artifact phase2 drift
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_PHASE2_BODY_ARTIFACT_SYNC
+  - Target PR: PR #1139 (`fix/pr12-phase2-artifact-sync`)
   - Area: orchestration / CI governance
   - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
+  - Status: ✅ Merged via PR #1139 on 12 March 2026 (`ff834517548bfb5bc4d59cb67f9f42da2db09cf7`)
   - Links:
     - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `scripts/orchestration/check_merge_ready.py`
+    - `scripts/orchestration/review_mapping_artifact.py`
     - `docs/review/PR_1102_FIXED_MAPPING.md`
+    - `docs/review/PR_1139_FIXED_MAPPING.md`
     - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
   - DoD:
-    - Phase2 body mirror is generated or validated from a single canonical source
-    - Late review-cycle updates no longer require manual duplication of mapping lines
+    - Phase2 artifact is the merge-blocking SoT when `pr_number` is available
+    - PR body mirror is optional and no longer creates late-cycle mapping duplication failures
+    - The mirror helper validates the canonical artifact before rendering a PR-body block
     - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
 
 <a id="ledger-p2-clean-clone-dependency-parity"></a>
