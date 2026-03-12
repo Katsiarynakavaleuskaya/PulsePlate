@@ -9,7 +9,7 @@ python3 scripts/check_domain_tls.py --domain pulseplate.app
 ```
 
 Ожидаемое healthy-состояние:
-- apex отвечает приложением
+- apex отвечает приложением и отдаёт один из ожидаемых статусов (`200/301/302/303/307/308/405`)
 - `www` отдаёт `301/302/307/308` на `https://pulseplate.app`
 
 Если script показывает `www ... 525`, переходите к origin-side диагностике ниже.
@@ -71,14 +71,14 @@ grep PRODUCTION_DOMAIN /srv/pulseplate-production/.env || echo "PRODUCTION_DOMAI
 
 ### ✅ Порты 80/443 слушаются
 Должно быть:
-```
+```text
 LISTEN  0  4096  0.0.0.0:80  0.0.0.0:*  users:(("caddy",pid=12345,fd=3))
 LISTEN  0  4096  0.0.0.0:443  0.0.0.0:*  users:(("caddy",pid=12345,fd=4))
 ```
 
 ### ✅ Контейнеры запущены
 Должно быть:
-```
+```text
 NAMES          IMAGE          PORTS                    STATUS
 caddy          caddy:2.7.6     0.0.0.0:80->80/tcp...    Up X minutes
 app            ghcr.io/...     8000/tcp                 Up X minutes

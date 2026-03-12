@@ -19,6 +19,7 @@ SUCCESS_EXIT_CODE = 0
 DRIFT_EXIT_CODE = 1
 EXPECTED_APEX_STATUSES = frozenset({200, 301, 302, 303, 307, 308, 405})
 EXPECTED_WWW_STATUSES = frozenset({301, 302, 307, 308})
+EXPECTED_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 FIGMA_SITES_HOST = "sites.figma.net"
 
 
@@ -133,6 +134,11 @@ def _collect_dns_answers(hostname: str, record_type: str) -> tuple[str, ...]:
     dig_path = shutil.which("dig")
     if dig_path:
         return _dig_answers(dig_path, hostname, record_type)
+    if record_type == "CNAME":
+        raise RuntimeError(
+            "dig is required to inspect CNAME ownership drift; install dig and rerun "
+            "the diagnostic."
+        )
     if record_type == "A":
         return _socket_answers(hostname, socket.AF_INET)
     if record_type == "AAAA":
@@ -150,6 +156,7 @@ def _parse_http_probe(stdout: str, url: str) -> HttpProbe:
         if not line:
             continue
         if line.upper().startswith("HTTP/"):
+            headers = {}
             parts = line.split()
             if len(parts) >= 2 and parts[1].isdigit():
                 status_code = int(parts[1])
@@ -226,6 +233,15 @@ def evaluate_report(report: DomainReport) -> list[str]:
             f"Apex HTTPS probe returned unexpected status {report.apex_probe.status_code} "
             f"for https://{report.domain}."
         )
+    elif report.apex_probe.status_code in EXPECTED_REDIRECT_STATUSES:
+        location = report.apex_probe.headers.get("location", "")
+        if not location:
+            findings.append("Apex redirect response is missing the Location header.")
+        elif not _is_expected_redirect(location, report.domain):
+            findings.append(
+                f"Apex redirect points to unexpected target {location!r}; "
+                "expected the repo-owned apex host."
+            )
 
     if not report.www_a and not report.www_cname:
         findings.append(f"www host does not resolve via A or CNAME for www.{report.domain}.")

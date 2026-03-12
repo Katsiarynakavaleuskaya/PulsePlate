@@ -160,7 +160,7 @@
    - `www` остаётся **Proxied** repo-owned record (`CNAME www -> pulseplate.app` предпочтительно)
    - `www` не должен указывать на Figma Sites
 3. Проверьте SSL/TLS mode в Cloudflare: только **Full (strict)**.
-4. На origin выполните `bash scripts/diagnose_production.sh`, чтобы проверить Caddy, контейнеры и сертификат для apex + `www`.
+4. На origin выполните `bash scripts/diagnose_production.sh`, чтобы проверить Caddy, контейнеры и origin-конфигурацию для apex + `www`.
 5. Только после live-подтверждения healthy redirect обновляйте evidence в repo и закрывайте remediation PR.
 
 **Запрещено:** маскировать `525` через `Flexible` или другой downgrade SSL mode.

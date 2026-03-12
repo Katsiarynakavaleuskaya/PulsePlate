@@ -1029,11 +1029,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
 <a id="ledger-p1-domain-ownership-canonicalization"></a>
-- [x] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
+- [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR/Www-TLS-Operator-Assist
+  - Target PR: PR `#1141` (`fix(deploy): add www TLS remediation diagnostics`)
   - Priority: P1
-  - Status: Completed on March 12, 2026; repo diagnostic landed, external apex `AAAA` drift was removed, and live origin remediation restored the `www -> apex` `308` redirect
+  - Status: In progress on March 12, 2026; live remediation is complete, and the item stays open until PR `#1141` clears merge governance and lands on `main`
   - Area: deploy / figma / frontend
   - Finding Type: production ownership drift
   - Reason: On March 12, 2026 the repo-backed runtime still answered on
