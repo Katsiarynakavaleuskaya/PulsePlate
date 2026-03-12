@@ -13,6 +13,8 @@ Screens:
 - `shopping-list.html` -> `iOS_ShoppingList`
 - `bmi.html` -> `iOS_BMI`
 - `profile.html` -> `iOS_Profile`
+- `plate.html` -> `iOS_Plate`
+- `progress.html` -> `iOS_Progress`
 
 Rules for capture:
 
@@ -37,6 +39,8 @@ Current canonical screen map:
 - `iOS_ShoppingList` -> `18:2`
 - `iOS_Profile` -> `13:2`
 - `iOS_BMI` -> `24:2`
+- `iOS_Plate` -> `31:2`
+- `iOS_Progress` -> `29:2`
 
 Follow-up artifacts:
 
@@ -52,3 +56,7 @@ Note:
   file after dedicated polish passes; the older node IDs (`1:2`, `3:2`,
   `8:2`, `23:2`, `22:2`, `21:2`) remain historical only and should not be used
   as the latest handoff reference.
+- On March 12, 2026 the `Plate + Progress` parity slice was added with
+  `iOS_Plate -> 31:2` and `iOS_Progress -> 29:2`; intermediate plate recaptures
+  (`26:2`, `30:2`) remain historical only and should not be used as the latest
+  handoff reference.
