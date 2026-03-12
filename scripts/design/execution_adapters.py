@@ -101,6 +101,9 @@ class CodeNativeCanvasExecutionAdapter:
             for inst in instructions_list
             if isinstance(inst, dict)
         ]
+        component_count = len(render_plan)
+        if isinstance(hierarchy, list) and hierarchy:
+            component_count = max(component_count, len(hierarchy))
 
         return {
             "screen_id": screen_id,
@@ -110,7 +113,7 @@ class CodeNativeCanvasExecutionAdapter:
             "layout_archetype": instruction.get("layout_archetype"),
             "layout_pattern": instruction.get("layout_pattern"),
             "section_count": len(sections) if isinstance(sections, list) else 0,
-            "component_count": len(hierarchy) if isinstance(hierarchy, list) else 0,
+            "component_count": component_count,
             "adapter_name": self.adapter_name,
             "adapter_mode": self.adapter_mode,
             "simulation_mode": "code_native_render_plan_stub",

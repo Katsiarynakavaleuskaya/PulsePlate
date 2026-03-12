@@ -386,4 +386,7 @@ def build_reusable_layout_template(
 ) -> ReusableLayoutTemplate:
     """Resolve one reusable layout template for a concrete screen id."""
 
-    return REUSABLE_LAYOUT_TEMPLATE_REGISTRY[template_key](screen_id)
+    template_builder = REUSABLE_LAYOUT_TEMPLATE_REGISTRY.get(template_key)
+    if template_builder is None:
+        raise ValueError(f"Unsupported layout template '{template_key}' for screen '{screen_id}'")
+    return template_builder(screen_id)

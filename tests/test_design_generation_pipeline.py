@@ -179,6 +179,7 @@ def test_execute_instruction_supports_code_native_canvas_adapter() -> None:
     assert result["adapter_name"] == "code_native_canvas"
     assert result["adapter_mode"] == "render_plan"
     assert result["simulation_mode"] == "code_native_render_plan_stub"
+    assert result["component_count"] == len(result["render_plan"])
     assert result["mcp_calls"][0]["tool"] == "code_native.render_plan"
     assert len(result["render_plan"]) == len(payload["instructions"])
 
@@ -189,6 +190,11 @@ def test_reusable_layout_template_registry_reuses_hero_shell() -> None:
     assert template["layout_sections"][0]["id"] == "hero-band"
     assert template["static_component_tree"][0]["id"] == "ios-home-shell"
     assert template["static_component_tree"][1]["canonical_component"] == "hero"
+
+
+def test_reusable_layout_template_registry_rejects_unknown_key() -> None:
+    with pytest.raises(ValueError, match="Unsupported layout template"):
+        build_reusable_layout_template("unknown_template", "web.home")
 
 
 def test_verify_screen_distinguishes_not_executed(
