@@ -113,13 +113,16 @@
         <h2>Embedded recovery</h2>
         <p class="section-copy">
           Если данных ещё нет или API вернул issue, main surface показывает
-          аккуратный recovery block с действием Refresh или переходом в
-          профиль или PRO setup, без отдельного empty-state экрана.
+          аккуратный recovery block с одним runtime-selected CTA, без отдельного
+          empty-state экрана.
         </p>
-        <div class="dual-action-row compact-actions">
-          <button class="primary-button" type="button">Refresh</button>
-          <button class="ghost-button" type="button">Open profile</button>
+        <div class="single-action-row compact-actions">
+          <button class="primary-button" type="button">Open PRO setup</button>
         </div>
+        <p class="screen-footer-note">
+          Для transport/API issue этот CTA становится `Refresh`, а для profile
+          gating переключается на `Open profile`.
+        </p>
       </section>
     </main>
   </body>

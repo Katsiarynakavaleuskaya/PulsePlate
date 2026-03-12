@@ -89,7 +89,8 @@ Repo sources used:
   embedded segment detail, visible `Add Meal` / `View Details` CTAs, and a
   mascot support layer without creating separate destination screens (`ios/PulsePlate/Views/PlateView.swift:54-211`).
 - Progress now mirrors the runtime completion summary, chart, and daily segment
-  list while keeping refresh / profile recovery inside the same main surface (`ios/PulsePlate/Views/ProgressView.swift:130-242`).
+  list while keeping a single runtime-selected recovery CTA inside the same
+  main surface (`ios/PulsePlate/Views/ProgressView.swift:130-242`).
 - On March 12, 2026 the Plate slice was re-captured twice to replace
   gradient-heavy primitives that MCP flattened poorly; canonical handoff now
   points to `31:2`, not the earlier exploratory nodes `26:2` or `30:2`.

@@ -128,15 +128,17 @@
       <section class="glass-card muted-card">
         <h2>Calm recovery guidance</h2>
         <p class="section-copy">
-          Если нет ключа, профиля или backend-ответа, recovery action остаётся
-          внутри main screen как спокойный issue card, а не как отдельный
-          fail-state artboard.
+          Если нет ключа, профиля или backend-ответа, issue card остаётся внутри
+          main screen и показывает только одно runtime-selected действие, а не
+          набор параллельных recovery CTA.
         </p>
-        <div class="summary-strip">
-          <span class="summary-pill warn">Retry</span>
-          <span class="summary-pill">Open profile</span>
-          <span class="summary-pill">PRO settings</span>
+        <div class="single-action-row">
+          <button class="ghost-button" type="button">Open PRO setup</button>
         </div>
+        <p class="screen-footer-note">
+          На других issue paths этот единственный CTA заменяется на `Retry` или
+          `Open profile`, как и в текущем SwiftUI runtime.
+        </p>
       </section>
 
       <section class="floating-action-bar">

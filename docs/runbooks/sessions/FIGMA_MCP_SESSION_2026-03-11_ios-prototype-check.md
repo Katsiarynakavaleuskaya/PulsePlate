@@ -489,8 +489,8 @@
 - Result:
   - added Plate and Progress capture sources in the shared iOS v2 lane
   - kept `Add Meal` and `View Details` inside the main Plate surface only
-  - kept Progress recovery inside the main screen instead of creating extra
-    empty / issue artboards
+  - kept Plate/Progress recovery inside the main screen with one runtime-selected
+    primary action instead of extra empty / issue artboards
 
 ### Request 26 (existing-file capture: Plate)
 

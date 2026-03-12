@@ -22,11 +22,6 @@ Evidence: `docs/figma/ios_prototype_v2/home.html:2` and `docs/figma/ios_prototyp
 Reason: The remaining high-level language note in the Sourcery review is consistent with the existing localized iOS prototype convention; the actionable structural part of that review is tracked separately and fixed above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1138#pullrequestreview-3937179944
 
-Local validation evidence on current head `4053286e`:
-- `git diff --check`
-- `pre-commit run --all-files`
-- `make verify`
-
 ## Merge Readiness
 - [x] Local gates passed on current head
 - [ ] All required checks green
@@ -35,3 +30,12 @@ Local validation evidence on current head `4053286e`:
 - [ ] Sourcery PASS / no-actionables
 - [ ] Cubic PASS / no-actionables
 - [ ] Wait-window after latest bot/review activity observed
+
+Local validation evidence on current content:
+- `git diff --check`
+- `pre-commit run --all-files`
+- `make lint`
+- `mypy --no-incremental --cache-dir=/dev/null app core`
+- `make test-fast`
+- `coverage run -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3`
+- `diff-cover coverage.xml --compare-branch=origin/main --fail-under=97`
