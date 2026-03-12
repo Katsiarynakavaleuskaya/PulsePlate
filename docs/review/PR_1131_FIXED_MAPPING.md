@@ -33,6 +33,13 @@ Commit: 2202c980
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:5997
 Reason: `docs/graph/graph.json` was removed from the PR so the lane stays inside the markdown-only docs scope.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923078191 -> 2202c980
+Disposition: FIXED
+Commit: 2202c980
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:5992
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:5998
+Reason: The ledger DoD remains explicitly docs-only and the non-markdown `docs/graph/graph.json` rename was excluded from this PR and deferred to a separate graph-refresh follow-up.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1131#discussion_r2923039901
 Disposition: NOT-A-BUG
 Evidence: PR body section `Deferred / Follow-ups`
