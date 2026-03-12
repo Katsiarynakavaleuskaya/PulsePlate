@@ -26,12 +26,12 @@ Repo sources used:
 | Canonical screen ID | nodeId | Status |
 | --- | --- | --- |
 | `iOS_Onboarding_01_Welcome` | `1:2` | reconciled |
-| `iOS_Paywall_Pro_VIP` | `2:2` | reconciled |
+| `iOS_Paywall_Pro_VIP` | `17:2` | reconciled |
 | `iOS_Onboarding_02_Value_Usage` | `3:2` | reconciled |
-| `iOS_Home` | `4:2` | reconciled |
-| `iOS_ShoppingList` | `5:2` | reconciled |
-| `iOS_WeeklyPlan_Reader` | `6:2` | reconciled |
-| `iOS_Profile` | `7:2` | reconciled |
+| `iOS_Home` | `11:2` | reconciled |
+| `iOS_ShoppingList` | `18:2` | reconciled |
+| `iOS_WeeklyPlan_Reader` | `15:2` | reconciled |
+| `iOS_Profile` | `13:2` | reconciled |
 | `iOS_BMI` | `8:2` | reconciled |
 
 ## Component-by-Component Gaps
@@ -64,17 +64,23 @@ Repo sources used:
   input -> result -> optional soft paywall hook.
 - Profile now exists as a calm PRO-setup surface rather than remaining only a
   technical form implementation.
+- Home no longer relies on the temporary `PRO active` chip; it now uses a
+  readiness-summary treatment closer to the runtime status-card pattern.
+- Paywall now keeps the PRO / VIP comparison but expresses plan selection in a
+  calmer StoreKit-list anatomy instead of marketing-heavy tier blocks.
+- Profile now uses a neutral `sex` default and separate `height` / `weight`
+  rows so the design reference better matches the actual form fields.
+- Weekly Plan now reflects the runtime day navigator and plan-metrics layer.
+- Shopping List now reflects runtime footer / warning anatomy more directly.
 
 ### Remaining Gaps
 
 - Captured frame names remain MCP-generated `Main Content (...)`; canonical
   naming is preserved through the recorded `screen ID -> nodeId` map.
-- Home still uses a `PRO active` chip in the prototype instead of a more native
-  status summary treatment from final implementation components.
-- Paywall is structurally aligned with runtime intent but still not StoreKit-card
-  accurate.
-- Weekly Plan and Shopping List in v2 are design-reference screens, not direct
-  mirrors of current runtime list/table anatomy.
+- Paywall is closer to runtime intent but still keeps a richer comparison layer
+  than the current minimal SwiftUI `List`.
+- Weekly Plan and Shopping List remain design-reference screens rather than
+  exact runtime state machines for `idle/loading/empty/error`.
 - BMI and Profile still simplify some runtime detail states to keep the design
   reference focused on the main UX path.
 

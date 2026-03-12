@@ -16,16 +16,21 @@
 
       <div class="top-row">
         <span class="screen-label">iOS_Home</span>
-        <span class="ghost-chip">PRO active</span>
+        <span class="status-summary-label">2 readiness states</span>
       </div>
 
       <section class="glass-card">
         <p class="eyebrow">Calm control panel</p>
-        <h1 class="headline">PulsePlate</h1>
+        <h1 class="headline">PulsePlate Home</h1>
         <p class="subheadline">
           Домашний экран, где всё важное видно сразу: быстрые действия, вход в PRO-инструменты
           и мягкий брендовый слой без визуального шума.
         </p>
+
+        <div class="summary-strip">
+          <span class="summary-pill success">PRO key configured</span>
+          <span class="summary-pill success">Profile ready</span>
+        </div>
 
         <div class="status-grid">
           <div class="status-tile">
@@ -34,17 +39,7 @@
           </div>
           <div class="status-tile">
             <p class="status-kicker">Profile</p>
-            <p class="status-value"><span class="status-dot warn"></span>Нужно уточнить</p>
-          </div>
-        </div>
-
-        <div class="fitchef-inline">
-          <div class="fitchef-mark small" aria-hidden="true">
-            <div class="fitchef-heart"></div>
-          </div>
-          <div>
-            <strong>FitChef</strong>
-            <span>Подсвечивает следующий шаг, но не спорит с главным контентом экрана.</span>
+            <p class="status-value"><span class="status-dot"></span>Ready</p>
           </div>
         </div>
       </section>
@@ -80,6 +75,14 @@
       <p class="section-heading">PRO tools</p>
       <section class="quick-list">
         <div class="quick-row">
+          <div class="icon">◔</div>
+          <div>
+            <h4>AI Insight</h4>
+            <p>Опциональный PRO surface для guided reflection и более глубоких инсайтов.</p>
+          </div>
+          <span class="row-badge blue">PRO</span>
+        </div>
+        <div class="quick-row">
           <div class="icon">▣</div>
           <div>
             <h4>Недельный план</h4>
@@ -96,6 +99,16 @@
           <span class="row-badge green">PRO</span>
         </div>
       </section>
+
+      <div class="fitchef-inline footer-callout">
+        <div class="fitchef-mark small" aria-hidden="true">
+          <div class="fitchef-heart"></div>
+        </div>
+        <div>
+          <strong>FitChef</strong>
+          <span>Подсвечивает следующий шаг через mascot bubble, а не через конкурирующий hero-элемент.</span>
+        </div>
+      </div>
 
       <p class="screen-footer-note">
         VIP не вынесен в отдельную home-кнопку: он появляется в paywall и в gated follow-up surfaces.
