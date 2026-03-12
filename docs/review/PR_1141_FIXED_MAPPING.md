@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments yet.
+- No actionable review comments
 
 ## Deferred / Follow-ups
 - Live domain remediation remains external to the repo patch: `www.pulseplate.app` still returns `525` as of March 12, 2026 and must redirect cleanly to apex before this PR can become merge-ready.
