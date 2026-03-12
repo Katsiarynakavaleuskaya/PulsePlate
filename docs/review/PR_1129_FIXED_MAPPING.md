@@ -45,6 +45,11 @@ Commit: ce5a5e69
 Evidence: `ce5a5e69` narrows `mergeStateStatus` blocking to the metadata-unavailable fallback path in `scripts/ci/check_current_head_pr_checks.py:380-387`, while preserving current-head blocking for required pending or failed checks, and adds regression coverage for the clean-required / non-clean-merge-state pass case plus the metadata-unavailable failure case in `tests/test_current_head_pr_checks.py:139-211`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690699 -> ce5a5e69
 
+Disposition: FIXED
+Commit: 42a914b9
+Evidence: `42a914b9` keeps the merge-readiness checkbox `Local hard gate passed (\`make verify\`)` unchecked in `docs/review/PR_1129_FIXED_MAPPING.md:49-52` until the actual final merge cycle, which matches the review-governance contract and prevents premature readiness claims inside the canonical artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690697 -> 42a914b9
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
