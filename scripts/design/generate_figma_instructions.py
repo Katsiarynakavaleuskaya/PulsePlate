@@ -23,6 +23,11 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from scripts.design.contracts import validate_instruction_contract
+from scripts.design.layout_templates import (
+    ComponentNodeTemplate,
+    LayoutSectionTemplate,
+    build_reusable_layout_template,
+)
 
 # Project root for resolving paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -93,27 +98,11 @@ class ComponentNodeSpec:
     source_ref: str
 
 
-class LayoutSectionTemplate(TypedDict):
-    id: str
-    name: str
-    role: str
-    components: list[str]
-
-
-class ComponentNodeTemplate(TypedDict):
-    id: str
-    canonical_component: str
-    section_id: str
-    parent_id: str | None
-    hierarchy_level: int
-    semantic_role: str
-    source_ref: str
-
-
 class ScreenContentModel(TypedDict):
     surface: str
     layout_archetype: str
     layout_pattern: str
+    layout_template_key: str
     layout_sections: list[LayoutSectionTemplate]
     static_component_tree: list[ComponentNodeTemplate]
     cta_section_id: str
@@ -150,6 +139,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "ios_home_screen",
         "layout_archetype": "hero_shell",
         "layout_pattern": "hero-plus-quick-actions",
+        "layout_template_key": "hero_actions",
         "layout_sections": [
             {
                 "id": "hero-band",
@@ -237,6 +227,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "ios_plate_screen",
         "layout_archetype": "content_shell",
         "layout_pattern": "content-card-with-primary-actions",
+        "layout_template_key": "content_actions",
         "layout_sections": [
             {
                 "id": "plate-summary",
@@ -318,6 +309,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "ios_progress_screen",
         "layout_archetype": "dashboard_shell",
         "layout_pattern": "dashboard-summary-stack",
+        "layout_template_key": "dashboard_recovery",
         "layout_sections": [
             {
                 "id": "progress-summary",
@@ -390,6 +382,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "web_home_screen",
         "layout_archetype": "hero_shell",
         "layout_pattern": "hero-plus-status-grid",
+        "layout_template_key": "hero_actions",
         "layout_sections": [
             {
                 "id": "hero-band",
@@ -477,6 +470,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "web_plate_screen",
         "layout_archetype": "content_shell",
         "layout_pattern": "content-card-with-upgrade-actions",
+        "layout_template_key": "content_actions",
         "layout_sections": [
             {
                 "id": "plate-summary",
@@ -516,8 +510,8 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
                 "section_id": "plate-summary",
                 "parent_id": "web-plate-summary-card",
                 "hierarchy_level": 2,
-                "semantic_role": "premium_state",
-                "source_ref": "static:web-plate-badge",
+                "semantic_role": "gate_state",
+                "source_ref": "template:web.plate:badge",
             },
             {
                 "id": "web-plate-progress",
@@ -543,8 +537,8 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
                 "section_id": "plate-actions",
                 "parent_id": "web-plate-action-panel",
                 "hierarchy_level": 2,
-                "semantic_role": "upgrade_explainer",
-                "source_ref": "static:web-plate-dialog",
+                "semantic_role": "secondary_details",
+                "source_ref": "template:web.plate:dialog",
             },
         ],
         "cta_section_id": "plate-actions",
@@ -558,6 +552,7 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
         "surface": "web_progress_screen",
         "layout_archetype": "dashboard_shell",
         "layout_pattern": "dashboard-detail-stack",
+        "layout_template_key": "dashboard_recovery",
         "layout_sections": [
             {
                 "id": "progress-header",
@@ -878,14 +873,19 @@ def get_ctas_for_screen(screen_id: str) -> list[CTASpec]:
 
 
 def build_layout_sections(
+    screen_id: str,
     content_model: ScreenContentModel,
     component_tree: list[ComponentNodeSpec],
 ) -> list[LayoutSectionSpec]:
     """Materialize layout sections for the instruction payload."""
+    template_payload = build_reusable_layout_template(
+        content_model["layout_template_key"],
+        screen_id,
+    )
+    layout_sections = template_payload["layout_sections"]
     component_ids_by_section: dict[str, list[str]] = {}
     for node in component_tree:
         component_ids_by_section.setdefault(node.section_id, []).append(node.component_id)
-
     return [
         LayoutSectionSpec(
             section_id=section["id"],
@@ -893,15 +893,20 @@ def build_layout_sections(
             role=section["role"],
             component_ids=component_ids_by_section.get(section["id"], []),
         )
-        for section in content_model["layout_sections"]
+        for section in layout_sections
     ]
 
 
 def build_component_tree(
+    screen_id: str,
     content_model: ScreenContentModel,
     ctas: list[CTASpec],
 ) -> list[ComponentNodeSpec]:
     """Build a flat component tree with parent links and CTA nodes."""
+    template_payload = build_reusable_layout_template(
+        content_model["layout_template_key"],
+        screen_id,
+    )
     component_tree = [
         ComponentNodeSpec(
             component_id=node["id"],
@@ -912,7 +917,7 @@ def build_component_tree(
             semantic_role=node["semantic_role"],
             source_ref=node["source_ref"],
         )
-        for node in content_model["static_component_tree"]
+        for node in template_payload["static_component_tree"]
     ]
 
     parent_levels = {node.component_id: node.hierarchy_level for node in component_tree}
@@ -964,8 +969,8 @@ def generate_screen_instruction(screen_id: str) -> ScreenInstruction:
     if content_model is None:
         raise ValueError(f"No content model found for screen: {screen_id}")
 
-    component_tree = build_component_tree(content_model, ctas)
-    layout_sections = build_layout_sections(content_model, component_tree)
+    component_tree = build_component_tree(screen_id, content_model, ctas)
+    layout_sections = build_layout_sections(screen_id, content_model, component_tree)
 
     return ScreenInstruction(
         screen_id=screen_id,

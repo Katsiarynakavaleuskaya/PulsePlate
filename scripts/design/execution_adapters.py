@@ -52,7 +52,7 @@ class DeterministicStubExecutionAdapter:
             results["mcp_calls"].append(
                 {
                     "adapter": self.adapter_name,
-                    "tool": f"figma.{inst_type}",
+                    "tool": f"design_runtime.{inst_type}",
                     "params": {"name": inst_name},
                     "status": "simulated",
                 }
@@ -76,8 +76,81 @@ class DeterministicStubExecutionAdapter:
         return results
 
 
+@dataclass(frozen=True)
+class CodeNativeCanvasExecutionAdapter:
+    """Code-native design runtime stub for future agent-owned rendering."""
+
+    adapter_name: str = "code_native_canvas"
+    adapter_mode: str = "render_plan"
+
+    def execute(self, instruction: dict[str, Any]) -> dict[str, Any]:
+        screen_id = instruction.get("screen_id", "unknown")
+        sections = instruction.get("sections", [])
+        # Render operations are instruction-driven by design; hierarchy stays as a
+        # metric/control surface so counts never under-report sparse payloads.
+        hierarchy = instruction.get("component_hierarchy", [])
+        instructions_list = instruction.get("instructions", [])
+
+        render_plan = [
+            {
+                "op": "materialize_component",
+                "component_id": inst.get("component_id"),
+                "canonical_component": inst.get("canonical_component"),
+                "section_id": inst.get("section_id"),
+                "semantic_role": inst.get("semantic_role"),
+                "order": inst.get("order"),
+            }
+            for inst in instructions_list
+            if isinstance(inst, dict)
+        ]
+        component_count = len(render_plan)
+        if isinstance(hierarchy, list) and hierarchy:
+            component_count = max(component_count, len(hierarchy))
+
+        return {
+            "screen_id": screen_id,
+            "executed_at": DETERMINISTIC_EXECUTED_AT,
+            "status": "simulated",
+            "surface": instruction.get("surface"),
+            "layout_archetype": instruction.get("layout_archetype"),
+            "layout_pattern": instruction.get("layout_pattern"),
+            "section_count": len(sections) if isinstance(sections, list) else 0,
+            "component_count": component_count,
+            "adapter_name": self.adapter_name,
+            "adapter_mode": self.adapter_mode,
+            "simulation_mode": "code_native_render_plan_stub",
+            "created_nodes": [
+                {
+                    "type": "render_component",
+                    "name": str(item.get("canonical_component", "component")),
+                    "node_id": f"canvas:{screen_id}:{index}",
+                    "status": "planned",
+                    "canonical_component": item.get("canonical_component"),
+                    "component_id": item.get("component_id"),
+                    "section_id": item.get("section_id"),
+                    "semantic_role": item.get("semantic_role"),
+                    "order": item.get("order"),
+                }
+                for index, item in enumerate(render_plan)
+            ],
+            "mcp_calls": [
+                {
+                    "adapter": self.adapter_name,
+                    "tool": "code_native.render_plan",
+                    "params": {
+                        "screen_id": screen_id,
+                        "section_count": len(sections) if isinstance(sections, list) else 0,
+                    },
+                    "status": "simulated",
+                }
+            ],
+            "render_plan": render_plan,
+        }
+
+
 _ADAPTER_REGISTRY = {
     "deterministic_stub": DeterministicStubExecutionAdapter(),
+    "code_native_canvas": CodeNativeCanvasExecutionAdapter(),
 }
 
 

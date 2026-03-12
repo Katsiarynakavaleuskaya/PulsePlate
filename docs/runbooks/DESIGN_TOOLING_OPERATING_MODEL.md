@@ -3,8 +3,9 @@
 <!-- markdownlint-disable MD013 -->
 
 This document is the canonical operating model for design-tooling work in
-PulsePlate across `Figma`, `Tokens Studio`, `Notion`, `Airweave`, `Penpot`,
-and external reference tooling such as `Stitch`.
+PulsePlate across code-native design runtime, `Figma`, `Tokens Studio`,
+`Notion`, `Airweave`, `Penpot`, and external reference tooling such as
+`Stitch`.
 
 ## 1. Purpose
 
@@ -14,25 +15,25 @@ without creating a second hidden source of truth.
 ## 2. Canonical Source Precedence
 
 1. `git/docs/tests/code` remain the project Source of Truth (`AGENTS.md:192`, `AGENTS.md:298`, `docs/memory/kpp_knowledge_promotion_pipeline.md:5`).
-2. `Figma Design + Code Connect` are the canonical design-to-code lane (`docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:1`, `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md:5`).
-3. `/tokens` is the canonical repo authoring source for design tokens (`frontend/style-dictionary.config.mjs:9`, `frontend/style-dictionary.config.mjs:11`, `tokens/00_core/color.json:1`).
-4. `Tokens Studio` is subordinate tooling inside the Figma lane only (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:26`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:39`, `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md:19`).
-5. `Notion` is structured memory only (`docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:5`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:30`).
-6. `Airweave` is research ingestion only (`docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:5`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:9`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`).
-7. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
-8. `Stitch` and similar AI layout generators are external ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation; their lifecycle state remains `read_only` until promotion (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
+2. Code-native design runtime is the preferred execution lane for prompt-to-design automation inside the repo.
+3. `Figma Design + Code Connect` remain an optional secondary design-to-code lane (`docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md:1`, `docs/figma/FIGMA_CLAWBOT_OPERATING_MODEL.md:5`).
+4. `/tokens` is the canonical repo authoring source for design tokens (`frontend/style-dictionary.config.mjs:9`, `frontend/style-dictionary.config.mjs:11`, `tokens/00_core/color.json:1`).
+5. `Tokens Studio` is subordinate tooling inside the Figma lane only (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:26`, `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:39`, `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md:19`).
+6. `Notion` is structured memory only (`docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:5`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:30`).
+7. `Airweave` is research ingestion only (`docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:5`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:9`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`).
+8. `Penpot` is a secondary design lane only (`docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:5`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:17`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:19`).
+9. `Stitch` and similar AI layout generators are external ideation/reference inputs only and must be normalized into repo vocabulary and tokens before implementation; their lifecycle state remains `read_only` until promotion (`docs/runbooks/STITCH_AI_REFERENCE_ADAPTER.md:1`, `docs/design/UI_COMPONENT_VOCABULARY.md:1`).
 
-Hard rule: tools `4-7` may inform work, but they do not override runtime
+Hard rule: tools `5-8` may inform work, but they do not override runtime
 contracts, token SoT, security policy, or merge governance (`docs/design/TOKEN_PIPELINE_GOVERNANCE.md:24`, `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md:27`, `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md:66`, `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md:59`).
 The same rule applies to external ideation/reference tools.
 
 ## 3. Runtime Baseline
 
 - Primary agent runtime: `Codex + GPT-5.4 Pro`
-- Primary design tool: `Figma MCP`
-- Current executable design contract surface: `scripts/design/execution_adapters.py`
-  with `deterministic_stub` as the only implemented adapter on this branch
-  (`scripts/design/execution_adapters.py:5`, `scripts/design/execution_adapters.py:18`, `scripts/design/execute_design.py:72`; temporary seam governed by `docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md:1` and `docs/roadmap/BACKLOG_LEDGER.md:347`)
+- Primary executable design runtime: `scripts/design/execution_adapters.py`
+  with `deterministic_stub` and `code_native_canvas` as local Phase 1 adapters
+- Optional Figma design tool: `Figma MCP`
 - Subordinate Figma-lane token tool: `Tokens Studio` (documentation-only
   activation remains governed by `docs/roadmap/BACKLOG_LEDGER.md:322` and
   `docs/design/TOKEN_PIPELINE_GOVERNANCE.md:120`)
@@ -58,6 +59,7 @@ Source contract for this split lives in:
 - `docs/sora/SORA_STYLE_QA_CHECKLIST.md` (authoritative for web token SoT,
   staged migration, and raw-hex allowlist rules)
 - `docs/design/TOKENS_SOT.md`
+- `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
 - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
 
 ## 5. Design Task Packet
@@ -107,9 +109,11 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 - instruction generation must emit explicit `sections`, `component_hierarchy`,
   and `layout_archetype`
 - execution must flow through the adapter seam, even when the adapter is
-  deterministic-only (`docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md:1`)
-- live MCP adapters are future work and must preserve the same instruction and
-  manifest contract (`docs/roadmap/BACKLOG_LEDGER.md:347`)
+  deterministic-only
+- local Phase 1 adapters (`deterministic_stub`, `code_native_canvas`) must
+  preserve the same instruction and manifest contract
+- live external adapters are future work and must preserve the same instruction
+  and manifest contract
 
 ### Design source records
 

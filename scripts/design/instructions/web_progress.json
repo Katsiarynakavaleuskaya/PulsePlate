@@ -43,7 +43,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:web-progress-shell"
+      "source_ref": "template:web.progress:shell"
     },
     {
       "component_id": "web-progress-header-utilities",
@@ -52,7 +52,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "utility_cluster",
-      "source_ref": "static:web-progress-header-utilities"
+      "source_ref": "template:web.progress:header-utilities"
     },
     {
       "component_id": "web-progress-stats",
@@ -61,7 +61,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "summary_metrics",
-      "source_ref": "static:web-progress-stats"
+      "source_ref": "template:web.progress:stats"
     },
     {
       "component_id": "web-progress-chart",
@@ -70,16 +70,7 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "trend_visualization",
-      "source_ref": "static:web-progress-chart"
-    },
-    {
-      "component_id": "web-progress-tooltip",
-      "canonical_component": "tooltip",
-      "section_id": "progress-summary",
-      "parent_component_id": "web-progress-chart",
-      "hierarchy_level": 2,
-      "semantic_role": "supporting_hint",
-      "source_ref": "static:web-progress-tooltip"
+      "source_ref": "template:web.progress:chart"
     },
     {
       "component_id": "web-progress-recovery",
@@ -88,7 +79,16 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "recovery_message",
-      "source_ref": "static:web-progress-recovery"
+      "source_ref": "template:web.progress:recovery"
+    },
+    {
+      "component_id": "web-progress-tooltip",
+      "canonical_component": "tooltip",
+      "section_id": "progress-summary",
+      "parent_component_id": "web-progress-chart",
+      "hierarchy_level": 2,
+      "semantic_role": "supporting_hint",
+      "source_ref": "template:web.progress:tooltip"
     },
     {
       "component_id": "node:web.progress.export_pdf",
@@ -185,17 +185,6 @@
     },
     {
       "type": "create_frame",
-      "name": "web-progress-tooltip",
-      "canonical_component": "tooltip",
-      "section_id": "progress-summary",
-      "component_id": "web-progress-tooltip",
-      "parent_component_id": "web-progress-chart",
-      "hierarchy_level": 2,
-      "semantic_role": "supporting_hint",
-      "order": 4
-    },
-    {
-      "type": "create_frame",
       "name": "web-progress-recovery",
       "canonical_component": "alert",
       "section_id": "progress-recovery",
@@ -203,6 +192,17 @@
       "parent_component_id": "web-progress-shell",
       "hierarchy_level": 1,
       "semantic_role": "recovery_message",
+      "order": 4
+    },
+    {
+      "type": "create_frame",
+      "name": "web-progress-tooltip",
+      "canonical_component": "tooltip",
+      "section_id": "progress-summary",
+      "component_id": "web-progress-tooltip",
+      "parent_component_id": "web-progress-chart",
+      "hierarchy_level": 2,
+      "semantic_role": "supporting_hint",
       "order": 5
     },
     {

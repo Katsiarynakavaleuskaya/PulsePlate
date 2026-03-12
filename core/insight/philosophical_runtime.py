@@ -628,7 +628,7 @@ class PhilosophicalRuntime:
                 verification_report.verification_rate < _VERIFICATION_FIRST_THRESHOLD
                 or falsification_report.falsifiability_rate < _VERIFICATION_FIRST_THRESHOLD
             )
-        return verification_report.verification_rate < _BASELINE_VALIDATION_THRESHOLD
+        return bool(verification_report.verification_rate < _BASELINE_VALIDATION_THRESHOLD)
 
     def _is_verification_first_path(self, *, decision: RouteDecision, rag_used: bool) -> bool:
         """Apply stricter verification only to RAG-backed factual/deep paths."""

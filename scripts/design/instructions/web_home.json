@@ -46,7 +46,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:web-home-shell"
+      "source_ref": "template:web.home:shell"
     },
     {
       "component_id": "web-home-hero",
@@ -55,7 +55,7 @@
       "parent_component_id": "web-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "primary_message",
-      "source_ref": "static:web-home-hero"
+      "source_ref": "template:web.home:hero"
     },
     {
       "component_id": "web-home-badge",
@@ -64,7 +64,7 @@
       "parent_component_id": "web-home-hero",
       "hierarchy_level": 2,
       "semantic_role": "status_marker",
-      "source_ref": "static:web-home-badge"
+      "source_ref": "template:web.home:badge"
     },
     {
       "component_id": "web-home-summary",
@@ -73,7 +73,7 @@
       "parent_component_id": "web-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "summary_metrics",
-      "source_ref": "static:web-home-summary"
+      "source_ref": "template:web.home:summary"
     },
     {
       "component_id": "web-home-actions",
@@ -82,7 +82,7 @@
       "parent_component_id": "web-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "action_cluster",
-      "source_ref": "static:web-home-actions"
+      "source_ref": "template:web.home:actions"
     },
     {
       "component_id": "web-home-nav",
@@ -91,7 +91,7 @@
       "parent_component_id": "web-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "persistent_navigation",
-      "source_ref": "static:web-home-nav"
+      "source_ref": "template:web.home:nav"
     },
     {
       "component_id": "node:web.home.open_setup",

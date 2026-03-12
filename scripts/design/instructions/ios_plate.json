@@ -38,7 +38,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:ios-plate-shell"
+      "source_ref": "template:ios.plate:shell"
     },
     {
       "component_id": "ios-plate-summary-card",
@@ -47,7 +47,7 @@
       "parent_component_id": "ios-plate-shell",
       "hierarchy_level": 1,
       "semantic_role": "content_container",
-      "source_ref": "static:ios-plate-summary-card"
+      "source_ref": "template:ios.plate:summary-card"
     },
     {
       "component_id": "ios-plate-badge",
@@ -56,7 +56,7 @@
       "parent_component_id": "ios-plate-summary-card",
       "hierarchy_level": 2,
       "semantic_role": "gate_state",
-      "source_ref": "static:ios-plate-badge"
+      "source_ref": "template:ios.plate:badge"
     },
     {
       "component_id": "ios-plate-progress",
@@ -65,7 +65,7 @@
       "parent_component_id": "ios-plate-summary-card",
       "hierarchy_level": 2,
       "semantic_role": "completion_feedback",
-      "source_ref": "static:ios-plate-progress"
+      "source_ref": "template:ios.plate:progress"
     },
     {
       "component_id": "ios-plate-action-panel",
@@ -74,7 +74,7 @@
       "parent_component_id": "ios-plate-shell",
       "hierarchy_level": 1,
       "semantic_role": "action_cluster",
-      "source_ref": "static:ios-plate-action-panel"
+      "source_ref": "template:ios.plate:action-panel"
     },
     {
       "component_id": "ios-plate-dialog",
@@ -83,7 +83,7 @@
       "parent_component_id": "ios-plate-action-panel",
       "hierarchy_level": 2,
       "semantic_role": "secondary_details",
-      "source_ref": "static:ios-plate-dialog"
+      "source_ref": "template:ios.plate:dialog"
     },
     {
       "component_id": "node:ios.plate.add_meal",

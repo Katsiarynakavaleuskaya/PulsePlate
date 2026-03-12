@@ -451,6 +451,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Screen-generation templates reuse the promoted archetypes without hidden
       per-screen exceptions
 
+<a id="ledger-p1-screen-content-template-convergence"></a>
+- [ ] P1: Screen content model, reusable template registry, and `pulseplate_canvas_v1` convergence after PR #1121
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR-TBD-SCREEN-CONTENT-TEMPLATE-CONVERGENCE
+  - Status: 📋 Deferred after PR #1121
+  - Area: scripts / design-runtime / docs
+  - Finding Type: deferred model-governance cleanup
+  - Reason: PR #1121 intentionally keeps `SCREEN_CONTENT_MODEL.layout_sections`
+    and `SCREEN_CONTENT_MODEL.static_component_tree` explicit while the runtime
+    template registry settles, and it stops before materializing the deferred
+    `pulseplate_canvas_v1` artifact contract. A dedicated follow-up should
+    either remove those inline structures or generate them from the reusable
+    layout templates, while also defining how `pulseplate_canvas_v1` is emitted
+    from the same governed source so the repo has one authoritative path for
+    screen topology and render-artifact output.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/layout_templates.py`
+    - `docs/review/PR_1121_FIXED_MAPPING.md`
+  - DoD:
+    - The repo chooses one canonical authoring path for screen topology
+      (`SCREEN_CONTENT_MODEL` vs reusable layout templates)
+    - Redundant inline `layout_sections` / `static_component_tree` data is
+      removed or generated deterministically from the chosen source
+    - `pulseplate_canvas_v1` has an explicit schema or artifact contract tied to
+      the same chosen source of truth instead of an ad hoc side channel
+    - Tests prove screen topology cannot drift between content models and
+      template registry, and that any emitted `pulseplate_canvas_v1` artifact
+      stays structurally aligned with that topology
+    - Design-runtime docs describe the chosen source-of-truth contract
+
 <a id="ledger-p1-design-token-lock-ci"></a>
 - [ ] P1: Design-token lockfile and deterministic CI/build contract
   - Owner: @katsiaryna_kavaleuskaya
@@ -6382,6 +6414,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 
-**Last updated:** 2026-03-08 (ledger reorder + truth audit)
+**Last updated:** 2026-03-12 (PR #1121 deferred runtime-governance follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

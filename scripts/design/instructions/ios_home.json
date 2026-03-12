@@ -47,7 +47,7 @@
       "parent_component_id": null,
       "hierarchy_level": 0,
       "semantic_role": "surface_shell",
-      "source_ref": "static:ios-home-shell"
+      "source_ref": "template:ios.home:shell"
     },
     {
       "component_id": "ios-home-hero",
@@ -56,7 +56,7 @@
       "parent_component_id": "ios-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "primary_message",
-      "source_ref": "static:ios-home-hero"
+      "source_ref": "template:ios.home:hero"
     },
     {
       "component_id": "ios-home-badge",
@@ -65,7 +65,7 @@
       "parent_component_id": "ios-home-hero",
       "hierarchy_level": 2,
       "semantic_role": "status_marker",
-      "source_ref": "static:ios-home-badge"
+      "source_ref": "template:ios.home:badge"
     },
     {
       "component_id": "ios-home-summary",
@@ -74,7 +74,7 @@
       "parent_component_id": "ios-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "summary_metrics",
-      "source_ref": "static:ios-home-summary"
+      "source_ref": "template:ios.home:summary"
     },
     {
       "component_id": "ios-home-actions",
@@ -83,7 +83,7 @@
       "parent_component_id": "ios-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "action_cluster",
-      "source_ref": "static:ios-home-actions"
+      "source_ref": "template:ios.home:actions"
     },
     {
       "component_id": "ios-home-nav",
@@ -92,7 +92,7 @@
       "parent_component_id": "ios-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "persistent_navigation",
-      "source_ref": "static:ios-home-nav"
+      "source_ref": "template:ios.home:nav"
     },
     {
       "component_id": "node:ios.home.bmi_calculator",

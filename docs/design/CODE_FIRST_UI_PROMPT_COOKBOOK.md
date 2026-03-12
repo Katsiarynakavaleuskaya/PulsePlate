@@ -14,12 +14,15 @@ Use it after two prerequisite steps:
 
 - `docs/design/UI_COMPONENT_VOCABULARY.md`
 - `docs/design/ui_component_vocabulary.json`
-2. draft the brief with:
+1. draft the brief with:
 
 - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
 
 It is the default prompt assembly layer for code-first design work in
 PulsePlate.
+
+Primary target: design should be drawable by agent-owned code/runtime from the
+design system and prompt, without requiring Figma or similar tools.
 
 ## 2. Required input contract
 
