@@ -42,6 +42,16 @@ Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:44`
 Reason: The merge-readiness checklist keeps the local hard-gate item unchecked until the actual final merge cycle, matching the current governance guidance for fixed-mapping artifacts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927300601 -> 0f2a3aae
 
+Disposition: NOT-A-BUG
+Evidence: The actionable inline findings from this CodeRabbit review are already dispositioned in this artifact as `#discussion_r2927300601` and `#discussion_r2927300622`.
+Reason: `pullrequestreview-3939655415` is a wrapper review shell for inline comments that are already fixed and mapped; it does not add a separate standalone defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3939655415
+
+Disposition: NOT-A-BUG
+Evidence: The actionable inline findings from this Cubic review are already dispositioned in this artifact as `#discussion_r2927320448`, `#discussion_r2927320470`, and `#discussion_r2927320476`.
+Reason: `pullrequestreview-3939676895` summarizes those inline Cubic findings and does not introduce an extra independent repo defect beyond the already mapped threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3939676895
+
 ## Deferred / Follow-ups
 - Live domain remediation completed on March 12, 2026: `www.pulseplate.app` now returns `308` to the repo-owned apex, and the post-fix evidence is recorded in `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`.
 - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-domain-ownership-canonicalization`
