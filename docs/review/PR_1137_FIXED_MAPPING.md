@@ -5,7 +5,16 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments yet
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137#pullrequestreview-3936914496
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1137_FIXED_MAPPING.md:13
+Reason: The aggregate CodeRabbit review shell is satisfied by the concrete mapped thread disposition recorded below; no additional unresolved action remains at the review-shell level.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1137#discussion_r2924907968 -> 97aeb3c9
+Disposition: FIXED
+Commit: 97aeb3c9
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:6035
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:6036
 
 ## Merge Readiness
 - [ ] Local gates passed on current head
