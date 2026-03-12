@@ -1304,8 +1304,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR-TBD-FITCHEF-UMBRELLA-FOUNDATION -> PR-TBD-FITCHEF-VISUAL-CONTRACT -> PR-TBD-FITCHEF-ASSET-TAXONOMY -> PR-TBD-FITCHEF-APP-STORE-PACK-EN -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
-  - Status: 📋 Planned
+  - Target PR: PR #1140 -> PR #1143 -> PR-TBD-FITCHEF-ASSET-TAXONOMY -> PR-TBD-FITCHEF-APP-STORE-PACK-EN -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
+  - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
@@ -1315,6 +1315,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `app/routers/fitchef_insight.py`
     - `app/services/fitchef_runtime.py`
     - `AGENTS.md`
+  - Progress:
+    - `PR #1140` merged on March 12, 2026 for the foundation/docs-only lane
+    - `PR #1143` merged on March 12, 2026 for the visual/App Store contract lane
+    - `PR-2` mascot asset taxonomy starts from clean `origin/main` after those merges
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
