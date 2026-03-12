@@ -6157,15 +6157,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - At least one deterministic check guards against silently incomplete clean-clone environments
 
 <a id="ledger-p2-gh-checks-current-head-filter"></a>
-- [ ] P2: Filter superseded GitHub check noise in merge triage
+- [x] P2: Filter superseded GitHub check noise in merge triage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1129 (`fix/pr11-gh-checks-current-head-filter`)
   - Area: orchestration / GitHub governance
   - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
   - Kickoff: PR10 closeout completed on 12 March 2026; PR11 branch created from synced `main` after PR #1127 merge.
+  - Status: ✅ Merged via PR #1129 on 12 March 2026 (`4cc4786d87897897428db6ad4a0bb924f25f0bd2`)
   - Links:
     - `scripts/ci/check_pr_merge_readiness.py`
+    - `scripts/ci/check_current_head_pr_checks.py`
+    - `scripts/orchestration/check_merge_ready.py`
     - `RUNBOOK_AGENT.md`
   - DoD:
     - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
