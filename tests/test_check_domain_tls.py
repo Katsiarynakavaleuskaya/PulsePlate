@@ -152,11 +152,15 @@ def test_main_fails_when_www_points_to_figma_sites(
 def test_collect_dns_answers_falls_back_to_socket_without_dig(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(check_domain_tls.shutil, "which", lambda name: None if name == "dig" else "")
+    monkeypatch.setattr(
+        check_domain_tls.shutil, "which", lambda name: None if name == "dig" else ""
+    )
     monkeypatch.setattr(
         check_domain_tls,
         "_socket_answers",
-        lambda hostname, family: ("203.0.113.10",) if family == check_domain_tls.socket.AF_INET else (),
+        lambda hostname, family: (
+            ("203.0.113.10",) if family == check_domain_tls.socket.AF_INET else ()
+        ),
     )
 
     assert check_domain_tls._collect_dns_answers("pulseplate.app", "A") == ("203.0.113.10",)
