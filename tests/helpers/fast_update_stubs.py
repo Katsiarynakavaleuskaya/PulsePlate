@@ -52,9 +52,14 @@ def _iter_background_modules() -> tuple[ModuleType, ...]:
     """Return unique module aliases consulted by background update resolvers."""
 
     import app as app_module
-    import legacy_app as legacy_app_mod
 
-    modules: list[ModuleType] = [app_module, legacy_app_mod]
+    modules: list[ModuleType] = [app_module]
+    try:
+        import legacy_app as legacy_app_mod
+    except ModuleNotFoundError:
+        legacy_app_mod = None
+    if isinstance(legacy_app_mod, ModuleType):
+        modules.append(legacy_app_mod)
     app_module_alias = sys.modules.get("app_module")
     if isinstance(app_module_alias, ModuleType):
         modules.append(app_module_alias)
