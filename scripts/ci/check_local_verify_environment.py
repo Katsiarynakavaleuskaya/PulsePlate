@@ -16,7 +16,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VENV_DIR = REPO_ROOT / ".venv"
 VENV_BIN_DIR = VENV_DIR / "bin"
-VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+VENV_PYTHON = VENV_BIN_DIR / "python"
 REQUIRED_MODULES: tuple[tuple[str, str], ...] = (
     ("flake8", "lint"),
     ("mypy", "typecheck"),
