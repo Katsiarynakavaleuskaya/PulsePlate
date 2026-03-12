@@ -549,6 +549,66 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Release/rollback runbook exists for token builds across web/iOS surfaces
     - Existing semantic/token-governance docs link to the same deterministic build contract
 
+<a id="ledger-p1-fitchef-web-brand-pack"></a>
+- [ ] P1: FitChef web brand pack promotion after iOS mascot foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (brand rollout)
+  - Target PR: PR-TBD-FITCHEF-WEB-BRAND-PACK
+  - Status: 📋 Planned after PR4 mascot asset foundation
+  - Area: frontend / docs / brand-system
+  - Finding Type: deferred web rollout follow-up
+  - Reason: PR4 promotes the first canonical FitChef mascot assets on iOS, but
+    the website still needs a governed static pack and usage mapping before the
+    brand can appear consistently in onboarding, empty states, and marketing
+    surfaces.
+  - Links:
+    - `docs/design/FITCHEF_BRAND_ASSET_CONTRACT.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `docs/audit/DESIGN_AUDIT_SUMMARY.md`
+  - DoD:
+    - Web-approved FitChef assets exist under canonical names
+    - Frontend docs and design-system guidance reference the same mascot IDs
+    - First web surfaces use the governed pack without introducing duplicate
+      brand naming
+
+<a id="ledger-p1-fitchef-figma-brand-sync"></a>
+- [ ] P1: FitChef Figma mascot component and asset sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-tool parity)
+  - Target PR: PR-TBD-FITCHEF-FIGMA-BRAND-SYNC
+  - Status: 📋 Planned after PR4 mascot asset foundation
+  - Area: docs / figma / design-system
+  - Finding Type: deferred design-tool follow-up
+  - Reason: The mascot pack should become referenceable inside the Figma lane,
+    but PR4 intentionally stays local-first and does not widen scope into live
+    Figma asset sync or component promotion.
+  - Links:
+    - `docs/design/FITCHEF_BRAND_ASSET_CONTRACT.md`
+    - `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md`
+  - DoD:
+    - Figma component naming matches the canonical FitChef asset IDs
+    - The approved mascot variants are documented in the Figma design lane
+    - Figma remains reference-only until an explicit sync workflow is promoted
+
+<a id="ledger-p1-fitchef-screen-scene-pack"></a>
+- [ ] P1: FitChef screen-scene mascot pack promotion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (brand content expansion)
+  - Target PR: PR-TBD-FITCHEF-SCREEN-SCENE-PACK
+  - Status: 📋 Planned after PR4 mascot asset foundation
+  - Area: ios / frontend / docs / brand-system
+  - Finding Type: deferred scene-pack follow-up
+  - Reason: The source image pack now includes richer FitChef scenes for meal
+    plans, progress, nutrition calculators, shopping, and habit guidance. Those
+    scenes need their own canonical naming and usage matrix instead of being
+    mixed into the first portrait-only asset foundation PR.
+  - Links:
+    - `docs/design/FITCHEF_BRAND_ASSET_CONTRACT.md`
+  - DoD:
+    - Each approved scene gets a canonical asset ID and intended-use note
+    - Website, iOS, and design-runtime docs reference the same scene names
+    - Scene promotion does not overload portrait assets or app-icon slots
+
 <a id="ledger-p1-color-profile-automation-parity"></a>
 - [ ] P1: Color-profile automation and parity evidence follow-through
   - Owner: @katsiaryna_kavaleuskaya
