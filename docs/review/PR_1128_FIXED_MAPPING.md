@@ -1,19 +1,20 @@
-# PR 1128 Fixed in Commit Mapping
+# PR 1128 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 
-- [x] Reviewed all actionable review threads and bot comments
-- [x] Every resolved thread has a disposition recorded below
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments.
+- Pending current review cycle
 
 ## Merge Readiness
 
-- [ ] Scope is focused and unchanged after latest review
 - [ ] Local gates passed on current head
-- [ ] Required CI is green on current head
-- [ ] No unresolved review threads remain
-- [ ] CodeRabbit / Sourcery / Cubic actionables are resolved or explicitly dispositioned
-- [ ] Wait-window observed after latest bot/review activity
+- [ ] All required checks green
+- [ ] All actionable review threads resolved with dispositions
+- [ ] CodeRabbit PASS / no-actionables
+- [ ] Sourcery PASS / no-actionables
+- [ ] Cubic PASS / no-actionables
+- [ ] Wait-window after latest bot/review activity observed

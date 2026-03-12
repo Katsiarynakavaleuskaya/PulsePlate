@@ -1,13 +1,13 @@
 # Monthly PR Analysis for PulsePlate (February–March 2026)
 
-**Snapshot date:** 9 March 2026
+**Snapshot date:** 11 March 2026
 **Window covered:** 4 February 2026 to 9 March 2026 (inclusive)
 **Method:** agent-orchestrated repo review + merged PR scan + backlog/top-20 cross-check
 **Primary sources:** `gh pr list`, `git log`, `docs/roadmap/BACKLOG_LEDGER.md`, `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`, `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
 
 **Important:** this document is a synthesis artifact for monthly review. Canonical truth for deferred work and closure status remains `docs/roadmap/BACKLOG_LEDGER.md`. GitHub search returns **387 merged PRs** in the raw calendar window (verification: run the raw merged-window query below to reproduce); this report intentionally focuses on the later-wave slice centered on merged PRs in the `#963-#1048` range and the adjacent backlog items they moved.
 **Backfill note:** PR `#1063` merged on `10 March 2026`, one day after the fixed snapshot window. It is referenced below only as a post-window closure backfill for the session-cookie lane, not as a change to the 4 February 2026 through 9 March 2026 review window.
-**Backfill note:** PRs `#1106`, `#1112`, `#1118`, `#1124`, and `#1126` merged on `11 March 2026` and completed the governed creative-research lane after the fixed snapshot window. They are summarized below as a post-window closure backfill and do not change the original February 4, 2026 through March 9, 2026 review scope.
+**Backfill note:** [#1106](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1106), [#1112](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1112), [#1118](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1118), [#1124](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1124), and [#1126](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1126) merged on `11 March 2026` and completed the governed creative-research lane after the fixed snapshot window. They are summarized below as a post-window closure backfill and do not change the original 4 February 2026 to 9 March 2026 review scope.
 
 **Repro queries used for this snapshot:**
 - Raw merged-window scan: `gh pr list --state merged --search "merged:>=2026-02-04 merged:<=2026-03-09" --limit 500`
@@ -211,4 +211,4 @@ The governed creative-research lane closed immediately after the fixed snapshot 
 
 ---
 
-*Generated on 9 March 2026 from repo-local sources and merged PR history. This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*
+*Generated on 11 March 2026 from repo-local sources and merged PR history. This review summarizes momentum and gaps; it does not replace canonical backlog or merge-governance artifacts.*
