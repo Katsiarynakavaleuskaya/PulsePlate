@@ -38,6 +38,8 @@ Current workspace blocker:
    return a seat/plan error.
 2. `ios prototype v2` remains the canonical implementation-safe source.
 3. Runtime references stay current for the iOS mapping lane:
+   - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
+   - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
    - `ios/PulsePlate/Views/HomeView.swift`
    - `ios/PulsePlate/Screens/PaywallScreen.swift`
    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
@@ -57,6 +59,8 @@ Current workspace blocker:
 3. Generate Code Connect suggestions for each screen:
    - `mcp__figma__get_code_connect_suggestions(fileKey, nodeId, clientFrameworks="swiftui", clientLanguages="swift")`
 4. Review suggestion quality against runtime source-of-truth:
+   - `Onboarding 01 Welcome` -> `WelcomeGateView.swift`; `WelcomeFlowView.swift`
+   - `Onboarding 02 Value / Usage` -> `WelcomeFlowView.swift`
    - `Home` -> `HomeView.swift`
    - `Paywall` -> `PaywallScreen.swift`
    - `Weekly Plan` -> `WeeklyPlanReaderView.swift`
