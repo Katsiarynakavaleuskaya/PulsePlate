@@ -38,7 +38,9 @@ Disposition: FIXED
 Commit: edb07c47
 Evidence: `edb07c47` reuses `VENV_BIN_DIR` for `VENV_PYTHON` in `scripts/ci/check_local_verify_environment.py:16-19` and restores the merge-readiness checklist to an unchecked pre-final-review state in `docs/review/PR_1127_FIXED_MAPPING.md:37-41`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2922265990 -> edb07c47
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#pullrequestreview-3933861078 -> edb07c47
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#pullrequestreview-3933909944 -> edb07c47
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
