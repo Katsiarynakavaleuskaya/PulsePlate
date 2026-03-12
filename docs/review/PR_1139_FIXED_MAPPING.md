@@ -5,7 +5,12 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 8db15dab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1139#discussion_r2925186733 -> 8db15dab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1139#discussion_r2925186741 -> 8db15dab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1139#discussion_r2925186743 -> 8db15dab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1139#pullrequestreview-3937248057 -> 8db15dab
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
