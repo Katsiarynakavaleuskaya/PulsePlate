@@ -6036,6 +6036,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
     and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale
     layer aligned to current workflow and experimentation authorities.
+    The ledger keeps the concrete PR number here to preserve canonical traceability from backlog item -> PR -> merge closeout.
   - Links:
     - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
     - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
