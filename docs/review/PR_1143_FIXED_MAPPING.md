@@ -6,10 +6,10 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 21919b78
+Commit: d26b0ec2
 Evidence: docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:254
 Reason: The invalid blank-line evidence anchor was replaced with a real token SoT authoring-lane anchor.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1143#discussion_r2927029800 -> 21919b78
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1143#discussion_r2927029800 -> d26b0ec2
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
