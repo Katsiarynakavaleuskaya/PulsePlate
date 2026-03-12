@@ -261,10 +261,11 @@ Run before merge after latest commit and latest bot/review activity:
 5. CI `Merge readiness gate` must be green on latest PR commit.
 
 **Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
-- In PR description, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
+- In PR description, if you keep a human-readable mirror, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
 - In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
-- Under **### Fixed in Commit Mapping** in the PR body: keep the mirror section present; mapping-line duplication is optional once the artifact exists.
-- Local check (no API): `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"` (use the same body as on the PR).
+- Under **### Fixed in Commit Mapping** in the PR body: the mirror block is optional once the canonical artifact exists; if you keep it, generate it from the artifact helper instead of hand-maintaining mapping lines.
+- Local artifact-first check: `python scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
+- Local body-only fallback check: `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"`
 
 **Canonical verification (required before claiming "0 comments" or "ready to merge"):** Run the orchestration wrapper so Phase 2, merge-readiness, and disposition proof are checked together. Policy: see `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
 
