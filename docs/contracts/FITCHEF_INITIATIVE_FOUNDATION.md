@@ -62,6 +62,7 @@ live in `app/services/fitchef_runtime.py:127` through
 - safe-area and export rules
 - App Store-safe copy rules
 - `EN` first-wave localization only
+- contract artifact: `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
 
 ### PR-2 mascot asset taxonomy
 
@@ -129,3 +130,4 @@ are governed.
 - `app/services/fitchef_runtime.py:127`
 - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md:16`
 - `docs/contracts/API_CANONICAL_MAP.md:46`
+- `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:1`
