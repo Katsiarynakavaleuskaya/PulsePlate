@@ -1,7 +1,7 @@
 # Scientific Discovery Layer (SDL) — Audit
 
 **Status:** Canonical SDL rationale artifact for the governed `creative_research` sub-lane
-**Topic PR:** PR-TBD-SDL-CLEANUP (Docs-only canonicalization)
+**Topic PR:** PR #1131 (Docs-only canonicalization)
 **Branch:** `docs/sdl-audit-canonicalization-cleanup`
 **Scope:** rationale / audit only (docs / dev-process), **no runtime impact**
 **Date:** 12 March 2026

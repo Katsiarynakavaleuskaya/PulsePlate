@@ -5978,7 +5978,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Canonicalize SDL audit artifact and reference path
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SDL-CLEANUP
+  - Target PR: PR `#1131`
   - Status: 🟡 In progress
   - Reason (EN): the governed creative-research lane is already merged, but the SDL rationale artifact still uses
     `PR_TBD` identity and stale branch metadata while live orchestration docs reference it as a canonical rationale source.
