@@ -6043,12 +6043,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
 
 <a id="ledger-p2-clean-clone-dependency-parity"></a>
-- [ ] P2: Restore deterministic clean-clone dependency parity for local verify
+- [x] P2: Restore deterministic clean-clone dependency parity for local verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_CLEAN_CLONE_DEPENDENCY_PARITY
+  - Target PR: PR #1127 (`fix/pr10-clean-clone-dependency-parity`)
   - Area: tooling / developer-experience
   - Reason: Final PR5 local `make verify` failed in the clean clone because `.venv` was missing locked `opentelemetry-*` packages required by `tests/test_genai_tracing.py`, even though `requirements.txt` already declared them. This is an environment parity gap, not a code regression, but it weakens merge confidence.
+  - Status: ✅ Merged via PR #1127 on 12 March 2026 (`09f600ff0db47f6ef1e3e9ba00f0368959b16488`)
   - Links:
     - `Makefile`
     - `requirements.txt`
@@ -6063,9 +6064,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Filter superseded GitHub check noise in merge triage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_GH_CHECKS_CURRENT_HEAD_FILTER
+  - Target PR: PR #1129 (`fix/pr11-gh-checks-current-head-filter`)
   - Area: orchestration / GitHub governance
   - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
+  - Kickoff: PR10 closeout completed on 12 March 2026; PR11 branch created from synced `main` after PR #1127 merge.
   - Links:
     - `scripts/ci/check_pr_merge_readiness.py`
     - `RUNBOOK_AGENT.md`

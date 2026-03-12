@@ -54,17 +54,21 @@ Underlying enforcement scripts remain canonical for their own domains:
 
 - `scripts/ci/check_pr_body_phase2_gates.py`
 - `scripts/ci/check_pr_merge_readiness.py`
+- `scripts/ci/check_current_head_pr_checks.py`
 - `scripts/orchestration/check_review_threads_disposition.py`
 
 **CI:** The same wrapper runs with `--event-path "$GITHUB_EVENT_PATH"`. For local/agent usage, use `--pr-number` and `--repo` instead.
+Raw `gh pr checks` output remains diagnostic only because it can include
+superseded historical failures after the latest PR head is already clean. The
+wrapper is the canonical filtered current-head view.
 
 ---
 
 ## 4. Coordinator orchestration checklist (before saying "ready to merge" or "0 comments")
 
 1. **Run the wrapper** (section 3) for the PR.
-2. **If exit code is not 0:** Do **not** report "0 comments" or "ready to merge". Report the script output (unresolved count, UNMAPPED comment URLs) and instruct to fix and re-run.
-3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Orchestration merge-check passed: Phase 2, merge-readiness, and disposition proof are all green."
+2. **If exit code is not 0:** Do **not** report "0 comments" or "ready to merge". Report the script output (unresolved count, UNMAPPED comment URLs, or blocking current-head checks) and instruct to fix and re-run.
+3. **If exit code is 0:** You may state that the PR satisfies the zero-comments policy **at the time of the run**. Prefer: "Orchestration merge-check passed: Phase 2, merge-readiness, current-head checks, and disposition proof are all green."
 4. **After new bot activity:** If the user or system reports new bot comments (e.g. CodeRabbit, Sourcery), **re-run the wrapper** before any merge decision; do not assume previous pass still holds.
 
 **Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` (sections "Pre-merge readiness pass" ~line 121, "Loop until zero comments (canonical cycle)" ~line 160). Repeat until script exit 0 and CI green.
@@ -89,4 +93,5 @@ See `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Phase2 PR body gates
 - **Procedure:** `RUNBOOK_AGENT.md` (Pre-merge readiness pass ~line 121, Loop until zero ~line 160, Verify zero unresolved review threads).
 - **Canonical operator entrypoint:** `scripts/orchestration/check_merge_ready.py`.
 - **CI gate:** `scripts/ci/check_pr_merge_readiness.py` (merge-readiness sub-gate).
+- **Current-head filter:** `scripts/ci/check_current_head_pr_checks.py`.
 - **Phase2 body check:** `scripts/ci/check_pr_body_phase2_gates.py`.

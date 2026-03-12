@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-06-30, ref: PR-1005)
 import sys
 from dataclasses import dataclass
@@ -16,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 
 PHASE2_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_body_phase2_gates.py"
 MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
+CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr_checks.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
 
@@ -29,6 +32,13 @@ class GateResult:
     returncode: int
     stdout: str
     stderr: str
+
+
+@dataclass(frozen=True)
+class PreGateFailure:
+    """Deterministic pre-execution gate failure before a subprocess can run."""
+
+    message: str
 
 
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -83,16 +93,83 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     )
 
 
-def _phase2_args(args: argparse.Namespace) -> list[str]:
+def _github_cli_path() -> str:
+    """Resolve gh binary path for read-only PR metadata access."""
+
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        raise RuntimeError("GitHub CLI `gh` is required to fetch PR body in local mode.")
+    return gh_path
+
+
+def _fetch_pr_body(pr_number: int, repo: str) -> str:
+    """Fetch live PR body so Phase2 mirror checks work in local wrapper mode."""
+
+    env = os.environ.copy()
+    if not (env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")):
+        auth_status = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-06-30, ref: PR-1129)
+            [_github_cli_path(), "auth", "status"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=RUN_TIMEOUT_SEC,
+            env=env,
+        )
+        if auth_status.returncode != 0:
+            stderr = (
+                auth_status.stderr.strip() or auth_status.stdout.strip() or "unknown gh auth error"
+            )
+            raise RuntimeError(
+                "GH_TOKEN/GITHUB_TOKEN is unset and gh auth status failed; "
+                f"run `gh auth login` or export GH_TOKEN. Details: {stderr}"
+            )
+    argv = [
+        _github_cli_path(),
+        "pr",
+        "view",
+        str(pr_number),
+        "--repo",
+        repo,
+        "--json",
+        "body",
+        "--jq",
+        ".body",
+    ]
+    result = subprocess.run(  # nosec B603: absolute gh path with fixed read-only argv (remove-by: 2026-06-30, ref: PR-1129)
+        argv,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=RUN_TIMEOUT_SEC,
+        env=env,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "unknown gh error"
+        raise RuntimeError(f"Failed to fetch PR body for #{pr_number}: {stderr}")
+    return result.stdout
+
+
+def _phase2_args(args: argparse.Namespace) -> list[str] | PreGateFailure:
     if args.event_path:
         return ["--event-path", args.event_path]
+    try:
+        body = args.body if args.body else _fetch_pr_body(args.pr_number, args.repo)
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
+        return PreGateFailure(str(exc))
     phase2_args = ["--pr-number", str(args.pr_number)]
-    if args.body:
-        phase2_args.extend(["--body", args.body])
+    phase2_args.extend(["--body", body])
     return phase2_args
 
 
 def _merge_gate_args(args: argparse.Namespace) -> list[str]:
+    if args.event_path:
+        return ["--event-path", args.event_path]
+    return ["--pr-number", str(args.pr_number), "--repo", args.repo]
+
+
+def _current_head_checks_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
     return ["--pr-number", str(args.pr_number), "--repo", args.repo]
@@ -156,6 +233,18 @@ def _print_gate_output(result: GateResult) -> None:
         print(result.stderr)
 
 
+def _pre_gate_failure_result(name: str, argv: list[str], failure: PreGateFailure) -> GateResult:
+    """Convert local preparation failure into normal gate output."""
+
+    return GateResult(
+        name=name,
+        argv=argv,
+        returncode=1,
+        stdout="",
+        stderr=failure.message,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run canonical PR governance gates and emit a single merge verdict."
@@ -188,9 +277,25 @@ def main(argv: list[str] | None = None) -> int:
     parsed = parser.parse_args(argv)
     _validate_args(parsed, parser)
 
+    phase2_args = _phase2_args(parsed)
+    phase2_result = (
+        _pre_gate_failure_result(
+            "phase2-pr-body-gates",
+            [sys.executable, str(PHASE2_GATE)],
+            phase2_args,
+        )
+        if isinstance(phase2_args, PreGateFailure)
+        else _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)
+    )
+
     gate_results = [
-        _run_gate("phase2-pr-body-gates", PHASE2_GATE, _phase2_args(parsed)),
+        phase2_result,
         _run_gate("merge-readiness-gate", MERGE_GATE, _merge_gate_args(parsed)),
+        _run_gate(
+            "current-head-checks",
+            CURRENT_HEAD_CHECKS_GATE,
+            _current_head_checks_args(parsed),
+        ),
         _run_gate(
             "review-threads-disposition",
             DISPOSITION_GATE,

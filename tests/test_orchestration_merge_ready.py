@@ -47,8 +47,136 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
             "merge-readiness-gate",
             ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
         ),
+        (
+            "current-head-checks",
+            ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
+        ),
         ("review-threads-disposition", ["--pr-number", "1005"]),
     ]
+
+
+def test_local_mode_fetches_pr_body_when_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
+    )
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    assert exit_code == 0
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        [
+            "--pr-number",
+            "1005",
+            "--body",
+            "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
+        ],
+    )
+
+
+def test_fetch_pr_body_uses_gh_auth_status_when_env_token_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        run_calls.append(argv)
+        if argv[-2:] == ["auth", "status"]:
+            return merge_ready.subprocess.CompletedProcess(argv, 0, stdout="logged in", stderr="")
+        return merge_ready.subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(merge_ready, "_github_cli_path", lambda: "/usr/local/bin/gh")
+    monkeypatch.setattr(merge_ready.subprocess, "run", fake_run)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    body = merge_ready._fetch_pr_body(1129, "Katsiarynakavaleuskaya/PulsePlate")
+
+    assert body.startswith("## Discussion Thread Pass")
+    assert run_calls[0] == ["/usr/local/bin/gh", "auth", "status"]
+    assert run_calls[1][:4] == ["/usr/local/bin/gh", "pr", "view", "1129"]
+
+
+def test_local_mode_turns_fetch_pr_body_failure_into_gate_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = {
+        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
+        "current-head-checks": _ok_result("current-head-checks", []),
+        "review-threads-disposition": _ok_result("review-threads-disposition", []),
+    }
+
+    monkeypatch.setattr(
+        merge_ready,
+        "_run_gate",
+        lambda name, script_path, extra_args: results[name],
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: (_ for _ in ()).throw(RuntimeError("gh auth failed")),
+    )
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "[FAIL] phase2-pr-body-gates" in captured.out
+    assert "gh auth failed" in captured.out
+    assert "Failing gates: phase2-pr-body-gates" in captured.out
+
+
+def test_local_mode_turns_fetch_pr_body_timeout_into_gate_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = {
+        "merge-readiness-gate": _ok_result("merge-readiness-gate", []),
+        "current-head-checks": _ok_result("current-head-checks", []),
+        "review-threads-disposition": _ok_result("review-threads-disposition", []),
+    }
+
+    monkeypatch.setattr(
+        merge_ready,
+        "_run_gate",
+        lambda name, script_path, extra_args: results[name],
+    )
+
+    def raise_timeout(pr_number: int, repo: str) -> str:
+        raise merge_ready.subprocess.TimeoutExpired(
+            cmd=["gh", "pr", "view", str(pr_number)],
+            timeout=merge_ready.RUN_TIMEOUT_SEC,
+        )
+
+    monkeypatch.setattr(merge_ready, "_fetch_pr_body", raise_timeout)
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "[FAIL] phase2-pr-body-gates" in captured.out
+    assert "Command '['gh', 'pr', 'view', '1005']' timed out" in captured.out
 
 
 def test_event_mode_passes_require_auth_only_to_disposition(
@@ -76,6 +204,7 @@ def test_event_mode_passes_require_auth_only_to_disposition(
     assert calls == [
         ("phase2-pr-body-gates", ["--event-path", str(event_path)]),
         ("merge-readiness-gate", ["--event-path", str(event_path)]),
+        ("current-head-checks", ["--event-path", str(event_path)]),
         ("review-threads-disposition", ["--pr-number", "1007", "--require-auth"]),
     ]
 
@@ -119,12 +248,24 @@ def test_wrapper_surfaces_failing_gate_names(
             stdout="disposition ok",
             stderr="",
         ),
+        "current-head-checks": merge_ready.GateResult(
+            name="current-head-checks",
+            argv=[],
+            returncode=0,
+            stdout="current head ok",
+            stderr="",
+        ),
     }
 
     monkeypatch.setattr(
         merge_ready,
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
     )
 
     exit_code = merge_ready.main(
@@ -163,12 +304,24 @@ def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
             stdout="SKIP: no usable gh auth for advisory local run.",
             stderr="",
         ),
+        "current-head-checks": merge_ready.GateResult(
+            name="current-head-checks",
+            argv=[],
+            returncode=0,
+            stdout="current head ok",
+            stderr="",
+        ),
     }
 
     monkeypatch.setattr(
         merge_ready,
         "_run_gate",
         lambda name, script_path, extra_args: results[name],
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "_fetch_pr_body",
+        lambda pr_number, repo: "## Discussion Thread Pass\n- [x] Discussion-thread pass completed\n### Fixed in Commit Mapping\n- [x] Fixed in commit mapping completed\n- No actionable review comments\n",
     )
 
     exit_code = merge_ready.main(
