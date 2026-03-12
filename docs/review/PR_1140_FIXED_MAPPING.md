@@ -5,7 +5,21 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1140#discussion_r2925370538 -> edd0f527
+Disposition: FIXED
+Commit: edd0f527
+Evidence: app/AGENTS.md:22
+Evidence: app/routers/fitchef_insight.py:78
+Reason: The scoped app policy now matches the live mascot router precedence instead of documenting an incorrect input-first order.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1140#discussion_r2925378102 -> edd0f527
+Disposition: FIXED
+Commit: edd0f527
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:1260
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:1287
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:1302
+Evidence: docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md:109
+Reason: `RU` and `ES` follow-ups are now explicitly anchored as deferred backlog items with distinct target PR placeholders.
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
