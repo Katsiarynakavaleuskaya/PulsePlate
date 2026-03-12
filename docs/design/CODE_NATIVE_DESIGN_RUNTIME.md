@@ -66,18 +66,30 @@ The runtime should be able to materialize:
 
 Required artifact fields:
 
-- `canvas_version`
-- `screen_id`
-- `platform`
-- `surface`
-- `layout_archetype`
-- `layout_pattern`
-- `dimensions`
-- `background_token`
-- `token_constraints`
-- `sections`
-- `nodes`
-- `render_ops`
+- `canvas_version`. Evidence: `scripts/design/canvas_artifact.py:42`,
+  `scripts/design/contracts.py:75`, `scripts/design/contracts.py:553`
+- `screen_id`. Evidence: `scripts/design/canvas_artifact.py:43`,
+  `scripts/design/contracts.py:76`, `scripts/design/contracts.py:553`
+- `platform`. Evidence: `scripts/design/canvas_artifact.py:44`,
+  `scripts/design/contracts.py:77`, `scripts/design/contracts.py:553`
+- `surface`. Evidence: `scripts/design/canvas_artifact.py:45`,
+  `scripts/design/contracts.py:78`, `scripts/design/contracts.py:553`
+- `layout_archetype`. Evidence: `scripts/design/canvas_artifact.py:46`,
+  `scripts/design/contracts.py:79`, `scripts/design/contracts.py:553`
+- `layout_pattern`. Evidence: `scripts/design/canvas_artifact.py:47`,
+  `scripts/design/contracts.py:80`, `scripts/design/contracts.py:553`
+- `dimensions`. Evidence: `scripts/design/canvas_artifact.py:48`,
+  `scripts/design/contracts.py:81`, `scripts/design/contracts.py:553`
+- `background_token`. Evidence: `scripts/design/canvas_artifact.py:49`,
+  `scripts/design/contracts.py:82`, `scripts/design/contracts.py:553`
+- `token_constraints`. Evidence: `scripts/design/canvas_artifact.py:50`,
+  `scripts/design/contracts.py:83`, `scripts/design/contracts.py:553`
+- `sections`. Evidence: `scripts/design/canvas_artifact.py:51`,
+  `scripts/design/contracts.py:84`, `scripts/design/contracts.py:553`
+- `nodes`. Evidence: `scripts/design/canvas_artifact.py:52`,
+  `scripts/design/contracts.py:85`, `scripts/design/contracts.py:553`
+- `render_ops`. Evidence: `scripts/design/canvas_artifact.py:53`,
+  `scripts/design/contracts.py:86`, `scripts/design/contracts.py:553`
 
 Manifest-safe metadata for `code_native_canvas` must also record:
 

@@ -373,32 +373,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Active design-system docs continue to reference one governance path only
 
 <a id="ledger-p1-design-execution-adapter-seam"></a>
-- [ ] P1: Design execution adapter seam promotion beyond deterministic stub
+- [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design runtime governance)
   - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-RUNTIME-ADAPTER
-  - Status: 📋 Deferred after PR #1117 contract hardening
-  - Area: scripts / design-runtime / docs
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / integrations / design-runtime / docs
   - Finding Type: temporary seam follow-up
-  - Reason: `scripts/design/execution_adapters.py` currently provides only the
-    deterministic `deterministic_stub` adapter for contract validation and
-    manifest verification. The seam is intentional, but it must remain
-    explicitly temporary until a reviewed non-stub adapter preserves the same
-    instruction and verification contract.
+  - Reason: PR #1134 promotes `code_native_canvas` into the canonical local
+    artifact emitter, but live external execution still remains intentionally
+    deferred. Any bridge beyond the local artifact lane must consume
+    `pulseplate_canvas_v1`, preserve manifest and verification semantics, and
+    avoid becoming a hidden topology source of truth.
   - Links:
     - `docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md`
     - `scripts/design/execution_adapters.py`
     - `scripts/design/execute_design.py`
     - `scripts/design/verify_design.py`
+    - `scripts/design/canvas_artifact.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
   - DoD:
-    - A reviewed non-stub adapter exists for the chosen design runtime target
-    - The replacement preserves instruction, manifest, and verification
-      contracts already enforced in `scripts/design/contracts.py`
-    - Deterministic local tests cover the replacement path without depending on
-      a live external design tool
+    - A reviewed adapter exists for the chosen post-local design runtime target
+    - External execution consumes `pulseplate_canvas_v1` or governed
+      instruction payloads without bypassing contract validation
+    - Manifest and verification flows distinguish local artifact emit from live
+      bridge execution
+    - Tests prove fail-closed behavior for missing auth, unsupported adapters,
+      and contract drift
     - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` is updated so
-      `deterministic_stub` is no longer described as the only implemented
-      adapter
+      the adapter seam is described as a governed bridge rather than a local
+      stub-only placeholder
 
 <a id="ledger-p1-design-runtime-screen-coverage"></a>
 - [ ] P1: Design runtime screen coverage beyond initial six parity screens
@@ -478,6 +482,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       stay structurally aligned
     - Design-runtime docs describe the chosen source-of-truth contract
 
+<a id="ledger-p1-design-html-preview"></a>
 - [ ] P1: HTML preview and browser renderer on top of `pulseplate_canvas_v1`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design runtime productization)
@@ -501,30 +506,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests cover representative screens such as `ios.home`, `web.plate`, and
       `web.progress`
 
-- [ ] P1: Live external design-tool bridge after local artifact lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (integration governance)
-  - Target PR: PR #1134 -> PR-TBD-DESIGN-EXTERNAL-BRIDGE
-  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
-  - Area: scripts / integrations / design-runtime / docs
-  - Finding Type: deferred external execution follow-up
-  - Reason: PR #1134 keeps Figma and similar tools as optional reference lanes
-    only, so any live bridge must come later and consume the stabilized
-    `pulseplate_canvas_v1` contract instead of becoming a hidden source of
-    truth.
-  - Links:
-    - `scripts/design/execute_design.py`
-    - `scripts/design/execution_adapters.py`
-    - `scripts/design/canvas_artifact.py`
-    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
-  - DoD:
-    - External execution consumes `pulseplate_canvas_v1` or governed instruction
-      payloads without bypassing contract validation
-    - Manifest and verification flows distinguish local artifact emit from live
-      bridge execution
-    - Tests prove fail-closed behavior for missing auth, unsupported adapters,
-      and contract drift
-
+<a id="ledger-p1-design-prompt-canvas-compiler"></a>
 - [ ] P1: Prompt-to-canvas compiler expansion beyond artifact-contract PR3
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design runtime semantics)
