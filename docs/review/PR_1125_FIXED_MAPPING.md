@@ -50,6 +50,16 @@ Disposition: FIXED
 Commit: de69371d
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:41`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:61`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#discussion_r2922573955 -> e4ba5630
+Disposition: FIXED
+Commit: e4ba5630
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:77`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:91`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#discussion_r2922573961 -> e4ba5630
+Disposition: FIXED
+Commit: e4ba5630
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:87`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:93`; `docs/review/PR_1125_FIXED_MAPPING.md:3`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#pullrequestreview-3932987652
 Disposition: NOT-A-BUG
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:902`; `docs/roadmap/BACKLOG_LEDGER.md:906`
@@ -65,6 +75,12 @@ Disposition: FIXED
 Commit: de69371d
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:41`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:61`; `docs/figma/ios_prototype_v2/README.md:3`
 Reason: This CodeRabbit summary review aggregates the onboarding runtime-target fix above and repeats the existing docs-only duplicate already dispositioned as `NOT-A-BUG`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#pullrequestreview-3934262381 -> e4ba5630
+Disposition: FIXED
+Commit: e4ba5630
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:62`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:77`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:105`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:91`
+Reason: This CodeRabbit summary review aggregates the new dated-session evidence fix, the explicit Phase 2 checkbox requirements, and the clarified primary/supporting runtime-path policy for multi-file onboarding screens.
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
