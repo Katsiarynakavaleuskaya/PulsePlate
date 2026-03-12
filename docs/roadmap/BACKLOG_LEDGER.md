@@ -6031,7 +6031,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Canonicalize universal orchestration audit artifact and reference path
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: branch `docs/universal-orchestration-audit-canonicalization`
+  - Target PR: PR `#1137`
   - Status: 🟡 In progress
   - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
     and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale

@@ -1,7 +1,7 @@
 # Universal Agent Orchestration Layer — Audit
 
 **Status:** Canonical orchestration rationale artifact aligned to the current workflow and experimentation SoTs
-**Topic PR:** tracked by branch `docs/universal-orchestration-audit-canonicalization`
+**Topic PR:** PR #1137 (audit canonicalization)
 **Branch:** `docs/universal-orchestration-audit-canonicalization`
 **Scope:** orchestration rationale only (docs / dev-process), **no runtime impact**
 **Date:** 12 March 2026
