@@ -36,6 +36,12 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1032`
 Reason: The backlog item was reopened and tied explicitly to PR `#1141`, keeping it in progress until merge governance clears and the branch lands on `main`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927300622 -> 3a0515ad
 
+Disposition: FIXED
+Commit: 0f2a3aae
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:44`
+Reason: The merge-readiness checklist keeps the local hard-gate item unchecked until the actual final merge cycle, matching the current governance guidance for fixed-mapping artifacts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927300601 -> 0f2a3aae
+
 ## Deferred / Follow-ups
 - Live domain remediation completed on March 12, 2026: `www.pulseplate.app` now returns `308` to the repo-owned apex, and the post-fix evidence is recorded in `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`.
 - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-domain-ownership-canonicalization`
