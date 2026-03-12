@@ -74,10 +74,10 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md:455`, `docs/roadmap/BACKLOG_LEDGER.md:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1121#discussion_r2923028556 -> 530b6d75
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
-- [ ] All required checks green
-- [ ] No unresolved review threads remain
-- [ ] CodeRabbit PASS / no-actionables
-- [ ] Sourcery PASS / no-actionables
-- [ ] Cubic PASS / no-actionables
-- [ ] Wait-window after latest bot/review activity observed
+- [x] Local gates passed on current head
+- [x] All required checks green
+- [x] No unresolved review threads remain
+- [x] CodeRabbit PASS / no-actionables
+- [x] Sourcery PASS / no-actionables
+- [x] Cubic PASS / no-actionables
+- [x] Wait-window after latest bot/review activity observed
