@@ -82,7 +82,9 @@ def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_supers
             ],
         ),
     )
-    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -120,7 +122,9 @@ def test_main_fails_when_latest_required_check_is_pending(
             ],
         ),
     )
-    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -157,7 +161,9 @@ def test_main_fails_when_merge_state_is_not_clean_even_if_latest_snapshot_passes
             ],
         ),
     )
-    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: {"build"})
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -168,7 +174,7 @@ def test_main_fails_when_merge_state_is_not_clean_even_if_latest_snapshot_passes
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
 
 
-def test_main_uses_all_latest_checks_when_required_set_is_unavailable(
+def test_main_passes_when_required_check_set_is_empty_but_available(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -190,7 +196,9 @@ def test_main_uses_all_latest_checks_when_required_set_is_unavailable(
             ],
         ),
     )
-    monkeypatch.setattr(current_head_checks, "_fetch_required_check_names", lambda *args: set())
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), True)
+    )
 
     exit_code = current_head_checks.main(
         ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
@@ -198,7 +206,8 @@ def test_main_uses_all_latest_checks_when_required_set_is_unavailable(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "- CodeRabbit: passed" in captured.out
+    assert "Current-head required checks:" in captured.out
+    assert "- none" in captured.out
 
 
 def test_status_context_expected_is_treated_as_pending() -> None:
@@ -213,3 +222,104 @@ def test_status_context_expected_is_treated_as_pending() -> None:
     )
 
     assert entry.state == "pending"
+
+
+def test_main_passes_for_draft_pr_without_strict_checks(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (True, "DRAFT", "main", []),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1129", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "current-head-checks: PR is draft; skipping strict checks." in captured.out
+
+
+def test_main_fails_when_token_is_missing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "")
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1129", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "GH_TOKEN or GITHUB_TOKEN is required" in captured.out
+
+
+def test_main_fails_when_github_metadata_query_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+
+    def raise_http_error(*args, **kwargs):
+        raise current_head_checks.urllib.error.HTTPError(
+            url="https://api.github.com/graphql",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_metadata", raise_http_error)
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1129", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "ERROR: failed to query GitHub check state: HTTP 503" in captured.out
+
+
+def test_main_uses_merge_state_only_when_required_check_metadata_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "CLEAN",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "optional-e2e",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/failed-optional",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Optional CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1129", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Required check metadata unavailable" in captured.out
+    assert "Current-head advisory checks:" in captured.out
+    assert "- optional-e2e: failed [Optional CI]" in captured.out

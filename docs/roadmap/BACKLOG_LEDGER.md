@@ -6032,7 +6032,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Filter superseded GitHub check noise in merge triage
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #TBD (`fix/pr11-gh-checks-current-head-filter`)
+  - Target PR: PR #1129 (`fix/pr11-gh-checks-current-head-filter`)
   - Area: orchestration / GitHub governance
   - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
   - Kickoff: PR10 closeout completed on 12 March 2026; PR11 branch created from synced `main` after PR #1127 merge.

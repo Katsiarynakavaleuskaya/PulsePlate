@@ -59,10 +59,12 @@ def _api_request(
         path = f"{path}?{parsed.query}"
 
     conn = http.client.HTTPSConnection(parsed.netloc, timeout=30)
-    conn.request(method=method, url=path, body=data, headers=headers)
-    response = conn.getresponse()
-    body = response.read().decode("utf-8")
-    conn.close()
+    try:
+        conn.request(method=method, url=path, body=data, headers=headers)
+        response = conn.getresponse()
+        body = response.read().decode("utf-8")
+    finally:
+        conn.close()
 
     if response.status >= 400:
         raise urllib.error.HTTPError(
@@ -167,10 +169,15 @@ def _fetch_pr_metadata(
     return is_draft, merge_state, base_ref, nodes
 
 
-def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> set[str]:
-    """Fetch required check names from branch protection."""
+def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> tuple[set[str], bool]:
+    """Fetch required check names from branch protection.
+
+    Returns `(required_names, metadata_available)`.
+    `metadata_available=False` means GitHub did not expose branch-protection data,
+    so the caller must not treat non-required checks as blocking.
+    """
     if not base_ref:
-        return set()
+        return set(), False
     owner, name = repo.split("/", maxsplit=1)
     url = (
         f"https://api.github.com/repos/{owner}/{name}/branches/"
@@ -180,7 +187,7 @@ def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> set[str
         data = _api_request(url, token=token)
     except urllib.error.HTTPError as exc:
         if exc.code in {403, 404}:
-            return set()
+            return set(), False
         raise
 
     required: set[str] = set()
@@ -191,7 +198,7 @@ def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> set[str
         context = str((item or {}).get("context") or "").strip()
         if context:
             required.add(context)
-    return required
+    return required, True
 
 
 def _normalize_node(node: dict[str, Any]) -> CheckEntry:
@@ -296,6 +303,17 @@ def _format_entry(entry: CheckEntry) -> str:
     return f"- {entry.name}: {entry.state}{source}{url}"
 
 
+def _print_entries(title: str, entries: list[CheckEntry]) -> None:
+    """Print a deterministic check-entry section."""
+
+    print(title)
+    if not entries:
+        print("- none")
+        return
+    for entry in sorted(entries, key=lambda item: item.name):
+        print(_format_entry(entry))
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate current-head checks and filter superseded noise."""
     parser = argparse.ArgumentParser(
@@ -328,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         is_draft, merge_state, base_ref, nodes = _fetch_pr_metadata(pr_number, repo, token)
-        required_names = _fetch_required_check_names(repo, base_ref, token)
+        required_names, required_metadata_available = _fetch_required_check_names(
+            repo, base_ref, token
+        )
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
         return 1
@@ -339,12 +359,16 @@ def main(argv: list[str] | None = None) -> int:
 
     latest, superseded = _latest_entries([_normalize_node(node) for node in nodes if node])
     current_required = (
-        _required_snapshot(latest, required_names) if required_names else list(latest.values())
+        _required_snapshot(latest, required_names) if required_metadata_available else []
     )
+    _print_entries("Current-head required checks:", current_required)
 
-    print("Current-head required checks:")
-    for entry in sorted(current_required, key=lambda item: item.name):
-        print(_format_entry(entry))
+    if not required_metadata_available:
+        print(
+            "Required check metadata unavailable; merge gating falls back to GitHub "
+            "mergeStateStatus and reports current-head checks as advisory only."
+        )
+        _print_entries("Current-head advisory checks:", list(latest.values()))
 
     noisy_superseded = [entry for entry in superseded if entry.state != "passed"]
     if noisy_superseded:
