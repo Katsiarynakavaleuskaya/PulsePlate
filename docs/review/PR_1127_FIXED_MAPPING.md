@@ -18,6 +18,16 @@ Evidence: `3fde7ffd` reopens the carried-over phase2 ledger item instead of pre-
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921398401 -> 3fde7ffd
 
+Disposition: FIXED
+Commit: 8977d3e6
+Evidence: `8977d3e6` makes `make venv` create `.venv` before pip usage and routes `verify-env` through `$(VENV_PYTHON)` in `Makefile:54-87` and `Makefile:140-143`, hardens repo-venv detection with `sys.prefix` plus console-entrypoint checks in `scripts/ci/check_local_verify_environment.py:1-131`, and extends deterministic coverage for the fresh-clone bootstrap contract in `tests/test_check_local_verify_environment.py:1-168`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921397875 -> 8977d3e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921413066 -> 8977d3e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921417519 -> 8977d3e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921417522 -> 8977d3e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1127#discussion_r2921417524 -> 8977d3e6
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
