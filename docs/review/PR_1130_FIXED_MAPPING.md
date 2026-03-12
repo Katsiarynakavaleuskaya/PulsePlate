@@ -14,7 +14,7 @@ Evidence: `tests/helpers/fast_update_stubs.py:51`; `tests/helpers/fast_update_st
 Reason: Centralized module iteration keeps the helper surfaces in sync, the app facade now patches via `__dict__` cleanup-safe overrides, and the lifespan failure test explicitly proves the failing background-start path was awaited under `FORCE_BACKGROUND_UPDATES`.
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
