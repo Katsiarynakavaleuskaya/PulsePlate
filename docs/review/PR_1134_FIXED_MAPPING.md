@@ -33,6 +33,13 @@ Commit: 34c0db48
 Evidence: `scripts/design/contracts.py:768`, `scripts/design/contracts.py:782`, `tests/test_design_generation_pipeline.py:346`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#pullrequestreview-3936248789 -> 34c0db48
 
+Disposition: FIXED
+Commit: 6968236e
+Evidence: `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md:69`, `docs/roadmap/BACKLOG_LEDGER.md:375`, `docs/roadmap/BACKLOG_LEDGER.md:485`, `docs/roadmap/BACKLOG_LEDGER.md:509`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924396012 -> 6968236e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924396028 -> 6968236e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1134#discussion_r2924396035 -> 6968236e
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
