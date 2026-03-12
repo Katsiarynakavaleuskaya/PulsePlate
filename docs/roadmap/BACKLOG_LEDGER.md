@@ -1029,11 +1029,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
 <a id="ledger-p1-domain-ownership-canonicalization"></a>
-- [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
+- [x] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR/Www-TLS-Operator-Assist
   - Priority: P1
-  - Status: Public-side repo diagnostic landed on March 12, 2026; live Cloudflare/origin remediation still required because `www` still returns `525`
+  - Status: Completed on March 12, 2026; repo diagnostic landed, external apex `AAAA` drift was removed, and live origin remediation restored the `www -> apex` `308` redirect
   - Area: deploy / figma / frontend
   - Finding Type: production ownership drift
   - Reason: On March 12, 2026 the repo-backed runtime still answered on
@@ -1052,7 +1052,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`
   - DoD:
     - `python3 scripts/check_domain_tls.py --domain pulseplate.app` exists as the canonical read-only public-side diagnostic
-    - Repo evidence records the March 12, 2026 baseline from the new diagnostic and the current `www 525` finding
+    - Repo evidence records the March 12, 2026 baseline from the new diagnostic and the live remediation result
     - External DNS removes the conflicting apex `AAAA` record from the production zone
     - `www.pulseplate.app` no longer returns `525` and redirects cleanly to apex
     - `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime

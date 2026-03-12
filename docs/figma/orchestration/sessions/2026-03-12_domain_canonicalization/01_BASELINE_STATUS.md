@@ -67,3 +67,34 @@
    - repo now contains the canonical read-only diagnostic for apex/`www` ownership drift
    - live acceptance remains blocked until Cloudflare/origin remediation makes `www` redirect cleanly to apex
    - Figma remains detached from production-root ownership; any preview must use a dedicated preview subdomain
+
+## Live Remediation Evidence
+
+1. Manual operator-assisted remediation completed on March 12, 2026:
+   - Cloudflare DNS remained canonical during the fix window:
+     - apex `A` stayed on Cloudflare anycast IPs
+     - apex `AAAA` remained absent
+     - `www` remained Cloudflare-proxied and repo-owned
+   - DigitalOcean recovery boot exposed the production disk contents under `/mnt/srv/pulseplate-production`
+   - Live root cause found on the mounted production disk:
+     - `/mnt/srv/pulseplate-production/Caddyfile.production` did not contain the `www.{$PRODUCTION_DOMAIN}` redirect vhost from `deploy/Caddyfile.production:1`
+   - The production-disk `Caddyfile.production` was updated to the merged repo version, then the Droplet was switched back to hard-drive boot and powered on normally
+2. Public-side verification after the live remediation on March 12, 2026:
+   - `curl -I https://pulseplate.app` returned `405` with `allow: GET`
+   - `curl -I https://www.pulseplate.app` returned `308` with `location: https://pulseplate.app/`
+   - `curl -I https://www.pulseplate.app/health` returned `308` with `location: https://pulseplate.app/health`
+   - `python3 scripts/check_domain_tls.py --domain pulseplate.app` returned `PASS`
+3. Post-fix diagnostic snapshot:
+   - apex `A`: `104.26.9.193`, `172.67.75.178`, `104.26.8.193`
+   - apex `AAAA`: `(none)`
+   - `www` `A`: `104.26.9.193`, `172.67.75.178`, `104.26.8.193`
+   - `www` `AAAA`: `(none)`
+   - `www` `CNAME`: `(none)` under Cloudflare proxy, which remains acceptable
+   - apex HTTPS: `405`
+   - `www` HTTPS: `308 -> https://pulseplate.app/`
+
+## Final State
+
+- `pulseplate.app` remains the canonical repo-backed production host.
+- `www.pulseplate.app` now terminates TLS correctly and redirects cleanly to apex.
+- Figma remains detached from production-root ownership; any preview must use a dedicated preview subdomain.
