@@ -549,7 +549,7 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `AGENTS.md` (root) — SoT/evidence rules + safety boundaries
 - `docs/orchestration/workflow.md` — Pre-flight / post-flight / DoD
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 
 **Must know:**
 
@@ -563,7 +563,7 @@ This map reduces “missing context” failures by making required inputs explic
 **Primary (task-dependent):**
 
 - `AGENTS.md` (root) — safety + privacy boundaries
-- `docs/audit/PR_TBD_SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
+- `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md` — SDL contract (dev-only)
 - `docs/insights/*` — only if task is multimodal (CV/voice) and needs robustness planning
 
 **Must know:**

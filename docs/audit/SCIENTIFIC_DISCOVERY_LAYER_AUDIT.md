@@ -1,9 +1,10 @@
-# PR-TBD: Scientific Discovery Layer (SDL) — Audit (Docs-only)
+# Scientific Discovery Layer (SDL) — Audit
 
-**Topic PR:** PR-TBD (Docs-only)
-**Branch:** `docs/universal-orchestration-audit` (PR #691)
-**Scope:** orchestration-layer only (docs / dev-process), **no runtime impact**
-**Date:** 8 February 2026
+**Status:** Canonical SDL rationale artifact for the governed `creative_research` sub-lane
+**Topic PR:** PR #1131 (Docs-only canonicalization)
+**Branch:** `docs/sdl-audit-canonicalization-cleanup`
+**Scope:** rationale / audit only (docs / dev-process), **no runtime impact**
+**Date:** 12 March 2026
 
 ---
 
@@ -25,21 +26,29 @@ Observation → Hypothesis → Protocol → Evidence → Promotion/Reject.
 
 ## Executive summary (EN)
 
-This audit defines a **Scientific Discovery Layer (SDL)** for PulsePlate as a dev-only process and contract that
-turns ideas into **falsifiable hypotheses**, filters low-quality proposals using philosophy/logic/safety/domain constraints,
-and promotes only what has **reproducible validation** (protocol + success criteria + negative controls).
+This audit defines a **Scientific Discovery Layer (SDL)** for PulsePlate as a dev-only rationale and contract for the
+governed `creative_research` sub-lane. It turns ideas into **falsifiable hypotheses**, filters low-quality proposals using
+philosophy/logic/safety/domain constraints, and promotes only what has **reproducible validation**
+(protocol + success criteria + negative controls).
 
-SDL orchestrates (does not replace) RAG/Logic/Bayes/CBT/CV into a consistent discovery loop.
+SDL is a conceptual framing layer. It supports `creative_research` but does not replace the existing experimentation umbrella.
 
 ---
 
 ## Canonical references (single source of truth)
+
+**Evidence anchors:**
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:5-9`
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md:34-54`
+- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:13-32`
 
 ### Orchestration canon
 
 - `docs/orchestration/workflow.md` (canonical workflow + Pre-flight Checklist SoT)
 - `docs/orchestration/AGENT_HANDOFF_PROTOCOL.md` (handoff format)
 - `docs/orchestration/PARALLEL_WORK_PROTOCOL.md` (parallel tracks + sync points)
+- `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` (authoritative experimentation umbrella)
+- `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md` (canonical `creative_research` task-class contract)
 
 ### Existing insight / scientific corpus (inputs; non-canonical)
 
@@ -58,14 +67,17 @@ SDL orchestrates (does not replace) RAG/Logic/Bayes/CBT/CV into a consistent dis
 
 ### What SDL is
 
-- A **dev-only layer** for producing scientific artifacts: hypotheses, protocols, eval plans, and PR-ready acceptance criteria.
+- A **dev-only rationale layer** for producing scientific artifacts: hypotheses, protocols, eval plans, and PR-ready acceptance criteria.
 - A way to ensure multi-agent “research” does not become product behavior without tests.
+- A supporting design lens for `creative_research`, not a second orchestration constitution.
 
 ### What SDL is not
 
 - Not a runtime feature.
 - Not an excuse to add speculative claims to product copy.
 - Not a replacement for existing hard guardrails (VIP gating, rate limiting, monthly quota).
+- Not a public creativity endpoint.
+- Not a path to hidden memory, runtime autonomy, or autonomous merge behavior.
 
 ---
 
@@ -112,6 +124,20 @@ SDL must:
 7. **Execution** (minimal artifact; docs/tests in follow-up PR).
 8. **Peer review** (agents as critics; bounded dialogue).
 9. **Promotion / Rejection** (artifact to ledger/PR or rejection with reason).
+
+Operational shorthand used by the merged creative-research lane:
+
+```text
+diverge
+ -> cluster
+ -> synthesize
+ -> critique
+ -> verify
+ -> score
+ -> promote/defer/discard
+```
+
+Evidence: `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md:62-72`
 
 ### 3.2 Stop conditions
 
@@ -219,6 +245,7 @@ We explicitly restrict “physics” to **classical sensor modeling + Bayesian m
 - SDL can amplify cost if it triggers many LLM “experiments”. Future runtime PRs MUST have explicit budgets and quotas.
 - Any coaching-related experiments must enforce wellness-only boundaries and explicit disclaimers.
 - Retrieved/external content remains untrusted (prompt injection posture).
+- No hidden memory, no autonomous merge, and no runtime autonomy are allowed through this rationale layer.
 
 ---
 
