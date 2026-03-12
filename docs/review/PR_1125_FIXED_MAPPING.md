@@ -45,6 +45,11 @@ Disposition: FIXED
 Commit: 6154efc9
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:902`; `docs/roadmap/BACKLOG_LEDGER.md:906`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#discussion_r2922308924 -> de69371d
+Disposition: FIXED
+Commit: de69371d
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:41`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:61`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#pullrequestreview-3932987652
 Disposition: NOT-A-BUG
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:902`; `docs/roadmap/BACKLOG_LEDGER.md:906`
@@ -54,6 +59,12 @@ Reason: This cubic summary review aggregates the backlog stale-item finding fixe
 Disposition: NOT-A-BUG
 Evidence: `.cursor/mcp.json.example:3`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:72`; `docs/figma/ios_prototype_v2/index.html:1`; `docs/figma/ios_prototype_v2/profile.html:33`; `docs/roadmap/BACKLOG_LEDGER.md:902`
 Reason: This CodeRabbit summary review aggregates the inline findings dispositioned above; current head fixes the concrete doc/html issues in `6154efc9`, and the two remaining points are deliberate `NOT-A-BUG` decisions with evidence above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1125#pullrequestreview-3933957568 -> de69371d
+Disposition: FIXED
+Commit: de69371d
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:41`; `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:61`; `docs/figma/ios_prototype_v2/README.md:3`
+Reason: This CodeRabbit summary review aggregates the onboarding runtime-target fix above and repeats the existing docs-only duplicate already dispositioned as `NOT-A-BUG`.
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
