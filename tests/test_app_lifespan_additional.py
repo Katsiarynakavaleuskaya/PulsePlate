@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import app
 from app.bootstrap import startup_guards as bootstrap_guards
@@ -42,11 +42,11 @@ async def test_lifespan_validate_template_generic_error(monkeypatch: pytest.Monk
 async def test_lifespan_background_update_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     import legacy_app
 
-    async def failing_start(*args, **kwargs):
-        raise RuntimeError("failure")
+    failing_start = AsyncMock(side_effect=RuntimeError("failure"))
+    noop_stop = AsyncMock(return_value=None)
 
-    async def noop_stop():
-        return None
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    monkeypatch.delenv("DISABLE_BACKGROUND_UPDATES", raising=False)
 
     patch_background_update_callables(monkeypatch, start=failing_start, stop=noop_stop)
 
@@ -57,6 +57,8 @@ async def test_lifespan_background_update_failure(monkeypatch: pytest.MonkeyPatc
         # Should suppress the failing start call and still enter context
         async with app.lifespan(app.app):
             pass
+
+    failing_start.assert_awaited_once_with(update_interval_hours=24)
 
 
 @pytest.mark.asyncio
