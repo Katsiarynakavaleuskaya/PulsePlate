@@ -455,7 +455,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Screen content model, reusable template registry, and `pulseplate_canvas_v1` convergence after PR #1121
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design runtime semantics)
-  - Target PR: PR-TBD-DESIGN-CANVAS-PR3
+  - Target PR: PR #1134
   - Status: 🚧 In progress in PR3 design canvas artifact contract
   - Area: scripts / design-runtime / docs
   - Finding Type: deferred model-governance cleanup
