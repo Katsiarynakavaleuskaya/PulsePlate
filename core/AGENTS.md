@@ -48,6 +48,13 @@ If a test fails due to typing:
   or `SessionLocal.configure()` in `core/`.
   DB lifecycle is controlled by test fixtures and application startup.
 
+## FitChef domain invariants
+
+- FitChef domain code must consume canonical backend outputs; it must not recreate nutrition math, entitlement logic, or planner truth in `core/fitchef/*`.
+- LLM-generated text is not a domain oracle. Domain state, actions, and limits must be decided before any provider call.
+- FitChef fallback/templates are mandatory and deterministic so bounded guidance still works when LLM execution is disabled or unavailable.
+- Core FitChef interfaces should prefer typed structured payloads over free-form strings whenever the result drives UI actions or navigation.
+
 ## Feature map
 - See `app/AGENTS.md` for the full backend feature map covering `core/` + `app/`.
 

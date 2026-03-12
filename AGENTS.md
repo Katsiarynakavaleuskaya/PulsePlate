@@ -554,6 +554,16 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Allowlist: `tests/guards/wellness_language_allowlist.txt`; in-file marker: `pulseplate-allow:blocker-example`
 - LLM outputs used in product copy/coaching must pass `philosophy_validator` (BLOCKER = rewrite). See `core.insight.philosophy_validator.validate_llm_output`.
 
+**FitChef initiative policy (Hard rule):**
+
+- The current live FitChef public canon remains `/api/v1/insight/fitchef*`; do not rename, migrate, or deprecate these routes in foundation or visual-lane PRs.
+- FitChef must never implement nutrition math, entitlement truth, or planner truth outside canonical backend engines and guards.
+- LLM output is advisory text only and must never become domain source of truth for targets, tiers, or action availability.
+- FREE tier must not expose open-ended FitChef coaching runtime.
+- FitChef UI surfaces must render structured DTOs or approved response envelopes; do not parse raw prose into product state or navigation.
+- Every FitChef action must resolve to an existing routed product flow before the action is exposed in UI.
+- Template/fallback responses are mandatory whenever LLM execution is unavailable, disallowed, or feature-gated.
+
 **❌ Forbidden in `legacy_app.py`:**
 
 - `warn, high = (94, 102)` or similar

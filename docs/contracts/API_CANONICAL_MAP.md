@@ -22,6 +22,7 @@ Billing evidence note:
 3. Planned routes must stay marked as planned or additive until runtime rollout and OpenAPI exposure are real.
 4. README may summarize capability areas, but this file is the operator-facing route map.
 5. Web and iOS remain thin adapters and must not invent alternative route semantics.
+6. FitChef umbrella foundation work must preserve the live `/api/v1/insight/fitchef*` canon until a dedicated additive contract PR promotes future structured-coach paths.
 
 ## Canonical Runtime Now
 
@@ -46,6 +47,11 @@ These routes are the current canonical operator surface.
 | FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef weekly reflection route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef slip support | `/api/v1/insight/fitchef/slip-support` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef slip-support route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
+
+FitChef initiative note:
+- The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
+- Future structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` remain planned-only until a dedicated additive contract PR lands.
+- Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 
 ## Deprecated Alias / Proxy-Only Surface
 
@@ -79,6 +85,7 @@ These routes remain for compatibility and migration. They must not be described 
 - OpenAPI workflow hardening for backend/frontend split targets: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-openapi-decoupling-split`
 - `docker compose` v2 migration for repo command surfaces: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
 - AI runtime extraction into a dedicated bounded context: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+- FitChef umbrella foundation and preserved live-canon policy: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
 
 ## Legacy Compatibility Guidance
 

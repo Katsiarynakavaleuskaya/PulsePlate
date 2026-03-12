@@ -49,6 +49,13 @@ npm run build
 - Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
 - Audit: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md`
 
+## FitChef web client policy
+
+- Web FitChef surfaces must stay thin adapters over backend contracts; no client-side nutrition math, entitlement inference, or action synthesis.
+- Current live FitChef mascot routes remain `/api/v1/insight/fitchef*`; any future `/api/v1/pro/fitchef/*` or `/api/v1/vip/fitchef/*` usage must follow additive contract rollout.
+- UI must render structured DTO fields or frozen response envelopes; do not parse free-form prose to derive routing, badges, or gated states.
+- FREE-tier web surfaces may show bounded/static FitChef guidance, but must not expose open-ended coach runtime.
+
 ---
 
 ## Realtime WebSocket adapter policy
