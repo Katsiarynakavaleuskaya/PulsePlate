@@ -978,29 +978,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       web review workflow
 
 
-- [ ] P1: Normalize raw iOS prototype file before implementation mapping
+- [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
   - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
-  - Target PR: PR-TBD-IOS-PROTOTYPE-NORMALIZATION
+  - Target PR: PR #1125
   - Priority: P1
-  - Status: 📋 Planned
-  - Area: design / iOS / Figma intake
-  - Finding Type: prototype intake normalization
-  - Reason: Live MCP discovery on 2026-03-11 confirms an existing Figma file
-    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) with at least one imported
-    onboarding screen, but this file is still a raw prototype lane. Long-scroll
-    page capture may duplicate screens, and stable screen/frame node IDs are
-    not yet registered for implementation-safe mapping.
+  - Status: 🔄 In review
+  - Area: design / iOS / Figma promotion
+  - Finding Type: canonical design-source promotion
+  - Reason: The normalization work is now implemented on branch via
+    `ios prototype v2` (`AhyS6u4dZXMRHVUDO3Cfn6`) with stable `screen ID ->
+    nodeId` registry. This backlog item remains open only until PR #1125 merges
+    and the v2 registry becomes the canonical repo state. The raw
+    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) stays `reference_only`.
   - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
     - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
     - `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md`
-    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
     - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
     - `ios/PulsePlate/Screens/PaywallScreen.swift`
   - DoD:
-    - Raw prototype file is treated as `reference_only` until normalization is complete
-    - Duplicated long-scroll captures are split into one stable frame per screen
-    - Current `fileKey` + `nodeId` pairs are recorded for the iOS onboarding/paywall flow
-    - At least onboarding entry and paywall/offer surfaces have implementation-safe frame references
+    - PR #1125 is merged with the `ios prototype v2` registry and evidence docs
+    - `ios prototype v2` is treated as the implementation-safe source for the
+      current iOS funnel slice
+    - Raw `ios prototype` remains explicitly `reference_only`
+    - Any remaining Code Connect work continues under the separate activation
+      backlog item, not this normalization/promotion item
 
 
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP

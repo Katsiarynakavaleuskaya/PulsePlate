@@ -91,9 +91,9 @@ session check proves otherwise.
 
 ## Quick Verification
 
-- `whoami` returns identity payload.
-- `get_design_context(fileKey,nodeId)` returns context/resources.
-- `generate_figma_design` returns capture options in discovery mode.
+- Verify `whoami` returns the identity payload.
+- Confirm `get_design_context(fileKey,nodeId)` returns the context/resources.
+- Ensure `generate_figma_design` returns capture options in discovery mode.
 - Code Connect capability is checked separately from core MCP auth.
 - One Design or clipboard capture path is documented for the active session.
 

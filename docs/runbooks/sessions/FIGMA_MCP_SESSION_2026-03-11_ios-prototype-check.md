@@ -24,9 +24,9 @@
 
 - Tool: `mcp__figma__whoami`
 - Result:
-  - email: `lexakm532@gmail.com`
-  - handle: `Katsiaryna Kavaleuskaya`
-  - plan: `Катерина's team` (`pro`, seat `Full`)
+  - email: `[redacted personal email]`
+  - handle: `[redacted personal identity]`
+  - workspace: `[redacted workspace identity]` (`pro`, seat `Full`)
 
 ### Request 2 (Design file metadata)
 

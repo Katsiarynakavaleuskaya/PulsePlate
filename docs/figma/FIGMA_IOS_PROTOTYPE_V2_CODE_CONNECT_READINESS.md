@@ -74,6 +74,12 @@ Current workspace blocker:
    - update `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
    - if mappings are activated in a PR, mirror results in
      `docs/review/PR_<N>_FIXED_MAPPING.md`
+   - update the PR body mirror with:
+     - `## Discussion Thread Pass`
+     - `### Fixed in Commit Mapping`
+     - `## Merge Readiness`
+   - keep the artifact and PR body mirror aligned before claiming merge
+     checklist completion
 
 ## Acceptance criteria
 
