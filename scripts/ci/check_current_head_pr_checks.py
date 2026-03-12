@@ -24,6 +24,7 @@ class CheckEntry:
     timestamp: str
     details_url: str
     workflow_name: str
+    conclusion: str
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -235,6 +236,7 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             timestamp=timestamp,
             details_url=str(node.get("detailsUrl") or ""),
             workflow_name=workflow_name,
+            conclusion=conclusion,
         )
 
     name = str(node.get("context") or "").strip()
@@ -252,6 +254,7 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         timestamp=str(node.get("createdAt") or ""),
         details_url=str(node.get("targetUrl") or ""),
         workflow_name="",
+        conclusion="",
     )
 
 
@@ -289,11 +292,48 @@ def _required_snapshot(
                     timestamp="",
                     details_url="",
                     workflow_name="",
+                    conclusion="",
                 )
             )
         else:
             snapshot.append(entry)
     return snapshot
+
+
+def _suppress_cancelled_latest_entries_with_newer_workflow_activity(
+    entries: list[CheckEntry],
+    latest: dict[str, CheckEntry],
+    superseded: list[CheckEntry],
+) -> tuple[dict[str, CheckEntry], list[CheckEntry]]:
+    """Demote cancelled latest entries when a newer run from the same workflow exists.
+
+    RU: Если job из текущего head был отменен из-за concurrency, но тот же workflow
+    уже успел выпустить более новый activity на этом же SHA, cancelled status не
+    должен считаться latest signal для merge triage.
+    EN: If a current-head job was cancelled by workflow concurrency, but the same
+    workflow has already emitted newer activity on the same SHA, that cancelled
+    status is stale noise and should move to the superseded bucket.
+    """
+
+    newest_workflow_marker: dict[str, tuple[str, str]] = {}
+    for entry in entries:
+        if not entry.workflow_name:
+            continue
+        marker = (entry.timestamp, entry.details_url)
+        previous = newest_workflow_marker.get(entry.workflow_name)
+        if previous is None or marker >= previous:
+            newest_workflow_marker[entry.workflow_name] = marker
+
+    filtered_latest = dict(latest)
+    updated_superseded = list(superseded)
+    for name, entry in list(filtered_latest.items()):
+        if entry.conclusion != "CANCELLED" or not entry.workflow_name:
+            continue
+        latest_workflow_marker = newest_workflow_marker.get(entry.workflow_name)
+        if latest_workflow_marker and latest_workflow_marker > (entry.timestamp, entry.details_url):
+            updated_superseded.append(entry)
+            del filtered_latest[name]
+    return filtered_latest, updated_superseded
 
 
 def _format_entry(entry: CheckEntry) -> str:
@@ -357,7 +397,13 @@ def main(argv: list[str] | None = None) -> int:
         print("current-head-checks: PR is draft; skipping strict checks.")
         return 0
 
-    latest, superseded = _latest_entries([_normalize_node(node) for node in nodes if node])
+    normalized_entries = [_normalize_node(node) for node in nodes if node]
+    latest, superseded = _latest_entries(normalized_entries)
+    latest, superseded = _suppress_cancelled_latest_entries_with_newer_workflow_activity(
+        normalized_entries,
+        latest,
+        superseded,
+    )
     current_required = (
         _required_snapshot(latest, required_names) if required_metadata_available else []
     )

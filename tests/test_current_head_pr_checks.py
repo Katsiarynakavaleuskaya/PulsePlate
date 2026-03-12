@@ -13,6 +13,7 @@ def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() ->
         timestamp="2026-03-12T04:48:16Z",
         details_url="https://example.invalid/older",
         workflow_name="Docker Image CI",
+        conclusion="FAILURE",
     )
     newer = current_head_checks.CheckEntry(
         name="build",
@@ -21,6 +22,7 @@ def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() ->
         timestamp="2026-03-12T05:05:00Z",
         details_url="https://example.invalid/newer",
         workflow_name="Docker Image CI",
+        conclusion="SUCCESS",
     )
 
     latest, superseded = current_head_checks._latest_entries([newer, older])
@@ -43,8 +45,44 @@ def test_required_snapshot_adds_pending_placeholder_for_missing_required_check()
             timestamp="",
             details_url="",
             workflow_name="",
+            conclusion="",
         )
     ]
+
+
+def test_cancelled_latest_is_demoted_when_same_workflow_has_newer_activity() -> None:
+    cancelled_latest = current_head_checks.CheckEntry(
+        name="coverage-pr",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-03-12T08:36:42Z",
+        details_url="https://example.invalid/cancelled",
+        workflow_name="CI",
+        conclusion="CANCELLED",
+    )
+    newer_workflow_activity = current_head_checks.CheckEntry(
+        name="Docs Phase1 gates",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-03-12T08:40:32Z",
+        details_url="https://example.invalid/newer-workflow-activity",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+    )
+
+    latest, superseded = current_head_checks._latest_entries(
+        [cancelled_latest, newer_workflow_activity]
+    )
+    filtered_latest, updated_superseded = (
+        current_head_checks._suppress_cancelled_latest_entries_with_newer_workflow_activity(
+            [cancelled_latest, newer_workflow_activity],
+            latest,
+            superseded,
+        )
+    )
+
+    assert "coverage-pr" not in filtered_latest
+    assert cancelled_latest in updated_superseded
 
 
 def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_superseded(
