@@ -40,8 +40,13 @@ Evidence: `d755d262` extends the local pre-gate failure seam so `_phase2_args()`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#pullrequestreview-3934386867 -> d755d262
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922679718 -> d755d262
 
+Disposition: FIXED
+Commit: ce5a5e69
+Evidence: `ce5a5e69` narrows `mergeStateStatus` blocking to the metadata-unavailable fallback path in `scripts/ci/check_current_head_pr_checks.py:380-387`, while preserving current-head blocking for required pending or failed checks, and adds regression coverage for the clean-required / non-clean-merge-state pass case plus the metadata-unavailable failure case in `tests/test_current_head_pr_checks.py:139-211`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1129#discussion_r2922690699 -> ce5a5e69
+
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
