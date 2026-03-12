@@ -1,11 +1,11 @@
 # PR 1138 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-- No review threads were present at PR creation time.
+- No actionable review comments.
 - Initial implementation commit: `75449438`
 - Local validation evidence on `75449438`:
   - `git diff --check`
