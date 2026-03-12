@@ -106,12 +106,17 @@ or `figma_make`; Tokens Studio does not become a separate source lane.
 
 ### Executable design runtime
 
+- reusable layout templates are the canonical structural source for
+  `sections` and static `component_hierarchy`
+- `SCREEN_CONTENT_MODEL` is metadata-only and must not duplicate topology
 - instruction generation must emit explicit `sections`, `component_hierarchy`,
-  and `layout_archetype`
+  `layout_archetype`, and a deterministic downstream canvas artifact path
 - execution must flow through the adapter seam, even when the adapter is
   deterministic-only
 - local Phase 1 adapters (`deterministic_stub`, `code_native_canvas`) must
   preserve the same instruction and manifest contract
+- `code_native_canvas` emits canonical `pulseplate_canvas_v1` and may expose
+  `render_plan` only as a derived compatibility field
 - live external adapters are future work and must preserve the same instruction
   and manifest contract
 

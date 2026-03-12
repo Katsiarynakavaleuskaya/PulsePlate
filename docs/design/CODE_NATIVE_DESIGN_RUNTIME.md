@@ -21,7 +21,17 @@ similar tools as the primary runtime dependency.
 - `/tokens` remains the token source of truth
 - `docs/design/ui_component_vocabulary.json` remains the naming source of truth
 - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md` remains the brief assembly contract
-- generated instruction JSON remains the executable machine contract
+- reusable layout templates are the canonical topology source for sections and
+  static component hierarchy. Evidence:
+  `scripts/design/layout_templates.py:383`,
+  `scripts/design/generate_figma_instructions.py:878`
+- generated instruction JSON remains the executable machine contract. Evidence:
+  `scripts/design/generate_figma_instructions.py:1047`,
+  `scripts/design/contracts.py:138`
+- `pulseplate_canvas_v1` is the canonical internal runtime artifact emitted from
+  the governed instruction contract. Evidence:
+  `scripts/design/canvas_artifact.py:125`,
+  `scripts/design/execution_adapters.py:92`
 
 ## 3. Runtime model
 
@@ -29,6 +39,7 @@ Primary execution lane:
 
 - `scripts/design/generate_figma_instructions.py:875`
 - `scripts/design/layout_templates.py:383`
+- `scripts/design/canvas_artifact.py:1`
 - `scripts/design/execution_adapters.py:79`
 
 Preferred adapter for local design runtime:
@@ -46,8 +57,50 @@ The runtime should be able to materialize:
 - `layout_archetype`
 - `sections`
 - `component_hierarchy`
-- stable render operations grouped by semantic role
-- a deterministic local render artifact such as `pulseplate_canvas_v1`
+- deterministic `render_ops` derived from the instruction contract. Evidence:
+  `scripts/design/canvas_artifact.py:96`,
+  `scripts/design/contracts.py:642`
+- canonical JSON artifact `pulseplate_canvas_v1`. Evidence:
+  `scripts/design/canvas_artifact.py:125`,
+  `scripts/design/execution_adapters.py:141`
+
+Required artifact fields:
+
+- `canvas_version`. Evidence: `scripts/design/canvas_artifact.py:42`,
+  `scripts/design/contracts.py:75`, `scripts/design/contracts.py:553`
+- `screen_id`. Evidence: `scripts/design/canvas_artifact.py:43`,
+  `scripts/design/contracts.py:76`, `scripts/design/contracts.py:553`
+- `platform`. Evidence: `scripts/design/canvas_artifact.py:44`,
+  `scripts/design/contracts.py:77`, `scripts/design/contracts.py:553`
+- `surface`. Evidence: `scripts/design/canvas_artifact.py:45`,
+  `scripts/design/contracts.py:78`, `scripts/design/contracts.py:553`
+- `layout_archetype`. Evidence: `scripts/design/canvas_artifact.py:46`,
+  `scripts/design/contracts.py:79`, `scripts/design/contracts.py:553`
+- `layout_pattern`. Evidence: `scripts/design/canvas_artifact.py:47`,
+  `scripts/design/contracts.py:80`, `scripts/design/contracts.py:553`
+- `dimensions`. Evidence: `scripts/design/canvas_artifact.py:48`,
+  `scripts/design/contracts.py:81`, `scripts/design/contracts.py:553`
+- `background_token`. Evidence: `scripts/design/canvas_artifact.py:49`,
+  `scripts/design/contracts.py:82`, `scripts/design/contracts.py:553`
+- `token_constraints`. Evidence: `scripts/design/canvas_artifact.py:50`,
+  `scripts/design/contracts.py:83`, `scripts/design/contracts.py:553`
+- `sections`. Evidence: `scripts/design/canvas_artifact.py:51`,
+  `scripts/design/contracts.py:84`, `scripts/design/contracts.py:553`
+- `nodes`. Evidence: `scripts/design/canvas_artifact.py:52`,
+  `scripts/design/contracts.py:85`, `scripts/design/contracts.py:553`
+- `render_ops`. Evidence: `scripts/design/canvas_artifact.py:53`,
+  `scripts/design/contracts.py:86`, `scripts/design/contracts.py:553`
+
+Manifest-safe metadata for `code_native_canvas` must also record:
+
+- `artifact_type`. Evidence: `scripts/design/execution_adapters.py:111`,
+  `scripts/design/execute_design.py:136`
+- `artifact_version`. Evidence: `scripts/design/execution_adapters.py:112`,
+  `scripts/design/execute_design.py:137`
+- `section_count`. Evidence: `scripts/design/execution_adapters.py:106`,
+  `scripts/design/execute_design.py:130`
+- `component_count`. Evidence: `scripts/design/execution_adapters.py:107`,
+  `scripts/design/execute_design.py:132`
 
 ## 5. Non-goals for current phase
 
