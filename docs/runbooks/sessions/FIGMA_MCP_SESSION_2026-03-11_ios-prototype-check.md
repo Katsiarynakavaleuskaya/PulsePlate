@@ -238,20 +238,130 @@
 - Result:
   - success
   - screenshot verifies onboarding, value, paywall, and home screens exist in one clean v2 file
-  - home screen verifies required CTA matrix is present
+
+---
+
+# Follow-up Execution: BMI + Onboarding Polish Refresh
+
+## Session Metadata
+
+- Date: 2026-03-12
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-bmi-onboarding-polish`
+- Local capture source root:
+  - `docs/figma/ios_prototype_v2/`
+- Existing Figma file:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
+
+## Scope
+
+- refresh `iOS_Onboarding_01_Welcome`
+- refresh `iOS_Onboarding_02_Value_Usage`
+- refresh `iOS_BMI`
+
+## Execution
+
+### Request 14 (BMI slice local polish)
+
+- Local source updates:
+  - `docs/figma/ios_prototype_v2/onboarding-welcome.html`
+  - `docs/figma/ios_prototype_v2/onboarding-value-usage.html`
+  - `docs/figma/ios_prototype_v2/bmi.html`
+  - `docs/figma/ios_prototype_v2/styles.css`
+- Result:
+  - onboarding copy aligned to runtime localization keys
+  - FitChef label restored as supporting brand element
+  - BMI surface moved from generic editable rows to form/picker anatomy closer to `BMICalculatorScreen`
+  - optional BMI hook now mirrors backend default title/body/CTA contract
+
+### Request 15 (existing-file recapture: BMI)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/bmi.html`
+- Result:
+  - success
+  - created refreshed BMI frame `21:2`
+
+### Request 16 (existing-file recapture: value/usage onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-value-usage.html`
+- Result:
+  - success
+  - created refreshed onboarding value/usage frame `22:2`
+
+### Request 17 (existing-file recapture: welcome onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-welcome.html`
+- Result:
+  - success
+  - created refreshed onboarding welcome frame `23:2`
+
+### Request 18 (metadata verification)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=21:2`
+  - `nodeId=22:2`
+  - `nodeId=23:2`
+- Result:
+  - success
+  - verified canonical refreshed nodes for BMI + onboarding slice
+
+### Request 19 (screenshot verification)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=21:2`
+  - `nodeId=22:2`
+  - `nodeId=23:2`
+- Result:
+  - success
+  - visual sanity-check passed for the refreshed slice
+
+## Refreshed Canonical Node Map
+
+- `iOS_Onboarding_01_Welcome` -> `25:2`
+- `iOS_Onboarding_02_Value_Usage` -> `20:2`
+- `iOS_BMI` -> `24:2`
+
+## Notes
+
+- Previous node IDs for the same three screens (`1:2`, `3:2`, `8:2`,
+  `23:2`, `22:2`, `21:2`) remain historical evidence only.
+- Shared capture script remains in HTML per MCP guidance for re-capture safety.
 
 ## Stable Screen Map
 
 | Canonical screen ID | Figma nodeId | Imported frame name | Source basis |
 | --- | --- | --- | --- |
-| `iOS_Onboarding_01_Welcome` | `1:2` | `Main Content (iOS Onboarding Welcome)` | iOS prototype mood + Design System typography |
-| `iOS_Onboarding_02_Value_Usage` | `3:2` | `Main Content (iOS Onboarding Value Usage)` | web onboarding structure + iOS-native rewrite |
-| `iOS_Home` | `11:2` | `Main Content (iOS Home)` | Design System + iOS Home CTA matrix |
-| `iOS_Paywall_Pro_VIP` | `17:2` | `Main Content (iOS Paywall Pro VIP)` | Paywall tier reconciliation from repo SoT |
-| `iOS_ShoppingList` | `18:2` | `Main Content (iOS Shopping List)` | Shopping list runtime + weekly-plan continuity |
-| `iOS_WeeklyPlan_Reader` | `15:2` | `Main Content (iOS Weekly Plan Reader)` | Weekly plan runtime + VIP follow-up hooks |
-| `iOS_Profile` | `13:2` | `Main Content (iOS Profile)` | PRO profile runtime + legal/language layer |
-| `iOS_BMI` | `8:2` | `Main Content (iOS BMI)` | BMI runtime + result + soft paywall hook |
+| `iOS_Onboarding_01_Welcome` | `25:2` | `iOS Onboarding Welcome` | iOS prototype mood + Design System typography |
+| `iOS_Onboarding_02_Value_Usage` | `20:2` | `iOS Onboarding Value Usage` | web onboarding structure + iOS-native rewrite |
+| `iOS_Home` | `11:2` | `iOS Home` | Design System + iOS Home CTA matrix |
+| `iOS_Paywall_Pro_VIP` | `17:2` | `iOS Paywall Pro VIP` | Paywall tier reconciliation from repo SoT |
+| `iOS_ShoppingList` | `18:2` | `iOS Shopping List` | Shopping list runtime + weekly-plan continuity |
+| `iOS_WeeklyPlan_Reader` | `15:2` | `iOS Weekly Plan Reader` | Weekly plan runtime + VIP follow-up hooks |
+| `iOS_Profile` | `13:2` | `iOS Profile` | PRO profile runtime + legal/language layer |
+| `iOS_BMI` | `24:2` | `iOS BMI` | BMI runtime + result + soft paywall hook |
 
 ## Structural QA
 
@@ -296,6 +406,68 @@
   `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
 - Activation source stays pinned to:
   - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
-  - node IDs: `1:2`, `3:2`, `11:2`, `17:2`, `18:2`, `15:2`, `13:2`, `8:2`
+  - node IDs: `25:2`, `20:2`, `11:2`, `17:2`, `18:2`, `15:2`, `13:2`, `24:2`
 - Code Connect is still not active in this session because the workspace remains
   blocked by seat/plan.
+
+## Follow-up Execution: BMI + Onboarding Polish Refresh (Round 2)
+
+### Request 20 (existing-file recapture: onboarding value/usage)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-value-usage.html`
+- Result:
+  - success
+  - created refreshed onboarding value/usage frame `20:2`
+
+### Request 21 (existing-file recapture: BMI)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/bmi.html`
+- Result:
+  - success
+  - created refreshed BMI frame `24:2`
+
+### Request 22 (existing-file recapture: welcome onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-welcome.html`
+- Result:
+  - success
+  - created refreshed onboarding welcome frame `25:2`
+
+### Request 23 (metadata verification)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=20:2`
+  - `nodeId=24:2`
+  - `nodeId=25:2`
+- Result:
+  - success
+  - verified the latest canonical refreshed nodes for BMI + onboarding slice
+
+### Request 24 (screenshot verification)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=20:2`
+  - `nodeId=24:2`
+  - `nodeId=25:2`
+- Result:
+  - success
+  - visual sanity-check passed for the current refreshed slice
