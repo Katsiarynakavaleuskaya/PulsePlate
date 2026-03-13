@@ -1,7 +1,7 @@
 # FitChef Structured Coach Contract
 
 **Status:** Contract freeze for additive structured coach surfaces
-**Date:** 2026-03-14
+**Date:** 2026-03-13
 **Owner:** @katsiaryna_kavaleuskaya
 
 ## Summary
