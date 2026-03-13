@@ -183,6 +183,8 @@ def test_preview_partner_order_from_weekly_plan_invalid_shape_422(
     assert response.status_code == 422
     assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"] == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
+    assert "/srv/pulseplate/private-weekly-plan.json" not in response.text
+    assert "adapter trace /srv/pulseplate/private-weekly-plan.json" not in response.text
     assert "days/menu.days/data.daily_menus" not in response.json()["detail"]
 
 
@@ -694,6 +696,7 @@ def test_create_partner_order_sanitizes_unexpected_conflict_detail(
     assert response.status_code == 409
     assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"] == CREATE_ORDER_CONFLICT_DETAIL
+    assert "/srv/orders.db" not in response.text
 
 
 def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
@@ -722,6 +725,7 @@ def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
     assert response.status_code == 403
     assert response.headers.get("content-type", "").startswith("application/json")
     assert response.json()["detail"] == SHARE_ACCESS_FORBIDDEN_DETAIL
+    assert "/srv/private-share-token" not in response.text
 
 
 def test_preview_partner_order_invalid_currency_422(
