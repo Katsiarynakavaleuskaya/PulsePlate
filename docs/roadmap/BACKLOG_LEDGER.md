@@ -6192,7 +6192,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Canonicalize backlog-ledger post-merge sync audit artifact
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-BACKLOG-LEDGER-POST-MERGE-SYNC-AUDIT-CANON
+  - Target PR: PR `#1152`
   - Status: 🟡 In progress
   - Reason (EN): the retained audit for the PR `#673` / `#674` backlog-sync follow-through still uses `PR_TBD`
     identity and stale branch metadata even though the merged PR numbers are already known. The artifact should be

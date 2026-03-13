@@ -29,9 +29,9 @@ Reason: This aggregate cubic review shell is satisfied by the concrete inline NO
 - Initial review state only. Any additional actionable review items will be recorded here with FIXED / NOT-A-BUG / DEFERRED dispositions.
 
 ## Merge Readiness
-- [x] Local gates passed on current head
+- [ ] Local gates passed on current head
 - [ ] All required checks green
-- [x] All actionable review threads resolved with dispositions
+- [ ] All actionable review threads resolved with dispositions
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
 - [ ] Cubic PASS / no-actionables
