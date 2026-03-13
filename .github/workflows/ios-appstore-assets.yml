@@ -26,6 +26,7 @@ permissions:
 
 jobs:
   validate-assets:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_asc)
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -122,16 +123,11 @@ jobs:
         working-directory: ios
         run: bundle install
 
-      - name: Capture screenshots
-        working-directory: ios
-        env:
-          LC_ALL: en_US.UTF-8
-          LANG: en_US.UTF-8
-        run: bundle exec fastlane ios snapshot_all
-
-      - name: Validate assets
-        working-directory: ios
-        run: bundle exec fastlane ios validate_assets
+      - name: Download screenshot artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ios-appstore-screenshots
+          path: ios/fastlane/screenshots
 
       - name: Upload metadata and screenshots
         working-directory: ios
@@ -144,7 +140,6 @@ jobs:
 
   upload-app-privacy:
     if: github.event_name == 'workflow_dispatch' && inputs.upload_app_privacy
-    needs: validate-assets
     runs-on: macos-15
     timeout-minutes: 30
     environment: appstore-privacy
@@ -163,7 +158,7 @@ jobs:
 
       - name: Validate metadata and privacy package
         working-directory: ios
-        run: bundle exec fastlane ios validate_assets
+        run: bundle exec fastlane ios validate_metadata_package
 
       - name: Upload App Privacy
         working-directory: ios

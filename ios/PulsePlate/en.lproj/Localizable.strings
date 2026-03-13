@@ -130,10 +130,10 @@
 "appstore.paywall.section.plans" = "Plans";
 "appstore.paywall.restore" = "Restore Purchases";
 "appstore.paywall.plan.monthly.title" = "PRO Monthly";
-"appstore.paywall.plan.monthly.price" = "$9.99 / month";
+"appstore.paywall.plan.monthly.price" = "See price in App Store";
 "appstore.paywall.plan.monthly.badge" = "Most flexible";
 "appstore.paywall.plan.yearly.title" = "VIP Annual";
-"appstore.paywall.plan.yearly.price" = "$59.99 / year";
+"appstore.paywall.plan.yearly.price" = "See price in App Store";
 "appstore.paywall.plan.yearly.badge" = "Best value";
 "appstore.health_permission.navigation_title" = "Health Access";
 "appstore.health_permission.title" = "Health access, explained clearly";

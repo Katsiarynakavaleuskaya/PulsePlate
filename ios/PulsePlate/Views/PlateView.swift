@@ -108,6 +108,7 @@ struct PlateViewPP: View {
   @State private var showNutritionDetails = false
   @State private var showProfile = false
   @State private var showProSetup = false
+  private let localization = LocalizationManager.shared
 
   private var isAppStoreScreenshotMode: Bool {
     AppStoreScreenshotContext.isEnabled
@@ -144,7 +145,7 @@ struct PlateViewPP: View {
   }
 
   private func localized(_ key: String) -> String {
-    NSLocalizedString(key, comment: "")
+    localization.localized(key)
   }
 
   private func handlePrimaryCTA(_ action: PlatePrimaryCTA) {

@@ -89,14 +89,7 @@ def _prepare_metadata(metadata_root: Path) -> tuple[Path, Path]:
         json.dumps(
             [
                 {
-                    "category": "HEALTH",
-                    "purposes": ["APP_FUNCTIONALITY"],
-                    "data_protections": ["DATA_LINKED_TO_YOU"],
-                },
-                {
-                    "category": "FITNESS",
-                    "purposes": ["APP_FUNCTIONALITY"],
-                    "data_protections": ["DATA_LINKED_TO_YOU"],
+                    "data_protections": ["DATA_NOT_COLLECTED"],
                 },
             ]
         ),
@@ -170,7 +163,7 @@ def test_validate_dimensions_fails_when_a_family_is_missing(tmp_path: Path) -> N
     assert "missing families ipad_13" in result.stderr
 
 
-def test_validate_color_gamut_requires_consistent_embedded_profile(tmp_path: Path) -> None:
+def test_validate_color_gamut_rejects_mixed_supported_profiles(tmp_path: Path) -> None:
     screenshots_root = tmp_path / "screenshots" / "en-US"
     screenshots_root.mkdir(parents=True, exist_ok=True)
     _write_png(
@@ -183,7 +176,7 @@ def test_validate_color_gamut_requires_consistent_embedded_profile(tmp_path: Pat
         screenshots_root / "iPad Pro 13-inch (M5)-01_welcome.png",
         width=IPAD_SIZE[0],
         height=IPAD_SIZE[1],
-        profile="none",
+        profile="iccp",
     )
 
     result = _run_ruby(
@@ -192,7 +185,7 @@ def test_validate_color_gamut_requires_consistent_embedded_profile(tmp_path: Pat
     )
 
     assert result.returncode == 1
-    assert "Missing color profile chunk" in result.stderr
+    assert "Mixed color profiles detected" in result.stderr
 
 
 def test_metadata_and_healthkit_validators_accept_seeded_package(tmp_path: Path) -> None:
@@ -220,7 +213,6 @@ def test_metadata_and_healthkit_validators_accept_seeded_package(tmp_path: Path)
             "\n".join(
                 [
                     f'"NSHealthShareUsageDescription" = "{description}";',
-                    f'"NSHealthUpdateUsageDescription" = "{description}";',
                 ]
             ),
             encoding="utf-8",

@@ -9,12 +9,12 @@ IPHONE_DEVICE_CANDIDATES = [
   "iPhone 16 Pro",
   "iPhone 17 Pro Max",
   "iPhone 17 Pro",
-  "iPhone 15 Pro Max"
+  "iPhone 15 Pro Max",
 ].freeze
 IPAD_DEVICE_CANDIDATES = [
   "iPad Pro 13-inch (M4)",
   "iPad Pro 13-inch (M5)",
-  "iPad Pro (12.9-inch) (6th generation)"
+  "iPad Pro (12.9-inch) (6th generation)",
 ].freeze
 
 def available_simulator_inventory
@@ -30,12 +30,15 @@ end
 def resolved_snapshot_devices
   [
     resolve_snapshot_device(candidates: IPHONE_DEVICE_CANDIDATES, label: "iPhone 6.9-inch canonical"),
-    resolve_snapshot_device(candidates: IPAD_DEVICE_CANDIDATES, label: "iPad 13-inch canonical")
+    resolve_snapshot_device(candidates: IPAD_DEVICE_CANDIDATES, label: "iPad 13-inch canonical"),
   ]
 end
 
 def app_store_bundle_identifier
-  ENV.fetch("APP_STORE_BUNDLE_IDENTIFIER", "com.katsiaryna.pulseplate.dev")
+  bundle_id = ENV["APP_STORE_BUNDLE_IDENTIFIER"]&.strip
+  return bundle_id unless bundle_id.to_s.empty?
+
+  UI.user_error!("APP_STORE_BUNDLE_IDENTIFIER is required for App Store upload lanes")
 end
 
 def require_env_vars!(names)
@@ -95,8 +98,16 @@ platform :ios do
     sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_healthkit_copy.rb'))} #{Shellwords.escape(File.expand_path('../PulsePlate', __dir__))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
   end
 
+  desc "Validate metadata, reviewer notes, App Privacy package, and HealthKit copy without screenshot files"
+  lane :validate_metadata_package do
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_metadata.rb'))} #{Shellwords.escape(fastlane_path('metadata'))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_healthkit_copy.rb'))} #{Shellwords.escape(File.expand_path('../PulsePlate', __dir__))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+  end
+
   desc "Upload localized metadata and screenshots to App Store Connect draft"
   lane :upload_metadata_and_screenshots do
+    require_env_vars!(%w[APP_STORE_BUNDLE_IDENTIFIER])
+
     deliver(
       api_key: asc_api_key,
       app_identifier: app_store_bundle_identifier,
@@ -114,7 +125,7 @@ platform :ios do
 
   desc "Upload App Privacy questionnaire answers using Apple ID session auth"
   lane :upload_app_privacy do
-    require_env_vars!(%w[FASTLANE_USER FASTLANE_SESSION])
+    require_env_vars!(%w[FASTLANE_USER FASTLANE_SESSION APP_STORE_BUNDLE_IDENTIFIER])
 
     upload_app_privacy_details_to_app_store(
       username: ENV["FASTLANE_USER"],
@@ -127,9 +138,9 @@ platform :ios do
 
   desc "Run screenshot capture, validation, and metadata/screenshots upload"
   lane :release_assets do
-    invoke(:snapshot_all)
-    invoke(:validate_assets)
-    invoke(:upload_metadata_and_screenshots)
+    snapshot_all
+    validate_assets
+    upload_metadata_and_screenshots
   end
 
   error do |lane, exception|

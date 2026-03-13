@@ -49,6 +49,12 @@ enum AppStoreScreenshotContext {
         return nil
     }
 
+    static var previewProKey: String? {
+        guard isEnabled else { return nil }
+
+        return "appstore-preview-key"
+    }
+
     static func bootstrapIfNeeded() {
         guard isEnabled else { return }
 
@@ -66,17 +72,11 @@ enum AppStoreScreenshotContext {
         userDefaults.set("moderate", forKey: "pro_profile_activity")
         userDefaults.set("maintain", forKey: "pro_profile_goal")
 
-        do {
-            try ProKeyProvider.set(value: "appstore-preview-key")
-        } catch {
-            #if DEBUG
-            print("Failed to seed App Store preview PRO key: \(error)")
-            #endif
-        }
     }
 
     static func scenarioView() -> AnyView? {
-        guard let scenario = currentScenario else { return nil }
+        guard isEnabled else { return nil }
+        let scenario = currentScenario ?? .home
 
         switch scenario {
         case .welcome:

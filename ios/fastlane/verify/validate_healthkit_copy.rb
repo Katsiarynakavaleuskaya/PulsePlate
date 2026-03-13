@@ -11,9 +11,9 @@ INFO_PLIST_LOCALES = {
 }.freeze
 
 BLOCKED_MEDICAL_CLAIMS = /
-  \b(BMI|IMC|medical|diagnos|treat|cure)\b|
-  \b(ИМТ|диагноз|лечен)\b|
-  \b(m[eé]dic|tratamient|cura)\b
+  \b(?:BMI|IMC|medical|diagnos(?:e|es|ed|ing|is|tic)?|treat(?:ment|ments|s|ed|ing)?|cure(?:s|d|ing)?)\b|
+  \b(?:ИМТ|диагноз(?:а|ом|е|ы)?|леч(?:ит|ить|ен|ени(?:е|я)))\b|
+  \b(?:m[eé]dic(?:o|a|os|as|al|amente)?|tratamient(?:o|os)?|cura(?:r|ción|ciones|s)?)\b
 /ix.freeze
 
 def parse_strings(pathname)
@@ -44,12 +44,12 @@ INFO_PLIST_LOCALES.each_value do |folder_name|
   share_copy = entries["NSHealthShareUsageDescription"]
   update_copy = entries["NSHealthUpdateUsageDescription"]
 
-  if share_copy.to_s.empty? || update_copy.to_s.empty?
-    errors << "HealthKit usage descriptions must both exist in #{strings_path}"
+  if share_copy.to_s.empty?
+    errors << "NSHealthShareUsageDescription must exist in #{strings_path}"
     next
   end
 
-  errors << "HealthKit share/update copy must match in #{strings_path}" unless share_copy == update_copy
+  errors << "NSHealthUpdateUsageDescription must be absent for read-only HealthKit in #{strings_path}" unless update_copy.to_s.empty?
   errors << "Blocked medical claim wording found in #{strings_path}" if share_copy.match?(BLOCKED_MEDICAL_CLAIMS)
 end
 
@@ -70,11 +70,12 @@ end
 
 if privacy_json_path.file?
   privacy_entries = JSON.parse(privacy_json_path.read)
-  categories = privacy_entries.map { |entry| entry["category"] }.compact
-  %w[HEALTH FITNESS].each do |required_category|
-    next if categories.include?(required_category)
+  unless privacy_entries.is_a?(Array) && !privacy_entries.empty?
+    errors << "App privacy JSON must be a non-empty array"
+  end
 
-    errors << "App privacy JSON must include #{required_category}"
+  unless privacy_entries.any? { |entry| Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
+    errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
   end
 end
 

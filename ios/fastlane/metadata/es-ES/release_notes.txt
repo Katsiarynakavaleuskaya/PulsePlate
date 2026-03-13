@@ -1,1 +1,1 @@
-Esta versión actualiza los assets localizados de App Store, las capturas y las reviewer notes de PulsePlate.
+Esta versión actualiza la experiencia de PulsePlate, la localización y la presentación en App Store.

@@ -97,7 +97,7 @@ final class AppStoreScreenshotTests: XCTestCase {
             "App Store screenshot root did not appear for \(scenario.rawValue)"
         )
 
-        snapshot(scenario.screenshotName, timeWaitingForIdle: 0)
+        snapshot(scenario.screenshotName, timeWaitingForIdle: 0.3)
         app.terminate()
     }
 }

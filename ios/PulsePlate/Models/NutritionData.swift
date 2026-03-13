@@ -156,7 +156,7 @@ class NutritionService: ObservableObject {
   init(
     apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL()),
     profileProvider: ProfileProviding = DefaultProfileProvider(),
-    apiKeyProvider: @escaping @Sendable () -> String? = { ProKeyProvider.value() },
+    apiKeyProvider: @escaping @Sendable () -> String? = { AppStoreScreenshotContext.previewProKey ?? ProKeyProvider.value() },
     dailyService: ProDailyNutritionServicing? = nil
   ) {
     self.apiClient = apiClient

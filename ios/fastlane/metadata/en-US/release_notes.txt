@@ -1,1 +1,1 @@
-This release refreshes localized App Store assets, screenshots, and review guidance for PulsePlate.
+This release refreshes PulsePlate onboarding copy, wellness guidance, and App Store presentation.

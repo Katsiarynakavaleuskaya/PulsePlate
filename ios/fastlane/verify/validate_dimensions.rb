@@ -75,7 +75,13 @@ locale_dirs.each do |locale_dir|
       next
     end
 
-    width, height = png_dimensions(file)
+    begin
+      width, height = png_dimensions(file)
+    rescue StandardError => e
+      errors << "Failed to read PNG #{file.basename}: #{e.message}"
+      next
+    end
+
     if width >= height
       errors << "Landscape screenshots are not allowed in v1: #{file.basename} (#{width}x#{height})"
       next

@@ -31,6 +31,14 @@ Capture deterministic localized App Store screenshots
 
 Validate screenshot dimensions, color profile, metadata, and HealthKit copy alignment
 
+### ios validate_metadata_package
+
+```sh
+[bundle exec] fastlane ios validate_metadata_package
+```
+
+Validate metadata, reviewer notes, App Privacy package, and HealthKit copy without screenshot files
+
 ### ios upload_metadata_and_screenshots
 
 ```sh

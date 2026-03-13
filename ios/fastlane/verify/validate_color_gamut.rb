@@ -4,6 +4,7 @@
 require "pathname"
 
 PNG_SIGNATURE = "\x89PNG\r\n\x1A\n".b
+ALLOWED_PROFILES = ["sRGB", "ICC:Display P3"].freeze
 
 def png_chunks(pathname)
   File.open(pathname, "rb") do |file|
@@ -54,6 +55,11 @@ png_files.each do |pathname|
   profile_name = profile_name_for(pathname)
   if profile_name.nil?
     errors << "Missing color profile chunk (sRGB or iCCP) in #{pathname}"
+    next
+  end
+
+  unless ALLOWED_PROFILES.include?(profile_name)
+    errors << "Unsupported color profile in #{pathname}: #{profile_name}. Allowed: #{ALLOWED_PROFILES.join(', ')}"
     next
   end
 

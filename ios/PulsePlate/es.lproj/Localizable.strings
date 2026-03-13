@@ -146,10 +146,10 @@
 "appstore.paywall.section.plans" = "Planes";
 "appstore.paywall.restore" = "Restaurar compras";
 "appstore.paywall.plan.monthly.title" = "PRO mensual";
-"appstore.paywall.plan.monthly.price" = "$9.99 / mes";
+"appstore.paywall.plan.monthly.price" = "Ver precio en App Store";
 "appstore.paywall.plan.monthly.badge" = "Más flexible";
 "appstore.paywall.plan.yearly.title" = "VIP anual";
-"appstore.paywall.plan.yearly.price" = "$59.99 / año";
+"appstore.paywall.plan.yearly.price" = "Ver precio en App Store";
 "appstore.paywall.plan.yearly.badge" = "Mejor valor";
 "appstore.health_permission.navigation_title" = "Acceso a Health";
 "appstore.health_permission.title" = "Acceso a Health, explicado con claridad";
@@ -158,7 +158,7 @@
 "appstore.health_permission.cta" = "Revisar permisos de Health";
 "appstore.health_permission.bullet.read" = "Leer tus entradas de nutrición desde Health.";
 "appstore.health_permission.bullet.progress" = "Mostrar progreso semanal y tendencias de peso dentro de PulsePlate.";
-"appstore.health_permission.bullet.optional" = "Mantener el acceso a Health como opcional y wellness-only.";
+"appstore.health_permission.bullet.optional" = "Mantener el acceso a Health como opcional y centrado en bienestar.";
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Primero genera un plan semanal para crear la lista de compras.";

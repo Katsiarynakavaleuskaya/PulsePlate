@@ -17,6 +17,8 @@ REQUIRED_FILES = %w[
   support_url.txt
   marketing_url.txt
 ].freeze
+MAX_NAME_LENGTH = 30
+MAX_DESCRIPTION_LENGTH = 4000
 
 def read_text(pathname)
   pathname.read.strip
@@ -58,7 +60,12 @@ REQUIRED_LOCALES.each do |locale|
   end
 
   subtitle = locale_dir.join("subtitle.txt")
+  name = locale_dir.join("name.txt")
+  description = locale_dir.join("description.txt")
+
+  errors << "Name too long in #{name}" if name.file? && read_text(name).length > MAX_NAME_LENGTH
   errors << "Subtitle too long in #{subtitle}" if subtitle.file? && read_text(subtitle).length > 30
+  errors << "Description too long in #{description}" if description.file? && read_text(description).length > MAX_DESCRIPTION_LENGTH
 
   promotional_text = locale_dir.join("promotional_text.txt")
   if promotional_text.file? && read_text(promotional_text).length > 170
@@ -69,7 +76,10 @@ REQUIRED_LOCALES.each do |locale|
   if keywords.file?
     raw_keywords = read_text(keywords)
     errors << "Keywords exceed 100 characters in #{keywords}" if raw_keywords.length > 100
-    errors << "Keywords must be comma-separated in #{keywords}" unless raw_keywords.include?(",")
+    has_multiple_keywords = raw_keywords.strip.split(/\s+/).length > 1
+    if has_multiple_keywords && !raw_keywords.include?(",")
+      errors << "Keywords must be comma-separated in #{keywords}"
+    end
   end
 
   %w[privacy_url.txt support_url.txt marketing_url.txt].each do |url_file|
