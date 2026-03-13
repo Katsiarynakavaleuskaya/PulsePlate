@@ -11,10 +11,23 @@
   --pp-surface-strong: rgba(255, 255, 255, 0.14);
   --pp-border: rgba(188, 204, 220, 0.28);
   --pp-text: #f8fbff;
-  --pp-text-primary: #f8fbff;
+  /* Semantic aliases keep the Plate/Progress slice aligned with base tokens. */
+  --pp-text-primary: var(--pp-text);
   --pp-text-muted: rgba(240, 244, 248, 0.74);
-  --pp-text-secondary: rgba(240, 244, 248, 0.74);
+  --pp-text-secondary: var(--pp-text-muted);
   --pp-text-soft: rgba(240, 244, 248, 0.58);
+  --pp-segment-vegetables: rgba(52, 199, 89, 0.98);
+  --pp-segment-vegetables-soft: rgba(52, 199, 89, 0.72);
+  --pp-segment-vegetables-chart: rgba(52, 199, 89, 0.45);
+  --pp-segment-protein: rgba(255, 95, 86, 0.96);
+  --pp-segment-protein-soft: rgba(255, 95, 86, 0.72);
+  --pp-segment-protein-chart: rgba(255, 95, 86, 0.42);
+  --pp-segment-carbs: rgba(255, 159, 10, 0.95);
+  --pp-segment-carbs-soft: rgba(255, 159, 10, 0.7);
+  --pp-segment-carbs-chart: rgba(255, 159, 10, 0.42);
+  --pp-segment-fats: rgba(255, 214, 10, 0.92);
+  --pp-segment-fats-soft: rgba(255, 214, 10, 0.66);
+  --pp-segment-fats-chart: rgba(255, 214, 10, 0.38);
   --pp-shadow: 0 18px 40px rgba(8, 15, 31, 0.35);
   --pp-shadow-soft: 0 10px 24px rgba(8, 15, 31, 0.18);
   --pp-radius-xl: 30px;
@@ -51,6 +64,7 @@ body {
 .screen {
   position: relative;
   width: 390px;
+  max-width: 100%;
   min-height: 844px;
   overflow: hidden;
   padding: 26px 24px 28px;
@@ -977,6 +991,19 @@ body {
   box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.12);
 }
 
+.plate-wheel-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .plate-center {
   position: absolute;
   inset: 50%;
@@ -1004,28 +1031,40 @@ body {
   top: 0;
   left: 0;
   border-top-left-radius: 999px;
-  background: linear-gradient(180deg, rgba(52, 199, 89, 0.98), rgba(52, 199, 89, 0.72));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-vegetables),
+    var(--pp-segment-vegetables-soft)
+  );
 }
 
 .plate-slice.protein {
   top: 0;
   right: 0;
   border-top-right-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 95, 86, 0.96), rgba(255, 95, 86, 0.72));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-protein),
+    var(--pp-segment-protein-soft)
+  );
 }
 
 .plate-slice.carbs {
   right: 0;
   bottom: 0;
   border-bottom-right-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 159, 10, 0.95), rgba(255, 159, 10, 0.7));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-carbs),
+    var(--pp-segment-carbs-soft)
+  );
 }
 
 .plate-slice.fats {
   bottom: 0;
   left: 0;
   border-bottom-left-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 214, 10, 0.92), rgba(255, 214, 10, 0.66));
+  background: linear-gradient(180deg, var(--pp-segment-fats), var(--pp-segment-fats-soft));
 }
 
 .plate-center strong {
@@ -1171,7 +1210,7 @@ body {
 
 .inline-progress-fill.protein {
   width: 90%;
-  background: linear-gradient(90deg, rgba(255, 95, 86, 0.95), rgba(255, 159, 10, 0.82));
+  background: linear-gradient(90deg, var(--pp-segment-protein), rgba(255, 159, 10, 0.82));
 }
 
 .inline-progress-meta {
@@ -1242,7 +1281,7 @@ body {
   width: 68%;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(52, 199, 89, 0.98), rgba(61, 127, 255, 0.92));
+  background: linear-gradient(90deg, var(--pp-segment-vegetables), rgba(61, 127, 255, 0.92));
 }
 
 .chart-card {
@@ -1281,22 +1320,34 @@ body {
 
 .chart-column.vegetables {
   height: 170px;
-  background: linear-gradient(180deg, rgba(52, 199, 89, 0.98), rgba(52, 199, 89, 0.45));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-vegetables),
+    var(--pp-segment-vegetables-chart)
+  );
 }
 
 .chart-column.protein {
   height: 148px;
-  background: linear-gradient(180deg, rgba(255, 95, 86, 0.96), rgba(255, 95, 86, 0.42));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-protein),
+    var(--pp-segment-protein-chart)
+  );
 }
 
 .chart-column.carbs {
   height: 132px;
-  background: linear-gradient(180deg, rgba(255, 159, 10, 0.95), rgba(255, 159, 10, 0.42));
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-carbs),
+    var(--pp-segment-carbs-chart)
+  );
 }
 
 .chart-column.fats {
   height: 110px;
-  background: linear-gradient(180deg, rgba(255, 214, 10, 0.92), rgba(255, 214, 10, 0.38));
+  background: linear-gradient(180deg, var(--pp-segment-fats), var(--pp-segment-fats-chart));
 }
 
 .metric-list {
@@ -1323,19 +1374,19 @@ body {
 }
 
 .metric-dot.vegetables {
-  background: rgba(52, 199, 89, 0.98);
+  background: var(--pp-segment-vegetables);
 }
 
 .metric-dot.protein {
-  background: rgba(255, 95, 86, 0.96);
+  background: var(--pp-segment-protein);
 }
 
 .metric-dot.carbs {
-  background: rgba(255, 159, 10, 0.95);
+  background: var(--pp-segment-carbs);
 }
 
 .metric-dot.fats {
-  background: rgba(255, 214, 10, 0.92);
+  background: var(--pp-segment-fats);
 }
 
 @media (max-width: 760px) {

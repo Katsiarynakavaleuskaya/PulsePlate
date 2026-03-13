@@ -40,11 +40,18 @@
         </div>
         <div class="plate-overview">
           <div class="plate-composition">
-            <div class="plate-wheel" aria-label="Plate segments preview">
+            <div
+              class="plate-wheel"
+              role="img"
+              aria-describedby="plate-wheel-description"
+            >
               <span class="plate-slice vegetables" aria-hidden="true"></span>
               <span class="plate-slice protein" aria-hidden="true"></span>
               <span class="plate-slice carbs" aria-hidden="true"></span>
               <span class="plate-slice fats" aria-hidden="true"></span>
+              <p id="plate-wheel-description" class="plate-wheel-description">
+                40% vegetables, 25% protein, 25% carbs, 10% fats.
+              </p>
               <div class="plate-center">
                 <strong>Today</strong>
                 <span>4 segments</span>
@@ -136,8 +143,9 @@
           <button class="ghost-button" type="button">Open PRO setup</button>
         </div>
         <p class="screen-footer-note">
-          На других issue paths этот единственный CTA заменяется на `Retry` или
-          `Open profile`, как и в текущем SwiftUI runtime.
+          На transport/API issue этот единственный CTA заменяется на `Retry`, а
+          на profile gating переключается на `Open profile`, как и в текущем
+          SwiftUI runtime.
         </p>
       </section>
 
