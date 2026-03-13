@@ -70,7 +70,6 @@ struct WelcomeFlowView: View {
             }
         }
         .padding()
-        .appStoreScreenshotRoot(AppStoreScreenshotScenario.welcome.accessibilityIdentifier)
     }
 
     // MARK: - Localization keys (match audit namespace onboarding.welcome.*)

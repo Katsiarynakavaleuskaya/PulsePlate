@@ -84,11 +84,9 @@ final class AppStoreScreenshotTests: XCTestCase {
         setupSnapshot(app, waitForAnimations: false)
         app.launchArguments += [
             "-appstore-screenshot-mode",
-            "-appstore-screenshot-scenario", scenario.rawValue,
-            "-appstore-screenshot-language", preferredLanguageCode()
+            "-appstore-screenshot-scenario", scenario.rawValue
         ]
         app.launchEnvironment["APPSTORE_SCREENSHOT_MODE"] = "1"
-        app.launchEnvironment["APPSTORE_SCREENSHOT_LANGUAGE"] = preferredLanguageCode()
         app.launch()
 
         let root = app.descendants(matching: .any)
@@ -101,16 +99,5 @@ final class AppStoreScreenshotTests: XCTestCase {
 
         snapshot(scenario.screenshotName, timeWaitingForIdle: 0)
         app.terminate()
-    }
-
-    private func preferredLanguageCode() -> String {
-        let raw = Locale.preferredLanguages.first ?? "en-US"
-        if raw.hasPrefix("ru") {
-            return "ru-RU"
-        }
-        if raw.hasPrefix("es") {
-            return "es-ES"
-        }
-        return "en-US"
     }
 }

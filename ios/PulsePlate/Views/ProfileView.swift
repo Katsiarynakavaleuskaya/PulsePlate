@@ -91,7 +91,6 @@ struct ProfileView: View {
                 BundleTestView()
             }
             .accessibilityLabel(localization.localized("profile_screen_accessibility_label"))
-            .appStoreScreenshotRoot("appstore.profile.screen")
         }
     }
 }

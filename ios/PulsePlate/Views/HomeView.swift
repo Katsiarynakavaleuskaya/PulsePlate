@@ -144,7 +144,6 @@ struct HomeView: View {
         .navigationTitle(localized("home.navigation.title"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityLabel(localized("home.accessibility.screen_label"))
-        .appStoreScreenshotRoot("appstore.home.screen")
     }
 
     private var heroCard: some View {

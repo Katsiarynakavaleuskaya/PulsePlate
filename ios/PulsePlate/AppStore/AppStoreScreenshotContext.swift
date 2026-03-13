@@ -30,9 +30,7 @@ enum AppStoreScreenshotScenario: String, CaseIterable {
 enum AppStoreScreenshotContext {
     private static let enabledArgument = "-appstore-screenshot-mode"
     private static let scenarioArgument = "-appstore-screenshot-scenario"
-    private static let languageArgument = "-appstore-screenshot-language"
     private static let enabledEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
-    private static let languageEnvironmentKey = "APPSTORE_SCREENSHOT_LANGUAGE"
 
     static var isEnabled: Bool {
         let processInfo = ProcessInfo.processInfo
@@ -121,9 +119,7 @@ enum AppStoreScreenshotContext {
     }
 
     private static var languageCode: String {
-        let rawLanguage = argumentValue(for: languageArgument)
-            ?? ProcessInfo.processInfo.environment[languageEnvironmentKey]
-            ?? Locale.preferredLanguages.first
+        let rawLanguage = Locale.preferredLanguages.first
             ?? "en"
         let normalized = rawLanguage.replacingOccurrences(of: "_", with: "-").lowercased()
 
@@ -147,8 +143,7 @@ enum AppStoreScreenshotContext {
 
 extension View {
     func appStoreScreenshotRoot(_ identifier: String) -> some View {
-        accessibilityElement(children: .contain)
-            .accessibilityIdentifier(identifier)
+        accessibilityIdentifier(identifier)
     }
 }
 
@@ -212,7 +207,6 @@ private struct AppStorePaywallPreviewView: View {
         }
         .navigationTitle(NSLocalizedString("appstore.paywall.navigation_title", comment: ""))
         .navigationBarTitleDisplayMode(.inline)
-        .appStoreScreenshotRoot(AppStoreScreenshotScenario.paywall.accessibilityIdentifier)
     }
 }
 
@@ -264,6 +258,5 @@ private struct AppStoreHealthPermissionPreviewView: View {
         .background(Color.navy.ignoresSafeArea())
         .navigationTitle(NSLocalizedString("appstore.health_permission.navigation_title", comment: ""))
         .navigationBarTitleDisplayMode(.inline)
-        .appStoreScreenshotRoot(AppStoreScreenshotScenario.healthPermission.accessibilityIdentifier)
     }
 }

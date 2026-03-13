@@ -109,6 +109,10 @@ struct PlateViewPP: View {
   @State private var showProfile = false
   @State private var showProSetup = false
 
+  private var isAppStoreScreenshotMode: Bool {
+    AppStoreScreenshotContext.isEnabled
+  }
+
   private var segments: [NutritionSegment] {
     guard let nutritionData = nutritionService.nutritionData else {
       return []
@@ -152,6 +156,49 @@ struct PlateViewPP: View {
     }
   }
 
+  private var plateSegmentsView: some View {
+    let content = PlateSegments(segments: segments) { index in
+      withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        selectedSegment = selectedSegment == index ? nil : index
+      }
+    }
+
+    if isAppStoreScreenshotMode {
+      return AnyView(content)
+    }
+
+    return AnyView(content.slideIn(isActive: !nutritionService.isLoading, delay: 0.2))
+  }
+
+  private var plateRingView: some View {
+    let content = PlateRing(progress: progress)
+
+    if isAppStoreScreenshotMode {
+      return AnyView(content)
+    }
+
+    return AnyView(
+      content
+        .scaleOnAppear(isActive: !nutritionService.isLoading, scale: 1.05)
+        .shimmer()
+    )
+  }
+
+  private func segmentDetailView(_ segment: NutritionSegment) -> some View {
+    let content = SegmentDetailView(segment: segment)
+      .padding(.horizontal)
+
+    if isAppStoreScreenshotMode {
+      return AnyView(content)
+    }
+
+    return AnyView(
+      content
+        .slideIn(isActive: selectedSegment != nil, delay: 0.1)
+        .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
+    )
+  }
+
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -191,26 +238,16 @@ struct PlateViewPP: View {
           } else {
           // Interactive Plate Segments with animations
           VStack(spacing: 16) {
-            PlateSegments(segments: segments) { index in
-              withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                selectedSegment = selectedSegment == index ? nil : index
-              }
-            }
-            .slideIn(isActive: !nutritionService.isLoading, delay: 0.2)
+            plateSegmentsView
 
             // Overall progress ring with shimmer effect
-            PlateRing(progress: progress)
-              .scaleOnAppear(isActive: !nutritionService.isLoading, scale: 1.05)
-              .shimmer()
+            plateRingView
           }
           .padding()
 
             // Selected segment details with animation
             if let selected = selectedSegment, selected < segments.count {
-              SegmentDetailView(segment: segments[selected])
-                .padding(.horizontal)
-                .slideIn(isActive: selectedSegment != nil, delay: 0.1)
-                .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
+              segmentDetailView(segments[selected])
             }
           }
         }
@@ -261,9 +298,14 @@ struct PlateViewPP: View {
         .padding(.bottom, 8)
       }
       .accessibilityLabel("Plate Screen")
-      .appStoreScreenshotRoot("appstore.plate.screen")
       .onAppear {
-        // Try to load from API, fallback to mock data if endpoint not ready (404/501)
+        if isAppStoreScreenshotMode {
+          nutritionService.loadMockData()
+          return
+        }
+
+        // RU: В обычном runtime загружаем реальные данные; в screenshot-mode запрещаем async jitter.
+        // EN: Normal runtime loads live data; screenshot mode stays static to avoid async jitter.
         Task {
           await nutritionService.fetchNutritionData(for: Date())
         }
