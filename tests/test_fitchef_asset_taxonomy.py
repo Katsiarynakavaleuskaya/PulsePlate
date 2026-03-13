@@ -17,10 +17,12 @@ VARIANT_BUCKETS = {
 
 
 def _load_contents(imageset_dir: Path) -> dict:
+    """Load an xcassets Contents.json payload from a single image set."""
     return json.loads((imageset_dir / "Contents.json").read_text(encoding="utf-8"))
 
 
 def _referenced_filenames(imageset_dir: Path) -> list[str]:
+    """Return the ordered list of filenames referenced by an image set."""
     payload = _load_contents(imageset_dir)
     filenames: list[str] = []
     for image in payload.get("images", []):
@@ -30,7 +32,13 @@ def _referenced_filenames(imageset_dir: Path) -> list[str]:
     return filenames
 
 
+def _png_filenames(imageset_dir: Path) -> list[str]:
+    """Return all PNG filenames physically present inside an image set."""
+    return sorted(path.name for path in imageset_dir.glob("*.png"))
+
+
 def test_fitchef_default_bucket_exists_and_uses_neutral_only_assets() -> None:
+    """Keep the public FitChef bucket neutral and filename-stable."""
     referenced = _referenced_filenames(FITCHEF_DIR)
     assert referenced == [
         "FitChefDefault@1x.png",
@@ -46,6 +54,7 @@ def test_fitchef_default_bucket_exists_and_uses_neutral_only_assets() -> None:
 
 
 def test_fitchef_variant_buckets_are_canonical_and_exist() -> None:
+    """Require one semantic variant per dedicated FitChef image bucket."""
     assert not (ASSETS_ROOT / "Image.imageset").exists()
 
     for bucket_name, variant_name in VARIANT_BUCKETS.items():
@@ -64,16 +73,22 @@ def test_fitchef_variant_buckets_are_canonical_and_exist() -> None:
 
 
 def test_fitchef_catalogs_reference_existing_local_files() -> None:
+    """Fail if FitChef image buckets contain stale or missing PNG files."""
     bucket_dirs = [FITCHEF_DIR] + [ASSETS_ROOT / bucket for bucket in VARIANT_BUCKETS]
 
     for bucket_dir in bucket_dirs:
-        for filename in _referenced_filenames(bucket_dir):
+        referenced = _referenced_filenames(bucket_dir)
+        for filename in referenced:
             assert (
                 bucket_dir / filename
             ).exists(), f"Missing asset file {filename} in {bucket_dir.name}"
+        assert _png_filenames(bucket_dir) == sorted(
+            referenced
+        ), f"Stale or unreferenced PNG files remain in {bucket_dir.name}"
 
 
 def test_app_icon_catalog_is_canonical_and_has_no_unreferenced_pngs() -> None:
+    """Require AppIcon to reference only canonical PNG outputs."""
     referenced = _referenced_filenames(APP_ICON_DIR)
     expected = [
         "AppIcon-20@2x.png",
@@ -98,5 +113,5 @@ def test_app_icon_catalog_is_canonical_and_has_no_unreferenced_pngs() -> None:
     assert referenced == expected
     assert all(" " not in filename for filename in referenced)
 
-    png_files = sorted(path.name for path in APP_ICON_DIR.glob("*.png"))
+    png_files = _png_filenames(APP_ICON_DIR)
     assert png_files == sorted(set(expected))

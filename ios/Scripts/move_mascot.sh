@@ -69,10 +69,10 @@ fi
 
 echo "🐱 Копируем маскота в правильное место..."
 
-# Копируем маскота в разные размеры
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@1x.png"
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@2x.png"
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@3x.png"
+# Копируем маскота в канонические default filenames
+cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/FitChefDefault@1x.png"
+cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/FitChefDefault@2x.png"
+cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/FitChefDefault@3x.png"
 
 echo "✅ Маскот FitChef перемещен в правильное место!"
 echo "📁 Расположение: $MASCOT_DIR"

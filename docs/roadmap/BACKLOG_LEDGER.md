@@ -1338,23 +1338,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Foundation/docs PRs remain docs-only and do not carry mascot or App Icon binary asset promotion
 
 
-<a id="ledger-p2-fitchef-icon-source-cleanup"></a>
-- [ ] P2: FitChef icon source cleanup after PR-2 selective promotion
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (asset hygiene / App Store readiness)
-  - Target PR: PR-TBD-FITCHEF-APP-STORE-PACK-EN
-  - Status: 📋 Planned
-  - Reason (EN): PR-2 intentionally normalizes the icon catalog and keeps only canonical referenced AppIcon files, but non-canonical local source files with spaces or duplicate generator naming are not promoted automatically. The remaining icon-source cleanup must stay explicit for the App Store production lane.
-  - Links:
-    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
-    - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
-    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
-  - DoD:
-    - App Icon source files used for the App Store production pack are canonical, reviewed, and filename-stable
-    - No FitChef icon source filenames include spaces or duplicate naming families
-    - PR-3 uses only the approved icon source set when preparing the production App Store pack
-
-
 - [ ] P2: FitChef App Store localization RU
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (ASO / localization)
@@ -1557,6 +1540,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 ### P2
+
+<a id="ledger-p2-fitchef-icon-source-cleanup"></a>
+- [ ] P2: FitChef icon source cleanup after PR-2 selective promotion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (asset hygiene / App Store readiness)
+  - Target PR: PR-TBD-FITCHEF-APP-STORE-PACK-EN
+  - Status: 📋 Planned
+  - Reason (EN): PR-2 intentionally normalizes the icon catalog and keeps only canonical referenced AppIcon files, but non-canonical local source files with spaces or duplicate generator naming are not promoted automatically. The remaining icon-source cleanup must stay explicit for the App Store production lane.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
+    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
+  - DoD:
+    - App Icon source files used for the App Store production pack are canonical, reviewed, and filename-stable
+    - No FitChef icon source filenames include spaces or duplicate naming families
+    - PR-3 uses only the approved icon source set when preparing the production App Store pack
+
 
 <a id="ledger-p2-pr1-50-sharefile-hardening"></a>
 - [ ] P2: PR 1-50 follow-up for shareFile browser hardening

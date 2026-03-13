@@ -14,6 +14,25 @@ except ImportError:
     Image = None  # type: ignore
 
 
+CANONICAL_APP_ICON_OUTPUTS = [
+    ("AppIcon-20@1x.png", 20),
+    ("AppIcon-20@2x.png", 40),
+    ("AppIcon-20@3x.png", 60),
+    ("AppIcon-29@1x.png", 29),
+    ("AppIcon-29@2x.png", 58),
+    ("AppIcon-29@3x.png", 87),
+    ("AppIcon-40@1x.png", 40),
+    ("AppIcon-40@2x.png", 80),
+    ("AppIcon-40@3x.png", 120),
+    ("AppIcon-60@2x.png", 120),
+    ("AppIcon-60@3x.png", 180),
+    ("AppIcon-76@1x.png", 76),
+    ("AppIcon-76@2x.png", 152),
+    ("AppIcon-83.5@2x.png", 167),
+    ("AppIcon-1024.png", 1024),
+]
+
+
 def _process_image_for_icon(img, size: int):
     """Обрабатывает изображение для создания иконки"""
 
@@ -53,31 +72,6 @@ def generate_all_icons_from_source(source_path: str) -> bool:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 
-    # Размеры для iOS (в пикселях) - соответствует каноническому AppIcon- семейству
-    icon_sizes = [
-        # iPhone
-        ("AppIcon-20@2x.png", 40),  # 20x20 @2x
-        ("AppIcon-20@3x.png", 60),  # 20x20 @3x
-        ("AppIcon-29@2x.png", 58),  # 29x29 @2x
-        ("AppIcon-29@3x.png", 87),  # 29x29 @3x
-        ("AppIcon-40@2x.png", 80),  # 40x40 @2x
-        ("AppIcon-40@3x.png", 120),  # 40x40 @3x
-        ("AppIcon-60@2x.png", 120),  # 60x60 @2x
-        ("AppIcon-60@3x.png", 180),  # 60x60 @3x
-        # iPad
-        ("AppIcon-20@1x.png", 20),  # 20x20 @1x
-        ("AppIcon-20@2x.png", 40),  # 20x20 @2x
-        ("AppIcon-29@1x.png", 29),  # 29x29 @1x
-        ("AppIcon-29@2x.png", 58),  # 29x29 @2x
-        ("AppIcon-40@1x.png", 40),  # 40x40 @1x
-        ("AppIcon-40@2x.png", 80),  # 40x40 @2x
-        ("AppIcon-76@1x.png", 76),  # 76x76 @1x
-        ("AppIcon-76@2x.png", 152),  # 76x76 @2x
-        ("AppIcon-83.5@2x.png", 167),  # 83.5x83.5 @2x
-        # App Store
-        ("AppIcon-1024.png", 1024),  # 1024x1024
-    ]
-
     # Путь к папке с иконками (относительно расположения скрипта)
     script_dir: str = os.path.dirname(os.path.abspath(__file__))
     icons_dir: str = os.path.join(
@@ -96,9 +90,10 @@ def generate_all_icons_from_source(source_path: str) -> bool:
     print(f"🎨 Создаем иконки из {source_path}...")
     print(f"📁 Сохраняем в {icons_dir}")
 
-    total_count = len(icon_sizes)
+    total_count = len(CANONICAL_APP_ICON_OUTPUTS)
     success_count = sum(
-        resize_icon(source_path, icons_dir, filename, size) for filename, size in icon_sizes
+        resize_icon(source_path, icons_dir, filename, size)
+        for filename, size in CANONICAL_APP_ICON_OUTPUTS
     )
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")
