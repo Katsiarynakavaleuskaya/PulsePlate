@@ -53,6 +53,31 @@ Commit: 78f56bab
 Evidence: docs/review/PR_1160_FIXED_MAPPING.md:34
 Evidence: docs/review/PR_1160_FIXED_MAPPING.md:35
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#pullrequestreview-3947290607 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/deploy/ALL_DOCS.md:3
+Evidence: docs/deploy/ALL_DOCS.md:5
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#pullrequestreview-3947293235 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/deploy/ALL_DOCS.md:41
+Evidence: docs/deploy/ALL_DOCS.md:89
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#pullrequestreview-3947305393 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:34
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:35
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#pullrequestreview-3947429028 -> 3679b095
+Disposition: FIXED
+Commit: 3679b095
+Evidence: docs/deploy/ALL_DOCS.md:76
+Evidence: docs/deploy/ALL_DOCS.md:94
+Evidence: docs/deploy/ALL_DOCS.md:108
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
