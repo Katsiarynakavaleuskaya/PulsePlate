@@ -671,10 +671,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-env-isolation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-test-hygiene-finalization`
   - Related History:
-    - `docs/roadmap/BACKLOG_LEDGER.md:3423`
-    - `docs/roadmap/BACKLOG_LEDGER.md:4256`
-    - `docs/roadmap/BACKLOG_LEDGER.md:4437`
-    - `docs/roadmap/BACKLOG_LEDGER.md:4476`
+    - [FastAPI / Pydantic / Starlette compatibility gates](BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates)
+    - [Repository `sys.modules` mutation guard re-enable](BACKLOG_LEDGER.md#ledger-p1-reenable-sys-modules-guard)
+    - [CI nightly test DB schema bootstrap broken](BACKLOG_LEDGER.md#ledger-p0-ci-nightly-test-db-schema-bootstrap)
+    - [WebSocket idle-timeout follow-up](BACKLOG_LEDGER.md#ledger-p1-websocket-idle-timeout-follow-up)
   - DoD:
     - Each execution slice lands in its own focused PR with deterministic verification
     - Guard scope expands only after the targeted offender class is clean in that scope
@@ -3531,6 +3531,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Plate chart raw hex replaced with token variables
     - ✅ Runtime raw-hex guard test merged with explicit allowlist
 
+<a id="ledger-p0-ci-nightly-test-db-schema-bootstrap"></a>
 - [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL)
@@ -4381,6 +4382,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make verify` passes in PR-732
 
 
+<a id="ledger-p1-reenable-sys-modules-guard"></a>
 - [x] P1: Re-enable repository `sys.modules` mutation guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4543,6 +4545,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CI gates for PR #778 are green before merge
 
 
+<a id="ledger-p1-websocket-idle-timeout-follow-up"></a>
 - [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

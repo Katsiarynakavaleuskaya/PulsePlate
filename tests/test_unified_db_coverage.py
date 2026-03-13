@@ -3,6 +3,7 @@
 Покрывает различные сценарии работы с unified_db
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -310,8 +311,8 @@ class TestUnifiedDBCoverage:
 
     @pytest.mark.asyncio
     async def test_search_food_save_cache_preserves_existing(
-        self, tmp_path, monkeypatch: pytest.MonkeyPatch
-    ):
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that save_cache=False doesn't modify existing cache."""
         import json
         import os

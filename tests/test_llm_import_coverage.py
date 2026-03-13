@@ -43,6 +43,9 @@ class TestImportFallbacks:
             # Перезагружаем модуль llm чтобы активировать except блок
             reload(llm)
 
+            # Ошибка импорта должна оставить реальный провайдер недоступным.
+            # EN: Import failure must leave the real provider unavailable.
+            assert llm.GrokProvider is None
             # Теперь GrokLiteProvider должен быть доступен
             assert hasattr(llm, "GrokLiteProvider")
 

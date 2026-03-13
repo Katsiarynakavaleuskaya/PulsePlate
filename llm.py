@@ -7,7 +7,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-from typing import Optional
+from typing import Optional, cast
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
@@ -15,13 +15,13 @@ from providers import ProviderBase
 logger = logging.getLogger(__name__)
 
 
-def _load_optional_provider(module_name: str, class_name: str):
+def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderBase] | None:
     """RU: Безопасно импортирует optional provider class.
     EN: Safely imports an optional provider class.
     """
     try:
         module = importlib.import_module(module_name)
-        return getattr(module, class_name, None)
+        return cast(type[ProviderBase] | None, getattr(module, class_name, None))
     except Exception:
         return None
 
