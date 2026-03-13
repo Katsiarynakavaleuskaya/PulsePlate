@@ -248,6 +248,7 @@ body {
   border-radius: var(--pp-radius-lg);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.06));
   box-shadow: var(--pp-shadow-soft);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 
@@ -1230,6 +1231,7 @@ body {
   background: rgba(250, 252, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 24px 48px rgba(9, 14, 28, 0.16);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
