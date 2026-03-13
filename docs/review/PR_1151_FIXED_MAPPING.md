@@ -28,6 +28,12 @@ Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:28`, `docs/review/PR_1151_FIXED_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#pullrequestreview-3942819726 -> 25babced
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#discussion_r2930143151 -> 25babced
 
+Disposition: FIXED
+Commit: 17b579e5
+Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:34`, `docs/review/PR_1151_FIXED_MAPPING.md:35`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#pullrequestreview-3943537848 -> 17b579e5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#discussion_r2930781857 -> 17b579e5
+
 ## Merge Readiness
 - [ ] Local docs-only sanity passed
 - [ ] Required checks PASS with no pending required jobs
