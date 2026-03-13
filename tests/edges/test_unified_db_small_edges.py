@@ -1,4 +1,3 @@
-import os
 from unittest.mock import patch
 
 import pytest
@@ -17,31 +16,27 @@ def test_resolve_off_client_import_error_path():
 def test_unified_db_last_save_ts_import_time_failure(monkeypatch: pytest.MonkeyPatch, tmp_path):
     # RU: Подменяем импорт time внутри unified_db.__init__, чтобы попасть в except и _last_save_ts=None
     # EN: Make importing time fail within __init__ to hit except and set _last_save_ts=None
-    import builtins as _bi  # noqa: N812
+    import core.food_apis.unified_db as U
 
-    real_import = _bi.__import__
-
-    def boom(name: str, *args, **kwargs):  # noqa: ANN001, ANN003
-        if name == "time":
-            raise ImportError("no time")
-        return real_import(name, *args, **kwargs)
+    def boom() -> None:
+        raise ImportError("no time")
 
     # Avoid httpx/httpcore constructing by stubbing both clients before import hook
     with (
         patch("core.food_apis.unified_db.USDAClient"),
         patch("core.food_apis.unified_db.OFFClient", new=None),
     ):
-        with patch.object(_bi, "__import__", boom):
-            from core.food_apis.unified_db import UnifiedFoodDatabase
+        monkeypatch.setattr(U, "_load_time_module", boom)
+        from core.food_apis.unified_db import UnifiedFoodDatabase
 
-            db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
-            assert getattr(db, "_last_save_ts", None) is None
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        assert getattr(db, "_last_save_ts", None) is None
 
 
 def test_unified_db_save_cache_throttle_early_return(monkeypatch: pytest.MonkeyPatch, tmp_path):
     # RU: Включаем троттлинг и выставляем _last_save_ts так, чтобы сработал ранний выход
     # EN: Enable throttling and set _last_save_ts to trigger early return
-    os.environ["UNIFIED_DB_SAVE_THROTTLE_MS"] = "100000"  # large throttle window
+    monkeypatch.setenv("UNIFIED_DB_SAVE_THROTTLE_MS", "100000")
     from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 
     db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
@@ -61,5 +56,3 @@ def test_unified_db_save_cache_throttle_early_return(monkeypatch: pytest.MonkeyP
     db._last_save_ts = time.monotonic()
     # Should return early without exceptions
     db._save_cache()
-    # Cleanup
-    os.environ.pop("UNIFIED_DB_SAVE_THROTTLE_MS", None)
