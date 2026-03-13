@@ -24,6 +24,13 @@ Evidence: `scripts/orchestration/context_pack.py:181`, `tests/test_task_bootstra
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1149#pullrequestreview-3941545710 -> e9f02799
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1149#discussion_r2928969047 -> e9f02799
 
+Disposition: FIXED
+Commit: 32be3151
+Evidence: `scripts/orchestration/context_pack.py:181`, `scripts/orchestration/context_pack.py:212`, `tests/test_task_bootstrap.py:121`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1149#pullrequestreview-3941566425 -> 32be3151
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1149#pullrequestreview-3941577891 -> 32be3151
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1149#discussion_r2929001961 -> 32be3151
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make lint`, `make typecheck`, `make test-fast`, `make diff-cov`)
 - [ ] Required checks PASS with no pending required jobs
