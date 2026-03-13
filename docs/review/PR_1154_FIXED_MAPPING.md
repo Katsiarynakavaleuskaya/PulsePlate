@@ -25,10 +25,10 @@ Reason: The preview integrity test now enforces exact ordered storyboard coverag
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3944355243 -> 0d69605f
 
 Disposition: FIXED
-Commit: PENDING_LOCAL_GATE_COMMIT
+Commit: 536b4f40
 Evidence: docs/review/PR_1154_FIXED_MAPPING.md:33
 Reason: The local hard-gate checkbox remains unchecked until a real post-fix `make verify` pass completes; it is only marked complete after that verify run succeeds.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> PENDING_LOCAL_GATE_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> 536b4f40
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
