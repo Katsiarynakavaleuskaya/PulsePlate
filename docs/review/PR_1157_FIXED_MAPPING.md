@@ -16,6 +16,12 @@ Reason: CodeRabbit flagged direct `os.environ` mutation in `tests/test_llm_impor
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#pullrequestreview-3946891865 -> be342172
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#discussion_r2933707140 -> be342172
 
+Disposition: FIXED
+Commit: 08e9bc2c
+Evidence: `docs/review/PR_1157_FIXED_MAPPING.md@08e9bc2c`
+Reason: CodeRabbit flagged brittle `file:line` evidence references inside the PR mapping artifact itself. Commit `08e9bc2c` replaced those mutable references with stable commit-scoped or anchor-scoped evidence so the review mapping remains durable under unrelated line shifts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#pullrequestreview-3946935391 -> 08e9bc2c
+
 ## Merge Readiness
 - [ ] Local quality gates are green (`make verify`)
 - [ ] Branch is up to date with `main`
