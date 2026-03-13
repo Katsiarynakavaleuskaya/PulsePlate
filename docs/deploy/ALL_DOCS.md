@@ -38,6 +38,7 @@
 |------|----------|--------------|
 | `[DOMAIN.md](DOMAIN.md)` (last-verified: 2025-11-02) | Выбор и регистрация доменов (Cloudflare, DuckDNS) | Перед регистрацией |
 | `[CLOUDFLARE.md](CLOUDFLARE.md)` (last-verified: 2025-11-02) | Настройка безопасности Cloudflare (SSL, HSTS, WAF) | После регистрации домена |
+| `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13) | Modern frontend lane: Cloudflare Pages + optional Worker proxy | Когда нужен SPA deploy без production cutover |
 
 ### 💻 Серверы и окружения
 
@@ -59,6 +60,7 @@
 |------|----------|--------------|
 | `[CI.md](../runbooks/CI.md)` (last-verified: 2025-11-02) | Как работает CI (Continuous Integration) | Когда CI падает или для понимания |
 | `.github/workflows/cd.yml` (last-verified: 2025-11-02) | CD workflow (автоматический деплой) | Справочно (уже настроен) |
+| `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13) | Local/CI token flow and manual Pages/Worker deploy | Когда готовите modern frontend deploy lane |
 
 ### 📦 Дополнительно (опционально)
 
@@ -84,7 +86,9 @@
    ↓
 5. [GITHUB_SECRETS.md](GITHUB_SECRETS.md) (last-verified: 2025-11-02) (добавление секретов)
    ↓
-6. Первый деплой!
+6. [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) (modern frontend Pages lane)
+   ↓
+7. Первый деплой!
 ```
 
 ### Для быстрого старта (опытные):
@@ -109,6 +113,7 @@ BMI-App_2025_clean/
 │
 ├── [DOMAIN.md](DOMAIN.md) (last-verified: 2025-11-02)                    Домены
 ├── [CLOUDFLARE.md](CLOUDFLARE.md) (last-verified: 2025-11-02)       Cloudflare
+├── [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) Cloudflare Pages + Worker lane
 │
 ├── [STAGING.md](STAGING.md) (last-verified: 2025-11-02)                   Staging сервер
 ├── [PRODUCTION.md](PRODUCTION.md) (last-verified: 2025-11-02)                Production сервер
@@ -148,6 +153,9 @@ BMI-App_2025_clean/
 
 ### Проблема с Cloudflare?
 → `[CLOUDFLARE.md](CLOUDFLARE.md)` (last-verified: 2025-11-02)
+
+### Нужен современный frontend deploy через Cloudflare Pages?
+→ `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13)
 
 ### Проблема с сервером?
 → `[STAGING.md](STAGING.md)` (last-verified: 2025-11-02) или `[PRODUCTION.md](PRODUCTION.md)` (last-verified: 2025-11-02)
