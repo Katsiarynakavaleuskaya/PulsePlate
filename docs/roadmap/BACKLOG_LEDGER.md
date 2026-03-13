@@ -1755,6 +1755,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Guard scope widens only after zero offenders in the target scope
     - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
 
+<a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
+- [ ] P2: PR 1147 follow-up for iOS App Store asset workflow cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
+  - Area: ios / ci / release assets
+  - Finding Type: deferred cleanup
+  - Reason: PR #1147 fixes the correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but two low-risk cleanup nits stay deferred so the current branch can finish merge-readiness without reopening the simulator/workflow surface.
+  - Links:
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `ios/fastlane/Fastfile`
+    - `docs/review/PR_1147_FIXED_MAPPING.md`
+  - DoD:
+    - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
+    - `ios/fastlane/Fastfile` documents or pins the `snapshot` `ios_version` strategy instead of relying on latest-runtime fallback
+    - App/runtime screenshot scenario identifiers and UITest screenshot names move to one shared contract without introducing UI-test linker coupling
+    - Cleanup preserves the current deterministic simulator matrix and does not reintroduce `OS=latest` drift
 
 <a id="ledger-p2-pr1-50-sharefile-hardening"></a>
 - [ ] P2: PR 1-50 follow-up for shareFile browser hardening
