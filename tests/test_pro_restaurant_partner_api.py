@@ -171,6 +171,8 @@ def test_preview_partner_order_from_weekly_plan_invalid_shape_422() -> None:
     from app.routers import pro_restaurant_partner
     from app.schemas.restaurant_partner import PartnerOrderWeeklyAdapterRequest
 
+    # Direct router invocation is intentional here: this test asserts the raw
+    # HTTPException detail before FastAPI serializes the error envelope.
     payload = PartnerOrderWeeklyAdapterRequest.model_validate(
         {
             "restaurant_id": "resto-weekly-2",

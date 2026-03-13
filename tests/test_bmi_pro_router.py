@@ -203,6 +203,7 @@ class TestBMIProRouter:
         )
 
         assert response.status_code == 400
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json()["detail"] == INVALID_BMI_INPUT_DETAIL
 
     def test_bmi_pro_request_model(self) -> None:

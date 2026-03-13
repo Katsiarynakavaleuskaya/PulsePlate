@@ -141,7 +141,7 @@ class TestAppMissingLinesExtra:
             assert r.status_code == 418
             assert "teapot" in r.json().get("detail", "")
 
-    def test_premium_plate_value_error_is_sanitized(self):
+    def test_premium_plate_value_error_is_sanitized(self) -> None:
         with (
             patch.object(app_mod, "calculate_all_bmr", return_value={"mifflin": 1600}),
             patch.object(app_mod, "calculate_all_tdee", return_value={"mifflin": 2200}),
@@ -163,6 +163,7 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 400
+            assert r.headers.get("content-type", "").startswith("application/json")
             assert r.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
             assert "/tmp/internal/plate" not in r.json()["detail"]
 

@@ -302,6 +302,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 400
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json()["detail"] == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
         assert "custom_bad" not in response.text
 
@@ -326,6 +327,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 400
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
         assert "/srv/pulseplate/plate.py" not in response.text
 

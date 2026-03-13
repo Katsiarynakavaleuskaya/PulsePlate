@@ -5,7 +5,6 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 
-from app.http_error_details import MALFORMED_BARCODE_DETAIL
 from app.routers import foods
 from app.schemas.food import FoodHit, FoodItem
 
@@ -174,7 +173,7 @@ def test_get_food_by_barcode_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
         foods.get_food_by_barcode("123", store=foods.get_food_store())
 
     assert exc.value.status_code == 422
-    assert exc.value.detail == MALFORMED_BARCODE_DETAIL
+    assert exc.value.detail == foods.MALFORMED_BARCODE_DETAIL
 
 
 def test_get_food_by_barcode_invalid_sanitizes_unexpected_detail(
@@ -189,7 +188,7 @@ def test_get_food_by_barcode_invalid_sanitizes_unexpected_detail(
         foods.get_food_by_barcode("123", store=foods.get_food_store())
 
     assert exc.value.status_code == 422
-    assert exc.value.detail == MALFORMED_BARCODE_DETAIL
+    assert exc.value.detail == foods.MALFORMED_BARCODE_DETAIL
     assert "/tmp/off-cache.json" not in exc.value.detail
 
 
