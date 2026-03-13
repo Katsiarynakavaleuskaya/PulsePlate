@@ -51,7 +51,7 @@ Current workspace blocker:
 
 1. Confirm seat capability:
    - run `mcp__figma__whoami`
-   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="4:2")`
+   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="11:2")`
    - continue only if the response is not plan-blocked
 2. Verify node accessibility for all eight screens:
    - run `mcp__figma__get_metadata(fileKey, nodeId)` for each node in the
