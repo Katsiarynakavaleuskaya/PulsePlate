@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
 import pytest
 
@@ -167,33 +166,31 @@ def test_preview_partner_order_from_weekly_plan_happy_path(
     ]
 
 
-def test_preview_partner_order_from_weekly_plan_invalid_shape_422() -> None:
-    from app.routers import pro_restaurant_partner
-    from app.schemas.restaurant_partner import PartnerOrderWeeklyAdapterRequest
-
-    # Direct router invocation is intentional here: this test asserts the raw
-    # HTTPException detail before FastAPI serializes the error envelope.
-    payload = PartnerOrderWeeklyAdapterRequest.model_validate(
-        {
+def test_preview_partner_order_from_weekly_plan_invalid_shape_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json={
             "restaurant_id": "resto-weekly-2",
             "week_plan": {"menu": {}},
             "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
-        }
+        },
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        pro_restaurant_partner.preview_partner_order_from_weekly_plan(object(), payload)
-
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
-    assert "days/menu.days/data.daily_menus" not in exc_info.value.detail
+    assert response.status_code == 422
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
+    assert "days/menu.days/data.daily_menus" not in response.json()["detail"]
 
 
 def test_preview_partner_order_from_weekly_plan_sanitizes_unexpected_value_error(
+    client: TestClient,
+    pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.routers import pro_restaurant_partner
-    from app.schemas.restaurant_partner import PartnerOrderWeeklyAdapterRequest
     from app.services import restaurant_partner_export_adapter
 
     def _raise_sensitive_error(**_kwargs: object) -> dict[str, object]:
@@ -205,19 +202,19 @@ def test_preview_partner_order_from_weekly_plan_sanitizes_unexpected_value_error
         _raise_sensitive_error,
     )
 
-    payload = PartnerOrderWeeklyAdapterRequest.model_validate(
-        {
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders/adapt/preview",
+        headers=pro_headers,
+        json={
             "restaurant_id": "resto-weekly-sensitive",
             "week_plan": {"days": [{"meals": [{"items": [{"name": "Oats", "qty": 1}]}]}]},
             "consent": {"consent_share_with_partner": True, "consent_version": "v1"},
         },
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        pro_restaurant_partner.preview_partner_order_from_weekly_plan(object(), payload)
-
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
+    assert response.status_code == 422
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
 
 
 def test_preview_partner_order_from_weekly_plan_invalid_currency_422(
@@ -484,38 +481,34 @@ def test_confirm_partner_order_idempotent_replay(
     assert second_payload["confirmed_by"] == first_payload["confirmed_by"]
 
 
-def test_confirm_partner_order_invalid_transition_422() -> None:
-    from app.routers import pro_restaurant_partner
-    from app.schemas.restaurant_partner import PartnerOrderConfirmRequest, PartnerOrderCreateRequest
-
-    create_payload = PartnerOrderCreateRequest.model_validate(
-        {"draft": _sample_draft(), "client_event_id": "evt-create-6"}
+def test_confirm_partner_order_invalid_transition_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-create-6"},
     )
-    response = Response()
-    created = pro_restaurant_partner.create_partner_order(
-        create_payload,
-        response,
-        x_api_key=TEST_PRO_TIER_TOKEN,
+    assert created.status_code == 201, created.text
+    order_id = _json(created)["id"]
+
+    first = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={"confirmed_by": "partner-user-3"},
     )
-    order_id = created.id
+    assert first.status_code == 200, first.text
 
-    first_payload = PartnerOrderConfirmRequest.model_validate({"confirmed_by": "partner-user-3"})
-    pro_restaurant_partner.confirm_partner_order(
-        order_id,
-        first_payload,
-        x_api_key=TEST_PRO_TIER_TOKEN,
+    second = client.post(
+        f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
+        headers=pro_headers,
+        json={"confirmed_by": "partner-user-3"},
     )
 
-    second_payload = PartnerOrderConfirmRequest.model_validate({"confirmed_by": "partner-user-3"})
-    with pytest.raises(HTTPException) as exc_info:
-        pro_restaurant_partner.confirm_partner_order(
-            order_id,
-            second_payload,
-            x_api_key=TEST_PRO_TIER_TOKEN,
-        )
-
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == INVALID_ORDER_TRANSITION_DETAIL
+    assert second.status_code == 422
+    assert second.headers.get("content-type", "").startswith("application/json")
+    assert second.json()["detail"] == INVALID_ORDER_TRANSITION_DETAIL
 
 
 def test_confirm_partner_order_not_found_404(
@@ -681,10 +674,10 @@ def test_confirm_partner_order_idempotency_conflict_409(
 
 
 def test_create_partner_order_sanitizes_unexpected_conflict_detail(
+    client: TestClient,
+    pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.routers import pro_restaurant_partner
-    from app.schemas.restaurant_partner import PartnerOrderCreateRequest
     from app.services import restaurant_partner_orders
 
     def _raise_sensitive_conflict(**_kwargs: object) -> tuple[dict[str, object], bool]:
@@ -692,24 +685,22 @@ def test_create_partner_order_sanitizes_unexpected_conflict_detail(
 
     monkeypatch.setattr(restaurant_partner_orders, "create_order", _raise_sensitive_conflict)
 
-    payload = PartnerOrderCreateRequest.model_validate(
-        {"draft": _sample_draft(), "client_event_id": "evt-sensitive-conflict"}
+    response = client.post(
+        "/api/v1/pro/restaurants/partner/orders",
+        headers=pro_headers,
+        json={"draft": _sample_draft(), "client_event_id": "evt-sensitive-conflict"},
     )
-    with pytest.raises(HTTPException) as exc_info:
-        pro_restaurant_partner.create_partner_order(
-            payload,
-            Response(),
-            x_api_key=TEST_PRO_TIER_TOKEN,
-        )
 
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == CREATE_ORDER_CONFLICT_DETAIL
+    assert response.status_code == 409
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == CREATE_ORDER_CONFLICT_DETAIL
 
 
 def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
+    client: TestClient,
+    pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.routers import pro_restaurant_partner
     from app.services import restaurant_partner_orders
 
     def _raise_sensitive_forbidden(*_args: object, **_kwargs: object) -> dict[str, object]:
@@ -723,14 +714,14 @@ def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
         _raise_sensitive_forbidden,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        pro_restaurant_partner.get_handoff_share_status(
-            "share-sensitive",
-            x_api_key=TEST_PRO_TIER_TOKEN,
-        )
+    response = client.get(
+        "/api/v1/pro/restaurants/partner/handoff/shares/share-sensitive/status",
+        headers=pro_headers,
+    )
 
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == SHARE_ACCESS_FORBIDDEN_DETAIL
+    assert response.status_code == 403
+    assert response.headers.get("content-type", "").startswith("application/json")
+    assert response.json()["detail"] == SHARE_ACCESS_FORBIDDEN_DETAIL
 
 
 def test_preview_partner_order_invalid_currency_422(

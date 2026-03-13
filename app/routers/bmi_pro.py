@@ -193,7 +193,10 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         # Adapt Pro tier Dict response to BMIProResponse format (risk_level, notes)
         risk_level, notes = _adapt_pro_stage_to_response(stage_dict, req.lang)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=INVALID_BMI_INPUT_DETAIL) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=INVALID_BMI_INPUT_DETAIL,
+        ) from exc
     card = BMIProCard(
         bmi=bmi_val,
         whtr=v_whtr,
