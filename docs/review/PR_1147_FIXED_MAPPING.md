@@ -54,7 +54,7 @@ Reason: This review shell is satisfied by the fixed validator/localization mappi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944019711
 Disposition: NOT-A-BUG
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:41
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:346
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:400
 Reason: This review shell contains only the fail-fast scenario parsing fix and the merge-readiness checkbox/doc-proof fixes mapped below; no additional review-level action remains.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944034323
@@ -328,7 +328,7 @@ Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:225
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182975 -> 2305fa5e
 Disposition: FIXED
 Commit: 2305fa5e
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:346
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:400
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182982 -> 5a37601f
 Disposition: FIXED
@@ -342,8 +342,63 @@ Commit: 2305fa5e
 Evidence: docs/review/PR_1147_FIXED_MAPPING.md:10
 Evidence: docs/review/PR_1147_FIXED_MAPPING.md:49
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931343432 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:68
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:74
+Evidence: tests/test_ios_appstore_asset_validators.py:280
+Evidence: tests/test_ios_appstore_asset_validators.py:308
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931343452 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:77
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:89
+Evidence: tests/test_ios_appstore_asset_validators.py:252
+Evidence: tests/test_ios_appstore_asset_validators.py:277
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931343464 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/fastlane/verify/validate_metadata.rb:40
+Evidence: ios/fastlane/verify/validate_metadata.rb:46
+Evidence: tests/test_ios_appstore_asset_validators.py:327
+Evidence: tests/test_ios_appstore_asset_validators.py:337
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931343471 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:44
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:50
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:141
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:150
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931365773 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:44
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:50
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:141
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:150
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931365784 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:44
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:49
+Evidence: tests/test_ios_appstore_asset_validators.py:340
+Evidence: tests/test_ios_appstore_asset_validators.py:358
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931365788 -> d30f316e
+Disposition: FIXED
+Commit: d30f316e
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:7
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:74
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:75
+
 ## Merge Readiness
-- [ ] Local hard gate passed (`pre-commit run --all-files`; `pytest -q tests/test_ios_appstore_asset_validators.py`; `make ios-test IOS_ONLY_TESTING="PulsePlateUITests/AppStoreScreenshotTests"`; `make verify`)
+- [x] Local hard gate passed (`pre-commit run --all-files`; `pytest -q tests/test_ios_appstore_asset_validators.py`; `make ios-test IOS_ONLY_TESTING="PulsePlateUITests/AppStoreScreenshotTests"`; `make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
