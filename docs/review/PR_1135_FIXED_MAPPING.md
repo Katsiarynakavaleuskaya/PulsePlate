@@ -42,7 +42,7 @@ Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:9`, `docs/review/PR_1135_FIXED_M
 
 Disposition: FIXED
 Commit: c58693c76bdc292d6fd94c17216a1c92ceefea1d
-Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:40` now cites the actual `Commit:` declaration lines in the same artifact, so the audit proof points to the full-SHA entries rather than unrelated header or mapping rows.
+Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:44` now cites the actual `Commit:` declaration line in the same artifact, so the audit proof points to the full-SHA entry rather than an unrelated evidence row.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2930998589 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943806426 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2931006735 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
