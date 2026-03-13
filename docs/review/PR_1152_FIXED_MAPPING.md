@@ -66,6 +66,20 @@ Evidence: docs/graph/graph.json:1444
 Evidence: docs/graph/graph.json:1445
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:2821
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#discussion_r2931217753 -> ba6d19d2
+Disposition: FIXED
+Commit: ba6d19d2
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:31
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:34
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:41
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#pullrequestreview-3944059488 -> ba6d19d2
+Disposition: FIXED
+Commit: ba6d19d2
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:31
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:38
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:41
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
