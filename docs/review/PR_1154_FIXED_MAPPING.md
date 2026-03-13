@@ -24,8 +24,14 @@ Evidence: tests/test_fitchef_app_store_pack.py:98
 Reason: The preview integrity test now enforces exact ordered storyboard coverage instead of set-membership only, so duplicate shot IDs or missing governed shots fail deterministically.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3944355243 -> 0d69605f
 
+Disposition: FIXED
+Commit: PENDING_LOCAL_GATE_COMMIT
+Evidence: docs/review/PR_1154_FIXED_MAPPING.md:33
+Reason: The local hard-gate checkbox remains unchecked until a real post-fix `make verify` pass completes; it is only marked complete after that verify run succeeds.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> PENDING_LOCAL_GATE_COMMIT
+
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
+- [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
