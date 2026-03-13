@@ -30,6 +30,11 @@ Commit: 6d3d182a
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:52-55` now uses a polished-node example (`nodeId="11:2"`) that matches the activation-ready inventory table above instead of the stale pre-polish `4:2` value.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#pullrequestreview-3942510454 -> 6d3d182a
 
+Disposition: FIXED
+Commit: 1c6ae6b0
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:52-55` now uses the first inventory entry (`nodeId="1:2"`) for the activation example, and `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:67-70` now lists `Shopping List` before `Weekly Plan` so step 4 matches the activation-ready inventory ordering.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#pullrequestreview-3942641049 -> 1c6ae6b0
+
 Disposition: NOT-A-BUG
 Evidence: `docs/figma/ios_prototype_v2/README.md:1-22` defines the tracked `.html` files as MCP capture sources rather than deployable runtime assets, and `AGENTS.md` forbids local-only artifacts such as `worktrees/`, `.venv/`, caches, coverage outputs, `dist/`, and `build/`, but does not forbid repo-tracked static capture sources under `docs/figma/`.
 Reason: The PR is a governed Figma capture-source lane, not a markdown-only docs PR. The tracked `.html` files are the implementation input for MCP capture and stay intentionally versioned in-repo.
