@@ -22,6 +22,13 @@ Evidence: `docs/review/PR_1157_FIXED_MAPPING.md@08e9bc2c`
 Reason: CodeRabbit flagged brittle `file:line` evidence references inside the PR mapping artifact itself. Commit `08e9bc2c` replaced those mutable references with stable commit-scoped or anchor-scoped evidence so the review mapping remains durable under unrelated line shifts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#pullrequestreview-3946935391 -> 08e9bc2c
 
+Disposition: FIXED
+Commit: 613752c2
+Evidence: `tests/test_llm_import_coverage.py@613752c2`
+Reason: CodeRabbit flagged the new `_llm_test_env` fixture for missing type annotations. Commit `613752c2` added `pytest.MonkeyPatch` and `-> None` annotations without changing the fixture behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#pullrequestreview-3947078349 -> 613752c2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1157#discussion_r2933884212 -> 613752c2
+
 ## Merge Readiness
 - [ ] Local quality gates are green (`make verify`)
 - [ ] Branch is up to date with `main`
