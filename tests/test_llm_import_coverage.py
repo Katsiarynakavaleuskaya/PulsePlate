@@ -14,13 +14,15 @@ import pytest
 import llm
 
 
+@pytest.fixture(autouse=True)
+def _llm_test_env(monkeypatch):
+    """Isolate llm env defaults per test."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+
 class TestImportFallbacks:
     """Тесты fallback поведения при недоступности внешних провайдеров"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_grok_import_exception_coverage(self, monkeypatch):
         """Тест покрытия GrokLiteProvider при ошибке импорта providers.grok"""
@@ -122,11 +124,6 @@ class TestImportFallbacks:
 class TestGetProviderEdgeCases:
     """Тесты граничных случаев функции get_provider()"""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
     def test_get_provider_with_pico(self):
         """Тест несуществующего провайдера pico"""
         with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
@@ -178,11 +175,6 @@ class TestGetProviderEdgeCases:
 
 class TestEnvironmentVariableEdgeCases:
     """Тесты граничных случаев обработки переменных окружения"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_empty_string_values(self):
         """Тест различных форм пустых строк"""

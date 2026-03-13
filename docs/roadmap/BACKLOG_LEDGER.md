@@ -684,7 +684,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Risk-first determinism cleanup for `sys.modules`, builtins import patching, and real sleeps
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TEST-HYGIENE-RISK-FIRST
+  - Target PR: PR `#1157` (risk-first hygiene slice) -> PR-TBD-TEST-HYGIENE-RISK-FIRST
   - Status: 🟡 In progress
   - Area: tests / import determinism / timing
   - Finding Type: policy and flake remediation
@@ -716,7 +716,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
     - `tests/test_no_direct_testclient.py`
     - `tests/conftest.py`
-    - `docs/roadmap/BACKLOG_LEDGER.md:3423`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
   - DoD:
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
     - Closeable test resources have deterministic teardown
