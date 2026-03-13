@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -10,6 +11,8 @@ PACK_ROOT = REPO_ROOT / "appstore" / "fitchef" / "en-US"
 SCREENSHOTS_DIR = PACK_ROOT / "iphone-6.9" / "screenshots"
 PREVIEW_DIR = PACK_ROOT / "iphone-6.9" / "preview"
 METADATA_DIR = PACK_ROOT / "metadata"
+# Source of truth: docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md
+# ALLOWED_MASCOT_KEYS mirrors the canonical FitChef taxonomy for this pack guard.
 ALLOWED_MASCOT_KEYS = {
     "FitChef",
     "FitChefOnboardingWelcome",
@@ -20,7 +23,7 @@ ALLOWED_MASCOT_KEYS = {
 }
 
 
-def _load_json(path: Path) -> dict:
+def _load_json(path: Path) -> dict[str, Any]:
     """Load a UTF-8 JSON file from the governed App Store pack."""
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -31,7 +34,7 @@ def _repo_path(relative_path: str) -> Path:
     assert not source_path.is_absolute(), f"Absolute path not allowed: {relative_path}"
 
     resolved_path = (REPO_ROOT / source_path).resolve()
-    resolved_path.relative_to(REPO_ROOT.resolve())
+    _ = resolved_path.relative_to(REPO_ROOT.resolve())
     return resolved_path
 
 
