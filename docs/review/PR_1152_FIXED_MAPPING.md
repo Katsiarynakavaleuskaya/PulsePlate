@@ -5,7 +5,8 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- None yet. This PR is in the initial review state; actionable review items will be recorded here with FIXED / NOT-A-BUG / DEFERRED dispositions as they arrive.
+- No actionable review comments.
+- Initial review state only. If actionable review items appear, they will be recorded here with FIXED / NOT-A-BUG / DEFERRED dispositions.
 
 ## Merge Readiness
 - [x] Local gates passed on current head
