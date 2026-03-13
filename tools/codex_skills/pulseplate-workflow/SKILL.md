@@ -48,15 +48,15 @@ description: Start any PulsePlate task with the required policy, scope, and qual
 
    ```bash
    GH_TOKEN=$(gh auth token) python3 scripts/orchestration/check_review_threads_disposition.py --pr-number <PR_NUMBER> --require-auth
-   GITHUB_TOKEN=$(gh auth token) python3 scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate
+   GITHUB_TOKEN=$(gh auth token) python3 scripts/ci/check_pr_merge_readiness.py --pr-number <PR_NUMBER> --repo "${GITHUB_REPOSITORY:-<OWNER/REPO>}"
    gh pr checks <PR_NUMBER>
    ```
 
-   Notes:
-   - Treat `gh pr checks <PR_NUMBER>` as diagnostic-only.
-   - A non-zero exit can mean live pending jobs, not failed checks.
-   - If only one current-head job remains live, inspect it directly with
-     `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>`.
+   Canonical policy:
+   - `RUNBOOK_AGENT.md`: `Pre-merge readiness pass` and
+     `Stacked PR replacement flow`
+   - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`:
+     `Required-check Truth` and `Stacked PR Replacement Rule`
 
 6. For design/frontend tasks, load the code-first UI naming layer:
 
@@ -74,11 +74,9 @@ description: Start any PulsePlate task with the required policy, scope, and qual
    git worktree list
    ```
 
-   Notes:
-   - If `state=MERGED`, remove the merged worktree and local branch in the same
-     work session.
-   - Do not continue pushing to a merged PR branch; start the next slice from a
-     fresh branch/worktree on `origin/main`.
+   Canonical cleanup and replacement policy lives in:
+   - `RUNBOOK_AGENT.md`: `Stacked PR replacement flow`
+   - `AGENTS.md`: `Git workflow (single-developer safe mode)`
 
 ## Output format
 
@@ -101,10 +99,8 @@ If blocked, always include:
 - Avoid bypassing hard rules in `AGENTS.md`.
 - Refrain from editing unrelated dirty files.
 - Do not use GUI/RPA automation in this workflow.
-- If a stacked child PR auto-closes after parent merge, rebase the child branch
-  onto `origin/main`, rerun local gates, and open a replacement PR with a new
-  `docs/review/PR_<N>_FIXED_MAPPING.md` artifact.
-- Post-merge cleanup is part of the workflow, not optional housekeeping.
+- Treat `RUNBOOK_AGENT.md` and `AGENTS.md` as canonical for merge-cycle and
+  post-merge cleanup rules; do not duplicate or override them in ad-hoc notes.
 
 ## SoT links
 
