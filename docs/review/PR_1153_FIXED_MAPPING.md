@@ -8,7 +8,7 @@
 - No actionable review comments
 
 ## Merge Readiness
-- [x] Local sanity passed
+- [ ] Local sanity passed
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
