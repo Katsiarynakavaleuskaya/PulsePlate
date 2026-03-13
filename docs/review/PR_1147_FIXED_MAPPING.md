@@ -54,7 +54,7 @@ Reason: This review shell is satisfied by the fixed validator/localization mappi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944019711
 Disposition: NOT-A-BUG
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:41
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:344
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:346
 Reason: This review shell contains only the fail-fast scenario parsing fix and the merge-readiness checkbox/doc-proof fixes mapped below; no additional review-level action remains.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944034323
@@ -325,10 +325,10 @@ Commit: 5f7232e7
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:220
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:225
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182975 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182975 -> baab6371
 Disposition: FIXED
-Commit: TBD
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:344
+Commit: baab6371
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:346
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182982 -> 5f7232e7
 Disposition: FIXED
@@ -336,9 +336,9 @@ Commit: 5f7232e7
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:44
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:47
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931195563 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931195563 -> baab6371
 Disposition: FIXED
-Commit: TBD
+Commit: baab6371
 Evidence: docs/review/PR_1147_FIXED_MAPPING.md:10
 Evidence: docs/review/PR_1147_FIXED_MAPPING.md:49
 
