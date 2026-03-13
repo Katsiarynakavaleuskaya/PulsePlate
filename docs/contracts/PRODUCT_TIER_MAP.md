@@ -1,7 +1,7 @@
 # 📊 PulsePlate — Canonical Product Tier Map (v1)
 
 **Status:** Canonical (audit-driven, based on actual codebase)
-**Last updated:** 2026-03-14
+**Last updated:** 2026-03-13
 **Canonical reference (derived from code):** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
 
 ---
@@ -25,9 +25,9 @@
 
 ### Бизнес-смысл
 
-* Бесплатный вход
-* Диагностика / скрининг
-* Основа всей системы
+- Бесплатный вход
+- Диагностика / скрининг
+- Основа всей системы
 
 ### Канонический домен
 
@@ -45,9 +45,9 @@
 
 ### Правила
 
-* ❌ никакой логики вне `core/bmi`
-* ❌ никаких premium/vip зависимостей
-* ✅ legacy endpoints = thin proxy
+- ❌ никакой логики вне `core/bmi`
+- ❌ никаких premium/vip зависимостей
+- ✅ legacy endpoints = thin proxy
 
 ---
 
@@ -57,10 +57,10 @@
 
 ### Бизнес-смысл
 
-* Питание
-* Калории / нутриенты
-* Day-level планы
-* Без микро-ремонта и shoplist
+- Питание
+- Калории / нутриенты
+- Day-level планы
+- Без микро-ремонта и shoplist
 
 ### Канонический домен
 
@@ -99,15 +99,15 @@
 
 ### Что НЕ входит
 
-* ❌ weekly plan с авто-ремонтом (это VIP)
-* ❌ shoplist с региональной логикой (это VIP)
-* ❌ микро-constraints (это VIP)
+- ❌ weekly plan с авто-ремонтом (это VIP)
+- ❌ shoplist с региональной логикой (это VIP)
+- ❌ микро-constraints (это VIP)
 
 ### Правила
 
-* PRO endpoints используют `require_pro_tier()` middleware
-* `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
-* `premium_week.py` = **deprecated**, мигрирует на `pro.py`
+- PRO endpoints используют `require_pro_tier()` middleware
+- `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
+- `premium_week.py` = **deprecated**, мигрирует на `pro.py`
 
 ### FitChef structured coach follow-up (contract-frozen, not live)
 
@@ -126,11 +126,11 @@
 
 ### Бизнес-смысл
 
-* Weekly plan с микро-constraints
-* Auto-repair
-* Shoplist / region
-* Recipe synthesis
-* Exports
+- Weekly plan с микро-constraints
+- Auto-repair
+- Shoplist / region
+- Recipe synthesis
+- Exports
 
 ### Канонический домен
 
@@ -166,10 +166,10 @@
 
 ### Правила
 
-* VIP ≠ PRO
-* VIP может зависеть от PRO данных
-* ❌ PRO не может реализовывать VIP-логику
-* VIP endpoints используют `require_vip_tier()` middleware
+- VIP ≠ PRO
+- VIP может зависеть от PRO данных
+- ❌ PRO не может реализовывать VIP-логику
+- VIP endpoints используют `require_vip_tier()` middleware
 
 ### FitChef structured coach follow-up (contract-frozen, not live)
 
@@ -187,15 +187,15 @@
 
 ### Что сюда относится
 
-* `legacy_app.py` endpoints
-* `/premium_*` (без `/api/v1/`)
-* `/plan`, `/api/nutrition/{date}`
-* `/bmi`, `/premium_bmr`
+- `legacy_app.py` endpoints
+- `/premium_*` (без `/api/v1/`)
+- `/plan`, `/api/nutrition/{date}`
+- `/bmi`, `/premium_bmr`
 
 ### Назначение
 
-* Совместимость
-* Переходный слой
+- Совместимость
+- Переходный слой
 
 ### Жёсткое правило
 
@@ -323,7 +323,7 @@ For action items, PR sequencing, and remediation steps, see:
 
 ## 🔟 Связь с другими документами
 
-* `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
-* `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
-* `docs/contracts/API_CANONICAL_MAP.md` — текущий операторский mapping
-* `app/middleware/api_tiers.py` — source of truth для уровней подписки
+- `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
+- `docs/audit/API_ALIGNMENT_CHECKLIST.md` — checklist для alignment
+- `docs/contracts/API_CANONICAL_MAP.md` — текущий операторский mapping
+- `app/middleware/api_tiers.py` — source of truth для уровней подписки

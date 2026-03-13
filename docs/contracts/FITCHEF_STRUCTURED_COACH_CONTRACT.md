@@ -9,6 +9,11 @@
 This contract freezes the next additive FitChef route family without changing
 the live mascot canon.
 
+Identifier note:
+
+- umbrella rollout lane: `PR-4`
+- GitHub review artifact for this lane: `PR #1159`
+
 The current public mascot routes under `/api/v1/insight/fitchef*` remain live,
 canonical, and unmigrated in this phase. PR-4 defines future structured coach
 surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` so later
@@ -62,6 +67,27 @@ additive to the live mascot family.
   - may depend on PRO-calculated domain context, but must not replace canonical
     nutrition or planner engines
 
+### Cross-tier and disallowed-access semantics
+
+Future implementations must keep cross-tier access fail-closed:
+
+- disallowed tier or missing entitlement:
+  - `403`
+  - JSON error envelope with stable `detail`
+- feature-disabled or execution-disabled route:
+  - `503`
+  - JSON error envelope with stable `detail`
+- rate-limit rejection:
+  - `429`
+  - JSON error envelope with stable `detail`
+- provider timeout or unavailable downstream:
+  - `504` or `503`
+  - JSON error envelope with stable `detail`
+
+The contract direction for those failures is the same safe JSON envelope style
+already used by the live mascot family: no raw provider traces, no client-side
+inference from prose, and no fail-open downgrade to a broader tier.
+
 ## Guard and execution policy
 
 Future implementation PRs must keep the current FitChef guard precedence
@@ -87,16 +113,16 @@ renderable by thin clients without parsing prose into product state.
 
 ### Required top-level direction
 
-- `mode`
-- `title`
-- `summary`
-- `bullets`
-- `actions`
-- `source_modules`
-- `used_llm`
-- `disclaimers`
-- `transparency_notice_id`
-- `wellness_boundary`
+- `mode: str`
+- `title: str`
+- `summary: str`
+- `bullets: list[str]`
+- `actions: list[FitChefStructuredAction]`
+- `source_modules: list[str]`
+- `used_llm: bool`
+- `disclaimers: list[str]`
+- `transparency_notice_id: str`
+- `wellness_boundary: str`
 
 ### Action contract
 
@@ -108,6 +134,39 @@ Minimum direction:
 - `type: str`
 - `label: str`
 - `payload: object`
+
+### Minimal schema sketch
+
+```json
+{
+  "mode": "pro_structured" ,
+  "title": "Protein below target",
+  "summary": "Your lunch pattern is the main driver today.",
+  "bullets": [
+    "Lunch protein remained below the daily target.",
+    "Dinner still has room for a corrective swap."
+  ],
+  "actions": [
+    {
+      "type": "open_meal",
+      "label": "Review dinner",
+      "payload": {
+        "meal_slot": "dinner"
+      }
+    }
+  ],
+  "source_modules": [
+    "nutrition.targets",
+    "planner.daily"
+  ],
+  "used_llm": false,
+  "disclaimers": [
+    "General wellness guidance only"
+  ],
+  "transparency_notice_id": "fitchef_structured_v1",
+  "wellness_boundary": "non_diagnostic_guidance"
+}
+```
 
 ### Client contract rules
 
