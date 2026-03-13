@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -49,9 +49,18 @@ class TestBusinessRouterIsolated:
 
     def _auth_ok(self) -> None:
         """Override API key dependency to bypass real auth checks."""
-        from app.routers.api_key import api_key_header
+        from app.routers.api_key import require_app_api_key
 
-        self.app.dependency_overrides[api_key_header] = lambda: "test-api-key"
+        self.app.dependency_overrides[require_app_api_key] = lambda: "test_key"
+
+    def _auth_forbidden(self, detail: str = "Invalid API Key") -> None:
+        """Override API key dependency to enforce fail-closed auth in isolated tests."""
+        from app.routers.api_key import require_app_api_key
+
+        def _raise_forbidden() -> str:
+            raise HTTPException(status_code=403, detail=detail)
+
+        self.app.dependency_overrides[require_app_api_key] = _raise_forbidden
 
     def test_status_enabled_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
@@ -73,6 +82,101 @@ class TestBusinessRouterIsolated:
 
         resp = self.client.post("/api/v1/business/analyze", json={"test_name": "t1"})
         assert resp.status_code == 422
+
+    def test_analyze_403_when_api_key_guard_rejects(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._auth_forbidden()
+        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+
+        resp = self.client.post(
+            "/api/v1/business/analyze",
+            json={"code": "print('x')", "test_name": "t1"},
+        )
+        assert resp.status_code == 403
+        assert resp.json() == {"detail": "Invalid API Key"}
+
+    def test_require_app_api_key_accepts_valid_result(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        def _resolve_attr(name: str, default: object) -> object:
+            if name == "get_api_key":
+                return lambda api_key: api_key.strip()
+            return default
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
+
+        assert api_key_mod.require_app_api_key(" expected-key ") == "expected-key"
+
+    def test_require_app_api_key_rejects_invalid_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from app.routers import api_key as api_key_mod
+
+        def _raise_invalid(_api_key: str) -> str:
+            raise HTTPException(status_code=403, detail="Invalid API Key")
+
+        def _resolve_attr(name: str, default: object) -> object:
+            if name == "get_api_key":
+                return _raise_invalid
+            return default
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.require_app_api_key("wrong-key")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Invalid API Key"
+
+    def test_require_app_api_key_rejects_missing_validator(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", lambda _name, default: default)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.require_app_api_key("test-key")
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "API key validation unavailable"
+
+    def test_require_app_api_key_rejects_non_string_result(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from app.routers import api_key as api_key_mod
+
+        def _resolve_attr(name: str, default: object) -> object:
+            if name == "get_api_key":
+                return lambda _api_key: object()
+            return default
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.require_app_api_key("test-key")
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "API key validation unavailable"
+        assert "App API key guard returned non-string result" in caplog.text
+
+    def test_require_app_api_key_rejects_missing_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from app.routers import api_key as api_key_mod
+
+        def _raise_missing(_api_key: str) -> str:
+            raise HTTPException(status_code=403, detail="Missing API Key")
+
+        def _resolve_attr(name: str, default: object) -> object:
+            if name == "get_api_key":
+                return _raise_missing
+            return default
+
+        monkeypatch.setattr(api_key_mod, "resolve_attr", _resolve_attr)
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.require_app_api_key("")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Missing API Key"
 
     def test_analyze_503_when_module_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()

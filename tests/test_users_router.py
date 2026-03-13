@@ -207,7 +207,7 @@ class TestUsersRouter:
 
     @pytest.mark.parametrize("validator", [None, lambda _: object()])
     def test_users_api_key_guard_fail_closed_behavior(self, validator: object) -> None:
-        with patch.object(users_mod, "resolve_attr", return_value=validator):
+        with patch("app.routers.users.resolve_attr", return_value=validator):
             resp = self.client.get("/api/v1/users", headers=self.headers)
 
         assert resp.status_code == 500
