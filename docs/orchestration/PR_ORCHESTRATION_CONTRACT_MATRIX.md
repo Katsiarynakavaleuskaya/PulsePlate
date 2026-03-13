@@ -150,6 +150,11 @@ Evidence:
 - Ignore cancelled runs
 - Ignore stale runs
 - External review tools do not block unless explicitly required
+- `gh pr checks <PR_NUMBER>` is diagnostic only; a non-zero exit can mean live
+  `pending`/`in_progress` required jobs, not failed current-head checks
+- When only one current-head job remains live, inspect the exact run/job with
+  `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>` before calling the PR
+  red or green
 
 ## 9. CI Check Classification
 
@@ -211,3 +216,13 @@ Evidence:
 - Stabilize allowlist keys
 - AST subprocess guard
 - Path-aware trigger proof
+
+## 14. Stacked PR Replacement Rule
+
+- If a stacked child PR auto-closes because its parent base branch was merged
+  and deleted, the child review lane is no longer active
+- Operators must rebase the child branch onto `origin/main`, rerun local gates,
+  and open a replacement PR on `main`
+- Replacement PR must get a new canonical artifact path:
+  `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
+- Do not continue mapping/reviewing against the auto-closed PR number
