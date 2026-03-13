@@ -5,11 +5,11 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.http_error_details import MALFORMED_BARCODE_DETAIL
 from app.schemas.food import FoodHit, FoodItem
 from app.services import food_store
 
 router = APIRouter(tags=["foods"])
-MALFORMED_BARCODE_DETAIL = "Malformed barcode"
 
 
 class FoodStore(Protocol):

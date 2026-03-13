@@ -12,6 +12,11 @@ import pytest
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.http_error_details import (
+    ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
+    DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+    TRANSPORT_AUTH_REQUIRED_DETAIL,
+)
 from app.models import Subscription, SubscriptionActivationAudit
 from app.schemas.payments import (
     ActivateSubscriptionRequest,
@@ -208,7 +213,7 @@ def test_activate_subscription_requires_transport_auth(client: TestClient) -> No
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
-    assert payload["detail"] == "transport_auth_required"
+    assert payload["detail"] == TRANSPORT_AUTH_REQUIRED_DETAIL
     assert "X-API-Key" not in payload["detail"]
 
 
@@ -222,7 +227,7 @@ def test_activate_subscription_blank_transport_header_returns_401(client: TestCl
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
-    assert payload["detail"] == "transport_auth_required"
+    assert payload["detail"] == TRANSPORT_AUTH_REQUIRED_DETAIL
     assert "blank" not in payload["detail"].lower()
 
 
@@ -619,7 +624,7 @@ def test_manual_source_conflict_returns_409(
     payload = _json(conflict)
     assert payload["status"] == "error"
     assert payload["code"] == "idempotency_conflict"
-    assert payload["detail"] == "deterministic_activation_conflict"
+    assert payload["detail"] == DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL
     assert "deterministic activation key conflict" not in payload["detail"]
 
 
@@ -698,7 +703,7 @@ def test_get_activation_wrong_user_returns_403(
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "forbidden"
-    assert payload["detail"] == "activation_access_forbidden"
+    assert payload["detail"] == ACTIVATION_ACCESS_FORBIDDEN_DETAIL
     assert "activation access forbidden" not in payload["detail"]
 
 
@@ -719,7 +724,7 @@ def test_get_activation_missing_transport_protection_returns_401(
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
-    assert payload["detail"] == "transport_auth_required"
+    assert payload["detail"] == TRANSPORT_AUTH_REQUIRED_DETAIL
 
 
 def test_get_activation_not_found_returns_404(

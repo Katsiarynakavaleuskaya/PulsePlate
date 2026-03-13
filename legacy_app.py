@@ -48,6 +48,10 @@ from settings import get_runtime_env_name, is_explicit_developer_env, is_product
 
 from app.bootstrap.startup_guards import run_startup_guards
 from app.dependencies import validate_template_dir
+from app.http_error_details import (
+    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+)
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
@@ -3985,7 +3989,7 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
                 diet_flags=diet_flags_str,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail="Invalid premium plate input") from exc
+            raise HTTPException(status_code=400, detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL) from exc
 
         # Sanitize plate data
         plate_data = sanitize_plate_data(plate_data_raw)
@@ -4081,12 +4085,12 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error("premium_plate validation error: %s", e)
-        raise HTTPException(status_code=400, detail="Enhanced plate generation failed") from e
+        raise HTTPException(status_code=400, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
     except Exception as e:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error(f"premium_plate error: {e}")
-        raise HTTPException(status_code=500, detail="Enhanced plate generation failed") from e
+        raise HTTPException(status_code=500, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
 
 
 @app.post(

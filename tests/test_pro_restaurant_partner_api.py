@@ -7,6 +7,18 @@ from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
 import pytest
 
+from app.http_error_details import (
+    CONFIRM_ORDER_CONFLICT_DETAIL,
+    CREATE_ORDER_CONFLICT_DETAIL,
+    INVALID_ORDER_TRANSITION_DETAIL,
+    INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL,
+    ORDER_GONE_DETAIL,
+    PARTNER_CONSENT_REQUIRED_DETAIL,
+    SHARE_ACCESS_FORBIDDEN_DETAIL,
+    SHARE_EXPIRED_DETAIL,
+    SHARE_REVOKED_DETAIL,
+)
+
 TEST_PRO_TIER_TOKEN = "pro-tier-token"
 
 
@@ -171,7 +183,7 @@ def test_preview_partner_order_from_weekly_plan_invalid_shape_422() -> None:
         pro_restaurant_partner.preview_partner_order_from_weekly_plan(object(), payload)
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "invalid_weekly_plan_adapter_payload"
+    assert exc_info.value.detail == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
     assert "days/menu.days/data.daily_menus" not in exc_info.value.detail
 
 
@@ -203,7 +215,7 @@ def test_preview_partner_order_from_weekly_plan_sanitizes_unexpected_value_error
         pro_restaurant_partner.preview_partner_order_from_weekly_plan(object(), payload)
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "invalid_weekly_plan_adapter_payload"
+    assert exc_info.value.detail == INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL
 
 
 def test_preview_partner_order_from_weekly_plan_invalid_currency_422(
@@ -397,14 +409,14 @@ def test_get_partner_order_gone_410_for_terminal_status(
         headers=pro_headers,
     )
     assert response.status_code == 410
-    assert _json(response) == {"detail": "order gone"}
+    assert _json(response) == {"detail": ORDER_GONE_DETAIL}
 
     replay_response = client.get(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}",
         headers=pro_headers,
     )
     assert replay_response.status_code == 410
-    assert _json(replay_response) == {"detail": "order gone"}
+    assert _json(replay_response) == {"detail": ORDER_GONE_DETAIL}
 
 
 def test_confirm_partner_order_happy_path(
@@ -501,7 +513,7 @@ def test_confirm_partner_order_invalid_transition_422() -> None:
         )
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "invalid transition"
+    assert exc_info.value.detail == INVALID_ORDER_TRANSITION_DETAIL
 
 
 def test_confirm_partner_order_not_found_404(
@@ -586,7 +598,7 @@ def test_confirm_partner_order_gone_410_for_terminal_status(
         json={"confirmed_by": "partner-user-gone", "client_event_id": "evt-confirm-gone"},
     )
     assert confirm.status_code == 410
-    assert _json(confirm) == {"detail": "order gone"}
+    assert _json(confirm) == {"detail": ORDER_GONE_DETAIL}
 
     replay = client.post(
         f"/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
@@ -594,7 +606,7 @@ def test_confirm_partner_order_gone_410_for_terminal_status(
         json={"confirmed_by": "partner-user-gone", "client_event_id": "evt-confirm-gone"},
     )
     assert replay.status_code == 410
-    assert _json(replay) == {"detail": "order gone"}
+    assert _json(replay) == {"detail": ORDER_GONE_DETAIL}
 
 
 def test_confirm_partner_order_idempotent_replay_after_terminal_transition(
@@ -663,7 +675,7 @@ def test_confirm_partner_order_idempotency_conflict_409(
         },
     )
     assert second.status_code == 409
-    assert _json(second)["detail"] == "client_event_id conflict: confirm payload mismatch"
+    assert _json(second)["detail"] == CONFIRM_ORDER_CONFLICT_DETAIL
 
 
 def test_create_partner_order_sanitizes_unexpected_conflict_detail(
@@ -689,7 +701,7 @@ def test_create_partner_order_sanitizes_unexpected_conflict_detail(
         )
 
     assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "client_event_id conflict: payload mismatch"
+    assert exc_info.value.detail == CREATE_ORDER_CONFLICT_DETAIL
 
 
 def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
@@ -716,7 +728,7 @@ def test_get_handoff_share_status_sanitizes_unexpected_forbidden_detail(
         )
 
     assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == "share access forbidden"
+    assert exc_info.value.detail == SHARE_ACCESS_FORBIDDEN_DETAIL
 
 
 def test_preview_partner_order_invalid_currency_422(
@@ -911,7 +923,7 @@ def test_issue_handoff_share_forbidden_for_other_issuer_403(
         },
     )
     assert issue.status_code == 403
-    assert _json(issue) == {"detail": "share access forbidden"}
+    assert _json(issue) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_get_handoff_share_status_revoked_403(
@@ -946,7 +958,7 @@ def test_get_handoff_share_status_revoked_403(
         headers=pro_headers,
     )
     assert status_resp.status_code == 403
-    assert _json(status_resp) == {"detail": "share revoked"}
+    assert _json(status_resp) == {"detail": SHARE_REVOKED_DETAIL}
 
 
 def test_get_handoff_share_status_active_200(
@@ -1040,7 +1052,7 @@ def test_get_handoff_share_status_forbidden_for_other_issuer_403(
         headers=vip_headers,
     )
     assert status_resp.status_code == 403
-    assert _json(status_resp) == {"detail": "share access forbidden"}
+    assert _json(status_resp) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_revoke_handoff_share_forbidden_for_other_issuer_403(
@@ -1072,7 +1084,7 @@ def test_revoke_handoff_share_forbidden_for_other_issuer_403(
         headers=vip_headers,
     )
     assert revoke.status_code == 403
-    assert _json(revoke) == {"detail": "share access forbidden"}
+    assert _json(revoke) == {"detail": SHARE_ACCESS_FORBIDDEN_DETAIL}
 
 
 def test_revoke_handoff_share_not_found_404(
@@ -1121,7 +1133,7 @@ def test_get_handoff_share_status_expired_410(
         headers=pro_headers,
     )
     assert status_resp.status_code == 410
-    assert _json(status_resp) == {"detail": "share expired"}
+    assert _json(status_resp) == {"detail": SHARE_EXPIRED_DETAIL}
 
     # RU: W3-R3 — семантика Gone должна быть стабильна при повторе запроса.
     # EN: W3-R3 — Gone semantics must stay stable on replay.
@@ -1130,7 +1142,7 @@ def test_get_handoff_share_status_expired_410(
         headers=pro_headers,
     )
     assert replay_resp.status_code == 410
-    assert _json(replay_resp) == {"detail": "share expired"}
+    assert _json(replay_resp) == {"detail": SHARE_EXPIRED_DETAIL}
 
 
 def test_get_handoff_share_status_not_found_404(
@@ -1172,7 +1184,7 @@ def test_issue_handoff_share_requires_partner_consent_403(
         },
     )
     assert issue.status_code == 403
-    assert _json(issue) == {"detail": "partner consent required"}
+    assert _json(issue) == {"detail": PARTNER_CONSENT_REQUIRED_DETAIL}
 
 
 def test_issue_handoff_share_service_ttl_guard_value_error(

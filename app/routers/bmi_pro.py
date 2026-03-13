@@ -6,6 +6,7 @@ from typing import Literal, Optional, Protocol, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.http_error_details import INVALID_BMI_INPUT_DETAIL
 from app.middleware.api_tiers import require_pro_tier
 from app.routers._helpers import _build_soft_paywall_hook, _normalize_bool_flag
 from app.schemas.bmi import (
@@ -34,7 +35,6 @@ from core.bmi.engine import BMICalculateResult as EngineBMICalculateResult
 from core.i18n import Language, normalize_lang, t
 
 logger = logging.getLogger(__name__)
-INVALID_BMI_INPUT_DETAIL = "Invalid BMI input"
 
 
 # Import engine (same pattern as bmi.py)

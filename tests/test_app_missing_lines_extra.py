@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app as app_mod
+from app.http_error_details import INVALID_PREMIUM_PLATE_INPUT_DETAIL
 from app.middleware.api_tiers import TEST_KEY_VIP
 
 
@@ -162,7 +163,7 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 400
-            assert r.json()["detail"] == "Invalid premium plate input"
+            assert r.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
             assert "/tmp/internal/plate" not in r.json()["detail"]
 
     def test_premium_plate_missing_bmr_tdee_check(self):

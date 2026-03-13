@@ -5,6 +5,10 @@ from typing import Any, Mapping, Protocol, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.http_error_details import (
+    INVALID_SUBMISSION_DETAIL,
+    INVALID_SUBMISSION_TRANSITION_DETAIL,
+)
 from app.schemas.restaurants import (
     RestaurantHit,
     RestaurantMenuItem,
@@ -16,8 +20,6 @@ from app.services import restaurant_store
 
 router = APIRouter(tags=["restaurants"])
 moderation_router = APIRouter(tags=["restaurants"])
-INVALID_SUBMISSION_DETAIL = "Invalid submission"
-INVALID_SUBMISSION_TRANSITION_DETAIL = "Invalid submission transition"
 
 
 class RestaurantStore(Protocol):

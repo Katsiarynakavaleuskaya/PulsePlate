@@ -21,6 +21,10 @@ import app as app_mod
 
 # Import the FastAPI app from the app package
 from app import app
+from app.http_error_details import (
+    ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+    INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+)
 
 client = TestClient(app)
 
@@ -298,7 +302,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "Enhanced plate generation failed"
+        assert response.json()["detail"] == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
         assert "custom_bad" not in response.text
 
     def test_plate_error_hygiene_does_not_leak_raw_value_error(
@@ -322,7 +326,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "Invalid premium plate input"
+        assert response.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
         assert "/srv/pulseplate/plate.py" not in response.text
 
     def test_plate_goal_specific_differences(self) -> None:

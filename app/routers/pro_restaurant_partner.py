@@ -12,6 +12,19 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from app.http_error_details import (
+    CONFIRM_ORDER_CONFLICT_DETAIL,
+    CREATE_ORDER_CONFLICT_DETAIL,
+    INVALID_HANDOFF_PAYLOAD_DETAIL,
+    INVALID_ORDER_TRANSITION_DETAIL,
+    INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL,
+    ORDER_ACCESS_FORBIDDEN_DETAIL,
+    ORDER_GONE_DETAIL,
+    PARTNER_CONSENT_REQUIRED_DETAIL,
+    SHARE_ACCESS_FORBIDDEN_DETAIL,
+    SHARE_EXPIRED_DETAIL,
+    SHARE_REVOKED_DETAIL,
+)
 from app.middleware.api_tiers import require_pro_tier
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 from app.schemas.restaurant_partner import (
@@ -30,17 +43,6 @@ from app.services import restaurant_partner_orders
 
 _ISSUER_LOCK = threading.Lock()
 _ISSUER_BY_API_KEY: dict[str, str] = {}
-INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL = "invalid_weekly_plan_adapter_payload"
-CREATE_ORDER_CONFLICT_DETAIL = "client_event_id conflict: payload mismatch"
-ORDER_ACCESS_FORBIDDEN_DETAIL = "order access forbidden"
-ORDER_GONE_DETAIL = "order gone"
-CONFIRM_ORDER_CONFLICT_DETAIL = "client_event_id conflict: confirm payload mismatch"
-INVALID_ORDER_TRANSITION_DETAIL = "invalid transition"
-SHARE_ACCESS_FORBIDDEN_DETAIL = "share access forbidden"
-PARTNER_CONSENT_REQUIRED_DETAIL = "partner consent required"
-INVALID_HANDOFF_PAYLOAD_DETAIL = "invalid_handoff_payload"
-SHARE_REVOKED_DETAIL = "share revoked"
-SHARE_EXPIRED_DETAIL = "share expired"
 
 router = APIRouter(
     prefix="/api/v1/pro/restaurants/partner",

@@ -7,6 +7,10 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.http_error_details import (
+    INVALID_SUBMISSION_DETAIL,
+    INVALID_SUBMISSION_TRANSITION_DETAIL,
+)
 from app.routers import restaurants
 from app.schemas.restaurants import (
     RestaurantSubmissionCreate,
@@ -197,7 +201,7 @@ def test_create_submission_validation_error_maps_422() -> None:
     with pytest.raises(HTTPException) as exc:
         restaurants.create_restaurant_submission(payload, store=store)
     assert exc.value.status_code == 422
-    assert exc.value.detail == "Invalid submission"
+    assert exc.value.detail == INVALID_SUBMISSION_DETAIL
 
 
 def test_create_submission_validation_error_sanitizes_unexpected_detail() -> None:
@@ -206,7 +210,7 @@ def test_create_submission_validation_error_sanitizes_unexpected_detail() -> Non
     with pytest.raises(HTTPException) as exc:
         restaurants.create_restaurant_submission(payload, store=store)
     assert exc.value.status_code == 422
-    assert exc.value.detail == "Invalid submission"
+    assert exc.value.detail == INVALID_SUBMISSION_DETAIL
     assert "sqlite" not in exc.value.detail
 
 
@@ -288,7 +292,7 @@ def test_review_submission_validation_error_maps_422() -> None:
     with pytest.raises(HTTPException) as exc:
         restaurants.review_restaurant_submission("s1", payload, store=store)
     assert exc.value.status_code == 422
-    assert exc.value.detail == "Invalid submission transition"
+    assert exc.value.detail == INVALID_SUBMISSION_TRANSITION_DETAIL
 
 
 def test_review_submission_validation_error_sanitizes_unexpected_detail() -> None:
@@ -297,7 +301,7 @@ def test_review_submission_validation_error_sanitizes_unexpected_detail() -> Non
     with pytest.raises(HTTPException) as exc:
         restaurants.review_restaurant_submission("s1", payload, store=store)
     assert exc.value.status_code == 422
-    assert exc.value.detail == "Invalid submission transition"
+    assert exc.value.detail == INVALID_SUBMISSION_TRANSITION_DETAIL
     assert "/srv/review" not in exc.value.detail
 
 

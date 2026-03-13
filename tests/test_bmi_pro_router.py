@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.http_error_details import INVALID_BMI_INPUT_DETAIL
 from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
 
 
@@ -202,7 +203,7 @@ class TestBMIProRouter:
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "Invalid BMI input"
+        assert response.json()["detail"] == INVALID_BMI_INPUT_DETAIL
 
     def test_bmi_pro_request_model(self) -> None:
         """Test BMIProRequest model validation."""

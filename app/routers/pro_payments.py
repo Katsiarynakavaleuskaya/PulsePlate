@@ -10,6 +10,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Response, Security, status
 from fastapi.responses import JSONResponse
 
+from app.http_error_details import (
+    ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
+    DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+    TRANSPORT_AUTH_REQUIRED_DETAIL,
+)
 from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
 from app.routers.api_key import api_key_header
 from app.schemas.payments import (
@@ -28,9 +33,6 @@ router = APIRouter(
     prefix="/api/v1/pro/payments",
     tags=["pro", "payments"],
 )
-TRANSPORT_AUTH_REQUIRED_DETAIL = "transport_auth_required"
-DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL = "deterministic_activation_conflict"
-ACTIVATION_ACCESS_FORBIDDEN_DETAIL = "activation_access_forbidden"
 
 
 def _payment_error_response(
