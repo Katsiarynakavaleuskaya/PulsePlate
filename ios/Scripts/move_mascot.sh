@@ -41,7 +41,7 @@ fi
 count=0
 for png in "${pngs[@]}"; do
     echo "  - $(basename "$png")"
-    ((count++))
+    ((count += 1))
     if (( count >= 5 )); then
         if (( ${#pngs[@]} > 5 )); then
             echo "  ... и ещё $((${#pngs[@]} - 5)) файлов"
@@ -68,6 +68,10 @@ if [ ! -f "$ICONS_DIR/$mascot_file" ]; then
 fi
 
 echo "🐱 Копируем маскота в правильное место..."
+
+# Удаляем legacy filenames, чтобы таксономия не оставляла stale PNG после повторного запуска.
+# Remove legacy filenames so reruns do not leave stale mascot PNGs behind.
+rm -f "$MASCOT_DIR/fitchef@1x.png" "$MASCOT_DIR/fitchef@2x.png" "$MASCOT_DIR/fitchef@3x.png"
 
 # Копируем маскота в канонические default filenames
 cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/FitChefDefault@1x.png"
