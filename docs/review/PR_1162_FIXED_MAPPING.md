@@ -8,7 +8,7 @@
 - No actionable review comments
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
+- [x] Local gates passed on current head
 - [ ] All required checks green
 - [ ] All actionable review threads resolved with dispositions
 - [ ] CodeRabbit PASS / no-actionables
