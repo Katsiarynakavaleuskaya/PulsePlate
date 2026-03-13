@@ -38,7 +38,7 @@ Reason: The backlog item was reopened and tied explicitly to PR `#1141`, keeping
 
 Disposition: FIXED
 Commit: 0f2a3aae
-Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:44`
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:60`
 Reason: The merge-readiness checklist keeps the local hard-gate item unchecked until the actual final merge cycle, matching the current governance guidance for fixed-mapping artifacts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927300601 -> 0f2a3aae
 

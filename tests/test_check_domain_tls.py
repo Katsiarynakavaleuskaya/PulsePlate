@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from types import SimpleNamespace
 
 import pytest
@@ -21,7 +22,7 @@ def _install_subprocess_mocks(
 ) -> None:
     """Install deterministic subprocess mocks for dig and curl helpers."""
 
-    def fake_run(argv: list[str], **kwargs) -> SimpleNamespace:  # noqa: ARG001
+    def fake_run(argv: list[str], **kwargs: Any) -> SimpleNamespace:  # noqa: ARG001
         if argv[0] == "/usr/bin/dig":
             return _completed(dig_outputs[(argv[2], argv[3])])
         if argv[0] == "/usr/bin/curl":
