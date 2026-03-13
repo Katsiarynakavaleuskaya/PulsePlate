@@ -54,6 +54,11 @@ if [[ "$mascot_file" == *"/"* ]] || [[ "$mascot_file" == *".."* ]]; then
     exit 1
 fi
 
+if [[ ! "${mascot_file,,}" =~ \.png$ ]]; then
+    echo "❌ Допустимы только PNG-файлы."
+    exit 1
+fi
+
 if [ ! -f "$ICONS_DIR/$mascot_file" ]; then
     echo "❌ Файл $mascot_file не найден в $ICONS_DIR"
     exit 1
