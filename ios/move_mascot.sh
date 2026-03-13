@@ -54,7 +54,7 @@ if [[ "$mascot_file" == *"/"* ]] || [[ "$mascot_file" == *".."* ]]; then
     exit 1
 fi
 
-if [[ ! "${mascot_file,,}" =~ \.png$ ]]; then
+if [[ ! "$mascot_file" =~ \.[Pp][Nn][Gg]$ ]]; then
     echo "❌ Допустимы только PNG-файлы."
     exit 1
 fi
