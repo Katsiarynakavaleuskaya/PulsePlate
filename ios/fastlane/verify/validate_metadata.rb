@@ -6,6 +6,9 @@ require "pathname"
 require "uri"
 
 REQUIRED_LOCALES = %w[en-US ru-RU es-ES].freeze
+# Policy: repo metadata stays launch-ready and source-controlled across locales,
+# so we require a complete localized pack even for ASC fields that can be
+# conditionally optional in some submission contexts.
 REQUIRED_FILES = %w[
   name.txt
   subtitle.txt
@@ -77,7 +80,9 @@ REQUIRED_LOCALES.each do |locale|
     raw_keywords = read_text(keywords)
     errors << "Keywords exceed 100 characters in #{keywords}" if raw_keywords.length > 100
     has_multiple_keywords = raw_keywords.strip.split(/\s+/).length > 1
-    if has_multiple_keywords && !raw_keywords.include?(",")
+    if raw_keywords.match?(/[;|]/)
+      errors << "Keywords must be comma-separated in #{keywords}"
+    elsif has_multiple_keywords && !raw_keywords.include?(",")
       errors << "Keywords must be comma-separated in #{keywords}"
     end
   end

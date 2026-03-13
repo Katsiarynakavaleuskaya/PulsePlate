@@ -4,11 +4,18 @@
 require "pathname"
 
 PNG_SIGNATURE = "\x89PNG\r\n\x1A\n".b
-ALLOWED_PROFILES = ["sRGB", "ICC:Display P3"].freeze
+ALLOWED_PROFILES = ["sRGB", "Display P3"].freeze
+
+def read_exact(file, length, pathname, field_name)
+  data = file.read(length)
+  raise "Truncated PNG #{field_name}: #{pathname}" unless data&.bytesize == length
+
+  data
+end
 
 def png_chunks(pathname)
   File.open(pathname, "rb") do |file|
-    signature = file.read(8)
+    signature = read_exact(file, 8, pathname, "signature")
     raise "Invalid PNG signature: #{pathname}" unless signature == PNG_SIGNATURE
 
     chunks = []
@@ -16,10 +23,11 @@ def png_chunks(pathname)
       length_data = file.read(4)
       break unless length_data
 
+      raise "Truncated PNG chunk length: #{pathname}" unless length_data.bytesize == 4
       length = length_data.unpack1("N")
-      chunk_type = file.read(4)
-      chunk_data = file.read(length)
-      file.read(4) # CRC
+      chunk_type = read_exact(file, 4, pathname, "chunk type")
+      chunk_data = read_exact(file, length, pathname, "chunk data")
+      read_exact(file, 4, pathname, "chunk crc")
       chunks << [chunk_type, chunk_data]
       break if chunk_type == "IEND"
     end
@@ -33,7 +41,11 @@ def profile_name_for(pathname)
     return "sRGB" if chunk_type == "sRGB"
     next unless chunk_type == "iCCP"
 
-    return "ICC:#{chunk_data.split("\x00".b, 2).first.force_encoding("UTF-8")}"
+    profile_name = chunk_data.split("\x00".b, 2).first.to_s.force_encoding("UTF-8")
+    normalized = profile_name.downcase.gsub(/[^a-z0-9]+/, "")
+    return "Display P3" if normalized.include?("display") && normalized.include?("p3")
+
+    return "ICC:#{profile_name}"
   end
 
   nil
@@ -58,7 +70,7 @@ png_files.each do |pathname|
     next
   end
 
-  unless ALLOWED_PROFILES.include?(profile_name)
+  unless ["sRGB", "Display P3"].include?(profile_name)
     errors << "Unsupported color profile in #{pathname}: #{profile_name}. Allowed: #{ALLOWED_PROFILES.join(', ')}"
     next
   end

@@ -41,8 +41,11 @@ enum AppStoreScreenshotContext {
     static var currentScenario: AppStoreScreenshotScenario? {
         guard isEnabled else { return nil }
 
-        if let rawScenario = argumentValue(for: scenarioArgument),
-           let scenario = AppStoreScreenshotScenario(rawValue: rawScenario) {
+        if let rawScenario = argumentValue(for: scenarioArgument) {
+            guard let scenario = AppStoreScreenshotScenario(rawValue: rawScenario) else {
+                let supportedScenarios = AppStoreScreenshotScenario.allCases.map(\.rawValue).joined(separator: ", ")
+                preconditionFailure("Unsupported \(scenarioArgument) value '\(rawScenario)'. Allowed: \(supportedScenarios)")
+            }
             return scenario
         }
 
@@ -148,6 +151,8 @@ extension View {
 }
 
 private struct AppStorePaywallPreviewView: View {
+    @ObservedObject private var localization = LocalizationManager.shared
+
     private struct PreviewPlan: Identifiable {
         let id: String
         let title: String
@@ -155,35 +160,37 @@ private struct AppStorePaywallPreviewView: View {
         let badge: String
     }
 
-    private let plans: [PreviewPlan] = [
-        PreviewPlan(
-            id: "monthly",
-            title: NSLocalizedString("appstore.paywall.plan.monthly.title", comment: ""),
-            price: NSLocalizedString("appstore.paywall.plan.monthly.price", comment: ""),
-            badge: NSLocalizedString("appstore.paywall.plan.monthly.badge", comment: "")
-        ),
-        PreviewPlan(
-            id: "yearly",
-            title: NSLocalizedString("appstore.paywall.plan.yearly.title", comment: ""),
-            price: NSLocalizedString("appstore.paywall.plan.yearly.price", comment: ""),
-            badge: NSLocalizedString("appstore.paywall.plan.yearly.badge", comment: "")
-        )
-    ]
+    private var plans: [PreviewPlan] {
+        [
+            PreviewPlan(
+                id: "monthly",
+                title: localization.localized("appstore.paywall.plan.monthly.title"),
+                price: localization.localized("appstore.paywall.plan.monthly.price"),
+                badge: localization.localized("appstore.paywall.plan.monthly.badge")
+            ),
+            PreviewPlan(
+                id: "yearly",
+                title: localization.localized("appstore.paywall.plan.yearly.title"),
+                price: localization.localized("appstore.paywall.plan.yearly.price"),
+                badge: localization.localized("appstore.paywall.plan.yearly.badge")
+            )
+        ]
+    }
 
     var body: some View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(NSLocalizedString("appstore.paywall.title", comment: ""))
+                    Text(localization.localized("appstore.paywall.title"))
                         .font(.title3.weight(.semibold))
-                    Text(NSLocalizedString("appstore.paywall.subtitle", comment: ""))
+                    Text(localization.localized("appstore.paywall.subtitle"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 6)
             }
 
-            Section(NSLocalizedString("appstore.paywall.section.plans", comment: "")) {
+            Section(localization.localized("appstore.paywall.section.plans")) {
                 ForEach(plans) { plan in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -201,32 +208,36 @@ private struct AppStorePaywallPreviewView: View {
             }
 
             Section {
-                Button(NSLocalizedString("appstore.paywall.restore", comment: "")) {}
+                Button(localization.localized("appstore.paywall.restore")) {}
                     .disabled(true)
             }
         }
-        .navigationTitle(NSLocalizedString("appstore.paywall.navigation_title", comment: ""))
+        .navigationTitle(localization.localized("appstore.paywall.navigation_title"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 private struct AppStoreHealthPermissionPreviewView: View {
-    private let bulletPoints: [String] = [
-        NSLocalizedString("appstore.health_permission.bullet.read", comment: ""),
-        NSLocalizedString("appstore.health_permission.bullet.progress", comment: ""),
-        NSLocalizedString("appstore.health_permission.bullet.optional", comment: "")
-    ]
+    @ObservedObject private var localization = LocalizationManager.shared
+
+    private var bulletPoints: [String] {
+        [
+            localization.localized("appstore.health_permission.bullet.read"),
+            localization.localized("appstore.health_permission.bullet.progress"),
+            localization.localized("appstore.health_permission.bullet.optional")
+        ]
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(NSLocalizedString("appstore.health_permission.title", comment: ""))
+                        Text(localization.localized("appstore.health_permission.title"))
                             .font(.title2.bold())
                             .foregroundStyle(Color.textPrimary)
 
-                        Text(NSLocalizedString("appstore.health_permission.subtitle", comment: ""))
+                        Text(localization.localized("appstore.health_permission.subtitle"))
                             .font(.subheadline)
                             .foregroundStyle(Color.textSecondary)
                     }
@@ -235,7 +246,7 @@ private struct AppStoreHealthPermissionPreviewView: View {
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(NSLocalizedString("appstore.health_permission.section", comment: ""))
+                        Text(localization.localized("appstore.health_permission.section"))
                             .font(.headline)
                             .foregroundStyle(Color.textPrimary)
 
@@ -247,7 +258,7 @@ private struct AppStoreHealthPermissionPreviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Button(NSLocalizedString("appstore.health_permission.cta", comment: "")) {}
+                Button(localization.localized("appstore.health_permission.cta")) {}
                     .buttonStyle(.borderedProminent)
                     .disabled(true)
             }
@@ -256,7 +267,7 @@ private struct AppStoreHealthPermissionPreviewView: View {
             .padding(.bottom, 24)
         }
         .background(Color.navy.ignoresSafeArea())
-        .navigationTitle(NSLocalizedString("appstore.health_permission.navigation_title", comment: ""))
+        .navigationTitle(localization.localized("appstore.health_permission.navigation_title"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

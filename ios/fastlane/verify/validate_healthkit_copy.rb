@@ -19,10 +19,10 @@ BLOCKED_MEDICAL_CLAIMS = /
 def parse_strings(pathname)
   entries = {}
   pathname.read.each_line do |line|
-    match = line.match(/"(?<key>[^"]+)"\s*=\s*"(?<value>.*)";/)
+    match = line.match(/"(?<key>[^"]+)"\s*=\s*"(?<value>(?:[^"\\]|\\.)*)";/)
     next unless match
 
-    entries[match[:key]] = match[:value]
+    entries[match[:key]] = match[:value].gsub(/\\(.)/) { Regexp.last_match(1) }
   end
   entries
 end
@@ -74,7 +74,7 @@ if privacy_json_path.file?
     errors << "App privacy JSON must be a non-empty array"
   end
 
-  unless privacy_entries.any? { |entry| Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
+  if privacy_entries.is_a?(Array) && !privacy_entries.any? { |entry| entry.is_a?(Hash) && Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
     errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
   end
 end

@@ -188,6 +188,67 @@ def test_validate_color_gamut_rejects_mixed_supported_profiles(tmp_path: Path) -
     assert "Mixed color profiles detected" in result.stderr
 
 
+def test_validate_color_gamut_rejects_missing_embedded_profile(tmp_path: Path) -> None:
+    screenshots_root = tmp_path / "screenshots" / "en-US"
+    screenshots_root.mkdir(parents=True, exist_ok=True)
+    _write_png(
+        screenshots_root / "iPhone 17 Pro Max-01_welcome.png",
+        width=IPHONE_SIZE[0],
+        height=IPHONE_SIZE[1],
+        profile="none",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_color_gamut.rb",
+        str(tmp_path / "screenshots"),
+    )
+
+    assert result.returncode == 1
+    assert "Missing color profile chunk" in result.stderr
+
+
+def test_validate_healthkit_copy_reports_invalid_privacy_json_shape(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text('{"data_protections":["DATA_NOT_COLLECTED"]}', encoding="utf-8")
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert "App privacy JSON must be a non-empty array" in result.stderr
+
+
+def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, privacy_json = _prepare_metadata(metadata_root)
+    (metadata_root / "en-US" / "keywords.txt").write_text("wellness;nutrition", encoding="utf-8")
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(metadata_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert "Keywords must be comma-separated" in result.stderr
+
+
 def test_metadata_and_healthkit_validators_accept_seeded_package(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)

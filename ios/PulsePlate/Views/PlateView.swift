@@ -108,7 +108,7 @@ struct PlateViewPP: View {
   @State private var showNutritionDetails = false
   @State private var showProfile = false
   @State private var showProSetup = false
-  private let localization = LocalizationManager.shared
+  @ObservedObject private var localization = LocalizationManager.shared
 
   private var isAppStoreScreenshotMode: Bool {
     AppStoreScreenshotContext.isEnabled
