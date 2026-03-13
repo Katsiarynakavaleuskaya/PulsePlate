@@ -6389,12 +6389,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The follow-up PR references PR `#1102` and this deferred remediation item
     - No runtime or tooling files are mixed into that normalization PR
 
-- [ ] P2: First-class CV routing domain in orchestration graph
+- [x] P2: First-class CV routing domain in orchestration graph
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR_TBD_CV_ROUTING_DOMAIN
+  - Target PR: PR #1149 (`fix/pr13-cv-routing-domain`)
   - Area: orchestration / routing
   - Reason: PR5 keeps `ml` as the graph-level domain for CV experiments. If future work needs `cv-agent` as graph-primary rather than advisory, `AGENT_ROUTING_GRAPH.md`, `AGENT_CAPABILITY_MATRIX.md`, `AGENT_CONTEXT_MAP.md`, and routing/tooling tests must be updated together.
+  - Status: ✅ Merged via PR #1149 on 13 March 2026 (`9572039eea56f6337d26a35eebe8fb069fedf128`)
   - Links:
     - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
     - `.cursor/agents/cv-agent.md`
