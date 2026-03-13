@@ -4,9 +4,11 @@ default_platform(:ios)
 
 APP_STORE_LOCALES = %w[ru-RU en-US es-ES].freeze
 IPHONE_DEVICE_CANDIDATES = [
+  # Prefer stable 18.5/18.6 runtimes on CI before falling back to 26.x simulators.
+  "iPhone 16 Pro Max",
+  "iPhone 16 Pro",
   "iPhone 17 Pro Max",
   "iPhone 17 Pro",
-  "iPhone 16 Pro Max",
   "iPhone 15 Pro Max"
 ].freeze
 IPAD_DEVICE_CANDIDATES = [
