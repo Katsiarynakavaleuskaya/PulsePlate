@@ -18,6 +18,7 @@ Design a CV pipeline that is:
 - **Explicitly uncertain** (confidence at each stage)
 - **Privacy-safe** (no surprise logging/retention)
 - **Deterministically testable** (benchmarks + schema checks)
+- **Coordinator-routable** (`domain=cv`, `cluster=ml` for generic CV-first tasks)
 
 ## Hard boundaries
 
@@ -33,6 +34,7 @@ Design a CV pipeline that is:
 2. Drafting response schemas and confidence semantics
 3. Auditing privacy/logging/retention constraints for user images
 4. Planning evaluation/benchmarks and acceptance criteria (future PRs)
+5. Acting as the graph-primary agent for coordinator-routed CV tasks
 
 ## Required pre-flight (SoT)
 

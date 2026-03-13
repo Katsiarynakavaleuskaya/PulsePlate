@@ -6,7 +6,7 @@
 
 ## Overview
 
-This guide explains how to set up Figma Remote MCP for agent-driven design execution in PulsePlate.
+This guide explains how to set up Figma MCP for agent-driven design execution in PulsePlate.
 
 ## Prerequisites
 
@@ -18,12 +18,14 @@ This guide explains how to set up Figma Remote MCP for agent-driven design execu
 
 ### Step 1: Verify MCP Configuration
 
-The MCP configuration file is already created at `.cursor/mcp.json`:
+The tracked template lives at `.cursor/mcp.json.example`.
+Create your local `.cursor/mcp.json` from that template.
+Note: `.cursor/mcp.json` is gitignored and is expected to remain local-only.
 
 ```json
 {
   "mcpServers": {
-    "figma-remote": {
+    "figma": {
       "url": "https://mcp.figma.com/mcp"
     }
   }
@@ -34,7 +36,7 @@ The MCP configuration file is already created at `.cursor/mcp.json`:
 
 1. Open Cursor IDE
 2. Open the Dev Mode MCP menu (Cmd/Ctrl + Shift + P → "MCP")
-3. Find "figma-remote" in the server list
+3. Find `figma` in the server list
 4. Click "Connect"
 5. Complete Figma OAuth authentication when prompted
 
@@ -43,8 +45,8 @@ The MCP configuration file is already created at `.cursor/mcp.json`:
 After connecting, verify the MCP is working:
 
 1. In Cursor, invoke the Figma MCP tool
-2. Test command: `figma.list_files`
-3. Expected: JSON response with accessible Figma files
+2. Test command: `whoami`
+3. Expected: authenticated identity payload
 
 ## Figma File Requirements
 
@@ -88,22 +90,22 @@ Example:
 
 ## Available MCP Tools
 
-Once connected, the following Figma MCP tools are available:
+Once connected, the following Figma MCP tools are the canonical verification set:
 
 | Tool | Description |
 |------|-------------|
-| `figma.list_files` | List accessible Figma files |
-| `figma.get_file` | Fetch file metadata and structure |
-| `figma.get_node` | Fetch specific node by ID |
-| `figma.get_styles` | Fetch design styles/tokens |
-| `figma.get_components` | Fetch component library |
+| `whoami` | Verify auth and workspace seat/plan |
+| `get_metadata` | Fetch file/page/node metadata |
+| `get_design_context` | Fetch implementation context for a design node |
+| `get_screenshot` | Capture a design node screenshot |
+| `generate_figma_design` | Discover capture modes and push supported pages/files |
 
 ## Troubleshooting
 
 ### Connection Failed
 
 1. Verify you have a full or dev seat in Figma
-2. Check that `.cursor/mcp.json` exists with correct URL
+2. Check that local `.cursor/mcp.json` exists and matches `.cursor/mcp.json.example`
 3. Try disconnecting and reconnecting in Cursor MCP menu
 4. Clear Cursor cache and restart
 

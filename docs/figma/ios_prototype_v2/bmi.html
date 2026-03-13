@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS BMI</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_BMI</span>
+        <span class="ghost-chip">Soft paywall</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">BMI calculator</p>
+        <h1 class="headline">BMI</h1>
+        <p class="subheadline">
+          Минимальный, спокойный flow: ввести ключевые значения, получить понятный результат и
+          показать soft paywall только когда его вернул backend.
+        </p>
+      </section>
+
+      <section class="quick-list">
+        <div class="quick-row">
+          <div class="icon">⚖</div>
+          <div>
+            <h4>Вес</h4>
+            <p>70 кг</p>
+          </div>
+          <span class="trail">edit</span>
+        </div>
+        <div class="quick-row">
+          <div class="icon">↕</div>
+          <div>
+            <h4>Рост</h4>
+            <p>175 см</p>
+          </div>
+          <span class="trail">edit</span>
+        </div>
+        <div class="quick-row">
+          <div class="icon">◔</div>
+          <div>
+            <h4>Возраст / пол</h4>
+            <p>30 лет · male · ru</p>
+          </div>
+          <span class="trail">edit</span>
+        </div>
+      </section>
+
+      <div class="button-stack">
+        <a class="primary-button" href="./paywall-pro-vip.html">Calculate</a>
+      </div>
+
+      <section class="glass-card">
+        <h2>Result</h2>
+        <div class="status-grid">
+          <div class="status-tile">
+            <p class="status-kicker">BMI</p>
+            <p class="status-value">22.86</p>
+          </div>
+          <div class="status-tile">
+            <p class="status-kicker">Category</p>
+            <p class="status-value"><span class="status-dot"></span>Normal</p>
+          </div>
+        </div>
+        <p class="section-copy">
+          Group: healthy range. Interpretation should stay readable and non-clinical.
+        </p>
+      </section>
+
+      <section class="glass-card gold-outline">
+        <h2>Soft paywall hook</h2>
+        <p class="section-copy">
+          Render only when backend returns hook data. The CTA leads into the reconciled `PRO / VIP`
+          surface rather than inventing a separate monetization layout.
+        </p>
+        <div class="button-stack">
+          <a class="secondary-button" href="./paywall-pro-vip.html">Unlock more detailed insights</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

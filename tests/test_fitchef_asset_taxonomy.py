@@ -8,11 +8,11 @@ ASSETS_ROOT = REPO_ROOT / "ios" / "PulsePlate" / "Assets.xcassets"
 APP_ICON_DIR = ASSETS_ROOT / "AppIcon.appiconset"
 FITCHEF_DIR = ASSETS_ROOT / "FitChef.imageset"
 VARIANT_BUCKETS = {
-    "FitChefPortraitWink.imageset": "FitChefPortraitWink",
-    "FitChefPortraitThinking.imageset": "FitChefPortraitThinking",
-    "FitChefPortraitSurprised.imageset": "FitChefPortraitSurprised",
-    "FitChefPortraitSleepy.imageset": "FitChefPortraitSleepy",
-    "FitChefOnboardingWelcome.imageset": "FitChefOnboardingWelcome",
+    "FitChefWink.imageset": "fitchef-wink",
+    "FitChefThinking.imageset": "fitchef-thinking",
+    "FitChefSurprised.imageset": "fitchef-surprised",
+    "FitChefSleepy.imageset": "fitchef-sleepy",
+    "FitChefOnboardingWelcome.imageset": "fitchef-onboarding-welcome",
 }
 
 
@@ -41,9 +41,9 @@ def test_fitchef_default_bucket_exists_and_uses_neutral_only_assets() -> None:
     """Keep the public FitChef bucket neutral and filename-stable."""
     referenced = _referenced_filenames(FITCHEF_DIR)
     assert referenced == [
-        "FitChefDefault@1x.png",
-        "FitChefDefault@2x.png",
-        "FitChefDefault@3x.png",
+        "fitchef-neutral@1x.png",
+        "fitchef-neutral@2x.png",
+        "fitchef-neutral@3x.png",
     ]
     assert all(" " not in filename for filename in referenced)
     assert all("Wink" not in filename for filename in referenced)
@@ -56,6 +56,10 @@ def test_fitchef_default_bucket_exists_and_uses_neutral_only_assets() -> None:
 def test_fitchef_variant_buckets_are_canonical_and_exist() -> None:
     """Require one semantic variant per dedicated FitChef image bucket."""
     assert not (ASSETS_ROOT / "Image.imageset").exists()
+    assert not (ASSETS_ROOT / "FitChefPortraitWink.imageset").exists()
+    assert not (ASSETS_ROOT / "FitChefPortraitThinking.imageset").exists()
+    assert not (ASSETS_ROOT / "FitChefPortraitSurprised.imageset").exists()
+    assert not (ASSETS_ROOT / "FitChefPortraitSleepy.imageset").exists()
 
     for bucket_name, variant_name in VARIANT_BUCKETS.items():
         bucket_dir = ASSETS_ROOT / bucket_name

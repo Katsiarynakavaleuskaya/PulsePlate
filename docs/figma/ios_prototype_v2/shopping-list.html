@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS Shopping List</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_ShoppingList</span>
+        <span class="ghost-chip">From weekly plan</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">Shopping list</p>
+        <h1 class="headline">Список покупок</h1>
+        <p class="subheadline">
+          Чистая структура категорий, количества и source refs. Без пустых дублей, без
+          разрыва с недельным меню.
+        </p>
+
+        <div class="status-grid">
+          <div class="status-tile">
+            <p class="status-kicker">Всего</p>
+            <p class="status-value">18 продуктов</p>
+          </div>
+          <div class="status-tile">
+            <p class="status-kicker">Warnings</p>
+            <p class="status-value">1 info</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="list-card">
+        <div class="list-section">
+          <p class="list-section-title">Овощи и фрукты</p>
+          <div class="list-row">
+            <div>
+              <strong>Шпинат</strong>
+              <span>breakfast bowl, salmon dinner</span>
+            </div>
+            <em>2 packs</em>
+          </div>
+          <div class="list-row">
+            <div>
+              <strong>Ягоды</strong>
+              <span>oatmeal, yogurt cup</span>
+            </div>
+            <em>450 g</em>
+          </div>
+        </div>
+
+        <div class="list-section">
+          <p class="list-section-title">Белки и основа</p>
+          <div class="list-row">
+            <div>
+              <strong>Куриная грудка</strong>
+              <span>lunch x3</span>
+            </div>
+            <em>1.2 kg</em>
+          </div>
+          <div class="list-row">
+            <div>
+              <strong>Лосось</strong>
+              <span>dinner x2</span>
+            </div>
+            <em>800 g</em>
+          </div>
+          <div class="list-row">
+            <div>
+              <strong>Овсяные хлопья</strong>
+              <span>breakfast x4</span>
+            </div>
+            <em>500 g</em>
+          </div>
+        </div>
+
+        <div class="list-section muted-section">
+          <p class="list-section-title">Warnings + footer</p>
+          <p class="section-copy">
+            Если weekly plan не построен, пользователь уходит в <code>Weekly Plan</code>, а footer остаётся
+            вторичным пояснением, а не отдельным hero-блоком.
+          </p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

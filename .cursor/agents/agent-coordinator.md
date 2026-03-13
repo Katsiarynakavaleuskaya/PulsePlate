@@ -348,11 +348,13 @@ RAG architecture, recursive verification, and budgets/stop conditions for ground
 
 Computer vision pipeline contracts (photo → items → confidence → mapping) and privacy boundaries.
 
-PR5 note: route CV experimentation through the existing `ml` domain and keep `cv-agent`
-as an advisory specialist. For CV experiment design, pair it with
-`data-scientist-agent` and `bayesian-uq-agent` as advisory tracks under the same
-`ml` routing domain. Runtime client ownership for future CV UX is deferred and
-must be tracked explicitly before implementation.
+PR13 note: route generic CV-first coordinator tasks through the canonical `cv`
+domain in the `ml` cluster, with `cv-agent` as the graph-primary owner. Keep
+governed experimentation packets backward-compatible under the existing `ml`
+domain until the experiment packet contract is migrated explicitly. For CV
+experiment design, pair `cv-agent` with `data-scientist-agent` and
+`bayesian-uq-agent` as advisory tracks. Runtime client ownership for future CV
+UX remains deferred and must be tracked explicitly before implementation.
 
 Rollout / rollback note:
 - Roll forward only when CV work stays docs/eval-only and uses the governed

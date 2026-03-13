@@ -197,6 +197,7 @@ def test_parses_all_known_domains() -> None:
         "infra",
         "security",
         "ml",
+        "cv",
         "docs",
         "design",
         "research",
@@ -208,6 +209,19 @@ def test_parses_all_known_domains() -> None:
         "orchestration",
     }
     assert expected.issubset(set(routes.keys()))
+
+
+def test_parses_cv_domain_with_ml_cluster() -> None:
+    """CV should be a first-class domain under the existing ML cluster."""
+
+    routes = load_routing_graph()
+
+    assert routes["cv"] == DomainRoute(
+        cluster="ml",
+        primary="cv-agent",
+        secondary="data-scientist-agent",
+        reviewer="security-auditor",
+    )
 
 
 def test_domain_normalized_to_lowercase() -> None:

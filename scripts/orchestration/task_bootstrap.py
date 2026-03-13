@@ -52,7 +52,11 @@ def build_task_packet(
     """Build a deterministic task packet for orchestration tooling."""
 
     normalized_paths = repo_relative_paths(candidate_paths)
-    domain = resolve_domain(task_class=task_class, candidate_paths=normalized_paths)
+    domain = resolve_domain(
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+        goal=goal,
+    )
     routing = load_routing_graph()
     decision = route(
         domain,
@@ -63,7 +67,7 @@ def build_task_packet(
     packet_id = compute_task_packet_id(
         goal=goal,
         task_class=task_class,
-        domain=domain,
+        domain=decision.domain,
         candidate_paths=normalized_paths,
     )
     context_pack = collect_context_pack(

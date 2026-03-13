@@ -58,6 +58,84 @@ def test_task_bootstrap_includes_scoped_agents_only_once() -> None:
     assert "pulseplate-frontend-ui" in packet["recommended_skills"]
 
 
+def test_task_bootstrap_routes_cv_tasks_to_cv_domain() -> None:
+    """CV-first tasks should route to the graph-primary CV domain under ML."""
+
+    packet = build_task_packet(
+        goal="Evaluate food image recognition reliability for offline CV review",
+        task_class="AI / ML",
+        candidate_paths=[
+            ".cursor/agents/cv-agent.md",
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+        ],
+    )
+
+    assert packet["domain"] == "cv"
+    assert packet["cluster"] == "ml"
+    assert packet["primary_agent"] == "cv-agent"
+    assert packet["secondary_agents"] == ["data-scientist-agent"]
+    assert packet["reviewer"] == "security-auditor"
+    assert "docs-sync" in packet["recommended_skills"]
+    assert "pulseplate-gates" in packet["recommended_skills"]
+
+
+def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
+    """Security acronyms must not trigger the CV routing domain."""
+
+    packet = build_task_packet(
+        goal="Audit CVE and CVSS handling for auth failures",
+        task_class="Security",
+        candidate_paths=["app/security/auth.py"],
+    )
+
+    assert packet["domain"] == "security"
+
+
+def test_task_bootstrap_preserves_explicit_security_task_class_over_cv_goal_hint() -> None:
+    """Explicit non-CV task classes must win over generic CV goal wording."""
+
+    packet = build_task_packet(
+        goal="Audit CV controls for image upload abuse paths",
+        task_class="Security",
+        candidate_paths=["app/security/auth.py"],
+    )
+
+    assert packet["domain"] == "security"
+
+
+def test_task_bootstrap_routes_cv_path_hints_for_cv_routable_task_class() -> None:
+    """CV-specific paths should route to CV for ML/CV-class tasks."""
+
+    packet = build_task_packet(
+        goal="Refresh CV protocol references",
+        task_class="AI / ML",
+        candidate_paths=[
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+            ".cursor/agents/cv-agent.md",
+        ],
+    )
+
+    assert packet["domain"] == "cv"
+    assert packet["cluster"] == "ml"
+    assert packet["primary_agent"] == "cv-agent"
+
+
+def test_task_bootstrap_preserves_docs_task_class_over_cv_path_hint() -> None:
+    """Explicit docs tasks must not be re-routed by CV-specific candidate paths."""
+
+    packet = build_task_packet(
+        goal="Refresh CV protocol references",
+        task_class="Documentation",
+        candidate_paths=[
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+            ".cursor/agents/cv-agent.md",
+        ],
+    )
+
+    assert packet["domain"] == "docs"
+    assert packet["cluster"] == "ops"
+
+
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
     """Leading './' removal must not strip the '.cursor' directory name."""
 

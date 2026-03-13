@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS Paywall Pro VIP</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_Paywall_Pro_VIP</span>
+        <span class="top-link">Restore</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">Upgrade with clarity</p>
+        <h1 class="headline">Upgrade to PRO</h1>
+        <p class="subheadline">
+          Экран остаётся спокойным и ближе к native paywall list: краткое объяснение,
+          список планов, restore и место под StoreKit error state.
+        </p>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Premium state</h2>
+          <span class="row-badge green">Optional</span>
+        </div>
+        <div class="active-banner">
+          <span class="bullet">✓</span>
+          <div>
+            <strong>Premium active</strong>
+            <span>Показывается только если StoreKit уже подтвердил подписку.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Plans</h2>
+          <span class="top-link compact">StoreKit</span>
+        </div>
+        <div class="plan-list">
+          <article class="plan-row featured">
+            <div class="plan-copy">
+              <strong>PRO Monthly</strong>
+              <span>Plate, Profile, Weekly Plan Reader, Shopping List</span>
+            </div>
+            <div class="plan-meta">
+              <span class="plan-price">$9</span>
+              <span class="plan-chevron">›</span>
+            </div>
+          </article>
+
+          <article class="plan-row">
+            <div class="plan-copy">
+              <strong>PRO Annual</strong>
+              <span>Best value for the daily planning stack</span>
+            </div>
+            <div class="plan-meta">
+              <span class="plan-price">$79</span>
+              <span class="plan-chevron">›</span>
+            </div>
+          </article>
+
+          <article class="plan-row premium">
+            <div class="plan-copy">
+              <strong>VIP Monthly</strong>
+              <span>Shopping depth, auto-repair, richer planning follow-up</span>
+            </div>
+            <div class="plan-meta">
+              <span class="plan-price">$19</span>
+              <span class="plan-chevron">›</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <h2>What changes after upgrade</h2>
+        <div class="comparison-grid">
+          <div class="comparison-row">
+            <span class="bullet red">•</span>
+            <div>
+              <strong>Free</strong>
+              <span>BMI start, onboarding and soft paywall hooks.</span>
+            </div>
+          </div>
+          <div class="comparison-row">
+            <span class="bullet">✓</span>
+            <div>
+              <strong>PRO</strong>
+              <span>Plate, profile, weekly plan reader and shopping-list entry.</span>
+            </div>
+          </div>
+          <div class="comparison-row">
+            <span class="bullet">✓</span>
+            <div>
+              <strong>VIP</strong>
+              <span>Enhanced shopping list, auto-repair and richer follow-up surfaces.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="paywall-footer">
+        <a class="primary-button" href="#">Upgrade to PRO</a>
+        <a class="secondary-button" href="#">Upgrade to VIP</a>
+        <a class="ghost-button" href="#">Restore purchases</a>
+      </div>
+
+      <section class="glass-card muted-card">
+        <h2>Error state</h2>
+        <p class="section-copy">
+          Если StoreKit возвращает ошибку, сообщение остаётся вторичным и не вытесняет список планов.
+        </p>
+      </section>
+
+      <p class="legal-copy">
+        Runtime paywall is a simple StoreKit list. This pass keeps that purchase anatomy visible while still showing the PRO/VIP tier story.
+      </p>
+    </main>
+  </body>
+</html>

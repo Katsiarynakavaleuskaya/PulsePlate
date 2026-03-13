@@ -105,6 +105,8 @@ Use this with:
 
 - Static/public mocks under `frontend/public/`
 - Canonical brand assets live in `frontend/src/assets/brand/`
+- FitChef mascot canon and variant naming live in
+  `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization

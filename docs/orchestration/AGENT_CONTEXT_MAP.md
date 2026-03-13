@@ -457,6 +457,9 @@ This map reduces “missing context” failures by making required inputs explic
 
 - Uncertainty/confidence must be explicit for recognition outputs
 - Privacy/logging constraints for user images (policy-only here)
+- Generic coordinator routing resolves CV-first tasks to `domain=cv` inside the
+  `ml` cluster; governed experimentation packets stay `ml`-scoped until that
+  packet contract is migrated explicitly.
 - When specifying future degrade UX states, also load:
   - `frontend/AGENTS.md`
   - `ios/AGENTS.md`

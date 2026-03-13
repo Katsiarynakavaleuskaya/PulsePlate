@@ -1,8 +1,22 @@
 # Quick Diagnostic for Cloudflare 521 Error
 
+## Вариант 0: публичная проверка из локального repo
+
+Сначала подтвердите, что проблема действительно находится в публичной DNS/TLS топологии:
+
+```bash
+python3 scripts/check_domain_tls.py --domain pulseplate.app
+```
+
+Ожидаемое healthy-состояние:
+- apex отвечает приложением и отдаёт один из ожидаемых статусов (`200/301/302/303/307/308/405`)
+- `www` отдаёт `301/302/307/308` на `https://pulseplate.app`
+
+Если script показывает `www ... 525`, переходите к origin-side диагностике ниже.
+
 ## Выполнить на Droplet (SSH)
 
-### Вариант 1: Использовать скрипт (рекомендуется)
+### Вариант 1: Использовать server-side скрипт (рекомендуется)
 
 ```bash
 # Скопировать скрипт на сервер
@@ -14,7 +28,7 @@ chmod +x /tmp/diagnose_production.sh
 /tmp/diagnose_production.sh
 ```
 
-### Вариант 2: Выполнить команды вручную
+### Вариант 2: Выполнить server-side команды вручную
 
 ```bash
 # На Droplet (SSH)
@@ -57,14 +71,14 @@ grep PRODUCTION_DOMAIN /srv/pulseplate-production/.env || echo "PRODUCTION_DOMAI
 
 ### ✅ Порты 80/443 слушаются
 Должно быть:
-```
+```text
 LISTEN  0  4096  0.0.0.0:80  0.0.0.0:*  users:(("caddy",pid=12345,fd=3))
 LISTEN  0  4096  0.0.0.0:443  0.0.0.0:*  users:(("caddy",pid=12345,fd=4))
 ```
 
 ### ✅ Контейнеры запущены
 Должно быть:
-```
+```text
 NAMES          IMAGE          PORTS                    STATUS
 caddy          caddy:2.7.6     0.0.0.0:80->80/tcp...    Up X minutes
 app            ghcr.io/...     8000/tcp                 Up X minutes

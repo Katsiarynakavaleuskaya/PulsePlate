@@ -6,7 +6,6 @@ but are not required to appear in `AGENT_ROUTING_GRAPH.md` as primary/secondary/
 - `ai-app-architect`
 - `bayesian-uq-agent`
 - `cbt-psychologist-agent`
-- `cv-agent`
 - `data-scientist-agent`
 - `designer-artist-agent`
 - `epistemology-discovery-agent`

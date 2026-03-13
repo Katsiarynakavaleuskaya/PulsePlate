@@ -1031,9 +1031,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-domain-ownership-canonicalization"></a>
 - [ ] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR/Figma-Domain-Infra-First
+  - Target PR: PR `#1141` (`fix(deploy): add www TLS remediation diagnostics`)
   - Priority: P1
-  - Status: External DNS + follow-up implementation required
+  - Status: In progress on March 12, 2026; live remediation is complete, and the item stays open until PR `#1141` clears merge governance and lands on `main`
   - Area: deploy / figma / frontend
   - Finding Type: production ownership drift
   - Reason: On March 12, 2026 the repo-backed runtime still answered on
@@ -1044,10 +1044,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `deploy/Caddyfile.production`
     - `deploy/PRODUCTION.md`
     - `docs/deploy/CLOUDFLARE.md`
+    - `scripts/check_domain_tls.py`
+    - `tests/test_check_domain_tls.py`
+    - `scripts/QUICK_DIAGNOSTIC.md`
     - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
     - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
     - `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`
   - DoD:
+    - `python3 scripts/check_domain_tls.py --domain pulseplate.app` exists as the canonical read-only public-side diagnostic
+    - Repo evidence records the March 12, 2026 baseline from the new diagnostic and the live remediation result
     - External DNS removes the conflicting apex `AAAA` record from the production zone
     - `www.pulseplate.app` no longer returns `525` and redirects cleanly to apex
     - `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime
@@ -1081,6 +1086,65 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Matrix optional design review references are updated for activated rows
     - Optional activation path does not redefine the canonical Storybook-first
       web review workflow
+
+
+<a id="ledger-p1-ios-prototype-v2-canonical-promotion"></a>
+- [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR #1125
+  - Priority: P1
+  - Status: 🔄 In review
+  - Area: design / iOS / Figma promotion
+  - Finding Type: canonical design-source promotion
+  - Reason: The normalization work is now implemented on branch via
+    `ios prototype v2` (`AhyS6u4dZXMRHVUDO3Cfn6`) with stable `screen ID ->
+    nodeId` registry. This backlog item remains open only until PR #1125 merges
+    and the v2 registry becomes the canonical repo state. The raw
+    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) stays `reference_only`.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - `ios/PulsePlate/Screens/PaywallScreen.swift`
+  - DoD:
+    - PR #1125 is merged with the `ios prototype v2` registry and evidence docs
+    - `ios prototype v2` is treated as the implementation-safe source for the
+      current iOS funnel slice
+    - Raw `ios prototype` remains explicitly `reference_only`
+    - Any remaining Code Connect work continues under the separate activation
+      backlog item, not this normalization/promotion item
+
+
+<a id="ledger-p1-ios-prototype-v2-bmi-onboarding-polish"></a>
+- [ ] P1: Polish `ios prototype v2` BMI + onboarding slice in a separate MCP lane
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR-TBD-FIGMA-IOS-BMI-ONBOARDING-POLISH
+  - Priority: P1
+  - Status: 📋 Planned
+  - Area: design / iOS / Figma polish
+  - Finding Type: runtime-aligned follow-up
+  - Reason: PR #1132 intentionally scopes the polish pass to `Home`, `Paywall`,
+    `Profile`, `Weekly Plan`, and `Shopping List`. `BMI` plus the two onboarding
+    screens must continue in a separate worktree/PR lane so the first polish PR
+    stays narrow and reviewable.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - PR #1132
+  - DoD:
+    - Dedicated worktree/branch exists for `BMI + Onboarding`
+    - MCP-only capture sources are refreshed for `iOS_BMI`,
+      `iOS_Onboarding_01_Welcome`, and `iOS_Onboarding_02_Value_Usage`
+    - Figma node map is updated only for those screens in the follow-up PR
+    - Follow-up PR includes its own `docs/review/PR_<N>_FIXED_MAPPING.md`
+      artifact and canonical PR-body mirror
+    - `pre-commit run --all-files` and `make verify` pass on the follow-up PR
 
 
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
@@ -3692,6 +3756,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
   - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
 
+<a id="ledger-p1-fitchef-web-brand-rollout"></a>
+- [ ] P1: FitChef website brand rollout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: design / frontend / marketing
+  - Finding Type: brand rollout
+  - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
+    Figma reference handoff. Website hero composition, React variant adoption,
+    and marketing surfaces must be promoted in a dedicated follow-up PR to avoid
+    mixing brand-asset canon with website implementation.
+  - Links:
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `frontend/src/assets/brand/`
+  - DoD:
+    - Website hero and onboarding sections use named FitChef mascot variants
+    - Current `FitChefMascot` consumers migrate from legacy alias-only usage
+      where appropriate
+    - Marketing/storybook guidance reflects the same variant contract
+    - `make verify` passes with updated web tests if consumers change
+  - Blockers: Depends on repo mascot canon landing first
+
+<a id="ledger-p1-fitchef-figma-production-sync"></a>
+- [ ] P1: FitChef Figma production sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: design / Figma / governance
+  - Finding Type: reference-lane promotion
+  - Reason: PR4 keeps Figma as `reference_only` for mascot placement. A later
+    PR may promote a governed sync flow once the repo mascot canon and web/iOS
+    consumers stabilize.
+  - Links:
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+  - DoD:
+    - Figma files reference the named mascot variant pack without hidden source
+      drift
+    - Repo-to-Figma import/export policy is documented with explicit approvals
+    - Any automated sync path remains bounded and reviewable
+  - Blockers: Depends on repo mascot canon landing first
+
 <a id="ledger-p1-users-surface-hardening"></a>
 - [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
@@ -6186,11 +6296,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p2-uol-audit-canonicalization-cleanup"></a>
-- [ ] P2: Canonicalize universal orchestration audit artifact and reference path
+- [x] P2: Canonicalize universal orchestration audit artifact and reference path
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR `#1137`
-  - Status: 🟡 In progress
+  - Status: ✅ Completed in merged PR `#1137` on March 12, 2026
   - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
     and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale
     layer aligned to current workflow and experimentation authorities.

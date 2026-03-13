@@ -52,7 +52,7 @@ Slug-first: first column = canonical agent slug (aligns with inventory and routi
 | **data-scientist-agent** | Data Scientist | `docs/`, experiments (future) | Metrics, eval design, offline benchmarks | — | Coordinator, ML Engineer |
 | **ml-engineer-agent** | ML Engineer | `providers/`, infra seams (future) | Productionization, latency/cost budgets, caching | Architecture | Coordinator |
 | **bayesian-uq-agent** | Bayesian / UQ Agent | `core/`, `providers/` | Uncertainty quantification, calibration, reliability metrics | — | Coordinator, AI Innovation |
-| **cv-agent** | CV Agent | `core/`, `providers/` | Food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
+| **cv-agent** | CV Agent | `core/`, `providers/` | CV routing domain, food recognition pipeline, confidence scoring, privacy boundaries | — | Coordinator, Security |
 | **philosophy-agent** | Philosophy Agent | `docs/` (cross-cutting) | Claim semantics, falsifiability, wellness language boundaries | — | Coordinator |
 | **logic-agent** | Logic Agent | `docs/`, `core/` (cross-cutting) | Contradiction checks, invariants for recommendations | — | Coordinator, Bug Hunter (for testability) |
 | **nutritionist-agent** | Nutritionist Agent | `docs/`, `core/` | Nutrition domain constraints, safe wording, rule definitions | — | Coordinator |

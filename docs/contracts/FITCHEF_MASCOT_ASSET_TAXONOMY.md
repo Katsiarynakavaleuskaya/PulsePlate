@@ -42,10 +42,10 @@ This contract does not define:
 
 ### Approved variant buckets
 
-- `FitChefPortraitWink`
-- `FitChefPortraitThinking`
-- `FitChefPortraitSurprised`
-- `FitChefPortraitSleepy`
+- `FitChefWink`
+- `FitChefThinking`
+- `FitChefSurprised`
+- `FitChefSleepy`
 - `FitChefOnboardingWelcome`
 
 Each variant must live in its own `.imageset` bucket. Semantic variants must

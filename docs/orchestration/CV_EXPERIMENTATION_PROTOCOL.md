@@ -4,7 +4,7 @@
 
 **Purpose:** Define the canonical CV-specific overlay for governed experimentation packets.
 
-**Status:** Canonical overlay for PR5. This file extends, and does not replace,
+**Status:** Canonical overlay for the governed CV experimentation lane. This file extends, and does not replace,
 `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
 
 **Hard rule:** This protocol is offline-evaluation-only. It does not authorize runtime
@@ -40,7 +40,6 @@ feature activation.
 - Storage or retention of raw user images.
 - Client-side CV UX implementation in `frontend/` or `ios/`.
 - Model-hosting decisions, inference budgets, or serving providers.
-- First-class `cv` routing domain changes in `AGENT_ROUTING_GRAPH.md`.
 
 ---
 
@@ -74,7 +73,7 @@ Rule:
 
 ## 3. Uncertainty and degrade rules
 
-### Qualitative confidence only for PR5
+### Qualitative confidence only for this lane
 
 CV confidence remains qualitative in this phase:
 
@@ -83,7 +82,7 @@ CV confidence remains qualitative in this phase:
 - `low`
 - `unknown`
 
-PR5 does not canonize numeric thresholds, calibration cutoffs, or production scoring
+This lane does not canonize numeric thresholds, calibration cutoffs, or production scoring
 policy. Those remain future evaluation hooks only.
 
 ### Canonical degrade states
@@ -98,7 +97,7 @@ Every CV packet must carry the full deterministic degrade-state set:
 
 Interpretation:
 
-- PR5 defines the states and their semantics only.
+- This protocol defines the states and their semantics only.
 - Future frontend/iOS/runtime PRs may map these states to concrete UI and API flows.
 - Runtime ownership for client-visible CV UX remains deferred and must be tracked in
   `docs/roadmap/BACKLOG_LEDGER.md`.
@@ -140,7 +139,7 @@ Every CV packet must include a privacy packet with, at minimum:
 - consent policy
 - deletion policy
 
-Default posture for PR5:
+Default posture for this lane:
 
 - raw user images are sensitive by default
 - raw-image retention defaults to none
@@ -151,11 +150,13 @@ Default posture for PR5:
 
 ## 6. Routing and ownership
 
-For PR5:
+For PR13 and later:
 
-- graph-level routing remains `ml`
-- `cv-agent` stays advisory, not the graph-primary owner
-- `data-scientist-agent` and `bayesian-uq-agent` are expected secondary/advisory tracks
+- generic coordinator routing resolves CV-first work through `domain=cv`,
+  `cluster=ml`
+- governed experimentation packets remain `ml`-scoped for backward compatibility
+- `cv-agent` is graph-primary for routed CV tasks
+- `data-scientist-agent` and `bayesian-uq-agent` remain expected secondary/advisory tracks
 
 When defining future degrade UX states, required context expands to:
 
@@ -164,4 +165,4 @@ When defining future degrade UX states, required context expands to:
 - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
 
 This is a documentation requirement only. It does not assign runtime implementation
-ownership in PR5.
+ownership in PR13.

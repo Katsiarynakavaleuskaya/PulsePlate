@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "FitChefOnboardingWelcome@1x.png",
+      "filename" : "fitchef-onboarding-welcome@1x.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "FitChefOnboardingWelcome@2x.png",
+      "filename" : "fitchef-onboarding-welcome@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "FitChefOnboardingWelcome@3x.png",
+      "filename" : "fitchef-onboarding-welcome@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
