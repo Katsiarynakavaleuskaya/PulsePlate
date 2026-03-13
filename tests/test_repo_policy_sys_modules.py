@@ -22,6 +22,7 @@ ENFORCED_GLOBS: tuple[str, ...] = (
     # NOTE: Scope stays intentionally narrow while legacy tests are cleaned up incrementally.
     "vip/**/*.py",
     "test_llm_extras.py",
+    "test_llm_import_coverage.py",
 )
 
 
