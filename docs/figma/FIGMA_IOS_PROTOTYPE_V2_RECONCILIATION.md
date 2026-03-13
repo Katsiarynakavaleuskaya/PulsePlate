@@ -25,14 +25,14 @@ Repo sources used:
 
 | Canonical screen ID | nodeId | Status |
 | --- | --- | --- |
-| `iOS_Onboarding_01_Welcome` | `1:2` | reconciled |
-| `iOS_Paywall_Pro_VIP` | `2:2` | reconciled |
-| `iOS_Onboarding_02_Value_Usage` | `3:2` | reconciled |
-| `iOS_Home` | `4:2` | reconciled |
-| `iOS_ShoppingList` | `5:2` | reconciled |
-| `iOS_WeeklyPlan_Reader` | `6:2` | reconciled |
-| `iOS_Profile` | `7:2` | reconciled |
-| `iOS_BMI` | `8:2` | reconciled |
+| `iOS_Onboarding_01_Welcome` | `25:2` | reconciled |
+| `iOS_Paywall_Pro_VIP` | `17:2` | reconciled |
+| `iOS_Onboarding_02_Value_Usage` | `20:2` | reconciled |
+| `iOS_Home` | `11:2` | reconciled |
+| `iOS_ShoppingList` | `18:2` | reconciled |
+| `iOS_WeeklyPlan_Reader` | `15:2` | reconciled |
+| `iOS_Profile` | `13:2` | reconciled |
+| `iOS_BMI` | `24:2` | reconciled |
 
 ## Component-by-Component Gaps
 
@@ -63,6 +63,14 @@ Repo sources used:
   implied only by a gated home row (`ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:50-93`).
 - BMI now has a design-reference surface that preserves the runtime sequence:
   input -> result -> optional soft paywall hook (`ios/PulsePlate/Screens/BMICalculatorScreen.swift:46-85`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:954-969`).
+- Onboarding now uses the localized iOS value/usage copy as the content spine
+  instead of prototype-only copy that drifted away from runtime strings.
+- On March 12, 2026 the BMI + onboarding slice was re-captured again into
+  nodes `24:2`, `20:2`, and `25:2` to lock the current calmer brand copy and
+  stronger form anatomy into the canonical handoff map.
+- BMI now uses field/picker anatomy closer to the actual `BMICalculatorScreen`
+  instead of generic editable quick rows, and the optional hook mirrors the
+  backend default title/body/CTA contract (`ios/PulsePlate/Screens/BMICalculatorScreen.swift:46-85`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:954-969`).
 - Profile now exists as a calm PRO-setup surface rather than remaining only a
   technical form implementation (`ios/PulsePlate/Views/ProfileView.swift:19-80`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:1041-1049`).
 - Home no longer relies on the temporary `PRO active` chip; it now uses a
@@ -84,6 +92,8 @@ Repo sources used:
   exact runtime state machines for `idle/loading/empty/error`.
 - BMI and Profile still simplify some runtime detail states to keep the design
   reference focused on the main UX path.
+- Onboarding still compresses the real app into two calm screens and does not
+  model later branching states beyond the primary continuation path.
 
 ## Decision Log
 
@@ -98,12 +108,14 @@ Repo sources used:
 
 ## Next Promotion Path
 
-1. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
-2. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
-3. If Code Connect becomes available, use
+1. If a future MCP refresh changes top-level frame IDs again, re-capture `BMI`
+   and `Onboarding` and refresh the canonical `screen ID -> nodeId` map.
+2. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
+3. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
+4. If Code Connect becomes available, use
    `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md` and map the
    reconciled frames rather than the raw prototype file, while linking the new
    activation session log back to
    `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`.
-4. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
+5. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
    refresh changes top-level frame IDs.

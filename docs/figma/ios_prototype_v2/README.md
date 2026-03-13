@@ -29,14 +29,14 @@ Generated Figma artifact:
 
 Current canonical screen map:
 
-- `iOS_Onboarding_01_Welcome` -> `1:2`
-- `iOS_Onboarding_02_Value_Usage` -> `3:2`
-- `iOS_Home` -> `4:2`
-- `iOS_Paywall_Pro_VIP` -> `2:2`
-- `iOS_WeeklyPlan_Reader` -> `6:2`
-- `iOS_ShoppingList` -> `5:2`
-- `iOS_Profile` -> `7:2`
-- `iOS_BMI` -> `8:2`
+- `iOS_Onboarding_01_Welcome` -> `25:2`
+- `iOS_Onboarding_02_Value_Usage` -> `20:2`
+- `iOS_Home` -> `11:2`
+- `iOS_Paywall_Pro_VIP` -> `17:2`
+- `iOS_WeeklyPlan_Reader` -> `15:2`
+- `iOS_ShoppingList` -> `18:2`
+- `iOS_Profile` -> `13:2`
+- `iOS_BMI` -> `24:2`
 
 Follow-up artifacts:
 
@@ -48,3 +48,7 @@ Note:
 
 - Figma MCP HTML capture auto-generated frame names as `Main Content (...)`.
 - Treat the canonical screen ID + `nodeId` mapping above as the implementation-safe reference.
+- On March 12, 2026 the `BMI + Onboarding` slice was re-captured into the same
+  file after dedicated polish passes; the older node IDs (`1:2`, `3:2`,
+  `8:2`, `23:2`, `22:2`, `21:2`) remain historical only and should not be used
+  as the latest handoff reference.

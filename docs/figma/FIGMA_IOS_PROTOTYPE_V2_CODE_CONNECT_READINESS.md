@@ -22,14 +22,14 @@ Current workspace blocker:
 
 | Canonical screen ID | nodeId | Proposed label | Activation status |
 | --- | --- | --- | --- |
-| `iOS_Onboarding_01_Welcome` | `1:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Onboarding_02_Value_Usage` | `3:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Home` | `11:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Paywall_Pro_VIP` | `17:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_ShoppingList` | `18:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_WeeklyPlan_Reader` | `15:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Profile` | `13:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_BMI` | `8:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Onboarding_01_Welcome` | `25:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Onboarding_02_Value_Usage` | `20:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Home` | `11:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Paywall_Pro_VIP` | `17:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_ShoppingList` | `18:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_WeeklyPlan_Reader` | `15:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Profile` | `13:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_BMI` | `24:2` | `SwiftUI` | blocked_by_plan |
 
 ## Preconditions
 
@@ -44,14 +44,14 @@ Current workspace blocker:
    - `ios/PulsePlate/Screens/PaywallScreen.swift`
    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
    - `ios/PulsePlate/Screens/ShoppingListReaderScreen.swift`
-   - `ios/PulsePlate/Views/Profile/ProfileView.swift`
-   - `ios/PulsePlate/Views/BMICalculatorView.swift`
+   - `ios/PulsePlate/Views/ProfileView.swift`
+   - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
 
 ## Activation checklist
 
 1. Confirm seat capability:
    - run `mcp__figma__whoami`
-   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="1:2")`
+   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="25:2")`
    - continue only if the response is not plan-blocked
 2. Verify node accessibility for all eight screens:
    - run `mcp__figma__get_metadata(fileKey, nodeId)` for each node in the
@@ -67,7 +67,7 @@ Current workspace blocker:
    - `Shopping List` -> primary `ShoppingListReaderScreen.swift`
    - `Weekly Plan` -> primary `WeeklyPlanReaderView.swift`
    - `Profile` -> primary `ProfileView.swift`
-   - `BMI` -> primary `BMICalculatorView.swift`
+   - `BMI` -> primary `BMICalculatorScreen.swift`
 5. Persist approved mappings:
    - use `mcp__figma__send_code_connect_mappings(...)` for batched saves
    - use `mcp__figma__add_code_connect_map(...)` only if an explicit manual map
