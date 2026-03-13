@@ -4,7 +4,7 @@
 
 **Purpose:** Define the canonical CV-specific overlay for governed experimentation packets.
 
-**Status:** Canonical overlay for PR5. This file extends, and does not replace,
+**Status:** Canonical overlay for the governed CV experimentation lane. This file extends, and does not replace,
 `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
 
 **Hard rule:** This protocol is offline-evaluation-only. It does not authorize runtime
@@ -73,7 +73,7 @@ Rule:
 
 ## 3. Uncertainty and degrade rules
 
-### Qualitative confidence only for PR5
+### Qualitative confidence only for this lane
 
 CV confidence remains qualitative in this phase:
 
@@ -82,7 +82,7 @@ CV confidence remains qualitative in this phase:
 - `low`
 - `unknown`
 
-PR5 does not canonize numeric thresholds, calibration cutoffs, or production scoring
+This lane does not canonize numeric thresholds, calibration cutoffs, or production scoring
 policy. Those remain future evaluation hooks only.
 
 ### Canonical degrade states
@@ -97,7 +97,7 @@ Every CV packet must carry the full deterministic degrade-state set:
 
 Interpretation:
 
-- PR5 defines the states and their semantics only.
+- This protocol defines the states and their semantics only.
 - Future frontend/iOS/runtime PRs may map these states to concrete UI and API flows.
 - Runtime ownership for client-visible CV UX remains deferred and must be tracked in
   `docs/roadmap/BACKLOG_LEDGER.md`.
@@ -139,7 +139,7 @@ Every CV packet must include a privacy packet with, at minimum:
 - consent policy
 - deletion policy
 
-Default posture for PR5:
+Default posture for this lane:
 
 - raw user images are sensitive by default
 - raw-image retention defaults to none

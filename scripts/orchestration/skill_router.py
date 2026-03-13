@@ -115,7 +115,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="repo-tracked",
         rationale="Backend/API tasks should follow endpoint skill constraints and deterministic tests.",
         min_score=3,
-        domain_weights={"backend": 3, "ml": 2},
+        domain_weights={"backend": 3, "ml": 2, "cv": 2},
         path_prefixes=("app/", "core/", "providers/", "legacy_app.py"),
         keywords=("endpoint", "api", "router", "schema", "fastapi", "provider"),
     ),

@@ -268,3 +268,19 @@ def test_skill_router_selects_default_cv_routing_stack() -> None:
     assert "pulseplate-workflow" in skills
     assert "pulseplate-gates" in skills
     assert "docs-sync" in skills
+
+
+def test_skill_router_keeps_backend_endpoint_lane_for_cv_domain() -> None:
+    """CV backend/provider work should still inherit the backend endpoint skill lane."""
+
+    skills = select_recommended_skills(
+        goal="Add provider-backed CV endpoint contract for food image analysis",
+        task_class="AI / ML",
+        candidate_paths=[
+            "providers/cv_adapter.py",
+            "app/routers/cv.py",
+        ],
+        domain="cv",
+    )
+
+    assert "pulseplate-backend-endpoints" in skills
