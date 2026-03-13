@@ -10,8 +10,8 @@ IPHONE_DEVICE_CANDIDATES = [
   "iPhone 15 Pro Max"
 ].freeze
 IPAD_DEVICE_CANDIDATES = [
-  "iPad Pro 13-inch (M5)",
   "iPad Pro 13-inch (M4)",
+  "iPad Pro 13-inch (M5)",
   "iPad Pro (12.9-inch) (6th generation)"
 ].freeze
 
@@ -77,7 +77,7 @@ platform :ios do
       erase_simulator: true,
       concurrent_simulators: false,
       stop_after_first_error: true,
-      number_of_retries: 1,
+      number_of_retries: ENV["CI"] ? 0 : 1,
       override_status_bar: true,
       reinstall_app: true,
       skip_open_summary: true
