@@ -8,7 +8,7 @@
 Disposition: FIXED
 Commit: 0a65ad1d
 Evidence: `docs/review/PR_1153_FIXED_MAPPING.md:8`, `docs/review/PR_1153_FIXED_MAPPING.md:14`
-Reason: cubic identified the inconsistent bootstrap placeholder, and CodeRabbit separately identified the same placeholder as non-canonical. The artifact now uses the exact zero-review marker accepted by the Phase2 gate.
+Reason: cubic identified that the original bootstrap artifact mixed a completed mapping checkbox with an ambiguous placeholder state. CodeRabbit separately flagged the same placeholder as non-canonical. The artifact now records explicit FIXED disposition entries for the bot findings instead of the old placeholder bootstrap wording.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#pullrequestreview-3943992998 -> 0a65ad1d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160357 -> 0a65ad1d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160934 -> 0a65ad1d
