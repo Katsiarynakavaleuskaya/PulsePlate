@@ -19,7 +19,7 @@ Reason: In artifact-first mode the canonical mapping artifact is the merge-block
 
 Disposition: FIXED
 Commit: ff8e6a62
-Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:11`, `docs/review/PR_1151_FIXED_MAPPING.md:12`
+Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:23`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#discussion_r2930072441 -> ff8e6a62
 
 ## Merge Readiness
