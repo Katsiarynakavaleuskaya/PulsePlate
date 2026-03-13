@@ -31,8 +31,8 @@ Evidence: docs/review/PR_1160_FIXED_MAPPING.md:39
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#pullrequestreview-3947265693
 Disposition: NOT-A-BUG
-Evidence: docs/review/PR_1160_FIXED_MAPPING.md:20
-Evidence: docs/review/PR_1160_FIXED_MAPPING.md:25
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:21
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:27
 Reason: This aggregate CodeRabbit review shell is satisfied by the two concrete FIXED inline dispositions recorded immediately above; no additional unresolved action remains at the review-shell level.
 
 ## Merge Readiness

@@ -1,8 +1,8 @@
 # 📋 Полный список всех документов по деплою
 
-**Версия:** 2025-11-02
+**Версия:** 2026-03-13
 **Статус:** Актуально
-**Last-verified of links:** 2025-11-02
+**Last-verified of links:** 2026-03-13
 
 > ⚠️ **Важно для maintainers:** При изменении любого целевого документа (например, `[OVERVIEW.md](OVERVIEW.md)`, `[DOMAIN.md](DOMAIN.md)` и т.д.) необходимо обновить соответствующий тег `(last-verified: YYYY-MM-DD)` в этом файле для всех ссылок на этот документ.
 
@@ -86,7 +86,7 @@
    ↓
 5. [GITHUB_SECRETS.md](GITHUB_SECRETS.md) (last-verified: 2025-11-02) (добавление секретов)
    ↓
-6. [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) (modern frontend Pages lane)
+6. (Опционально) [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) (modern frontend Pages lane without production cutover)
    ↓
 7. Первый деплой!
 ```
