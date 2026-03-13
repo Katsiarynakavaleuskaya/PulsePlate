@@ -60,9 +60,15 @@ Evidence: tests/test_fitchef_app_store_pack.py:14, tests/test_fitchef_app_store_
 Reason: The guard test now documents the mascot taxonomy source of truth and makes the `relative_to()` containment check explicit with `_ = ...`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3946770483 -> e508e2fc
 
+Disposition: FIXED
+Commit: f65db89b
+Evidence: tests/test_fitchef_app_store_pack.py:74
+Reason: The metadata blocked-term guard now reports the offending terms explicitly, which closes the latest CodeRabbit debugging nitpick.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3946855116 -> f65db89b
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
+- [x] Final post-bot wait cycle completed
