@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Pending PR review.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Local sanity passed
