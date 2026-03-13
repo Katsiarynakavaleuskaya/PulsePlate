@@ -54,7 +54,7 @@ Reason: This review shell is satisfied by the fixed validator/localization mappi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944019711
 Disposition: NOT-A-BUG
 Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:41
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:400
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:476
 Reason: This review shell contains only the fail-fast scenario parsing fix and the merge-readiness checkbox/doc-proof fixes mapped below; no additional review-level action remains.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944034323
@@ -63,6 +63,19 @@ Evidence: docs/review/PR_1147_FIXED_MAPPING.md:10
 Evidence: docs/review/PR_1147_FIXED_MAPPING.md:49
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:1497
 Reason: The final cubic review shell is satisfied by the artifact-proof corrections and the existing deferred cleanup anchor; no separate action remains beyond the doc fix mapped below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944201434
+Disposition: NOT-A-BUG
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:30
+Evidence: ios/fastlane/verify/validate_metadata.rb:40
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:44
+Reason: This later CodeRabbit review shell contains only the validator-usage, privacy-notes, and scenario fail-fast findings that are explicitly mapped below; no separate review-level action remains.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#pullrequestreview-3944228329
+Disposition: NOT-A-BUG
+Evidence: ios/fastlane/verify/validate_color_gamut.rb:44
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:44
+Reason: This later cubic review shell contains only the color-profile normalization and scenario fail-fast findings mapped below; no additional shell-level action remains once those mappings are recorded.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2927088169 -> 5086c136
 Disposition: FIXED
@@ -195,6 +208,15 @@ Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1147-ios-appstore-asset-followups
 Reason: Pinning/documenting an explicit `ios_version` strategy is valid cleanup, but it is intentionally deferred out of PR #1147 to avoid reopening the stabilized snapshot matrix during merge-readiness.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930140422 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:127
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:138
+Evidence: ios/PulsePlateUITests/AppStoreScreenshotTests.swift:82
+Evidence: ios/PulsePlateUITests/AppStoreScreenshotTests.swift:90
+Reason: Screenshot locale now comes solely from Fastlane/Xcode language injection plus `Locale.preferredLanguages`; the UITest no longer injects a competing language source.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930140413 -> 284132cf
 Disposition: FIXED
 Commit: 284132cf
@@ -219,10 +241,56 @@ Disposition: FIXED
 Commit: 284132cf
 Evidence: `git ls-files --stage ios/fastlane/verify/validate_dimensions.rb` -> `100755`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853772 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: .github/workflows/ios-appstore-assets.yml:88
+Evidence: .github/workflows/ios-appstore-assets.yml:90
+Evidence: .github/workflows/ios-appstore-assets.yml:126
+Evidence: .github/workflows/ios-appstore-assets.yml:139
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853786 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/fastlane/Appfile:1
+Evidence: ios/fastlane/Appfile:2
+Evidence: ios/fastlane/Appfile:4
+Evidence: ios/fastlane/Fastfile:128
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853796 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/fastlane/Fastfile:139
+Evidence: ios/fastlane/Fastfile:143
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853811 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/fastlane/metadata/ru-RU/release_notes.txt:1
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853846 -> 284132cf
 Disposition: FIXED
 Commit: 284132cf
 Evidence: `git ls-files --stage ios/fastlane/verify/validate_metadata.rb` -> `100755`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853834 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:13
+Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:17
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853853 -> 5a37601f
+Disposition: FIXED
+Commit: 5a37601f
+Evidence: ios/fastlane/verify/validate_metadata.rb:82
+Evidence: ios/fastlane/verify/validate_metadata.rb:90
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853863 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:122
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:160
+Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:227
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853869 -> 284132cf
 Disposition: FIXED
@@ -232,6 +300,14 @@ Evidence: ios/PulsePlate/es.lproj/InfoPlist.strings:2
 Evidence: ios/PulsePlate/ru.lproj/InfoPlist.strings:2
 Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:43
 Evidence: ios/fastlane/verify/validate_healthkit_copy.rb:53
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930853883 -> 284132cf
+Disposition: FIXED
+Commit: 284132cf
+Evidence: ios/PulsePlate/en.lproj/Localizable.strings:133
+Evidence: ios/PulsePlate/ru.lproj/Localizable.strings:149
+Evidence: ios/PulsePlate/es.lproj/Localizable.strings:149
+Reason: Screenshot copy now uses locale-safe “See price in App Store” placeholders instead of hard-coded tentative subscription prices.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2930968063 -> 6d47f479
 Disposition: FIXED
@@ -328,7 +404,7 @@ Evidence: ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift:225
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182975 -> 2305fa5e
 Disposition: FIXED
 Commit: 2305fa5e
-Evidence: docs/review/PR_1147_FIXED_MAPPING.md:400
+Evidence: docs/review/PR_1147_FIXED_MAPPING.md:476
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1147#discussion_r2931182982 -> 5a37601f
 Disposition: FIXED
