@@ -27,9 +27,13 @@ def parse_strings(pathname)
   entries
 end
 
-app_root = Pathname(ARGV.fetch(0) { raise "Usage: validate_healthkit_copy.rb <pulseplate_root> <review_notes> <privacy_json>" })
-review_notes_path = Pathname(ARGV.fetch(1))
-privacy_json_path = Pathname(ARGV.fetch(2))
+if ARGV.length != 3
+  abort "Usage: validate_healthkit_copy.rb <pulseplate_root> <review_notes> <privacy_json>"
+end
+
+app_root = Pathname(ARGV[0])
+review_notes_path = Pathname(ARGV[1])
+privacy_json_path = Pathname(ARGV[2])
 
 errors = []
 
@@ -61,21 +65,27 @@ unless privacy_json_path.file?
   errors << "Missing app privacy JSON: #{privacy_json_path}"
 end
 
-notes = review_notes_path.file? ? review_notes_path.read : ""
-%w[HealthKit wellness consent read-only].each do |required_phrase|
-  next if notes.downcase.include?(required_phrase.downcase)
+if review_notes_path.file?
+  notes = review_notes_path.read
+  %w[HealthKit wellness consent read-only].each do |required_phrase|
+    next if notes.downcase.include?(required_phrase.downcase)
 
-  errors << "Reviewer notes must mention '#{required_phrase}'"
+    errors << "Reviewer notes must mention '#{required_phrase}'"
+  end
 end
 
 if privacy_json_path.file?
-  privacy_entries = JSON.parse(privacy_json_path.read)
-  unless privacy_entries.is_a?(Array) && !privacy_entries.empty?
-    errors << "App privacy JSON must be a non-empty array"
-  end
+  begin
+    privacy_entries = JSON.parse(privacy_json_path.read)
+    unless privacy_entries.is_a?(Array) && !privacy_entries.empty?
+      errors << "App privacy JSON must be a non-empty array"
+    end
 
-  if privacy_entries.is_a?(Array) && !privacy_entries.any? { |entry| entry.is_a?(Hash) && Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
-    errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
+    if privacy_entries.is_a?(Array) && !privacy_entries.any? { |entry| entry.is_a?(Hash) && Array(entry["data_protections"]).include?("DATA_NOT_COLLECTED") }
+      errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
+    end
+  rescue JSON::ParserError
+    errors << "Invalid JSON in #{privacy_json_path}"
   end
 end
 

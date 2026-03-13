@@ -41,7 +41,10 @@ enum AppStoreScreenshotContext {
     static var currentScenario: AppStoreScreenshotScenario? {
         guard isEnabled else { return nil }
 
-        if let rawScenario = argumentValue(for: scenarioArgument) {
+        if ProcessInfo.processInfo.arguments.contains(scenarioArgument) {
+            guard let rawScenario = argumentValue(for: scenarioArgument) else {
+                preconditionFailure("Missing value for \(scenarioArgument).")
+            }
             guard let scenario = AppStoreScreenshotScenario(rawValue: rawScenario) else {
                 let supportedScenarios = AppStoreScreenshotScenario.allCases.map(\.rawValue).joined(separator: ", ")
                 preconditionFailure("Unsupported \(scenarioArgument) value '\(rawScenario)'. Allowed: \(supportedScenarios)")
@@ -140,7 +143,11 @@ enum AppStoreScreenshotContext {
         guard let index = arguments.firstIndex(of: argument), arguments.indices.contains(index + 1) else {
             return nil
         }
-        return arguments[index + 1]
+        let value = arguments[index + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, !value.hasPrefix("-") else {
+            return nil
+        }
+        return value
     }
 }
 

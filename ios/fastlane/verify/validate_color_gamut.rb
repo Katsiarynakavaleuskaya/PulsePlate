@@ -41,7 +41,8 @@ def profile_name_for(pathname)
     return "sRGB" if chunk_type == "sRGB"
     next unless chunk_type == "iCCP"
 
-    profile_name = chunk_data.split("\x00".b, 2).first.to_s.force_encoding("UTF-8")
+    raw_profile_name = chunk_data.split("\x00".b, 2).first.to_s
+    profile_name = raw_profile_name.dup.force_encoding("UTF-8").scrub
     normalized = profile_name.downcase.gsub(/[^a-z0-9]+/, "")
     return "Display P3" if normalized.include?("display") && normalized.include?("p3")
 
@@ -70,7 +71,7 @@ png_files.each do |pathname|
     next
   end
 
-  unless ["sRGB", "Display P3"].include?(profile_name)
+  unless ALLOWED_PROFILES.include?(profile_name)
     errors << "Unsupported color profile in #{pathname}: #{profile_name}. Allowed: #{ALLOWED_PROFILES.join(', ')}"
     next
   end

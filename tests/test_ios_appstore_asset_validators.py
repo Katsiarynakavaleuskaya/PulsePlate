@@ -59,6 +59,22 @@ def _write_png(path: Path, *, width: int, height: int, profile: str = "srgb") ->
     path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"".join(chunks))
 
 
+def _write_png_with_iccp_name_bytes(
+    path: Path, *, width: int, height: int, profile_name: bytes
+) -> None:
+    header = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+    row = b"\x00" + (b"\x80" * width)
+    pixel_data = zlib.compress(row * height, level=9)
+    icc_payload = profile_name + b"\x00\x00" + zlib.compress(b"stub-profile")
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"iCCP", icc_payload)
+        + _png_chunk(b"IDAT", pixel_data)
+        + _png_chunk(b"IEND", b"")
+    )
+
+
 def _run_ruby(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
     assert RUBY_BIN is not None
     return subprocess.run(
@@ -233,6 +249,65 @@ def test_validate_healthkit_copy_reports_invalid_privacy_json_shape(tmp_path: Pa
     assert "App privacy JSON must be a non-empty array" in result.stderr
 
 
+def test_validate_healthkit_copy_reports_invalid_privacy_json_without_crashing(
+    tmp_path: Path,
+) -> None:
+    metadata_root = tmp_path / "metadata"
+    review_notes, _privacy_json = _prepare_metadata(metadata_root)
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text("{invalid", encoding="utf-8")
+
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Invalid JSON in {privacy_json}" in result.stderr
+
+
+def test_validate_healthkit_copy_reports_missing_review_notes_without_redundant_phrase_errors(
+    tmp_path: Path,
+) -> None:
+    pulseplate_root = tmp_path / "PulsePlate"
+    for folder in ("en.lproj", "ru.lproj", "es.lproj"):
+        locale_dir = pulseplate_root / folder
+        locale_dir.mkdir(parents=True, exist_ok=True)
+        (locale_dir / "InfoPlist.strings").write_text(
+            '"NSHealthShareUsageDescription" = "PulsePlate reads Health data with consent for wellness progress.";',
+            encoding="utf-8",
+        )
+
+    privacy_json = tmp_path / "app_privacy_details.json"
+    privacy_json.write_text(
+        json.dumps([{"data_protections": ["DATA_NOT_COLLECTED"]}]),
+        encoding="utf-8",
+    )
+    missing_review_notes = tmp_path / "review_information" / "notes.txt"
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_healthkit_copy.rb",
+        str(pulseplate_root),
+        str(missing_review_notes),
+        str(privacy_json),
+    )
+
+    assert result.returncode == 1
+    assert f"Missing reviewer notes: {missing_review_notes}" in result.stderr
+    assert "Reviewer notes must mention" not in result.stderr
+
+
 def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) -> None:
     metadata_root = tmp_path / "metadata"
     review_notes, privacy_json = _prepare_metadata(metadata_root)
@@ -247,6 +322,40 @@ def test_validate_metadata_rejects_non_comma_keyword_separators(tmp_path: Path) 
 
     assert result.returncode == 1
     assert "Keywords must be comma-separated" in result.stderr
+
+
+def test_validate_metadata_rejects_invalid_argument_count(tmp_path: Path) -> None:
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_metadata.rb",
+        str(tmp_path / "metadata"),
+        str(tmp_path / "review_information" / "notes.txt"),
+    )
+
+    assert result.returncode == 1
+    assert (
+        "Usage: validate_metadata.rb <metadata_path> <review_notes> <privacy_json>" in result.stderr
+    )
+
+
+def test_validate_color_gamut_rejects_invalid_utf8_icc_profile_name_without_crashing(
+    tmp_path: Path,
+) -> None:
+    screenshots_root = tmp_path / "screenshots" / "en-US"
+    screenshots_root.mkdir(parents=True, exist_ok=True)
+    _write_png_with_iccp_name_bytes(
+        screenshots_root / "iPhone 17 Pro Max-01_welcome.png",
+        width=IPHONE_SIZE[0],
+        height=IPHONE_SIZE[1],
+        profile_name=b"\xff\xfebad-profile",
+    )
+
+    result = _run_ruby(
+        REPO_ROOT / "ios/fastlane/verify/validate_color_gamut.rb",
+        str(tmp_path / "screenshots"),
+    )
+
+    assert result.returncode == 1
+    assert "Unsupported color profile" in result.stderr
 
 
 def test_metadata_and_healthkit_validators_accept_seeded_package(tmp_path: Path) -> None:

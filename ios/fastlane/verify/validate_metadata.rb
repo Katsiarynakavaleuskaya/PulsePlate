@@ -37,9 +37,13 @@ rescue URI::InvalidURIError
   errors << "Invalid URL in #{pathname}"
 end
 
-metadata_root = Pathname(ARGV.fetch(0) { raise "Usage: validate_metadata.rb <metadata_path> <review_notes> <privacy_json>" })
-review_notes_path = Pathname(ARGV.fetch(1))
-privacy_json_path = Pathname(ARGV.fetch(2))
+if ARGV.length != 3
+  abort "Usage: validate_metadata.rb <metadata_path> <review_notes> <privacy_json>"
+end
+
+metadata_root = Pathname(ARGV[0])
+review_notes_path = Pathname(ARGV[1])
+privacy_json_path = Pathname(ARGV[2])
 
 errors = []
 
