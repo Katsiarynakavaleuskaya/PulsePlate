@@ -28,6 +28,11 @@ Evidence: `docs/figma/ios_prototype_v2/progress.html:58` now exposes the chart s
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933668442 -> 6ceecbedcecdc2d3403aaa0d4f584fe9ac38519f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#pullrequestreview-3946853787 -> 6ceecbedcecdc2d3403aaa0d4f584fe9ac38519f
 
+Disposition: FIXED
+Commit: fb3ebdf522a4f4c1c5aa1387e61207c3dd1ed34e
+Evidence: `docs/figma/ios_prototype_v2/styles.css:244-252` and `docs/figma/ios_prototype_v2/styles.css:1226-1235` now pair `backdrop-filter` with matching `-webkit-backdrop-filter` declarations so Safari/iOS review surfaces keep the intended glass blur treatment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#pullrequestreview-3947009741 -> fb3ebdf522a4f4c1c5aa1387e61207c3dd1ed34e
+
 ## Merge Readiness
 - [x] Local gates passed on current head
 - [ ] All required checks green
