@@ -197,7 +197,17 @@ def test_create_submission_validation_error_maps_422() -> None:
     with pytest.raises(HTTPException) as exc:
         restaurants.create_restaurant_submission(payload, store=store)
     assert exc.value.status_code == 422
-    assert exc.value.detail == "canonical_name is required"
+    assert exc.value.detail == "Invalid submission"
+
+
+def test_create_submission_validation_error_sanitizes_unexpected_detail() -> None:
+    store = _StubStore(create_error=ValueError("sqlite:///tmp/private.db"))
+    payload = RestaurantSubmissionCreate(canonical_name="abc", payload={})
+    with pytest.raises(HTTPException) as exc:
+        restaurants.create_restaurant_submission(payload, store=store)
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "Invalid submission"
+    assert "sqlite" not in exc.value.detail
 
 
 def test_create_submission_success() -> None:
@@ -278,6 +288,17 @@ def test_review_submission_validation_error_maps_422() -> None:
     with pytest.raises(HTTPException) as exc:
         restaurants.review_restaurant_submission("s1", payload, store=store)
     assert exc.value.status_code == 422
+    assert exc.value.detail == "Invalid submission transition"
+
+
+def test_review_submission_validation_error_sanitizes_unexpected_detail() -> None:
+    store = _StubStore(review_error=ValueError("internal reviewer path /srv/review"))
+    payload = SubmissionReviewRequest(status=SubmissionReviewStatus.REJECTED)
+    with pytest.raises(HTTPException) as exc:
+        restaurants.review_restaurant_submission("s1", payload, store=store)
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "Invalid submission transition"
+    assert "/srv/review" not in exc.value.detail
 
 
 def test_review_submission_not_found_maps_404() -> None:

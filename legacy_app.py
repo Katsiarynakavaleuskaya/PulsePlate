@@ -3985,7 +3985,7 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
                 diet_flags=diet_flags_str,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail="Invalid premium plate input") from exc
 
         # Sanitize plate data
         plate_data = sanitize_plate_data(plate_data_raw)
@@ -4081,16 +4081,12 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error("premium_plate validation error: %s", e)
-        raise HTTPException(
-            status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=400, detail="Enhanced plate generation failed") from e
     except Exception as e:
         if _is_missing_nh3_error(e):
             _raise_missing_nh3_http_error(e)
         logger.error(f"premium_plate error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail="Enhanced plate generation failed") from e
 
 
 @app.post(

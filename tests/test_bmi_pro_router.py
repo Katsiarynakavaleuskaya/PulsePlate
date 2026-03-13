@@ -202,7 +202,7 @@ class TestBMIProRouter:
         )
 
         assert response.status_code == 400
-        assert "Invalid calculation" in response.json()["detail"]
+        assert response.json()["detail"] == "Invalid BMI input"
 
     def test_bmi_pro_request_model(self) -> None:
         """Test BMIProRequest model validation."""

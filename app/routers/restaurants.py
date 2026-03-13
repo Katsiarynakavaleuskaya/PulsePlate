@@ -16,6 +16,8 @@ from app.services import restaurant_store
 
 router = APIRouter(tags=["restaurants"])
 moderation_router = APIRouter(tags=["restaurants"])
+INVALID_SUBMISSION_DETAIL = "Invalid submission"
+INVALID_SUBMISSION_TRANSITION_DETAIL = "Invalid submission transition"
 
 
 class RestaurantStore(Protocol):
@@ -147,7 +149,8 @@ def create_restaurant_submission(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=INVALID_SUBMISSION_DETAIL,
         ) from exc
     result: RestaurantSubmission = RestaurantSubmission.model_validate(created)
     return result
@@ -189,7 +192,8 @@ def review_restaurant_submission(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=INVALID_SUBMISSION_TRANSITION_DETAIL,
         ) from exc
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")

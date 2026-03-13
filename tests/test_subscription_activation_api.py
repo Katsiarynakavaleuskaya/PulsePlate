@@ -208,6 +208,8 @@ def test_activate_subscription_requires_transport_auth(client: TestClient) -> No
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
+    assert payload["detail"] == "transport_auth_required"
+    assert "X-API-Key" not in payload["detail"]
 
 
 def test_activate_subscription_blank_transport_header_returns_401(client: TestClient) -> None:
@@ -220,6 +222,8 @@ def test_activate_subscription_blank_transport_header_returns_401(client: TestCl
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
+    assert payload["detail"] == "transport_auth_required"
+    assert "blank" not in payload["detail"].lower()
 
 
 def test_ios_verified_happy_path_persists_subscription(
@@ -615,6 +619,8 @@ def test_manual_source_conflict_returns_409(
     payload = _json(conflict)
     assert payload["status"] == "error"
     assert payload["code"] == "idempotency_conflict"
+    assert payload["detail"] == "deterministic_activation_conflict"
+    assert "deterministic activation key conflict" not in payload["detail"]
 
 
 def test_activate_subscription_malformed_body_returns_422(
@@ -692,6 +698,8 @@ def test_get_activation_wrong_user_returns_403(
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "forbidden"
+    assert payload["detail"] == "activation_access_forbidden"
+    assert "activation access forbidden" not in payload["detail"]
 
 
 def test_get_activation_missing_transport_protection_returns_401(
@@ -711,6 +719,7 @@ def test_get_activation_missing_transport_protection_returns_401(
     payload = _json(response)
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
+    assert payload["detail"] == "transport_auth_required"
 
 
 def test_get_activation_not_found_returns_404(
