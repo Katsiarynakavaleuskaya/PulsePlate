@@ -6,23 +6,23 @@
 
 ### Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 4a375a3c
+Commit: 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 Evidence: `docs/figma/ios_prototype_v2/bmi.html:79` keeps the BMI CTA on-page as a button instead of navigating away before the result block, and `docs/figma/ios_prototype_v2/bmi.html:95` splits the malformed class token into the canonical `status-grid single-column` pair so the single-column layout rule applies.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924157885 -> 4a375a3c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924165845 -> 4a375a3c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184146 -> 4a375a3c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184161 -> 4a375a3c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924157885 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924165845 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184146 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184161 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 
 Disposition: FIXED
-Commit: 4a375a3c
+Commit: 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:25` through `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:32` now use the canonical `blocked_by_plan` status for every mapped screen while the workspace remains seat-blocked.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924157893 -> 4a375a3c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3936032596 -> 4a375a3c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924157893 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3936032596 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 
 Disposition: FIXED
-Commit: 4a375a3c
+Commit: 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:110` now makes the BMI/onboarding recapture step explicitly conditional on future MCP node-id drift instead of listing already-completed work as pending.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184144 -> 4a375a3c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184144 -> 4a375a3c4170c44f7cb6412f567a91787d7fdfa3
 
 Disposition: NOT-A-BUG
 Evidence: `git diff --name-only worktree/figma-ios-screen-polish...HEAD` shows the current stacked PR diff contains only `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`, `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`, `docs/figma/ios_prototype_v2/README.md`, `docs/figma/ios_prototype_v2/bmi.html`, `docs/figma/ios_prototype_v2/onboarding-value-usage.html`, `docs/figma/ios_prototype_v2/onboarding-welcome.html`, `docs/figma/ios_prototype_v2/styles.css`, `docs/review/PR_1135_FIXED_MAPPING.md`, and `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`.
@@ -34,6 +34,11 @@ Reason: After changing PR `#1135` to base `worktree/figma-ios-screen-polish`, th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184183
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2924184187
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3936064055
+
+Disposition: FIXED
+Commit: e5d974d8c72613030ec13940084c7628069b0d12
+Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:7`, `docs/review/PR_1135_FIXED_MAPPING.md:14`, and `docs/review/PR_1135_FIXED_MAPPING.md:20` now record full 40-character commit SHAs instead of abbreviated hashes, keeping the canonical artifact stable for later audit and review tooling.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943636463 -> e5d974d8c72613030ec13940084c7628069b0d12
 
 ## Merge Readiness
 - [ ] Local gates passed on current head
