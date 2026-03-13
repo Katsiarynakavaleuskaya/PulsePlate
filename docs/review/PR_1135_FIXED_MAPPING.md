@@ -37,7 +37,7 @@ Reason: After changing PR `#1135` to base `worktree/figma-ios-screen-polish`, th
 
 Disposition: FIXED
 Commit: e5d974d8c72613030ec13940084c7628069b0d12
-Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:7`, `docs/review/PR_1135_FIXED_MAPPING.md:14`, and `docs/review/PR_1135_FIXED_MAPPING.md:20` now record full 40-character commit SHAs instead of abbreviated hashes, keeping the canonical artifact stable for later audit and review tooling.
+Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:9`, `docs/review/PR_1135_FIXED_MAPPING.md:17`, `docs/review/PR_1135_FIXED_MAPPING.md:23`, and `docs/review/PR_1135_FIXED_MAPPING.md:39` now record full 40-character commit SHAs instead of abbreviated hashes, keeping the canonical artifact stable for later audit and review tooling.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943636463 -> e5d974d8c72613030ec13940084c7628069b0d12
 
 ## Merge Readiness
