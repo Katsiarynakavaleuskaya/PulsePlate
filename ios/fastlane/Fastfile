@@ -80,6 +80,7 @@ platform :ios do
       concurrent_simulators: false,
       stop_after_first_error: true,
       number_of_retries: ENV["CI"] ? 0 : 1,
+      xcargs: "-parallel-testing-enabled NO -maximum-parallel-testing-workers 1",
       override_status_bar: true,
       reinstall_app: true,
       skip_open_summary: true
