@@ -24,7 +24,7 @@ Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:23`
 
 Disposition: FIXED
 Commit: 25babced
-Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:23`
+Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:28`, `docs/review/PR_1151_FIXED_MAPPING.md:29`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#pullrequestreview-3942819726 -> 25babced
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#discussion_r2930143151 -> 25babced
 
