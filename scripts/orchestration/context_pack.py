@@ -178,13 +178,13 @@ def resolve_domain(
     normalized_goal = normalize_text(goal or "")
     normalized_task_class = task_class.strip().lower()
 
-    if _has_cv_path_hint(normalized_paths):
-        return "cv"
     if (
         normalized_task_class in TASK_CLASS_DOMAIN_HINTS
         and normalized_task_class not in CV_ROUTABLE_TASK_CLASSES
     ):
         return TASK_CLASS_DOMAIN_HINTS[normalized_task_class]
+    if _has_cv_path_hint(normalized_paths):
+        return "cv"
     if _is_cv_goal_hint(normalized_goal):
         return "cv"
     if normalized_task_class in TASK_CLASS_DOMAIN_HINTS:
@@ -212,7 +212,10 @@ def _has_cv_path_hint(normalized_paths: list[str] | tuple[str, ...]) -> bool:
     for path in normalized_paths:
         lowered_path = path.lower()
         for prefix in CV_PATH_DOMAIN_HINTS:
-            if lowered_path == prefix.rstrip("/") or lowered_path.startswith(prefix):
+            lowered_prefix = prefix.lower()
+            if lowered_path == lowered_prefix.rstrip("/") or lowered_path.startswith(
+                lowered_prefix
+            ):
                 return True
     return False
 

@@ -103,8 +103,25 @@ def test_task_bootstrap_preserves_explicit_security_task_class_over_cv_goal_hint
     assert packet["domain"] == "security"
 
 
-def test_task_bootstrap_routes_cv_path_hints_before_non_cv_task_class() -> None:
-    """CV-specific paths should route to CV even for docs-style task classes."""
+def test_task_bootstrap_routes_cv_path_hints_for_cv_routable_task_class() -> None:
+    """CV-specific paths should route to CV for ML/CV-class tasks."""
+
+    packet = build_task_packet(
+        goal="Refresh CV protocol references",
+        task_class="AI / ML",
+        candidate_paths=[
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+            ".cursor/agents/cv-agent.md",
+        ],
+    )
+
+    assert packet["domain"] == "cv"
+    assert packet["cluster"] == "ml"
+    assert packet["primary_agent"] == "cv-agent"
+
+
+def test_task_bootstrap_preserves_docs_task_class_over_cv_path_hint() -> None:
+    """Explicit docs tasks must not be re-routed by CV-specific candidate paths."""
 
     packet = build_task_packet(
         goal="Refresh CV protocol references",
@@ -115,9 +132,8 @@ def test_task_bootstrap_routes_cv_path_hints_before_non_cv_task_class() -> None:
         ],
     )
 
-    assert packet["domain"] == "cv"
-    assert packet["cluster"] == "ml"
-    assert packet["primary_agent"] == "cv-agent"
+    assert packet["domain"] == "docs"
+    assert packet["cluster"] == "ops"
 
 
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
