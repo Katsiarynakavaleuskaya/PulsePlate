@@ -33,6 +33,13 @@ Reason: The review-level CodeRabbit follow-up is now fully addressed by post-com
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#pullrequestreview-3947270364 -> a67c1a7b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#pullrequestreview-3947357781 -> a67c1a7b
 
+Disposition: FIXED
+Commit: 14d44dc3
+Evidence: tests/test_pro_restaurant_partner_api.py:214, tests/test_pro_restaurant_partner_api.py:723
+Reason: The latest CodeRabbit follow-up asked for explicit negative assertions proving that injected sensitive substrings never leak anywhere in the serialized HTTP body. The affected partner-order sanitization regressions now assert that the private weekly-plan path and private share token are absent from `response.text`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#pullrequestreview-3947423084 -> 14d44dc3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#discussion_r2934184565 -> 14d44dc3
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify` equivalent via canonical split gates: lint + typecheck + test-fast + diff-cov)
 - [ ] Required checks PASS with no pending required jobs
