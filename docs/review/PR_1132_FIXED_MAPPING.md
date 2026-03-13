@@ -15,11 +15,15 @@ Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:41-75` now adds a
 
 Disposition: FIXED
 Commit: 6e85ddec
-Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:23-32` and `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:245-254` now match the polished node registry recorded in `docs/figma/ios_prototype_v2/README.md:30-39`, `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:25-37` and `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:59-68` add evidence/ADR/ledger anchors for the March 12 baseline and `reference_only` seam, `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:146` is now an `H2`, `docs/roadmap/BACKLOG_LEDGER.md:1091` adds the deterministic ledger anchor, and `docs/figma/ios_prototype_v2/onboarding-welcome.html:19` makes the skip affordance a real link.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924008149 -> 6e85ddec
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924019966 -> 6e85ddec
+Evidence: `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:25-44` and `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md:67-97` add evidence/ADR/ledger anchors for the March 12 baseline and `reference_only` seam, `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:146` is now an `H2`, `docs/roadmap/BACKLOG_LEDGER.md:1091` adds the deterministic ledger anchor, and `docs/figma/ios_prototype_v2/onboarding-welcome.html:19` makes the skip affordance a real link.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924020010 -> 6e85ddec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924020015 -> 6e85ddec
+
+Disposition: FIXED
+Commit: 19248410
+Evidence: `docs/figma/ios_prototype_v2/README.md:30-39` now matches the canonical node registry already recorded in `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md:23-30` and `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md:245-254`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924008149 -> 19248410
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1132#discussion_r2924019966 -> 19248410
 
 Disposition: NOT-A-BUG
 Evidence: `docs/figma/ios_prototype_v2/README.md:1-22` defines the tracked `.html` files as MCP capture sources rather than deployable runtime assets, and `AGENTS.md` forbids local-only artifacts such as `worktrees/`, `.venv/`, caches, coverage outputs, `dist/`, and `build/`, but does not forbid repo-tracked static capture sources under `docs/figma/`.
