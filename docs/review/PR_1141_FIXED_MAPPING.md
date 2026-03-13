@@ -52,6 +52,28 @@ Evidence: The actionable inline findings from this Cubic review are already disp
 Reason: `pullrequestreview-3939676895` summarizes those inline Cubic findings and does not introduce an extra independent repo defect beyond the already mapped threads.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3939676895
 
+Disposition: FIXED
+Commit: c4bc9379
+Evidence: `tests/test_check_domain_tls.py:5`; `tests/test_check_domain_tls.py:25`
+Reason: The subprocess stub now uses `**kwargs: Any`, which matches the repo typing policy for fake/stub helpers and removes the new CodeRabbit typing nit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927638672 -> c4bc9379
+
+Disposition: FIXED
+Commit: c4bc9379
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:41`; `docs/review/PR_1141_FIXED_MAPPING.md:60`
+Reason: The FIXED mapping for the merge-readiness checkbox now points to the actual unchecked checklist line instead of a blank separator line, so the disposition proof is directly verifiable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927641808 -> c4bc9379
+
+Disposition: NOT-A-BUG
+Evidence: The actionable inline finding from this CodeRabbit review is already dispositioned in this artifact as `#discussion_r2927638672`.
+Reason: `pullrequestreview-3940020959` is the wrapper review for that new inline typing comment and does not introduce a separate standalone defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3940020959
+
+Disposition: NOT-A-BUG
+Evidence: The actionable inline finding from this Cubic review is already dispositioned in this artifact as `#discussion_r2927641808`.
+Reason: `pullrequestreview-3940025298` is the wrapper review for the evidence-anchor nit and does not add an independent repo defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3940025298
+
 ## Deferred / Follow-ups
 - Live domain remediation completed on March 12, 2026: `www.pulseplate.app` now returns `308` to the repo-owned apex, and the post-fix evidence is recorded in `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`.
 - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-domain-ownership-canonicalization`
