@@ -26,6 +26,13 @@ Reason: The structured coach contract header date now matches the actual non-fut
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934126299 -> d40e1d3b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947351306 -> d40e1d3b
 
+Disposition: FIXED
+Commit: be559a86
+Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17
+Reason: The canonical artifact now points the evidence anchor at the actual unchecked merge-readiness proof line instead of a stale self-reference, so the FIXED block's proof matches the claim it makes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934139273 -> be559a86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947368416 -> be559a86
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
