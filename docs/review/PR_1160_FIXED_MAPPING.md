@@ -35,6 +35,24 @@ Evidence: docs/review/PR_1160_FIXED_MAPPING.md:21
 Evidence: docs/review/PR_1160_FIXED_MAPPING.md:27
 Reason: This aggregate CodeRabbit review shell is satisfied by the two concrete FIXED inline dispositions recorded immediately above; no additional unresolved action remains at the review-shell level.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#discussion_r2934074348 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/deploy/ALL_DOCS.md:3
+Evidence: docs/deploy/ALL_DOCS.md:5
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#discussion_r2934077206 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/deploy/ALL_DOCS.md:41
+Evidence: docs/deploy/ALL_DOCS.md:89
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1160#discussion_r2934089237 -> 78f56bab
+Disposition: FIXED
+Commit: 78f56bab
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:34
+Evidence: docs/review/PR_1160_FIXED_MAPPING.md:35
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
