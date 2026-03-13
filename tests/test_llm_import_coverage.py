@@ -15,7 +15,7 @@ import llm
 
 
 @pytest.fixture(autouse=True)
-def _llm_test_env(monkeypatch):
+def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Isolate llm env defaults per test."""
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
