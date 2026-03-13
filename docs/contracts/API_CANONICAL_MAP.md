@@ -50,8 +50,10 @@ These routes are the current canonical operator surface.
 
 FitChef initiative note:
 - The live mascot routes above remain canonical during the FitChef umbrella foundation and visual/App Store waves.
-- Future structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` remain planned-only until a dedicated additive contract PR lands.
+- The live mascot routes above remain canonical after the structured-coach contract freeze as well; they are not migrated by that phase.
+- Future structured-coach surfaces under `/api/v1/pro/fitchef/*` and `/api/v1/vip/fitchef/*` are contract-frozen additive surfaces only, pending later runtime PRs.
 - Canonical reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
+- Contract freeze reference: `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`.
 
 ## Deprecated Alias / Proxy-Only Surface
 

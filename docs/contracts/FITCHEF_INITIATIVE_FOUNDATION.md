@@ -79,10 +79,15 @@ live in `app/services/fitchef_runtime.py:127` through
 - screenshot package contract
 - preview storyboard
 - upload checklist
+- contract artifact: `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
 
 ### PR-4 structured coach contract
 
-Planned-only additive routes:
+Contract artifact:
+
+- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+
+Contract-frozen additive routes:
 
 - `POST /api/v1/pro/fitchef/explain`
 - `POST /api/v1/pro/fitchef/recommend`
@@ -138,3 +143,5 @@ are governed.
 - `docs/contracts/API_CANONICAL_MAP.md:46`
 - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md:1`
 - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md:1`
+- `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md:1`
+- `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md:1`

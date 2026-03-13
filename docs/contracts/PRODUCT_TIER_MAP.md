@@ -1,7 +1,7 @@
 # 📊 PulsePlate — Canonical Product Tier Map (v1)
 
 **Status:** Canonical (audit-driven, based on actual codebase)
-**Last updated:** 2026-01-11
+**Last updated:** 2026-03-14
 **Canonical reference (derived from code):** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
 
 ---
@@ -109,6 +109,15 @@
 * `pro_registration.py` = **технический модуль регистрации**, не бизнес-уровень
 * `premium_week.py` = **deprecated**, мигрирует на `pro.py`
 
+### FitChef structured coach follow-up (contract-frozen, not live)
+
+| Функция | Endpoint | Статус | Требует tier | Canonical reference |
+| --- | --- | --- | --- | --- |
+| FitChef explain | `/api/v1/pro/fitchef/explain` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+
+> Эти endpoints ещё не реализованы. PR-4 фиксирует только route family и tier semantics для будущего PRO structured coach runtime.
+
 ---
 
 ## 3️⃣ VIP — Weekly / Micro / Shoplist
@@ -161,6 +170,16 @@
 * VIP может зависеть от PRO данных
 * ❌ PRO не может реализовывать VIP-логику
 * VIP endpoints используют `require_vip_tier()` middleware
+
+### FitChef structured coach follow-up (contract-frozen, not live)
+
+| Функция | Endpoint | Статус | Требует tier | Canonical reference |
+| --- | --- | --- | --- | --- |
+| FitChef insight | `/api/v1/vip/fitchef/insight` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef chat | `/api/v1/vip/fitchef/chat` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef week repair | `/api/v1/vip/fitchef/week-repair` | 🧭 contract-frozen | VIP | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+
+> Эти endpoints ещё не реализованы. PR-4 фиксирует additive structured coach contract, при этом live `/api/v1/insight/fitchef*` family остаётся каноном.
 
 ---
 
