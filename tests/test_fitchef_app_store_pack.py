@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACK_ROOT = REPO_ROOT / "appstore" / "fitchef" / "en-US"
 SCREENSHOTS_DIR = PACK_ROOT / "iphone-6.9" / "screenshots"
@@ -24,8 +26,22 @@ def _load_json(path: Path) -> dict:
 
 
 def _repo_path(relative_path: str) -> Path:
-    """Resolve a repo-relative source path used by the App Store pack."""
-    return REPO_ROOT / relative_path
+    """Resolve a governed repo-relative path and fail closed outside the repo."""
+    source_path = Path(relative_path)
+    assert not source_path.is_absolute(), f"Absolute path not allowed: {relative_path}"
+
+    resolved_path = (REPO_ROOT / source_path).resolve()
+    resolved_path.relative_to(REPO_ROOT.resolve())
+    return resolved_path
+
+
+def test_repo_path_rejects_absolute_and_parent_escape_refs() -> None:
+    """Keep App Store pack source references bounded to the current repository."""
+    with pytest.raises(AssertionError, match="Absolute path not allowed"):
+        _repo_path("/tmp/outside.json")
+
+    with pytest.raises(ValueError):
+        _repo_path("../outside.json")
 
 
 def test_fitchef_app_store_pack_folder_contract_exists() -> None:
