@@ -35,6 +35,18 @@ Evidence: ios/Scripts/move_mascot.sh:72
 Reason: Both mascot copy scripts now write the canonical `FitChefDefault@*.png` filenames consumed by `Image("FitChef")`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2928970665 -> ae4b0927
 
+Disposition: FIXED
+Commit: 0b06c432
+Evidence: ios/move_mascot.sh:37
+Reason: The root mascot move script now uses a non-failing increment under `set -e`, so the PNG listing loop completes instead of aborting on the first file.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2929977567 -> 0b06c432
+
+Disposition: FIXED
+Commit: 0b06c432
+Evidence: ios/Scripts/move_mascot.sh:74
+Reason: The iOS mascot copy helper now removes legacy `fitchef@*.png` files before writing canonical `FitChefDefault@*.png` outputs, preventing stale files after reruns.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2929977571 -> 0b06c432
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
