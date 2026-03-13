@@ -221,8 +221,8 @@ Evidence:
 
 - If a stacked child PR auto-closes because its parent base branch was merged
   and deleted, the child review lane is no longer active
-- Operators must rebase the child branch onto `origin/main`, rerun local gates,
-  and open a replacement PR on `main`
+- Operators must create a new branch from `origin/main`, cherry-pick the child
+  commits, rerun local gates, and open a replacement PR on `main`
 - Replacement PR must get a new canonical artifact path:
   `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
 - Do not continue mapping/reviewing against the auto-closed PR number

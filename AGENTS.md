@@ -1361,7 +1361,7 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **After PR merge, clean local branch, remote branch, and merged worktree in the same work session.**
 - ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
 - ✅ **Before continuing work after merge, verify PR state (`gh pr view <N> --json state,mergeCommit,mergedAt`). If `state=MERGED`, start a new worktree + branch from `origin/main` and do not push to the merged PR branch.**
-- ✅ **If a stacked child PR auto-closes after its parent base branch is merged/deleted, rebase the child branch onto `origin/main`, rerun local gates, and open a replacement PR on `main` with a new `docs/review/PR_<N>_FIXED_MAPPING.md` artifact.**
+- ✅ **If a stacked child PR auto-closes after its parent base branch is merged/deleted, create a new branch from `origin/main`, cherry-pick the child commits, rerun local gates, and open a replacement PR on `main` with a new `docs/review/PR_<N>_FIXED_MAPPING.md` artifact.**
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.

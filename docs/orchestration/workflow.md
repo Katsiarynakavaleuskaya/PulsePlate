@@ -345,8 +345,6 @@ Rule: promotion writes exactly one durable destination artifact plus one local p
   time of the final merge decision
 - Documentation updated (if needed)
 - Postponed items recorded in `BACKLOG_LEDGER.md`
-- After merge, local branch / remote branch / merged worktree cleanup is
-  completed in the same work session
 
 ---
 

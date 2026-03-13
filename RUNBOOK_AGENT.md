@@ -331,13 +331,14 @@ and deleted:
 
 1. Verify the parent PR is actually merged:
    `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
-2. Rebase the child branch onto `origin/main` in its own worktree.
-3. Re-run `pre-commit run --all-files` and `make verify` on the rebased child
-   head before pushing.
-4. Push the rebased child branch and open a **replacement PR** on `main`.
-5. Create a new canonical artifact path for the replacement PR:
+2. Create a new branch from `origin/main` in its own worktree.
+3. Cherry-pick the child commits onto that new branch.
+4. Re-run `pre-commit run --all-files` and `make verify` on the replacement
+   branch head before pushing.
+5. Push the replacement branch and open a **replacement PR** on `main`.
+6. Create a new canonical artifact path for the replacement PR:
    `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
-6. Do not continue pushing to the auto-closed PR number as if it were still the
+7. Do not continue pushing to the auto-closed PR number as if it were still the
    active review lane.
 
 ## Agent Control Plane Security Ops (Wave 1 baseline)
