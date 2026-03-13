@@ -1368,13 +1368,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef umbrella initiative foundation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (orchestration / brand / App Store / coaching)
-  - Target PR: PR #1140 -> PR #1143 -> PR-TBD-FITCHEF-ASSET-TAXONOMY -> PR-TBD-FITCHEF-APP-STORE-PACK-EN -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES -> PR-TBD-FITCHEF-STRUCTURED-CONTRACT -> PR-TBD-FITCHEF-DOMAIN-SHELL -> PR-TBD-FITCHEF-PRO-RUNTIME -> PR-TBD-FITCHEF-VIP-RUNTIME
   - Status: 🚧 In progress
   - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
     - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
     - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
     - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `app/routers/fitchef_insight.py`
@@ -1383,8 +1384,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Progress:
     - `PR #1140` merged on March 12, 2026 for the foundation/docs-only lane
     - `PR #1143` merged on March 12, 2026 for the visual/App Store contract lane
-    - `PR-2` mascot asset taxonomy starts from clean `origin/main` after those merges
-    - `PR-2` scope is limited to taxonomy + selective promotion; non-canonical icon source files remain explicit follow-up work
+    - `PR #1150` merged on March 13, 2026 for the mascot asset taxonomy lane
+    - `PR-3` App Store production pack is the active lane from a clean worktree off `origin/main`
+    - `PR-3` scope is limited to the governed `EN` production pack: metadata, screenshot manifests, preview storyboard/script, upload checklist, and approved canonical source inventories
   - Subtracks:
     - FitChef visual identity and mascot system
     - App Store screenshot and preview pack
@@ -1609,8 +1611,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: FitChef icon source cleanup after PR-2 selective promotion
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (asset hygiene / App Store readiness)
-  - Target PR: PR-TBD-FITCHEF-APP-STORE-PACK-EN
-  - Status: 📋 Planned
+  - Target PR: PR #1154
+  - Status: 🟡 In progress (active PR `#1154`)
   - Reason (EN): PR-2 intentionally normalizes the icon catalog and keeps only canonical referenced AppIcon files, but non-canonical local source files with spaces or duplicate generator naming are not promoted automatically. The remaining icon-source cleanup must stay explicit for the App Store production lane.
   - Links:
     - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`

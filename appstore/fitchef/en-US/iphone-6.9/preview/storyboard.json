@@ -1,0 +1,56 @@
+{
+  "locale": "en-US",
+  "device_class": "iPhone 6.9",
+  "target_duration_seconds": 22,
+  "scenes": [
+    {
+      "id": "scene-01",
+      "shot_id": "shot-01",
+      "start_second": 0,
+      "end_second": 3,
+      "focus": "PulsePlate logo lockup and FitChef-led opening frame"
+    },
+    {
+      "id": "scene-02",
+      "shot_id": "shot-02",
+      "start_second": 3,
+      "end_second": 6,
+      "focus": "Macro and micronutrient analysis"
+    },
+    {
+      "id": "scene-03",
+      "shot_id": "shot-03",
+      "start_second": 6,
+      "end_second": 9,
+      "focus": "Weekly meal planning"
+    },
+    {
+      "id": "scene-04",
+      "shot_id": "shot-04",
+      "start_second": 9,
+      "end_second": 12,
+      "focus": "Shopping list generation"
+    },
+    {
+      "id": "scene-05",
+      "shot_id": "shot-05",
+      "start_second": 12,
+      "end_second": 15,
+      "focus": "Progress and habit insight"
+    },
+    {
+      "id": "scene-06",
+      "shot_id": "shot-06",
+      "start_second": 15,
+      "end_second": 18,
+      "focus": "Personalized goals and profile setup"
+    },
+    {
+      "id": "scene-07",
+      "shot_id": "shot-07",
+      "start_second": 18,
+      "end_second": 22,
+      "focus": "FitChef insight / AI assistant finish"
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "locale": "en-US",
+  "device_class": "iPhone 6.9",
+  "canvas_px": {
+    "width": 1320,
+    "height": 2868
+  },
+  "safe_area_px": {
+    "top": 260,
+    "bottom": 260,
+    "left_right": 120
+  },
+  "shots": [
+    {
+      "id": "shot-01",
+      "expected_filename": "01_core-value.png",
+      "headline": [
+        "Smart Nutrition",
+        "Powered by AI"
+      ],
+      "supporting_copy": [
+        "Track nutrients",
+        "plan meals",
+        "improve health"
+      ],
+      "product_surface": "dashboard / daily overview",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/HomeView.swift",
+        "frontend/src/pages/Home.tsx"
+      ],
+      "contract_emotion": "calm",
+      "approved_mascot_asset_key": "FitChefOnboardingWelcome",
+      "asset_rationale": "The launch-value shot uses the canonical welcoming FitChef variant that stays inside the existing asset taxonomy.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-02",
+      "expected_filename": "02_nutrition-analysis.png",
+      "headline": [
+        "Understand Your",
+        "Nutrition"
+      ],
+      "supporting_copy": [
+        "Macros",
+        "Micronutrients",
+        "Daily balance"
+      ],
+      "product_surface": "nutrition analysis / result view",
+      "repo_source_refs": [
+        "frontend/src/pages/NutritionSetup/ResultView.tsx",
+        "frontend/src/pages/NutritionSetup/MacroCards.tsx",
+        "frontend/src/pages/NutritionSetup/MicrosGrid.tsx"
+      ],
+      "contract_emotion": "explaining",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "No dedicated explaining variant exists in PR-2; the thinking asset is the closest canon-safe explanatory fallback.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-03",
+      "expected_filename": "03_meal-planner.png",
+      "headline": [
+        "AI Meal Planning",
+        "For Your Goals"
+      ],
+      "supporting_copy": [
+        "Weight loss",
+        "Muscle gain",
+        "Healthy balance"
+      ],
+      "product_surface": "weekly planner",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift",
+        "ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift",
+        "frontend/src/features/weekly-plan/hooks/useWeeklyPlan.ts"
+      ],
+      "contract_emotion": "cooking",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "PR-2 has no cooking-specific mascot variant, so the canonical fallback remains the thinking bucket until a later mascot wave adds a cooking pose.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-04",
+      "expected_filename": "04_grocery-list.png",
+      "headline": [
+        "Smart Grocery",
+        "Lists"
+      ],
+      "supporting_copy": [
+        "Auto-generated",
+        "from your meals"
+      ],
+      "product_surface": "shopping list",
+      "repo_source_refs": [
+        "frontend/src/features/shoplist/ShoplistPreview.tsx",
+        "ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift",
+        "ios/PulsePlate/Views/HomeView.swift"
+      ],
+      "contract_emotion": "helpful",
+      "approved_mascot_asset_key": "FitChef",
+      "asset_rationale": "The default neutral FitChef asset is the canon-safe helpful fallback when no basket/helper variant exists.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-05",
+      "expected_filename": "05_health-progress.png",
+      "headline": [
+        "See Your",
+        "Progress"
+      ],
+      "supporting_copy": [
+        "Habits",
+        "Nutrition balance",
+        "Weekly insights"
+      ],
+      "product_surface": "progress and weekly analytics",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/ProgressView.swift",
+        "ios/PulsePlate/Views/WeeklyProgressView.swift",
+        "frontend/src/pages/Progress.tsx"
+      ],
+      "contract_emotion": "proud",
+      "approved_mascot_asset_key": "FitChefWink",
+      "asset_rationale": "The wink variant is the closest canonical proud/celebratory mascot surface currently available.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-06",
+      "expected_filename": "06_personalization.png",
+      "headline": [
+        "Nutrition",
+        "For You"
+      ],
+      "supporting_copy": [
+        "Goals",
+        "Preferences",
+        "Diet types"
+      ],
+      "product_surface": "profile and setup",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/ProfileView.swift",
+        "frontend/src/pages/Profile.tsx",
+        "frontend/src/pages/NutritionSetup/SetupForm.tsx"
+      ],
+      "contract_emotion": "thinking",
+      "approved_mascot_asset_key": "FitChefThinking",
+      "asset_rationale": "This shot matches the existing thinking asset directly.",
+      "output_status": "source-approved"
+    },
+    {
+      "id": "shot-07",
+      "expected_filename": "07_ai-assistant.png",
+      "headline": [
+        "Your Personal",
+        "AI Nutrition Guide"
+      ],
+      "supporting_copy": [
+        "Guidance",
+        "Recommendations",
+        "Insights"
+      ],
+      "product_surface": "bounded assistant / insight view",
+      "repo_source_refs": [
+        "ios/PulsePlate/Views/AIInsightView.swift",
+        "frontend/src/pages/Home.tsx",
+        "app/routers/fitchef_insight.py"
+      ],
+      "contract_emotion": "guiding",
+      "approved_mascot_asset_key": "FitChef",
+      "asset_rationale": "The default neutral asset remains the safest guiding fallback until a dedicated guided-coach variant exists.",
+      "output_status": "source-approved"
+    }
+  ]
+}
