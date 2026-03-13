@@ -48,6 +48,12 @@ Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:44` now cites the actual `Commit
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2931006735 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943816941 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
 
+Disposition: FIXED
+Commit: f3cac13cc77612b613ee5d0792d77b2e5d20b9c9
+Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:45` now points to the actual `Commit:` declaration line for the previous FIXED block, so the audit proof no longer references an `Evidence:` row by mistake.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2931083665 -> f3cac13cc77612b613ee5d0792d77b2e5d20b9c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943904728 -> f3cac13cc77612b613ee5d0792d77b2e5d20b9c9
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
