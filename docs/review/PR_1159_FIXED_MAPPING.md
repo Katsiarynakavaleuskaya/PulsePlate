@@ -33,6 +33,13 @@ Reason: The canonical artifact now points the evidence anchor at the actual unch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934139273 -> be559a86
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947368416 -> be559a86
 
+Disposition: FIXED
+Commit: 7e24a997
+Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17, docs/review/PR_1159_FIXED_MAPPING.md:31, docs/review/PR_1159_FIXED_MAPPING.md:37
+Reason: The canonical artifact refresh now points the second FIXED block at the actual unchecked merge-readiness proof line and keeps the self-anchor proof explicit, removing the stale line-number drift identified by cubic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934186737 -> 7e24a997
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947425330 -> 7e24a997
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
