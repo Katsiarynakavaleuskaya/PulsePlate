@@ -31,17 +31,17 @@ Reason: This aggregate cubic review shell is satisfied by the concrete inline NO
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#discussion_r2930138526 -> e8a1040f
 Disposition: FIXED
 Commit: e8a1040f
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:64
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:65
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:66
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:72
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:73
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:74
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#pullrequestreview-3942815031 -> e8a1040f
 Disposition: FIXED
 Commit: e8a1040f
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:2821
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:64
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:65
-Evidence: docs/review/PR_1152_FIXED_MAPPING.md:66
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:72
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:73
+Evidence: docs/review/PR_1152_FIXED_MAPPING.md:74
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#discussion_r2930773661 -> b182672a
 Disposition: FIXED
@@ -65,8 +65,6 @@ Evidence: docs/graph/graph.json:1443
 Evidence: docs/graph/graph.json:1444
 Evidence: docs/graph/graph.json:1445
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:2821
-
-- Initial review state only. Any additional actionable review items will be recorded here with FIXED / NOT-A-BUG / DEFERRED dispositions.
 
 ## Merge Readiness
 - [ ] Local gates passed on current head
