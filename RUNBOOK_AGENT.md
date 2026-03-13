@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-03-14 (PR #1156 merge-cycle canon refresh)
+**Last updated:** 2026-03-13 (PR #1162)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -291,6 +291,11 @@ filtered current-head view emitted by `check_merge_ready.py`.
 
 Additional live-triage notes:
 
+Implementation provenance: strict current-head triage is enforced by
+`scripts/orchestration/check_merge_ready.py` and
+`scripts/ci/check_pr_merge_readiness.py`; this runbook wording was refreshed in
+PR `#1162` via commits `639aa83f` and `b94d5575`.
+
 - `gh pr checks <PR_NUMBER>` exits non-zero when required jobs are still
   `pending`/`in_progress`. Treat that as "merge window not open yet", not as a
   failed-check verdict.
@@ -325,6 +330,10 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
 
 ## Stacked PR replacement flow (mandatory when parent merge closes the child PR)
+
+Implementation provenance: non-history-rewriting replacement flow is governed by
+root `AGENTS.md` (`Git workflow (single-developer safe mode)`); this runbook
+section was aligned in PR `#1162` via commit `4e2da5ad`.
 
 If a stacked child PR is auto-closed because its parent base branch was merged
 and deleted:

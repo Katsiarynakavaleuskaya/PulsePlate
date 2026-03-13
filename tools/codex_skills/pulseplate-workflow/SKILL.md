@@ -52,6 +52,15 @@ description: Start any PulsePlate task with the required policy, scope, and qual
    gh pr checks <PR_NUMBER>
    ```
 
+   Implementation provenance:
+   - strict current-head merge truth is enforced by
+     `scripts/orchestration/check_review_threads_disposition.py` and
+     `scripts/ci/check_pr_merge_readiness.py`
+   - the repo-aware `--repo "${GITHUB_REPOSITORY:-<OWNER/REPO>}"` pattern was
+     introduced in PR `#1162` via commit `f8b3b4c6`
+   - the replacement-PR / current-head wording in this skill was aligned in
+     PR `#1162` via commits `f8b3b4c6` and `4e2da5ad`
+
    Canonical policy:
    - `RUNBOOK_AGENT.md`: `Pre-merge readiness pass` and
      `Stacked PR replacement flow`
@@ -73,6 +82,12 @@ description: Start any PulsePlate task with the required policy, scope, and qual
    git fetch --prune origin
    git worktree list
    ```
+
+   Implementation provenance:
+   - post-merge lane cleanup and replacement-PR decisions are governed by root
+     `AGENTS.md` plus `RUNBOOK_AGENT.md`
+   - this skill section was aligned to that canon in PR `#1162` via commit
+     `4e2da5ad`
 
    Canonical cleanup and replacement policy lives in:
    - `RUNBOOK_AGENT.md`: `Stacked PR replacement flow`
