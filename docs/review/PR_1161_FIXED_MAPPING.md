@@ -20,10 +20,11 @@ Reason: The error-path tests now assert JSON Content-Type before parsing respons
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#discussion_r2934055742 -> eb540717
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#discussion_r2934055746 -> eb540717
 
-Disposition: NOT-A-BUG
-Evidence: tests/test_pro_restaurant_partner_api.py:174, tests/test_pro_restaurant_partner_api.py:375, tests/test_pro_restaurant_partner_api.py:928, tests/test_pro_restaurant_partner_api.py:1137
-Reason: The direct router-call tests intentionally assert raw `HTTPException.detail` before FastAPI serialization for deterministic branch-level sanitization coverage, while the same file already covers live JSON response envelopes for the corresponding partner-order and handoff-share HTTP surfaces via `TestClient`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#discussion_r2934055750
+Disposition: FIXED
+Commit: e3dc7abb
+Evidence: tests/test_pro_restaurant_partner_api.py:169, tests/test_pro_restaurant_partner_api.py:202, tests/test_pro_restaurant_partner_api.py:484, tests/test_pro_restaurant_partner_api.py:681, tests/test_pro_restaurant_partner_api.py:714
+Reason: The previously direct router-call regressions for the partner order and handoff-share error paths now exercise the live HTTP endpoints via `TestClient`, asserting JSON content type and the sanitized response envelope exactly as requested by the review.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1161#discussion_r2934055750 -> e3dc7abb
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify` equivalent via canonical split gates: lint + typecheck + test-fast + diff-cov)
