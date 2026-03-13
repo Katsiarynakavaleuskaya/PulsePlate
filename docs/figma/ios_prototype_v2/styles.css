@@ -19,7 +19,7 @@
   --pp-radius-lg: 24px;
   --pp-radius-md: 18px;
   --pp-radius-sm: 14px;
-  --pp-font: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
+  --pp-font: "SF Pro Display", "SF Pro Text", -apple-system, "BlinkMacSystemFont", sans-serif;
 }
 
 * {
