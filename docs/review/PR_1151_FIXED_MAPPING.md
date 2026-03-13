@@ -5,9 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-Pending initial review.
-
-No actionable review threads recorded yet.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Local docs-only sanity passed
