@@ -2814,6 +2814,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No performance regression: token issuing latency under 1 ms p99
   - Blockers: None (deferred by priority, not blocked)
 
+<a id="ledger-p2-backlog-ledger-post-merge-sync-audit-canonicalization"></a>
+- [ ] P2: Canonicalize backlog-ledger post-merge sync audit artifact
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1152`
+  - Status: 🟡 In progress
+  - Reason (EN): the retained audit for the PR `#673` / `#674` backlog-sync follow-through still uses `PR_TBD`
+    identity and stale branch metadata even though the merged PR numbers are already known. The artifact should be
+    reframed as a stable docs-only audit so later governance/review passes do not keep treating it like a live stub.
+  - Links:
+    - `docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - The audit file no longer uses `PR_TBD` identity or stale branch metadata
+    - The artifact is explicitly framed as a stable docs-only audit for merged PR `#673` and PR `#674`
+    - The change introduces no runtime, schema, or OpenAPI behavior
+
 ## Completed Items
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
@@ -6186,23 +6203,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The universal orchestration audit no longer uses `PR_TBD` identity or stale branch metadata
     - Live docs and graph references point to the non-placeholder audit path
     - The audit is explicitly framed as a rationale artifact subordinate to the workflow and experimentation SoTs
-    - The change introduces no runtime, schema, or OpenAPI behavior
-
-<a id="ledger-p2-backlog-ledger-post-merge-sync-audit-canonicalization"></a>
-- [ ] P2: Canonicalize backlog-ledger post-merge sync audit artifact
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR `#1152`
-  - Status: 🟡 In progress
-  - Reason (EN): the retained audit for the PR `#673` / `#674` backlog-sync follow-through still uses `PR_TBD`
-    identity and stale branch metadata even though the merged PR numbers are already known. The artifact should be
-    reframed as a stable docs-only audit so later governance/review passes do not keep treating it like a live stub.
-  - Links:
-    - `docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
-  - DoD:
-    - The audit file no longer uses `PR_TBD` identity or stale branch metadata
-    - The artifact is explicitly framed as a stable docs-only audit for merged PR `#673` and PR `#674`
     - The change introduces no runtime, schema, or OpenAPI behavior
 
 <a id="ledger-p2-pr1118-governance-closeout"></a>
