@@ -11,6 +11,8 @@ Evidence: appstore/fitchef/en-US/iphone-6.9/preview/storyboard.json:15
 Reason: The preview storyboard now maps `shot-01` through `shot-07` exactly once and restores the governed seven-shot sequence for the EN App Store preview lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931241438 -> 0d69605f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246422 -> 0d69605f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931264427 -> 0d69605f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931264436 -> 0d69605f
 
 Disposition: FIXED
 Commit: 0d69605f
@@ -25,13 +27,19 @@ Reason: The preview integrity test now enforces exact ordered storyboard coverag
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3944355243 -> 0d69605f
 
 Disposition: FIXED
+Commit: b42fb823
+Evidence: tests/test_fitchef_app_store_pack.py:28
+Reason: `_repo_path()` now rejects absolute paths and `..` escapes by resolving against `REPO_ROOT` and requiring the normalized path to stay inside the repository.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931264433 -> b42fb823
+
+Disposition: FIXED
 Commit: 536b4f40
 Evidence: docs/review/PR_1154_FIXED_MAPPING.md:33
 Reason: The local hard-gate checkbox remains unchecked until a real post-fix `make verify` pass completes; it is only marked complete after that verify run succeeds.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> 536b4f40
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
