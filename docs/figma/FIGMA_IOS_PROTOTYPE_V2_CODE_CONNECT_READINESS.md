@@ -30,6 +30,8 @@ Current workspace blocker:
 | `iOS_WeeklyPlan_Reader` | `15:2` | `SwiftUI` | blocked_by_plan |
 | `iOS_Profile` | `13:2` | `SwiftUI` | blocked_by_plan |
 | `iOS_BMI` | `24:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Plate` | `31:2` | `SwiftUI` | blocked_by_plan |
+| `iOS_Progress` | `29:2` | `SwiftUI` | blocked_by_plan |
 
 ## Preconditions
 
@@ -46,6 +48,8 @@ Current workspace blocker:
    - `ios/PulsePlate/Screens/ShoppingListReaderScreen.swift`
    - `ios/PulsePlate/Views/ProfileView.swift`
    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
+   - `ios/PulsePlate/Views/PlateView.swift`
+   - `ios/PulsePlate/Views/ProgressView.swift`
 
 ## Activation checklist
 
@@ -53,7 +57,7 @@ Current workspace blocker:
    - run `mcp__figma__whoami`
    - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="25:2")`
    - continue only if the response is not plan-blocked
-2. Verify node accessibility for all eight screens:
+2. Verify node accessibility for all ten screens:
    - run `mcp__figma__get_metadata(fileKey, nodeId)` for each node in the
      inventory table
 3. Generate Code Connect suggestions for each screen:
@@ -68,6 +72,8 @@ Current workspace blocker:
    - `Weekly Plan` -> primary `WeeklyPlanReaderView.swift`
    - `Profile` -> primary `ProfileView.swift`
    - `BMI` -> primary `BMICalculatorScreen.swift`
+   - `Plate` -> primary `PlateView.swift`
+   - `Progress` -> primary `ProgressView.swift`
 5. Persist approved mappings:
    - use `mcp__figma__send_code_connect_mappings(...)` for batched saves
    - use `mcp__figma__add_code_connect_map(...)` only if an explicit manual map

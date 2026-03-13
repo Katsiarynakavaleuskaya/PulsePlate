@@ -11,8 +11,23 @@
   --pp-surface-strong: rgba(255, 255, 255, 0.14);
   --pp-border: rgba(188, 204, 220, 0.28);
   --pp-text: #f8fbff;
+  /* Semantic aliases keep the Plate/Progress slice aligned with base tokens. */
+  --pp-text-primary: var(--pp-text);
   --pp-text-muted: rgba(240, 244, 248, 0.74);
+  --pp-text-secondary: var(--pp-text-muted);
   --pp-text-soft: rgba(240, 244, 248, 0.58);
+  --pp-segment-vegetables: rgba(52, 199, 89, 0.98);
+  --pp-segment-vegetables-soft: rgba(52, 199, 89, 0.72);
+  --pp-segment-vegetables-chart: rgba(52, 199, 89, 0.45);
+  --pp-segment-protein: rgba(255, 95, 86, 0.96);
+  --pp-segment-protein-soft: rgba(255, 95, 86, 0.72);
+  --pp-segment-protein-chart: rgba(255, 95, 86, 0.42);
+  --pp-segment-carbs: rgba(255, 159, 10, 0.95);
+  --pp-segment-carbs-soft: rgba(255, 159, 10, 0.7);
+  --pp-segment-carbs-chart: rgba(255, 159, 10, 0.42);
+  --pp-segment-fats: rgba(255, 214, 10, 0.92);
+  --pp-segment-fats-soft: rgba(255, 214, 10, 0.66);
+  --pp-segment-fats-chart: rgba(255, 214, 10, 0.38);
   --pp-shadow: 0 18px 40px rgba(8, 15, 31, 0.35);
   --pp-shadow-soft: 0 10px 24px rgba(8, 15, 31, 0.18);
   --pp-radius-xl: 30px;
@@ -49,6 +64,7 @@ body {
 .screen {
   position: relative;
   width: 390px;
+  max-width: 100%;
   min-height: 844px;
   overflow: hidden;
   padding: 26px 24px 28px;
@@ -232,6 +248,7 @@ body {
   border-radius: var(--pp-radius-lg);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.06));
   box-shadow: var(--pp-shadow-soft);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 
@@ -948,4 +965,442 @@ body {
   margin-top: 10px;
   font-size: 12px;
   color: var(--pp-text-soft);
+}
+
+.plate-overview {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.plate-composition {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.plate-wheel {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 320px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.12);
+}
+
+.plate-wheel-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.plate-center {
+  position: absolute;
+  inset: 50%;
+  width: 92px;
+  height: 92px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(8, 12, 24, 0.94);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--pp-text-primary);
+  box-shadow: 0 20px 40px rgba(10, 14, 30, 0.18);
+}
+
+.plate-slice {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+}
+
+.plate-slice.vegetables {
+  top: 0;
+  left: 0;
+  border-top-left-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-vegetables),
+    var(--pp-segment-vegetables-soft)
+  );
+}
+
+.plate-slice.protein {
+  top: 0;
+  right: 0;
+  border-top-right-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-protein),
+    var(--pp-segment-protein-soft)
+  );
+}
+
+.plate-slice.carbs {
+  right: 0;
+  bottom: 0;
+  border-bottom-right-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-carbs),
+    var(--pp-segment-carbs-soft)
+  );
+}
+
+.plate-slice.fats {
+  bottom: 0;
+  left: 0;
+  border-bottom-left-radius: 999px;
+  background: linear-gradient(180deg, var(--pp-segment-fats), var(--pp-segment-fats-soft));
+}
+
+.plate-center strong {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.plate-center span {
+  font-size: 0.72rem;
+  color: var(--pp-text-secondary);
+}
+
+.plate-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plate-breakdown-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.plate-breakdown-row strong,
+.plate-breakdown-row span:last-child {
+  font-size: 0.82rem;
+}
+
+.plate-breakdown-row span:last-child {
+  color: var(--pp-text-secondary);
+}
+
+.plate-breakdown-row .metric-dot {
+  width: 10px;
+  height: 10px;
+}
+
+.progress-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.orbit-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--pp-text-secondary);
+  line-height: 1.45;
+}
+
+.segment-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.segment-detail-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.segment-detail-head strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.segment-detail-head span {
+  font-size: 0.82rem;
+  color: var(--pp-text-secondary);
+}
+
+.segment-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.segment-chip.success {
+  background: rgba(52, 199, 89, 0.18);
+  color: #8de7a8;
+  border: 1px solid rgba(52, 199, 89, 0.28);
+}
+
+.metric-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric-pair {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metric-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--pp-text-secondary);
+  margin-bottom: 6px;
+}
+
+.inline-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-progress-track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.inline-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.inline-progress-fill.protein {
+  width: 90%;
+  background: linear-gradient(90deg, var(--pp-segment-protein), rgba(255, 159, 10, 0.82));
+}
+
+.inline-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--pp-text-secondary);
+}
+
+.floating-action-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 18px;
+  border-radius: 28px;
+  background: rgba(250, 252, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 48px rgba(9, 14, 28, 0.16);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.dual-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.single-action-row {
+  display: flex;
+}
+
+.single-action-row > * {
+  width: 100%;
+}
+
+.dual-action-row.compact-actions {
+  margin-top: 12px;
+}
+
+.single-action-row.compact-actions {
+  margin-top: 12px;
+}
+
+.progress-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.metric-hero {
+  display: block;
+  font-size: 2.3rem;
+  line-height: 1;
+}
+
+.summary-progress-track {
+  position: relative;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.summary-progress-fill {
+  display: block;
+  width: 68%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--pp-segment-vegetables), rgba(61, 127, 255, 0.92));
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chart-bars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: end;
+  min-height: 220px;
+}
+
+.chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-bar strong {
+  font-size: 0.78rem;
+  color: var(--pp-text-secondary);
+}
+
+.chart-column {
+  width: 100%;
+  max-width: 44px;
+  border-radius: 18px 18px 10px 10px;
+  min-height: 56px;
+  box-shadow: inset 0 -10px 18px rgba(8, 12, 24, 0.12);
+}
+
+.chart-column.vegetables {
+  height: 170px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-vegetables),
+    var(--pp-segment-vegetables-chart)
+  );
+}
+
+.chart-column.protein {
+  height: 148px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-protein),
+    var(--pp-segment-protein-chart)
+  );
+}
+
+.chart-column.carbs {
+  height: 132px;
+  background: linear-gradient(
+    180deg,
+    var(--pp-segment-carbs),
+    var(--pp-segment-carbs-chart)
+  );
+}
+
+.chart-column.fats {
+  height: 110px;
+  background: linear-gradient(180deg, var(--pp-segment-fats), var(--pp-segment-fats-chart));
+}
+
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metric-list-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metric-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.metric-dot.vegetables {
+  background: var(--pp-segment-vegetables);
+}
+
+.metric-dot.protein {
+  background: var(--pp-segment-protein);
+}
+
+.metric-dot.carbs {
+  background: var(--pp-segment-carbs);
+}
+
+.metric-dot.fats {
+  background: var(--pp-segment-fats);
+}
+
+@media (max-width: 760px) {
+  .plate-overview,
+  .metric-pair-grid,
+  .dual-action-row,
+  .plan-grid,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-bars {
+    min-height: 180px;
+    gap: 10px;
+  }
 }

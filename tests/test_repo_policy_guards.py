@@ -372,6 +372,8 @@ ALLOWLIST_PATH_SUBSTRINGS: set[str] = set()
 
 SKIP_DIRS_FOR_AST_SCAN = {
     ".git",
+    ".cursor",
+    ".agents",
     ".venv",
     ".venv-ci",
     "venv",
@@ -383,6 +385,8 @@ SKIP_DIRS_FOR_AST_SCAN = {
     ".pytest_cache",
     ".ruff_cache",
     "node_modules",
+    "artifacts",
+    "worktrees",
     # Client apps (not part of backend policy)
     "docs",
     "frontend",

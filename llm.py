@@ -4,14 +4,26 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
-from typing import Optional
+from typing import Optional, cast
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
 
 logger = logging.getLogger(__name__)
+
+
+def _load_optional_provider(module_name: str, class_name: str) -> type[ProviderBase] | None:
+    """RU: Безопасно импортирует optional provider class.
+    EN: Safely imports an optional provider class.
+    """
+    try:
+        module = importlib.import_module(module_name)
+        return cast(type[ProviderBase] | None, getattr(module, class_name, None))
+    except Exception:
+        return None
 
 
 class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses network
@@ -55,27 +67,9 @@ class OllamaLiteProvider(ProviderBase):
 
 
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
-try:
-    from providers.grok import GrokProvider as _GrokProvider  # xAI
-
-    GrokProvider: type[_GrokProvider] | None = _GrokProvider
-except Exception:
-    GrokProvider = None
-
-
-try:
-    from providers.ollama import OllamaProvider as _OllamaProvider  # локальные/совместимые
-
-    OllamaProvider: type[_OllamaProvider] | None = _OllamaProvider
-except Exception:
-    OllamaProvider = None
-
-try:
-    from providers.pico import PicoProvider as _PicoProvider  # если у тебя есть этот файл
-
-    PicoProvider: type[_PicoProvider] | None = _PicoProvider
-except Exception:
-    PicoProvider = None
+GrokProvider = _load_optional_provider("providers.grok", "GrokProvider")  # xAI
+OllamaProvider = _load_optional_provider("providers.ollama", "OllamaProvider")
+PicoProvider = _load_optional_provider("providers.pico", "PicoProvider")
 
 
 class StubProvider(ProviderBase):

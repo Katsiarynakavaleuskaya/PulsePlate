@@ -649,6 +649,97 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-test-hygiene-wave"></a>
+- [ ] P1: Test hygiene remediation wave for the main test suite
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (test determinism / CI stability)
+  - Target PR: PR-TBD-TEST-HYGIENE-WAVE
+  - Status: 🟡 In progress
+  - Area: tests / policy guards / CI reliability
+  - Finding Type: test isolation and determinism debt
+  - Reason (EN): The 13 March 2026 suite review found broad hygiene debt across import determinism, client lifecycle cleanup, env isolation, and timing controls. The work is too large for one fix PR and needs a canonical umbrella item so execution slices stay ordered and guard scope only expands after each cleaned slice is stable.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/AGENTS.md`
+    - `docs/ENGINEERING_LESSONS.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+  - Child Items:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-risk-first`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-client-lifecycle`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-env-isolation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-test-hygiene-finalization`
+  - Related History:
+    - [FastAPI / Pydantic / Starlette compatibility gates](BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates)
+    - [Repository `sys.modules` mutation guard re-enable](BACKLOG_LEDGER.md#ledger-p1-reenable-sys-modules-guard)
+    - [CI nightly test DB schema bootstrap broken](BACKLOG_LEDGER.md#ledger-p0-ci-nightly-test-db-schema-bootstrap)
+    - [WebSocket idle-timeout follow-up](BACKLOG_LEDGER.md#ledger-p1-websocket-idle-timeout-follow-up)
+  - DoD:
+    - Each execution slice lands in its own focused PR with deterministic verification
+    - Guard scope expands only after the targeted offender class is clean in that scope
+    - Final wave closes only after `make verify` passes on the last cleanup PR
+
+<a id="ledger-p1-test-hygiene-risk-first"></a>
+- [ ] P1: Risk-first determinism cleanup for `sys.modules`, builtins import patching, and real sleeps
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1157` (risk-first hygiene slice) -> PR-TBD-TEST-HYGIENE-RISK-FIRST
+  - Status: 🟡 In progress
+  - Area: tests / import determinism / timing
+  - Finding Type: policy and flake remediation
+  - Reason (EN): `sys.modules` mutation, `builtins.__import__` patching, and real sleeps create the highest-leverage determinism failures and can be remediated in bounded slices before the larger client/env waves.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/test_llm_import_coverage.py`
+    - `tests/edges/test_unified_db_small_edges.py`
+    - `tests/test_unified_db_coverage.py`
+    - `tests/test_business_bayesian_analyzer.py`
+  - DoD:
+    - Cleaned files no longer use direct `builtins.__import__` patching
+    - Cleaned files no longer rely on real `sleep()` to prove behavior
+    - Incremental guard scope covers the cleaned non-VIP files
+    - Targeted guard/tests for the slice pass locally
+
+<a id="ledger-p1-test-hygiene-client-lifecycle"></a>
+- [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TEST-HYGIENE-CLIENT-LIFECYCLE
+  - Status: 📋 Planned
+  - Area: tests / FastAPI lifecycle / session cleanup
+  - Finding Type: resource lifecycle debt
+  - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
+    - `tests/test_no_direct_testclient.py`
+    - `tests/conftest.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - DoD:
+    - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
+    - Closeable test resources have deterministic teardown
+    - Targeted xdist smoke for touched files passes without stale client/session state
+
+<a id="ledger-p1-test-hygiene-env-isolation"></a>
+- [ ] P1: `os.environ` isolation and `setup_method` teardown migration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TEST-HYGIENE-ENV-ISOLATION
+  - Status: 📋 Planned
+  - Area: tests / env isolation / setup teardown
+  - Finding Type: worker pollution debt
+  - Reason (EN): direct env mutation is still widespread and must move to `monkeypatch.setenv()` or autouse env fixtures in grouped mechanical passes after the first determinism slice lands.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/AGENTS.md`
+    - `docs/ENGINEERING_LESSONS.md`
+  - DoD:
+    - Touched files no longer write directly to `os.environ[...]` in `setup_method()`
+    - Empty or partial env-only teardowns are removed or reduced to real resource cleanup
+    - Targeted env-heavy suites pass under deterministic local runs
+
 <a id="ledger-p1-search-observability-foundation"></a>
 - [ ] P1: Search observability foundation with trace correlation, synthetic probes, and per-class SLOs
   - Owner: @katsiaryna_kavaleuskaya
@@ -1617,11 +1708,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
     - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
     - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
   - DoD:
     - App Icon source files used for the App Store production pack are canonical, reviewed, and filename-stable
     - No FitChef icon source filenames include spaces or duplicate naming families
     - PR-3 uses only the approved icon source set when preparing the production App Store pack
+
+<a id="ledger-p2-test-hygiene-finalization"></a>
+- [ ] P2: Final guard-scope expansion and residual cache/reload cleanup for the test hygiene wave
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-TEST-HYGIENE-FINALIZATION
+  - Status: 📋 Planned
+  - Area: tests / policy guards / residual cleanup
+  - Finding Type: finalization follow-up
+  - Reason (EN): after the risk-first, client-lifecycle, and env-isolation waves land, the remaining work is to re-audit cache/reload exceptions and widen guards only where the target scope is fully clean.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/test_repo_policy_guards.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - DoD:
+    - Remaining cache/reload/session-fixture exceptions are re-audited with current evidence
+    - Guard scope widens only after zero offenders in the target scope
+    - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
 
 
 <a id="ledger-p2-pr1-50-sharefile-hardening"></a>
@@ -3422,6 +3533,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ Plate chart raw hex replaced with token variables
     - ✅ Runtime raw-hex guard test merged with explicit allowlist
 
+<a id="ledger-p0-ci-nightly-test-db-schema-bootstrap"></a>
 - [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (CRITICAL)
@@ -4272,6 +4384,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make verify` passes in PR-732
 
 
+<a id="ledger-p1-reenable-sys-modules-guard"></a>
 - [x] P1: Re-enable repository `sys.modules` mutation guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4434,6 +4547,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - CI gates for PR #778 are green before merge
 
 
+<a id="ledger-p1-websocket-idle-timeout-follow-up"></a>
 - [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

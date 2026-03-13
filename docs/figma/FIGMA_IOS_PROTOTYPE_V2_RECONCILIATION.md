@@ -20,6 +20,8 @@ Repo sources used:
 - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
 - `ios/PulsePlate/Screens/ShoppingListReaderScreen.swift`
 - `ios/PulsePlate/Views/Components/MascotBubble.swift`
+- `ios/PulsePlate/Views/PlateView.swift`
+- `ios/PulsePlate/Views/ProgressView.swift`
 
 ## Screen Inventory
 
@@ -33,6 +35,8 @@ Repo sources used:
 | `iOS_WeeklyPlan_Reader` | `15:2` | reconciled |
 | `iOS_Profile` | `13:2` | reconciled |
 | `iOS_BMI` | `24:2` | reconciled |
+| `iOS_Plate` | `31:2` | reconciled |
+| `iOS_Progress` | `29:2` | reconciled |
 
 ## Component-by-Component Gaps
 
@@ -81,6 +85,15 @@ Repo sources used:
   rows so the design reference better matches the actual form fields (`ios/PulsePlate/Views/ProfileView.swift:21-34`).
 - Weekly Plan now reflects the runtime day navigator and plan-metrics layer (`ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift:85-125`).
 - Shopping List now reflects runtime footer / warning anatomy more directly (`ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:77-93`).
+- Plate now mirrors the runtime main-state anatomy with a visual split,
+  embedded segment detail, visible `Add Meal` / `View Details` CTAs, and a
+  mascot support layer without creating separate destination screens (`ios/PulsePlate/Views/PlateView.swift:104-247`).
+- Progress now mirrors the runtime completion summary, chart, and daily segment
+  list while keeping a single runtime-selected recovery CTA inside the same
+  main surface (`ios/PulsePlate/Views/ProgressView.swift:9-79`, `ios/PulsePlate/Views/ProgressView.swift:82-203`).
+- On March 12, 2026, the Plate slice was re-captured twice to replace
+  gradient-heavy primitives that MCP flattened poorly; canonical handoff now
+  points to `31:2`, not the earlier exploratory nodes `26:2` or `30:2`.
 
 ### Remaining Gaps
 
@@ -94,6 +107,9 @@ Repo sources used:
   reference focused on the main UX path.
 - Onboarding still compresses the real app into two calm screens and does not
   model later branching states beyond the primary continuation path.
+- Plate and Progress intentionally model only the main daily loop state; they
+  do not yet break out loading / empty / issue / destination screens into
+  separate handoff frames.
 
 ## Decision Log
 
@@ -111,11 +127,10 @@ Repo sources used:
 1. If a future MCP refresh changes top-level frame IDs again, re-capture `BMI`
    and `Onboarding` and refresh the canonical `screen ID -> nodeId` map.
 2. Reconcile `Weekly Plan` and `Shopping List` further against runtime empty/error states.
-3. Add `Plate` and `Progress` parity if the next slice expands beyond the current iOS funnel.
-4. If Code Connect becomes available, use
+3. If Code Connect becomes available, use
    `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md` and map the
    reconciled frames rather than the raw prototype file, while linking the new
    activation session log back to
    `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`.
-5. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
+4. Keep the `screen ID -> nodeId` map current whenever a new MCP capture
    refresh changes top-level frame IDs.
