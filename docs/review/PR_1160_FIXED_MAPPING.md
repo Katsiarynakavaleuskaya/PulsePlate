@@ -5,10 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- Pending current review pass; populate after actionable review comments are
+  classified and mapped.
 
 ## Merge Readiness
-- [x] Local gates passed on current head
+- [ ] Local gates passed on current head
 - [ ] All required checks green
 - [ ] All actionable review threads resolved with dispositions
 - [ ] CodeRabbit PASS / no-actionables
