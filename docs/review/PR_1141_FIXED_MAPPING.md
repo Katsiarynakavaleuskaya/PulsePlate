@@ -38,7 +38,7 @@ Reason: The backlog item was reopened and tied explicitly to PR `#1141`, keeping
 
 Disposition: FIXED
 Commit: 0f2a3aae
-Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:92`
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:99`
 Reason: The merge-readiness checklist keeps the local hard-gate item unchecked until the actual final merge cycle, matching the current governance guidance for fixed-mapping artifacts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927300601 -> 0f2a3aae
 
@@ -60,7 +60,7 @@ Reason: The subprocess stub now uses `**kwargs: Any`, which matches the repo typ
 
 Disposition: FIXED
 Commit: c4bc9379
-Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:92`
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:99`
 Reason: The FIXED mapping for the merge-readiness checkbox now points to the actual unchecked checklist line instead of a blank separator line, so the disposition proof is directly verifiable.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2927641808 -> c4bc9379
 
@@ -73,6 +73,13 @@ Disposition: NOT-A-BUG
 Evidence: The actionable inline finding from this Cubic review is already dispositioned in this artifact as `#discussion_r2927641808`.
 Reason: `pullrequestreview-3940025298` is the wrapper review for the evidence-anchor nit and does not add an independent repo defect.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#pullrequestreview-3940025298
+
+Disposition: FIXED
+Commit: 2df385a6
+Evidence: `docs/review/PR_1141_FIXED_MAPPING.md:99`
+Reason: The follow-up anchor-verification comments are now backed by the actual unchecked merge-readiness checklist line, so the disposition proof is directly verifiable instead of pointing at a blank separator.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2928926024 -> 2df385a6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1141#discussion_r2928926581 -> 2df385a6
 
 Disposition: NOT-A-BUG
 Evidence: The actionable inline finding from this Cubic review is already dispositioned in this artifact as `#discussion_r2928926024`.
