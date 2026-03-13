@@ -5,12 +5,26 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-No resolved review threads yet on `#1156`. This replacement PR supersedes the auto-closed stacked PR `#1138`; any new actionable review items must be recorded here with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before thread resolution.
+Disposition: FIXED
+Commit: b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+Evidence: `docs/figma/ios_prototype_v2/plate.html:43-59` now exposes the plate wheel as `role="img"` with a hidden descriptive summary, while `docs/figma/ios_prototype_v2/styles.css:14-30` and `docs/figma/ios_prototype_v2/styles.css:994-1005` centralize the segment palette and add the screen-reader helper used by that markup.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933480218 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933480224 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#pullrequestreview-3946660491 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+
+Disposition: FIXED
+Commit: b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+Evidence: `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md:94-96` now uses the canonical month-day-year comma form, `docs/figma/ios_prototype_v2/progress.html:112-124` aligns the transport/API recovery CTA with `Retry`, and `docs/review/PR_1156_FIXED_MAPPING.md:1-21` is now the only active canonical artifact because `docs/review/PR_1138_FIXED_MAPPING.md` was removed from the replacement PR diff in commit `b51e1c035463604d5a48e3b0ba82d09d831bd2f5`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933487627 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933487639 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#pullrequestreview-3946668449 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933492336 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1156#discussion_r2933492340 -> b51e1c035463604d5a48e3b0ba82d09d831bd2f5
 
 ## Merge Readiness
-- [x] Local gates passed on current head
+- [ ] Local gates passed on current head
 - [ ] All required checks green
-- [x] No unresolved review threads remain
+- [ ] No unresolved review threads remain
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
 - [ ] Cubic PASS / no-actionables
