@@ -15,7 +15,7 @@ Reason: markdownlint-triggering example text was normalized from a collision-sty
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#discussion_r2927303406 -> 9ced10a7
 Disposition: FIXED
 Commit: 9ced10a7
-Evidence: docs/review/PR_1145_FIXED_MAPPING.md:48
+Evidence: docs/review/PR_1145_FIXED_MAPPING.md:63
 Reason: merge-readiness checklist stays unchecked until the final head-specific governance pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#discussion_r2927310711 -> 9ced10a7
