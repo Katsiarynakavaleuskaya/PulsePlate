@@ -31,11 +31,11 @@ Current canonical screen map:
 
 - `iOS_Onboarding_01_Welcome` -> `1:2`
 - `iOS_Onboarding_02_Value_Usage` -> `3:2`
-- `iOS_Home` -> `11:2`
-- `iOS_Paywall_Pro_VIP` -> `17:2`
-- `iOS_WeeklyPlan_Reader` -> `15:2`
-- `iOS_ShoppingList` -> `18:2`
-- `iOS_Profile` -> `13:2`
+- `iOS_Home` -> `4:2`
+- `iOS_Paywall_Pro_VIP` -> `2:2`
+- `iOS_WeeklyPlan_Reader` -> `6:2`
+- `iOS_ShoppingList` -> `5:2`
+- `iOS_Profile` -> `7:2`
 - `iOS_BMI` -> `8:2`
 
 Follow-up artifacts:
