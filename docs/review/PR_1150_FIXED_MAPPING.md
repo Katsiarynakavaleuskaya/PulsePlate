@@ -47,6 +47,12 @@ Evidence: ios/Scripts/move_mascot.sh:74
 Reason: The iOS mascot copy helper now removes legacy `fitchef@*.png` files before writing canonical `FitChefDefault@*.png` outputs, preventing stale files after reruns.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2929977571 -> 0b06c432
 
+Disposition: FIXED
+Commit: 9f584026
+Evidence: ios/move_mascot.sh:57
+Reason: Both mascot move scripts now reject non-PNG filenames before the existence check, so inputs like `Contents.json` cannot be copied into the `FitChefDefault@*.png` assets.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2930060303 -> 9f584026
+
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
