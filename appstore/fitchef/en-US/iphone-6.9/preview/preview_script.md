@@ -7,27 +7,27 @@
 ## Script
 
 0s-3s
-PulsePlate appears with FitChef as a calm supporting brand cue.
+PulsePlate opens with the core value frame and FitChef as a calm supporting cue.
 
 3s-6s
-Show the dashboard and daily nutrition overview.
-Caption: `Smart nutrition, powered by AI.`
-
-6s-9s
-Move into macro and micronutrient analysis.
+Show macro and micronutrient analysis.
 Caption: `Understand what your day really looks like.`
 
-9s-12s
+6s-9s
 Show the weekly meal planner.
 Caption: `Plan meals around your real goals.`
 
-12s-15s
+9s-12s
 Show grocery support.
 Caption: `Turn your plan into a practical shopping list.`
 
-15s-18s
+12s-15s
 Show progress and habit insight.
 Caption: `Track balance, consistency, and progress over time.`
+
+15s-18s
+Show personalization and profile setup.
+Caption: `Adapt PulsePlate to your goals and preferences.`
 
 18s-22s
 Finish on FitChef insight guidance.

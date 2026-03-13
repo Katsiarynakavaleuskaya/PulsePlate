@@ -95,16 +95,18 @@ def test_preview_storyboard_is_bounded_and_reuses_manifest_shot_ids() -> None:
     """Keep the preview script aligned with the screenshot sequence and time cap."""
     manifest = _load_json(SCREENSHOTS_DIR / "shot_manifest.json")
     storyboard = _load_json(PREVIEW_DIR / "storyboard.json")
-    valid_shot_ids = {shot["id"] for shot in manifest["shots"]}
+    expected_shot_ids = [shot["id"] for shot in manifest["shots"]]
 
     assert storyboard["locale"] == "en-US"
     assert storyboard["device_class"] == "iPhone 6.9"
     assert storyboard["target_duration_seconds"] <= 30
     assert len(storyboard["scenes"]) == 7
 
+    actual_shot_ids = [scene["shot_id"] for scene in storyboard["scenes"]]
+    assert actual_shot_ids == expected_shot_ids
+
     last_end_second = 0
     for scene in storyboard["scenes"]:
-        assert scene["shot_id"] in valid_shot_ids
         assert scene["start_second"] < scene["end_second"]
         assert scene["start_second"] == last_end_second
         last_end_second = scene["end_second"]
