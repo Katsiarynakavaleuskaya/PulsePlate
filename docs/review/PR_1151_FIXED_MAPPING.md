@@ -5,7 +5,11 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+Disposition: FIXED
+Commit: 08364296
+Evidence: `docs/review/PR_1151_FIXED_MAPPING.md:15`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#pullrequestreview-3942632211 -> 08364296
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1151#discussion_r2929970478 -> 08364296
 
 ## Merge Readiness
 - [ ] Local docs-only sanity passed
