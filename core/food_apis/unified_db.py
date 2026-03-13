@@ -49,6 +49,13 @@ OFFClient, OFF_AVAILABLE = _resolve_off_client()
 logger = logging.getLogger(__name__)
 
 
+def _load_time_module() -> Any:
+    """RU: Изолирует import time для deterministic tests.
+    EN: Isolates the `time` import for deterministic tests.
+    """
+    return importlib.import_module("time")
+
+
 class UnifiedFoodResult(TypedDict):
     """Payload contract used by menu-engine compatible unified search helpers."""
 
@@ -174,12 +181,11 @@ class UnifiedFoodDatabase:
         # Load persistent cache
         self._load_cache()
         # Throttle state for disk saves
+        self._last_save_ts: float | None = None
         try:
-            import time as _time
-
-            self._last_save_ts = _time.monotonic()
+            self._last_save_ts = _load_time_module().monotonic()
         except Exception:
-            self._last_save_ts = None  # type: ignore
+            self._last_save_ts = None
 
     def _get_cache_file(self) -> Path:
         """Get path to cache file."""
@@ -205,13 +211,12 @@ class UnifiedFoodDatabase:
         try:
             # Optional throttle via env (milliseconds)
             import os as _os
-            import time as _time
 
             ms = int(_os.getenv("UNIFIED_DB_SAVE_THROTTLE_MS", "0"))
             if ms > 0:
                 last_save_ts = getattr(self, "_last_save_ts", None)
                 if last_save_ts is not None:
-                    now = _time.monotonic()
+                    now = _load_time_module().monotonic()
                     if (now - last_save_ts) * 1000.0 < ms:
                         return
                     self._last_save_ts = now

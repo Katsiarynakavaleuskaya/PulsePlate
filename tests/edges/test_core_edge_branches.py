@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 import pytest
 
 from core import recommendations as R
+import core.exports_simple as exports_simple
 from core.exports_simple import to_pdf_day, to_pdf_week
 from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.menu_engine_new import DayPlan, build_plate_day
@@ -217,16 +218,10 @@ def test_recipe_db_parser_and_scaler_with_malformed_entries(tmp_path: Path):
 
 def test_exports_pdf_fallback_day_week(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # Force import error for reportlab to exercise fallback
-    import builtins as _bi  # noqa: N812
+    def boom():
+        raise ImportError("no reportlab")
 
-    real_import = _bi.__import__
-
-    def boom(name: str, *args: Any, **kwargs: Any):
-        if name.startswith("reportlab"):
-            raise ImportError("no reportlab")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(_bi, "__import__", boom)
+    monkeypatch.setattr(exports_simple, "_load_reportlab_components", boom)
     plate: Dict[str, Any] = {
         "kcal": 2000,
         "macros": {"protein_g": 120, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},

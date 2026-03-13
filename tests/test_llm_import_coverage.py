@@ -3,7 +3,7 @@
 Цель: достичь 100% покрытия кода включая fallback провайдеры
 """
 
-import builtins
+import importlib
 import os
 import sys
 from importlib import reload
@@ -14,13 +14,15 @@ import pytest
 import llm
 
 
+@pytest.fixture(autouse=True)
+def _llm_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate llm env defaults per test."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+
 class TestImportFallbacks:
     """Тесты fallback поведения при недоступности внешних провайдеров"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_grok_import_exception_coverage(self, monkeypatch):
         """Тест покрытия GrokLiteProvider при ошибке импорта providers.grok"""
@@ -32,17 +34,20 @@ class TestImportFallbacks:
         for name in provider_modules:
             monkeypatch.delitem(sys.modules, name, raising=False)
 
-        original_import = builtins.__import__
+        original_import_module = importlib.import_module
 
         def side_effect(name, *args, **kwargs):
-            if "providers.grok" in name:
+            if name == "providers.grok":
                 raise ImportError("No module named providers.grok")
-            return original_import(name, *args, **kwargs)
+            return original_import_module(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=side_effect):
+        with patch("importlib.import_module", side_effect=side_effect):
             # Перезагружаем модуль llm чтобы активировать except блок
             reload(llm)
 
+            # Ошибка импорта должна оставить реальный провайдер недоступным.
+            # EN: Import failure must leave the real provider unavailable.
+            assert llm.GrokProvider is None
             # Теперь GrokLiteProvider должен быть доступен
             assert hasattr(llm, "GrokLiteProvider")
 
@@ -74,13 +79,13 @@ class TestImportFallbacks:
     def test_ollama_import_exception_coverage(self):
         """Тест покрытия исключения при импорте OllamaProvider"""
         # Мокаем ошибку импорта OllamaProvider
-        original_import = builtins.__import__
-        with patch("builtins.__import__") as mock_import:
+        original_import_module = importlib.import_module
+        with patch("importlib.import_module") as mock_import:
 
             def import_side_effect(name, *args, **kwargs):
-                if "providers.ollama" in name:
+                if name == "providers.ollama":
                     raise ImportError("No module named 'providers.ollama'")
-                return original_import(name, *args, **kwargs)
+                return original_import_module(name, *args, **kwargs)
 
             mock_import.side_effect = import_side_effect
 
@@ -96,13 +101,13 @@ class TestImportFallbacks:
     def test_pico_import_exception_coverage(self):
         """Тест покрытия исключения при импорте PicoProvider"""
         # Мокаем ошибку импорта PicoProvider
-        original_import = builtins.__import__
-        with patch("builtins.__import__") as mock_import:
+        original_import_module = importlib.import_module
+        with patch("importlib.import_module") as mock_import:
 
             def import_side_effect(name, *args, **kwargs):
-                if "providers.pico" in name:
+                if name == "providers.pico":
                     raise ImportError("No module named 'providers.pico'")
-                return original_import(name, *args, **kwargs)
+                return original_import_module(name, *args, **kwargs)
 
             mock_import.side_effect = import_side_effect
 
@@ -118,11 +123,6 @@ class TestImportFallbacks:
 
 class TestGetProviderEdgeCases:
     """Тесты граничных случаев функции get_provider()"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_get_provider_with_pico(self):
         """Тест несуществующего провайдера pico"""
@@ -175,11 +175,6 @@ class TestGetProviderEdgeCases:
 
 class TestEnvironmentVariableEdgeCases:
     """Тесты граничных случаев обработки переменных окружения"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_empty_string_values(self):
         """Тест различных форм пустых строк"""

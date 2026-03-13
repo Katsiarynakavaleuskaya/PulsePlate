@@ -11,11 +11,32 @@ for user download and record keeping.
 from __future__ import annotations
 
 import csv
+import importlib
 from io import StringIO
 from pathlib import Path
 
 # PDF dependencies are imported lazily inside functions to allow running without
 # reportlab in constrained environments (tests only validate file creation).
+
+
+def _load_reportlab_components():
+    """RU: Ленивая загрузка reportlab components.
+    EN: Lazily load reportlab components.
+    """
+    colors = importlib.import_module("reportlab.lib.colors")
+    pagesizes = importlib.import_module("reportlab.lib.pagesizes")
+    styles = importlib.import_module("reportlab.lib.styles")
+    platypus = importlib.import_module("reportlab.platypus")
+    return (
+        colors,
+        pagesizes.A4,
+        styles.getSampleStyleSheet,
+        platypus.Paragraph,
+        platypus.SimpleDocTemplate,
+        platypus.Spacer,
+        platypus.Table,
+        platypus.TableStyle,
+    )
 
 
 def to_csv_day(plate: dict) -> str:
@@ -69,16 +90,16 @@ def to_pdf_day(plate: dict, path: Path) -> None:
     Falls back to writing a minimal placeholder file if reportlab is unavailable.
     """
     try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import (
+        (
+            colors,
+            A4,
+            getSampleStyleSheet,
             Paragraph,
             SimpleDocTemplate,
             Spacer,
             Table,
             TableStyle,
-        )
+        ) = _load_reportlab_components()
 
         story = []
         doc = SimpleDocTemplate(str(path), pagesize=A4)
@@ -146,10 +167,16 @@ def to_pdf_week(week: dict, path: Path) -> None:
     Falls back to a placeholder when reportlab is unavailable.
     """
     try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        (
+            colors,
+            A4,
+            getSampleStyleSheet,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        ) = _load_reportlab_components()
 
         doc = SimpleDocTemplate(str(path), pagesize=A4)
         styles = getSampleStyleSheet()
