@@ -87,6 +87,11 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#discussion_r2928957249
 Reason: this follow-up CodeRabbit review entry is a summary shell for the single actionable child thread dispositioned separately above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#pullrequestreview-3942441975
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#discussion_r2928957249; https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1145#pullrequestreview-3941534435
+Reason: this later CodeRabbit review entry is a summary shell emitted after the follow-up fix cycle; the underlying actionable child thread is already dispositioned above and no new unresolved child action remains on the current head.
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
