@@ -75,7 +75,8 @@ def test_app_store_metadata_stays_en_only_and_within_practical_limits() -> None:
     flattened = " ".join(
         [payload["subtitle"], payload["promo_text"], *payload["description_paragraphs"]]
     ).lower()
-    assert all(term not in flattened for term in blocked_terms)
+    offending_terms = sorted(term for term in blocked_terms if term in flattened)
+    assert not offending_terms, f"Blocked term(s) found in metadata: {offending_terms}"
 
 
 def test_screenshot_manifest_defines_seven_governed_shots_with_real_refs() -> None:

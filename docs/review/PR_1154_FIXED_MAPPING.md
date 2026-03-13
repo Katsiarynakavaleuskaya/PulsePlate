@@ -38,6 +38,28 @@ Evidence: docs/review/PR_1154_FIXED_MAPPING.md:33
 Reason: The local hard-gate checkbox remains unchecked until a real post-fix `make verify` pass completes; it is only marked complete after that verify run succeeds.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> 536b4f40
 
+Disposition: NOT-A-BUG
+Evidence: appstore/fitchef/en-US/iphone-6.9/preview/storyboard.json:15, appstore/fitchef/en-US/iphone-6.9/screenshots/shot_manifest.json:155, appstore/fitchef/en-US/metadata/upload_checklist.md:3, tests/test_fitchef_app_store_pack.py:114
+Reason: This aggregate CodeRabbit review only summarizes underlying inline findings that are already dispositioned above; it does not add a standalone unresolved defect once the mapped thread URLs are closed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3944090112
+
+Disposition: NOT-A-BUG
+Evidence: appstore/fitchef/en-US/iphone-6.9/preview/storyboard.json:15, tests/test_fitchef_app_store_pack.py:31, tests/test_fitchef_app_store_pack.py:114
+Reason: This cubic summary review aggregates underlying findings already mapped in the canonical artifact, so the review-level URL itself does not require an additional standalone code change.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3944109244
+
+Disposition: FIXED
+Commit: e508e2fc
+Evidence: tests/test_fitchef_app_store_pack.py:26
+Reason: `_load_json()` now uses the stricter `dict[str, Any]` return type expected by the review nitpick.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3946665221 -> e508e2fc
+
+Disposition: FIXED
+Commit: e508e2fc
+Evidence: tests/test_fitchef_app_store_pack.py:14, tests/test_fitchef_app_store_pack.py:37
+Reason: The guard test now documents the mascot taxonomy source of truth and makes the `relative_to()` containment check explicit with `_ = ...`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#pullrequestreview-3946770483 -> e508e2fc
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
