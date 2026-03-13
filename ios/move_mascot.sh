@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # Скрипт для перемещения маскота FitChef из AppIcon в правильное место
+# Script for moving the FitChef mascot from AppIcon into the runtime asset set
+
+set -euo pipefail
+
+trap 'echo "❌ Ошибка в строке $LINENO: $BASH_COMMAND" >&2; exit 1' ERR
 
 echo "🐱 Перемещаем маскота FitChef..."
 
@@ -35,10 +40,11 @@ fi
 
 echo "🐱 Копируем маскота в правильное место..."
 
-# Копируем маскота в разные размеры
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@1x.png"
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@2x.png"
-cp "$ICONS_DIR/$mascot_file" "$MASCOT_DIR/fitchef@3x.png"
+# Канонический runtime mirror использует реальный 1x/2x/3x output.
+# The canonical runtime mirror must use true 1x/2x/3x renditions.
+sips -Z 720 "$ICONS_DIR/$mascot_file" --out "$MASCOT_DIR/fitchef-neutral@3x.png" >/dev/null
+sips -Z 480 "$MASCOT_DIR/fitchef-neutral@3x.png" --out "$MASCOT_DIR/fitchef-neutral@2x.png" >/dev/null
+sips -Z 240 "$MASCOT_DIR/fitchef-neutral@3x.png" --out "$MASCOT_DIR/fitchef-neutral@1x.png" >/dev/null
 
 echo "✅ Маскот FitChef перемещен в правильное место!"
 echo "📁 Расположение: $MASCOT_DIR"

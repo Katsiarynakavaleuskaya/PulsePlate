@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "fitchef-neutral@1x.png",
+      "filename" : "fitchef-surprised@1x.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "fitchef-neutral@2x.png",
+      "filename" : "fitchef-surprised@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "fitchef-neutral@3x.png",
+      "filename" : "fitchef-surprised@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
