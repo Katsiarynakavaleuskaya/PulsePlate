@@ -100,6 +100,7 @@ def test_build_experiment_packet_adds_cv_agent_for_cv_intent() -> None:
     )
 
     assert "cv-agent" in packet["recommended_agents"]
+    assert packet["domain"] == "ml"
     assert "ml-engineer-agent" in packet["recommended_agents"]
     assert packet["cv_context"]["dataset"]["id"] == "food-101"
     assert packet["cv_context"]["privacy_packet"]["raw_image_retention"] == "none"

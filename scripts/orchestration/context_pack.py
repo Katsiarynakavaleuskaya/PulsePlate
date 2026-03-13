@@ -7,6 +7,7 @@ EN: Shared helpers for deterministic context packs and path-based routing.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,8 @@ TASK_CLASS_DOMAIN_HINTS: dict[str, str] = {
     "security": "security",
     "ai / ml": "ml",
     "ai/ml": "ml",
+    "computer vision": "cv",
+    "cv": "cv",
     "design": "design",
     "documentation": "docs",
     "research": "research",
@@ -43,6 +46,33 @@ TASK_CLASS_DOMAIN_HINTS: dict[str, str] = {
     "orchestration": "orchestration",
     "agent enablement": "orchestration",
 }
+
+CV_ROUTABLE_TASK_CLASSES = frozenset({"ai / ml", "ai/ml", "computer vision", "cv"})
+
+CV_PATH_DOMAIN_HINTS: tuple[str, ...] = (
+    ".cursor/agents/cv-agent.md",
+    "docs/orchestration/cv_",
+    "docs/orchestration/contracts/cv_",
+    "core/insight/cv_",
+    "core/rag/cv_",
+    "core/cv_",
+    "core/cv/",
+    "providers/cv_",
+    "providers/cv/",
+    "tests/test_cv_",
+)
+
+CV_GOAL_PHRASES: tuple[str, ...] = (
+    "computer vision",
+    "food image",
+    "food images",
+    "food photo",
+    "food photos",
+    "image recognition",
+    "photo recognition",
+    "vision model",
+    "vision eval",
+)
 
 PATH_DOMAIN_HINTS: tuple[tuple[str, str], ...] = (
     (".cursor/agents/", "orchestration"),
@@ -140,23 +170,65 @@ def resolve_domain(
     *,
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
+    goal: str | None = None,
 ) -> str:
     """Resolve dominant domain from task_class and candidate paths."""
 
+    normalized_paths = repo_relative_paths(candidate_paths)
+    normalized_goal = normalize_text(goal or "")
     normalized_task_class = task_class.strip().lower()
+
+    if (
+        normalized_task_class in TASK_CLASS_DOMAIN_HINTS
+        and normalized_task_class not in CV_ROUTABLE_TASK_CLASSES
+    ):
+        return TASK_CLASS_DOMAIN_HINTS[normalized_task_class]
+    if _has_cv_path_hint(normalized_paths):
+        return "cv"
+    if _is_cv_goal_hint(normalized_goal):
+        return "cv"
     if normalized_task_class in TASK_CLASS_DOMAIN_HINTS:
         return TASK_CLASS_DOMAIN_HINTS[normalized_task_class]
 
     counts: dict[str, int] = {}
-    for path in repo_relative_paths(candidate_paths):
+    for path in normalized_paths:
+        lowered_path = path.lower()
         for prefix, domain in PATH_DOMAIN_HINTS:
-            if path == prefix.rstrip("/") or path.startswith(prefix):
+            lowered_prefix = prefix.lower()
+            if lowered_path == lowered_prefix.rstrip("/") or lowered_path.startswith(
+                lowered_prefix
+            ):
                 counts[domain] = counts.get(domain, 0) + 1
                 break
 
     if counts:
         return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
     return "orchestration"
+
+
+def _has_cv_path_hint(normalized_paths: list[str] | tuple[str, ...]) -> bool:
+    """Return True when candidate paths clearly belong to the CV routing seam."""
+
+    for path in normalized_paths:
+        lowered_path = path.lower()
+        for prefix in CV_PATH_DOMAIN_HINTS:
+            lowered_prefix = prefix.lower()
+            if lowered_path == lowered_prefix.rstrip("/") or lowered_path.startswith(
+                lowered_prefix
+            ):
+                return True
+    return False
+
+
+def _is_cv_goal_hint(normalized_goal: str) -> bool:
+    """Return True when goal text uses boundary-safe CV wording."""
+
+    if re.search(r"(?<!\w)cv(?!\w)", normalized_goal):
+        return True
+    return any(
+        re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", normalized_goal)
+        for phrase in CV_GOAL_PHRASES
+    )
 
 
 def compute_task_packet_id(

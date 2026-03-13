@@ -52,7 +52,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="global",
         rationale="Keep orchestration, runbooks, and product docs aligned with the implementation.",
         min_score=3,
-        domain_weights={"docs": 2, "orchestration": 2, "research": 1, "ml": 1},
+        domain_weights={"docs": 2, "orchestration": 2, "research": 1, "ml": 1, "cv": 1},
         path_prefixes=("docs/", "README.md", ".cursor/agents/"),
         keywords=(
             "doc",
@@ -83,7 +83,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="repo-tracked",
         rationale="Run PulsePlate quality gates for code, docs, and contract-safe changes.",
         min_score=2,
-        domain_weights={"backend": 1, "frontend": 1, "orchestration": 1, "qa": 2},
+        domain_weights={"backend": 1, "frontend": 1, "orchestration": 1, "qa": 2, "cv": 1},
         path_prefixes=("app/", "core/", "frontend/", "tests/", "scripts/", "docs/orchestration/"),
         keywords=(
             "test",
@@ -115,7 +115,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="repo-tracked",
         rationale="Backend/API tasks should follow endpoint skill constraints and deterministic tests.",
         min_score=3,
-        domain_weights={"backend": 3, "ml": 2},
+        domain_weights={"backend": 3, "ml": 2, "cv": 2},
         path_prefixes=("app/", "core/", "providers/", "legacy_app.py"),
         keywords=("endpoint", "api", "router", "schema", "fastapi", "provider"),
     ),
@@ -218,7 +218,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="global",
         rationale="OpenAI product/API questions should use official docs-first guidance.",
         min_score=5,
-        domain_weights={"ml": 1},
+        domain_weights={"ml": 1, "cv": 1},
         keywords=("openai", "chatgpt", "responses api", "realtime api", "codex api"),
     ),
     SkillRule(

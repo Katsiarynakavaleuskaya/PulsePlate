@@ -45,7 +45,7 @@
 | **data-scientist-agent** | Evals, metrics, offline experiments, measurement plans |
 | **ml-engineer-agent** | Productionization, latency/cost budgets, caching, infra seams |
 | **bayesian-uq-agent** | Uncertainty quantification, calibration, confidence contracts |
-| **cv-agent** | CV pipeline contracts (photo→items→confidence→nutrition) |
+| **cv-agent** | CV pipeline contracts (photo→items→confidence→nutrition); graph-primary for routing domain `cv` |
 
 ---
 
