@@ -1088,6 +1088,35 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       web review workflow
 
 
+- [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR #1125
+  - Priority: P1
+  - Status: 🔄 In review
+  - Area: design / iOS / Figma promotion
+  - Finding Type: canonical design-source promotion
+  - Reason: The normalization work is now implemented on branch via
+    `ios prototype v2` (`AhyS6u4dZXMRHVUDO3Cfn6`) with stable `screen ID ->
+    nodeId` registry. This backlog item remains open only until PR #1125 merges
+    and the v2 registry becomes the canonical repo state. The raw
+    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) stays `reference_only`.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - `ios/PulsePlate/Screens/PaywallScreen.swift`
+  - DoD:
+    - PR #1125 is merged with the `ios prototype v2` registry and evidence docs
+    - `ios prototype v2` is treated as the implementation-safe source for the
+      current iOS funnel slice
+    - Raw `ios prototype` remains explicitly `reference_only`
+    - Any remaining Code Connect work continues under the separate activation
+      backlog item, not this normalization/promotion item
+
+
 - [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (contract-first unblocker)

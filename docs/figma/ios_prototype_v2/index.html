@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ios prototype v2 capture index</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      body {
+        min-height: 100vh;
+        padding: 40px 24px;
+      }
+
+      .hub {
+        width: min(1120px, calc(100vw - 48px));
+        padding: 28px;
+        border: 1px solid var(--pp-border);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .hub h1 {
+        margin: 0 0 10px;
+        font-size: 36px;
+      }
+
+      .hub p {
+        margin: 0 0 20px;
+        color: var(--pp-text-muted);
+        max-width: 720px;
+        line-height: 1.55;
+      }
+
+      .hub-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .hub a {
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="hub">
+      <h1>ios prototype v2</h1>
+      <p>
+        Capture each screen separately into Figma to preserve one stable frame per screen and avoid long-scroll duplication artifacts.
+      </p>
+      <div class="hub-grid">
+        <a class="secondary-button" href="./onboarding-welcome.html">Capture: iOS_Onboarding_01_Welcome</a>
+        <a class="secondary-button" href="./onboarding-value-usage.html">Capture: iOS_Onboarding_02_Value_Usage</a>
+        <a class="secondary-button" href="./home.html">Capture: iOS_Home</a>
+        <a class="secondary-button" href="./paywall-pro-vip.html">Capture: iOS_Paywall_Pro_VIP</a>
+        <a class="secondary-button" href="./weekly-plan-reader.html">Capture: iOS_WeeklyPlan_Reader</a>
+        <a class="secondary-button" href="./shopping-list.html">Capture: iOS_ShoppingList</a>
+        <a class="secondary-button" href="./bmi.html">Capture: iOS_BMI</a>
+        <a class="secondary-button" href="./profile.html">Capture: iOS_Profile</a>
+      </div>
+    </main>
+  </body>
+</html>
