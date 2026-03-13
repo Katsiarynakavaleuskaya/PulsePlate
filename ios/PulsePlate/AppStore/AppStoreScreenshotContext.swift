@@ -63,7 +63,7 @@ enum AppStoreScreenshotContext {
 
         // RU: Для App Store automation фиксируем детерминированное состояние без реальных данных.
         // EN: App Store automation always runs against deterministic seeded state only.
-        userDefaults.set(languageCode, forKey: "AppLanguage")
+        userDefaults.set(languageCode, forKey: AppStorageKeys.appLanguage)
         userDefaults.set(scenario != .welcome, forKey: "has_seen_welcome_v1")
         userDefaults.set("female", forKey: "pro_profile_sex")
         userDefaults.set("29", forKey: "pro_profile_age")
