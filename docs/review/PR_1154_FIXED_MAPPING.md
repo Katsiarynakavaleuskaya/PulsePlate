@@ -39,7 +39,7 @@ Reason: The local hard-gate checkbox remains unchecked until a real post-fix `ma
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1154#discussion_r2931246446 -> 536b4f40
 
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
+- [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
