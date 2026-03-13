@@ -41,6 +41,20 @@ Evidence: docs/review/PR_1152_FIXED_MAPPING.md:47
 Evidence: docs/review/PR_1152_FIXED_MAPPING.md:48
 Evidence: docs/review/PR_1152_FIXED_MAPPING.md:49
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#discussion_r2930773661 -> b182672a
+Disposition: FIXED
+Commit: b182672a
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2817
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2818
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2821
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1152#pullrequestreview-3943528245 -> b182672a
+Disposition: FIXED
+Commit: b182672a
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2817
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2818
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:2821
+
 - Initial review state only. Any additional actionable review items will be recorded here with FIXED / NOT-A-BUG / DEFERRED dispositions.
 
 ## Merge Readiness
