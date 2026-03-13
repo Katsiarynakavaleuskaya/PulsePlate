@@ -24,11 +24,11 @@ Current workspace blocker:
 | --- | --- | --- | --- |
 | `iOS_Onboarding_01_Welcome` | `1:2` | `SwiftUI` | ready_for_suggestions |
 | `iOS_Onboarding_02_Value_Usage` | `3:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Home` | `4:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Paywall_Pro_VIP` | `2:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_ShoppingList` | `5:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_WeeklyPlan_Reader` | `6:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Profile` | `7:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Home` | `11:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Paywall_Pro_VIP` | `17:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_ShoppingList` | `18:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_WeeklyPlan_Reader` | `15:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Profile` | `13:2` | `SwiftUI` | ready_for_suggestions |
 | `iOS_BMI` | `8:2` | `SwiftUI` | ready_for_suggestions |
 
 ## Preconditions
