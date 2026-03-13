@@ -103,6 +103,23 @@ def test_task_bootstrap_preserves_explicit_security_task_class_over_cv_goal_hint
     assert packet["domain"] == "security"
 
 
+def test_task_bootstrap_routes_cv_path_hints_before_non_cv_task_class() -> None:
+    """CV-specific paths should route to CV even for docs-style task classes."""
+
+    packet = build_task_packet(
+        goal="Refresh CV protocol references",
+        task_class="Documentation",
+        candidate_paths=[
+            "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+            ".cursor/agents/cv-agent.md",
+        ],
+    )
+
+    assert packet["domain"] == "cv"
+    assert packet["cluster"] == "ml"
+    assert packet["primary_agent"] == "cv-agent"
+
+
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
     """Leading './' removal must not strip the '.cursor' directory name."""
 
