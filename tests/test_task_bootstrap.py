@@ -91,6 +91,18 @@ def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
     assert packet["domain"] == "security"
 
 
+def test_task_bootstrap_preserves_explicit_security_task_class_over_cv_goal_hint() -> None:
+    """Explicit non-CV task classes must win over generic CV goal wording."""
+
+    packet = build_task_packet(
+        goal="Audit CV controls for image upload abuse paths",
+        task_class="Security",
+        candidate_paths=["app/security/auth.py"],
+    )
+
+    assert packet["domain"] == "security"
+
+
 def test_normalize_repo_path_preserves_dot_cursor_prefix() -> None:
     """Leading './' removal must not strip the '.cursor' directory name."""
 
