@@ -67,6 +67,13 @@ Reason: Both mascot move scripts now reject non-PNG filenames before the existen
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#pullrequestreview-3942733767 -> 9f584026
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2930060303 -> 9f584026
 
+Disposition: FIXED
+Commit: 79ea9170
+Evidence: ios/move_mascot.sh:57
+Reason: The mascot extension guard now uses a Bash-3.2-compatible case-insensitive regex instead of `${mascot_file,,}`, so the scripts remain compatible with macOS `/bin/bash`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#pullrequestreview-3942879691 -> 79ea9170
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1150#discussion_r2930199498 -> 79ea9170
+
 Disposition: NOT-A-BUG
 Evidence: ios/move_mascot.sh:10
 Reason: This CodeRabbit summary comment contains non-blocking nitpicks, not correctness defects. The dual-script entrypoints remain intentional because `ios/move_mascot.sh` and `ios/Scripts/move_mascot.sh` resolve different relative paths for different invocation contexts, and the remaining suggestions are cosmetic/documentation refinements rather than merge blockers.
