@@ -38,43 +38,50 @@ Repo sources used:
 
 ### Aligned
 
-- Palette is locked to the canonical navy / blue / green / red system.
-- Onboarding follows one-message-per-screen with one dominant CTA.
+- Palette is locked to the canonical navy / blue / green / red system (`docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:87-90`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:172-182`).
+- Onboarding follows one-message-per-screen with one dominant CTA (`docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:129-130`, `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:196-198`).
 - Home includes the full current iOS CTA matrix:
   - BMI Calculator
   - Profile Setup
   - Open Plate
   - Weekly Plan Reader
   - Shopping List
+  (`ios/PulsePlate/Views/HomeView.swift:55-134`, `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:81-85`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:931-939`)
 - Paywall keeps PRO and VIP on one comparison surface instead of inventing a
-  separate VIP home CTA.
-- FitChef is present as a supporting brand layer and not the main focal object.
+  separate VIP home CTA (`ios/PulsePlate/Screens/PaywallScreen.swift:13-23`, `ios/PulsePlate/Screens/PaywallScreen.swift:57-71`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:717-725`).
+- FitChef is present as a supporting brand layer and not the main focal object (`ios/PulsePlate/Views/Components/MascotBubble.swift:31-46`, `docs/design/PULSEPLATE_LUXURY_WEB_IOS_VISUAL_GUIDELINES.md:129-130`).
 
 ### Reconciled by v2
 
 - Raw iOS prototype duplicated scroll snapshots are replaced by one stable frame
-  per screen.
+  per screen (`docs/figma/ios_prototype_v2/README.md:17-22`, `docs/figma/ios_prototype_v2/README.md:30-39`).
 - Shopping List and diet-menu presence are now represented as explicit iOS
-  surfaces, not only implicit navigation rows.
+  surfaces, not only implicit navigation rows (`ios/PulsePlate/Views/HomeView.swift:93-134`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:935-939`).
 - Weekly Plan now reflects VIP follow-up actions in the same surface where the
-  runtime view already exposes disabled VIP CTAs.
+  runtime view already exposes disabled VIP CTAs (`ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift:118-130`, `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift:142-176`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:1028-1034`).
 - Shopping List now exists as a clean category-based surface instead of being
-  implied only by a gated home row.
+  implied only by a gated home row (`ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:50-93`).
 - BMI now has a design-reference surface that preserves the runtime sequence:
-  input -> result -> optional soft paywall hook.
+  input -> result -> optional soft paywall hook (`ios/PulsePlate/Screens/BMICalculatorScreen.swift:46-85`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:954-969`).
 - Profile now exists as a calm PRO-setup surface rather than remaining only a
-  technical form implementation.
+  technical form implementation (`ios/PulsePlate/Views/ProfileView.swift:19-80`, `docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md:1041-1049`).
+- Home no longer relies on the temporary `PRO active` chip; it now uses a
+  readiness-summary treatment closer to the runtime status-card pattern (`ios/PulsePlate/Views/HomeView.swift:37-53`).
+- Paywall now keeps the PRO / VIP comparison but expresses plan selection in a
+  calmer StoreKit-list anatomy instead of marketing-heavy tier blocks (`ios/PulsePlate/Screens/PaywallScreen.swift:13-23`, `ios/PulsePlate/Screens/PaywallScreen.swift:32-71`).
+- Profile now uses a neutral `sex` default and separate `height` / `weight`
+  rows so the design reference better matches the actual form fields (`ios/PulsePlate/Views/ProfileView.swift:21-34`).
+- Weekly Plan now reflects the runtime day navigator and plan-metrics layer (`ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift:85-125`).
+- Shopping List now reflects runtime footer / warning anatomy more directly (`ios/PulsePlate/Screens/ShoppingListReaderScreen.swift:77-93`).
 
 ### Remaining Gaps
 
 - Captured frame names remain MCP-generated `Main Content (...)`; canonical
   naming is preserved through the recorded `screen ID -> nodeId` map.
-- Home still uses a `PRO active` chip in the prototype instead of a more native
-  status summary treatment from final implementation components.
-- Paywall is structurally aligned with runtime intent but still not StoreKit-card
-  accurate.
-- Weekly Plan and Shopping List in v2 are design-reference screens, not direct
-  mirrors of current runtime list/table anatomy.
+- Paywall is closer to runtime intent but still keeps a richer comparison layer
+  than the current minimal SwiftUI `List`.
+- Weekly Plan and Shopping List remain design-reference screens rather than
+  exact runtime state machines for `idle/loading/empty/error`.
 - BMI and Profile still simplify some runtime detail states to keep the design
   reference focused on the main UX path.
 

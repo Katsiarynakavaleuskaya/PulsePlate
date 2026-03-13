@@ -24,11 +24,11 @@ Current workspace blocker:
 | --- | --- | --- | --- |
 | `iOS_Onboarding_01_Welcome` | `1:2` | `SwiftUI` | ready_for_suggestions |
 | `iOS_Onboarding_02_Value_Usage` | `3:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Home` | `4:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Paywall_Pro_VIP` | `2:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_ShoppingList` | `5:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_WeeklyPlan_Reader` | `6:2` | `SwiftUI` | ready_for_suggestions |
-| `iOS_Profile` | `7:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Home` | `11:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Paywall_Pro_VIP` | `17:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_ShoppingList` | `18:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_WeeklyPlan_Reader` | `15:2` | `SwiftUI` | ready_for_suggestions |
+| `iOS_Profile` | `13:2` | `SwiftUI` | ready_for_suggestions |
 | `iOS_BMI` | `8:2` | `SwiftUI` | ready_for_suggestions |
 
 ## Preconditions
@@ -51,7 +51,7 @@ Current workspace blocker:
 
 1. Confirm seat capability:
    - run `mcp__figma__whoami`
-   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="4:2")`
+   - run `mcp__figma__get_code_connect_suggestions(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="1:2")`
    - continue only if the response is not plan-blocked
 2. Verify node accessibility for all eight screens:
    - run `mcp__figma__get_metadata(fileKey, nodeId)` for each node in the
@@ -64,8 +64,8 @@ Current workspace blocker:
    - `Onboarding 02 Value / Usage` -> primary `WelcomeFlowView.swift`
    - `Home` -> primary `HomeView.swift`
    - `Paywall` -> primary `PaywallScreen.swift`
-   - `Weekly Plan` -> primary `WeeklyPlanReaderView.swift`
    - `Shopping List` -> primary `ShoppingListReaderScreen.swift`
+   - `Weekly Plan` -> primary `WeeklyPlanReaderView.swift`
    - `Profile` -> primary `ProfileView.swift`
    - `BMI` -> primary `BMICalculatorView.swift`
 5. Persist approved mappings:

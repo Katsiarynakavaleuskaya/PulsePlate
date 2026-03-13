@@ -143,7 +143,7 @@
 
 ---
 
-# Follow-up Execution: `ios prototype v2`
+## Follow-up Execution: `ios prototype v2`
 
 ## Session Metadata
 
@@ -246,11 +246,11 @@
 | --- | --- | --- | --- |
 | `iOS_Onboarding_01_Welcome` | `1:2` | `Main Content (iOS Onboarding Welcome)` | iOS prototype mood + Design System typography |
 | `iOS_Onboarding_02_Value_Usage` | `3:2` | `Main Content (iOS Onboarding Value Usage)` | web onboarding structure + iOS-native rewrite |
-| `iOS_Home` | `4:2` | `Main Content (iOS Home)` | Design System + iOS Home CTA matrix |
-| `iOS_Paywall_Pro_VIP` | `2:2` | `Main Content (iOS Paywall Pro VIP)` | Paywall tier reconciliation from repo SoT |
-| `iOS_ShoppingList` | `5:2` | `Main Content (iOS Shopping List)` | Shopping list runtime + weekly-plan continuity |
-| `iOS_WeeklyPlan_Reader` | `6:2` | `Main Content (iOS Weekly Plan Reader)` | Weekly plan runtime + VIP follow-up hooks |
-| `iOS_Profile` | `7:2` | `Main Content (iOS Profile)` | PRO profile runtime + legal/language layer |
+| `iOS_Home` | `11:2` | `Main Content (iOS Home)` | Design System + iOS Home CTA matrix |
+| `iOS_Paywall_Pro_VIP` | `17:2` | `Main Content (iOS Paywall Pro VIP)` | Paywall tier reconciliation from repo SoT |
+| `iOS_ShoppingList` | `18:2` | `Main Content (iOS Shopping List)` | Shopping list runtime + weekly-plan continuity |
+| `iOS_WeeklyPlan_Reader` | `15:2` | `Main Content (iOS Weekly Plan Reader)` | Weekly plan runtime + VIP follow-up hooks |
+| `iOS_Profile` | `13:2` | `Main Content (iOS Profile)` | PRO profile runtime + legal/language layer |
 | `iOS_BMI` | `8:2` | `Main Content (iOS BMI)` | BMI runtime + result + soft paywall hook |
 
 ## Structural QA
@@ -296,6 +296,6 @@
   `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
 - Activation source stays pinned to:
   - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
-  - node IDs: `1:2`, `2:2`, `3:2`, `4:2`, `5:2`, `6:2`, `7:2`, `8:2`
+  - node IDs: `1:2`, `3:2`, `11:2`, `17:2`, `18:2`, `15:2`, `13:2`, `8:2`
 - Code Connect is still not active in this session because the workspace remains
   blocked by seat/plan.
