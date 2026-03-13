@@ -14,7 +14,7 @@ Reason: The structured coach contract now normalizes the lane identifier against
 
 Disposition: FIXED
 Commit: e6a2038c
-Evidence: docs/contracts/PRODUCT_TIER_MAP.md:4, docs/contracts/PRODUCT_TIER_MAP.md:28, docs/roadmap/BACKLOG_LEDGER.md:1371, docs/review/PR_1159_FIXED_MAPPING.md:37
+Evidence: docs/contracts/PRODUCT_TIER_MAP.md:4, docs/contracts/PRODUCT_TIER_MAP.md:28, docs/roadmap/BACKLOG_LEDGER.md:1371, docs/review/PR_1159_FIXED_MAPPING.md:44
 Reason: The follow-up docs fix normalizes the `PRODUCT_TIER_MAP` update date, resolves markdown list-style drift, switches the active lane text to concrete PR `#1159`, and keeps the local hard-gate checkbox unchecked until the final merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934046931 -> e6a2038c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947261976 -> e6a2038c
@@ -28,14 +28,14 @@ Reason: The structured coach contract header date now matches the actual non-fut
 
 Disposition: FIXED
 Commit: be559a86
-Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17, docs/review/PR_1159_FIXED_MAPPING.md:37
+Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17, docs/review/PR_1159_FIXED_MAPPING.md:44
 Reason: The canonical artifact now points the evidence anchor at the actual unchecked merge-readiness proof line instead of a stale self-reference, so the FIXED block's proof matches the claim it makes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934139273 -> be559a86
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947368416 -> be559a86
 
 Disposition: FIXED
 Commit: 7e24a997
-Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17, docs/review/PR_1159_FIXED_MAPPING.md:31, docs/review/PR_1159_FIXED_MAPPING.md:37
+Evidence: docs/review/PR_1159_FIXED_MAPPING.md:17, docs/review/PR_1159_FIXED_MAPPING.md:31, docs/review/PR_1159_FIXED_MAPPING.md:44
 Reason: The canonical artifact refresh now points the second FIXED block at the actual unchecked merge-readiness proof line and keeps the self-anchor proof explicit, removing the stale line-number drift identified by cubic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934186737 -> 7e24a997
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947425330 -> 7e24a997
