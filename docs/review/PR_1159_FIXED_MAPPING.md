@@ -1,11 +1,11 @@
 # PR 1159 — Fixed in Commit Mapping
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- Pending PR review. No actionable review threads are recorded yet.
+- No actionable review comments
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
