@@ -14,7 +14,7 @@ Reason: The structured coach contract now normalizes the lane identifier against
 
 Disposition: FIXED
 Commit: e6a2038c
-Evidence: docs/contracts/PRODUCT_TIER_MAP.md:4, docs/contracts/PRODUCT_TIER_MAP.md:28, docs/roadmap/BACKLOG_LEDGER.md:1371, docs/review/PR_1159_FIXED_MAPPING.md:10
+Evidence: docs/contracts/PRODUCT_TIER_MAP.md:4, docs/contracts/PRODUCT_TIER_MAP.md:28, docs/roadmap/BACKLOG_LEDGER.md:1371, docs/review/PR_1159_FIXED_MAPPING.md:30
 Reason: The follow-up docs fix normalizes the `PRODUCT_TIER_MAP` update date, resolves markdown list-style drift, switches the active lane text to concrete PR `#1159`, and keeps the local hard-gate checkbox unchecked until the final merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#discussion_r2934046931 -> e6a2038c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1159#pullrequestreview-3947261976 -> e6a2038c
