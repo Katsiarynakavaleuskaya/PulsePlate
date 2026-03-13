@@ -40,6 +40,14 @@ Commit: e5d974d8c72613030ec13940084c7628069b0d12
 Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:9`, `docs/review/PR_1135_FIXED_MAPPING.md:17`, `docs/review/PR_1135_FIXED_MAPPING.md:23`, and `docs/review/PR_1135_FIXED_MAPPING.md:39` now record full 40-character commit SHAs instead of abbreviated hashes, keeping the canonical artifact stable for later audit and review tooling.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943636463 -> e5d974d8c72613030ec13940084c7628069b0d12
 
+Disposition: FIXED
+Commit: c58693c76bdc292d6fd94c17216a1c92ceefea1d
+Evidence: `docs/review/PR_1135_FIXED_MAPPING.md:40` now cites the actual `Commit:` declaration lines in the same artifact, so the audit proof points to the full-SHA entries rather than unrelated header or mapping rows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2930998589 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943806426 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#discussion_r2931006735 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1135#pullrequestreview-3943816941 -> c58693c76bdc292d6fd94c17216a1c92ceefea1d
+
 ## Merge Readiness
 - [ ] Local gates passed on current head
 - [ ] All required checks green
