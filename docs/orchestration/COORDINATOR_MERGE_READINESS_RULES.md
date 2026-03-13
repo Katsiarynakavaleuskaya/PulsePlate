@@ -73,6 +73,25 @@ wrapper is the canonical filtered current-head view.
 
 **Loop until zero:** Full cycle (commit → push → watch CI → new comment → fix → re-check) is in `RUNBOOK_AGENT.md` (sections "Pre-merge readiness pass" ~line 121, "Loop until zero comments (canonical cycle)" ~line 160). Repeat until script exit 0 and CI green.
 
+### Coordinator-owned PR lifecycle
+
+Before the final checklist above, coordinator should run the full PR lifecycle explicitly:
+
+1. **Initialize the PR correctly**
+   - Start with preflight and task analysis.
+   - Keep the PR in draft while scope, artifacts, or local gates are still moving.
+2. **Control each push cycle**
+   - Run the required local checks before pushing.
+   - Watch the latest-head CI run after pushing; do not reason from stale job history alone.
+3. **Control each review cycle**
+   - Treat each new human/bot review as new coordinator input.
+   - Fix code/docs first, then update `docs/review/PR_<N>_FIXED_MAPPING.md`, then refresh the optional PR-body mirror.
+4. **Control the merge cycle**
+   - Re-run the strict wrapper after the latest bot/review activity.
+   - Require zero actionable bot comments, zero blocking unresolved threads, green current-head checks, and the wait-window.
+
+This lifecycle is mandatory operating behavior, not just a recommendation. The final merge-readiness wrapper is the last step in the loop, not the whole loop.
+
 ---
 
 ## 5. PR body requirements (reminder)

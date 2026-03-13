@@ -312,6 +312,18 @@ A **task** is any unit of work that:
 4. **Synthesis** → Coordinator synthesizes multi-agent work into coherent solution
 5. **DoD** → Coordinator verifies Definition of Done before PR merge
 
+### PR Handling Lifecycle (Coordinator-Owned)
+
+All non-trivial PR work must follow this coordinator-owned lifecycle:
+
+1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
+2. **Open / keep draft**: keep the PR in draft until the branch has a coherent scope, the canonical artifact path is known, and local validation is ready to begin.
+3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
+4. **Review cycle**: treat every new human or bot comment as coordinator input; record disposition in `docs/review/PR_<N>_FIXED_MAPPING.md` first, update the PR-body mirror second, and re-run merge-readiness checks after the latest activity.
+5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.
+
+Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`; this section is the policy summary that every agent must follow.
+
 **Agent Run Summary:** Coordinator must generate Agent Run Summary JSON before merge readiness (local artifact; never committed). Artifact location: `artifacts/agent_runs/` (gitignored).
 
 **Orchestration telemetry:** Advisory only (no auto-routing writes). Telemetry outputs live under `artifacts/` (gitignored) and must not be committed. See `docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md`.
