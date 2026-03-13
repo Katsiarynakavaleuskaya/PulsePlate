@@ -28,6 +28,8 @@
   `AGENTS.md` (matrix + prompt playbook links are maintained there to avoid duplicated scoped text).
 - App Store and mascot packaging for FitChef follows the initiative foundation contract:
   `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
+- Canonical FitChef mascot/icon taxonomy for asset-focused PRs lives in:
+  `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`.
 
 ## CI: Greenlight iOS preflight (P0 report-only)
 

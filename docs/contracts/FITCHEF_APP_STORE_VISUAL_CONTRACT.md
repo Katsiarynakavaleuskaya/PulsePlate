@@ -209,7 +209,7 @@ Wellness-specific copy rule:
 - `ios/PulsePlate/Views/Components/AppIconTestView.swift`
 
 PR-1 uses these paths as reference anchors only. Asset taxonomy changes belong
-to PR-2.
+to PR-2 and are frozen in `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`.
 
 ## Folder contract for future PR-3 production assets
 

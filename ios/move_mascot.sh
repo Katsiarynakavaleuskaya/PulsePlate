@@ -4,7 +4,6 @@
 # Script for moving the FitChef mascot from AppIcon into the runtime asset set
 
 set -euo pipefail
-
 trap 'echo "❌ Ошибка в строке $LINENO: $BASH_COMMAND" >&2; exit 1' ERR
 
 echo "🐱 Перемещаем маскота FitChef..."
@@ -26,12 +25,40 @@ if [ ! -d "$MASCOT_DIR" ]; then
 fi
 
 echo "📋 Найденные файлы в AppIcon:"
-ls -la "$ICONS_DIR"/*.png | head -5
+shopt -s nullglob
+pngs=("$ICONS_DIR"/*.png)
+if (( ${#pngs[@]} == 0 )); then
+    echo "❌ PNG-файлы не найдены в $ICONS_DIR"
+    exit 1
+fi
+
+count=0
+for png in "${pngs[@]}"; do
+    echo "  - $(basename "$png")"
+    ((count += 1))
+    if (( count >= 5 )); then
+        if (( ${#pngs[@]} > 5 )); then
+            echo "  ... и ещё $((${#pngs[@]} - 5)) файлов"
+        fi
+        break
+    fi
+done
+shopt -u nullglob
 
 echo ""
 echo "🤔 Какой файл является маскотом FitChef?"
 echo "Пожалуйста, укажите имя файла (например: AppIcon-1024.png):"
 read -r mascot_file
+
+if [[ "$mascot_file" == *"/"* ]] || [[ "$mascot_file" == *".."* ]]; then
+    echo "❌ Недопустимое имя файла. Используйте только имя файла без пути."
+    exit 1
+fi
+
+if [[ ! "$mascot_file" =~ \.[Pp][Nn][Gg]$ ]]; then
+    echo "❌ Допустимы только PNG-файлы."
+    exit 1
+fi
 
 if [ ! -f "$ICONS_DIR/$mascot_file" ]; then
     echo "❌ Файл $mascot_file не найден в $ICONS_DIR"
@@ -42,6 +69,15 @@ echo "🐱 Копируем маскота в правильное место...
 
 # Канонический runtime mirror использует реальный 1x/2x/3x output.
 # The canonical runtime mirror must use true 1x/2x/3x renditions.
+# Удаляем legacy filenames, чтобы таксономия не оставляла stale PNG после повторного запуска.
+# Remove legacy filenames so reruns do not leave stale mascot PNGs behind.
+rm -f \
+    "$MASCOT_DIR/fitchef@1x.png" \
+    "$MASCOT_DIR/fitchef@2x.png" \
+    "$MASCOT_DIR/fitchef@3x.png" \
+    "$MASCOT_DIR/FitChefDefault@1x.png" \
+    "$MASCOT_DIR/FitChefDefault@2x.png" \
+    "$MASCOT_DIR/FitChefDefault@3x.png"
 sips -Z 720 "$ICONS_DIR/$mascot_file" --out "$MASCOT_DIR/fitchef-neutral@3x.png" >/dev/null
 sips -Z 480 "$MASCOT_DIR/fitchef-neutral@3x.png" --out "$MASCOT_DIR/fitchef-neutral@2x.png" >/dev/null
 sips -Z 240 "$MASCOT_DIR/fitchef-neutral@3x.png" --out "$MASCOT_DIR/fitchef-neutral@1x.png" >/dev/null
