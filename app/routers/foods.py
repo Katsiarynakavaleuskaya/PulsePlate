@@ -25,13 +25,20 @@ class _FoodStoreCompat:
 
     def search_foods(self, query: str, limit: int, offset: int) -> Sequence[Mapping[str, Any]]:
         backend = food_store.get_search_backend()
-        return backend.search_foods(query=query, limit=limit, offset=offset)
+        rows: Sequence[Mapping[str, Any]] = backend.search_foods(
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
+        return rows
 
     def get_food(self, food_id: str) -> Mapping[str, Any] | None:
-        return food_store.get_food(food_id)
+        row: Mapping[str, Any] | None = food_store.get_food(food_id)
+        return row
 
     def get_food_by_barcode(self, barcode: str) -> Mapping[str, Any] | None:
-        return food_store.get_food_by_barcode(barcode)
+        row: Mapping[str, Any] | None = food_store.get_food_by_barcode(barcode)
+        return row
 
 
 _FOOD_STORE_COMPAT: FoodStore = _FoodStoreCompat()

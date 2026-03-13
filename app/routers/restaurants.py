@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Protocol, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -50,10 +50,16 @@ class _RestaurantStoreCompat:
     def search_restaurants(
         self, query: str, limit: int, offset: int
     ) -> Sequence[Mapping[str, Any]]:
-        return restaurant_store.search_restaurants(query=query, limit=limit, offset=offset)
+        return cast(
+            Sequence[Mapping[str, Any]],
+            restaurant_store.search_restaurants(query=query, limit=limit, offset=offset),
+        )
 
     def get_restaurant_menu(self, chain_id: str, limit: int) -> Sequence[Mapping[str, Any]]:
-        return restaurant_store.get_restaurant_menu(chain_id=chain_id, limit=limit)
+        return cast(
+            Sequence[Mapping[str, Any]],
+            restaurant_store.get_restaurant_menu(chain_id=chain_id, limit=limit),
+        )
 
     def create_submission(
         self,
@@ -64,24 +70,30 @@ class _RestaurantStoreCompat:
         off_url: str | None,
         entity_type: str,
     ) -> Mapping[str, Any]:
-        return restaurant_store.create_submission(
-            canonical_name=canonical_name,
-            payload=payload,
-            barcode=barcode,
-            off_url=off_url,
-            entity_type=entity_type,
+        return cast(
+            Mapping[str, Any],
+            restaurant_store.create_submission(
+                canonical_name=canonical_name,
+                payload=payload,
+                barcode=barcode,
+                off_url=off_url,
+                entity_type=entity_type,
+            ),
         )
 
     def get_submission(self, submission_id: str) -> Mapping[str, Any] | None:
-        return restaurant_store.get_submission(submission_id)
+        return cast(Mapping[str, Any] | None, restaurant_store.get_submission(submission_id))
 
     def review_submission(
         self, submission_id: str, *, status: str, reviewer_notes: str | None
     ) -> Mapping[str, Any] | None:
-        return restaurant_store.review_submission(
-            submission_id,
-            status=status,
-            reviewer_notes=reviewer_notes,
+        return cast(
+            Mapping[str, Any] | None,
+            restaurant_store.review_submission(
+                submission_id,
+                status=status,
+                reviewer_notes=reviewer_notes,
+            ),
         )
 
 

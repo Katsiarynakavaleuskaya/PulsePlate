@@ -64,7 +64,8 @@ def _get_engine_calculator() -> CalculateBmiResult | None:
     try:
         from core.bmi.engine import calculate_bmi_result  # noqa: WPS433 (local import by design)
 
-        return calculate_bmi_result
+        engine_calculator: CalculateBmiResult = calculate_bmi_result
+        return engine_calculator
     except ImportError:
         return None
 
