@@ -28,7 +28,8 @@ jobs:
   validate-assets:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_asc)
     runs-on: macos-15
-    timeout-minutes: 45
+    # Full PR validation captures 3 locales across iPhone + iPad canonical targets.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
@@ -89,7 +90,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.upload_to_asc
     needs: validate-assets
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 75
     environment: appstore-assets
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
