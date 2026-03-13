@@ -1,13 +1,14 @@
-# PR-TBD Audit — BACKLOG_LEDGER post-merge sync (PR-673, PR-674)
+# Backlog Ledger Post-Merge Sync Audit (PR-673, PR-674)
 
 **Date**: 7 February 2026
-**PR**: TBD (GitHub PR number is source of truth)
-**Branch**: `docs/ledger-sync-post-merge-pr-676` (legacy slot name; PR# is SoT)
+**Status**: Canonical docs-only audit artifact
+**Scope**: post-merge backlog sync evidence for PR `#673` and PR `#674`
 **Type**: Docs-only
 
 ## Summary
 
-Update `docs/roadmap/BACKLOG_LEDGER.md` to reflect repo-truth after two merged runtime PRs:
+This audit captures the repo-truth used to update `docs/roadmap/BACKLOG_LEDGER.md`
+after two already-merged runtime PRs:
 
 - PR #673 — iOS: Mount WeeklyPlanReader behind feature flag
 - PR #674 — iOS: Wire soft paywall CTA to real paywall router
@@ -28,6 +29,14 @@ Update `docs/roadmap/BACKLOG_LEDGER.md` to reflect repo-truth after two merged r
 ### 2) Mark PR-674 backlog item as merged
 
 - Evidence: `docs/roadmap/BACKLOG_LEDGER.md:869-881`
+
+## Canonical framing
+
+This file is a stable audit artifact, not a live PR stub:
+
+- it no longer uses `PR_TBD` identity
+- it does not track a branch name as source of truth
+- the merged PR numbers (`#673`, `#674`) remain the canonical execution anchors
 
 ## Docs-only enforcement
 
