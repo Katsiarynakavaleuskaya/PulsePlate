@@ -725,6 +725,9 @@ def test_get_activation_missing_transport_protection_returns_401(
     assert payload["status"] == "error"
     assert payload["code"] == "activation_transport_unauthorized"
     assert payload["detail"] == TRANSPORT_AUTH_REQUIRED_DETAIL
+    assert "unauthorized" not in payload["detail"].lower()
+    assert "x-api-key" not in payload["detail"].lower()
+    assert "internal" not in payload["detail"].lower()
 
 
 def test_get_activation_not_found_returns_404(
