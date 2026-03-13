@@ -21,6 +21,9 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   validate-assets:
     runs-on: macos-15

@@ -49,16 +49,39 @@ final class AppStoreScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testAppStoreScreenshots() throws {
-        for scenario in Scenario.allCases {
-            captureScreenshot(for: scenario)
-        }
+    func testWelcomeScreenshot() {
+        captureScreenshot(for: .welcome)
+    }
+
+    @MainActor
+    func testHomeScreenshot() {
+        captureScreenshot(for: .home)
+    }
+
+    @MainActor
+    func testPlateScreenshot() {
+        captureScreenshot(for: .plate)
+    }
+
+    @MainActor
+    func testPaywallScreenshot() {
+        captureScreenshot(for: .paywall)
+    }
+
+    @MainActor
+    func testProfileScreenshot() {
+        captureScreenshot(for: .profile)
+    }
+
+    @MainActor
+    func testHealthPermissionScreenshot() {
+        captureScreenshot(for: .healthPermission)
     }
 
     @MainActor
     private func captureScreenshot(for scenario: Scenario) {
         let app = XCUIApplication()
-        setupSnapshot(app)
+        setupSnapshot(app, waitForAnimations: false)
         app.launchArguments += [
             "-appstore-screenshot-mode",
             "-appstore-screenshot-scenario", scenario.rawValue,
@@ -76,7 +99,7 @@ final class AppStoreScreenshotTests: XCTestCase {
             "App Store screenshot root did not appear for \(scenario.rawValue)"
         )
 
-        snapshot(scenario.screenshotName)
+        snapshot(scenario.screenshotName, timeWaitingForIdle: 0)
         app.terminate()
     }
 
