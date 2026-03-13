@@ -6,12 +6,12 @@
 
 ## Fixed in Commit Mapping
 Disposition: FIXED
-Commit: 0a65ad1d
+Commit: 4879c2a7
 Evidence: `docs/review/PR_1153_FIXED_MAPPING.md:8`, `docs/review/PR_1153_FIXED_MAPPING.md:14`
-Reason: cubic identified that the original bootstrap artifact mixed a completed mapping checkbox with an ambiguous placeholder state. CodeRabbit separately flagged the same placeholder as non-canonical. The artifact now records explicit FIXED disposition entries for the bot findings instead of the old placeholder bootstrap wording.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#pullrequestreview-3943992998 -> 0a65ad1d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160357 -> 0a65ad1d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160934 -> 0a65ad1d
+Reason: cubic identified that the original bootstrap artifact mixed a completed mapping checkbox with an ambiguous placeholder state. CodeRabbit separately flagged the same placeholder as non-canonical. The post-comment clarification commit keeps the artifact FIXED-first and removes the remaining ambiguous placeholder wording from the canonical record.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#pullrequestreview-3943992998 -> 4879c2a7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160357 -> 4879c2a7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1153#discussion_r2931160934 -> 4879c2a7
 
 Disposition: FIXED
 Commit: e57dfd03
