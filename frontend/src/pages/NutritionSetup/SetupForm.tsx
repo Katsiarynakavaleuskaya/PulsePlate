@@ -11,6 +11,27 @@ interface SetupFormProps {
   onSubmit: (values: SetupFormValues) => void;
 }
 
+function normalizeNumericInput(value: unknown, { integer = false }: { integer?: boolean } = {}): number | undefined {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return undefined;
+    }
+    return integer ? Math.trunc(value) : value;
+  }
+
+  const normalized = String(value ?? '').trim().replace(',', '.');
+  if (!normalized) {
+    return undefined;
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  return integer ? Math.trunc(parsed) : parsed;
+}
+
 export default function SetupForm({ onSubmit }: SetupFormProps) {
   const { settings, updateSetting } = useSettings();
   const { t } = useTranslation();
@@ -76,8 +97,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text">{t('nutrition.age')}</label>
             <input
-              type="number"
-              {...register('age', { valueAsNumber: true })}
+              type="text"
+              inputMode="numeric"
+              {...register('age', { setValueAs: (value) => normalizeNumericInput(value, { integer: true }) })}
               placeholder="30"
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             />
@@ -87,8 +109,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text">{t('nutrition.height_cm')}</label>
             <input
-              type="number"
-              {...register('height_cm', { valueAsNumber: true })}
+              type="text"
+              inputMode="decimal"
+              {...register('height_cm', { setValueAs: (value) => normalizeNumericInput(value) })}
               placeholder="170"
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             />
@@ -98,8 +121,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text">{t('nutrition.weight_kg')}</label>
             <input
-              type="number"
-              {...register('weight_kg', { valueAsNumber: true })}
+              type="text"
+              inputMode="decimal"
+              {...register('weight_kg', { setValueAs: (value) => normalizeNumericInput(value) })}
               placeholder="65"
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             />

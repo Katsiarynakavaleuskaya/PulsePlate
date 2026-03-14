@@ -141,6 +141,28 @@ async def test_lifespan_requires_apple_shared_secret(
 
 
 @pytest.mark.asyncio
+async def test_lifespan_requires_valid_pro_llm_monthly_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: Startup должен падать при невалидной PRO LLM квоте.
+
+    EN: Startup must fail closed when the PRO LLM quota env is invalid.
+    """
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "invalid")
+
+    with pytest.raises(RuntimeError, match="PRO_LLM_INSIGHT_REQUESTS_PER_MONTH"):
+        async with app.lifespan(app.app):
+            pass
+
+
+@pytest.mark.asyncio
 async def test_lifespan_allows_missing_apple_shared_secret_in_test_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

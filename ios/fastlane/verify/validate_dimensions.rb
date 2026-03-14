@@ -4,12 +4,13 @@
 require "pathname"
 
 SCREENSHOT_NAMES = %w[
-  01_welcome
-  02_home
-  03_plate
-  04_pro_vip_paywall
-  05_privacy_profile
-  06_health_permission
+  01_core-value
+  02_nutrition-analysis
+  03_meal-planner
+  04_grocery-list
+  05_health-progress
+  06_personalization
+  07_ai-assistant
 ].freeze
 
 ALLOWED_DIMENSIONS = {

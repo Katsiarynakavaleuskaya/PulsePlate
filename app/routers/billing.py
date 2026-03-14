@@ -143,12 +143,16 @@ def _require_billing_transport_key(
     try:
         result = app_get_api_key(normalized_api_key)
     except HTTPException as exc:
-        logger.warning("Billing transport key rejected by app-level validator")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required for billing verification",
-            headers={"WWW-Authenticate": "ApiKey"},
-        ) from exc
+        try:
+            require_pro_tier(x_api_key=normalized_api_key)
+            return normalized_api_key
+        except HTTPException:
+            logger.warning("Billing transport key rejected by app-level validator")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API key required for billing verification",
+                headers={"WWW-Authenticate": "ApiKey"},
+            ) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.exception("Billing transport key validation failed")
         raise HTTPException(
@@ -254,7 +258,7 @@ async def verify_apple_receipt(
 )
 def create_manual_payment_intent(
     payload: ManualRailIntentRequest,
-    x_api_key: str = Depends(require_pro_tier),
+    x_api_key: str = Depends(_require_billing_transport_key),
 ) -> SubscriptionActivationResponse | JSONResponse:
     """Create manual RU/BY payment intent with pending reconciliation lifecycle."""
     activation_request = payments_activation.build_manual_intent_request(payload=payload)

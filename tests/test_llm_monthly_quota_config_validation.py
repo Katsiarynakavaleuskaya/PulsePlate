@@ -57,9 +57,7 @@ def test_require_pro_llm_monthly_limit_uses_default_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", raising=False)
-    assert (
-        quota.require_llm_monthly_limit("PRO") == quota.DEFAULT_PRO_LLM_INSIGHT_REQUESTS_PER_MONTH
-    )
+    assert quota.require_pro_llm_monthly_limit() == quota.DEFAULT_PRO_LLM_INSIGHT_REQUESTS_PER_MONTH
 
 
 def test_require_vip_llm_monthly_limit_raises_on_non_int(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,7 +81,7 @@ def test_require_pro_llm_monthly_limit_raises_on_non_int(monkeypatch: pytest.Mon
     with pytest.raises(
         RuntimeError, match=r"PRO_LLM_INSIGHT_REQUESTS_PER_MONTH must be an integer >= 1"
     ):
-        quota.require_llm_monthly_limit("PRO")
+        quota.require_pro_llm_monthly_limit()
 
 
 def test_require_llm_monthly_limit_rejects_unknown_tier() -> None:
