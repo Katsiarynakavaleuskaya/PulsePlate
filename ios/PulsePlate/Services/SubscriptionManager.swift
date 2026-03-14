@@ -54,13 +54,6 @@ struct EntitlementSnapshot: Equatable, Sendable {
     let status: String
     let expiresAt: Date?
     let productID: String?
-
-    var hasPaidAccess: Bool {
-        let normalizedTier = tier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ["pro", "vip"].contains(normalizedTier)
-            && ["active", "restored"].contains(normalizedStatus)
-    }
 }
 
 enum SubscriptionManagerError: Error, Equatable, Sendable {
@@ -187,7 +180,7 @@ final class SubscriptionManager: ObservableObject {
                 flowState = .pendingApproval
                 return
             case .success(let transaction):
-                let receiptData = try storeKitManager.currentReceiptData()
+                let receiptData = try await storeKitManager.currentReceiptData()
                 flowState = .sendingReceipt
                 let verification = try await billingService.verifyReceipt(
                     receiptData: receiptData,
@@ -225,7 +218,7 @@ final class SubscriptionManager: ObservableObject {
             guard let transaction = await storeKitManager.latestVerifiedEntitlementTransaction() else {
                 throw SubscriptionManagerError.restoreTransactionMissing
             }
-            let receiptData = try storeKitManager.currentReceiptData()
+            let receiptData = try await storeKitManager.currentReceiptData()
             flowState = .sendingReceipt
             let verification = try await billingService.verifyReceipt(
                 receiptData: receiptData,
@@ -285,7 +278,7 @@ final class SubscriptionManager: ObservableObject {
             activationPointerStore.saveActivationID(snapshot.activationID)
             finishOperation(operation, token: token)
             clearErrorState()
-            flowState = snapshot.hasPaidAccess ? .unlocked : .idle
+            flowState = shouldUnlockEntitlement(for: activation) ? .unlocked : .idle
         } catch {
             if isStalePointerError(error) {
                 activationPointerStore.clearActivationID()
@@ -390,7 +383,12 @@ final class SubscriptionManager: ObservableObject {
         guard let statusCode = apiStatusCode(from: error) else {
             return false
         }
-        return statusCode == 404 || statusCode == 410
+        return statusCode == 403 || statusCode == 404 || statusCode == 410
+    }
+
+    private func shouldUnlockEntitlement(for response: SubscriptionActivationResponseDTO) -> Bool {
+        let normalizedStatus = response.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ["active", "restored"].contains(normalizedStatus)
     }
 
     private func apiStatusCode(from error: Error) -> Int? {

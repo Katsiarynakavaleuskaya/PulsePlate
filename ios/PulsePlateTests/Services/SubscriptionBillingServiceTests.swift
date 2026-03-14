@@ -121,6 +121,8 @@ final class SubscriptionBillingServiceTests: XCTestCase {
     }
 }
 
+// RU: XCTest helper не мутируется после настройки сценария, поэтому `@unchecked Sendable` безопасен.
+// EN: This XCTest helper is only configured before use, so `@unchecked Sendable` is safe here.
 private final class CapturingSubscriptionAPIClient: APIClientProtocol, @unchecked Sendable {
     var lastPostPath: String?
     var lastPostHeaders: [String: String]?

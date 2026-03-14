@@ -14,6 +14,9 @@ struct PulsePlateApp: App {
             rootView
                 .environmentObject(subscriptionManager)
                 .task {
+                    guard AppStoreScreenshotContext.isEnabled == false else {
+                        return
+                    }
                     await subscriptionManager.bootstrap()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
@@ -21,6 +24,9 @@ struct PulsePlateApp: App {
                         return
                     }
                     Task {
+                        guard AppStoreScreenshotContext.isEnabled == false else {
+                            return
+                        }
                         await subscriptionManager.refreshEntitlement(trigger: .foreground)
                     }
                 }

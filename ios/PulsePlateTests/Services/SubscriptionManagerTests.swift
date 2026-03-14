@@ -212,10 +212,33 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertNil(manager.lastError)
     }
 
+    func test_storedActivationIDForbiddenClearsPointerAndDoesNotUnlock() async {
+        let billing = MockSubscriptionBillingService()
+        let pointerStore = InMemoryActivationPointerStore(activationID: "act-forbidden")
+        let manager = makeManager(
+            billing: billing,
+            pointerStore: pointerStore
+        )
+
+        billing.fetchError = APIError.api(statusCode: 403, message: "forbidden")
+
+        await manager.refreshEntitlement(trigger: .launch)
+
+        XCTAssertNil(pointerStore.activationID)
+        XCTAssertNil(manager.entitlement)
+        XCTAssertEqual(manager.flowState, .idle)
+        XCTAssertNil(manager.lastError)
+    }
+
     func test_foregroundRefreshWhilePurchaseInFlightDoesNotStartSecondFlow() async {
         let storeKit = MockStoreKitManager()
         let billing = MockSubscriptionBillingService()
-        let manager = makeManager(storeKit: storeKit, billing: billing)
+        let pointerStore = InMemoryActivationPointerStore(activationID: "act-foreground")
+        let manager = makeManager(
+            storeKit: storeKit,
+            billing: billing,
+            pointerStore: pointerStore
+        )
 
         storeKit.purchaseDelayNanoseconds = 100_000_000
         storeKit.purchaseError = StubError("purchase interrupted")
@@ -311,7 +334,7 @@ private final class MockStoreKitManager: StoreKitManaging {
         latestVerifiedTransaction
     }
 
-    func currentReceiptData() throws -> String {
+    func currentReceiptData() async throws -> String {
         if let receiptError {
             throw receiptError
         }

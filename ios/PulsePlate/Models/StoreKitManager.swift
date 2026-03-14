@@ -49,7 +49,7 @@ protocol StoreKitManaging {
     func purchase(productID: String) async throws -> StorePurchaseResult
     func sync() async throws
     func latestVerifiedEntitlementTransaction() async -> StoreEntitlementTransaction?
-    func currentReceiptData() throws -> String
+    func currentReceiptData() async throws -> String
 }
 
 @MainActor
@@ -120,13 +120,15 @@ final class StoreKitManager: StoreKitManaging {
         return nil
     }
 
-    func currentReceiptData() throws -> String {
+    func currentReceiptData() async throws -> String {
         guard let receiptURL = Bundle.main.appStoreReceiptURL else {
             throw StoreKitAdapterError.missingReceipt
         }
 
         do {
-            let data = try Data(contentsOf: receiptURL)
+            let data = try await Task.detached(priority: .utility) {
+                try Data(contentsOf: receiptURL)
+            }.value
             guard data.isEmpty == false else {
                 throw StoreKitAdapterError.missingReceipt
             }

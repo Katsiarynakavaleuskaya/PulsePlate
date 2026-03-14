@@ -418,7 +418,7 @@ final class ThinClientGuardsTests: XCTestCase {
             "ios/PulsePlate/Services/SubscriptionManager.swift",
             "ios/PulsePlate/Screens/PaywallScreen.swift"
         ]
-        let forbiddenFlags = ["isPremium", "isPro", "isVip"]
+        let forbiddenFlags = ["isPremium", "isPro", "isVip", "hasPaidAccess"]
 
         var hits: [String] = []
         for relativeFile in guardedFiles {

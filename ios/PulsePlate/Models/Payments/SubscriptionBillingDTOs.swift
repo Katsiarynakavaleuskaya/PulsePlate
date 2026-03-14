@@ -49,6 +49,17 @@ struct AppleReceiptVerificationResponseDTO: Decodable, Equatable, Sendable {
     let expiresAt: String?
     let activationPayload: AppleActivationHintDTO?
     let error: AppleProviderErrorDTO?
+
+    private enum CodingKeys: String, CodingKey {
+        case provider
+        case verified
+        case verificationState
+        case environment
+        case productID
+        case expiresAt
+        case activationPayload
+        case error
+    }
 }
 
 struct IOSVerifiedActivationResultDTO: Encodable, Equatable, Sendable {
@@ -81,4 +92,16 @@ struct SubscriptionActivationResponseDTO: Decodable, Equatable, Sendable {
     let subscriptionTier: String?
     let source: String?
     let paymentSource: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case activationID
+        case tier
+        case status
+        case productID
+        case expiresAt
+        case activatedAt
+        case subscriptionTier
+        case source
+        case paymentSource
+    }
 }

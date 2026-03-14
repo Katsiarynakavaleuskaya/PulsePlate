@@ -16,7 +16,7 @@ struct PaywallScreen: View {
                 .padding(.vertical, 6)
             }
 
-            if let entitlement = subscriptionManager.entitlement, entitlement.hasPaidAccess {
+            if let entitlement = subscriptionManager.entitlement {
                 Section("Entitlement") {
                     Label("Backend access active", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
@@ -110,9 +110,9 @@ struct PaywallScreen: View {
 
     private var isActionDisabled: Bool {
         switch subscriptionManager.flowState {
-        case .purchasing, .sendingReceipt, .refreshingEntitlement, .restoring:
+        case .purchasing, .sendingReceipt, .refreshingEntitlement, .restoring, .pendingApproval:
             return true
-        case .idle, .pendingApproval, .unlocked, .failed:
+        case .idle, .unlocked, .failed:
             return false
         }
     }
@@ -133,8 +133,8 @@ struct PaywallScreen: View {
             return "Purchase pending approval."
         case .unlocked:
             return "Paid access is unlocked by backend entitlement."
-        case .failed(let message):
-            return message
+        case .failed:
+            return "Error"
         }
     }
 }
