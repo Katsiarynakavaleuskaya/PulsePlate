@@ -24,6 +24,37 @@ Evidence: `app/routers/billing.py:261` restores `require_pro_tier` on `manual-in
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935143201 -> 2a81288bb00eb6f3ae8a2a121499b133e91851ce
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935143203 -> 2a81288bb00eb6f3ae8a2a121499b133e91851ce
 
+Disposition: NOT-A-BUG
+Evidence: `app/routers/billing.py:259` keeps `/ru-by/manual-intent` on `require_pro_tier`, while `app/routers/billing.py:305` and `app/routers/billing.py:361` keep reconcile and status on the same principal guard, so restoring `_require_billing_transport_key` at intent creation would recreate orphaned intents instead of opening a safe purchase path.
+Reason: The later Cubic review asks to undo the earlier reconcile-alignment fix, but the current route contract is intentionally fail-closed and consistent across intent creation, reconciliation, and status lookup.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#pullrequestreview-3948706164
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935157992
+
+Disposition: FIXED
+Commit: 1b4cecbf54f2023292e4d85eb7a5b60bc843a718
+Evidence: `tests/test_payment_source_contract_api.py:13` and `tests/test_payment_source_contract_api.py:27` now cover both `_require_billing_transport_key` fallback outcomes, proving the helper accepts a valid PRO fallback and returns 401 when tier auth is absent; local `make verify` now reports `app/routers/billing.py (100%)` diff coverage again.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935158366 -> 1b4cecbf54f2023292e4d85eb7a5b60bc843a718
+
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/lib/usePremium.ts:21` already listens for `PREMIUM_CHANGE_EVENT`, and `frontend/src/lib/__tests__/usePremium.test.ts:83` proves same-document session changes trigger a second server revalidation for the hook.
+Reason: This CodeRabbit thread arrived after the premium-refresh fix was already present in the branch, so the current code already satisfies the requested behavior without another production change.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935158367
+
+Disposition: FIXED
+Commit: 1b4cecbf54f2023292e4d85eb7a5b60bc843a718
+Evidence: `frontend/src/pages/NutritionSetup/SetupForm.tsx:14` now preserves parsed numeric values instead of truncating them, and `frontend/src/pages/NutritionSetup/__tests__/SetupForm.test.tsx:44` proves fractional age input is rejected instead of silently coercing `30,9` to `30`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935158368 -> 1b4cecbf54f2023292e4d85eb7a5b60bc843a718
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_payment_source_contract_api.py:13` now starts with direct helper coverage tests, and the file no longer contains `test_manual_intent_accepts_transport_validated_non_pro_key`, so there is no remaining direct `_APP_MODULE = None` mutation in the current test surface.
+Reason: The cleanup concern referenced a test that has already been removed from the branch, so no further mutation rollback is needed in the current code.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#discussion_r2935158369
+
+Disposition: NOT-A-BUG
+Evidence: The actionable inline comments from this CodeRabbit review are dispositioned individually in this artifact (`discussion_r2935158366`, `discussion_r2935158367`, `discussion_r2935158368`, `discussion_r2935158369`), and the remaining review summary suggestions are non-blocking refactors outside this readiness-blocker lane.
+Reason: The review-level summary does not introduce an additional unresolved contract gap beyond the inline findings already addressed or dispositioned above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1168#pullrequestreview-3948706805
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
