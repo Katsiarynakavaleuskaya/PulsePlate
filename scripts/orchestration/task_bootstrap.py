@@ -225,6 +225,7 @@ def build_task_packet(
         task_class=task_class,
         domain=decision.domain,
         candidate_paths=normalized_paths,
+        requested_agents=normalized_requested_agents,
     )
     context_pack = collect_context_pack(
         normalized_paths,

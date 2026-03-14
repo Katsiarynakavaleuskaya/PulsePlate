@@ -237,6 +237,7 @@ def compute_task_packet_id(
     task_class: str,
     domain: str,
     candidate_paths: list[str] | tuple[str, ...],
+    requested_agents: list[str] | tuple[str, ...] = (),
 ) -> str:
     """Return deterministic short task packet id."""
 
@@ -246,6 +247,7 @@ def compute_task_packet_id(
             task_class.strip(),
             domain.strip(),
             *repo_relative_paths(candidate_paths),
+            *requested_agents,
         ]
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]

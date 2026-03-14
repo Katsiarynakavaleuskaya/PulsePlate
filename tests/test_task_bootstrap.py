@@ -124,6 +124,24 @@ def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None
     ]
 
 
+def test_task_bootstrap_requested_agents_change_packet_id() -> None:
+    """Requested agents should contribute to the deterministic packet identity."""
+
+    baseline = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+    )
+    with_requested = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+        requested_agents=["backend-engineer"],
+    )
+
+    assert baseline["task_packet_id"] != with_requested["task_packet_id"]
+
+
 def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
     """Security acronyms must not trigger the CV routing domain."""
 
