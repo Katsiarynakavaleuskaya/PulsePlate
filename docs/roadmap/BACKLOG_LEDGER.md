@@ -1873,6 +1873,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
 
+<a id="ledger-p1-ai-reliability-experiment-sublane"></a>
+- [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AI-RELIABILITY-EXPERIMENT-SUBLANE
+  - Area: orchestration / experimentation / AI reliability
+  - Finding Type: applied-eval lane gap
+  - Reason: PulsePlate already has the governed experimentation umbrella and philosophical runtime foundation, but it still lacks one canonical offline replay + ablation packet dedicated to proving whether `logic` and `philosophy` layers actually improve answer correctness/readiness before any runtime rollout.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `core/insight/philosophical_runtime.py`
+    - `core/insight/analytical/__init__.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/logic_philosophy_replay_contract.py`
+    - `scripts/orchestration/logic_philosophy_replay_eval.py`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
+    - `tests/test_logic_philosophy_replay_eval.py`
+  - DoD:
+    - Canonical experiment packet supports `A0 control`, `A1 logic`, `A2 philosophy`, and `A3 combined`
+    - Immutable offline oracle corpus and readiness proxy fixtures are declared before execution
+    - Primary metrics include correctness, unsupported-claim rate, contradiction rate, and first-pass readiness proxy
+    - No phase of the sublane permits live runtime mutation, autonomous merge, or provider/network spend in wave 1
+    - Result packet can only promote to `pr_packet` after a passing offline replay artifact exists
+
 ---
 
 
@@ -1895,6 +1922,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No FitChef icon source filenames include spaces or duplicate naming families
     - PR-3 uses only the approved icon source set when preparing the production App Store pack
 
+<a id="ledger-p2-web-research-retrieval-lane"></a>
+- [ ] P2: Bounded research retrieval lane for `web-research-agent`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-WEB-RESEARCH-RETRIEVAL-LANE
+  - Area: orchestration / research / evidence intake
+  - Finding Type: retrieval governance gap
+  - Reason: `web-research-agent` is now part of coordinator workflows, but the project still needs one canonical bounded retrieval contract that keeps web intake evidence-driven, non-scraping-heavy, and subordinate to the research/experimentation governance already in place.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `tools/codex_skills/pulseplate-ai-reports/SKILL.md`
+  - DoD:
+    - Research retrieval contract defines allowed source classes, evidence logging, and anti-broad-scraping constraints
+    - Coordinator/task packets can point `web-research-agent` to the bounded lane without inventing ad-hoc retrieval instructions
+    - Docs distinguish internal docs maintenance (`docs`) from external evidence intake (`research`)
+
 <a id="ledger-p2-test-hygiene-finalization"></a>
 - [ ] P2: Final guard-scope expansion and residual cache/reload cleanup for the test hygiene wave
   - Owner: @katsiaryna_kavaleuskaya
@@ -1914,7 +1959,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Guard scope widens only after zero offenders in the target scope
     - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
 
-<a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
+<a id="ledger-p1-pr1147-ios-appstore-asset-followups"></a>
 - [ ] P1: PR 1147 follow-up for iOS App Store asset workflow alignment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -6574,49 +6619,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/memory/kpp_knowledge_promotion_pipeline.md`
     - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
     - `app/routers/creative_research_internal.py`
-
-- [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-AI-RELIABILITY-EXPERIMENT-SUBLANE
-  - Area: orchestration / experimentation / AI reliability
-  - Finding Type: applied-eval lane gap
-  - Reason: PulsePlate already has the governed experimentation umbrella and philosophical runtime foundation, but it still lacks one canonical offline replay + ablation packet dedicated to proving whether `logic` and `philosophy` layers actually improve answer correctness/readiness before any runtime rollout.
-  - Links:
-    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
-    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
-    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
-    - `core/insight/philosophical_runtime.py`
-    - `core/insight/analytical/__init__.py`
-    - `scripts/orchestration/experiment_bootstrap.py`
-    - `scripts/orchestration/logic_philosophy_replay_contract.py`
-    - `scripts/orchestration/logic_philosophy_replay_eval.py`
-    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json`
-    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
-    - `tests/test_logic_philosophy_replay_eval.py`
-  - DoD:
-    - Canonical experiment packet supports `A0 control`, `A1 logic`, `A2 philosophy`, and `A3 combined`
-    - Immutable offline oracle corpus and readiness proxy fixtures are declared before execution
-    - Primary metrics include correctness, unsupported-claim rate, contradiction rate, and first-pass readiness proxy
-    - No phase of the sublane permits live runtime mutation, autonomous merge, or provider/network spend in wave 1
-    - Result packet can only promote to `pr_packet` after a passing offline replay artifact exists
-
-- [ ] P2: Bounded research retrieval lane for `web-research-agent`
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-WEB-RESEARCH-RETRIEVAL-LANE
-  - Area: orchestration / research / evidence intake
-  - Finding Type: retrieval governance gap
-  - Reason: `web-research-agent` is now part of coordinator workflows, but the project still needs one canonical bounded retrieval contract that keeps web intake evidence-driven, non-scraping-heavy, and subordinate to the research/experimentation governance already in place.
-  - Links:
-    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
-    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
-    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
-    - `tools/codex_skills/pulseplate-ai-reports/SKILL.md`
-  - DoD:
-    - Research retrieval contract defines allowed source classes, evidence logging, and anti-broad-scraping constraints
-    - Coordinator/task packets can point `web-research-agent` to the bounded lane without inventing ad-hoc retrieval instructions
-    - Docs distinguish internal docs maintenance (`docs`) from external evidence intake (`research`)
     - `app/services/creative_research_runtime.py`
     - `app/schemas/creative_research.py`
     - `core/creative_research.py`
