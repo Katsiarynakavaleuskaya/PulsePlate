@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import re
-from typing import Any, cast
+from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
 
@@ -17,6 +17,30 @@ ROUTING_POLICY_VERSION = "2026-03-08"
 SELECTION_MODE = "deterministic-weighted"
 
 ALWAYS_ON_SKILLS: tuple[str, ...] = ("pulseplate-workflow",)
+
+REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
+    "agent-coordinator": ("docs-sync", "agents-md", "pulseplate-gates"),
+    "bug-hunter": ("bug-triage", "pulseplate-gates", "pulseplate-guards"),
+    "security-auditor": ("security-best-practices", "security-threat-model", "pulseplate-guards"),
+    "backend-engineer": (
+        "pulseplate-backend-endpoints",
+        "pulseplate-openapi-sync",
+        "pulseplate-gates",
+    ),
+    "qa-engineer-agent": ("bug-triage", "pulseplate-gates", "code-review-expert"),
+    "frontend-engineer": (
+        "pulseplate-frontend-ui",
+        "pulseplate-gates",
+        "vercel-react-best-practices",
+    ),
+    "ml-engineer-agent": ("pulseplate-gates", "docs-sync", "openai-docs"),
+    "data-scientist-agent": ("docs-sync", "pulseplate-gates", "pulseplate-ai-reports"),
+    "web-research-agent": (
+        "docs-sync",
+        "pulseplate-ai-reports",
+        "notion-research-documentation",
+    ),
+}
 
 SCRAPING_BLOCK_PATTERNS: tuple[tuple[str, str], ...] = (
     ("tiktok", "TikTok scraping is not an approved default for PulsePlate."),
@@ -106,9 +130,18 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="repo-tracked",
         rationale="Handle architecture guards, fail-closed policy checks, and security-oriented invariants.",
         min_score=3,
-        domain_weights={"security": 2, "qa": 2, "orchestration": 1},
-        path_prefixes=("app/security/", "tests/guards/", "scripts/orchestration/"),
-        keywords=("guard", "policy", "invariant", "fail-closed", "rate limit", "quota"),
+        domain_weights={"security": 2, "qa": 2, "orchestration": 1, "backend": 1},
+        path_prefixes=("app/security/", "tests/", "tests/guards/", "scripts/orchestration/"),
+        keywords=(
+            "guard",
+            "policy",
+            "invariant",
+            "fail-closed",
+            "rate limit",
+            "quota",
+            "workflow",
+            "fastlane",
+        ),
     ),
     SkillRule(
         skill="pulseplate-backend-endpoints",
@@ -218,8 +251,16 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="global",
         rationale="OpenAI product/API questions should use official docs-first guidance.",
         min_score=5,
-        domain_weights={"ml": 1, "cv": 1},
-        keywords=("openai", "chatgpt", "responses api", "realtime api", "codex api"),
+        domain_weights={"ml": 1, "cv": 1, "backend": 1},
+        keywords=(
+            "openai",
+            "chatgpt",
+            "responses api",
+            "realtime api",
+            "codex api",
+            "llm",
+            "assistant",
+        ),
     ),
     SkillRule(
         skill="playwright",
@@ -291,8 +332,25 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         category="global",
         rationale="Explicit security hardening work should use the security review skill.",
         min_score=5,
-        domain_weights={"security": 3},
-        keywords=("security", "hardening", "appsec"),
+        domain_weights={"security": 3, "orchestration": 1, "backend": 1, "release": 1},
+        path_prefixes=(
+            "app/security/",
+            ".github/workflows/",
+            "ios/fastlane/",
+            "scripts/orchestration/",
+            "docs/orchestration/",
+        ),
+        keywords=(
+            "security",
+            "hardening",
+            "appsec",
+            "auth",
+            "token",
+            "cve",
+            "workflow",
+            "fastlane",
+            "secret",
+        ),
     ),
     SkillRule(
         skill="security-threat-model",
@@ -302,13 +360,32 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         domain_weights={"security": 3},
         keywords=("threat model", "abuse path", "trust boundary"),
     ),
+    SkillRule(
+        skill="gh-address-comments",
+        category="global",
+        rationale="GitHub review-thread handling should use the dedicated comment workflow.",
+        min_score=4,
+        domain_weights={"qa": 2, "orchestration": 1},
+        keywords=("review comment", "review thread", "address comments", "github comment"),
+    ),
+    SkillRule(
+        skill="vercel-react-best-practices",
+        category="global",
+        rationale="React and Vercel performance guidance should support frontend implementation work.",
+        min_score=4,
+        domain_weights={"frontend": 2, "design": 1},
+        path_prefixes=("frontend/",),
+        keywords=("react", "tsx", "component", "frontend", "web ui", "performance"),
+    ),
 )
+
+SKILL_RULES_BY_SKILL: dict[str, SkillRule] = {rule.skill: rule for rule in SKILL_RULES}
 
 
 def _normalize_lexeme(value: str) -> str:
     """Normalize keyword phrases with the same rules as task text."""
 
-    return cast(str, normalize_text(value))
+    return normalize_text(value)
 
 
 def _has_prefix(path: str, prefix: str) -> bool:
@@ -390,12 +467,16 @@ def route_skills(
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
+    requested_agents: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Return deterministic skill routing decision with evidence."""
 
     normalized_paths = repo_relative_paths(candidate_paths)
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
+    normalized_requested_agents = tuple(
+        agent.strip().lower() for agent in requested_agents if agent.strip()
+    )
 
     blocked = [
         {"label": pattern, "reason": reason}
@@ -417,11 +498,41 @@ def route_skills(
         for result, rule in zip(scored, SKILL_RULES)
         if result["score"] >= rule.min_score or rule.skill in ALWAYS_ON_SKILLS
     ]
+
+    selected_by_skill = {item["skill"]: item for item in selected}
+    for requested_agent in normalized_requested_agents:
+        bundle = REQUESTED_AGENT_SKILL_BUNDLES.get(requested_agent, ())
+        for bundled_skill in bundle:
+            existing = selected_by_skill.get(bundled_skill)
+            if existing is None:
+                rule = SKILL_RULES_BY_SKILL.get(bundled_skill)
+                category = rule.category if rule is not None else "bundle"
+                rationale = (
+                    rule.rationale
+                    if rule is not None
+                    else f"Default skill bundle for requested agent `{requested_agent}`."
+                )
+                selected_by_skill[bundled_skill] = {
+                    "skill": bundled_skill,
+                    "score": 6,
+                    "category": category,
+                    "rationale": rationale,
+                    "reasons": [f"requested-agent:{requested_agent}(+6)"],
+                }
+                continue
+
+            existing["score"] = int(existing["score"]) + 2
+            reason = f"requested-agent:{requested_agent}(+2)"
+            if reason not in existing["reasons"]:
+                existing["reasons"].append(reason)
+
+    selected = list(selected_by_skill.values())
     selected.sort(key=lambda item: (-int(item["score"]), item["skill"]))
 
     return {
         "policy_version": ROUTING_POLICY_VERSION,
         "selection_mode": SELECTION_MODE,
+        "requested_agents": list(normalized_requested_agents),
         "recommended": selected,
         "blocked": blocked,
     }
@@ -433,6 +544,7 @@ def select_recommended_skills(
     task_class: str,
     candidate_paths: list[str] | tuple[str, ...],
     domain: str,
+    requested_agents: list[str] | tuple[str, ...] = (),
 ) -> list[str]:
     """Backward-compatible helper returning only the ordered skill names."""
 
@@ -441,5 +553,6 @@ def select_recommended_skills(
         task_class=task_class,
         candidate_paths=candidate_paths,
         domain=domain,
+        requested_agents=requested_agents,
     )
     return [item["skill"] for item in decision["recommended"]]

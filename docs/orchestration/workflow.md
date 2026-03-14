@@ -90,6 +90,10 @@ Task
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
 - [ ] Определён `recommended_skills` packet по `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+- [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honor/advisory,
+  либо отклонены с явной причиной
+- [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,
+  `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
 **Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
 

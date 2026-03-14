@@ -33,6 +33,7 @@
 3. Add repo-tracked PulsePlate skills for the selected domain.
 4. Add global installed skills only when the task explicitly matches their scope.
 5. Exclude low-fit or high-risk skills even if installed.
+6. If the user explicitly requests agent slugs, preserve them in the task packet and apply the corresponding default skill bundles after canonical routing resolves.
 
 Boundary note:
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md` remains the canonical source of truth for agent/domain routing.
@@ -81,6 +82,28 @@ CV routing note:
 
 ---
 
+## 3a. Requested-Agent Default Bundles
+
+When a task packet includes explicit `requested_agents`, coordinator should keep canonical
+domain routing first and then apply these **default helper bundles**:
+
+| Requested agent | Default helper bundle |
+|-----------------|-----------------------|
+| `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |
+| `bug-hunter` | `bug-triage`, `pulseplate-gates`, `pulseplate-guards` |
+| `security-auditor` | `security-best-practices`, `security-threat-model`, `pulseplate-guards` |
+| `backend-engineer` | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` |
+| `qa-engineer-agent` | `bug-triage`, `pulseplate-gates`, `code-review-expert` |
+| `frontend-engineer` | `pulseplate-frontend-ui`, `pulseplate-gates`, `vercel-react-best-practices` |
+| `ml-engineer-agent` | `pulseplate-gates`, `docs-sync`, `openai-docs` |
+| `data-scientist-agent` | `docs-sync`, `pulseplate-gates`, `pulseplate-ai-reports` |
+| `web-research-agent` | `docs-sync`, `pulseplate-ai-reports`, `notion-research-documentation` |
+
+These bundles are bootstrapping helpers, not authority overrides. They do not bypass
+`AGENT_ROUTING_GRAPH.md` or reviewer requirements.
+
+---
+
 ## 4. Installed Skills Policy For This Project
 
 The coordinator may use installed skills when they improve delivery and align with PulsePlate boundaries.
@@ -111,6 +134,22 @@ The coordinator may use installed skills when they improve delivery and align wi
 - deployment skills on non-deploy tasks
 - screenshot/system capture skills on non-visual tasks
 - any broad scraping or “collect everything from the internet” workflow
+
+---
+
+## 4a. Privileged Surface Trigger
+
+The following touched paths must automatically boost security-oriented skills and review:
+
+- `.github/workflows/**`
+- `ios/fastlane/**`
+- `scripts/orchestration/**`
+- merge-governance scripts and docs under `docs/orchestration/`
+
+Expected behavior:
+
+- add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
+- keep `security-auditor` in the review path even if the dominant domain is docs, release, or orchestration.
 
 ---
 

@@ -57,14 +57,14 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 
 | Domain   | Cluster  | Primary Agent            | Secondary                       | Reviewer                |
 |----------|----------|--------------------------|---------------------------------|-------------------------|
-| backend  | backend  | architecture-specialist  | backend-engineer                | security-auditor        |
+| backend  | backend  | backend-engineer         | architecture-specialist         | security-auditor        |
 | ios      | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
 | frontend | platform | frontend-engineer        | creative-designer               | qa-engineer-agent       |
 | infra    | ops      | dev-operator             | architecture-specialist         | security-auditor        |
 | security | ops      | security-auditor         | architecture-specialist         | agent-coordinator       |
 | ml       | ml       | ai-innovation-specialist | rag-systems-agent               | architecture-specialist |
 | cv       | ml       | cv-agent                 | data-scientist-agent            | security-auditor        |
-| docs     | ops      | web-research-agent       | cursor-specialist-agent         | qa-engineer-agent       |
+| docs     | ops      | cursor-specialist-agent  | web-research-agent              | qa-engineer-agent       |
 | design   | platform | creative-designer        | frontend-engineer               | qa-engineer-agent       |
 | research | ml       | web-research-agent       | ai-innovation-specialist        | agent-coordinator       |
 | safety   | safety   | philosophy-agent         | logic-agent                     | agent-coordinator       |
@@ -72,7 +72,7 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 | release  | growth   | app-store-release-agent  | marketing-strategist            | qa-engineer-agent       |
 | wellness | growth   | wellness-analyst-agent   | marketing-strategist            | business-strategist-agent |
 | business | growth   | business-strategist-agent | marketing-strategist           | agent-coordinator       |
-| orchestration | ops | cursor-specialist-agent  | dev-operator                    | architecture-specialist |
+| orchestration | ops | agent-coordinator        | cursor-specialist-agent         | architecture-specialist |
 
 ---
 
@@ -91,6 +91,9 @@ Enforcement evidence: `scripts/orchestration/routing_graph_loader.py:121-169`, `
 11. **Skills after routing:** once primary domain is resolved, coordinator selects `recommended_skills` via `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` and task bootstrap artifacts.
 12. **`creative_research` sub-lane:** route through `research` first, then apply phase-specific role mapping from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`. The sub-lane refines execution inside the experimentation umbrella; it does not replace this routing graph.
 13. **CV routing invariant:** generic coordinator/task packets route CV-first work through `domain=cv`, `cluster=ml`. Governed experimentation packets may remain `ml`-scoped until their contract is migrated explicitly.
+14. **Explicit requested-agent override:** after canonical domain routing resolves, bootstrap may promote a user-requested agent when it already belongs to the routed domain slot set (primary / secondary / reviewer). If the request targets a non-routable specialist, coordinator must keep it as an advisory collaborator unless a separate contract explicitly promotes it.
+15. **Privileged-surface review rule:** tasks touching `.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`, or merge-governance scripts/docs must include `security-auditor` in the review path, even when the dominant domain is docs/orchestration/release rather than security.
+16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.
 
@@ -121,4 +124,4 @@ SecondaryAgents --> Reviewer
 
 ---
 
-**Last updated:** 2026-03-07 (routing graph refresh)
+**Last updated:** 2026-03-14 (requested-agent + privileged-surface routing refresh)
