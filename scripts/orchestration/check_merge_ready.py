@@ -34,6 +34,23 @@ class GateResult:
     stderr: str
 
 
+@dataclass(frozen=True)
+class GatePolicy:
+    """Static gate classification used by the wrapper output."""
+
+    gate_class: str
+    lane: str
+    blocking: bool
+
+
+GATE_POLICIES: dict[str, GatePolicy] = {
+    "phase2-pr-body-gates": GatePolicy(gate_class="hard", lane="pr-governance", blocking=True),
+    "merge-readiness-gate": GatePolicy(gate_class="hard", lane="review-governance", blocking=True),
+    "current-head-checks": GatePolicy(gate_class="hard", lane="required-checks", blocking=True),
+    "review-threads-disposition": GatePolicy(gate_class="hard", lane="review-proof", blocking=True),
+}
+
+
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Enforce CI vs local mode contract for the wrapper CLI."""
 
@@ -215,12 +232,29 @@ def _disposition_gate_skipped(result: GateResult) -> bool:
 def _print_gate_output(result: GateResult) -> None:
     """Render one gate block for deterministic local/CI diagnostics."""
 
+    policy = GATE_POLICIES.get(
+        result.name,
+        GatePolicy(gate_class="advisory", lane="unclassified", blocking=False),
+    )
     status = "PASS" if result.returncode == 0 else "FAIL"
-    print(f"[{status}] {result.name}")
+    blocking_label = "blocking" if policy.blocking else "advisory"
+    print(
+        f"[{status}] {result.name} " f"({policy.gate_class}; lane={policy.lane}; {blocking_label})"
+    )
     if result.stdout:
         print(result.stdout)
     if result.stderr:
         print(result.stderr)
+
+
+def _print_merge_ready_bundle() -> None:
+    """Render the canonical blocking bundle before gate execution output."""
+
+    print("Blocking merge-ready bundle:")
+    for gate_name, policy in GATE_POLICIES.items():
+        print(f"- {gate_name}: class={policy.gate_class}, lane={policy.lane}, blocking=yes")
+    print("Advisory / external signals:")
+    print("- third-party review bots remain advisory unless GitHub branch protection promotes them")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -277,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     disposition_skipped = any(_disposition_gate_skipped(result) for result in gate_results)
     if disposition_skipped:
         failed.append("review-threads-disposition")
+    _print_merge_ready_bundle()
     for result in gate_results:
         _print_gate_output(result)
 

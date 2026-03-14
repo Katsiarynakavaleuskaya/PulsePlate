@@ -164,9 +164,23 @@ Evidence:
 | Soft gate | advisory quality signal   | no                          |
 | External  | third-party review signal | only if explicitly required |
 
+Canonical lane matrix:
+
+| Lane        | Command / Surface | Class | Blocking Rule |
+| ----------- | ----------------- | ----- | ------------- |
+| Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
+| Local       | `make verify` | Hard gate | Canonical code-quality bundle for merge claims |
+| Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
+| PR CI       | GitHub branch-protection required checks on current HEAD | Hard gate | Pending/failed current-head required jobs block merge |
+| PR CI       | Non-required jobs / informational workflows | Soft gate | Visible signal only; fix or ledger if risk is real |
+| Release ops | App Store / Fastlane validation lanes | Hard gate for release, not PR merge by default | Must pass before upload/publish claims; may be out-of-scope for code-only PR merge |
+| External    | CodeRabbit / Sourcery / Cubic / similar bots | External | Advisory unless GitHub explicitly marks them required |
+
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`
 - `scripts/ci/check_pr_merge_readiness.py:400`
+- `scripts/ci/check_current_head_pr_checks.py:406`
+- `scripts/orchestration/check_merge_ready.py:1`
 - `scripts/ci/check_pr_body_phase2_gates.py:162`
 - `scripts/ci/check_pr_body_phase2_gates.py:182`
 

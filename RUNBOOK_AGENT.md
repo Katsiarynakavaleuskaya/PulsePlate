@@ -106,6 +106,25 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
+### Merge-Ready Bundle (Blocking vs Advisory)
+
+Use this bundle when you need a strict merge claim:
+
+1. Local blocking bundle:
+   - `pre-commit run --all-files`
+   - `make verify`
+2. PR governance blocking bundle:
+   - `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/name> --require-auth`
+3. Advisory / external signals:
+   - Non-required CI jobs
+   - Third-party review bots unless branch protection marks them required
+4. Release-ops blocking bundle:
+   - Fastlane / App Store validation and upload lanes are blocking for publish claims, not automatically for ordinary PR merge claims unless the PR itself changes release surfaces
+
+Canonical SoT for the lane matrix:
+- `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md` (`CI Check Classification`)
+- `scripts/orchestration/check_merge_ready.py`
+
 ## Guard Coverage Step (EVMbench-inspired)
 
 **Purpose:** Ensure comprehensive coverage — address *all* related violations, not just one.

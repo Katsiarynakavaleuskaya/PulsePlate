@@ -215,6 +215,8 @@ def test_wrapper_surfaces_failing_gate_names(
 
     captured = capsys.readouterr()
     assert exit_code == 1
+    assert "Blocking merge-ready bundle:" in captured.out
+    assert "[FAIL] merge-readiness-gate (hard; lane=review-governance; blocking)" in captured.out
     assert "ERROR: orchestration merge-check failed." in captured.out
     assert "Failing gates: merge-readiness-gate" in captured.out
     assert "ERROR: unresolved review threads" in captured.out
