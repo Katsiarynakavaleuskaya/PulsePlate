@@ -97,6 +97,36 @@ def test_route_skills_echoes_normalized_requested_agents() -> None:
     assert decision["requested_agents"] == ["frontend-engineer", "backend-engineer"]
 
 
+def test_requested_agent_duplicates_do_not_stack_bundle_boosts() -> None:
+    """Duplicate requested agents should not apply extra bundle boosts."""
+
+    single_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer"],
+    )
+    duplicate_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer", "Frontend-Engineer", " frontend-engineer "],
+    )
+
+    single_skill = next(
+        item for item in single_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+    duplicate_skill = next(
+        item for item in duplicate_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+
+    assert duplicate_requested["requested_agents"] == ["frontend-engineer"]
+    assert duplicate_skill["score"] == single_skill["score"]
+    assert duplicate_skill["reasons"].count("requested-agent:frontend-engineer(+2)") == 1
+
+
 def test_skill_router_selects_backend_contract_skills() -> None:
     """Backend contract changes should pull endpoint and OpenAPI skills."""
 
