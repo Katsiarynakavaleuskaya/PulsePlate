@@ -61,6 +61,31 @@ Evidence: docs/review/PR_1171_FIXED_MAPPING.md:1
 Reason: Merge-readiness checkboxes are reset to the real in-progress state until required checks, review threads, and the final wait window are actually complete.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419746 -> 7b4f5613
 
+Disposition: FIXED
+Commit: f3e7cc35
+Evidence: ios/PulsePlateTests/Services/SubscriptionBillingServiceTests.swift:124
+Reason: The `@unchecked Sendable` test helper now uses `NSLock` to synchronize mutable captured state, so the Sendable justification matches the implementation instead of claiming immutability.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935453482 -> f3e7cc35
+
+Disposition: FIXED
+Commit: f3e7cc35
+Evidence: ios/PulsePlate/Screens/PaywallScreen.swift:19
+Reason: The entitlement badge is now shown only when the subscription flow is actually `.unlocked`, so inactive or pending entitlement snapshots are not rendered as active access.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935453489 -> f3e7cc35
+
+Disposition: FIXED
+Commit: f3e7cc35
+Evidence: ios/PulsePlate/Services/SubscriptionManager.swift:304, ios/PulsePlate/Services/SubscriptionManager.swift:474, ios/PulsePlateTests/Services/SubscriptionManagerTests.swift:99
+Reason: Activation request building now trims blank `verification.productID` values before fallback, and the regression test proves we fall back to the StoreKit transaction product when the backend sends whitespace.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455610 -> f3e7cc35
+
+Disposition: FIXED
+Commit: f3e7cc35
+Evidence: ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:379, ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift:414
+Reason: Thin-client guard tests now fail when a guarded file is missing and use token-bound matching for forbidden flags, closing both the silent-skip and false-positive gaps.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455618 -> f3e7cc35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455624 -> f3e7cc35
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
