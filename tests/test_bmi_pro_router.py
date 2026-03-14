@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.http_error_details import INVALID_BMI_INPUT_DETAIL
 from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
 
 
@@ -187,7 +188,7 @@ class TestBMIProRouter:
     @patch("app.routers.bmi_pro.calc_bmi")
     def test_bmi_pro_calculation_error(self, mock_calc_bmi: MagicMock) -> None:
         """Test BMI Pro endpoint with calculation error."""
-        mock_calc_bmi.side_effect = ValueError("Invalid calculation")
+        mock_calc_bmi.side_effect = ValueError("trace /srv/pulseplate/private-bmi.json")
 
         response = self.client.post(
             "/api/v1/pro/bmi",
@@ -202,7 +203,9 @@ class TestBMIProRouter:
         )
 
         assert response.status_code == 400
-        assert "Invalid calculation" in response.json()["detail"]
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json()["detail"] == INVALID_BMI_INPUT_DETAIL
+        assert "/srv/pulseplate/private-bmi.json" not in response.text
 
     def test_bmi_pro_request_model(self) -> None:
         """Test BMIProRequest model validation."""

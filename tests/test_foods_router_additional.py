@@ -173,7 +173,23 @@ def test_get_food_by_barcode_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
         foods.get_food_by_barcode("123", store=foods.get_food_store())
 
     assert exc.value.status_code == 422
-    assert exc.value.detail == "barcode must have length in [8,14]"
+    assert exc.value.detail == foods.MALFORMED_BARCODE_DETAIL
+
+
+def test_get_food_by_barcode_invalid_sanitizes_unexpected_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_invalid(_: str) -> None:
+        raise ValueError("barcode secret path /tmp/off-cache.json")
+
+    monkeypatch.setattr(foods.food_store, "get_food_by_barcode", _raise_invalid)
+
+    with pytest.raises(HTTPException) as exc:
+        foods.get_food_by_barcode("123", store=foods.get_food_store())
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail == foods.MALFORMED_BARCODE_DETAIL
+    assert "/tmp/off-cache.json" not in exc.value.detail
 
 
 def test_get_food_by_barcode_route_documents_404() -> None:

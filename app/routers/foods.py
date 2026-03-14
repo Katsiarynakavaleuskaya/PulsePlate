@@ -5,6 +5,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.http_error_details import MALFORMED_BARCODE_DETAIL
 from app.schemas.food import FoodHit, FoodItem
 from app.services import food_store
 
@@ -24,13 +25,20 @@ class _FoodStoreCompat:
 
     def search_foods(self, query: str, limit: int, offset: int) -> Sequence[Mapping[str, Any]]:
         backend = food_store.get_search_backend()
-        return backend.search_foods(query=query, limit=limit, offset=offset)
+        rows: Sequence[Mapping[str, Any]] = backend.search_foods(
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
+        return rows
 
     def get_food(self, food_id: str) -> Mapping[str, Any] | None:
-        return food_store.get_food(food_id)
+        row: Mapping[str, Any] | None = food_store.get_food(food_id)
+        return row
 
     def get_food_by_barcode(self, barcode: str) -> Mapping[str, Any] | None:
-        return food_store.get_food_by_barcode(barcode)
+        row: Mapping[str, Any] | None = food_store.get_food_by_barcode(barcode)
+        return row
 
 
 _FOOD_STORE_COMPAT: FoodStore = _FoodStoreCompat()
@@ -98,7 +106,8 @@ def get_food_by_barcode(barcode: str, store: FoodStore = Depends(get_food_store)
         row = store.get_food_by_barcode(barcode)
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=MALFORMED_BARCODE_DETAIL,
         ) from exc
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Food not found")

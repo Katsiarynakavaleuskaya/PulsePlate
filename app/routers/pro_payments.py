@@ -10,6 +10,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Response, Security, status
 from fastapi.responses import JSONResponse
 
+from app.http_error_details import (
+    ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
+    DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
+    TRANSPORT_AUTH_REQUIRED_DETAIL,
+)
 from app.middleware.api_tiers import CurrentUser, derive_subject_id_from_api_key
 from app.routers.api_key import api_key_header
 from app.schemas.payments import (
@@ -98,19 +103,19 @@ def activate_subscription(
             user_id=current_user.user_id,
             payload=payload,
         )
-    except ActivationTransportUnauthorizedError as exc:
+    except ActivationTransportUnauthorizedError:
         return _payment_error_response(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="activation_transport_unauthorized",
             message="Transport protection required",
-            detail=str(exc),
+            detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
-    except payments_activation.IdempotencyConflictError as exc:
+    except payments_activation.IdempotencyConflictError:
         return _payment_error_response(
             status_code=status.HTTP_409_CONFLICT,
             code="idempotency_conflict",
             message="Deterministic activation conflict",
-            detail=str(exc),
+            detail=DETERMINISTIC_ACTIVATION_CONFLICT_DETAIL,
         )
 
     response.status_code = status.HTTP_200_OK
@@ -147,19 +152,19 @@ def get_subscription_activation(
             activation_id,
             user_id=current_user.user_id,
         )
-    except ActivationTransportUnauthorizedError as exc:
+    except ActivationTransportUnauthorizedError:
         return _payment_error_response(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="activation_transport_unauthorized",
             message="Transport protection required",
-            detail=str(exc),
+            detail=TRANSPORT_AUTH_REQUIRED_DETAIL,
         )
-    except payments_activation.ActivationAccessForbiddenError as exc:
+    except payments_activation.ActivationAccessForbiddenError:
         return _payment_error_response(
             status_code=status.HTTP_403_FORBIDDEN,
             code="forbidden",
             message="Activation access forbidden",
-            detail=str(exc),
+            detail=ACTIVATION_ACCESS_FORBIDDEN_DETAIL,
         )
 
     if activation is None:

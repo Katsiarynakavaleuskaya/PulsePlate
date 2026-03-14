@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app as app_mod
+from app.http_error_details import INVALID_PREMIUM_PLATE_INPUT_DETAIL
 from app.middleware.api_tiers import TEST_KEY_VIP
 
 
@@ -139,6 +140,32 @@ class TestAppMissingLinesExtra:
             )
             assert r.status_code == 418
             assert "teapot" in r.json().get("detail", "")
+
+    def test_premium_plate_value_error_is_sanitized(self) -> None:
+        with (
+            patch.object(app_mod, "calculate_all_bmr", return_value={"mifflin": 1600}),
+            patch.object(app_mod, "calculate_all_tdee", return_value={"mifflin": 2200}),
+            patch.object(
+                app_mod,
+                "make_plate",
+                side_effect=ValueError("goal maintain failed at /tmp/internal/plate"),
+            ),
+        ):
+            payload = {
+                "sex": "male",
+                "age": 30,
+                "height_cm": 175.0,
+                "weight_kg": 70.0,
+                "activity": "light",
+                "goal": "maintain",
+            }
+            r = self.client.post(
+                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+            )
+            assert r.status_code == 400
+            assert r.headers.get("content-type", "").startswith("application/json")
+            assert r.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
+            assert "/tmp/internal/plate" not in r.json()["detail"]
 
     def test_premium_plate_missing_bmr_tdee_check(self):
         # Force the early 503 guard (974)

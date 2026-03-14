@@ -12,6 +12,19 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from app.http_error_details import (
+    CONFIRM_ORDER_CONFLICT_DETAIL,
+    CREATE_ORDER_CONFLICT_DETAIL,
+    INVALID_HANDOFF_PAYLOAD_DETAIL,
+    INVALID_ORDER_TRANSITION_DETAIL,
+    INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL,
+    ORDER_ACCESS_FORBIDDEN_DETAIL,
+    ORDER_GONE_DETAIL,
+    PARTNER_CONSENT_REQUIRED_DETAIL,
+    SHARE_ACCESS_FORBIDDEN_DETAIL,
+    SHARE_EXPIRED_DETAIL,
+    SHARE_REVOKED_DETAIL,
+)
 from app.middleware.api_tiers import require_pro_tier
 from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS, limit_if_available
 from app.schemas.restaurant_partner import (
@@ -100,7 +113,7 @@ def preview_partner_order_from_weekly_plan(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
+            detail=INVALID_WEEKLY_PLAN_ADAPTER_PAYLOAD_DETAIL,
         ) from exc
     return restaurant_partner_orders.preview_order(draft)
 
@@ -136,7 +149,10 @@ def create_partner_order(
             client_event_id=payload.client_event_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CREATE_ORDER_CONFLICT_DETAIL,
+        ) from exc
     if not is_new:
         response.status_code = status.HTTP_200_OK
     return created
@@ -168,9 +184,15 @@ def get_partner_order(
     try:
         order = restaurant_partner_orders.get_order(order_id, issuer=issuer)
     except restaurant_partner_orders.OrderAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ORDER_ACCESS_FORBIDDEN_DETAIL,
+        ) from exc
     except restaurant_partner_orders.OrderGoneError as exc:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=ORDER_GONE_DETAIL,
+        ) from exc
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order
@@ -221,15 +243,24 @@ def confirm_partner_order(
             status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         ) from exc
     except restaurant_partner_orders.OrderAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ORDER_ACCESS_FORBIDDEN_DETAIL,
+        ) from exc
     except restaurant_partner_orders.OrderGoneError as exc:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=ORDER_GONE_DETAIL,
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CONFIRM_ORDER_CONFLICT_DETAIL,
+        ) from exc
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
+            detail=INVALID_ORDER_TRANSITION_DETAIL,
         ) from exc
     return confirmed
 
@@ -279,13 +310,19 @@ def issue_handoff_share(
             status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         ) from exc
     except restaurant_partner_orders.ShareAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SHARE_ACCESS_FORBIDDEN_DETAIL,
+        ) from exc
     except restaurant_partner_orders.PartnerConsentRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PARTNER_CONSENT_REQUIRED_DETAIL,
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
+            detail=INVALID_HANDOFF_PAYLOAD_DETAIL,
         ) from exc
     return issued
 
@@ -322,11 +359,20 @@ def get_handoff_share_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc
     except restaurant_partner_orders.ShareAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SHARE_ACCESS_FORBIDDEN_DETAIL,
+        ) from exc
     except restaurant_partner_orders.ShareRevokedError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SHARE_REVOKED_DETAIL,
+        ) from exc
     except restaurant_partner_orders.ShareExpiredError as exc:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=SHARE_EXPIRED_DETAIL,
+        ) from exc
 
 
 @router.post(
@@ -357,4 +403,7 @@ def revoke_handoff_share(
             status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
         ) from exc
     except restaurant_partner_orders.ShareAccessForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SHARE_ACCESS_FORBIDDEN_DETAIL,
+        ) from exc
