@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
+from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-08"
 SELECTION_MODE = "deterministic-weighted"
@@ -477,9 +478,7 @@ def route_skills(
     normalized_paths = repo_relative_paths(candidate_paths)
     normalized_text = normalize_text(goal, task_class, *normalized_paths)
     normalized_request_text = normalize_text(goal, task_class)
-    normalized_requested_agents = tuple(
-        agent.strip().lower() for agent in requested_agents if agent.strip()
-    )
+    normalized_requested_agents = tuple(normalize_requested_agents(requested_agents))
 
     blocked = [
         {"label": pattern, "reason": reason}

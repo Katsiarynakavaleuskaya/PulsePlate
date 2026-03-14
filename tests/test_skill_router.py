@@ -45,6 +45,58 @@ def test_skill_router_applies_requested_agent_default_bundle() -> None:
     assert "vercel-react-best-practices" in skills
 
 
+def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
+    """Requested bundles should boost existing skills without duplicating entries."""
+
+    baseline = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+    )
+    with_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer"],
+    )
+
+    baseline_skill = next(
+        item for item in baseline["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+    requested_skill = next(
+        item for item in with_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+
+    assert (
+        len([item for item in with_requested["recommended"] if item["skill"] == "pulseplate-gates"])
+        == 1
+    )
+    assert requested_skill["score"] == baseline_skill["score"] + 2
+    assert "requested-agent:frontend-engineer(+2)" in requested_skill["reasons"]
+
+
+def test_route_skills_echoes_normalized_requested_agents() -> None:
+    """Router output should echo requested agents in normalized deduplicated form."""
+
+    decision = route_skills(
+        goal="Refine frontend settings page",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=[
+            "frontend-engineer",
+            "Frontend-Engineer",
+            "   FRONTEND-ENGINEER  ",
+            "backend-engineer",
+            "BACKEND-ENGINEER",
+        ],
+    )
+
+    assert decision["requested_agents"] == ["frontend-engineer", "backend-engineer"]
+
+
 def test_skill_router_selects_backend_contract_skills() -> None:
     """Backend contract changes should pull endpoint and OpenAPI skills."""
 
