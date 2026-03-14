@@ -107,8 +107,8 @@ Reason: These bot review-level URLs aggregate inline findings that are already d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3949059751
 
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
+- [x] Local hard gate passed (`make verify`)
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
+- [x] Final post-bot wait cycle completed
