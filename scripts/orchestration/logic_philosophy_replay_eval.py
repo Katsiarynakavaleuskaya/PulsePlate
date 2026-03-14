@@ -258,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         output_path = _resolve_output_path(args.output)
     except ValueError as exc:
-        print(f"FAIL: {exc}")
+        print(f"FAIL: {exc}", file=sys.stderr)
         return 1
 
     if output_path is not None:
@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
         except OSError as exc:
-            print(f"FAIL: unable to write replay result: {exc}")
+            print(f"FAIL: unable to write replay result: {exc}", file=sys.stderr)
             return 1
 
     try:

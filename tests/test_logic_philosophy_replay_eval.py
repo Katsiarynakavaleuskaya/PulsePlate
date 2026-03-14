@@ -148,3 +148,23 @@ def test_main_writes_result_artifact(
     assert payload["winner_arm"] == "A3_combined"
     assert written["promotion_ready"] is True
     assert written["guardrails"]["known_good_false_positive_rate"] == 0.0
+
+
+def test_main_reports_validation_failures_on_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI failures should keep stdout machine-readable by writing errors to stderr."""
+
+    exit_code = main(
+        [
+            "--cases",
+            str(_fixture("missing_cases.json")),
+            "--negative-controls",
+            str(_fixture("replay_negative_controls.json")),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "FAIL: Replay cases file does not exist" in captured.err
