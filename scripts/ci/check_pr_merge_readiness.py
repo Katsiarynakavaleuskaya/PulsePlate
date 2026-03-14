@@ -1,4 +1,9 @@
-"""Merge-readiness CI gate: fail when non-draft PR has unresolved threads or unmapped bot comments."""
+"""Review-governance merge gate for unresolved threads and bot-comment mapping.
+
+This script does not classify current-head required checks; the canonical
+required-check truth lives in `check_current_head_pr_checks.py` and the
+`check_merge_ready.py` wrapper bundles both hard gates.
+"""
 
 from __future__ import annotations
 
@@ -392,12 +397,12 @@ def main() -> int:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
 
     if errors:
-        print("ERROR: merge-readiness gate failed:")
+        print("ERROR: review-governance merge gate failed:")
         for line in errors:
             print(f"- {line}")
         return 1
 
-    print("merge-readiness-gate: passed.")
+    print("merge-readiness-gate: passed (review governance only).")
     print(
         "Zero comments: 0 unresolved threads, all actionable bot comments mapped in canonical artifact."
     )

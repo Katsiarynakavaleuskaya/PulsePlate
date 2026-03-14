@@ -215,9 +215,50 @@ def test_wrapper_surfaces_failing_gate_names(
 
     captured = capsys.readouterr()
     assert exit_code == 1
+    assert "Blocking merge-ready bundle:" in captured.out
+    assert "[FAIL] merge-readiness-gate (hard; lane=review-governance; blocking)" in captured.out
     assert "ERROR: orchestration merge-check failed." in captured.out
     assert "Failing gates: merge-readiness-gate" in captured.out
     assert "ERROR: unresolved review threads" in captured.out
+
+
+def test_merge_ready_bundle_uses_declared_blocking_policy(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        merge_ready,
+        "GATE_POLICIES",
+        {
+            "phase2-pr-body-gates": merge_ready.GatePolicy(
+                gate_class="hard", lane="pr-governance", blocking=True
+            ),
+            "merge-readiness-gate": merge_ready.GatePolicy(
+                gate_class="hard", lane="review-governance", blocking=False
+            ),
+            "current-head-checks": merge_ready.GatePolicy(
+                gate_class="hard", lane="required-checks", blocking=True
+            ),
+            "review-threads-disposition": merge_ready.GatePolicy(
+                gate_class="hard", lane="review-proof", blocking=True
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        merge_ready,
+        "BLOCKING_MERGE_READY_GATES",
+        (
+            "phase2-pr-body-gates",
+            "merge-readiness-gate",
+            "current-head-checks",
+            "review-threads-disposition",
+        ),
+    )
+
+    merge_ready._print_merge_ready_bundle()
+
+    captured = capsys.readouterr()
+    assert "phase2-pr-body-gates: class=hard, lane=pr-governance, blocking=yes" in captured.out
+    assert "merge-readiness-gate: class=hard, lane=review-governance, blocking=no" in captured.out
 
 
 def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
