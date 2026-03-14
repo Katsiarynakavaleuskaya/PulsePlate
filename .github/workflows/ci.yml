@@ -1481,6 +1481,8 @@ jobs:
               "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
               "-only-testing:PulsePlateTests/SubscriptionBillingServiceTests",
               "-only-testing:PulsePlateTests/SubscriptionManagerTests",
+              "-only-testing:PulsePlateTests/StoreKitProductCatalogTests",
+              "-only-testing:PulsePlateTests/StoreKitManagerCatalogTests",
               "-destination", destination,
               "-derivedDataPath", ".derivedData",
               "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",

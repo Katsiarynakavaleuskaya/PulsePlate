@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import PulsePlate
 
 
 final class ThinClientGuardsTests: XCTestCase {
@@ -449,6 +450,101 @@ final class ThinClientGuardsTests: XCTestCase {
         )
     }
 
+    func test_noHardcodedStoreKitProductIDsOutsideCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: [
+                "ios/PulsePlate/Models/StoreKitProductCatalog.swift"
+            ]
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for productID in StoreKitProductCatalog.allowedProductIDs where scanContent.contains(productID) {
+                hits.append("\(relativePath(file, root: root)): \(productID)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: hardcoded StoreKit product IDs detected outside the canonical catalog.
+
+            Fix:
+            - Keep runtime product IDs only in StoreKitProductCatalog.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noManualPriceOrTrialCopyUsedAsRuntimeTruth() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: guardedSourceExcludeSubpaths()
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        let forbiddenFragments = [
+            "free trial",
+            "introductory offer",
+            "intro offer",
+            "trial eligible",
+            "See price in App Store"
+        ]
+
+        var hits: [String] = []
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for fragment in forbiddenFragments where scanContent.localizedCaseInsensitiveContains(fragment) {
+                hits.append("\(relativePath(file, root: root)): \(fragment)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: manual pricing / trial runtime copy detected in app sources.
+
+            Fix:
+            - Keep pricing, trial, and eligibility truth in StoreKit / App Store policy layers, not runtime strings.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_storeKitContractDocMatchesSwiftCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let contractURL = root.appendingPathComponent(
+            "docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md"
+        )
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: contractURL.path),
+            "Canonical StoreKit contract doc is missing."
+        )
+
+        let content = try String(contentsOf: contractURL, encoding: .utf8)
+        let contractIDs = Set(try extractCanonicalStoreKitProductIDs(from: content))
+        let codeIDs = Set(StoreKitProductCatalog.allowedProductIDs)
+
+        XCTAssertEqual(contractIDs, codeIDs)
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))
@@ -535,6 +631,25 @@ private func collectTextFiles(
     }
 
     return results.sorted { $0.path < $1.path }
+}
+
+private func extractCanonicalStoreKitProductIDs(from content: String) throws -> [String] {
+    let regex = try NSRegularExpression(
+        pattern: #"\|\s*`(com\.pulseplate\.premium\.[a-z0-9._-]+)`\s*\|"#,
+        options: []
+    )
+
+    let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
+    let matches = regex.matches(in: content, options: [], range: nsRange)
+
+    return matches.compactMap { match in
+        guard match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: content)
+        else {
+            return nil
+        }
+        return String(content[range])
+    }
 }
 
 private func guardedSourceExcludeSubpaths() -> [String] {
