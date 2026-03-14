@@ -79,6 +79,113 @@ def test_task_bootstrap_routes_cv_tasks_to_cv_domain() -> None:
     assert "pulseplate-gates" in packet["recommended_skills"]
 
 
+def test_task_bootstrap_promotes_requested_routable_agent() -> None:
+    """Requested agents already present in the routed slot set may become primary."""
+
+    packet = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+        requested_agents=["backend-engineer"],
+    )
+
+    assert packet["domain"] == "backend"
+    assert packet["primary_agent"] == "backend-engineer"
+    assert "architecture-specialist" in packet["secondary_agents"]
+    assert packet["requested_agents"] == ["backend-engineer"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "backend-engineer",
+            "status": "honored_primary",
+            "reason": "Requested agent already matches the routed primary.",
+        }
+    ]
+
+
+def test_task_bootstrap_keeps_non_routable_requested_agent_as_advisory() -> None:
+    """Non-routable specialists should be preserved as advisory collaborators."""
+
+    packet = build_task_packet(
+        goal="Design AI reliability experiment packet",
+        task_class="AI / ML",
+        candidate_paths=["docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md"],
+        requested_agents=["ml-engineer-agent"],
+    )
+
+    assert packet["domain"] == "ml"
+    assert packet["primary_agent"] == "ai-innovation-specialist"
+    assert "ml-engineer-agent" in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "ml-engineer-agent",
+            "status": "advisory_non_routable",
+            "reason": "Agent is canonical but non-routable; kept as an advisory collaborator.",
+        }
+    ]
+
+
+def test_task_bootstrap_requested_agents_change_packet_id() -> None:
+    """Requested agents should contribute to the deterministic packet identity."""
+
+    baseline = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+    )
+    with_requested = build_task_packet(
+        goal="Implement backend entitlement routing",
+        task_class="Backend API",
+        candidate_paths=["app/middleware/api_tiers.py"],
+        requested_agents=["backend-engineer"],
+    )
+
+    assert baseline["task_packet_id"] != with_requested["task_packet_id"]
+
+
+def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> None:
+    """Privileged orchestration paths must retain security review after overrides."""
+
+    packet = build_task_packet(
+        goal="Update privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+    )
+
+    review_path = {
+        packet["primary_agent"],
+        packet["reviewer"],
+        *packet["secondary_agents"],
+    }
+    assert "security-auditor" in review_path
+
+
+def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:
+    """Earlier honored-primary dispositions must stay aligned with final routing."""
+
+    packet = build_task_packet(
+        goal="Update privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator", "architecture-specialist"],
+    )
+
+    assert packet["primary_agent"] == "architecture-specialist"
+    assert "agent-coordinator" in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored but moved to secondary after a later promotion.",
+        },
+        {
+            "agent": "architecture-specialist",
+            "status": "promoted_requested_agent",
+            "reason": "Requested agent is compatible with the routed domain and was promoted.",
+        },
+    ]
+
+
 def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
     """Security acronyms must not trigger the CV routing domain."""
 
@@ -199,11 +306,14 @@ def test_main_writes_relative_output_inside_repo(tmp_path, monkeypatch, capsys) 
         "primary_agent": "agent-coordinator",
         "secondary_agents": [],
         "reviewer": "architecture-specialist",
+        "requested_agents": [],
+        "requested_agent_disposition": [],
         "required_context": ["AGENTS.md"],
         "recommended_skills": ["pulseplate-workflow"],
         "skill_routing": {
             "policy_version": "2026-03-08",
             "selection_mode": "deterministic-weighted",
+            "requested_agents": [],
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
@@ -254,11 +364,14 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         "primary_agent": "agent-coordinator",
         "secondary_agents": [],
         "reviewer": "architecture-specialist",
+        "requested_agents": [],
+        "requested_agent_disposition": [],
         "required_context": ["AGENTS.md"],
         "recommended_skills": ["pulseplate-workflow"],
         "skill_routing": {
             "policy_version": "2026-03-08",
             "selection_mode": "deterministic-weighted",
+            "requested_agents": [],
             "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
             "blocked": [],
         },
@@ -287,3 +400,62 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
     finally:
         if repo_output.exists():
             repo_output.unlink()
+
+
+def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
+    """CLI should propagate repeated --requested-agent values into the packet builder."""
+
+    observed: dict[str, object] = {}
+
+    def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return {
+            "schema_version": "2.0",
+            "task_packet_id": "req-agent-packet",
+            "goal": "Use requested agents",
+            "task_class": "Orchestration",
+            "domain": "orchestration",
+            "cluster": "ops",
+            "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": ["security-auditor"],
+            "reviewer": "architecture-specialist",
+            "requested_agents": ["agent-coordinator", "security-auditor"],
+            "requested_agent_disposition": [],
+            "required_context": ["AGENTS.md"],
+            "recommended_skills": ["pulseplate-workflow"],
+            "skill_routing": {
+                "policy_version": "2026-03-08",
+                "selection_mode": "deterministic-weighted",
+                "requested_agents": ["agent-coordinator", "security-auditor"],
+                "recommended": [{"skill": "pulseplate-workflow", "score": 100}],
+                "blocked": [],
+            },
+            "routing_rationale": {"source": "canonical_only"},
+        }
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        _fake_build_task_packet,
+    )
+
+    exit_code = main(
+        [
+            "--goal",
+            "Use explicit requested agents",
+            "--task-class",
+            "Orchestration",
+            "--requested-agent",
+            "agent-coordinator",
+            "--requested-agent",
+            "security-auditor",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert observed["requested_agents"] == ["agent-coordinator", "security-auditor"]
+    assert json.loads(captured.out)["requested_agents"] == [
+        "agent-coordinator",
+        "security-auditor",
+    ]

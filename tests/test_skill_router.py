@@ -29,6 +29,104 @@ def test_skill_router_prefers_orchestration_docs_skills() -> None:
     assert "pulseplate-guards" in skills
 
 
+def test_skill_router_applies_requested_agent_default_bundle() -> None:
+    """Requested agents should boost their documented default helper bundles."""
+
+    skills = select_recommended_skills(
+        goal="Refine frontend settings page",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer"],
+    )
+
+    assert "pulseplate-frontend-ui" in skills
+    assert "pulseplate-gates" in skills
+    assert "vercel-react-best-practices" in skills
+
+
+def test_requested_agent_bundle_boosts_existing_skill_without_duplication() -> None:
+    """Requested bundles should boost existing skills without duplicating entries."""
+
+    baseline = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+    )
+    with_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer"],
+    )
+
+    baseline_skill = next(
+        item for item in baseline["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+    requested_skill = next(
+        item for item in with_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+
+    assert (
+        len([item for item in with_requested["recommended"] if item["skill"] == "pulseplate-gates"])
+        == 1
+    )
+    assert requested_skill["score"] == baseline_skill["score"] + 2
+    assert "requested-agent:frontend-engineer(+2)" in requested_skill["reasons"]
+
+
+def test_route_skills_echoes_normalized_requested_agents() -> None:
+    """Router output should echo requested agents in normalized deduplicated form."""
+
+    decision = route_skills(
+        goal="Refine frontend settings page",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=[
+            "frontend-engineer",
+            "Frontend-Engineer",
+            "   FRONTEND-ENGINEER  ",
+            "backend-engineer",
+            "BACKEND-ENGINEER",
+        ],
+    )
+
+    assert decision["requested_agents"] == ["frontend-engineer", "backend-engineer"]
+
+
+def test_requested_agent_duplicates_do_not_stack_bundle_boosts() -> None:
+    """Duplicate requested agents should not apply extra bundle boosts."""
+
+    single_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer"],
+    )
+    duplicate_requested = route_skills(
+        goal="Open PR for the frontend settings page review",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/Settings.tsx"],
+        domain="frontend",
+        requested_agents=["frontend-engineer", "Frontend-Engineer", " frontend-engineer "],
+    )
+
+    single_skill = next(
+        item for item in single_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+    duplicate_skill = next(
+        item for item in duplicate_requested["recommended"] if item["skill"] == "pulseplate-gates"
+    )
+
+    assert duplicate_requested["requested_agents"] == ["frontend-engineer"]
+    assert duplicate_skill["score"] == single_skill["score"]
+    assert duplicate_skill["reasons"].count("requested-agent:frontend-engineer(+2)") == 1
+
+
 def test_skill_router_selects_backend_contract_skills() -> None:
     """Backend contract changes should pull endpoint and OpenAPI skills."""
 
@@ -45,6 +143,19 @@ def test_skill_router_selects_backend_contract_skills() -> None:
     assert "pulseplate-backend-endpoints" in skills
     assert "pulseplate-openapi-sync" in skills
     assert "pulseplate-gates" in skills
+
+
+def test_skill_router_selects_openai_docs_for_backend_ai_contracts() -> None:
+    """Backend AI/runtime work should be able to reach OpenAI docs guidance."""
+
+    skills = select_recommended_skills(
+        goal="Update OpenAI assistant contract for backend LLM endpoint",
+        task_class="Backend API",
+        candidate_paths=["app/routers/insight.py"],
+        domain="backend",
+    )
+
+    assert "openai-docs" in skills
 
 
 def test_skill_router_matches_punctuated_keywords_after_normalization() -> None:
@@ -162,6 +273,19 @@ def test_skill_router_selects_ci_fix_for_explicit_ci_failure() -> None:
     assert "ci-fix" in skills
 
 
+def test_skill_router_selects_github_comment_skill_for_review_threads() -> None:
+    """Review-thread remediation should select the dedicated GitHub comments skill."""
+
+    skills = select_recommended_skills(
+        goal="Address review comments and resolve GitHub review thread mappings",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert "gh-address-comments" in skills
+
+
 def test_skill_router_selects_threat_model_for_explicit_security_intent() -> None:
     """Threat-model requests should cross the explicit security threshold."""
 
@@ -173,6 +297,36 @@ def test_skill_router_selects_threat_model_for_explicit_security_intent() -> Non
     )
 
     assert "security-threat-model" in skills
+
+
+def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
+    """Privilege-sensitive workflow and release paths should trigger security helpers."""
+
+    skills = select_recommended_skills(
+        goal="Tighten App Store workflow session handling",
+        task_class="Release",
+        candidate_paths=[
+            ".github/workflows/ios-appstore-assets.yml",
+            "ios/fastlane/Fastfile",
+        ],
+        domain="release",
+    )
+
+    assert "security-best-practices" in skills
+    assert "pulseplate-guards" in skills
+
+
+def test_skill_router_treats_review_mapping_docs_as_privileged_surfaces() -> None:
+    """Review-mapping docs should also trigger the privileged-surface security skill."""
+
+    skills = select_recommended_skills(
+        goal="Refresh merge-readiness review mapping guidance",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert "security-best-practices" in skills
 
 
 def test_skill_router_prefix_match_is_boundary_aware() -> None:

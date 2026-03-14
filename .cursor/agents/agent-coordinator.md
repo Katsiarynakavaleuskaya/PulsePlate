@@ -121,6 +121,9 @@ When a task is created:
      first; then choose the routed domain primary/secondary/reviewer
    - Use `docs/orchestration/AGENT_CAPABILITY_MATRIX.md` only as advisory guidance
      inside the already routed domain; it does not define permissions
+   - If the user explicitly requested agent slugs, preserve them in the task packet and
+     honor them when they are compatible with the routed domain slots; otherwise keep them
+     advisory/rejected with explicit rationale instead of dropping them silently
 
 3. **Map to project-fit skills**:
    - If the task packet already includes `recommended_skills` / `skill_routing`, use those outputs as authoritative
@@ -130,6 +133,8 @@ When a task is created:
      `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` before selecting mutable surfaces
    - Prefer repo-tracked PulsePlate skills before global installed skills
    - Do not auto-select broad scraping workflows for PulsePlate
+   - Apply requested-agent default bundles from `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+     after canonical routing resolves; these bundles are helpers, not authority overrides
    - For design/system tasks, follow the canonical source precedence in
      `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
      with default order `Figma -> Notion -> Airweave -> Penpot`
@@ -138,6 +143,9 @@ When a task is created:
    - Single-agent: Direct assignment to best-fit agent
    - Multi-agent: Create workflow with dependencies and handoffs
    - Parallel: Assign independent sub-tasks to multiple agents simultaneously
+   - If touched scope includes `.github/workflows/**`, `ios/fastlane/**`,
+     `scripts/orchestration/**`, or merge-governance docs/scripts, keep
+     `security-auditor` in the review path by default
 
 ### 3. Work Synthesis & Quality Assurance
 

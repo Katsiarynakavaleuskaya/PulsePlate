@@ -24,12 +24,28 @@ from scripts.orchestration.context_pack import (
     repo_relative_paths,
     resolve_domain,
 )
+from scripts.orchestration.agent_consistency_loader import (
+    load_inventory_agents,
+    load_non_routable_agents,
+)
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.requested_agents import normalize_requested_agents
 from scripts.orchestration.skill_router import route_skills
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
+REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
+REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
+REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
+REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
+REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
+REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
+PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
+    ".github/workflows/",
+    "ios/fastlane/",
+    "scripts/orchestration/",
+)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -42,16 +58,183 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _select_independent_reviewer(
+    *,
+    primary_agent: str,
+    canonical_reviewer: str,
+    canonical_secondary: str | None,
+    previous_primary: str,
+) -> str:
+    """Keep reviewer independent after requested-agent promotion."""
+
+    reviewer_candidate = next(
+        (
+            candidate
+            for candidate in (
+                canonical_reviewer,
+                canonical_secondary,
+                previous_primary,
+                "agent-coordinator",
+            )
+            if candidate and candidate != primary_agent
+        ),
+        None,
+    )
+    if reviewer_candidate is not None:
+        return reviewer_candidate
+    return "qa-engineer-agent"
+
+
+def _requires_security_review(candidate_paths: list[str] | tuple[str, ...]) -> bool:
+    """Return True when the task touches privileged surfaces that require security review."""
+
+    return any(
+        any(
+            path == prefix.rstrip("/") or path.startswith(prefix)
+            for prefix in PRIVILEGED_REVIEW_PREFIXES
+        )
+        for path in candidate_paths
+    )
+
+
+def _apply_requested_agent_overrides(
+    *,
+    domain: str,
+    primary_agent: str,
+    secondary_agent: str | None,
+    reviewer: str,
+    requested_agents: list[str],
+    routing: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply explicit requested-agent overrides in a deterministic, bounded way."""
+
+    inventory = load_inventory_agents()
+    non_routable = load_non_routable_agents()
+    canonical_route = routing.get(domain)
+
+    resolved_primary = primary_agent
+    resolved_secondary_agents = [agent for agent in [secondary_agent] if agent]
+    dispositions: list[dict[str, str]] = []
+    advisory_agents: list[str] = []
+
+    def _disposition(agent: str, status: str, reason: str) -> dict[str, str]:
+        """Build a deterministic disposition payload for requested-agent handling."""
+
+        return {"agent": agent, "status": status, "reason": reason}
+
+    for agent in requested_agents:
+        if agent not in inventory:
+            dispositions.append(
+                _disposition(
+                    agent,
+                    REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN,
+                    "Agent is not registered in the canonical inventory.",
+                )
+            )
+            continue
+
+        if agent == resolved_primary:
+            dispositions.append(
+                _disposition(
+                    agent,
+                    REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+                    "Requested agent already matches the routed primary.",
+                )
+            )
+            continue
+
+        if agent in non_routable:
+            if agent not in advisory_agents:
+                advisory_agents.append(agent)
+            dispositions.append(
+                _disposition(
+                    agent,
+                    REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+                    "Agent is canonical but non-routable; kept as an advisory collaborator.",
+                )
+            )
+            continue
+
+        allowed_promotions = {candidate for candidate in [secondary_agent, reviewer] if candidate}
+        if canonical_route is not None:
+            allowed_promotions.add(canonical_route.primary)
+            if canonical_route.secondary:
+                allowed_promotions.add(canonical_route.secondary)
+            allowed_promotions.add(canonical_route.reviewer)
+
+        if agent in allowed_promotions:
+            previous_primary = resolved_primary
+            resolved_primary = agent
+            resolved_secondary_agents = [
+                candidate
+                for candidate in [previous_primary, *resolved_secondary_agents]
+                if candidate and candidate != resolved_primary
+            ]
+            reviewer = _select_independent_reviewer(
+                primary_agent=resolved_primary,
+                canonical_reviewer=canonical_route.reviewer if canonical_route else reviewer,
+                canonical_secondary=(
+                    canonical_route.secondary if canonical_route else secondary_agent
+                ),
+                previous_primary=previous_primary,
+            )
+            for disposition in dispositions:
+                if (
+                    disposition["agent"] == previous_primary
+                    and disposition["status"] == REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+                ):
+                    disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+                    disposition["reason"] = (
+                        "Requested agent stayed honored but moved to secondary after a later promotion."
+                    )
+            dispositions.append(
+                _disposition(
+                    agent,
+                    REQUESTED_AGENT_STATUS_PROMOTED,
+                    "Requested agent is compatible with the routed domain and was promoted.",
+                )
+            )
+            continue
+
+        if agent not in advisory_agents:
+            advisory_agents.append(agent)
+        dispositions.append(
+            _disposition(
+                agent,
+                REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+                "Requested agent stays advisory because it is outside the routed domain slot set.",
+            )
+        )
+
+    ordered_secondary_agents: list[str] = []
+    for candidate in [*resolved_secondary_agents, *advisory_agents]:
+        if (
+            candidate
+            and candidate != resolved_primary
+            and candidate not in ordered_secondary_agents
+        ):
+            ordered_secondary_agents.append(candidate)
+
+    return {
+        "primary_agent": resolved_primary,
+        "secondary_agents": ordered_secondary_agents,
+        "reviewer": reviewer,
+        "requested_agent_disposition": dispositions,
+    }
+
+
 def build_task_packet(
     *,
     goal: str,
     task_class: str,
     candidate_paths: list[str],
+    requested_agents: list[str] | tuple[str, ...] = (),
     telemetry_path: Path = TELEMETRY_PATH,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
     normalized_paths = repo_relative_paths(candidate_paths)
+    normalized_requested_agents = normalize_requested_agents(requested_agents)
     domain = resolve_domain(
         task_class=task_class,
         candidate_paths=normalized_paths,
@@ -69,16 +252,36 @@ def build_task_packet(
         task_class=task_class,
         domain=decision.domain,
         candidate_paths=normalized_paths,
+        requested_agents=normalized_requested_agents,
     )
     context_pack = collect_context_pack(
         normalized_paths,
         include_orchestration=decision.cluster == "ops" or len(normalized_paths) != 1,
     )
+    requested_agent_resolution = _apply_requested_agent_overrides(
+        domain=decision.domain,
+        primary_agent=decision.primary,
+        secondary_agent=decision.secondary,
+        reviewer=decision.reviewer,
+        requested_agents=normalized_requested_agents,
+        routing=routing,
+    )
+    if _requires_security_review(normalized_paths):
+        secondary_agents = list(requested_agent_resolution["secondary_agents"])
+        security_in_review_path = "security-auditor" in {
+            requested_agent_resolution["primary_agent"],
+            requested_agent_resolution["reviewer"],
+            *secondary_agents,
+        }
+        if not security_in_review_path:
+            secondary_agents.append("security-auditor")
+        requested_agent_resolution["secondary_agents"] = secondary_agents
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,
         candidate_paths=normalized_paths,
         domain=decision.domain,
+        requested_agents=normalized_requested_agents,
     )
 
     return {
@@ -89,9 +292,11 @@ def build_task_packet(
         "domain": decision.domain,
         "cluster": decision.cluster,
         "candidate_paths": normalized_paths,
-        "primary_agent": decision.primary,
-        "secondary_agents": [agent for agent in [decision.secondary] if agent],
-        "reviewer": decision.reviewer,
+        "primary_agent": requested_agent_resolution["primary_agent"],
+        "secondary_agents": requested_agent_resolution["secondary_agents"],
+        "reviewer": requested_agent_resolution["reviewer"],
+        "requested_agents": normalized_requested_agents,
+        "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
         "required_context": context_pack,
         "recommended_skills": [item["skill"] for item in skill_routing["recommended"]],
         "skill_routing": skill_routing,
@@ -126,6 +331,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--goal", required=True)
     parser.add_argument("--task-class", required=True)
     parser.add_argument("--path", action="append", default=[])
+    parser.add_argument(
+        "--requested-agent",
+        action="append",
+        default=[],
+        help="Optional requested agent slug. May be repeated.",
+    )
     parser.add_argument("--telemetry", default=str(TELEMETRY_PATH))
     parser.add_argument(
         "--output",
@@ -141,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         goal=args.goal,
         task_class=args.task_class,
         candidate_paths=args.path,
+        requested_agents=args.requested_agent,
         telemetry_path=Path(args.telemetry),
     )
     try:
@@ -165,6 +377,7 @@ def main(argv: list[str] | None = None) -> int:
                 "cluster": packet["cluster"],
                 "primary_agent": packet["primary_agent"],
                 "reviewer": packet["reviewer"],
+                "requested_agents": packet["requested_agents"],
                 "recommended_skills": packet["recommended_skills"],
                 "output": output_ref,
             },
