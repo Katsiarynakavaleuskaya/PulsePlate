@@ -116,6 +116,24 @@ def test_evaluate_answer_rejects_negated_supported_snippets() -> None:
     assert result["first_pass_ready"] is False
 
 
+def test_evaluate_answer_accepts_later_non_negated_match() -> None:
+    """A later positive occurrence should still count after an earlier negated one."""
+
+    result = evaluate_answer(
+        answer=(
+            "BMI is not a screening metric for diagnosis. "
+            "BMI can still be used as a screening metric in wellness triage."
+        ),
+        required_facts=["screening metric"],
+        supported_claims=["screening metric"],
+        usefulness_markers=["screening metric"],
+        contradiction_checker=replay_eval.NonContradictionChecker(),
+    )
+
+    assert result["correctness_pass"] is True
+    assert result["unsupported_claim_rate"] < 1.0
+
+
 def test_evaluate_replay_documents_picks_combined_arm() -> None:
     """The provided offline corpus should rank the combined arm highest."""
 

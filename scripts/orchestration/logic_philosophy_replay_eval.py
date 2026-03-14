@@ -32,7 +32,8 @@ from scripts.orchestration.logic_philosophy_replay_contract import (
 
 RESULTS_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
 _WHITESPACE_RE = re.compile(r"\s+")
-_NEGATED_SNIPPET_TEMPLATE = r"\b(?:no|not|never)\b(?:\s+\w+){{0,2}}\s+{snippet}\b"
+_SNIPPET_TEMPLATE = r"\b{snippet}\b"
+_NEGATED_PREFIX_RE = re.compile(r"\b(?:no|not|never)(?:\s+\w+){0,2}$")
 
 
 def _normalize_text(value: str) -> str:
@@ -40,11 +41,9 @@ def _normalize_text(value: str) -> str:
     return _WHITESPACE_RE.sub(" ", compact).strip()
 
 
-def _is_negated_match(normalized_text: str, normalized_snippet: str) -> bool:
-    negated_pattern = re.compile(
-        _NEGATED_SNIPPET_TEMPLATE.format(snippet=re.escape(normalized_snippet))
-    )
-    return bool(negated_pattern.search(normalized_text))
+def _is_negated_match(normalized_text: str, start_index: int) -> bool:
+    prefix = normalized_text[:start_index].strip()
+    return bool(_NEGATED_PREFIX_RE.search(prefix))
 
 
 def _contains_supported_snippet(text: str, snippets: list[str]) -> bool:
@@ -53,9 +52,13 @@ def _contains_supported_snippet(text: str, snippets: list[str]) -> bool:
         normalized_snippet = _normalize_text(snippet)
         if not normalized_snippet or normalized_snippet not in normalized_text:
             continue
-        if _is_negated_match(normalized_text, normalized_snippet):
-            continue
-        return True
+        snippet_pattern = re.compile(
+            _SNIPPET_TEMPLATE.format(snippet=re.escape(normalized_snippet))
+        )
+        for match in snippet_pattern.finditer(normalized_text):
+            if _is_negated_match(normalized_text, match.start()):
+                continue
+            return True
     return False
 
 
