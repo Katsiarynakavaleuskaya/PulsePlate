@@ -477,4 +477,22 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
+IOS_FASTLANE = cd ios && BUNDLE_PATH=vendor/bundle bundle install && BUNDLE_PATH=vendor/bundle bundle exec fastlane ios
+
+ios-snapshot: ## Capture App Store screenshots via Fastlane
+	@echo "$(YELLOW)📸 Running iOS App Store screenshots...$(NC)"
+	@$(IOS_FASTLANE) snapshot_all
+
+ios-appstore-validate: ## Validate App Store screenshots, metadata, and privacy copy
+	@echo "$(YELLOW)🔎 Validating iOS App Store assets...$(NC)"
+	@$(IOS_FASTLANE) validate_assets
+
+ios-appstore-upload: ## Upload App Store metadata and screenshots (requires ASC API key env)
+	@echo "$(YELLOW)🚀 Uploading iOS App Store metadata and screenshots...$(NC)"
+	@$(IOS_FASTLANE) upload_metadata_and_screenshots
+
+ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID session env)
+	@echo "$(YELLOW)🔐 Uploading iOS App Privacy answers...$(NC)"
+	@$(IOS_FASTLANE) upload_app_privacy
+
+.PHONY: all help venv venv-sync setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list

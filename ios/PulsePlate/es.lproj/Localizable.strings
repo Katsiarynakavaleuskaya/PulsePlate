@@ -132,6 +132,33 @@
 "home.accessibility.screen_label" = "Pantalla de inicio";
 "home.hero.title" = "PulsePlate";
 "home.hero.subtitle" = "Slice de producción Home + Plate + Progress";
+"plate.preview.title" = "Mi Plate";
+"plate.preview.subtitle" = "Toca los segmentos para ajustar tu nutrición";
+"plate.preview.add_meal" = "Añadir comida";
+"plate.preview.view_details" = "Ver detalles";
+"plate.segment.vegetables" = "Verduras";
+"plate.segment.protein" = "Proteína";
+"plate.segment.carbs" = "Carbohidratos";
+"plate.segment.fats" = "Grasas";
+"appstore.paywall.navigation_title" = "PRO y VIP";
+"appstore.paywall.title" = "Mejora con claridad";
+"appstore.paywall.subtitle" = "Desbloquea planificación de nutrición, resúmenes premium y vistas de progreso wellness.";
+"appstore.paywall.section.plans" = "Planes";
+"appstore.paywall.restore" = "Restaurar compras";
+"appstore.paywall.plan.monthly.title" = "PRO mensual";
+"appstore.paywall.plan.monthly.price" = "Ver precio en App Store";
+"appstore.paywall.plan.monthly.badge" = "Más flexible";
+"appstore.paywall.plan.yearly.title" = "VIP anual";
+"appstore.paywall.plan.yearly.price" = "Ver precio en App Store";
+"appstore.paywall.plan.yearly.badge" = "Mejor valor";
+"appstore.health_permission.navigation_title" = "Acceso a Health";
+"appstore.health_permission.title" = "Acceso a Health, explicado con claridad";
+"appstore.health_permission.subtitle" = "PulsePlate lee nutrición y peso corporal de Health para mostrar progreso y planificación. La app no diagnostica ni trata.";
+"appstore.health_permission.section" = "Lo que tú controlas";
+"appstore.health_permission.cta" = "Revisar permisos de Health";
+"appstore.health_permission.bullet.read" = "Leer tus entradas de nutrición desde Health.";
+"appstore.health_permission.bullet.progress" = "Mostrar progreso semanal y tendencias de peso dentro de PulsePlate.";
+"appstore.health_permission.bullet.optional" = "Mantener el acceso a Health como opcional y centrado en bienestar.";
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Primero genera un plan semanal para crear la lista de compras.";

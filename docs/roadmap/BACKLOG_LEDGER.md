@@ -611,6 +611,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
     - App Store release-ops and compliance docs link back to the same monetization governance source
 
+<a id="ledger-p1-ios-appstore-assets-rollout"></a>
+- [ ] P1: iOS App Store assets rollout and protected ASC environment activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSETS-ROLLOUT
+  - Status: 📋 Planned
+  - Area: iOS / release-ops / App Store Connect / compliance
+  - Finding Type: release-ops activation follow-up
+  - Reason (EN): Fastlane lanes, localized metadata, screenshot validators, and manual GitHub Actions workflows can now be versioned and validated in-repo, but the protected App Store Connect rollout remains intentionally deferred until environment secrets, Apple session auth, and the first draft upload/review cycle are exercised in a controlled release-ops PR.
+  - Links:
+    - `ios/fastlane/Fastfile`
+    - `ios/fastlane/app_privacy_details.json`
+    - `ios/fastlane/metadata/review_information/notes.txt`
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-app-store-subscription-offers-governance`
+  - DoD:
+    - Protected GitHub environments contain the required ASC API key, bundle identifier, and Apple session secrets
+    - `workflow_dispatch` upload of localized metadata and screenshots completes against App Store Connect draft state
+    - App Privacy upload succeeds through the protected Apple session lane
+    - First release-ops runbook captures the reviewer-notes and rollback procedure for future asset refreshes
+
 <a id="ledger-p1-release-env-security-contract"></a>
 - [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
   - Owner: @katsiaryna_kavaleuskaya
@@ -1736,6 +1757,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Guard scope widens only after zero offenders in the target scope
     - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
 
+<a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
+- [ ] P2: PR 1147 follow-up for iOS App Store asset workflow cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
+  - Area: ios / ci / release assets
+  - Finding Type: deferred cleanup
+  - Reason: PR #1147 fixes the correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but two low-risk cleanup nits stay deferred so the current branch can finish merge-readiness without reopening the simulator/workflow surface.
+  - Links:
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `ios/fastlane/Fastfile`
+    - `docs/review/PR_1147_FIXED_MAPPING.md`
+  - DoD:
+    - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
+    - `ios/fastlane/Fastfile` documents or pins the `snapshot` `ios_version` strategy instead of relying on latest-runtime fallback
+    - App/runtime screenshot scenario identifiers and UITest screenshot names move to one shared contract without introducing UI-test linker coupling
+    - Cleanup preserves the current deterministic simulator matrix and does not reintroduce `OS=latest` drift
 
 <a id="ledger-p2-pr1-50-sharefile-hardening"></a>
 - [ ] P2: PR 1-50 follow-up for shareFile browser hardening

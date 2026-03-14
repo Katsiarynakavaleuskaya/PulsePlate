@@ -1,0 +1,158 @@
+require "shellwords"
+
+default_platform(:ios)
+
+APP_STORE_LOCALES = %w[ru-RU en-US es-ES].freeze
+IPHONE_DEVICE_CANDIDATES = [
+  # Prefer stable 18.5/18.6 runtimes on CI before falling back to 26.x simulators.
+  "iPhone 16 Pro Max",
+  "iPhone 16 Pro",
+  "iPhone 17 Pro Max",
+  "iPhone 17 Pro",
+  "iPhone 15 Pro Max",
+].freeze
+IPAD_DEVICE_CANDIDATES = [
+  "iPad Pro 13-inch (M4)",
+  "iPad Pro 13-inch (M5)",
+  "iPad Pro (12.9-inch) (6th generation)",
+].freeze
+
+def available_simulator_inventory
+  @available_simulator_inventory ||= sh("xcrun simctl list devices available")
+end
+
+def resolve_snapshot_device(candidates:, label:)
+  candidates.find do |candidate|
+    available_simulator_inventory.include?(candidate)
+  end || UI.user_error!("No available simulator found for #{label}. Tried: #{candidates.join(', ')}")
+end
+
+def resolved_snapshot_devices
+  [
+    resolve_snapshot_device(candidates: IPHONE_DEVICE_CANDIDATES, label: "iPhone 6.9-inch canonical"),
+    resolve_snapshot_device(candidates: IPAD_DEVICE_CANDIDATES, label: "iPad 13-inch canonical"),
+  ]
+end
+
+def snapshot_bundle_identifier
+  ENV.fetch("SNAPSHOT_BUNDLE_IDENTIFIER", "com.katsiaryna.pulseplate.dev")
+end
+
+def app_store_bundle_identifier
+  bundle_id = ENV["APP_STORE_BUNDLE_IDENTIFIER"]&.strip
+  return bundle_id unless bundle_id.to_s.empty?
+
+  UI.user_error!("APP_STORE_BUNDLE_IDENTIFIER is required for App Store upload lanes")
+end
+
+def require_env_vars!(names)
+  missing = names.select { |name| ENV[name].to_s.strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!("Missing required environment variables: #{missing.join(', ')}")
+end
+
+def asc_api_key
+  require_env_vars!(%w[APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_API_ISSUER_ID APP_STORE_CONNECT_API_KEY])
+
+  app_store_connect_api_key(
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+    key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+    is_key_content_base64: true
+  )
+end
+
+def fastlane_path(*parts)
+  File.expand_path(File.join(*parts), __dir__)
+end
+
+platform :ios do
+  before_all do
+    setup_ci if ENV["CI"]
+  end
+
+  desc "Capture deterministic localized App Store screenshots"
+  lane :snapshot_all do
+    snapshot(
+      project: "./PulsePlate.xcodeproj",
+      scheme: "PulsePlate",
+      test_without_building: false,
+      only_testing: ["PulsePlateUITests/AppStoreScreenshotTests"],
+      devices: resolved_snapshot_devices,
+      languages: APP_STORE_LOCALES,
+      app_identifier: snapshot_bundle_identifier,
+      output_directory: "./fastlane/screenshots",
+      clear_previous_screenshots: true,
+      erase_simulator: false,
+      concurrent_simulators: false,
+      stop_after_first_error: true,
+      number_of_retries: ENV["CI"] ? 0 : 1,
+      xcargs: "-parallel-testing-enabled NO -maximum-parallel-testing-workers 1",
+      override_status_bar: true,
+      reinstall_app: true,
+      skip_open_summary: true
+    )
+  end
+
+  desc "Validate screenshot dimensions, color profile, metadata, and HealthKit copy alignment"
+  lane :validate_assets do
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_dimensions.rb'))} #{Shellwords.escape(fastlane_path('screenshots'))}")
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_color_gamut.rb'))} #{Shellwords.escape(fastlane_path('screenshots'))}")
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_metadata.rb'))} #{Shellwords.escape(fastlane_path('metadata'))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_healthkit_copy.rb'))} #{Shellwords.escape(File.expand_path('../PulsePlate', __dir__))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+  end
+
+  desc "Validate metadata, reviewer notes, App Privacy package, and HealthKit copy without screenshot files"
+  lane :validate_metadata_package do
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_metadata.rb'))} #{Shellwords.escape(fastlane_path('metadata'))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+    sh("ruby #{Shellwords.escape(fastlane_path('verify', 'validate_healthkit_copy.rb'))} #{Shellwords.escape(File.expand_path('../PulsePlate', __dir__))} #{Shellwords.escape(fastlane_path('metadata', 'review_information', 'notes.txt'))} #{Shellwords.escape(fastlane_path('app_privacy_details.json'))}")
+  end
+
+  desc "Upload localized metadata and screenshots to App Store Connect draft"
+  lane :upload_metadata_and_screenshots do
+    require_env_vars!(%w[APP_STORE_BUNDLE_IDENTIFIER])
+
+    deliver(
+      api_key: asc_api_key,
+      app_identifier: app_store_bundle_identifier,
+      metadata_path: "./fastlane/metadata",
+      screenshots_path: "./fastlane/screenshots",
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      skip_metadata: false,
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      force: true,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Upload App Privacy questionnaire answers using Apple ID session auth"
+  lane :upload_app_privacy do
+    require_env_vars!(%w[FASTLANE_USER FASTLANE_SESSION APP_STORE_BUNDLE_IDENTIFIER])
+
+    upload_app_privacy_details_to_app_store(
+      username: ENV["FASTLANE_USER"],
+      team_id: ENV["FASTLANE_TEAM_ID"],
+      team_name: ENV["FASTLANE_TEAM_NAME"],
+      app_identifier: app_store_bundle_identifier,
+      json_path: "./fastlane/app_privacy_details.json"
+    )
+  end
+
+  desc "Run screenshot capture, validation, and metadata/screenshots upload"
+  lane :release_assets do
+    snapshot_all
+    validate_assets
+    upload_metadata_and_screenshots
+  end
+
+  error do |lane, exception|
+    UI.error("Lane #{lane} failed: #{exception.message}")
+  end
+
+  after_all do |lane|
+    UI.message("Lane #{lane} finished")
+  end
+end

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B6A4F701C4F7A1001234A001 /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A4F700C4F7A1001234A001 /* AppStoreScreenshotTests.swift */; };
+		B6A4F703C4F7A1001234A001 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A4F702C4F7A1001234A001 /* SnapshotHelper.swift */; };
 		B6B04C2D2EEF4BC4005E0955 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B6B04C2C2EEF4BC4005E0955 /* Lottie */; };
 		B63DC54A60CDD04447BE2DD1 /* __CIAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6AAD8EE46580D4F79A394FC /* __CIAnchorTests.swift */; };
 		B6F5B1E4A0C840D5A8C7A9B1 /* PulsePlateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */; };
@@ -36,6 +38,8 @@
 		B6169A332E893CF100B218D8 /* PulsePlate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulsePlate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6169A422E893CF200B218D8 /* PulsePlateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsePlateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6169A4C2E893CF200B218D8 /* PulsePlateUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsePlateUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6A4F700C4F7A1001234A001 /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/AppStoreScreenshotTests.swift; sourceTree = SOURCE_ROOT; };
+		B6A4F702C4F7A1001234A001 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/SnapshotHelper.swift; sourceTree = SOURCE_ROOT; };
 		B6AAD8EE46580D4F79A394FC /* __CIAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateTests/__CIAnchorTests.swift; sourceTree = SOURCE_ROOT; };
 		B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/PulsePlateUITests.swift; sourceTree = SOURCE_ROOT; };
 		B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/PulsePlateUITestsLaunchTests.swift; sourceTree = SOURCE_ROOT; };
@@ -103,6 +107,8 @@
 		B6F5B1E1A0C840D5A8C7A9B1 /* PulsePlateUITests */ = {
 			isa = PBXGroup;
 			children = (
+				B6A4F700C4F7A1001234A001 /* AppStoreScreenshotTests.swift */,
+				B6A4F702C4F7A1001234A001 /* SnapshotHelper.swift */,
 				B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */,
 				B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */,
 				B6F5B1E6A0C840D5A8C7A9B1 /* UISmokeTests.swift */,
@@ -305,6 +311,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B6A4F701C4F7A1001234A001 /* AppStoreScreenshotTests.swift in Sources */,
+				B6A4F703C4F7A1001234A001 /* SnapshotHelper.swift in Sources */,
 				B6F5B1E4A0C840D5A8C7A9B1 /* PulsePlateUITests.swift in Sources */,
 				B6F5B1E5A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift in Sources */,
 				B6F5B1E7A0C840D5A8C7A9B1 /* UISmokeTests.swift in Sources */,

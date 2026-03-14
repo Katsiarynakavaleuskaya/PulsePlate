@@ -1,0 +1,11 @@
+PulsePlate is a wellness and nutrition planning app.
+
+HealthKit usage summary:
+- Read-only access to dietary energy, protein, carbohydrates, total fat, fiber, sugar, sodium, and body mass.
+- Health access is optional and explained before the user gives consent to enable it.
+- Users can revoke Health access at any time in the Health app or iOS Settings.
+
+Review guidance:
+- The app does not diagnose, treat, cure, or provide medical advice.
+- App Store screenshots are generated from seeded test data only. No real user data, purchases, or Health records are shown.
+- PRO/VIP paywall screenshots are static preview states for App Store marketing assets and do not reflect any auto-renew billing claim beyond the in-app purchase configuration in App Store Connect.

@@ -156,7 +156,7 @@ class NutritionService: ObservableObject {
   init(
     apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL()),
     profileProvider: ProfileProviding = DefaultProfileProvider(),
-    apiKeyProvider: @escaping @Sendable () -> String? = { ProKeyProvider.value() },
+    apiKeyProvider: @escaping @Sendable () -> String? = { AppStoreScreenshotContext.previewProKey ?? ProKeyProvider.value() },
     dailyService: ProDailyNutritionServicing? = nil
   ) {
     self.apiClient = apiClient
@@ -169,6 +169,15 @@ class NutritionService: ObservableObject {
     await MainActor.run {
       isLoading = true
       issue = nil
+    }
+
+    if AppStoreScreenshotContext.isEnabled {
+      await MainActor.run {
+        self.loadMockData()
+        self.issue = nil
+        self.isLoading = false
+      }
+      return
     }
 
     do {
@@ -251,7 +260,7 @@ extension NutritionService {
       date: "2025-01-27",
       segments: [
         NutritionSegmentData(
-          name: "Vegetables",
+          name: NSLocalizedString("plate.segment.vegetables", comment: ""),
           currentValue: 3.2,
           targetValue: 4.0,
           percentage: 40,
@@ -259,7 +268,7 @@ extension NutritionService {
           icon: "leaf.fill"
         ),
         NutritionSegmentData(
-          name: "Protein",
+          name: NSLocalizedString("plate.segment.protein", comment: ""),
           currentValue: 1.8,
           targetValue: 2.0,
           percentage: 25,
@@ -267,7 +276,7 @@ extension NutritionService {
           icon: "fish.fill"
         ),
         NutritionSegmentData(
-          name: "Carbs",
+          name: NSLocalizedString("plate.segment.carbs", comment: ""),
           currentValue: 1.2,
           targetValue: 1.5,
           percentage: 25,
@@ -275,7 +284,7 @@ extension NutritionService {
           icon: "grain.fill"
         ),
         NutritionSegmentData(
-          name: "Fats",
+          name: NSLocalizedString("plate.segment.fats", comment: ""),
           currentValue: 0.6,
           targetValue: 0.8,
           percentage: 10,

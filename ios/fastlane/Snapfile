@@ -1,0 +1,11 @@
+scheme("PulsePlate")
+project("./PulsePlate.xcodeproj")
+output_directory("./fastlane/screenshots")
+languages(["ru-RU", "en-US", "es-ES"])
+clear_previous_screenshots(true)
+erase_simulator(true)
+number_of_retries(1)
+stop_after_first_error(true)
+skip_open_summary(true)
+
+# Device fallback is resolved in Fastfile because available simulator names vary by Xcode image.

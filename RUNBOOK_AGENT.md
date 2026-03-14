@@ -244,6 +244,36 @@ Run from repo root before any push/PR:
 4. `pre-commit run --all-files`
 5. `make verify`
 
+## PR operating lifecycle (mandatory for coordinator-led work)
+
+Use this as the canonical operating loop from branch creation to merge window:
+
+1. **Coordinator start**
+   - Run `python3 scripts/orchestration/check_preflight.py`
+   - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
+   - Decide scope, risk, and which sub-agents or helpers are needed before edits
+2. **Open / maintain draft**
+   - Keep the PR in draft while scope, artifact strategy, or local gates are still unstable
+   - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
+3. **Before each push**
+   - Run `pre-commit run --all-files`
+   - Run the required local gates for the touched scope; for merge claims this still means `make verify`
+   - Commit hook changes separately when hooks modify files
+4. **After each push**
+   - Watch the latest-head CI run, not stale `gh pr checks` history
+   - Treat `scripts/orchestration/check_merge_ready.py` as the canonical current-head verdict
+5. **After each new review / bot activity**
+   - Fix code/docs first when needed
+   - Update `docs/review/PR_<N>_FIXED_MAPPING.md` next
+   - Update the optional PR-body mirror only after the canonical artifact is correct
+   - Re-run merge-readiness checks; do not assume a previous pass still holds
+6. **Before merge**
+   - Re-run the strict merge wrapper after the latest bot/review activity
+   - Confirm no pending required jobs remain
+   - Wait one review cycle after the final green state
+
+If any part of this loop is skipped, the PR must not be described as ready.
+
 ## Pre-merge readiness pass (mandatory for non-draft PRs)
 
 Run before merge after latest commit and latest bot/review activity:

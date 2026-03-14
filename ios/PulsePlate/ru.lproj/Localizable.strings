@@ -132,6 +132,33 @@
 "home.accessibility.screen_label" = "Экран главной";
 "home.hero.title" = "PulsePlate";
 "home.hero.subtitle" = "Продакшн-срез Home + Plate + Progress";
+"plate.preview.title" = "Моя тарелка";
+"plate.preview.subtitle" = "Нажмите на сегменты, чтобы настроить питание";
+"plate.preview.add_meal" = "Добавить приём пищи";
+"plate.preview.view_details" = "Показать детали";
+"plate.segment.vegetables" = "Овощи";
+"plate.segment.protein" = "Белок";
+"plate.segment.carbs" = "Углеводы";
+"plate.segment.fats" = "Жиры";
+"appstore.paywall.navigation_title" = "PRO и VIP";
+"appstore.paywall.title" = "Открывайте ценность спокойно";
+"appstore.paywall.subtitle" = "Получите планирование питания, премиальные сводки и wellness-прогресс.";
+"appstore.paywall.section.plans" = "Тарифы";
+"appstore.paywall.restore" = "Восстановить покупки";
+"appstore.paywall.plan.monthly.title" = "PRO на месяц";
+"appstore.paywall.plan.monthly.price" = "Смотрите цену в App Store";
+"appstore.paywall.plan.monthly.badge" = "Гибкий выбор";
+"appstore.paywall.plan.yearly.title" = "VIP на год";
+"appstore.paywall.plan.yearly.price" = "Смотрите цену в App Store";
+"appstore.paywall.plan.yearly.badge" = "Лучшая цена";
+"appstore.health_permission.navigation_title" = "Доступ к Health";
+"appstore.health_permission.title" = "Доступ к Health без путаницы";
+"appstore.health_permission.subtitle" = "PulsePlate читает питание и вес из Health, чтобы показывать прогресс и планирование. Приложение не ставит диагноз и не лечит.";
+"appstore.health_permission.section" = "Что контролируете вы";
+"appstore.health_permission.cta" = "Посмотреть разрешения Health";
+"appstore.health_permission.bullet.read" = "Чтение записей о питании из Health.";
+"appstore.health_permission.bullet.progress" = "Показ недельного прогресса и динамики веса в PulsePlate.";
+"appstore.health_permission.bullet.optional" = "Доступ к Health остаётся опциональным и ориентированным на благополучие.";
 
 /* Shopping List */
 "shopping_list_no_plan_error" = "Сначала сгенерируйте недельный план, чтобы собрать список покупок.";
