@@ -29,7 +29,7 @@ Evidence: `docs/review/PR_1169_FIXED_MAPPING.md:8` now points to `scripts/orches
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1169#discussion_r2935302846 -> cc39111f5d6d98b0f879ae2319139d68412b00b4
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
