@@ -56,10 +56,10 @@ Reason: PR-4 explicitly forbids automatic receipt replay on launch/foreground. W
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419753
 
 Disposition: FIXED
-Commit: PENDING_ARTIFACT_COMMIT
+Commit: 7b4f5613
 Evidence: docs/review/PR_1171_FIXED_MAPPING.md:1
 Reason: Merge-readiness checkboxes are reset to the real in-progress state until required checks, review threads, and the final wait window are actually complete.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419746 -> PENDING_ARTIFACT_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935419746 -> 7b4f5613
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
