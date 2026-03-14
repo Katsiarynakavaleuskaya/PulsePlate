@@ -1,6 +1,14 @@
 import Foundation
 import StoreKit
 
+protocol StoreKitDisplayProduct {
+    var id: String { get }
+    var displayName: String { get }
+    var displayPrice: String { get }
+}
+
+extension Product: StoreKitDisplayProduct {}
+
 struct SubscriptionProduct: Identifiable, Equatable, Sendable {
     let id: String
     let displayName: String
@@ -54,30 +62,20 @@ protocol StoreKitManaging {
 
 @MainActor
 final class StoreKitManager: StoreKitManaging {
+    private let catalog: [StoreKitCatalogProduct]
     private let productIDs: [String]
     private var cachedProducts: [String: Product] = [:]
 
-    init(productIDs: [String] = [
-        "com.pulseplate.premium.monthly",
-        "com.pulseplate.premium.yearly"
-    ]) {
-        self.productIDs = productIDs
+    init(catalog: [StoreKitCatalogProduct] = StoreKitProductCatalog.all) {
+        self.catalog = catalog
+        self.productIDs = catalog.map(\.productID)
     }
 
     func loadProducts() async throws -> [SubscriptionProduct] {
         let fetchedProducts = try await Product.products(for: productIDs)
         cachedProducts = Dictionary(uniqueKeysWithValues: fetchedProducts.map { ($0.id, $0) })
 
-        return productIDs.compactMap { productID in
-            guard let product = cachedProducts[productID] else {
-                return nil
-            }
-            return SubscriptionProduct(
-                id: product.id,
-                displayName: product.displayName,
-                displayPrice: product.displayPrice
-            )
-        }
+        return Self.mapLoadedProducts(fetchedProducts, orderedBy: productIDs)
     }
 
     func purchase(productID: String) async throws -> StorePurchaseResult {
@@ -153,8 +151,30 @@ final class StoreKitManager: StoreKitManaging {
         return product
     }
 
+    func managesProductID(_ productID: String) -> Bool {
+        catalog.contains { $0.productID == productID }
+    }
+
+    nonisolated static func mapLoadedProducts<ProductView: StoreKitDisplayProduct>(
+        _ fetchedProducts: [ProductView],
+        orderedBy productIDs: [String]
+    ) -> [SubscriptionProduct] {
+        let productsByID = Dictionary(uniqueKeysWithValues: fetchedProducts.map { ($0.id, $0) })
+
+        return productIDs.compactMap { productID in
+            guard let product = productsByID[productID] else {
+                return nil
+            }
+            return SubscriptionProduct(
+                id: product.id,
+                displayName: product.displayName,
+                displayPrice: product.displayPrice
+            )
+        }
+    }
+
     private func isManagedProduct(_ productID: String) -> Bool {
-        productIDs.contains(productID)
+        managesProductID(productID)
     }
 
     private func mapTransaction(_ transaction: Transaction) -> StoreEntitlementTransaction {
