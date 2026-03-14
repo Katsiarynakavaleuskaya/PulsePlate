@@ -14,7 +14,7 @@ Evidence: requirements-lock.txt:32
 Reason: The fix keeps the Dependabot update scoped to the Black dev-tool bump and restores the production lock surfaces so CUDA/Triton runtime packages are not introduced by this PR.
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
+- [x] Local gates passed on current head
 - [ ] All required checks green
 - [ ] All actionable review threads resolved with dispositions
 - [ ] CodeRabbit PASS / no-actionables
