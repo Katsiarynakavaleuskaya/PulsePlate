@@ -34,6 +34,10 @@ def resolved_snapshot_devices
   ]
 end
 
+def snapshot_bundle_identifier
+  ENV.fetch("SNAPSHOT_BUNDLE_IDENTIFIER", "com.katsiaryna.pulseplate.dev")
+end
+
 def app_store_bundle_identifier
   bundle_id = ENV["APP_STORE_BUNDLE_IDENTIFIER"]&.strip
   return bundle_id unless bundle_id.to_s.empty?
@@ -77,6 +81,7 @@ platform :ios do
       only_testing: ["PulsePlateUITests/AppStoreScreenshotTests"],
       devices: resolved_snapshot_devices,
       languages: APP_STORE_LOCALES,
+      app_identifier: snapshot_bundle_identifier,
       output_directory: "./fastlane/screenshots",
       clear_previous_screenshots: true,
       erase_simulator: false,
