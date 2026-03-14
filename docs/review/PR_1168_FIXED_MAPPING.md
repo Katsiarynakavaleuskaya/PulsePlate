@@ -5,7 +5,7 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
-- No actionable review comments yet. Canonical artifact initialized before the first bot/human review pass.
+- No actionable review comments
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
