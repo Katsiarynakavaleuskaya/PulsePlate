@@ -2,7 +2,7 @@
 
 ## Discussion Thread Pass
 - [x] Initial PR body aligned to project canon
-- [ ] Discussion-thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
@@ -32,7 +32,7 @@ Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:8`, `docs/review/PR_1164_FIXED_M
 ## Merge Readiness
 - [x] Local gates passed on current head
 - [ ] All required checks green
-- [ ] No unresolved review threads remain
+- [x] No unresolved review threads remain
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
 - [ ] Cubic PASS / no-actionables
