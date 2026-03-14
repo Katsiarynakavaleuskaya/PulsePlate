@@ -32,7 +32,7 @@ from scripts.orchestration.logic_philosophy_replay_contract import (
 
 RESULTS_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
 _WHITESPACE_RE = re.compile(r"\s+")
-_SNIPPET_TEMPLATE = r"\b{snippet}\b"
+_SNIPPET_TEMPLATE = r"(?<!\w){snippet}(?!\w)"
 _NEGATED_PREFIX_RE = re.compile(r"\b(?:no|not|never)(?:\s+\w+){0,2}$")
 
 

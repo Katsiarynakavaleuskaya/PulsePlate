@@ -134,6 +134,22 @@ def test_evaluate_answer_accepts_later_non_negated_match() -> None:
     assert result["unsupported_claim_rate"] < 1.0
 
 
+def test_evaluate_answer_matches_non_word_boundary_snippets() -> None:
+    """Normalized snippets with punctuation should still match at string boundaries."""
+
+    result = evaluate_answer(
+        answer="A common recovery range is 1.2 to 2.0 g/kg for active adults.",
+        required_facts=["1.2 to 2.0 g/kg"],
+        supported_claims=["1.2 to 2.0 g/kg"],
+        usefulness_markers=["1.2 to 2.0 g/kg"],
+        contradiction_checker=replay_eval.NonContradictionChecker(),
+    )
+
+    assert result["correctness_pass"] is True
+    assert result["unsupported_claim_rate"] == 0.0
+    assert result["first_pass_ready"] is True
+
+
 def test_evaluate_replay_documents_picks_combined_arm() -> None:
     """The provided offline corpus should rank the combined arm highest."""
 

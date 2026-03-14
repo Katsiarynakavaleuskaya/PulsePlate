@@ -47,7 +47,7 @@ Definitions live in `docs/analytics/METRICS_CATALOG.md:266`, `docs/analytics/MET
 ## Guardrails
 
 - `known_good_false_positive_rate` must stay at `0.0` for the provided negative controls (`scripts/orchestration/logic_philosophy_replay_eval.py:167-190`)
-- `usefulness_floor_rate` is reported for every arm and must not silently collapse when correctness improves (`scripts/orchestration/logic_philosophy_replay_eval.py:115-140`, `scripts/orchestration/logic_philosophy_replay_eval.py:200-207`)
+- `usefulness_floor_rate` is reported for every arm and must not silently collapse when correctness improves (`scripts/orchestration/logic_philosophy_replay_eval.py:115-140`, `scripts/orchestration/logic_philosophy_replay_eval.py:200-210`)
 - Any non-zero network budget invalidates the lane for wave 1 (`scripts/orchestration/logic_philosophy_replay_contract.py:82-88`)
 - The evaluator must remain deterministic and offline-only (`scripts/orchestration/logic_philosophy_replay_contract.py:82-88`, `scripts/orchestration/logic_philosophy_replay_eval.py:144-229`)
 
@@ -75,6 +75,6 @@ The replay summary is promotion-ready only when all are true:
 - `A3_combined` improves over `A0_control` on readiness and correctness
 - `A3_combined` does not regress unsupported-claim rate or contradiction rate vs `A0_control`
 - `known_good_false_positive_rate == 0.0`
-- `A3_combined` does not regress `usefulness_floor_rate` vs `A0_control` (`scripts/orchestration/logic_philosophy_replay_eval.py:200-207`)
+- `A3_combined` does not regress `usefulness_floor_rate` vs `A0_control` (`scripts/orchestration/logic_philosophy_replay_eval.py:200-210`)
 
 Passing this contract authorizes only a later human-reviewed `pr_packet` promotion step. It does not authorize runtime rollout, autonomous merge, or live provider experimentation.
