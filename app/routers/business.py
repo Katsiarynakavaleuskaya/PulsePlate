@@ -83,7 +83,8 @@ def _localized_error(locale: Optional[str], key: str) -> str:
         Localized error message
     """
     lang = normalize_lang(locale)
-    return t(lang, key)
+    message: str = t(lang, key)
+    return message
 
 
 @router.post("/analyze", response_model=list[BusinessAnalysisResponse])
