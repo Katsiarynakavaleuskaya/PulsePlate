@@ -21,6 +21,7 @@ Commit: 53a1ceec80a5dad6a1b8bc874acbb659572affe1
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:715` adds a stable anchor for the semantic App Store validator follow-up, while `docs/roadmap/BACKLOG_LEDGER.md:734` and `docs/roadmap/BACKLOG_LEDGER.md:735` move the PR 1147 follow-up into the `P1` release-ops cluster and preserve the legacy `ledger-p2-pr1147-ios-appstore-asset-followups` anchor as a backward-compatible alias for existing links.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1167#pullrequestreview-3948606887 -> 53a1ceec80a5dad6a1b8bc874acbb659572affe1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1167#pullrequestreview-3948609973 -> 53a1ceec80a5dad6a1b8bc874acbb659572affe1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1167#discussion_r2935085843 -> 53a1ceec80a5dad6a1b8bc874acbb659572affe1
 
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
