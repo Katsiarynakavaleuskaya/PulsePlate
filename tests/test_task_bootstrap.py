@@ -160,6 +160,32 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
     assert "security-auditor" in review_path
 
 
+def test_task_bootstrap_updates_honored_primary_after_later_promotion() -> None:
+    """Earlier honored-primary dispositions must stay aligned with final routing."""
+
+    packet = build_task_packet(
+        goal="Update privileged orchestration workflow",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator", "architecture-specialist"],
+    )
+
+    assert packet["primary_agent"] == "architecture-specialist"
+    assert "agent-coordinator" in packet["secondary_agents"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored but moved to secondary after a later promotion.",
+        },
+        {
+            "agent": "architecture-specialist",
+            "status": "promoted_requested_agent",
+            "reason": "Requested agent is compatible with the routed domain and was promoted.",
+        },
+    ]
+
+
 def test_task_bootstrap_does_not_treat_cve_or_cvss_as_cv_domain() -> None:
     """Security acronyms must not trigger the CV routing domain."""
 

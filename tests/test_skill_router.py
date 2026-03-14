@@ -286,6 +286,19 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
     assert "pulseplate-guards" in skills
 
 
+def test_skill_router_treats_review_mapping_docs_as_privileged_surfaces() -> None:
+    """Review-mapping docs should also trigger the privileged-surface security skill."""
+
+    skills = select_recommended_skills(
+        goal="Refresh merge-readiness review mapping guidance",
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert "security-best-practices" in skills
+
+
 def test_skill_router_prefix_match_is_boundary_aware() -> None:
     """Filename prefixes must not match unrelated longer filenames."""
 

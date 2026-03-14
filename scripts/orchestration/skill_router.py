@@ -340,6 +340,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "ios/fastlane/",
             "scripts/orchestration/",
             "docs/orchestration/",
+            "docs/review/",
         ),
         keywords=(
             "security",
@@ -351,6 +352,8 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "workflow",
             "fastlane",
             "secret",
+            "merge-readiness",
+            "review mapping",
         ),
     ),
     SkillRule(

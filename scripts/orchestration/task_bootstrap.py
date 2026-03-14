@@ -37,6 +37,7 @@ SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
+REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
 REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE = "advisory_non_routable"
 REQUESTED_AGENT_STATUS_PROMOTED = "promoted_requested_agent"
 REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH = "advisory_domain_mismatch"
@@ -177,6 +178,15 @@ def _apply_requested_agent_overrides(
                 ),
                 previous_primary=previous_primary,
             )
+            for disposition in dispositions:
+                if (
+                    disposition["agent"] == previous_primary
+                    and disposition["status"] == REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+                ):
+                    disposition["status"] = REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+                    disposition["reason"] = (
+                        "Requested agent stayed honored but moved to secondary after a later promotion."
+                    )
             dispositions.append(
                 _disposition(
                     agent,
