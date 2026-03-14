@@ -30,7 +30,7 @@ Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:8`, `docs/review/PR_1164_FIXED_M
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#pullrequestreview-3948328323
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
+- [x] Local gates passed on current head
 - [ ] All required checks green
 - [ ] No unresolved review threads remain
 - [ ] CodeRabbit PASS / no-actionables
