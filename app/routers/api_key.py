@@ -13,8 +13,14 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 logger = logging.getLogger(__name__)
 
 
-def require_app_api_key(api_key: str = Depends(api_key_header)) -> str:
+def require_app_api_key(api_key: str | None = Depends(api_key_header)) -> str:
     """Validate app-level API key access for protected routes."""
+
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing API Key",
+        )
 
     app_get_api_key = resolve_attr("get_api_key", None)
     if not callable(app_get_api_key):

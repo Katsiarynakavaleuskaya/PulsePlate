@@ -150,6 +150,15 @@ class TestBusinessRouterIsolated:
         assert exc_info.value.status_code == 500
         assert exc_info.value.detail == "API key validation unavailable"
 
+    def test_require_app_api_key_rejects_none_key(self) -> None:
+        from app.routers import api_key as api_key_mod
+
+        with pytest.raises(HTTPException) as exc_info:
+            api_key_mod.require_app_api_key(None)
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Missing API Key"
+
     def test_require_app_api_key_rejects_non_string_result(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
