@@ -712,6 +712,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Privileged upload jobs are constrained to the intended default/release ref and have explicit concurrency/provenance protection
     - First release-ops runbook captures the reviewer-notes and rollback procedure for future asset refreshes
 
+<a id="ledger-p1-ios-appstore-semantic-validators"></a>
 - [ ] P1: Semantic App Store metadata and privacy validator expansion
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -729,6 +730,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Privacy validator has a documented drift check against declared app capabilities and release package inputs
     - New checks stay deterministic and repo-local
     - Release-ops docs explain when semantic validator failures are blockers vs advisory cleanup
+
+<a id="ledger-p1-pr1147-ios-appstore-asset-followups"></a>
+<a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
+- [ ] P1: PR 1147 follow-up for iOS App Store asset workflow alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
+  - Area: ios / ci / release assets
+  - Finding Type: deferred release-readiness alignment
+  - Reason: PR #1147 fixed the immediate correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but audit follow-up shows the remaining screenshot-manifest / UITest / validator contract still matters for deterministic release readiness and should no longer be treated as low-priority cosmetic cleanup.
+  - Links:
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `ios/fastlane/Fastfile`
+    - `ios/PulsePlateUITests/AppStoreScreenshotTests.swift`
+    - `tests/test_ios_appstore_asset_validators.py`
+    - `docs/review/PR_1147_FIXED_MAPPING.md`
+  - DoD:
+    - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
+    - `ios/fastlane/Fastfile` documents or pins the `snapshot` `ios_version` strategy instead of relying on latest-runtime fallback
+    - App/runtime screenshot scenario identifiers and UITest screenshot names move to one shared contract without introducing UI-test linker coupling
+    - Cleanup preserves the current deterministic simulator matrix and does not reintroduce `OS=latest` drift
 
 <a id="ledger-p1-release-env-security-contract"></a>
 - [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
@@ -1958,26 +1980,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remaining cache/reload/session-fixture exceptions are re-audited with current evidence
     - Guard scope widens only after zero offenders in the target scope
     - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
-
-<a id="ledger-p1-pr1147-ios-appstore-asset-followups"></a>
-- [ ] P1: PR 1147 follow-up for iOS App Store asset workflow alignment
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
-  - Area: ios / ci / release assets
-  - Finding Type: deferred release-readiness alignment
-  - Reason: PR #1147 fixed the immediate correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but audit follow-up shows the remaining screenshot-manifest / UITest / validator contract still matters for deterministic release readiness and should no longer be treated as low-priority cosmetic cleanup.
-  - Links:
-    - `.github/workflows/ios-appstore-assets.yml`
-    - `ios/fastlane/Fastfile`
-    - `ios/PulsePlateUITests/AppStoreScreenshotTests.swift`
-    - `tests/test_ios_appstore_asset_validators.py`
-    - `docs/review/PR_1147_FIXED_MAPPING.md`
-  - DoD:
-    - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
-    - `ios/fastlane/Fastfile` documents or pins the `snapshot` `ios_version` strategy instead of relying on latest-runtime fallback
-    - App/runtime screenshot scenario identifiers and UITest screenshot names move to one shared contract without introducing UI-test linker coupling
-    - Cleanup preserves the current deterministic simulator matrix and does not reintroduce `OS=latest` drift
 
 <a id="ledger-p2-pr1-50-sharefile-hardening"></a>
 - [ ] P2: PR 1-50 follow-up for shareFile browser hardening
