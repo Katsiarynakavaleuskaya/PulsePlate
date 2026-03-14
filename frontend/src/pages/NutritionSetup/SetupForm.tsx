@@ -11,12 +11,12 @@ interface SetupFormProps {
   onSubmit: (values: SetupFormValues) => void;
 }
 
-function normalizeNumericInput(value: unknown, { integer = false }: { integer?: boolean } = {}): number | undefined {
+function normalizeNumericInput(value: unknown): number | undefined {
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       return undefined;
     }
-    return integer ? Math.trunc(value) : value;
+    return value;
   }
 
   const normalized = String(value ?? '').trim().replace(',', '.');
@@ -29,7 +29,7 @@ function normalizeNumericInput(value: unknown, { integer = false }: { integer?: 
     return undefined;
   }
 
-  return integer ? Math.trunc(parsed) : parsed;
+  return parsed;
 }
 
 export default function SetupForm({ onSubmit }: SetupFormProps) {
@@ -99,7 +99,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
             <input
               type="text"
               inputMode="numeric"
-              {...register('age', { setValueAs: (value) => normalizeNumericInput(value, { integer: true }) })}
+              {...register('age', { setValueAs: (value) => normalizeNumericInput(value) })}
               placeholder="30"
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             />

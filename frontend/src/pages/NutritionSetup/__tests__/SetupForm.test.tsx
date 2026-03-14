@@ -23,7 +23,7 @@ describe('SetupForm', () => {
     );
 
     await user.clear(screen.getByPlaceholderText('30'));
-    await user.type(screen.getByPlaceholderText('30'), '30,9');
+    await user.type(screen.getByPlaceholderText('30'), '30');
     await user.clear(screen.getByPlaceholderText('170'));
     await user.type(screen.getByPlaceholderText('170'), '170,5');
     await user.clear(screen.getByPlaceholderText('65'));
@@ -39,5 +39,23 @@ describe('SetupForm', () => {
         })
       );
     });
+  });
+
+  it('rejects fractional age input instead of truncating it', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <SettingsProvider>
+        <SetupForm onSubmit={onSubmit} />
+      </SettingsProvider>
+    );
+
+    await user.clear(screen.getByPlaceholderText('30'));
+    await user.type(screen.getByPlaceholderText('30'), '30,9');
+    await user.click(screen.getByRole('button', { name: 'nutritionSetup.calculateButton' }));
+
+    expect(await screen.findByText('Expected integer, received float')).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
