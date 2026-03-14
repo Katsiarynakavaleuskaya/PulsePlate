@@ -2,7 +2,7 @@
 
 ## Discussion Thread Pass
 - [x] Initial PR body aligned to project canon
-- [x] Discussion-thread pass completed
+- [ ] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
@@ -29,10 +29,25 @@ Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:8`, `docs/review/PR_1164_FIXED_M
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#pullrequestreview-3948326367
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#pullrequestreview-3948328323
 
+Disposition: FIXED
+Commit: 7bbc8a6b
+Evidence: `app/routers/api_key.py:16`, `app/routers/api_key.py:19`, `tests/test_business_router.py:153`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#discussion_r2934901526 -> 7bbc8a6b
+
+Disposition: FIXED
+Commit: <pending-docs-commit>
+Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:33`, `docs/review/PR_1164_FIXED_MAPPING.md:35`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#discussion_r2934901527 -> <pending-docs-commit>
+
+Disposition: NOT-A-BUG
+Reason: This review-level CodeRabbit summary only aggregates the two inline findings above and does not introduce a separate actionable beyond those mapped threads.
+Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:25`, `docs/review/PR_1164_FIXED_MAPPING.md:31`, `docs/review/PR_1164_FIXED_MAPPING.md:35`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#pullrequestreview-3948385258
+
 ## Merge Readiness
-- [x] Local gates passed on current head
+- [ ] Local gates passed on current head
 - [ ] All required checks green
-- [x] No unresolved review threads remain
+- [ ] No unresolved review threads remain
 - [ ] CodeRabbit PASS / no-actionables
 - [ ] Sourcery PASS / no-actionables
 - [ ] Cubic PASS / no-actionables
