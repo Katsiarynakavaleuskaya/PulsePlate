@@ -376,6 +376,77 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertTrue(hits.isEmpty)
     }
 
+    func test_subscriptionFlowFilesDoNotUseDirectURLSession() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Services/SubscriptionBillingService.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            if scanContent.contains("URLSession") {
+                hits.append(relativeFile)
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: direct URLSession usage detected in subscription flow files.
+
+            Fix:
+            - Route billing transport through APIClient / HTTPClient only.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_subscriptionFlowFilesDoNotReintroduceLocalPaidTruthFlags() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Models/StoreKitManager.swift",
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+        let forbiddenFlags = ["isPremium", "isPro", "isVip"]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for forbiddenFlag in forbiddenFlags where scanContent.contains(forbiddenFlag) {
+                hits.append("\(relativeFile): \(forbiddenFlag)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: local paid-truth flags detected in subscription flow files.
+
+            Fix:
+            - Publish backend entitlement state instead of local tier booleans.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
     func test_fixturesContainBackendThresholds() throws {
         let json = String(data: BMIFixtures.successJSON(), encoding: .utf8) ?? ""
         XCTAssertTrue(json.contains("18.5"))

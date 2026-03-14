@@ -1479,6 +1479,8 @@ jobs:
               "-only-testing:PulsePlateTests/HTTPClientTests",
               "-only-testing:PulsePlateTests/APIClientTests",
               "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
+              "-only-testing:PulsePlateTests/SubscriptionBillingServiceTests",
+              "-only-testing:PulsePlateTests/SubscriptionManagerTests",
               "-destination", destination,
               "-derivedDataPath", ".derivedData",
               "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
