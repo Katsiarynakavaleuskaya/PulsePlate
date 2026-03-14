@@ -49,6 +49,26 @@ def test_validate_replay_cases_document_requires_zero_network_budget() -> None:
         validate_replay_cases_document(payload)
 
 
+def test_validate_replay_cases_document_rejects_coerced_network_budget() -> None:
+    """Network budget must be a real integer, not a coercible string."""
+
+    payload = load_json_document(_fixture("replay_cases.json"), label="Replay cases")
+    payload["network_budget"] = "0"
+
+    with pytest.raises(ValueError, match="must be an integer"):
+        validate_replay_cases_document(payload)
+
+
+def test_validate_replay_cases_document_rejects_non_string_snippets() -> None:
+    """Snippet lists must fail closed when fixture items are not strings."""
+
+    payload = load_json_document(_fixture("replay_cases.json"), label="Replay cases")
+    payload["cases"][0]["supported_claims"][0] = 123
+
+    with pytest.raises(ValueError, match="must be a string"):
+        validate_replay_cases_document(payload)
+
+
 def test_validate_negative_controls_document_accepts_fixture() -> None:
     """Known-good controls should validate as immutable offline oracles."""
 
@@ -80,6 +100,22 @@ def test_evaluate_answer_flags_unsupported_claims_and_contradictions() -> None:
     assert result["first_pass_ready"] is False
 
 
+def test_evaluate_answer_rejects_negated_supported_snippets() -> None:
+    """Negated snippets must not count as support for a required fact."""
+
+    result = evaluate_answer(
+        answer="BMI is not a screening metric in this context.",
+        required_facts=["screening metric"],
+        supported_claims=["screening metric"],
+        usefulness_markers=["screening metric"],
+        contradiction_checker=replay_eval.NonContradictionChecker(),
+    )
+
+    assert result["correctness_pass"] is False
+    assert result["unsupported_claim_rate"] == 1.0
+    assert result["first_pass_ready"] is False
+
+
 def test_evaluate_replay_documents_picks_combined_arm() -> None:
     """The provided offline corpus should rank the combined arm highest."""
 
@@ -103,6 +139,53 @@ def test_evaluate_replay_documents_picks_combined_arm() -> None:
     assert summary["arms"]["A3_combined"]["first_pass_readiness_proxy"] == 1.0
     assert summary["arms"]["A0_control"]["unsupported_claim_rate"] > 0.0
     assert summary["arms"]["A0_control"]["contradiction_rate"] > 0.0
+
+
+def test_evaluate_replay_documents_blocks_usefulness_regression() -> None:
+    """Promotion readiness must fail when the combined arm regresses on usefulness floor."""
+
+    replay_cases = load_json_document(_fixture("replay_cases.json"), label="Replay cases")
+    negative_controls = load_json_document(
+        _fixture("replay_negative_controls.json"),
+        label="Replay negative controls",
+    )
+
+    replay_cases["cases"][0]["usefulness_markers"] = ["always best"]
+    replay_cases["cases"][1]["usefulness_markers"] = ["perfect diagnosis"]
+    replay_cases["cases"][2]["usefulness_markers"] = ["gradual increase"]
+
+    summary = evaluate_replay_documents(
+        replay_cases=replay_cases,
+        negative_controls=negative_controls,
+    )
+
+    assert summary["winner_arm"] == "A3_combined"
+    assert summary["arms"]["A3_combined"]["usefulness_floor_rate"] < (
+        summary["arms"]["A0_control"]["usefulness_floor_rate"]
+    )
+    assert summary["promotion_ready"] is False
+
+
+def test_evaluate_replay_documents_flags_known_good_correctness_failures() -> None:
+    """Known-good controls must fail the guardrail when required facts go missing."""
+
+    replay_cases = load_json_document(_fixture("replay_cases.json"), label="Replay cases")
+    negative_controls = load_json_document(
+        _fixture("replay_negative_controls.json"),
+        label="Replay negative controls",
+    )
+    negative_controls["known_good_controls"][0]["supported_claims"].append("missing oracle fact")
+
+    summary = evaluate_replay_documents(
+        replay_cases=replay_cases,
+        negative_controls=negative_controls,
+    )
+
+    assert summary["guardrails"]["known_good_false_positive_rate"] == pytest.approx(
+        0.3333, rel=1e-6
+    )
+    assert summary["known_good_controls"][0]["false_positive"] is True
+    assert summary["known_good_controls"][0]["correctness_pass"] is False
 
 
 def test_resolve_output_path_rejects_paths_outside_results_dir(tmp_path: Path) -> None:

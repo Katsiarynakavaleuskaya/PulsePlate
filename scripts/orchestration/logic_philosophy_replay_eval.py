@@ -32,16 +32,31 @@ from scripts.orchestration.logic_philosophy_replay_contract import (
 
 RESULTS_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
 _WHITESPACE_RE = re.compile(r"\s+")
+_NEGATED_SNIPPET_TEMPLATE = r"\b(?:no|not|never)\b(?:\s+\w+){{0,2}}\s+{snippet}\b"
 
 
 def _normalize_text(value: str) -> str:
-    compact = re.sub(r"[^\w\s.%/-]", " ", value.casefold())
+    compact = re.sub(r"[^\w\s.%/-]", " ", value.casefold().replace("n't", " not"))
     return _WHITESPACE_RE.sub(" ", compact).strip()
+
+
+def _is_negated_match(normalized_text: str, normalized_snippet: str) -> bool:
+    negated_pattern = re.compile(
+        _NEGATED_SNIPPET_TEMPLATE.format(snippet=re.escape(normalized_snippet))
+    )
+    return bool(negated_pattern.search(normalized_text))
 
 
 def _contains_supported_snippet(text: str, snippets: list[str]) -> bool:
     normalized_text = _normalize_text(text)
-    return any(_normalize_text(snippet) in normalized_text for snippet in snippets)
+    for snippet in snippets:
+        normalized_snippet = _normalize_text(snippet)
+        if not normalized_snippet or normalized_snippet not in normalized_text:
+            continue
+        if _is_negated_match(normalized_text, normalized_snippet):
+            continue
+        return True
+    return False
 
 
 def _claim_list(answer: str) -> list[str]:
@@ -67,6 +82,9 @@ def evaluate_answer(
         claim for claim in claims if not _contains_supported_snippet(claim, supported_claims)
     ]
     contradiction_count = contradiction_checker.count(answer)
+    missing_required_facts = [
+        fact for fact in required_facts if not _contains_supported_snippet(answer, [fact])
+    ]
     correctness_pass = all(_contains_supported_snippet(answer, [fact]) for fact in required_facts)
     usefulness_pass = _contains_supported_snippet(answer, usefulness_markers)
     claim_count = max(1, len(claims))
@@ -81,6 +99,7 @@ def evaluate_answer(
         "unsupported_claims": unsupported_claims,
         "unsupported_claim_rate": round(unsupported_claim_rate, 4),
         "contradiction_count": contradiction_count,
+        "missing_required_facts": missing_required_facts,
         "correctness_pass": correctness_pass,
         "usefulness_pass": usefulness_pass,
         "first_pass_ready": first_pass_ready,
@@ -156,7 +175,9 @@ def evaluate_replay_documents(
             contradiction_checker=checker,
         )
         false_positive = (
-            bool(evaluation["unsupported_claims"])
+            not bool(evaluation["correctness_pass"])
+            or bool(evaluation["missing_required_facts"])
+            or bool(evaluation["unsupported_claims"])
             or int(evaluation["contradiction_count"]) > 0
             or not bool(evaluation["usefulness_pass"])
         )
@@ -183,6 +204,7 @@ def evaluate_replay_documents(
         and combined["correctness_pass_rate"] > baseline["correctness_pass_rate"]
         and combined["unsupported_claim_rate"] <= baseline["unsupported_claim_rate"]
         and combined["contradiction_rate"] <= baseline["contradiction_rate"]
+        and combined["usefulness_floor_rate"] >= baseline["usefulness_floor_rate"]
     )
     return {
         "schema_version": REPLAY_SCHEMA_VERSION,

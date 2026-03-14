@@ -42,7 +42,9 @@ def load_json_document(path: Path, *, label: str) -> dict[str, Any]:
 
 
 def _require_non_empty_string(value: Any, *, label: str) -> str:
-    normalized = str(value).strip()
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string.")
+    normalized = value.strip()
     if not normalized:
         raise ValueError(f"{label} must be non-empty.")
     return normalized
@@ -78,10 +80,9 @@ def _validate_arm_outputs(value: Any, *, label: str) -> dict[str, str]:
 
 
 def _validate_network_budget(value: Any, *, label: str) -> int:
-    try:
-        budget = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{label} must be an integer.") from exc
+    if type(value) is not int:
+        raise ValueError(f"{label} must be an integer.")
+    budget = value
     if budget != DEFAULT_NETWORK_BUDGET:
         raise ValueError(f"{label} must equal {DEFAULT_NETWORK_BUDGET} for wave 1 offline replay.")
     return budget
