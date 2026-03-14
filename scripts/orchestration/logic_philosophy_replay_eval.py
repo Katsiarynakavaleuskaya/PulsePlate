@@ -47,7 +47,7 @@ def _contains_supported_snippet(text: str, snippets: list[str]) -> bool:
 def _claim_list(answer: str) -> list[str]:
     claims = extract_claims(answer)
     if claims:
-        return claims
+        return [str(claim) for claim in claims]
     normalized_answer = answer.strip()
     return [normalized_answer] if normalized_answer else []
 
