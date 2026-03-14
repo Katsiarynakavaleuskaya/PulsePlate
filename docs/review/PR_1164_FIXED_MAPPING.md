@@ -35,9 +35,9 @@ Evidence: `app/routers/api_key.py:16`, `app/routers/api_key.py:19`, `tests/test_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#discussion_r2934901526 -> 7bbc8a6b
 
 Disposition: FIXED
-Commit: <pending-docs-commit>
-Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:33`, `docs/review/PR_1164_FIXED_MAPPING.md:35`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#discussion_r2934901527 -> <pending-docs-commit>
+Commit: f9bcb72a
+Evidence: `docs/review/PR_1164_FIXED_MAPPING.md:47`, `docs/review/PR_1164_FIXED_MAPPING.md:50`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1164#discussion_r2934901527 -> f9bcb72a
 
 Disposition: NOT-A-BUG
 Reason: This review-level CodeRabbit summary only aggregates the two inline findings above and does not introduce a separate actionable beyond those mapped threads.
