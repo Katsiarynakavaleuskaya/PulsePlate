@@ -8,7 +8,7 @@
 - No actionable review comments
 
 ## Merge Readiness
-- [ ] Local hard gate passed (`make verify`)
+- [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
