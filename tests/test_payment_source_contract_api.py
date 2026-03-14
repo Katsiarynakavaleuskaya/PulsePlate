@@ -43,7 +43,7 @@ def test_manual_intent_accepts_transport_validated_non_pro_key(
     from app.routers import billing
 
     billing._APP_MODULE = None
-    monkeypatch.setattr(app_module, "get_api_key", lambda api_key: api_key, raising=False)
+    monkeypatch.setattr(app_module, "get_api_key", lambda api_key: api_key)
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
