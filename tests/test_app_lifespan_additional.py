@@ -153,6 +153,8 @@ async def test_lifespan_requires_valid_pro_llm_monthly_limit(
     monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
     monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
     monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "invalid")
@@ -160,6 +162,29 @@ async def test_lifespan_requires_valid_pro_llm_monthly_limit(
     with pytest.raises(RuntimeError, match="PRO_LLM_INSIGHT_REQUESTS_PER_MONTH"):
         async with app.lifespan(app.app):
             pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_accepts_valid_pro_llm_monthly_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RU: Startup должен проходить с валидной PRO LLM квотой.
+
+    EN: Startup should succeed when the PRO LLM quota env is valid.
+    """
+
+    lifespan_globals = app.lifespan.__wrapped__.__globals__
+    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("APPLE_SHARED_SECRET", "apple-shared-secret-for-tests")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("PRO_LLM_INSIGHT_REQUESTS_PER_MONTH", "50")
+
+    async with app.lifespan(app.app):
+        pass
 
 
 @pytest.mark.asyncio
