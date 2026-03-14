@@ -385,7 +385,10 @@ SKILL_RULES_BY_SKILL: dict[str, SkillRule] = {rule.skill: rule for rule in SKILL
 def _normalize_lexeme(value: str) -> str:
     """Normalize keyword phrases with the same rules as task text."""
 
-    return normalize_text(value)
+    normalized = normalize_text(value)
+    if not isinstance(normalized, str):  # pragma: no cover - defensive typing guard
+        raise TypeError("normalize_text must return a string")
+    return normalized
 
 
 def _has_prefix(path: str, prefix: str) -> bool:
