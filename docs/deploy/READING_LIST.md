@@ -46,6 +46,16 @@
 **Когда читать:** После регистрации домена в Cloudflare
 **Время:** 20 минут + настройка
 
+#### **[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)**
+**Что внутри:**
+- Современный frontend deploy lane через Cloudflare Pages
+- Optional Cloudflare Worker proxy для `/api/*`
+- Локальный и CI token flow через `CLOUDFLARE_API_TOKEN`
+- Команды для ручной сборки и прямого deploy через Wrangler
+
+**Когда читать:** Когда нужен SPA deploy без production domain cutover
+**Время:** 10-15 минут
+
 ---
 
 ### Группа 2: Настройка серверов
@@ -142,7 +152,8 @@
 3. **CLOUDFLARE_SECURITY_SETUP.md** — безопасность Cloudflare
 4. **[STAGING.md](STAGING.md)** или **[PRODUCTION.md](PRODUCTION.md)** — настройка сервера
 5. **GITHUB_SECRETS_SETUP.md** — секреты в GitHub
-6. Проверка первого деплоя
+6. **[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)** — modern frontend Pages lane
+7. Проверка первого деплоя
 
 ### Для быстрого старта:
 
@@ -169,6 +180,7 @@
 - [ ] Как настроить сервер (Docker, безопасность)
 - [ ] Как создать SSH ключи
 - [ ] Как создать GitHub токены
+- [ ] Как создать `CLOUDFLARE_API_TOKEN` для локального и CI deploy
 - [ ] Где добавить секреты в GitHub
 - [ ] Как запустить первый деплой
 - [ ] Как проверить, что всё работает

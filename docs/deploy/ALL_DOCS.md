@@ -1,8 +1,8 @@
 # 📋 Полный список всех документов по деплою
 
-**Версия:** 2025-11-02
+**Версия:** 2026-03-13
 **Статус:** Актуально
-**Last-verified of links:** 2025-11-02
+**Last-verified of links:** 2026-03-13
 
 > ⚠️ **Важно для maintainers:** При изменении любого целевого документа (например, `[OVERVIEW.md](OVERVIEW.md)`, `[DOMAIN.md](DOMAIN.md)` и т.д.) необходимо обновить соответствующий тег `(last-verified: YYYY-MM-DD)` в этом файле для всех ссылок на этот документ.
 
@@ -38,6 +38,7 @@
 |------|----------|--------------|
 | `[DOMAIN.md](DOMAIN.md)` (last-verified: 2025-11-02) | Выбор и регистрация доменов (Cloudflare, DuckDNS) | Перед регистрацией |
 | `[CLOUDFLARE.md](CLOUDFLARE.md)` (last-verified: 2025-11-02) | Настройка безопасности Cloudflare (SSL, HSTS, WAF) | После регистрации домена |
+| `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13) | Modern frontend lane: Cloudflare Pages + optional Worker proxy | Когда нужен SPA deploy без production cutover |
 
 ### 💻 Серверы и окружения
 
@@ -59,6 +60,7 @@
 |------|----------|--------------|
 | `[CI.md](../runbooks/CI.md)` (last-verified: 2025-11-02) | Как работает CI (Continuous Integration) | Когда CI падает или для понимания |
 | `.github/workflows/cd.yml` (last-verified: 2025-11-02) | CD workflow (автоматический деплой) | Справочно (уже настроен) |
+| `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13) | Local/CI token flow and manual Pages/Worker deploy | Когда готовите modern frontend deploy lane |
 
 ### 📦 Дополнительно (опционально)
 
@@ -71,7 +73,7 @@
 
 ## 🗺️ Быстрый маршрут
 
-### Для первого деплоя:
+### Для первого деплоя
 
 ```text
 1. [OVERVIEW.md](OVERVIEW.md) (last-verified: 2025-11-02) (главная инструкция)
@@ -84,10 +86,12 @@
    ↓
 5. [GITHUB_SECRETS.md](GITHUB_SECRETS.md) (last-verified: 2025-11-02) (добавление секретов)
    ↓
-6. Первый деплой!
+6. (Опционально) [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) (modern frontend Pages lane without production cutover)
+   ↓
+7. Первый деплой!
 ```
 
-### Для быстрого старта (опытные):
+### Для быстрого старта (опытные)
 
 ```text
 1. [SOLO.md](SOLO.md) (last-verified: 2025-11-02) (обзор)
@@ -101,7 +105,7 @@
 
 ## 📂 Структура файлов в репозитории
 
-```
+```text
 BMI-App_2025_clean/
 ├── [OVERVIEW.md](OVERVIEW.md) (last-verified: 2025-11-02)          ⭐ Главная инструкция
 ├── [READING_LIST.md](READING_LIST.md) (last-verified: 2025-11-02)         Навигатор
@@ -109,6 +113,7 @@ BMI-App_2025_clean/
 │
 ├── [DOMAIN.md](DOMAIN.md) (last-verified: 2025-11-02)                    Домены
 ├── [CLOUDFLARE.md](CLOUDFLARE.md) (last-verified: 2025-11-02)       Cloudflare
+├── [../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md) (last-verified: 2026-03-13) Cloudflare Pages + Worker lane
 │
 ├── [STAGING.md](STAGING.md) (last-verified: 2025-11-02)                   Staging сервер
 ├── [PRODUCTION.md](PRODUCTION.md) (last-verified: 2025-11-02)                Production сервер
@@ -149,6 +154,9 @@ BMI-App_2025_clean/
 ### Проблема с Cloudflare?
 → `[CLOUDFLARE.md](CLOUDFLARE.md)` (last-verified: 2025-11-02)
 
+### Нужен современный frontend deploy через Cloudflare Pages?
+→ `[../../deploy/CLOUDFLARE_PAGES_WORKERS.md](../../deploy/CLOUDFLARE_PAGES_WORKERS.md)` (last-verified: 2026-03-13)
+
 ### Проблема с сервером?
 → `[STAGING.md](STAGING.md)` (last-verified: 2025-11-02) или `[PRODUCTION.md](PRODUCTION.md)` (last-verified: 2025-11-02)
 
@@ -184,5 +192,5 @@ BMI-App_2025_clean/
 
 ---
 
-**Последнее обновление:** 2025-11-02
-**Версия документации:** 1.0
+**Последнее обновление:** 2026-03-13
+**Версия документации:** 1.1
