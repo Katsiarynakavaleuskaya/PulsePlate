@@ -79,10 +79,10 @@ Evidence: docs/deploy/ALL_DOCS.md:94
 Evidence: docs/deploy/ALL_DOCS.md:108
 
 ## Merge Readiness
-- [ ] Local gates passed on current head
-- [ ] All required checks green
-- [ ] All actionable review threads resolved with dispositions
-- [ ] CodeRabbit PASS / no-actionables
-- [ ] Sourcery PASS / no-actionables
-- [ ] Cubic PASS / no-actionables
-- [ ] Wait-window after latest bot/review activity observed
+- [x] Local gates passed on current head
+- [x] All required checks green
+- [x] All actionable review threads resolved with dispositions
+- [x] CodeRabbit PASS / no-actionables
+- [x] Sourcery PASS / no-actionables
+- [x] Cubic PASS / no-actionables
+- [x] Wait-window after latest bot/review activity observed
