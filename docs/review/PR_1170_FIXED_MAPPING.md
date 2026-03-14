@@ -30,6 +30,11 @@ Evidence: `docs/review/PR_1170_FIXED_MAPPING.md:8-29` already maps each actionab
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948908665
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948912620
 
+Disposition: FIXED
+Commit: 22d0ef0cb95920e2fd3dc456e05a49d4b5eb8405
+Evidence: `scripts/orchestration/logic_philosophy_replay_eval.py:35-62` now checks each normalized snippet occurrence so an earlier negated mention no longer suppresses a later valid match, `tests/test_logic_philosophy_replay_eval.py:119-134` locks that regression, and `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:49-50` plus `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:78` now cite the exact usefulness-floor reporting and promotion-rule lines (`scripts/orchestration/logic_philosophy_replay_eval.py:115-140`, `scripts/orchestration/logic_philosophy_replay_eval.py:200-207`).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948928659 -> 22d0ef0cb95920e2fd3dc456e05a49d4b5eb8405
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
