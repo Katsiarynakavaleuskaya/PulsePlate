@@ -13,6 +13,7 @@ success criteria explicit.
 
 | Experiment | Hypothesis (falsifiable) | Start date | End date | Owner | Status |
 |-----------|---------------------------|------------|----------|-------|--------|
+| EXP-AIR-001: Logic + philosophy replay | Combined `A3` offline replay answers improve correctness pass rate and first-pass readiness proxy over `A0` without increasing unsupported-claim rate, contradiction rate, or known-good false positives | 2026-03-14 | 2026-03-28 | AI Quality + Orchestration | Planned |
 | EXP-ONB-001: Onboarding copy clarity | Reworded first-run value proposition increases onboarding completion by at least 5% relative | 2026-03-01 | 2026-03-21 | Product + Growth | Planned |
 | EXP-PWL-001: Soft paywall timing | Showing soft paywall after first_success improves trial starts without D7 retention drop >1pp | 2026-03-08 | 2026-03-29 | Growth | Planned |
 | EXP-PWL-002: CTA framing | Changing CTA from generic upgrade to goal-based CTA improves paywall CTR by at least 7% | 2026-03-15 | 2026-04-05 | Growth + Design | Planned |

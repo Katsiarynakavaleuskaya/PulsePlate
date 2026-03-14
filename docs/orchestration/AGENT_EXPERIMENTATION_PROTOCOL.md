@@ -333,6 +333,7 @@ An experimentation cycle is complete only when all are true:
 ## Related documents
 
 - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+- `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
 - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
 - `docs/memory/kpp_knowledge_promotion_pipeline.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`

@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "mode": "offline_replay_ablation",
+  "network_budget": 0,
+  "known_good_controls": [
+    {
+      "control_id": "good_protein_recovery_guidance",
+      "answer": "Protein needs vary by body size and activity. A common recovery range is 1.2 to 2.0 g/kg. This is general wellness information, and a licensed clinician should handle symptoms or disease questions.",
+      "supported_claims": [
+        "Protein needs vary by body size and activity",
+        "1.2 to 2.0 g/kg",
+        "general wellness information",
+        "licensed clinician"
+      ],
+      "usefulness_markers": [
+        "body size and activity",
+        "1.2 to 2.0 g/kg"
+      ]
+    },
+    {
+      "control_id": "good_bmi_definition",
+      "answer": "BMI stands for body mass index. It is a screening metric and not a diagnosis.",
+      "supported_claims": [
+        "BMI stands for body mass index",
+        "screening metric",
+        "not a diagnosis"
+      ],
+      "usefulness_markers": [
+        "screening metric"
+      ]
+    },
+    {
+      "control_id": "good_calorie_deficit_guidance",
+      "answer": "A small calorie deficit can support fat loss while protecting training quality. This is general wellness information, not medical advice.",
+      "supported_claims": [
+        "small calorie deficit",
+        "training quality",
+        "general wellness information",
+        "not medical advice"
+      ],
+      "usefulness_markers": [
+        "small calorie deficit",
+        "training quality"
+      ]
+    }
+  ]
+}

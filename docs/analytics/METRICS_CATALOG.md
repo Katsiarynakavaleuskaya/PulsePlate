@@ -254,6 +254,114 @@ Daily
 
 ---
 
+## Correctness pass rate
+
+#### Definition
+
+Percent of replay cases where an answer includes every required fact from the immutable offline oracle.
+
+#### Formula
+
+```text
+correctness_pass_rate =
+  cases_with_all_required_facts / total_replay_cases
+```
+
+#### Owner
+
+AI Quality + Orchestration
+
+#### Update frequency
+
+Per offline replay run
+
+#### Change history
+
+- 2026-03-14: initial definition for the logic + philosophy replay contract
+
+---
+
+## Unsupported claim rate
+
+#### Definition
+
+Share of extracted answer claims that do not match any supported oracle snippet for the replay case.
+
+#### Formula
+
+```text
+unsupported_claim_rate =
+  unsupported_claims / total_extracted_claims
+```
+
+#### Owner
+
+AI Quality + Orchestration
+
+#### Update frequency
+
+Per offline replay run
+
+#### Change history
+
+- 2026-03-14: initial definition for the logic + philosophy replay contract
+
+---
+
+## Contradiction rate
+
+#### Definition
+
+Percent of replay cases whose answer contains at least one deterministic contradiction detected by the offline checker.
+
+#### Formula
+
+```text
+contradiction_rate =
+  replay_cases_with_contradiction / total_replay_cases
+```
+
+#### Owner
+
+AI Quality + Orchestration
+
+#### Update frequency
+
+Per offline replay run
+
+#### Change history
+
+- 2026-03-14: initial definition for the logic + philosophy replay contract
+
+---
+
+## First-pass readiness proxy
+
+#### Definition
+
+Percent of replay cases that pass the full offline readiness bundle on the first scored answer: correctness pass, zero unsupported claims, zero contradictions, and usefulness floor met.
+
+#### Formula
+
+```text
+first_pass_readiness_proxy =
+  replay_cases_ready_on_first_score / total_replay_cases
+```
+
+#### Owner
+
+AI Quality + Orchestration
+
+#### Update frequency
+
+Per offline replay run
+
+#### Change history
+
+- 2026-03-14: initial definition for the logic + philosophy replay contract
+
+---
+
 ## Event taxonomy (growth funnel)
 
 Canonical event families and payload contracts for the growth funnel (onboarding → paywall → conversion → retention). Runtime implementation: `frontend/src/lib/telemetry/eventRegistry.ts`. This section is the doc SoT for semantics; code must stay aligned.
