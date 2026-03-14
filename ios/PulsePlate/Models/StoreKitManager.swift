@@ -1,73 +1,167 @@
 import Foundation
-import Combine
 import StoreKit
 
+struct SubscriptionProduct: Identifiable, Equatable, Sendable {
+    let id: String
+    let displayName: String
+    let displayPrice: String
+}
+
+struct StoreEntitlementTransaction: Equatable, Sendable {
+    let transactionID: String
+    let originalTransactionID: String?
+    let productID: String
+}
+
+enum StorePurchaseResult: Equatable, Sendable {
+    case success(StoreEntitlementTransaction)
+    case pending
+    case cancelled
+}
+
+enum StoreKitAdapterError: Error, Equatable, Sendable {
+    case missingReceipt
+    case productNotFound(String)
+    case unverifiedTransaction
+    case unsupportedPurchaseResult
+    case receiptReadFailed(String)
+}
+
+extension StoreKitAdapterError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .missingReceipt:
+            return "App Store receipt is unavailable."
+        case .productNotFound(let productID):
+            return "StoreKit product is unavailable: \(productID)"
+        case .unverifiedTransaction:
+            return "StoreKit transaction could not be verified."
+        case .unsupportedPurchaseResult:
+            return "StoreKit returned an unsupported purchase result."
+        case .receiptReadFailed(let message):
+            return "Failed to read App Store receipt: \(message)"
+        }
+    }
+}
+
+protocol StoreKitManaging {
+    func loadProducts() async throws -> [SubscriptionProduct]
+    func purchase(productID: String) async throws -> StorePurchaseResult
+    func sync() async throws
+    func latestVerifiedEntitlementTransaction() async -> StoreEntitlementTransaction?
+    func currentReceiptData() async throws -> String
+}
+
 @MainActor
-final class StoreKitManager: ObservableObject {
+final class StoreKitManager: StoreKitManaging {
+    private let productIDs: [String]
+    private var cachedProducts: [String: Product] = [:]
 
-    @Published var isPremium = false
-    @Published var products: [Product] = []
-    @Published var error: Error?
+    init(productIDs: [String] = [
+        "com.pulseplate.premium.monthly",
+        "com.pulseplate.premium.yearly"
+    ]) {
+        self.productIDs = productIDs
+    }
 
-    private let productIds = ["com.pulseplate.premium.monthly", "com.pulseplate.premium.yearly"]
+    func loadProducts() async throws -> [SubscriptionProduct] {
+        let fetchedProducts = try await Product.products(for: productIDs)
+        cachedProducts = Dictionary(uniqueKeysWithValues: fetchedProducts.map { ($0.id, $0) })
 
-    init() {
-        Task { [weak self] in
-            await self?.loadProducts()
-            await self?.updatePurchaseStatus()
+        return productIDs.compactMap { productID in
+            guard let product = cachedProducts[productID] else {
+                return nil
+            }
+            return SubscriptionProduct(
+                id: product.id,
+                displayName: product.displayName,
+                displayPrice: product.displayPrice
+            )
         }
     }
 
-    func loadProducts() async {
-        do {
-            products = try await Product.products(for: productIds)
-        } catch {
-            self.error = error
+    func purchase(productID: String) async throws -> StorePurchaseResult {
+        let product = try await product(for: productID)
+        let result = try await product.purchase()
+
+        switch result {
+        case .success(let verification):
+            switch verification {
+            case .verified(let transaction):
+                let mappedTransaction = mapTransaction(transaction)
+                await transaction.finish()
+                return .success(mappedTransaction)
+            case .unverified:
+                throw StoreKitAdapterError.unverifiedTransaction
+            }
+        case .userCancelled:
+            return .cancelled
+        case .pending:
+            return .pending
+        @unknown default:
+            throw StoreKitAdapterError.unsupportedPurchaseResult
         }
     }
 
-    func updatePurchaseStatus() async {
-        var premiumActive = false
+    func sync() async throws {
+        try await AppStore.sync()
+    }
+
+    func latestVerifiedEntitlementTransaction() async -> StoreEntitlementTransaction? {
         for await result in Transaction.currentEntitlements {
-            if case .verified(let transaction) = result,
-               transaction.productID.contains("premium") {
-                premiumActive = true
-                break
+            guard case .verified(let transaction) = result else {
+                continue
             }
+            guard isManagedProduct(transaction.productID) else {
+                continue
+            }
+            return mapTransaction(transaction)
         }
-        isPremium = premiumActive
+        return nil
     }
 
-    func purchase(_ product: Product) async {
-        do {
-            let result = try await product.purchase()
+    func currentReceiptData() async throws -> String {
+        guard let receiptURL = Bundle.main.appStoreReceiptURL else {
+            throw StoreKitAdapterError.missingReceipt
+        }
 
-            switch result {
-            case .success(let verification):
-                if case .verified(let transaction) = verification {
-                    await transaction.finish()
-                    await updatePurchaseStatus()
-                }
-            case .userCancelled:
-                break
-            case .pending:
-                break
-            @unknown default:
-                break
+        do {
+            let data = try await Task.detached(priority: .utility) {
+                try Data(contentsOf: receiptURL)
+            }.value
+            guard data.isEmpty == false else {
+                throw StoreKitAdapterError.missingReceipt
             }
+            return data.base64EncodedString()
+        } catch let adapterError as StoreKitAdapterError {
+            throw adapterError
         } catch {
-            self.error = error
+            throw StoreKitAdapterError.receiptReadFailed(error.localizedDescription)
         }
     }
 
-    func restorePurchases() async {
-        do {
-            try await AppStore.sync()
-            await updatePurchaseStatus()
-        } catch {
-            await MainActor.run {
-                self.error = error
-            }
+    private func product(for productID: String) async throws -> Product {
+        if let cachedProduct = cachedProducts[productID] {
+            return cachedProduct
         }
+
+        let fetchedProducts = try await Product.products(for: [productID])
+        guard let product = fetchedProducts.first else {
+            throw StoreKitAdapterError.productNotFound(productID)
+        }
+        cachedProducts[product.id] = product
+        return product
+    }
+
+    private func isManagedProduct(_ productID: String) -> Bool {
+        productIDs.contains(productID)
+    }
+
+    private func mapTransaction(_ transaction: Transaction) -> StoreEntitlementTransaction {
+        StoreEntitlementTransaction(
+            transactionID: String(transaction.id),
+            originalTransactionID: String(transaction.originalID),
+            productID: transaction.productID
+        )
     }
 }
