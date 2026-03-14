@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { usePremium } from '../usePremium';
 import { getProSessionStatus } from '../../api/client';
+import { PREMIUM_CHANGE_EVENT } from '../premiumEvents';
 
 vi.mock('../../api/client', () => ({
   getProSessionStatus: vi.fn(),
@@ -59,22 +60,50 @@ describe('usePremium', () => {
   });
 
   it('does not set state after unmount', async () => {
-    let resolveSession: ((value: Awaited<ReturnType<typeof getProSessionStatus>>) => void) | null = null;
+    let release!: () => void;
     vi.mocked(getProSessionStatus).mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveSession = resolve;
+          release = () =>
+            resolve({
+              status: 'ok',
+              authenticated: true,
+              auth_source: 'cookie',
+              tier: 'PRO',
+            });
         })
     );
     const { unmount } = renderHook(() => usePremium());
     unmount();
-    resolveSession?.({
-      status: 'ok',
-      authenticated: true,
-      auth_source: 'cookie',
-      tier: 'PRO',
-    });
+    release();
     await Promise.resolve();
     expect(getProSessionStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('revalidates premium state after a same-document session change event', async () => {
+    vi.mocked(getProSessionStatus)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        status: 'ok',
+        authenticated: true,
+        auth_source: 'cookie',
+        tier: 'PRO',
+      });
+
+    const { result } = renderHook(() => usePremium());
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event(PREMIUM_CHANGE_EVENT));
+    });
+
+    await waitFor(() => {
+      expect(result.current).toBe(true);
+    });
+
+    expect(getProSessionStatus).toHaveBeenCalledTimes(2);
   });
 });

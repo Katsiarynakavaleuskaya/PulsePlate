@@ -258,7 +258,7 @@ async def verify_apple_receipt(
 )
 def create_manual_payment_intent(
     payload: ManualRailIntentRequest,
-    x_api_key: str = Depends(_require_billing_transport_key),
+    x_api_key: str = Depends(require_pro_tier),
 ) -> SubscriptionActivationResponse | JSONResponse:
     """Create manual RU/BY payment intent with pending reconciliation lifecycle."""
     activation_request = payments_activation.build_manual_intent_request(payload=payload)

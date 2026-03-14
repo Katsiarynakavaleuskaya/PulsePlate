@@ -20,7 +20,6 @@ LEGACY_HTTP_ALIAS_ALLOWLIST = {
 PRE_ENTITLEMENT_ROUTE_ALLOWLIST = {
     ("POST", "/api/v1/pro/payments/activate"): api_key_header,
     ("GET", "/api/v1/pro/payments/activations/{activation_id}"): api_key_header,
-    ("POST", "/api/v1/pro/payments/ru-by/manual-intent"): api_key_header,
 }
 
 

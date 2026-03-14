@@ -35,36 +35,6 @@ def test_manual_intent_happy_path(
     assert payload["intent_id"] == payload["activation_id"]
 
 
-def test_manual_intent_accepts_transport_validated_non_pro_key(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import app as app_module
-    from app.routers import billing
-
-    billing._APP_MODULE = None
-    monkeypatch.setattr(app_module, "get_api_key", lambda api_key: api_key)
-
-    response = client.post(
-        "/api/v1/pro/payments/ru-by/manual-intent",
-        headers={"X-API-Key": "billing-manual-intent-key"},
-        json={
-            "source": "erip_qr",
-            "plan": "pro_monthly",
-            "client_event_id": "evt-erip-intent-transport-1",
-            "external_txn_id": "erip-intent-transport-1",
-            "amount_minor": 1999,
-            "currency": "byn",
-            "verification_payload": {"comment": "invoice-transport-1"},
-        },
-    )
-    assert response.status_code == 201, response.text
-    payload = _json(response)
-    assert payload["payment_source"] == "erip_qr"
-    assert payload["status"] == "pending_verification"
-    assert payload["subscription_tier"] == "pro"
-
-
 def test_manual_intent_vip_headers_are_tier_compatible(
     client: TestClient,
     vip_headers: dict[str, str],
