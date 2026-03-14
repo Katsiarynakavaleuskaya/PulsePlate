@@ -38,6 +38,14 @@ Evidence: `scripts/orchestration/logic_philosophy_replay_eval.py:35-62` now chec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#discussion_r2935378320 -> 22d0ef0cb95920e2fd3dc456e05a49d4b5eb8405
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948928659 -> 22d0ef0cb95920e2fd3dc456e05a49d4b5eb8405
 
+Disposition: FIXED
+Commit: 7030ea9f2a0532ae1b8d9b5e77cc0f6517480386
+Evidence: `scripts/orchestration/logic_philosophy_replay_eval.py:35-61` now uses non-word neighbor boundaries so normalized snippets with punctuation like `1.2 to 2.0 g/kg` still match without regressing sentence-final facts, `tests/test_logic_philosophy_replay_eval.py:137-150` locks the punctuation boundary regression, and `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:50` plus `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md:78` now point to the exact usefulness-floor enforcement range (`scripts/orchestration/logic_philosophy_replay_eval.py:200-210`).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#discussion_r2935393423 -> 7030ea9f2a0532ae1b8d9b5e77cc0f6517480386
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#discussion_r2935393680 -> 7030ea9f2a0532ae1b8d9b5e77cc0f6517480386
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948943116 -> 7030ea9f2a0532ae1b8d9b5e77cc0f6517480386
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1170#pullrequestreview-3948943305 -> 7030ea9f2a0532ae1b8d9b5e77cc0f6517480386
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
