@@ -22,9 +22,9 @@ Reason: This aggregate Cubic review shell is satisfied by the concrete FIXED inl
 
 ## Merge Readiness
 - [x] Local gates passed on current head
-- [ ] All required checks green
+- [x] All required checks green
 - [x] All actionable review threads resolved with dispositions
-- [ ] CodeRabbit PASS / no-actionables
-- [ ] Sourcery PASS / no-actionables
-- [ ] Cubic PASS / no-actionables
-- [ ] Wait-window after latest bot/review activity observed
+- [x] CodeRabbit PASS / no-actionables
+- [x] Sourcery PASS / no-actionables
+- [x] Cubic PASS / no-actionables
+- [x] Wait-window after latest bot/review activity observed
