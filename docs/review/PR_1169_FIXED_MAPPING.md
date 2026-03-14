@@ -28,6 +28,11 @@ Evidence: `docs/review/PR_1169_FIXED_MAPPING.md:8` now points to `scripts/orches
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1169#pullrequestreview-3948859818 -> cc39111f5d6d98b0f879ae2319139d68412b00b4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1169#discussion_r2935302846 -> cc39111f5d6d98b0f879ae2319139d68412b00b4
 
+Disposition: FIXED
+Commit: c64a656cfe4252bca97f58c2d1dfac20228ff3c5
+Evidence: `docs/review/PR_1169_FIXED_MAPPING.md:32` now keeps `Local hard gate passed (\`make verify\`)` unchecked so the merge-readiness checklist remains forward-looking until the final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1169#discussion_r2935307686 -> c64a656cfe4252bca97f58c2d1dfac20228ff3c5
+
 ## Merge Readiness
 - [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
