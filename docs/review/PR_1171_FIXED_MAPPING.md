@@ -86,6 +86,15 @@ Reason: Thin-client guard tests now fail when a guarded file is missing and use 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455618 -> f3e7cc35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#discussion_r2935455624 -> f3e7cc35
 
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1171_FIXED_MAPPING.md:7
+Reason: These bot review-level URLs aggregate inline findings that are already dispositioned above; after mapping the underlying inline comments, the review summary URLs do not represent additional standalone unresolved defects.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3948956384
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3948964977
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3948965665
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3948991651
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1171#pullrequestreview-3948993625
+
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
