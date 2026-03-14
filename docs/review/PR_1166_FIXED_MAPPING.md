@@ -5,7 +5,9 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#pullrequestreview-3948494983 -> 0f5f50e2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934986996 -> 0f5f50e2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934986999 -> 0f5f50e2
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
