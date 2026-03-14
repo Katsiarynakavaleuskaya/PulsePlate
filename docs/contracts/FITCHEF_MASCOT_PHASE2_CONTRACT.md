@@ -15,6 +15,7 @@ automation work explicitly deferred.
 
 - The broader FitChef umbrella initiative must preserve this live mascot canon during foundation and visual/App Store waves.
 - Future structured-coach surfaces are additive follow-up work and do not change the status of `/api/v1/insight/fitchef*` in this contract.
+- The structured-coach route family is frozen separately in `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` and must coexist with this live mascot envelope.
 - Canonical initiative reference: `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
 
 ## Canonical namespace and policy
