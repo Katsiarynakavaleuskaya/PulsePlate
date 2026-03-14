@@ -1,9 +1,9 @@
-# PulsePlate — Agent Runbook (CI Failures)
+# PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2025-12-24 (PR #403 Import Hygiene)
+**Last updated:** 2026-03-13 (PR #1162)
 
-**What this is:** Quick reference for diagnosing CI failures and import hygiene regressions.
-**When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
+**What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
+**When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
 ## Canonical Policy Links
@@ -29,18 +29,15 @@
 - DoD: `docs/orchestration/dod.template.md`
 
 The coordinator will:
-1. **Analyze the task** and identify which domain(s) it touches
-2. **Route to appropriate agent(s)** based on capabilities:
-   - `ai-innovation-specialist`: AI/ML, RAG, computer vision, research
-   - `architecture-specialist`: Code structure, patterns, invariants
-   - `bug-hunter`: Bugs, tests, quality gates, coverage
-   - `creative-designer`: UI/UX, brand assets, visuals
-   - `marketing-strategist`: ASO, growth, conversion, strategy
-   - `security-auditor`: Vulnerabilities, penetration testing
-3. **Coordinate multi-agent workflows** when tasks span domains
-4. **Synthesize outputs** from multiple agents into coherent solutions
-5. **Provide quality assurance** and final conclusions
-6. **Generate brainstorming tasks** for scientific and creative innovation
+1. **Analyze the task** and identify the affected domains and risk level.
+2. **Route to appropriate agent(s)** using the canonical routing sources:
+   - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+   - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+   - nearest scoped `AGENTS.md`
+3. **Coordinate multi-agent workflows** when tasks span domains or merge-governance lanes.
+4. **Synthesize outputs** from multiple agents into one coherent solution.
+5. **Verify quality gates and merge-governance state** before any readiness claim.
+6. **Record follow-ups** in `docs/roadmap/BACKLOG_LEDGER.md` when work is deferred.
 
 **Usage:**
 ```text
@@ -322,6 +319,23 @@ Raw `gh pr checks <PR_NUMBER>` remains diagnostic only. It can include supersede
 historical failures from older runs, so final merge triage must rely on the
 filtered current-head view emitted by `check_merge_ready.py`.
 
+Additional live-triage notes:
+
+Implementation provenance: strict current-head triage is enforced by
+`scripts/orchestration/check_merge_ready.py` and
+`scripts/ci/check_pr_merge_readiness.py`; this runbook wording was refreshed in
+PR `#1162` via commits `639aa83f` and `b94d5575`.
+
+- `gh pr checks <PR_NUMBER>` exits non-zero when required jobs are still
+  `pending`/`in_progress`. Treat that as "merge window not open yet", not as a
+  failed-check verdict.
+- When only one current-head job remains live, inspect the exact run/job instead
+  of re-reading the whole historical checks table:
+  `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>`.
+- Do not report a PR as "green" while `gh pr checks` is non-zero solely because
+  of pending jobs. Wait for the last live job to finish, then re-run the strict
+  wrapper.
+
 **Optional: unresolved thread count only** (not sufficient alone):
 
 ```bash
@@ -344,6 +358,27 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
+
+## Stacked PR replacement flow (mandatory when parent merge closes the child PR)
+
+Implementation provenance: non-history-rewriting replacement flow is governed by
+root `AGENTS.md` (`Git workflow (single-developer safe mode)`); this runbook
+section was aligned in PR `#1162` via commit `4e2da5ad`.
+
+If a stacked child PR is auto-closed because its parent base branch was merged
+and deleted:
+
+1. Verify the parent PR is actually merged:
+   `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
+2. Create a new branch from `origin/main` in its own worktree.
+3. Cherry-pick the child commits onto that new branch.
+4. Re-run `pre-commit run --all-files` and `make verify` on the replacement
+   branch head before pushing.
+5. Push the replacement branch and open a **replacement PR** on `main`.
+6. Create a new canonical artifact path for the replacement PR:
+   `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
+7. Do not continue pushing to the auto-closed PR number as if it were still the
+   active review lane.
 
 ## Agent Control Plane Security Ops (Wave 1 baseline)
 

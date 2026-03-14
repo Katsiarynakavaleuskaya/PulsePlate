@@ -35,6 +35,9 @@ Or individually:
 - PR MUST NOT be merged while any bot comment contains actionable items.
 - Before merge, confirm CodeRabbit, Sourcery, and Cubic are explicitly PASS / no-actionables.
 - Required checks must be PASS with no pending required jobs.
+- `gh pr checks <PR_NUMBER>` is diagnostic only: a non-zero exit can mean live
+  pending jobs, not failed checks. Use the strict merge wrapper plus targeted
+  `gh run view <RUN_ID>` inspection before calling a PR red or green.
 - Mandatory wait-window: after the latest bot/review activity, do one final check pass and wait at least one review cycle before merge (never merge on the first green tick).
 - Merge checklist is mandatory: canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` (Fixed in Commit Mapping SoT) plus PR body mirror (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`).
 - This gate applies to every non-draft PR before merge.
@@ -1370,6 +1373,7 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **After PR merge, clean local branch, remote branch, and merged worktree in the same work session.**
 - ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
 - ✅ **Before continuing work after merge, verify PR state (`gh pr view <N> --json state,mergeCommit,mergedAt`). If `state=MERGED`, start a new worktree + branch from `origin/main` and do not push to the merged PR branch.**
+- ✅ **If a stacked child PR auto-closes after its parent base branch is merged/deleted, create a new branch from `origin/main`, cherry-pick the child commits, rerun local gates, and open a replacement PR on `main` with a new `docs/review/PR_<N>_FIXED_MAPPING.md` artifact.**
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.

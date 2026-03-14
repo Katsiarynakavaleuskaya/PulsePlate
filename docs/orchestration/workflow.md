@@ -339,6 +339,10 @@ Rule: promotion writes exactly one durable destination artifact plus one local p
 **Required:**
 - Scope respected
 - Quality gates pass (see `RUNBOOK_AGENT.md` Quality Gates section)
+- Merge readiness verified on the latest PR head via the canonical wrapper in
+  `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`
+- No pending required jobs or unresolved/actionable bot comments remain at the
+  time of the final merge decision
 - Documentation updated (if needed)
 - Postponed items recorded in `BACKLOG_LEDGER.md`
 
