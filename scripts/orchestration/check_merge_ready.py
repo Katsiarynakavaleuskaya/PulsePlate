@@ -11,6 +11,7 @@ import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remov
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -38,8 +39,10 @@ class GateResult:
 class GatePolicy:
     """Static gate classification used by the wrapper output."""
 
-    gate_class: str
-    lane: str
+    gate_class: Literal["hard", "soft", "external", "advisory"]
+    lane: Literal[
+        "pr-governance", "review-governance", "required-checks", "review-proof", "unclassified"
+    ]
     blocking: bool
 
 
@@ -49,6 +52,13 @@ GATE_POLICIES: dict[str, GatePolicy] = {
     "current-head-checks": GatePolicy(gate_class="hard", lane="required-checks", blocking=True),
     "review-threads-disposition": GatePolicy(gate_class="hard", lane="review-proof", blocking=True),
 }
+
+BLOCKING_MERGE_READY_GATES: tuple[str, ...] = (
+    "phase2-pr-body-gates",
+    "merge-readiness-gate",
+    "current-head-checks",
+    "review-threads-disposition",
+)
 
 
 def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -251,8 +261,13 @@ def _print_merge_ready_bundle() -> None:
     """Render the canonical blocking bundle before gate execution output."""
 
     print("Blocking merge-ready bundle:")
-    for gate_name, policy in GATE_POLICIES.items():
-        print(f"- {gate_name}: class={policy.gate_class}, lane={policy.lane}, blocking=yes")
+    for gate_name in BLOCKING_MERGE_READY_GATES:
+        policy = GATE_POLICIES[gate_name]
+        blocking_value = "yes" if policy.blocking else "no"
+        print(
+            f"- {gate_name}: class={policy.gate_class}, "
+            f"lane={policy.lane}, blocking={blocking_value}"
+        )
     print("Advisory / external signals:")
     print("- third-party review bots remain advisory unless GitHub branch protection promotes them")
 
