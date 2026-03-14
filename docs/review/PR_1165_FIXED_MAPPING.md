@@ -9,7 +9,7 @@
 
 ## Merge Readiness
 - [x] Local hard gate passed (`make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
+- [x] Final post-bot wait cycle completed
