@@ -19,12 +19,12 @@ Evidence: `AGENTS.md:1364` now uses the non-history-rewriting `new branch from o
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934182422 -> 4e2da5ad7d6921b6c2133817c0d70dbd7e80303b
 
 Disposition: FIXED
-Commit: 1d65d46f3a8045c74558769c3186ef0c728a19a0
+Commit: 1d65d46f0455aff1be5390c7d89d8071d59f4b3b
 Evidence: `RUNBOOK_AGENT.md:3` now reflects `2026-03-13 (PR #1162)` for accurate header provenance, `RUNBOOK_AGENT.md:294` through `RUNBOOK_AGENT.md:302` add explicit implementation provenance for live-triage behavior, `RUNBOOK_AGENT.md:334` through `RUNBOOK_AGENT.md:336` cite the non-history-rewriting replacement-flow implementation, and `tools/codex_skills/pulseplate-workflow/SKILL.md:55` through `tools/codex_skills/pulseplate-workflow/SKILL.md:65` plus `tools/codex_skills/pulseplate-workflow/SKILL.md:86` through `tools/codex_skills/pulseplate-workflow/SKILL.md:90` now record implementation provenance for the merge-readiness and post-merge cleanup rules.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#pullrequestreview-3947467854 -> 1d65d46f3a8045c74558769c3186ef0c728a19a0
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220669 -> 1d65d46f3a8045c74558769c3186ef0c728a19a0
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220677 -> 1d65d46f3a8045c74558769c3186ef0c728a19a0
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220679 -> 1d65d46f3a8045c74558769c3186ef0c728a19a0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#pullrequestreview-3947467854 -> 1d65d46f0455aff1be5390c7d89d8071d59f4b3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220669 -> 1d65d46f0455aff1be5390c7d89d8071d59f4b3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220677 -> 1d65d46f0455aff1be5390c7d89d8071d59f4b3b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1162#discussion_r2934220679 -> 1d65d46f0455aff1be5390c7d89d8071d59f4b3b
 
 ## Merge Readiness
 - [x] Local gates passed on current head
