@@ -39,7 +39,7 @@ Evidence: `scripts/orchestration/skill_router.py:341` now treats `docs/review/` 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1166#discussion_r2934996810 -> 8532f9dad7d18618719b82cad87d5aa04b801236
 
 ## Merge Readiness
-- [x] Local hard gate passed (`make verify`)
+- [ ] Local hard gate passed (`make verify`)
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads
 - [ ] No actionable bot comments
