@@ -121,14 +121,21 @@ final class SubscriptionBillingServiceTests: XCTestCase {
     }
 }
 
-// RU: XCTest helper не мутируется после настройки сценария, поэтому `@unchecked Sendable` безопасен.
-// EN: This XCTest helper is only configured before use, so `@unchecked Sendable` is safe here.
+// RU: Доступ к изменяемому состоянию helper синхронизирован через `NSLock`, поэтому `@unchecked Sendable` безопасен для XCTest.
+// EN: Mutable helper state is synchronized with `NSLock`, so `@unchecked Sendable` is safe for XCTest use here.
 private final class CapturingSubscriptionAPIClient: APIClientProtocol, @unchecked Sendable {
-    var lastPostPath: String?
-    var lastPostHeaders: [String: String]?
-    var lastJSONBody: [String: Any]?
-    var lastGetPath: String?
-    var lastGetHeaders: [String: String]?
+    private let lock = NSLock()
+    private var _lastPostPath: String?
+    private var _lastPostHeaders: [String: String]?
+    private var _lastJSONBody: [String: Any]?
+    private var _lastGetPath: String?
+    private var _lastGetHeaders: [String: String]?
+
+    var lastPostPath: String? { withLock { _lastPostPath } }
+    var lastPostHeaders: [String: String]? { withLock { _lastPostHeaders } }
+    var lastJSONBody: [String: Any]? { withLock { _lastJSONBody } }
+    var lastGetPath: String? { withLock { _lastGetPath } }
+    var lastGetHeaders: [String: String]? { withLock { _lastGetHeaders } }
 
     private let verifyResult: AppleReceiptVerificationResponseDTO?
     private let activateResult: SubscriptionActivationResponseDTO?
@@ -160,9 +167,14 @@ private final class CapturingSubscriptionAPIClient: APIClientProtocol, @unchecke
         body: Body,
         headers: [String: String]
     ) async throws -> Response {
-        lastPostPath = path
-        lastPostHeaders = headers
-        lastJSONBody = try Self.jsonDictionary(from: body)
+        withLock {
+            _lastPostPath = path
+            _lastPostHeaders = headers
+        }
+        let jsonBody = try Self.jsonDictionary(from: body)
+        withLock {
+            _lastJSONBody = jsonBody
+        }
 
         if path == "/api/v1/billing/apple/verify-receipt" {
             if let verifyError {
@@ -184,8 +196,10 @@ private final class CapturingSubscriptionAPIClient: APIClientProtocol, @unchecke
         path: String,
         headers: [String: String]
     ) async throws -> Response {
-        lastGetPath = path
-        lastGetHeaders = headers
+        withLock {
+            _lastGetPath = path
+            _lastGetHeaders = headers
+        }
 
         if Response.self == SubscriptionActivationResponseDTO.self {
             return fetchResult as! Response
@@ -199,5 +213,11 @@ private final class CapturingSubscriptionAPIClient: APIClientProtocol, @unchecke
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(body)
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 }

@@ -388,6 +388,7 @@ final class ThinClientGuardsTests: XCTestCase {
         for relativeFile in guardedFiles {
             let fileURL = root.appendingPathComponent(relativeFile)
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
                 continue
             }
             let content = try String(contentsOf: fileURL, encoding: .utf8)
@@ -400,7 +401,7 @@ final class ThinClientGuardsTests: XCTestCase {
         XCTAssertTrue(
             hits.isEmpty,
             """
-            ThinClientGuards failed: direct URLSession usage detected in subscription flow files.
+            ThinClientGuards failed: direct URLSession usage or missing guarded files detected in subscription flow files.
 
             Fix:
             - Route billing transport through APIClient / HTTPClient only.
@@ -424,11 +425,12 @@ final class ThinClientGuardsTests: XCTestCase {
         for relativeFile in guardedFiles {
             let fileURL = root.appendingPathComponent(relativeFile)
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
                 continue
             }
             let content = try String(contentsOf: fileURL, encoding: .utf8)
             let scanContent = stripSwiftComments(from: content)
-            for forbiddenFlag in forbiddenFlags where scanContent.contains(forbiddenFlag) {
+            for forbiddenFlag in forbiddenFlags where containsToken(forbiddenFlag, in: scanContent) {
                 hits.append("\(relativeFile): \(forbiddenFlag)")
             }
         }
@@ -457,6 +459,16 @@ final class ThinClientGuardsTests: XCTestCase {
     private func relativePath(_ url: URL, root: URL) -> String {
         url.path.replacingOccurrences(of: root.path + "/", with: "")
     }
+}
+
+private func containsToken(_ token: String, in content: String) -> Bool {
+    let pattern = "(?<![A-Za-z0-9_])\(NSRegularExpression.escapedPattern(for: token))(?![A-Za-z0-9_])"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        return false
+    }
+
+    let range = NSRange(content.startIndex..<content.endIndex, in: content)
+    return regex.firstMatch(in: content, range: range) != nil
 }
 
 // MARK: - Helpers

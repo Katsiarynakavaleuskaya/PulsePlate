@@ -308,7 +308,7 @@ final class SubscriptionManager: ObservableObject {
         receiptData: String,
         verification: AppleReceiptVerificationResponseDTO
     ) throws -> ActivateSubscriptionRequestDTO {
-        guard let productID = verification.productID ?? transaction.productID.nilIfEmpty else {
+        guard let productID = verification.productID?.nilIfEmpty ?? transaction.productID.nilIfEmpty else {
             throw SubscriptionManagerError.missingProductID
         }
 
@@ -472,6 +472,7 @@ final class SubscriptionManager: ObservableObject {
 
 private extension String {
     var nilIfEmpty: String? {
-        isEmpty ? nil : self
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

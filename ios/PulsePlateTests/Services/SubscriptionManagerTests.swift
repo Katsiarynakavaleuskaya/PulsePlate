@@ -102,6 +102,35 @@ final class SubscriptionManagerTests: XCTestCase {
         }
     }
 
+    func test_purchaseFallsBackToTransactionProductIDWhenVerificationProductIDBlank() async {
+        let storeKit = MockStoreKitManager()
+        let billing = MockSubscriptionBillingService()
+        let manager = makeManager(storeKit: storeKit, billing: billing)
+
+        storeKit.purchaseResult = .success(.fixture())
+        storeKit.receiptData = "receipt-blank-product-id"
+        billing.verifyResult = AppleReceiptVerificationResponseDTO(
+            provider: "apple",
+            verified: true,
+            verificationState: .active,
+            environment: "production",
+            productID: "   ",
+            expiresAt: "2026-04-01T00:00:00Z",
+            activationPayload: AppleActivationHintDTO(tier: .pro, platform: "ios"),
+            error: nil
+        )
+        billing.activateResult = .activeActivation(id: "act-fallback")
+        billing.fetchResult = .activeActivation(id: "act-fallback")
+
+        await manager.purchase(productID: "com.pulseplate.premium.monthly")
+
+        XCTAssertEqual(
+            billing.lastActivateRequest?.payload.verificationResult.productID,
+            "com.pulseplate.premium.monthly"
+        )
+        XCTAssertEqual(manager.flowState, .unlocked)
+    }
+
     func test_restoreHappyPathUnlocksAfterRefresh() async {
         let storeKit = MockStoreKitManager()
         let billing = MockSubscriptionBillingService()
@@ -349,6 +378,7 @@ private final class MockSubscriptionBillingService: SubscriptionBillingServicing
     var activateError: Error?
     var fetchResult: SubscriptionActivationResponseDTO = .activeActivation(id: "act-default")
     var fetchError: Error?
+    private(set) var lastActivateRequest: ActivateSubscriptionRequestDTO?
     private(set) var verifyCallCount = 0
     private(set) var activateCallCount = 0
     private(set) var fetchCallCount = 0
@@ -369,6 +399,7 @@ private final class MockSubscriptionBillingService: SubscriptionBillingServicing
         apiKey: String
     ) async throws -> SubscriptionActivationResponseDTO {
         activateCallCount += 1
+        lastActivateRequest = request
         if let activateError {
             throw activateError
         }

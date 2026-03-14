@@ -16,7 +16,8 @@ struct PaywallScreen: View {
                 .padding(.vertical, 6)
             }
 
-            if let entitlement = subscriptionManager.entitlement {
+            if let entitlement = subscriptionManager.entitlement,
+               subscriptionManager.flowState == .unlocked {
                 Section("Entitlement") {
                     Label("Backend access active", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
