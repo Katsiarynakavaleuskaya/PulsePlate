@@ -475,7 +475,9 @@ Evidence: ios/fastlane/verify/validate_color_gamut.rb:75
 
 ## Merge Readiness
 - [x] Local hard gate passed (`pre-commit run --all-files`; `pytest -q tests/test_ios_appstore_asset_validators.py`; `make ios-test IOS_ONLY_TESTING="PulsePlateUITests/AppStoreScreenshotTests"`; `make verify`)
-- [ ] Required checks PASS with no pending required jobs
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments
-- [ ] Final post-bot wait cycle completed
+- [x] Required checks PASS with no pending required jobs
+- [x] No unresolved review threads
+- [x] No actionable bot comments
+- [x] Final post-bot wait cycle completed
+
+Note: The remaining `github-advanced-security` code-scanning items are non-conversation alerts and are excluded from unresolved-thread counting per `scripts/ci/check_pr_merge_readiness.py:199`.
